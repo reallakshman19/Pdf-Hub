@@ -1,0 +1,1181 @@
+PDF HUB — ENHANCED WRITER MODULE
+WORK INSTRUCTIONS WI-06 TO WI-10
+Generated for implementation planning only. No repository upload.
+
+This is the continuation file after:
+- PDF_Hub_Enhanced_Writer_WI_01_to_05.txt
+
+Covered here:
+- WI-06 / W6: Writer Inspector + Object List
+- WI-07 / W7: Writer Templates + Page Authoring Blocks
+- WI-08 / W8: Writer Ribbon / WordPad Toolbar Integration
+- WI-09 / W9: ContentModel-First Writer Export Hardening
+- WI-10 / W10: Writer Certification + Regression Suite
+
+
+================================================================================
+GLOBAL ASSUMPTIONS
+================================================================================
+
+The following are already applied before starting WI-06:
+
+Base audit-closure phases:
+- Phase 1: commit pipeline / save rebase
+- Phase 2: toolbar save/export unification
+- Phase 3: annotation dirty tracking and persistence visibility
+- Phase 4: writer durability and HTML hardening
+- Phase 5: macro dry-run and rollback
+- Phase 6: semantic writer export foundation
+- Phase 7: save/autosave status indicator
+- Phase 8: audit gate tests and static audit
+
+Writer enhancement phases:
+- WI-01 / W1: structured contentModel and migrations
+- WI-02 / W2: universal clipboard / paste / drag-drop
+- WI-03 / W3: WordPad-style rich text editor
+- WI-04 / W4: Excel-like table editor
+- WI-05 / W5: image editor and image transforms
+
+Core invariant:
+Writer objects must always remain compatible with:
+- content: string
+- contentModel?: WriterContentModel
+- sourceMeta?: WriterSourceMeta
+
+
+================================================================================
+GLOBAL IMPLEMENTATION RULES
+================================================================================
+
+1. Do not overwrite Phase 1–8 patches.
+2. Do not overwrite WI-01 to WI-05 patches.
+3. Keep legacy writer object compatibility.
+4. Prefer contentModel for new functionality.
+5. Keep content:string synced for old render/export paths.
+6. Hidden objects must remain in the store but not render/export.
+7. Templates must create normal writer objects.
+8. Ribbon commands must call existing writer store actions.
+9. Export must prefer contentModel and only rasterize when needed.
+10. Certification must not add features; it must prove regressions are closed.
+
+Validation after each WI:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Final writer validation:
+cd frontend
+npm run certify:writer
+
+Numeric pass target:
+TypeScript errors: 0
+Unit test failures: 0
+Static audit failures: 0
+Build errors: 0
+
+
+================================================================================
+FILE OWNERSHIP WINDOWS
+================================================================================
+
+WI-06 owner:
+- frontend/src/core/writer/objectNaming.ts
+- frontend/src/components/writer/WriterInspectorPanel.tsx
+- frontend/src/components/writer/WriterObjectListPanel.tsx
+- frontend/src/components/writer/WriterSidePanel.tsx
+- frontend/src/components/writer/WriterElementNode.tsx, hidden-object render guard only
+- frontend/src/core/writer/exporter.ts, hidden-object skip only
+- frontend/src/core/writer/types.ts, optional name/hidden fields only
+
+WI-07 owner:
+- frontend/src/core/writer/templates.ts
+- frontend/src/core/writer/templatePersistence.ts
+- frontend/src/components/writer/WriterTemplateGallery.tsx
+- frontend/src/components/writer/HeaderFooterWriterPanel.tsx
+- frontend/src/components/writer/WriterSidePanel.tsx, add templates tab only
+
+WI-08 owner:
+- frontend/src/core/writer/uiStore.ts
+- frontend/src/core/writer/clipboard/readNavigatorClipboard.ts
+- frontend/src/components/writer/WriterRibbon.tsx
+- frontend/src/components/writer/WriterSidePanel.tsx, connect to uiStore only
+- main workspace layout file, render WriterRibbon + WriterSidePanel only
+
+WI-09 owner:
+- frontend/src/core/writer/exporter.ts
+- frontend/src/core/writer/exporter.phaseW9.test.ts
+- frontend/scripts/phase8-static-audit.mjs, optional audit extension
+
+WI-10 owner:
+- frontend/src/core/writer/writerCertification.phaseW10.test.ts
+- frontend/scripts/writer-static-audit.mjs
+- frontend/package.json, scripts only
+- frontend/WRITER_CERTIFICATION.md
+- .github/workflows/writer-certify.yml, optional
+
+
+================================================================================
+WI-06 — WRITER INSPECTOR + OBJECT LIST
+================================================================================
+
+Objective:
+Add a professional side-panel for writer objects so users can inspect, rename,
+select, lock, hide, reorder, edit geometry, edit style, and delete writer objects.
+
+Scope:
+- Add optional object metadata: name, hidden.
+- Add object naming helpers.
+- Add WriterInspectorPanel.
+- Add WriterObjectListPanel.
+- Add WriterSidePanel wrapper.
+- Patch canvas render so hidden objects do not render.
+- Patch export so hidden objects do not export.
+- Do not change save/export pipeline beyond hidden-object skip.
+
+Primary files:
+1. frontend/src/core/writer/types.ts
+2. frontend/src/core/writer/objectNaming.ts
+3. frontend/src/components/writer/WriterInspectorPanel.tsx
+4. frontend/src/components/writer/WriterObjectListPanel.tsx
+5. frontend/src/components/writer/WriterSidePanel.tsx
+6. frontend/src/components/writer/WriterElementNode.tsx
+7. frontend/src/core/writer/exporter.ts
+8. frontend/src/core/writer/objectNaming.phaseW6.test.ts
+
+Implementation Steps:
+
+Step 1 — Patch PlacedElement type
+In frontend/src/core/writer/types.ts, add optional fields:
+- name?: string
+- hidden?: boolean
+
+Rules:
+- Do not make them required.
+- Do not alter content/contentModel/sourceMeta.
+- No migration required because fields are optional.
+
+Step 2 — Add objectNaming.ts
+Implement:
+- getWriterObjectName(element, index?)
+- getWriterObjectDescription(element)
+- getWriterObjectTypeLabel(type)
+- duplicateWriterObjectName(elements, baseName)
+
+Fallback names:
+- rich-text -> Text 1, Text 2, etc.
+- table -> Table 1, Table 2, etc.
+- image -> Image 1, Image 2, etc.
+
+Description should include:
+- page number
+- width x height
+- x/y
+- locked state
+- hidden state
+
+Step 3 — Add WriterInspectorPanel.tsx
+Features:
+- show selected writer object
+- show current page object mini-list if nothing selected
+- edit object name
+- edit x/y/width/height
+- edit zIndex
+- edit opacity
+- edit text color
+- edit background
+- edit border width/color
+- edit font size
+- edit padding
+- show type-specific details:
+  - table row/column count
+  - image natural size, rotation, alt text
+  - sourceMeta source/MIME/imported date/warning
+- hide/show
+- lock/unlock
+- delete
+
+Store usage:
+- useWriterStore()
+- updateElement(id, patch)
+- removeElement(id)
+- setSelectedId(id)
+
+Session usage:
+- useSessionStore().viewState.currentPage
+
+Step 4 — Add WriterObjectListPanel.tsx
+Features:
+- list writer objects on current page
+- sort by zIndex descending
+- select object
+- double-click rename
+- hide/show
+- lock/unlock
+- bring to front
+- bring forward
+- send backward
+- send to back
+- delete
+
+Store actions expected:
+- setSelectedId
+- updateElement
+- removeElement
+- bringForward
+- sendBackward
+- bringToFront
+- sendToBack
+
+Step 5 — Add WriterSidePanel.tsx
+Create a wrapper with tabs:
+- Inspector
+- Objects
+
+Later WI-07 will add Templates tab.
+
+Step 6 — Patch WriterElementNode.tsx
+Add hidden-object guard:
+if (element.hidden) return null;
+
+Important:
+- hidden objects remain in store
+- hidden objects are still visible in Object List
+- hidden objects should not be selectable on canvas
+
+Step 7 — Patch exporter hidden skip
+In exporter element sorting path:
+elements
+  .filter((element) => !element.hidden)
+  .sort(...)
+
+Step 8 — Add WI-06 tests
+Create objectNaming.phaseW6.test.ts:
+- explicit object name is used
+- fallback names generated
+- type labels correct
+- description includes hidden/locked
+- duplicate-safe name generated
+
+Pass Criteria:
+- Inspector visible.
+- Object list visible.
+- Object selection from list works.
+- Rename works.
+- Numeric geometry editing works.
+- Hide/show works.
+- Lock/unlock works.
+- Delete works.
+- Z-order buttons work.
+- Hidden object not rendered.
+- Hidden object not exported.
+- Visible object export unchanged.
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Select writer object.
+   Expected: inspector shows type, name, geometry, style.
+
+2. Rename object.
+   Expected: object list and inspector show new name.
+
+3. Edit x/y/width/height.
+   Expected: object moves/resizes accurately.
+
+4. Hide object.
+   Expected: object disappears from canvas but remains in object list.
+
+5. Show object.
+   Expected: object appears again.
+
+6. Lock object.
+   Expected: object cannot be dragged/resized.
+
+7. Delete object.
+   Expected: object removed from store and page.
+
+8. Bring forward/back.
+   Expected: visual stacking changes.
+
+9. Export with hidden object.
+   Expected: hidden object not exported.
+
+
+================================================================================
+WI-07 — WRITER TEMPLATES + PAGE AUTHORING BLOCKS
+================================================================================
+
+Objective:
+Add reusable writer templates for headers, footers, watermarks, stamps, note blocks,
+checklist tables, and custom user-selected writer-object templates.
+
+Scope:
+- Add writer template model.
+- Add built-in templates.
+- Add template token resolution.
+- Add apply-to-pages logic.
+- Add save selected objects as custom template.
+- Add localStorage template persistence.
+- Add template gallery UI.
+- Add header/footer quick panel.
+- Add Templates tab to WriterSidePanel.
+
+Primary files:
+1. frontend/src/core/writer/templates.ts
+2. frontend/src/core/writer/templatePersistence.ts
+3. frontend/src/components/writer/WriterTemplateGallery.tsx
+4. frontend/src/components/writer/HeaderFooterWriterPanel.tsx
+5. frontend/src/components/writer/WriterSidePanel.tsx
+6. frontend/src/core/writer/templates.phaseW7.test.ts
+7. frontend/src/core/writer/templatePersistence.phaseW7.test.ts
+
+Implementation Steps:
+
+Step 1 — Add templates.ts
+Define:
+- WriterTemplateCategory
+  header | footer | watermark | stamp | table | text | custom
+- WriterTemplateApplyMode
+  current-page | selected-pages | all-pages
+- WriterTemplateElement
+- WriterTemplate
+- WriterTemplateTokenContext
+- WriterTemplateApplyInput
+- WriterTemplateApplyResult
+
+Supported tokens:
+- {{pageNumber}}
+- {{pageCount}}
+- {{fileName}}
+- {{date}}
+- {{time}}
+- {{isoDate}}
+
+Implement:
+- buildDefaultWriterTemplates()
+- applyWriterTemplateToPages(input)
+- createWriterTemplateFromElements(input)
+- cloneWriterTemplate(template)
+- resolveTemplateString(value, context)
+
+Built-in templates:
+- Basic Header
+- Basic Footer
+- DRAFT Watermark
+- Reviewed Stamp
+- Approved Stamp
+- Review Checklist Table
+- Engineering Note
+
+Rule:
+Templates create ordinary writer PlacedElement objects.
+
+Step 2 — Token resolution
+Implement token resolution in:
+- plain content string
+- WriterRichTextModel runs
+- WriterTableModel cell text
+- element name
+
+Tokens are resolved when the template is applied, not during export.
+
+Step 3 — Add templatePersistence.ts
+Use localStorage key:
+pdfhub.writer.templates.v1
+
+Implement:
+- loadWriterTemplateLibrary()
+- saveCustomWriterTemplates(templates)
+- addCustomWriterTemplate(template)
+- deleteCustomWriterTemplate(templateId)
+
+Library shape:
+- builtIn
+- custom
+- all
+
+Rules:
+- Built-in templates cannot be deleted.
+- Only custom templates are stored in localStorage.
+- Bad/corrupt localStorage should not crash app.
+
+Step 4 — Add WriterTemplateGallery.tsx
+Features:
+- category filter
+- apply mode selector:
+  current page / selected pages / all pages
+- list built-in and custom templates
+- apply template
+- save selected writer objects as custom template
+- delete custom template
+- show object count and category
+
+Store usage:
+- useSessionStore() for fileName/pageCount/selectedPages/currentPage
+- useWriterStore() for elements/selectedIds/addElement/setSelection
+- useToastStore() for feedback
+
+Step 5 — Add HeaderFooterWriterPanel.tsx
+Quick panel:
+- Add Header
+- Add Footer
+
+Target:
+- selectedPages if available
+- otherwise currentPage
+
+Step 6 — Patch WriterSidePanel.tsx
+Add Templates tab:
+- Inspector
+- Objects
+- Templates
+
+Render:
+- WriterTemplateGallery
+
+Step 7 — Add WI-07 tests
+templates.phaseW7.test.ts:
+- build default templates
+- resolve tokens
+- create custom template strips id/pageNumber
+- apply template to multiple pages
+- ignore invalid target pages
+
+templatePersistence.phaseW7.test.ts:
+- built-ins load
+- custom template add/delete works
+- localStorage persistence works
+
+Pass Criteria:
+- Built-in templates visible.
+- Apply template to current page works.
+- Apply template to selected pages works.
+- Apply template to all pages works.
+- Token resolution works.
+- Save selected objects as custom template works.
+- Delete custom template works.
+- Custom template persists.
+- Save/export regression: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Open Templates tab.
+   Expected: built-in templates visible.
+
+2. Apply Basic Header to current page.
+   Expected: header objects appear.
+
+3. Apply Basic Footer to selected pages.
+   Expected: footer appears on selected pages.
+
+4. Apply DRAFT watermark to all pages.
+   Expected: watermark appears on all pages.
+
+5. Apply Reviewed stamp.
+   Expected: stamp appears with current date.
+
+6. Select objects and save as custom template.
+   Expected: custom template appears.
+
+7. Refresh app.
+   Expected: custom template still exists.
+
+8. Delete custom template.
+   Expected: removed from custom list.
+
+9. Save/export PDF.
+   Expected: template objects included.
+
+
+================================================================================
+WI-08 — WRITER RIBBON / WORDPAD TOOLBAR INTEGRATION
+================================================================================
+
+Objective:
+Expose enhanced writer features through a unified professional ribbon/toolbar,
+instead of relying on scattered panels and double-click-only workflows.
+
+Scope:
+- Add writer UI store.
+- Add navigator clipboard reader for toolbar paste.
+- Add WriterRibbon component.
+- Patch WriterSidePanel to be controlled by UI store.
+- Integrate WriterRibbon and WriterSidePanel in workspace layout.
+
+Primary files:
+1. frontend/src/core/writer/uiStore.ts
+2. frontend/src/core/writer/clipboard/readNavigatorClipboard.ts
+3. frontend/src/components/writer/WriterRibbon.tsx
+4. frontend/src/components/writer/WriterSidePanel.tsx
+5. main workspace layout file
+6. frontend/src/core/writer/uiStore.phaseW8.test.ts
+
+Implementation Steps:
+
+Step 1 — Add uiStore.ts
+Create Zustand store:
+State:
+- sidePanelOpen: boolean
+- sidePanelTab: inspector | objects | templates
+- ribbonMode: compact | expanded
+
+Actions:
+- openSidePanel(tab?)
+- closeSidePanel()
+- toggleSidePanel(tab?)
+- setSidePanelTab(tab)
+- setRibbonMode(mode)
+- toggleRibbonMode()
+
+Step 2 — Add readNavigatorClipboard.ts
+Purpose:
+Toolbar Paste button cannot access ClipboardEvent. Use navigator.clipboard where available.
+
+Implement:
+- readNavigatorClipboardPayload(options?)
+
+Read priority:
+1. image from navigator.clipboard.read()
+2. text/html from navigator.clipboard.read()
+3. text/plain from navigator.clipboard.read()
+4. navigator.clipboard.readText()
+5. unsupported warning
+
+Reuse W2 parsers:
+- blobToClipboardImage
+- parseClipboardTableFromHtml
+- parseClipboardTableFromText
+- parseClipboardRichTextFromHtml
+- parsePlainTextToRichTextModel
+- sanitizeClipboardHtml
+
+Step 3 — Add WriterRibbon.tsx
+Ribbon groups:
+
+Tools:
+- Select
+- Place Text
+- Place Image
+- Place Table
+- OCR Region
+
+Insert:
+- Paste
+- Insert Text Box
+- Insert Image From File
+- Insert Table
+- Add Header
+- Add Footer
+
+Format:
+- text color
+- background
+- border color
+- font size
+- opacity
+
+Arrange:
+- bring to front
+- bring forward
+- send backward
+- send to back
+- lock/unlock
+- hide/show
+- duplicate
+- delete
+
+Panel:
+- Inspector
+- Objects
+- Templates
+- toggle side panel
+- compact/expanded ribbon
+
+Store usage:
+- useWriterStore()
+- useSessionStore()
+- useWriterUiStore()
+- useToastStore()
+
+Insert commands must create normal writer objects:
+- text object with createEmptyRichTextModel()
+- table object with createDefaultTableModel()
+- image object with chooseWriterImageFile()
+
+Step 4 — Patch WriterSidePanel.tsx
+Use uiStore:
+- sidePanelOpen
+- sidePanelTab
+- setSidePanelTab
+- closeSidePanel
+
+If sidePanelOpen is false, return null.
+
+Step 5 — Workspace integration
+In main workspace layout:
+- import WriterRibbon
+- import WriterSidePanel
+
+Render pattern:
+<div className="flex h-full min-h-0">
+  <div className="flex-1 min-w-0 flex flex-col">
+    <WriterRibbon />
+    <div className="flex-1 min-h-0">
+      existing PDF workspace
+    </div>
+  </div>
+  <WriterSidePanel />
+</div>
+
+Step 6 — Add WI-08 tests
+uiStore.phaseW8.test.ts:
+- open side panel with requested tab
+- close side panel
+- toggle side panel
+- set side panel tab opens panel
+- toggle ribbon mode
+
+Pass Criteria:
+- Writer ribbon visible.
+- Tool switching works.
+- Insert text/table/image works.
+- Toolbar paste works or shows permission warning.
+- Format selected object works.
+- Arrange selected object works.
+- Lock/hide/delete/duplicate works.
+- Side panel tab switching works.
+- Header/footer quick apply works.
+- Compact/expanded ribbon works.
+- Save/export regression: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Ribbon visible above PDF workspace.
+   Expected: groups visible.
+
+2. Click Select/Text/Image/Table/OCR.
+   Expected: activeTool changes.
+
+3. Click Insert Text.
+   Expected: text box appears.
+
+4. Click Insert Table.
+   Expected: table appears.
+
+5. Click Insert Image.
+   Expected: file picker opens and image appears.
+
+6. Click Paste.
+   Expected: clipboard object appears, or permission warning shown.
+
+7. Select object and change color/font/opacity.
+   Expected: selected object updates.
+
+8. Use arrange buttons.
+   Expected: z-order changes.
+
+9. Use lock/hide/delete/duplicate.
+   Expected: corresponding action executes.
+
+10. Click Inspector/Object/Templates.
+    Expected: side panel opens correct tab.
+
+11. Add header/footer from ribbon.
+    Expected: applied to selected/current pages.
+
+12. Toggle compact ribbon.
+    Expected: ribbon switches layout.
+
+
+================================================================================
+WI-09 — CONTENTMODEL-FIRST WRITER EXPORT HARDENING
+================================================================================
+
+Objective:
+Make writer export consistently prefer structured contentModel and produce semantic,
+searchable/selectable text/table output wherever possible.
+
+Scope:
+- Replace raster-first writer exporter.
+- Skip hidden objects.
+- Prefer normalizeWriterElement/contentModel.
+- Export rich text semantically.
+- Export tables as vector grid + real PDF text.
+- Export images from image model.
+- Pre-render crop/rotation image transforms into PNG.
+- Keep raster fallback for unsupported content.
+- Preserve buildTableHtml() and sanitizeWriterHtml() exports for macro compatibility.
+
+Primary files:
+1. frontend/src/core/writer/exporter.ts
+2. frontend/src/core/writer/exporter.phaseW9.test.ts
+3. Optional: frontend/scripts/phase8-static-audit.mjs
+
+Implementation Steps:
+
+Step 1 — Replace exporter architecture
+Export strategy:
+1. filter hidden objects
+2. sort by pageNumber then zIndex
+3. normalizeWriterElement(element)
+4. draw semantically by type:
+   - rich-text -> drawRichTextModel
+   - table -> drawTableModel
+   - image -> drawImageModel
+5. if semantic draw fails and fallback allowed:
+   - drawRasterFallback
+6. collect warnings
+
+Main function:
+bakeWriterElementsIntoPdf(baseBytes, elements, options)
+
+Options:
+- preferSemantic?: boolean
+- allowRasterFallback?: boolean
+- collectWarnings?: (warnings) => void
+
+Step 2 — Embed standard fonts
+Use pdf-lib fonts:
+- Helvetica
+- HelveticaBold
+- HelveticaOblique
+- HelveticaBoldOblique
+
+Step 3 — Rich text semantic export
+Implement:
+- drawRichTextModel(page, fonts, element, model)
+- wrapParagraphRuns()
+- drawWrappedLine()
+- writerRunToDrawRuns()
+- splitRunForWrapping()
+- hardBreakRun()
+- inferBlockFontSize()
+
+Supported:
+- paragraphs
+- headings
+- bullet marker
+- bold/italic
+- underline/strike
+- color
+- highlight
+- superscript/subscript
+- font size
+- alignment left/center/right
+- line height
+- padding
+- border/background
+
+Known limitation:
+- justify exports as left-aligned in W9 for deterministic output.
+
+Step 4 — Table semantic export
+Implement:
+- drawTableModel(page, fonts, element, model)
+- drawTableCellText()
+- wrapPlainText()
+- computeColumnWidths()
+
+Supported:
+- vector grid
+- header background
+- border color/width
+- cell text
+- bold/italic
+- text color
+- left/center/right alignment
+- column widths
+- row clipping based on element height
+
+Step 5 — Image export
+Implement:
+- drawImageModel(pdfDoc, page, element, model)
+- renderTransformedImageToPng(model, output)
+- parseImageBytes(content)
+- isJpeg(bytes)
+- loadImage(src)
+
+Rules:
+- if no crop/rotation, embed image directly
+- if crop/rotation exists, render transformed PNG via canvas and embed that
+- respect opacity
+- draw border
+
+Step 6 — Raster fallback
+Implement:
+- drawRasterFallback(pdfDoc, page, element)
+- captureElementToPng(element)
+- waitForImage(img)
+- canvasToPngBytes(canvas)
+
+Fallback must:
+- sanitize rich HTML
+- build escaped table HTML
+- support image preview
+- remove temporary DOM node after use
+
+Step 7 — Preserve compatibility exports
+Keep exported:
+- buildTableHtml(data, width, scale)
+- sanitizeWriterHtml(html)
+
+These are used by macro/content operations and static audit.
+
+Step 8 — Shared helpers
+Implement:
+- drawElementBox()
+- drawElementBorder()
+- getFont()
+- topToPdfY()
+- sanitizeStyleAttribute()
+- parseColor()
+- safeCssColor()
+- safeFontFamily()
+- safeNumber()
+- normalizeRotation()
+- escapeHtml()
+- escapeHtmlAttribute()
+- escapeCssValue()
+- clamp()
+
+Step 9 — Add WI-09 tests
+exporter.phaseW9.test.ts:
+- exports contentModel rich text without raster fallback
+- exports table contentModel without raster fallback
+- skips hidden objects
+- skips objects outside page range and reports warning
+- escapes table HTML fallback text
+- sanitizes unsafe rich HTML
+
+Step 10 — Optional static audit extension
+Add to phase8-static-audit.mjs:
+- ensure exporter imports normalizeWriterElement
+- ensure contentModel present
+- ensure drawRichTextModel/drawTableModel/drawImageModel present
+- ensure hidden filter present
+- forbid container.innerHTML = element.content
+- forbid JSON.parse(element.content)
+
+Pass Criteria:
+- Hidden object export skipped.
+- Visible object export included.
+- Simple rich text semantic export passes.
+- Simple table semantic export passes.
+- Template text semantic export passes.
+- Image export passes.
+- Crop/rotation image export passes.
+- Unsafe table HTML interpolation: 0
+- Unsafe rich HTML export path: 0
+- Raster fallback works for unsupported content.
+- Save/export pipeline regression: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Add simple writer text and export.
+   Expected: text visible and searchable/selectable in capable viewer.
+
+2. Add writer table and export.
+   Expected: grid is vector and cell text is searchable/selectable.
+
+3. Apply header/footer template and export.
+   Expected: header/footer text appears semantically.
+
+4. Apply watermark and export.
+   Expected: watermark appears.
+
+5. Hide object and export.
+   Expected: hidden object not exported.
+
+6. Show object and export.
+   Expected: visible object exported.
+
+7. Add image and export.
+   Expected: image appears.
+
+8. Crop/rotate image and export.
+   Expected: crop/rotation baked into PDF.
+
+9. Paste unsafe rich HTML and export.
+   Expected: no unsafe script/event attributes.
+
+10. Export unsupported complex content.
+    Expected: raster fallback works and warning collected.
+
+
+================================================================================
+WI-10 — WRITER CERTIFICATION + REGRESSION SUITE
+================================================================================
+
+Objective:
+Add permanent certification gates so future changes cannot break the enhanced writer
+workflow from paste to edit to templates to save/export.
+
+Scope:
+- Add writer end-to-end certification test.
+- Add writer static audit script.
+- Add package scripts.
+- Add writer certification document.
+- Optional GitHub workflow.
+- Do not add new product features in WI-10.
+
+Primary files:
+1. frontend/src/core/writer/writerCertification.phaseW10.test.ts
+2. frontend/scripts/writer-static-audit.mjs
+3. frontend/package.json
+4. frontend/WRITER_CERTIFICATION.md
+5. Optional: .github/workflows/writer-certify.yml
+
+Implementation Steps:
+
+Step 1 — Add writerCertification.phaseW10.test.ts
+Test full writer chain:
+- normalize legacy writer elements
+- sync contentModel back to content string
+- parse clipboard plain text into rich text element
+- parse TSV/CSV into table element
+- sanitize rich text editor HTML
+- paste matrix into table model and sync patch
+- store image crop/rotation in contentModel and patch
+- apply templates with token resolution
+- create custom template from selected objects
+- export text/table/image/templates into valid PDF
+- hidden object does not export
+
+Use:
+- PDFDocument from pdf-lib
+- createDefaultTableModel
+- createEmptyRichTextModel
+- createImageModel
+- writerContentModelToLegacyContent
+- normalizeWriterElement
+- syncElementContentFromModel
+- clipboard parsers
+- richTextHtml
+- tableCommands
+- imageTransforms
+- templates
+- bakeWriterElementsIntoPdf
+
+Step 2 — Add writer-static-audit.mjs
+Static audit checks:
+- W1 content model contract present
+- W2 clipboard pipeline creates contentModel/sourceMeta
+- W3 rich text sanitizer present
+- W4 table commands contentModel-first helpers present
+- W5 image transform helpers present
+- W6 hidden objects do not render
+- W7 template tokens present
+- W8 ribbon integration present
+- W9 exporter contentModel-first and hidden skip present
+- no unsafe script injection patterns
+
+Required script behavior:
+- print PASS/FAIL per check
+- exit 1 if any failure
+- exit 0 if all pass
+
+Step 3 — Patch package.json
+Add scripts:
+- audit:writer
+- certify:writer
+
+Expected:
+"audit:writer": "node scripts/writer-static-audit.mjs"
+"certify:writer": "npm run typecheck && npm run test && npm run audit:writer && npm run build"
+
+Do not remove existing scripts.
+
+Step 4 — Add WRITER_CERTIFICATION.md
+Document:
+- scope W1–W10
+- required commands
+- numeric pass criteria
+- manual smoke matrix
+- certification sign-off section
+
+Manual smoke matrix should include:
+S1 paste plain text
+S2 paste rich HTML
+S3 paste Excel/Sheets table
+S4 edit rich text
+S5 edit table
+S6 image paste/edit
+S7 inspector/object list
+S8 templates
+S9 ribbon workflow
+S10 save/export regression
+
+Step 5 — Optional GitHub workflow
+Add .github/workflows/writer-certify.yml:
+- run on PR/push affecting writer files
+- npm ci
+- npm run certify:writer
+
+Step 6 — Final validation
+Run:
+cd frontend
+npm run certify:writer
+
+Pass Criteria:
+- TypeScript errors: 0
+- Unit test failures: 0
+- Writer static audit failures: 0
+- Build errors: 0
+
+Regression gates:
+- W1 content model regression: 0
+- W2 clipboard regression: 0
+- W3 rich text sanitation regression: 0
+- W4 table editing regression: 0
+- W5 image transform regression: 0
+- W6 hidden object render/export regression: 0
+- W7 template token regression: 0
+- W8 ribbon integration regression: 0
+- W9 contentModel-first export regression: 0
+- Save/export writer regression: 0
+
+Manual Smoke Tests:
+1. Paste plain text.
+   Expected: writer text object created.
+
+2. Paste rich HTML.
+   Expected: formatting retained where safe, unsafe content stripped.
+
+3. Paste Excel/Sheets table.
+   Expected: editable table created.
+
+4. Edit rich text.
+   Expected: formatting persists and exports.
+
+5. Edit table.
+   Expected: paste/row/column/cell edits persist.
+
+6. Paste or insert image and edit it.
+   Expected: crop/rotate/opacity/border persist and export.
+
+7. Use inspector/object list.
+   Expected: rename/lock/hide/reorder/delete works.
+
+8. Apply templates.
+   Expected: tokens resolve and custom templates persist.
+
+9. Use ribbon.
+   Expected: all primary commands accessible.
+
+10. Save/export.
+    Expected:
+    - repeated save does not duplicate writer content
+    - normal save commits writer content
+    - export includes writer content but does not clear overlays
+    - saved/exported PDF valid
+
+
+================================================================================
+WI-06 TO WI-10 MASTER VALIDATION MATRIX
+================================================================================
+
+Run after each WI:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Run after WI-10:
+cd frontend
+npm run certify:writer
+
+Expected:
+TypeScript errors: 0
+Unit test failures: 0
+Writer static audit failures: 0
+Build errors: 0
+
+Feature gates:
+WI-06 inspector/object list: PASS
+WI-07 templates/tokens: PASS
+WI-08 ribbon integration: PASS
+WI-09 contentModel-first export: PASS
+WI-10 certification suite: PASS
+
+Regression gates:
+Hidden object rendered on canvas: 0
+Hidden object exported: 0
+Template token unresolved: 0
+Unsafe rich HTML path: 0
+Unsafe table interpolation: 0
+Raster fallback crash: 0
+ContentModel ignored for simple text/table: 0
+Save/export pipeline regression: 0
+
+
+================================================================================
+SUGGESTED AGENT PROMPTS
+================================================================================
+
+AGENT WI-06 PROMPT:
+You are Agent WI-06, Writer Inspector and Object List Owner.
+Implement only writer object metadata, object naming, inspector, object list, side panel, hidden render guard, and hidden export skip.
+Do not modify templates, ribbon, or semantic exporter beyond hidden skip.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-06 criteria.
+
+AGENT WI-07 PROMPT:
+You are Agent WI-07, Writer Templates Owner.
+Implement template model, built-in templates, token resolution, template persistence, template gallery, header/footer panel, and Templates tab.
+Do not modify exporter, ribbon, or low-level writer store.
+Templates must create normal writer PlacedElement objects.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-07 criteria.
+
+AGENT WI-08 PROMPT:
+You are Agent WI-08, Writer Ribbon Owner.
+Implement writer UI store, navigator clipboard reader, WriterRibbon, side panel state integration, and workspace render integration.
+Do not modify rich text/table/image internals or exporter.
+Ribbon commands must call existing store/helpers.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-08 criteria.
+
+AGENT WI-09 PROMPT:
+You are Agent WI-09, Writer Export Hardening Owner.
+Replace writer exporter with contentModel-first semantic export for text/table/image, hidden-object skip, image crop/rotation support, raster fallback, and macro compatibility exports.
+Do not modify UI panels or writer store.
+Run typecheck/test/build and exporter tests.
+Report changed files and pass/fail against WI-09 criteria.
+
+AGENT WI-10 PROMPT:
+You are Agent WI-10, Writer QA and Certification Owner.
+Implement certification tests, static audit script, package scripts, certification markdown, and optional GitHub workflow.
+Do not add product features.
+Run npm run certify:writer.
+Report final certification table with PASS/FAIL for W1–W10.
+
+
+================================================================================
+FINAL WRITER COMPLETION STATUS TARGET
+================================================================================
+
+After WI-10 passes, enhanced writer is certified as:
+
+WI-01 Structured content model              CERTIFIED
+WI-02 Clipboard / paste / drag-drop         CERTIFIED
+WI-03 WordPad rich text editor              CERTIFIED
+WI-04 Excel-like table editor               CERTIFIED
+WI-05 Image editor                          CERTIFIED
+WI-06 Inspector + object list               CERTIFIED
+WI-07 Templates / headers / footers         CERTIFIED
+WI-08 Writer ribbon                         CERTIFIED
+WI-09 ContentModel-first export             CERTIFIED
+WI-10 Regression suite + certification      CERTIFIED
+
+
+================================================================================
+END OF WORK INSTRUCTIONS WI-06 TO WI-10
+================================================================================

@@ -1,0 +1,1026 @@
+PDF HUB — ENHANCED WRITER MODULE
+WORK INSTRUCTIONS WI-01 TO WI-05
+Generated for implementation planning only. No repository upload.
+
+Assumption:
+The previous audit-closure patches Phase 1–8 are already applied, including:
+- commit/rebase save pipeline
+- annotation persistence/error visibility
+- writer save/export durability
+- macro hardening
+- Phase 8 certification gates
+
+Writer enhancement phases covered in this workbook:
+- WI-01 / W1: Structured Writer Content Model
+- WI-02 / W2: Universal Clipboard, Paste, and Drag-Drop Ingestion
+- WI-03 / W3: WordPad-Style Rich Text Editor
+- WI-04 / W4: Excel-Like Table Editor
+- WI-05 / W5: Image Editor and Image Transform Pipeline
+
+
+================================================================================
+GLOBAL IMPLEMENTATION RULES
+================================================================================
+
+1. Do not overwrite Phase 1–8 save/export patches.
+   W1–W5 must integrate with the existing commit pipeline.
+
+2. Preserve backward compatibility.
+   Existing writer objects use:
+   - rich-text: content as HTML string
+   - table: content as JSON string
+   - image: content as data URL/base64 string
+
+3. New writer objects must support both:
+   - legacy content: string
+   - structured contentModel
+
+4. Every writer mutation must mark the writer/session dirty through the existing store mechanisms.
+
+5. Do not use raw HTML without sanitation.
+   All clipboard/rich-text/table paths must sanitize or escape input.
+
+6. Do not let multiple agents modify high-conflict files at the same time.
+
+7. Required validation after each WI:
+   cd frontend
+   npm run typecheck
+   npm run test
+   npm run build
+
+8. Required numeric pass target:
+   TypeScript errors: 0
+   Unit test failures: 0
+   Build errors: 0
+
+
+================================================================================
+FILE OWNERSHIP WINDOWS
+================================================================================
+
+WI-01 owner:
+- frontend/src/core/writer/types.ts
+- frontend/src/core/writer/content-model.ts
+- frontend/src/core/writer/content-serialization.ts
+- frontend/src/core/writer/migrations.ts
+
+WI-02 owner:
+- frontend/src/core/writer/clipboard/*
+- frontend/src/components/writer/WriterOverlay.tsx
+
+WI-03 owner:
+- frontend/src/core/writer/richTextHtml.ts
+- frontend/src/core/writer/richTextCommands.ts
+- frontend/src/core/writer/richTextPaste.ts
+- frontend/src/components/writer/RichTextEditorPanel.tsx
+
+WI-04 owner:
+- frontend/src/core/writer/tableSelection.ts
+- frontend/src/core/writer/tableCommands.ts
+- frontend/src/components/writer/TableEditorPanel.tsx
+
+WI-05 owner:
+- frontend/src/core/writer/imageImport.ts
+- frontend/src/core/writer/imageTransforms.ts
+- frontend/src/components/writer/ImageEditorPanel.tsx
+- frontend/src/components/writer/WriterElementNode.tsx
+- frontend/src/core/writer/exporter.ts, image section only
+
+
+================================================================================
+WI-01 — STRUCTURED WRITER CONTENT MODEL
+================================================================================
+
+Objective:
+Add a structured writer content model while keeping legacy writer content fully compatible.
+
+This is the foundation for WordPad-style editing, clipboard ingestion, table editing,
+image editing, templates, and contentModel-first export.
+
+Scope:
+- Add contentModel to PlacedElement.
+- Add sourceMeta to PlacedElement.
+- Keep content:string unchanged.
+- Add migration helpers from legacy content to structured model.
+- Add serializer from structured model back to legacy content.
+- Do not modify save/export behavior in this WI.
+
+Primary files:
+1. frontend/src/core/writer/content-model.ts
+2. frontend/src/core/writer/types.ts
+3. frontend/src/core/writer/content-serialization.ts
+4. frontend/src/core/writer/migrations.ts
+5. frontend/src/core/writer/content-model.phaseW1.test.ts
+
+Implementation Steps:
+
+Step 1 — Add content-model.ts
+Create:
+- WriterContentKind
+- WriterSourceKind
+- WriterTextMarks
+- WriterTextRun
+- WriterParagraph
+- WriterRichTextModel
+- WriterImageModel
+- WriterTableModel
+- WriterContentModel
+- WriterSourceMeta
+
+Factory helpers:
+- createEmptyRichTextModel()
+- createDefaultTableModel(rowCount, columnCount)
+- createImageModel(input)
+- detectImageMimeType(src)
+- createWriterSourceMeta(source, originalMimeType?, warning?)
+- createWriterId(prefix)
+
+Step 2 — Patch writer/types.ts
+Extend PlacedElement with optional:
+- contentModel?: WriterContentModel
+- sourceMeta?: WriterSourceMeta
+
+Keep existing:
+- content: string
+- type: rich-text | image | table
+- styles
+- zIndex
+- locked
+
+Step 3 — Add content-serialization.ts
+Implement:
+- writerContentModelToLegacyContent(model)
+- richTextModelToHtml(model)
+- tableModelToLegacyTableData(model)
+- imageModelToLegacyContent(model)
+- escapeHtml(value)
+
+Purpose:
+Any structured model must be serializable to the legacy content field so older renderers/exporters do not break.
+
+Step 4 — Add migrations.ts
+Implement:
+- normalizeWriterElement(element)
+- normalizeWriterElements(elements)
+- legacyContentToModel(element)
+- syncElementContentFromModel(element)
+- syncElementsContentFromModel(elements)
+
+Legacy conversions:
+- rich-text HTML -> WriterRichTextModel
+- table JSON -> WriterTableModel
+- image data URL -> WriterImageModel
+
+Security:
+- sanitize legacy rich text before parsing
+- remove script/iframe/object/embed/form/input/link/meta/style etc.
+- remove event attributes
+- remove javascript: URLs
+
+Step 5 — Add W1 tests
+Test:
+- create default rich text model
+- create default table model
+- detect image MIME type
+- normalize legacy rich text
+- normalize legacy table JSON
+- sync structured rich text back to content string
+
+Pass Criteria:
+- Existing writer elements still load.
+- Old rich-text HTML does not crash.
+- Old table JSON does not crash.
+- Old image content remains visible.
+- contentModel is optional and backward compatible.
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Open existing PDF with legacy writer text.
+   Expected: text still renders.
+
+2. Open existing PDF with legacy writer table.
+   Expected: table still renders.
+
+3. Open existing PDF with legacy writer image.
+   Expected: image still renders.
+
+4. Create a new structured rich text model and sync it.
+   Expected: content string contains safe HTML.
+
+5. Create a new structured table model and sync it.
+   Expected: content string contains valid JSON.
+
+
+================================================================================
+WI-02 — UNIVERSAL CLIPBOARD, PASTE, AND DRAG-DROP INGESTION
+================================================================================
+
+Objective:
+Support paste and drag/drop into the PDF writer layer for:
+- plain text
+- rich HTML
+- HTML tables
+- Excel / Google Sheets TSV
+- CSV
+- screenshot/image clipboard data
+- image files
+- drag/drop image files
+
+Scope:
+- Add clipboard parser modules.
+- Convert clipboard payloads into PlacedElement[].
+- Integrate Ctrl+V and drag/drop into WriterOverlay.
+- Create contentModel + sourceMeta for pasted elements.
+- Keep legacy content:string updated.
+- Do not paste into active caret/table cells yet. That is WI-03/WI-04.
+
+Primary files:
+1. frontend/src/core/writer/clipboard/types.ts
+2. frontend/src/core/writer/clipboard/sanitizeClipboardHtml.ts
+3. frontend/src/core/writer/clipboard/parseClipboardTable.ts
+4. frontend/src/core/writer/clipboard/parseClipboardHtml.ts
+5. frontend/src/core/writer/clipboard/parseClipboardImage.ts
+6. frontend/src/core/writer/clipboard/readClipboard.ts
+7. frontend/src/core/writer/clipboard/clipboardToElements.ts
+8. frontend/src/core/writer/clipboard/pasteController.ts
+9. frontend/src/components/writer/WriterOverlay.tsx
+10. frontend/src/core/writer/clipboard/clipboard.phaseW2.test.ts
+
+Implementation Steps:
+
+Step 1 — Add clipboard/types.ts
+Define:
+- WriterClipboardKind
+- WriterClipboardImage
+- WriterClipboardFile
+- WriterClipboardPayload
+- WriterPasteTarget
+- WriterClipboardParseOptions
+- DEFAULT_CLIPBOARD_PARSE_OPTIONS
+
+Default limits:
+- maxHtmlLength: 1,000,000
+- maxTextLength: 500,000
+- maxImageBytes: 10 MB
+- maxTableRows: 500
+- maxTableColumns: 100
+
+Step 2 — Add sanitizeClipboardHtml.ts
+Sanitize:
+- script
+- iframe
+- object
+- embed
+- link
+- meta
+- base
+- form
+- input
+- button
+- textarea
+- select
+- style
+
+Remove:
+- on* event attributes
+- javascript: URLs
+- unsafe style url(...)
+- style expression(...)
+
+Allow limited safe style properties:
+- font-weight
+- font-style
+- text-decoration
+- text-align
+- color
+- background-color
+- font-size
+- font-family
+- line-height
+- vertical-align
+- border
+- border-color
+- border-width
+
+Step 3 — Add parseClipboardTable.ts
+Implement:
+- parseClipboardTableFromText(text, options)
+- parseClipboardTableFromHtml(html, options)
+
+Text parsing must detect:
+- TSV
+- CSV with quoted fields
+
+HTML parsing must support:
+- table
+- tr
+- th
+- td
+- colspan
+- rowspan
+- basic inline styles
+
+Step 4 — Add parseClipboardHtml.ts
+Implement:
+- parseClipboardRichTextFromHtml(html, options)
+- parsePlainTextToRichTextModel(text, options)
+
+Rules:
+- HTML must be sanitized first.
+- Output must be WriterRichTextModel.
+- Preserve basic marks:
+  bold, italic, underline, strike, color, highlight, fontFamily, fontSize.
+
+Step 5 — Add parseClipboardImage.ts
+Implement:
+- fileToClipboardImage(file, options)
+- blobToClipboardImage(blob, options)
+
+Rules:
+- only image/* accepted
+- max byte size enforced
+- return dataUrl, mimeType, width, height, byteLength
+
+Step 6 — Add readClipboard.ts
+Implement:
+- readClipboardPayloadFromDataTransfer(dataTransfer)
+- readDropPayloadFromDataTransfer(dataTransfer)
+
+Clipboard priority:
+1. image file
+2. image item
+3. HTML table
+4. rich HTML
+5. TSV/CSV table
+6. plain text
+7. unsupported
+
+Step 7 — Add clipboardToElements.ts
+Implement:
+- clipboardPayloadToWriterElements(payload, target, existingElementCount)
+
+Output:
+- rich text -> PlacedElement type rich-text
+- table -> PlacedElement type table
+- image -> PlacedElement type image
+
+Each element must include:
+- content
+- contentModel
+- sourceMeta
+- pageNumber
+- x/y
+- width/height
+- zIndex
+- locked false
+
+Step 8 — Add pasteController.ts
+Implement:
+- buildWriterPasteResult(input)
+
+Step 9 — Patch WriterOverlay.tsx
+Add:
+- imports for readClipboardPayloadFromDataTransfer, readDropPayloadFromDataTransfer, buildWriterPasteResult
+- last pointer position tracking
+- global paste listener for active page
+- drag over/drop handlers
+- pastePayloadAtPoint helper
+
+Important:
+- Do not block normal inputs/contenteditable targets.
+- Use isEditableTarget() guard.
+- Paste point should be last pointer position, otherwise center of current page.
+- Drag/drop should use drop coordinates.
+
+Step 10 — Add W2 tests
+Test:
+- TSV to table
+- CSV to table
+- HTML table to table
+- unsafe HTML sanitized
+- plain text to rich text
+- table payload to writer element
+- text payload to writer element
+
+Pass Criteria:
+- Paste plain text creates rich-text writer element.
+- Paste rich HTML creates rich-text writer element.
+- Paste TSV/CSV creates table writer element.
+- Paste HTML table creates table writer element.
+- Paste screenshot/image creates image writer element.
+- Drag/drop image file creates image writer element.
+- Unsafe HTML execution: 0
+- Clipboard parser crashes: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Paste plain text on page.
+   Expected: rich-text object appears.
+
+2. Copy Excel/Sheets cells and paste.
+   Expected: editable table object appears.
+
+3. Copy HTML table from browser and paste.
+   Expected: editable table object appears.
+
+4. Paste screenshot.
+   Expected: image object appears.
+
+5. Drag/drop PNG or JPG.
+   Expected: image object appears at drop point.
+
+6. Paste script/onerror/javascript HTML.
+   Expected: no execution, unsafe content stripped.
+
+
+================================================================================
+WI-03 — WORDPAD-STYLE RICH TEXT EDITOR
+================================================================================
+
+Objective:
+Upgrade rich text editing to a WordPad-like editor that supports safe formatting,
+rich paste, inline image/table paste, and structured contentModel synchronization.
+
+Scope:
+- Replace RichTextEditorPanel internals.
+- Add rich text HTML bridge.
+- Add rich text command wrapper.
+- Add paste-into-editor handler.
+- Commit both contentModel and legacy content.
+- Do not rewrite WriterElementNode beyond using existing double-click edit flow.
+
+Primary files:
+1. frontend/src/core/writer/richTextHtml.ts
+2. frontend/src/core/writer/richTextCommands.ts
+3. frontend/src/core/writer/richTextPaste.ts
+4. frontend/src/components/writer/RichTextEditorPanel.tsx
+5. frontend/src/core/writer/richTextHtml.phaseW3.test.ts
+6. Optional: frontend/src/core/writer/richTextPaste.phaseW3.test.ts
+
+Implementation Steps:
+
+Step 1 — Add richTextHtml.ts
+Implement:
+- richTextModelToEditorHtml(model)
+- editorHtmlToRichTextModel(html)
+- sanitizeWriterEditorHtml(html)
+
+Sanitization must:
+- remove blocked tags
+- remove event attributes
+- remove javascript: URLs
+- remove data:text/html URLs
+- sanitize style attributes
+
+Allowed styles:
+- font-weight
+- font-style
+- text-decoration
+- text-align
+- color
+- background-color
+- font-size
+- font-family
+- line-height
+- margin-left
+
+Model parsing:
+- p/div/li/h1..h6 become WriterParagraph blocks
+- inline text becomes WriterTextRun
+- preserve marks:
+  bold, italic, underline, strike, superscript, subscript, color, highlight, fontFamily, fontSize
+
+Step 2 — Add richTextCommands.ts
+Implement command type:
+- bold
+- italic
+- underline
+- strike
+- font-family
+- font-size
+- text-color
+- highlight-color
+- align
+- bullet-list
+- number-list
+- indent
+- outdent
+- clear-formatting
+- insert-html
+- insert-text
+- insert-image
+
+Implementation:
+- Use document.execCommand as a compatibility bridge for this phase.
+- Font size must use span wrapping because execCommand fontSize is limited.
+- Insert HTML must sanitize first.
+- Insert text must escape HTML.
+- Insert image must only allow data:image URLs.
+
+Step 3 — Add richTextPaste.ts
+Implement:
+- pasteIntoRichTextEditor(editor, dataTransfer)
+
+Paste routing:
+- image -> inline image
+- table -> sanitized HTML table inserted into editor
+- rich text -> sanitized HTML inserted
+- plain text -> escaped HTML inserted
+- unsupported -> warning
+
+Step 4 — Replace RichTextEditorPanel.tsx
+Features:
+- font family dropdown
+- font size dropdown
+- line spacing
+- text color
+- highlight
+- bold/italic/underline/strike
+- bullet/numbered list
+- indent/outdent
+- align left/center/right/justify
+- clear formatting
+- save/close
+- inline image size controls
+
+Editor behavior:
+- double-click opens editor from WriterElementNode
+- Ctrl+B/I/U shortcuts
+- Ctrl+Enter commits and closes
+- Escape commits and closes
+- Tab indents/outdents
+- paste goes through richTextPaste.ts
+- on blur commits if dirty
+
+Commit:
+- editorHtmlToRichTextModel(editor.innerHTML)
+- updateElement(element.id, { content, contentModel, sourceMeta, styles })
+
+Step 5 — Add W3 tests
+Test:
+- sanitize script and event attributes
+- parse paragraphs into model
+- preserve color/fontSize marks
+- serialize model to HTML
+- optional paste test if jsdom supports execCommand
+
+Pass Criteria:
+- Double-click editor opens.
+- Typing commits to content and contentModel.
+- Ctrl+B/I/U works.
+- Paste rich HTML is sanitized.
+- Paste plain text works.
+- Paste inline image works.
+- Unsafe HTML execution: 0
+- Existing save/export regression: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Double-click rich-text object.
+   Expected: editor opens.
+
+2. Type text and press Ctrl+Enter.
+   Expected: text committed.
+
+3. Apply bold/italic/underline.
+   Expected: formatting persists after close/reopen.
+
+4. Paste Word/browser HTML.
+   Expected: basic formatting retained, unsafe content stripped.
+
+5. Paste screenshot into rich text editor.
+   Expected: inline image appears.
+
+6. Paste HTML table into rich text editor.
+   Expected: sanitized table inserted.
+
+7. Save/export.
+   Expected: edited text included.
+
+
+================================================================================
+WI-04 — EXCEL-LIKE TABLE EDITOR
+================================================================================
+
+Objective:
+Upgrade table editing to support Excel-like cell editing, range selection,
+TSV/CSV paste, copy selected cells, row/column operations, and cell styles.
+
+Scope:
+- Add table selection helpers.
+- Add table command helpers.
+- Replace TableEditorPanel.
+- Commit both WriterTableModel and legacy JSON content.
+- Do not implement full merged-cell rendering yet.
+
+Primary files:
+1. frontend/src/core/writer/tableSelection.ts
+2. frontend/src/core/writer/tableCommands.ts
+3. frontend/src/components/writer/TableEditorPanel.tsx
+4. frontend/src/core/writer/tableCommands.phaseW4.test.ts
+5. frontend/src/core/writer/tableSelection.phaseW4.test.ts
+
+Implementation Steps:
+
+Step 1 — Add tableSelection.ts
+Implement:
+- TableCellCoord
+- TableSelectionRange
+- NormalizedTableSelection
+- normalizeTableSelection(selection)
+- isCellSelected(selection, rowIndex, colIndex)
+- selectedRowIndexes(selection)
+- selectedColumnIndexes(selection)
+- clampCellCoord(coord, rowCount, columnCount)
+- moveTableFocus(input)
+- selectionToKey(selection)
+
+Keyboard movement:
+- left
+- right
+- up
+- down
+- next
+- previous
+
+Step 2 — Add tableCommands.ts
+Implement:
+- tableModelFromElement(element)
+- tableModelToElementPatch(model)
+- normalizeTableModel(model)
+- setTableCellText(model, rowIndex, colIndex, text)
+- clearTableCells(model, rowIndexes, columnIndexes)
+- pasteCellMatrix(model, startRow, startCol, matrix)
+- insertTableRow(model, anchorRowIndex, above/below)
+- deleteTableRows(model, rowIndexes)
+- insertTableColumn(model, anchorColumnIndex, left/right)
+- deleteTableColumns(model, columnIndexes)
+- setTableCellStyle(model, rowIndexes, columnIndexes, patch)
+- setTableBorderColor(model, borderColor)
+- setTableHeaderBackground(model, headerBg)
+- setTableColumnWidth(model, columnIndex, width)
+- autoFitTableColumns(model)
+- parseClipboardMatrixText(text)
+- tableRangeToTsv(model, rowIndexes, columnIndexes)
+
+Rules:
+- Table must always keep at least one row and one column.
+- Pasting matrix should expand rows/columns if required.
+- All patches must update both contentModel and legacy content.
+- Avoid direct JSON.parse(element.content) outside helper.
+
+Step 3 — Replace TableEditorPanel.tsx
+Features:
+- single cell selection
+- Shift+click range selection
+- keyboard navigation
+- Tab / Shift+Tab
+- Enter / Shift+Enter
+- Delete clears selected cells
+- Ctrl+C button copies range as TSV
+- Ctrl+V paste into selected cell
+- insert/delete row
+- insert/delete column
+- bold/italic
+- align left/center/right
+- text color
+- background color
+- border color
+- header background
+- auto-fit columns
+- save/close
+
+Commit:
+- updateElement(element.id, tableModelToElementPatch(nextModel))
+
+Step 4 — Add W4 tests
+Test table commands:
+- set cell text
+- insert row
+- insert column
+- delete all rows still leaves one row
+- delete all columns still leaves one column
+- parse TSV matrix
+- paste matrix expands table
+- clear selected cells
+- set cell style
+- copy range to TSV
+- auto-fit columns
+
+Test selection:
+- normalize reversed range
+- isCellSelected
+- selected rows/columns
+- next/previous movement with wrapping
+
+Pass Criteria:
+- Cell edit commit works.
+- TSV paste into table works.
+- Copy cells as TSV works.
+- Range selection works.
+- Row insert/delete works.
+- Column insert/delete works.
+- Cell style updates.
+- contentModel updates.
+- legacy content updates.
+- Save/export regression: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Double-click table.
+   Expected: upgraded grid editor opens.
+
+2. Edit cell.
+   Expected: content persists.
+
+3. Shift+click range.
+   Expected: range selection visible.
+
+4. Copy selected cells.
+   Expected: TSV in clipboard.
+
+5. Paste Excel range.
+   Expected: cells fill and table expands if required.
+
+6. Insert/delete rows and columns.
+   Expected: table remains valid.
+
+7. Apply cell styles.
+   Expected: selected cells update.
+
+8. Save/export.
+   Expected: table appears in output.
+
+
+================================================================================
+WI-05 — IMAGE EDITOR AND IMAGE TRANSFORM PIPELINE
+================================================================================
+
+Objective:
+Upgrade writer images from simple replacement to a real image editor with
+replace, crop, rotate, opacity, border, alt text, and export-safe contentModel updates.
+
+Scope:
+- Add image import helpers.
+- Add image transform helpers.
+- Add ImageEditorPanel.
+- Patch WriterElementNode image double-click to open editor.
+- Patch image renderer to use image contentModel.
+- Patch exporter image path to support crop/rotation.
+- Do not rewrite the whole exporter except image-related paths.
+
+Primary files:
+1. frontend/src/core/writer/imageImport.ts
+2. frontend/src/core/writer/imageTransforms.ts
+3. frontend/src/components/writer/ImageEditorPanel.tsx
+4. frontend/src/components/writer/WriterElementNode.tsx
+5. frontend/src/core/writer/exporter.ts, image path only
+6. frontend/src/core/writer/imageTransforms.phaseW5.test.ts
+
+Implementation Steps:
+
+Step 1 — Add imageImport.ts
+Implement:
+- ImportedWriterImage
+- WriterImageImportOptions
+- DEFAULT_WRITER_IMAGE_IMPORT_OPTIONS
+- importWriterImageFile(file, options)
+- importWriterImageDataUrl(dataUrl)
+- chooseWriterImageFile()
+- fitImageIntoBox(input)
+- readImageDimensions(src)
+
+Rules:
+- accept PNG/JPEG/WebP
+- reject SVG by default
+- enforce 10 MB default size limit
+- warn for very large dimensions
+- return WriterImageModel + metadata
+
+Step 2 — Add imageTransforms.ts
+Implement:
+- getImageModelFromElement(element)
+- imageModelToElementPatch(model)
+- normalizeImageModel(model)
+- replaceImageSource(current, next)
+- setImageCrop(model, crop)
+- setImageRotation(model, rotation)
+- rotateImageBy(model, delta)
+- setImageAlt(model, alt)
+- resetImageTransforms(model)
+- cropPercentToModelCrop(percent)
+- modelCropToCssObjectPosition(crop)
+- modelCropToCssObjectFit(crop)
+- imageElementToCss(model)
+
+Crop model:
+- x: percent
+- y: percent
+- width: percent
+- height: percent
+
+Rotation:
+- normalize to 0–359 degrees
+
+Step 3 — Add ImageEditorPanel.tsx
+Features:
+- preview image
+- replace image
+- rotate left/right
+- reset crop/rotation
+- opacity slider
+- border width/color
+- alt text
+- crop left/right/top/bottom percentages
+- clear crop
+- save/close
+
+Commit:
+- updateElement(element.id, {
+    content,
+    contentModel,
+    sourceMeta,
+    styles: { opacity, borderWidth, borderColor }
+  })
+
+Step 4 — Patch WriterElementNode.tsx
+Changes:
+- import ImageEditorPanel
+- import getImageModelFromElement and imageElementToCss
+- extend editMode type to include image
+- double-click image opens ImageEditorPanel
+- render image from image contentModel:
+  src = getImageModelFromElement(element).src
+  style = imageElementToCss(model)
+  alt = model.alt
+
+Also preserve:
+- rich text edit mode
+- table edit mode
+- drag/resize/selection behavior
+
+Step 5 — Patch exporter image path
+Image export must:
+- read image model via getImageModelFromElement(element)
+- export full image if no crop/rotation
+- pre-render transformed image to canvas PNG if crop/rotation exists
+- embed transformed PNG into PDF
+- respect opacity
+- draw border if defined
+
+Helper functions:
+- renderTransformedImageToPng(model, output)
+- loadImage(src)
+- canvas.toBlob -> Uint8Array
+
+Step 6 — Add W5 tests
+Test:
+- create image model from legacy content
+- set crop safely
+- normalize rotation
+- set alt text
+- replace source resets crop/rotation
+- reset crop/rotation
+- element patch includes content and contentModel
+
+Pass Criteria:
+- Image editor opens.
+- Replace image updates content.
+- Replace image updates contentModel.
+- Crop stored in model.
+- Rotation stored in model.
+- Opacity stored in styles.
+- Border stored in styles.
+- Alt text stored in model.
+- Save/export regression: 0
+- Crop/rotation export failure: 0
+- TypeScript errors: 0
+- Unit test failures: 0
+- Build errors: 0
+
+Manual Smoke Tests:
+1. Double-click image.
+   Expected: image editor opens.
+
+2. Replace image.
+   Expected: source updates and contentModel updates.
+
+3. Rotate left/right.
+   Expected: preview rotates and export preserves rotation.
+
+4. Crop image.
+   Expected: preview crops and export preserves crop.
+
+5. Change opacity.
+   Expected: preview/export respect opacity.
+
+6. Add border.
+   Expected: preview/export respect border.
+
+7. Add alt text.
+   Expected: contentModel.alt updates.
+
+8. Reset crop/rotation.
+   Expected: full image restored.
+
+9. Save/reopen.
+   Expected: image edits persist.
+
+10. Export flattened PDF.
+    Expected: image edits appear in output.
+
+
+================================================================================
+WI-01 TO WI-05 MASTER VALIDATION MATRIX
+================================================================================
+
+Run after each WI:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Final combined validation after WI-05:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Expected:
+TypeScript errors: 0
+Unit test failures: 0
+Build errors: 0
+
+Feature gates:
+WI-01 contentModel compatibility: PASS
+WI-02 paste text/table/image: PASS
+WI-03 rich text editing/sanitization: PASS
+WI-04 table grid editing/paste: PASS
+WI-05 image crop/rotate/export: PASS
+
+Regression gates:
+Save/export pipeline overwritten: NO
+Legacy writer object broken: NO
+Unsafe HTML execution: 0
+Clipboard parser crash: 0
+Table invalid empty state: 0
+Image transform model loss: 0
+Writer dirty tracking missed: 0
+
+
+================================================================================
+SUGGESTED AGENT PROMPTS
+================================================================================
+
+AGENT WI-01 PROMPT:
+You are Agent WI-01, Writer Core Contract Owner.
+Implement only the structured writer content model.
+Do not edit clipboard, editor panel, table panel, image panel, or exporter.
+Keep legacy content:string backward compatible.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-01 criteria.
+
+AGENT WI-02 PROMPT:
+You are Agent WI-02, Clipboard and Paste Owner.
+Implement universal clipboard ingestion and WriterOverlay paste/drop routing.
+Do not edit rich text editor internals, table editor internals, image editor, or exporter.
+Create contentModel and sourceMeta for pasted objects.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-02 criteria.
+
+AGENT WI-03 PROMPT:
+You are Agent WI-03, Rich Text Editor Owner.
+Implement WordPad-style rich text editor, rich text sanitation, commands, and paste into editor.
+Do not edit table editor, image editor, exporter, or global save pipeline.
+Commit both content and contentModel.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-03 criteria.
+
+AGENT WI-04 PROMPT:
+You are Agent WI-04, Table Editor Owner.
+Implement table selection, table commands, Excel-like grid panel, TSV paste, and cell styling.
+Do not edit rich text editor, image editor, exporter, or save pipeline.
+Commit both WriterTableModel and legacy content JSON.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-04 criteria.
+
+AGENT WI-05 PROMPT:
+You are Agent WI-05, Image Editor Owner.
+Implement image import, image transforms, ImageEditorPanel, WriterElementNode image edit integration, and exporter image crop/rotation path.
+Do not rewrite the whole exporter; patch only image path.
+Commit both image contentModel and legacy content string.
+Run typecheck/test/build.
+Report changed files and pass/fail against WI-05 criteria.
+
+
+================================================================================
+END OF WORK INSTRUCTIONS WI-01 TO WI-05
+================================================================================

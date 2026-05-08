@@ -1,0 +1,85 @@
+WAVE 1 — MACRO ENGINE SAFETY CODE
+=================================
+
+Objective:
+Make macro execution non-crashing, dry-run-capable, rollback-capable, and template-variable correct.
+
+Files:
+Modify:
+- frontend/src/core/macro/registry.ts
+- frontend/src/core/macro/executor.ts
+- frontend/src/core/macro/template-vars.ts
+- frontend/src/core/macro/steps/page-ops.ts
+Create:
+- frontend/src/core/macro/steps/logic-ops.ts
+- frontend/src/core/macro/register-all.ts
+- frontend/src/core/macro/transaction.ts
+- frontend/src/core/macro/dry-run.ts
+- Wave 1 tests
+
+1. Patch registry execute() to never throw:
+
+async execute(step, ctx, state) {
+  const executor = this.executors.get(step.op);
+  if (!executor) {
+    return { status: 'error', message: `[MacroRegistry] No executor registered for op "${step.op}".`, sideEffects: [] };
+  }
+  try { return await executor(step, ctx, state); }
+  catch (err) { return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] }; }
+}
+
+2. Make templateVarEngine.expandStep public.
+
+3. Patch executor loop:
+- Do not expand whole recipe before loop.
+- For every step, expand the current step using current state.templateVars.
+- apply_template_vars must execute raw and affect only later steps.
+- Apply side effects: bytes_updated, page_count_changed, output_file, selection_changed, log.
+- Roll back on aborting error.
+
+4. Create logic-ops.ts:
+- Register apply_template_vars.
+- Register conditional.
+- Conditions: page_count_gt, page_count_lt, filename_contains, custom_var_equals.
+
+5. Create register-all.ts:
+import './steps/page-ops';
+import './steps/content-ops';
+import './steps/logic-ops';
+export function registerAllMacroSteps(): void {}
+
+6. Extend SideEffect:
+- { type: 'selection_changed'; selectedPages: number[] }
+- { type: 'log'; message: string }
+
+7. Create transaction.ts:
+- beginMacroTransaction(state)
+- rollbackMacroTransaction(state, snapshot)
+Snapshot must deep-copy workingBytes, pageCount, selectedPages, outputFiles, logs, templateVars.
+
+8. Create dry-run.ts:
+- simulateMacroDryRun(recipe, ctx)
+- returns original ctx.workingBytes
+- creates no outputFiles
+- adds dryRunDiff with predicted page count, selection, output files, and step effects.
+
+9. Executor integration:
+if (recipe.dryRun) return simulateMacroDryRun(recipe, ctx);
+const transaction = beginMacroTransaction(state);
+rollbackMacroTransaction(state, transaction) on aborting error.
+
+Required tests:
+- unknown op returns structured error, not thrown exception
+- thrown executor captured
+- apply_template_vars affects later step
+- conditional then/else works
+- rollback restores bytes/pageCount/selectedPages/outputFiles/templateVars
+- dry-run returns original bytes and no output files
+
+Pass matrix:
+unknown op crash: 0
+dryRun byte mutation: 0
+rollback residual bytes: 0
+apply_template_vars later-step behavior: pass
+conditional behavior: pass
+TypeScript/test/build errors: 0

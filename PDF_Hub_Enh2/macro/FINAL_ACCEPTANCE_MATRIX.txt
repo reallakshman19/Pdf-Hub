@@ -1,0 +1,64 @@
+FINAL ACCEPTANCE MATRIX
+=======================
+
+Run:
+cd frontend
+npm run certify:macro
+
+Engine:
+- dryRun mutation: 0
+- dryRun output files: 0
+- rollback residual side effect: 0
+- unknown op uncaught crash: 0
+- apply_template_vars later-step behavior: pass
+- conditional then/else behavior: pass
+
+Security:
+- raw rich HTML injection path: 0
+- raw table cell interpolation path: 0
+- unsafe image source render path: 0
+- unsafe CSS url/expression path: 0
+- script/onerror execution: 0
+
+Validation:
+- valid optional selector ops rejected: 0
+- invalid negative width accepted: 0
+- invalid opacity accepted: 0
+- invalid page selector accepted: 0
+- invalid reorder accepted: 0
+
+Schema/Recipes:
+- duplicate op schema: 0
+- defaultStep mismatch: 0
+- built-in recipe count: >= 10 minimum, >= 20 target
+- duplicate built-in IDs: 0
+- schema-invalid built-in recipe: 0
+
+Builder:
+- builder shell renders: pass
+- recipe browser renders: pass
+- step palette renders: pass
+- step editor renders: pass
+- validation panel renders: pass
+- custom recipe save/load: pass
+
+Run UI:
+- dry-run visible: pass
+- run visible: pass
+- run disabled for invalid recipe: pass
+- dry-run does not apply bytes: pass
+- successful run applies bytes: pass
+- failed run does not apply bytes: pass
+
+Dropdown/App:
+- macro dropdown visible: pass
+- recommended/grouped/custom recipes visible: pass
+- edit built-in as custom clone: pass
+- successful run marks dirty: pass
+- render cache refresh triggered: pass
+
+Certification:
+- TypeScript errors: 0
+- Unit test failures: 0
+- Macro static audit failures: 0
+- Build errors: 0

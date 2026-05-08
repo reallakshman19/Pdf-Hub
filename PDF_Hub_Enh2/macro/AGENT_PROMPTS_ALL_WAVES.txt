@@ -1,0 +1,26 @@
+AGENT PROMPTS — ALL WAVES
+=========================
+
+Wave 0 — Macro Orchestrator / Auditor
+Goal: Create baseline reports and freeze macro contracts. Do not make functional code changes.
+
+Wave 1 — Macro Engine Safety Agent
+Goal: Implement safe registry execution, stepwise template variables, apply_template_vars, conditional, register-all, rollback, dry-run, selection_changed/log side effects. Do not build UI.
+
+Wave 2 — Macro Security + Validator Agent
+Goal: Implement per-op validation, selector correction, macro security helpers, sanitized rich textbox rendering, escaped table content, safe image source policy, table height fix. Do not build UI.
+
+Wave 3 — Macro Schema + Recipe Catalog Agent
+Goal: Implement opSchema, recipeBuilderState, builtInRecipes, recipeStorage, tests. Do not build React UI.
+
+Wave 4 — Macro Builder UI Agent
+Goal: Implement builder shell, recipe browser, toolbar, step palette, step list, step editor, field components, validation panel. Do not wire execution.
+
+Wave 5 — Macro Execution UI + Import/Export Agent
+Goal: Add dry-run/run buttons, dry-run panel, run result panel, import/export UI, and result callbacks. Do not modify executor/validator/security.
+
+Wave 6 — Macro App Integration Agent
+Goal: Add macro UI store, dropdown, panel, context adapter, builder initialRecipe, workspace integration. Do not add new macro operations.
+
+Wave 7 — Macro QA / Certification Agent
+Goal: Add certification tests, static audit, package scripts, certification document, optional workflow. Do not add product features.
