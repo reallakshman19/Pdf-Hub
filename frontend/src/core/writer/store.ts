@@ -33,6 +33,7 @@ interface WriterActions {
   sendBackward:  (id: string) => void;
   bringToFront:  (id: string) => void;
   sendToBack:    (id: string) => void;
+  clearElementsAfterCommit: () => void;
 }
 
 // Snapshot current elements to undo stack
@@ -198,4 +199,13 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
       e.id === id ? { ...e, zIndex: 0 } : { ...e, zIndex: e.zIndex + 1 }
     ),
   })),
+
+  // Stub — Wave 2B will replace with full implementation
+  clearElementsAfterCommit: () => set({
+    elements: [],
+    selectedIds: [],
+    activeId: null,
+    undoStack: [],
+    redoStack: [],
+  }),
 }));

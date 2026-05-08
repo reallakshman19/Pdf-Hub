@@ -2,6 +2,17 @@ import html2canvas from 'html2canvas';
 import { PdfEditAdapter } from '../../adapters/pdf-edit/PdfEditAdapter';
 import type { PlacedElement } from './types';
 
+export interface WriterExportWarning {
+  elementId?: string;
+  message: string;
+}
+
+export interface BakeWriterElementsOptions {
+  preferSemantic?: boolean;
+  allowRasterFallback?: boolean;
+  collectWarnings?: (warnings: WriterExportWarning[]) => void;
+}
+
 /**
  * Bakes all PlacedElements into the PDF as embedded images.
  *
@@ -18,6 +29,7 @@ import type { PlacedElement } from './types';
 export async function bakeWriterElementsIntoPdf(
   baseBytes: Uint8Array,
   elements: PlacedElement[],
+  _options?: BakeWriterElementsOptions,
 ): Promise<Uint8Array> {
   if (elements.length === 0) return baseBytes;
 

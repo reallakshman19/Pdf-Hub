@@ -39,6 +39,36 @@ export interface SessionOperationMetadata {
   message?: string;
 }
 
+export type SaveLifecycleStatus =
+  | 'idle'
+  | 'saving'
+  | 'saved'
+  | 'exporting'
+  | 'failed';
+
+export type AutosaveStatus =
+  | 'idle'
+  | 'pending'
+  | 'saving'
+  | 'saved'
+  | 'failed';
+
+export interface SessionSaveState {
+  status: SaveLifecycleStatus;
+  startedAt?: number;
+  completedAt?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface AnnotationAutosaveState {
+  status: AutosaveStatus;
+  pendingCount: number;
+  lastSavedAt?: number;
+  lastFailedAt?: number;
+  error?: string;
+}
+
 export interface DocumentSession {
   documentKey: string | null;
   fileName: string | null;
@@ -46,16 +76,17 @@ export interface DocumentSession {
   workingBytes: Uint8Array | null;
   pageCount: number;
 
-  // explicit dirty flags
   isDocumentDirty: boolean;
   isReviewDirty: boolean;
   isSessionDirty: boolean;
-  // keep legacy isDirty around for backward compatibility until refactored out
   isDirty: boolean;
 
   saveHandle: FileSystemFileHandle | null;
   selectedPages: number[];
   viewState: ViewState;
+
+  saveState: SessionSaveState;
+  annotationAutosaveState: AnnotationAutosaveState;
 
   lastExportAction?: SessionSaveExportAction;
   lastOperation?: SessionOperationMetadata;
