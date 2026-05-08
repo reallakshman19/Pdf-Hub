@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "audit:phase8": "node scripts/phase8-static-audit.mjs",
+    "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
