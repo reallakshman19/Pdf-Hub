@@ -1,16 +1,116 @@
 import html2canvas from 'html2canvas';
 import { PdfEditAdapter } from '../../adapters/pdf-edit/PdfEditAdapter';
-import type { PlacedElement } from './types';
+import type { PlacedElement, WriterTableData } from './types';
 
 export interface WriterExportWarning {
-  elementId?: string;
-  message: string;
+  elementId: string;
+  pageNumber: number;
+  reason: string;
+  fallback: 'raster' | 'skipped';
 }
 
+export interface WriterExportOptions {
+  preferSemantic?: boolean;
+  allowRasterFallback?: boolean;
+  collectWarnings?: (warnings: WriterExportWarning[]) => void;
+}
+
+/** @deprecated Use WriterExportOptions */
 export interface BakeWriterElementsOptions {
   preferSemantic?: boolean;
   allowRasterFallback?: boolean;
   collectWarnings?: (warnings: WriterExportWarning[]) => void;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+export function sanitizeWriterHtml(html: string): string {
+  // Strip script, style, iframe, object, embed, form tags and event attributes
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*/gi, '')
+    .replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+    .replace(/javascript\s*:/gi, '');
+}
+
+export function buildTableHtml(
+  data: WriterTableData,
+  width: number,
+  scale: number,
+): string {
+  const columns = data.columns || [];
+  const rows = data.rows || [];
+  const borderColor = data.style?.borderColor || '#d1d5db';
+  const headerBg = data.style?.headerBg || '#f1f5f9';
+
+  const colCount = columns.length > 0 ? columns.length : (rows[0]?.cells?.length ?? 0);
+  const colWidth = colCount > 0 ? Math.floor(width / colCount) : width;
+  const fontSize = 11 * scale;
+
+  const dataRows = rows.map((row, rIdx) => {
+    const isHeader = rIdx === 0;
+    const bg = isHeader ? headerBg : 'transparent';
+    const fw = isHeader ? 500 : 'normal';
+
+    return `<tr>${row.cells.map(cell =>
+      `<td style="padding:${4 * scale}px ${6 * scale}px;background:${bg};font-weight:${fw};border:1px solid ${borderColor};width:${colWidth}px;font-size:${fontSize}px">${escapeHtml(String(cell.text ?? ''))}</td>`
+    ).join('')}</tr>`;
+  }).join('');
+
+  return `<table style="border-collapse:collapse;width:100%;font-family:sans-serif">
+    <tbody>${dataRows}</tbody>
+  </table>`;
+}
+
+async function drawRichTextElement(
+  element: PlacedElement,
+  container: HTMLDivElement,
+): Promise<void> {
+  container.innerHTML = sanitizeWriterHtml(element.content);
+}
+
+async function drawTableElement(
+  element: PlacedElement,
+  container: HTMLDivElement,
+  renderScale: number,
+): Promise<void> {
+  const tableData = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}') as WriterTableData & {
+    headers?: string[];
+    borderColor?: string;
+    headerBg?: string;
+  };
+  // Handle migration from old schema
+  let parsedData: WriterTableData = tableData as WriterTableData;
+  if ('headers' in tableData && Array.isArray(tableData.headers)) {
+    parsedData = {
+      columns: tableData.headers.map((_h: string, i: number) => ({ id: `col-${i}` })),
+      rows: [
+        { id: 'header-row', cells: tableData.headers.map((h: string, i: number) => ({ id: `h-${i}`, text: h })) },
+        ...(tableData.rows as unknown as string[][]).map((r: string[], rIdx: number) => ({
+          id: `r-${rIdx}`,
+          cells: r.map((c, cIdx) => ({ id: `c-${rIdx}-${cIdx}`, text: c }))
+        }))
+      ],
+      style: {
+        borderColor: tableData.borderColor ?? '#d1d5db',
+        headerBg: tableData.headerBg ?? '#f1f5f9',
+      },
+    };
+  }
+
+  const w = Math.round(element.width * renderScale);
+  container.innerHTML = buildTableHtml(parsedData, w, renderScale);
 }
 
 /**
@@ -29,7 +129,7 @@ export interface BakeWriterElementsOptions {
 export async function bakeWriterElementsIntoPdf(
   baseBytes: Uint8Array,
   elements: PlacedElement[],
-  _options?: BakeWriterElementsOptions,
+  options: WriterExportOptions = {},
 ): Promise<Uint8Array> {
   if (elements.length === 0) return baseBytes;
 
@@ -42,26 +142,43 @@ export async function bakeWriterElementsIntoPdf(
   }
 
   let currentBytes = baseBytes;
+  const warnings: WriterExportWarning[] = [];
 
   for (const [pageNumber, pageElements] of byPage) {
     const sorted = pageElements.sort((a, b) => a.zIndex - b.zIndex);
 
     for (const element of sorted) {
-      const pngBytes = await captureElementToPng(element);
+      try {
+        const pngBytes = await captureElementToPng(element);
 
-      currentBytes = await PdfEditAdapter.insertImage(currentBytes, {
-        pages:       [pageNumber],
-        x:           element.x,
-        y:           element.y,
-        width:       element.width,
-        height:      element.height,
-        imageBytes:  pngBytes,
-        mimeType:    'image/png',
-        opacity:     element.styles.opacity     ?? 1,
-        borderWidth: element.styles.borderWidth ?? 0,
-        borderColor: element.styles.borderColor,
-      });
+        currentBytes = await PdfEditAdapter.insertImage(currentBytes, {
+          pages:       [pageNumber],
+          x:           element.x,
+          y:           element.y,
+          width:       element.width,
+          height:      element.height,
+          imageBytes:  pngBytes,
+          mimeType:    'image/png',
+          opacity:     element.styles.opacity     ?? 1,
+          borderWidth: element.styles.borderWidth ?? 0,
+          borderColor: element.styles.borderColor,
+        });
+      } catch (err) {
+        if (options.allowRasterFallback === false) {
+          throw err;
+        }
+        warnings.push({
+          elementId: element.id,
+          pageNumber,
+          reason: String(err),
+          fallback: 'skipped',
+        });
+      }
     }
+  }
+
+  if (warnings.length > 0 && options.collectWarnings) {
+    options.collectWarnings(warnings);
   }
 
   return currentBytes;
@@ -94,7 +211,7 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
   });
 
   if (element.type === 'rich-text') {
-    container.innerHTML = element.content;
+    await drawRichTextElement(element, container);
   } else if (element.type === 'image') {
     const img = document.createElement('img');
     img.src   = element.content;
@@ -108,24 +225,7 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
       img.onerror = () => rej(new Error('Image failed to load for bake'));
     });
   } else if (element.type === 'table') {
-    const tableData = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}');
-    // Ensure we handle migration transparently on render if it's an old schema
-    let parsedData = tableData;
-    if (tableData.headers) {
-      parsedData = {
-         columns: tableData.headers.map((_h: string, i: number) => ({ id: `col-${i}` })),
-         rows: [
-           { id: 'header-row', cells: tableData.headers.map((h: string, i: number) => ({ id: `h-${i}`, text: h })) },
-           ...tableData.rows.map((r: string[], rIdx: number) => ({
-              id: `r-${rIdx}`,
-              cells: r.map((c, cIdx) => ({ id: `c-${rIdx}-${cIdx}`, text: c }))
-           }))
-         ],
-         style: { borderColor: tableData.borderColor || '#d1d5db', headerBg: tableData.headerBg || '#f1f5f9' }
-      };
-    }
-
-    container.innerHTML = buildTableHtml(parsedData, w, RENDER_SCALE);
+    await drawTableElement(element, container, RENDER_SCALE);
   }
 
   document.body.appendChild(container);
@@ -149,34 +249,4 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
   } finally {
     document.body.removeChild(container);
   }
-}
-
-import type { WriterTableData } from './types';
-
-export function buildTableHtml(
-  data: WriterTableData,
-  width: number,
-  scale: number,
-): string {
-  const columns = data.columns || [];
-  const rows = data.rows || [];
-  const borderColor = data.style?.borderColor || '#d1d5db';
-  const headerBg = data.style?.headerBg || '#f1f5f9';
-
-  const colWidth = columns.length > 0 ? Math.floor(width / columns.length) : width;
-  const fontSize = 11 * scale;
-
-  const dataRows = rows.map((row, rIdx) => {
-    const isHeader = rIdx === 0;
-    const bg = isHeader ? headerBg : 'transparent';
-    const fw = isHeader ? 500 : 'normal';
-
-    return `<tr>${row.cells.map(cell =>
-      `<td style="padding:${4*scale}px ${6*scale}px;background:${bg};font-weight:${fw};border:1px solid ${borderColor};width:${colWidth}px;font-size:${fontSize}px">${cell.text}</td>`
-    ).join('')}</tr>`;
-  }).join('');
-
-  return `<table style="border-collapse:collapse;width:100%;font-family:sans-serif">
-    <tbody>${dataRows}</tbody>
-  </table>`;
 }
