@@ -1,10 +1,12 @@
-import type { MacroRecipe, MacroExecutionContext } from '../types';
+import type { MacroDryRunDiff, MacroRecipe, MacroExecutionContext } from '../types';
+import { simulateMacroDryRun } from '../dry-run';
 
 export interface PreflightReport {
   isValid: boolean;
   errors: string[];
   warnings: string[];
   dryRunLogs: string[];
+  dryRunDiff?: MacroDryRunDiff;
 }
 
 export async function validateRecipeBeforeRun(
@@ -48,9 +50,18 @@ export async function validateRecipeBeforeRun(
     }
   }
 
-  // Dry run simulation (simplified for validation)
+  // Dry run simulation
+  let dryRunDiff: MacroDryRunDiff | undefined;
   if (recipe.dryRun) {
-    dryRunLogs.push('Dry run validation complete.');
+    const report = await simulateMacroDryRun(recipe, {
+      pageCount: ctx.pageCount,
+      selectedPages: ctx.selectedPages,
+      fileName: ctx.fileName,
+    });
+    dryRunDiff = report.diff;
+    dryRunLogs.push(...report.diff.logs);
+    warnings.push(...report.warnings);
+    errors.push(...report.errors);
   }
 
   return {
@@ -58,5 +69,6 @@ export async function validateRecipeBeforeRun(
     errors,
     warnings,
     dryRunLogs,
+    dryRunDiff,
   };
 }

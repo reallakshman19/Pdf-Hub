@@ -193,3 +193,35 @@ export interface MacroRunResult {
   logs: string[];
   extractedOutputs: MacroOutputFile[];
 }
+
+export interface MacroDryRunOutputFile {
+  name: string;
+  reason: string;
+  pageCount?: number;
+}
+
+export interface MacroDryRunObjectChanges {
+  added: number;
+  updated: number;
+  deleted: number;
+}
+
+export interface MacroDryRunDiff {
+  initialPageCount: number;
+  finalPageCount: number;
+  modifiedBytes: boolean;
+  selectedPagesBefore: number[];
+  selectedPagesAfter: number[];
+  outputFiles: MacroDryRunOutputFile[];
+  annotationChanges: MacroDryRunObjectChanges;
+  writerChanges: MacroDryRunObjectChanges;
+  warnings: string[];
+  logs: string[];
+}
+
+export interface MacroDryRunReport {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  diff: MacroDryRunDiff;
+}
