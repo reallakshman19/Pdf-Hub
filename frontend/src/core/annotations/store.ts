@@ -59,6 +59,44 @@ function normalizeIds(ids: string[], annotations: PdfAnnotation[]): string[] {
   return Array.from(new Set(ids)).filter((id) => allowed.has(id));
 }
 
+function markAnnotationDirty(): void {
+  useSessionStore.getState().setDirty(true);
+}
+
+function pushAnnotationHistory(state: AnnotationState): PdfAnnotation[][] {
+  return [...state.history, state.annotations].slice(-MAX_HISTORY);
+}
+
+function applyAnnotationHistoryTransaction(
+  state: AnnotationState,
+  nextAnnotations: PdfAnnotation[],
+  nextSelectedIds: string[] = [],
+  nextActiveId: string | null = null,
+): Partial<AnnotationState> {
+  markAnnotationDirty();
+
+  return {
+    annotations: nextAnnotations,
+    history: pushAnnotationHistory(state),
+    future: [],
+    selectedAnnotationIds: normalizeIds(nextSelectedIds, nextAnnotations),
+    activeAnnotationId:
+      nextActiveId && normalizeIds([nextActiveId], nextAnnotations).length > 0
+        ? nextActiveId
+        : normalizeIds(nextSelectedIds, nextAnnotations)[0] ?? null,
+  };
+}
+
+function clearAnnotationInteractionState(): Pick<
+  AnnotationState,
+  'selectedAnnotationIds' | 'activeAnnotationId'
+> {
+  return {
+    selectedAnnotationIds: [],
+    activeAnnotationId: null,
+  };
+}
+
 function selectedAnnotations(
   annotations: PdfAnnotation[],
   ids: string[],
@@ -191,32 +229,30 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
   undo: () =>
     set((state) => {
       if (state.history.length === 0) return state;
+      markAnnotationDirty();
       const previous = state.history[state.history.length - 1];
       const newHistory = state.history.slice(0, -1);
-      const newFuture = [state.annotations, ...state.future];
-
+      const newFuture = [state.annotations, ...state.future].slice(0, MAX_HISTORY);
       return {
         annotations: previous,
         history: newHistory,
         future: newFuture,
-        selectedAnnotationIds: [],
-        activeAnnotationId: null,
+        ...clearAnnotationInteractionState(),
       };
     }),
 
   redo: () =>
     set((state) => {
       if (state.future.length === 0) return state;
+      markAnnotationDirty();
       const next = state.future[0];
       const newFuture = state.future.slice(1);
-      const newHistory = [...state.history, state.annotations];
-
+      const newHistory = pushAnnotationHistory(state);
       return {
         annotations: next,
         history: newHistory,
         future: newFuture,
-        selectedAnnotationIds: [],
-        activeAnnotationId: null,
+        ...clearAnnotationInteractionState(),
       };
     }),
 
@@ -539,22 +575,39 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
 // Register pure page lifecycle event remappers
 documentBus.subscribe((event) => {
   if (event.type === 'PAGES_REORDERED') {
-    useAnnotationStore.setState(state => ({
-      annotations: remapAfterReorder(state.annotations, event.order),
-    }));
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(state, remapAfterReorder(state.annotations, event.order), [], null),
+    );
+    return;
   }
+
   if (event.type === 'PAGES_DELETED') {
-    useAnnotationStore.setState(state => ({
-      annotations: remapAfterDelete(state.annotations, event.indices),
-    }));
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(state, remapAfterDelete(state.annotations, event.indices), [], null),
+    );
+    return;
   }
+
   if (event.type === 'PAGES_INSERTED') {
-    useAnnotationStore.setState(state => ({
-      annotations: remapAfterInsert(state.annotations, event.atIndex, event.count),
-    }));
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(
+        state,
+        remapAfterInsert(state.annotations, event.atIndex, event.count),
+        [],
+        null,
+      ),
+    );
+    return;
   }
+
   if (event.type === 'DOCUMENT_REPLACED') {
-    // New document — clear all annotations
-    useAnnotationStore.setState({ annotations: [] });
+    useAnnotationStore.setState({
+      annotations: [],
+      history: [],
+      future: [],
+      selectedAnnotationIds: [],
+      activeAnnotationId: null,
+      clipboard: [],
+    });
   }
 });
