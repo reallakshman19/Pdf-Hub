@@ -3,6 +3,10 @@ import type { StepResult, MacroMutableState } from '../registry';
 import type { MacroExecutionContext, MacroStep } from '../types';
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
 import { resolveSelector } from './page-ops';
+import {
+  buildTableHtml as buildSafeWriterTableHtml,
+  sanitizeWriterHtml,
+} from '../../writer/exporter';
 
 type DrawTextOnPagesStep = Extract<MacroStep, { op: 'draw_text_on_pages' }>;
 async function executeDrawTextOnPages(
@@ -187,7 +191,7 @@ async function renderHtmlToPng(
     lineHeight:      styles.lineHeight ? String(styles.lineHeight) : '1.4',
     boxSizing:       'border-box',
   });
-  container.innerHTML = htmlContent;
+  container.innerHTML = sanitizeWriterHtml(htmlContent);
   document.body.appendChild(container);
 
   try {
@@ -247,15 +251,17 @@ async function executePlaceTable(
       fontFamily: 'sans-serif',
       boxSizing:  'border-box',
     });
-    container.innerHTML = buildTableHtml(tableData, w, RENDER_SCALE);
+    container.innerHTML = buildSafeWriterTableHtml(tableData, w, RENDER_SCALE);
     document.body.appendChild(container);
 
     let pngBytes: Uint8Array;
+    let capturedOffsetHeight = 0;
     try {
+      capturedOffsetHeight = container.offsetHeight; // capture before removal
       const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(container, {
         width:           w,
-        height:          container.offsetHeight || h,
+        height:          capturedOffsetHeight || h,
         scale:           1,
         backgroundColor: null,
         useCORS:         true,
@@ -271,7 +277,7 @@ async function executePlaceTable(
       document.body.removeChild(container);
     }
 
-    const actualHeight = Math.round(container.offsetHeight / RENDER_SCALE) || (rowCount * (rowHeight / RENDER_SCALE));
+    const actualHeight = Math.round(capturedOffsetHeight / RENDER_SCALE) || (rowCount * (rowHeight / RENDER_SCALE));
 
     const currentBytes = await PdfEditAdapter.insertImage(state.workingBytes, {
       pages:      pages,

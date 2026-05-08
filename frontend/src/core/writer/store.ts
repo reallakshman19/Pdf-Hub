@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import type { PlacedElement, WriterTool } from './types';
+import { useSessionStore } from '@/core/session/store';
 
 const MAX_UNDO_DEPTH = 50;
+
+function markWriterDirty(): void {
+  useSessionStore.getState().setDirty(true);
+}
 
 interface WriterState {
   elements:    PlacedElement[];
@@ -26,6 +31,7 @@ interface WriterActions {
   setSelection:            (ids: string[]) => void;
   clearSelection:          () => void;
   clearPage:               (pageNumber: number) => void;
+  clearElements:           () => void;
   exportPage:    (pageNumber: number) => PlacedElement[];
   undo:          () => void;
   redo:          () => void;
@@ -33,6 +39,7 @@ interface WriterActions {
   sendBackward:  (id: string) => void;
   bringToFront:  (id: string) => void;
   sendToBack:    (id: string) => void;
+  clearElementsAfterCommit: () => void;
 }
 
 // Snapshot current elements to undo stack
@@ -49,22 +56,29 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   undoStack:   [],
   redoStack:   [],
 
-  addElement: (element) => set(s => ({
-    elements:    [...s.elements, element],
-    selectedIds: [element.id],
-    activeId:    element.id,
-    undoStack:   snapshot(s.elements, s.undoStack),
-    redoStack:   [],
-  })),
+  addElement: (element) => set(s => {
+    markWriterDirty();
+    return {
+      elements:    [...s.elements, element],
+      selectedIds: [element.id],
+      activeId:    element.id,
+      undoStack:   snapshot(s.elements, s.undoStack),
+      redoStack:   [],
+    };
+  }),
 
-  updateElement: (id, patch) => set(s => ({
-    elements: s.elements.map(e => e.id === id ? { ...e, ...patch } : e),
-    undoStack: snapshot(s.elements, s.undoStack),
-    redoStack: [],
-  })),
+  updateElement: (id, patch) => set(s => {
+    markWriterDirty();
+    return {
+      elements: s.elements.map(e => e.id === id ? { ...e, ...patch } : e),
+      undoStack: snapshot(s.elements, s.undoStack),
+      redoStack: [],
+    };
+  }),
 
   updateSelectedElements: (patch) => set(s => {
     if (s.selectedIds.length === 0) return {};
+    markWriterDirty();
     return {
       elements: s.elements.map(e => s.selectedIds.includes(e.id) ? { ...e, ...patch } : e),
       undoStack: snapshot(s.elements, s.undoStack),
@@ -73,6 +87,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   commitElementTransform: (preDragElements) => set(s => {
+    markWriterDirty();
     // We snapshot the explicitly provided PRE-drag elements.
     // The current s.elements is already the POST-drag elements.
     const newUndoStack = snapshot(preDragElements, s.undoStack);
@@ -82,24 +97,31 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
     };
   }),
 
-  removeElement: (id) => set(s => ({
-    elements:    s.elements.filter(e => e.id !== id),
-    selectedIds: s.selectedIds.filter(selected => selected !== id),
-    activeId:    s.activeId === id ? null : s.activeId,
-    undoStack:   snapshot(s.elements, s.undoStack),
-    redoStack:   [],
-  })),
+  removeElement: (id) => set(s => {
+    markWriterDirty();
+    return {
+      elements:    s.elements.filter(e => e.id !== id),
+      selectedIds: s.selectedIds.filter(selected => selected !== id),
+      activeId:    s.activeId === id ? null : s.activeId,
+      undoStack:   snapshot(s.elements, s.undoStack),
+      redoStack:   [],
+    };
+  }),
 
-  removeSelection: () => set(s => ({
-    elements:    s.elements.filter(e => !s.selectedIds.includes(e.id)),
-    selectedIds: [],
-    activeId:    null,
-    undoStack:   snapshot(s.elements, s.undoStack),
-    redoStack:   [],
-  })),
+  removeSelection: () => set(s => {
+    markWriterDirty();
+    return {
+      elements:    s.elements.filter(e => !s.selectedIds.includes(e.id)),
+      selectedIds: [],
+      activeId:    null,
+      undoStack:   snapshot(s.elements, s.undoStack),
+      redoStack:   [],
+    };
+  }),
 
   duplicateSelection: () => set(s => {
     if (s.selectedIds.length === 0) return {};
+    markWriterDirty();
 
     const newElements: PlacedElement[] = [];
     const newIds: string[] = [];
@@ -155,11 +177,25 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
     activeId: null
   }),
 
-  clearPage: (pageNumber) => set(s => ({
-    elements:  s.elements.filter(e => e.pageNumber !== pageNumber),
-    undoStack: snapshot(s.elements, s.undoStack),
-    redoStack: [],
-  })),
+  clearPage: (pageNumber) => set(s => {
+    markWriterDirty();
+    return {
+      elements:  s.elements.filter(e => e.pageNumber !== pageNumber),
+      undoStack: snapshot(s.elements, s.undoStack),
+      redoStack: [],
+    };
+  }),
+
+  clearElements: () => {
+    markWriterDirty();
+    set({
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+      undoStack: [],
+      redoStack: [],
+    });
+  },
 
   exportPage: (pageNumber) => {
     return get().elements
@@ -169,6 +205,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   undo: () => set(s => {
     if (s.undoStack.length === 0) return {};
+    markWriterDirty();
     const [prev, ...rest] = s.undoStack;
     return {
       elements:  prev,
@@ -179,6 +216,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   redo: () => set(s => {
     if (s.redoStack.length === 0) return {};
+    markWriterDirty();
     const [next, ...rest] = s.redoStack;
     return {
       elements:  next,
@@ -187,15 +225,29 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
     };
   }),
 
-  bringForward:  (id) => set(s => ({ elements: s.elements.map(e => e.id === id ? { ...e, zIndex: e.zIndex + 1 } : e) })),
-  sendBackward:  (id) => set(s => ({ elements: s.elements.map(e => e.id === id ? { ...e, zIndex: Math.max(0, e.zIndex - 1) } : e) })),
+  bringForward:  (id) => set(s => { markWriterDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: e.zIndex + 1 } : e) }; }),
+  sendBackward:  (id) => set(s => { markWriterDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: Math.max(0, e.zIndex - 1) } : e) }; }),
   bringToFront:  (id) => set(s => {
+    markWriterDirty();
     const maxZ = Math.max(0, ...s.elements.map(e => e.zIndex));
     return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: maxZ + 1 } : e) };
   }),
-  sendToBack:    (id) => set(s => ({
-    elements: s.elements.map(e =>
-      e.id === id ? { ...e, zIndex: 0 } : { ...e, zIndex: e.zIndex + 1 }
-    ),
-  })),
+  sendToBack:    (id) => set(s => {
+    markWriterDirty();
+    return {
+      elements: s.elements.map(e =>
+        e.id === id ? { ...e, zIndex: 0 } : { ...e, zIndex: e.zIndex + 1 }
+      ),
+    };
+  }),
+
+  clearElementsAfterCommit: () =>
+    set({
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+      undoStack: [],
+      redoStack: [],
+      activeTool: 'select',
+    }),
 }));

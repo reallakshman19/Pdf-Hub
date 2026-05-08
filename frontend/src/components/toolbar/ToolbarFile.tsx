@@ -6,6 +6,9 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { saveAnnotations } from '@/core/annotations/persistence';
+import { useWriterStore } from '@/core/writer/store';
+import { composeCommittedPdf } from '@/core/document/commitPipeline';
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 
@@ -19,10 +22,41 @@ export const ToolbarFile: React.FC = () => {
     isDirty,
     setDirty,
     recordSaveExportAction,
+    commitWorkingCopy,
+    beginSaveOperation,
+    beginExportOperation,
+    completeSaveOperation,
+    failSaveOperation,
   } = useSessionStore();
 
-  const { annotations } = useAnnotationStore();
+  const { annotations, setAnnotations } = useAnnotationStore();
   const addToast = useToastStore((state) => state.addToast);
+
+  const writerElements = useWriterStore((state) => state.elements);
+  const clearWriterElementsAfterCommit = useWriterStore(
+    (state) => state.clearElementsAfterCommit,
+  );
+
+  const buildCommittedPdf = async () => {
+    if (!workingBytes) {
+      throw new Error('No working PDF is loaded');
+    }
+    return composeCommittedPdf({
+      baseBytes: workingBytes,
+      annotations,
+      writerElements,
+    });
+  };
+
+  const clearCommittedOverlays = async (nextDocumentKey: string) => {
+    if (annotations.length > 0) {
+      setAnnotations([]);
+      await saveAnnotations(nextDocumentKey, []);
+    }
+    if (writerElements.length > 0) {
+      clearWriterElementsAfterCommit();
+    }
+  };
 
   const handleOpen = async () => {
     try {
@@ -53,15 +87,15 @@ export const ToolbarFile: React.FC = () => {
       return;
     }
     try {
-      const bytesToSave =
-        annotations.length > 0
-          ? await PdfEditAdapter.exportWithAnnotations(workingBytes, annotations)
-          : workingBytes;
-      const nextHandle = await FileAdapter.savePdfBytes(bytesToSave, fileName, saveHandle);
+      beginSaveOperation('Committing annotations and writer elements…');
+      const { bytes, pageCount, documentKey } = await buildCommittedPdf();
+      const nextHandle = await FileAdapter.savePdfBytes(bytes, fileName, saveHandle);
       if (nextHandle) {
         setSaveHandle(nextHandle);
       }
-      setDirty(false);
+      commitWorkingCopy({ bytes, pageCount, documentKey });
+      await clearCommittedOverlays(documentKey);
+      completeSaveOperation(`Saved ${fileName}`);
       recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
       addToast({
         type: 'success',
@@ -74,34 +108,37 @@ export const ToolbarFile: React.FC = () => {
           error: String(err),
         });
         try {
-            const bytesToSave =
-              annotations.length > 0
-                ? await PdfEditAdapter.exportWithAnnotations(workingBytes, annotations)
-                : workingBytes;
-            const nextHandle = await FileAdapter.savePdfBytes(bytesToSave, fileName, null);
-            if (nextHandle) {
-              setSaveHandle(nextHandle);
-            }
-            setDirty(false);
-            recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
-            addToast({
-              type: 'success',
-              title: 'Saved Successfully',
-              message: `Saved to ${fileName}`,
-            });
-        } catch(saveAsErr) {
-            logError('session', 'Failed to save PDF via Save As', { error: String(saveAsErr), fileName });
-            recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'failure', String(saveAsErr));
-            addToast({
-              type: 'error',
-              title: 'Save Failed',
-              message: 'Failed to save the document. Please try again.',
-            });
+          const { bytes, pageCount, documentKey } = await buildCommittedPdf();
+          const nextHandle = await FileAdapter.savePdfBytes(bytes, fileName, null);
+          if (nextHandle) {
+            setSaveHandle(nextHandle);
+          }
+          commitWorkingCopy({ bytes, pageCount, documentKey });
+          await clearCommittedOverlays(documentKey);
+          completeSaveOperation(`Saved ${fileName}`);
+          recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
+          addToast({
+            type: 'success',
+            title: 'Saved Successfully',
+            message: `Saved to ${fileName}`,
+          });
+        } catch (saveAsErr) {
+          const message = saveAsErr instanceof Error ? saveAsErr.message : String(saveAsErr);
+          logError('session', 'Failed to save PDF via Save As', { error: message, fileName });
+          failSaveOperation(message);
+          recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'failure', message);
+          addToast({
+            type: 'error',
+            title: 'Save Failed',
+            message: 'Failed to save the document. Please try again.',
+          });
         }
         return;
       }
-      logError('session', 'Failed to save PDF', { error: String(err), fileName });
-      recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'failure', String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      logError('session', 'Failed to save PDF', { error: message, fileName });
+      failSaveOperation(message);
+      recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'failure', message);
       addToast({
         type: 'error',
         title: 'Save Failed',
@@ -115,9 +152,11 @@ export const ToolbarFile: React.FC = () => {
       return;
     }
     try {
-      const exported = await PdfEditAdapter.exportWithAnnotations(workingBytes, annotations);
+      beginExportOperation('Building flattened export…');
+      const { bytes } = await buildCommittedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-review.pdf';
-      await FileAdapter.savePdfBytes(exported, exportName, null);
+      await FileAdapter.savePdfBytes(bytes, exportName, null);
+      completeSaveOperation(`Exported ${exportName}`);
       recordSaveExportAction(
         { type: 'EXPORT_REVIEW_SNAPSHOT' },
         'success',
@@ -129,8 +168,10 @@ export const ToolbarFile: React.FC = () => {
         message: `Exported review to ${exportName}`,
       });
     } catch (err) {
-      logError('session', 'Failed to export review PDF', { error: String(err), fileName });
-      recordSaveExportAction({ type: 'EXPORT_REVIEW_SNAPSHOT' }, 'failure', String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      logError('session', 'Failed to export review PDF', { error: message, fileName });
+      failSaveOperation(message);
+      recordSaveExportAction({ type: 'EXPORT_REVIEW_SNAPSHOT' }, 'failure', message);
       addToast({
         type: 'error',
         title: 'Export Failed',
@@ -144,9 +185,11 @@ export const ToolbarFile: React.FC = () => {
       return;
     }
     try {
-      const exported = await PdfEditAdapter.exportWithAnnotations(workingBytes, annotations);
+      beginExportOperation('Building flattened export…');
+      const { bytes } = await buildCommittedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-annotated.pdf';
-      await FileAdapter.savePdfBytes(exported, exportName, null);
+      await FileAdapter.savePdfBytes(bytes, exportName, null);
+      completeSaveOperation(`Exported ${exportName}`);
       recordSaveExportAction(
         { type: 'EXPORT_REVIEW_SNAPSHOT' },
         'success',
@@ -158,8 +201,10 @@ export const ToolbarFile: React.FC = () => {
         message: `Exported to ${exportName}`,
       });
     } catch (err) {
-      logError('session', 'Failed to export annotated PDF', { error: String(err), fileName });
-      recordSaveExportAction({ type: 'EXPORT_REVIEW_SNAPSHOT' }, 'failure', String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      logError('session', 'Failed to export annotated PDF', { error: message, fileName });
+      failSaveOperation(message);
+      recordSaveExportAction({ type: 'EXPORT_REVIEW_SNAPSHOT' }, 'failure', message);
       addToast({
         type: 'error',
         title: 'Export Failed',

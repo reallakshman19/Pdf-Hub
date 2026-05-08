@@ -18,6 +18,24 @@ function nextId(): string {
   return `wel-${crypto.randomUUID()}`;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function ocrTextToHtml(value: string): string {
+  const escaped = escapeHtml(value);
+  return `<p>${escaped.replace(/\r?\n/g, '<br/>')}</p>`;
+}
+
+function isWriterPlacementTool(tool: string): boolean {
+  return tool === 'place-text' || tool === 'place-image' || tool === 'place-table';
+}
+
 /**
  * Transparent overlay above the PDF canvas for one page.
  *
@@ -36,9 +54,6 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
     .filter(e => e.pageNumber === pageNumber)
     .sort((a, b) => a.zIndex - b.zIndex);
 
-  const isPlacing = activeTool !== 'select';
-  const isOcr = activeTool === 'ocr-region';
-
   const addToast = useToastStore(s => s.addToast);
 
   // Marquee selection state
@@ -53,6 +68,11 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
   // Track shift key for enabling marquee selection
   const [isShiftDown, setIsShiftDown] = useState(false);
+
+  const isPlacing = activeTool !== 'select';
+  const isPlacementTool = isWriterPlacementTool(activeTool);
+  const isOcr = activeTool === 'ocr-region';
+  const isWriterCaptureMode = isPlacementTool || isOcr || isShiftDown;
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Shift') setIsShiftDown(true); };
@@ -156,7 +176,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
                      y: top,
                      width: Math.max(200/scale, right - left),
                      height: Math.max(80/scale, bottom - top),
-                     content: `<p>${text.replace(/\n/g, '<br/>')}</p>`,
+                     content: ocrTextToHtml(text),
                      styles: {},
                      zIndex: elements.length,
                      locked: false,
@@ -258,8 +278,8 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
   if (!pageDimensions) return null;
 
-  const captureLayerEnabled = isPlacing || isShiftDown || isOcr;
-  const captureCursor = isPlacing || isOcr || isShiftDown ? 'crosshair' : 'default';
+  const captureLayerEnabled = isWriterCaptureMode;
+  const captureCursor = isWriterCaptureMode ? 'crosshair' : 'default';
 
   return (
     <div

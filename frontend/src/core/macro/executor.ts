@@ -2,7 +2,14 @@ import { macroRegistry } from './registry';
 import type { MacroMutableState, StepResult } from './registry';
 import { macroValidator } from './validator';
 import { templateVarEngine } from './template-vars';
-import type { MacroRecipe, MacroExecutionContext } from './types';
+import type { MacroDryRunDiff, MacroRecipe, MacroExecutionContext } from './types';
+import { simulateMacroDryRun } from './dry-run';
+import {
+  applyMacroSideEffects,
+  beginMacroTransaction,
+  buildMacroRollbackMessage,
+  rollbackMacroTransaction,
+} from './transaction';
 
 export interface MacroExecutionResult {
   success:           boolean;
@@ -12,6 +19,8 @@ export interface MacroExecutionResult {
   finalBytes:        Uint8Array;
   logs:              string[];
   selectedPages:     number[];
+  rolledBack?:       boolean;
+  dryRunDiff?:       MacroDryRunDiff;
 }
 
 export interface ExecutionProgress {
@@ -39,11 +48,30 @@ export async function executeMacroRecipe(
     };
   }
 
-  // 2. Expand template variables once before the loop
+  // 2. Dry-run short-circuit — simulate without mutating bytes
+  if (recipe.dryRun === true) {
+    const dryRunReport = await simulateMacroDryRun(recipe, {
+      workingBytes:  ctx.workingBytes,
+      pageCount:     ctx.pageCount,
+      selectedPages: ctx.selectedPages,
+      fileName:      ctx.fileName,
+    });
+    return {
+      success:       dryRunReport.valid,
+      outputFiles:   [],
+      stepResults:   [],
+      finalBytes:    ctx.workingBytes,
+      logs:          dryRunReport.diff.logs,
+      selectedPages: ctx.selectedPages,
+      dryRunDiff:    dryRunReport.diff,
+    };
+  }
+
+  // 3. Expand template variables once before the loop
   const defaultVars = templateVarEngine.buildDefaultVars({ fileName: ctx.fileName, pageCount: ctx.pageCount });
   const expandedRecipe = templateVarEngine.expandRecipe(recipe, defaultVars);
 
-  // 3. Build mutable state
+  // 4. Build mutable state
   const state: MacroMutableState = {
     workingBytes:  ctx.workingBytes,
     pageCount:     ctx.pageCount,
@@ -54,8 +82,10 @@ export async function executeMacroRecipe(
   };
 
   const stepResults: StepResult[] = [];
+  const snapshot = beginMacroTransaction(state);
+  let rolledBack = false;
 
-  // 4. Execute via registry — no step logic here
+  // 5. Execute via registry — no step logic here
   for (let i = 0; i < expandedRecipe.steps.length; i++) {
     const step = expandedRecipe.steps[i];
     onProgress?.({ current: i + 1, total: expandedRecipe.steps.length, currentOp: step.op });
@@ -63,22 +93,24 @@ export async function executeMacroRecipe(
     const result = await macroRegistry.execute(step, ctx, state);
     stepResults.push(result);
 
-    for (const effect of result.sideEffects) {
-      if (effect.type === 'bytes_updated')       state.workingBytes = effect.bytes;
-      if (effect.type === 'page_count_changed')  state.pageCount = effect.newCount;
-      if (effect.type === 'output_file')         state.outputFiles.push({ name: effect.name, bytes: effect.bytes });
-    }
+    applyMacroSideEffects(result.sideEffects, state);
 
     if (result.message) state.logs.push(`[step ${i+1}/${expandedRecipe.steps.length}] ${step.op}: ${result.message}`);
-    if (result.status === 'error' && ctx.options?.abortOnError !== false) break;
+    if (result.status === 'error' && ctx.options?.abortOnError !== false) {
+      rollbackMacroTransaction(state, snapshot);
+      rolledBack = true;
+      state.logs.push(buildMacroRollbackMessage(ctx, i, step.op, result.message));
+      break;
+    }
   }
 
   return {
-    success:     stepResults.every(r => r.status !== 'error'),
-    outputFiles: state.outputFiles,
+    success:       !rolledBack && stepResults.every(r => r.status !== 'error'),
+    outputFiles:   state.outputFiles,
     stepResults,
-    finalBytes:  state.workingBytes,
-    logs:        state.logs,
+    finalBytes:    state.workingBytes,
+    logs:          state.logs,
     selectedPages: state.selectedPages,
+    rolledBack,
   };
 }
