@@ -1,0 +1,1750 @@
+PDF_HUB_ENH2 — PHASE B CODE PACK
+================================
+Phase B: Writer Core + Content Model + Clipboard Integration
+
+Purpose
+-------
+This phase implements the Writer foundation needed before rich text/table/image UI work.
+
+It provides direct source code for:
+
+1. frontend/src/core/writer/types.ts
+2. frontend/src/core/writer/content-model.ts
+3. frontend/src/core/writer/content-serialization.ts
+4. frontend/src/core/writer/migrations.ts
+5. frontend/src/core/writer/clipboard/types.ts
+6. frontend/src/core/writer/clipboard/sanitizeClipboardHtml.ts
+7. frontend/src/core/writer/clipboard/parseClipboardTable.ts
+8. frontend/src/core/writer/clipboard/parseClipboardHtml.ts
+9. frontend/src/core/writer/clipboard/parseClipboardImage.ts
+10. frontend/src/core/writer/clipboard/readClipboard.ts
+11. frontend/src/core/writer/clipboard/clipboardToElements.ts
+12. frontend/src/core/writer/clipboard/pasteController.ts
+13. initial tests
+
+Context
+-------
+The connected repo already contains writer enhancement instructions under:
+  PDF_Hub_Enh2/writer/PDF_Hub_Enhanced_Writer_WI_01_to_05.txt
+
+This Phase B code implements the actual source foundation behind those instructions.
+
+Apply inside:
+  .../PDF_Hub_Enh2/frontend/
+
+================================================================================
+FOLDER CREATION
+================================================================================
+
+Create folders if missing:
+
+```bash
+mkdir -p src/core/writer/clipboard
+```
+
+================================================================================
+FILE 1 — frontend/src/core/writer/types.ts
+================================================================================
+
+Create or replace carefully.
+
+If an existing types.ts already contains PlacedElement, merge these fields into it.
+Do not break existing imports.
+
+```ts
+export type WriterElementType = 'rich-text' | 'table' | 'image' | 'text';
+
+export interface WriterPoint {
+  x: number;
+  y: number;
+}
+
+export interface WriterSize {
+  width: number;
+  height: number;
+}
+
+export interface WriterElementStyle {
+  opacity?: number;
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  padding?: number;
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+}
+
+export interface WriterSourceMeta {
+  source:
+    | 'manual'
+    | 'clipboard-text'
+    | 'clipboard-html'
+    | 'clipboard-table'
+    | 'clipboard-image'
+    | 'drag-drop'
+    | 'template'
+    | 'legacy'
+    | 'unknown';
+  mimeType?: string;
+  importedAt?: string;
+  originalFileName?: string;
+  warning?: string;
+}
+
+export type WriterContentModel =
+  | WriterRichTextModel
+  | WriterTableModel
+  | WriterImageModel;
+
+export interface WriterRichTextModel {
+  kind: 'rich-text';
+  version: 1;
+  blocks: WriterRichTextBlock[];
+}
+
+export type WriterRichTextBlockType =
+  | 'paragraph'
+  | 'heading'
+  | 'bullet'
+  | 'numbered'
+  | 'quote';
+
+export interface WriterRichTextBlock {
+  id: string;
+  type: WriterRichTextBlockType;
+  runs: WriterTextRun[];
+  align?: 'left' | 'center' | 'right' | 'justify';
+  level?: 1 | 2 | 3;
+}
+
+export interface WriterTextRun {
+  id: string;
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  color?: string;
+  backgroundColor?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  superscript?: boolean;
+  subscript?: boolean;
+}
+
+export interface WriterTableModel {
+  kind: 'table';
+  version: 1;
+  columns: WriterTableColumn[];
+  rows: WriterTableRow[];
+  style?: WriterTableStyle;
+}
+
+export interface WriterTableColumn {
+  id: string;
+  label: string;
+  width?: number;
+}
+
+export interface WriterTableRow {
+  id: string;
+  cells: WriterTableCell[];
+}
+
+export interface WriterTableCell {
+  id: string;
+  text: string;
+  richText?: WriterRichTextModel;
+  colspan?: number;
+  rowspan?: number;
+  style?: WriterTableCellStyle;
+}
+
+export interface WriterTableStyle {
+  borderColor?: string;
+  borderWidth?: number;
+  headerBackgroundColor?: string;
+  cellPadding?: number;
+  fontSize?: number;
+  fontFamily?: string;
+}
+
+export interface WriterTableCellStyle {
+  color?: string;
+  backgroundColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left' | 'center' | 'right';
+}
+
+export interface WriterImageModel {
+  kind: 'image';
+  version: 1;
+  src: string;
+  mimeType: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  alt?: string;
+  crop?: WriterImageCrop;
+  rotation?: number;
+  opacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+}
+
+export interface WriterImageCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface PlacedElement {
+  id: string;
+  type: WriterElementType;
+  pageNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: string;
+  contentModel?: WriterContentModel;
+  sourceMeta?: WriterSourceMeta;
+  style?: WriterElementStyle;
+  zIndex?: number;
+  locked?: boolean;
+  name?: string;
+  hidden?: boolean;
+}
+
+export interface WriterElementInput {
+  pageNumber: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  zIndex?: number;
+}
+
+export function isWriterContentModel(value: unknown): value is WriterContentModel {
+  if (!value || typeof value !== 'object') return false;
+
+  const kind = (value as { kind?: unknown }).kind;
+  const version = (value as { version?: unknown }).version;
+
+  return (
+    version === 1 &&
+    (kind === 'rich-text' || kind === 'table' || kind === 'image')
+  );
+}
+```
+
+================================================================================
+FILE 2 — frontend/src/core/writer/content-model.ts
+================================================================================
+
+```ts
+import type {
+  PlacedElement,
+  WriterContentModel,
+  WriterImageModel,
+  WriterRichTextBlock,
+  WriterRichTextModel,
+  WriterTableCell,
+  WriterTableColumn,
+  WriterTableModel,
+  WriterTableRow,
+  WriterTextRun,
+} from './types';
+
+let idCounter = 0;
+
+export function createWriterId(prefix = 'writer'): string {
+  idCounter += 1;
+  return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
+}
+
+export function createTextRun(text: string, patch: Partial<WriterTextRun> = {}): WriterTextRun {
+  return {
+    id: createWriterId('run'),
+    text,
+    ...patch,
+  };
+}
+
+export function createRichTextBlock(
+  text = '',
+  patch: Partial<WriterRichTextBlock> = {},
+): WriterRichTextBlock {
+  return {
+    id: createWriterId('block'),
+    type: 'paragraph',
+    runs: [createTextRun(text)],
+    ...patch,
+  };
+}
+
+export function createEmptyRichTextModel(text = ''): WriterRichTextModel {
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: [createRichTextBlock(text)],
+  };
+}
+
+export function createRichTextModelFromPlainText(text: string): WriterRichTextModel {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n');
+
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: lines.length > 0
+      ? lines.map((line) => createRichTextBlock(line))
+      : [createRichTextBlock('')],
+  };
+}
+
+export function createDefaultTableModel(rows = 3, columns = 3): WriterTableModel {
+  const cols: WriterTableColumn[] = Array.from({ length: columns }, (_, index) => ({
+    id: createWriterId('col'),
+    label: columnLabel(index),
+  }));
+
+  const tableRows: WriterTableRow[] = Array.from({ length: rows }, (_, rowIndex) => ({
+    id: createWriterId('row'),
+    cells: cols.map((col, colIndex) => ({
+      id: createWriterId('cell'),
+      text: rowIndex === 0 ? col.label : '',
+      style: rowIndex === 0 ? { bold: true } : undefined,
+    })),
+  }));
+
+  return {
+    kind: 'table',
+    version: 1,
+    columns: cols,
+    rows: tableRows,
+    style: {
+      borderColor: '#d1d5db',
+      borderWidth: 1,
+      headerBackgroundColor: '#f1f5f9',
+      cellPadding: 6,
+      fontSize: 11,
+      fontFamily: 'Arial',
+    },
+  };
+}
+
+export function createTableModelFromMatrix(matrix: string[][]): WriterTableModel {
+  const safeMatrix = matrix.length > 0 ? matrix : [['']];
+  const columnCount = Math.max(...safeMatrix.map((row) => row.length), 1);
+
+  const columns: WriterTableColumn[] = Array.from({ length: columnCount }, (_, index) => ({
+    id: createWriterId('col'),
+    label: columnLabel(index),
+  }));
+
+  const rows: WriterTableRow[] = safeMatrix.map((row, rowIndex) => ({
+    id: createWriterId('row'),
+    cells: columns.map((_, colIndex) => ({
+      id: createWriterId('cell'),
+      text: row[colIndex] ?? '',
+      style: rowIndex === 0 ? { bold: true } : undefined,
+    })),
+  }));
+
+  return {
+    kind: 'table',
+    version: 1,
+    columns,
+    rows,
+    style: {
+      borderColor: '#d1d5db',
+      borderWidth: 1,
+      headerBackgroundColor: '#f1f5f9',
+      cellPadding: 6,
+      fontSize: 11,
+      fontFamily: 'Arial',
+    },
+  };
+}
+
+export function createImageModel(input: {
+  src: string;
+  mimeType: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  alt?: string;
+}): WriterImageModel {
+  return {
+    kind: 'image',
+    version: 1,
+    src: input.src,
+    mimeType: input.mimeType,
+    naturalWidth: input.naturalWidth,
+    naturalHeight: input.naturalHeight,
+    alt: input.alt,
+    rotation: 0,
+    opacity: 1,
+    borderWidth: 0,
+  };
+}
+
+export function normalizeWriterContentModel(model: WriterContentModel): WriterContentModel {
+  if (model.kind === 'rich-text') return normalizeRichTextModel(model);
+  if (model.kind === 'table') return normalizeTableModel(model);
+  if (model.kind === 'image') return normalizeImageModel(model);
+  return model;
+}
+
+export function normalizeRichTextModel(model: WriterRichTextModel): WriterRichTextModel {
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: Array.isArray(model.blocks) && model.blocks.length > 0
+      ? model.blocks.map((block) => ({
+          id: block.id || createWriterId('block'),
+          type: block.type || 'paragraph',
+          align: block.align,
+          level: block.level,
+          runs: Array.isArray(block.runs) && block.runs.length > 0
+            ? block.runs.map((run) => ({
+                id: run.id || createWriterId('run'),
+                text: String(run.text ?? ''),
+                bold: run.bold,
+                italic: run.italic,
+                underline: run.underline,
+                strike: run.strike,
+                color: run.color,
+                backgroundColor: run.backgroundColor,
+                fontSize: run.fontSize,
+                fontFamily: run.fontFamily,
+                superscript: run.superscript,
+                subscript: run.subscript,
+              }))
+            : [createTextRun('')],
+        }))
+      : [createRichTextBlock('')],
+  };
+}
+
+export function normalizeTableModel(model: WriterTableModel): WriterTableModel {
+  const columns = Array.isArray(model.columns) && model.columns.length > 0
+    ? model.columns.map((col, index) => ({
+        id: col.id || createWriterId('col'),
+        label: col.label || columnLabel(index),
+        width: col.width,
+      }))
+    : [{ id: createWriterId('col'), label: 'A' }];
+
+  const rows = Array.isArray(model.rows) && model.rows.length > 0
+    ? model.rows.map((row) => ({
+        id: row.id || createWriterId('row'),
+        cells: columns.map((_, index) => normalizeTableCell(row.cells?.[index])),
+      }))
+    : [
+        {
+          id: createWriterId('row'),
+          cells: columns.map(() => normalizeTableCell(undefined)),
+        },
+      ];
+
+  return {
+    kind: 'table',
+    version: 1,
+    columns,
+    rows,
+    style: model.style,
+  };
+}
+
+export function normalizeTableCell(cell: WriterTableCell | undefined): WriterTableCell {
+  return {
+    id: cell?.id || createWriterId('cell'),
+    text: String(cell?.text ?? ''),
+    richText: cell?.richText ? normalizeRichTextModel(cell.richText) : undefined,
+    colspan: cell?.colspan,
+    rowspan: cell?.rowspan,
+    style: cell?.style,
+  };
+}
+
+export function normalizeImageModel(model: WriterImageModel): WriterImageModel {
+  return {
+    kind: 'image',
+    version: 1,
+    src: String(model.src ?? ''),
+    mimeType: model.mimeType || inferMimeTypeFromDataUrl(model.src) || 'image/png',
+    naturalWidth: model.naturalWidth,
+    naturalHeight: model.naturalHeight,
+    alt: model.alt,
+    crop: model.crop,
+    rotation: Number.isFinite(model.rotation) ? model.rotation : 0,
+    opacity: Number.isFinite(model.opacity) ? model.opacity : 1,
+    borderColor: model.borderColor,
+    borderWidth: Number.isFinite(model.borderWidth) ? model.borderWidth : 0,
+  };
+}
+
+export function normalizeWriterElement(element: PlacedElement): PlacedElement {
+  const contentModel = element.contentModel
+    ? normalizeWriterContentModel(element.contentModel)
+    : undefined;
+
+  return {
+    ...element,
+    id: element.id || createWriterId('element'),
+    pageNumber: Math.max(1, Math.floor(element.pageNumber || 1)),
+    x: finiteOr(element.x, 0),
+    y: finiteOr(element.y, 0),
+    width: Math.max(1, finiteOr(element.width, 160)),
+    height: Math.max(1, finiteOr(element.height, 60)),
+    content: String(element.content ?? ''),
+    contentModel,
+    zIndex: finiteOr(element.zIndex, 0),
+    hidden: Boolean(element.hidden),
+    locked: Boolean(element.locked),
+  };
+}
+
+function finiteOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function inferMimeTypeFromDataUrl(src: string | undefined): string | undefined {
+  if (!src) return undefined;
+  const match = /^data:([^;,]+)[;,]/i.exec(src);
+  return match?.[1];
+}
+
+function columnLabel(index: number): string {
+  let n = index + 1;
+  let out = '';
+
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return out;
+}
+```
+
+================================================================================
+FILE 3 — frontend/src/core/writer/content-serialization.ts
+================================================================================
+
+```ts
+import type {
+  PlacedElement,
+  WriterContentModel,
+  WriterImageModel,
+  WriterRichTextModel,
+  WriterTableModel,
+} from './types';
+import {
+  createEmptyRichTextModel,
+  normalizeWriterContentModel,
+} from './content-model';
+
+export function writerContentModelToLegacyContent(model: WriterContentModel): string {
+  if (model.kind === 'rich-text') return richTextToPlainText(model);
+  if (model.kind === 'table') return tableModelToLegacyJson(model);
+  if (model.kind === 'image') return model.src;
+  return '';
+}
+
+export function syncElementContentFromModel(element: PlacedElement): PlacedElement {
+  if (!element.contentModel) return element;
+
+  return {
+    ...element,
+    contentModel: normalizeWriterContentModel(element.contentModel),
+    content: writerContentModelToLegacyContent(element.contentModel),
+  };
+}
+
+export function tryParseLegacyContentModel(content: string): WriterContentModel | null {
+  if (!content) return null;
+
+  try {
+    const parsed = JSON.parse(content) as unknown;
+
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'kind' in parsed &&
+      'version' in parsed
+    ) {
+      return normalizeWriterContentModel(parsed as WriterContentModel);
+    }
+
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      Array.isArray((parsed as { rows?: unknown }).rows) &&
+      Array.isArray((parsed as { columns?: unknown }).columns)
+    ) {
+      return normalizeWriterContentModel({
+        kind: 'table',
+        version: 1,
+        ...(parsed as WriterTableModel),
+      });
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function legacyContentToRichTextModel(content: string): WriterRichTextModel {
+  return createEmptyRichTextModel(String(content ?? ''));
+}
+
+export function richTextToPlainText(model: WriterRichTextModel): string {
+  return model.blocks
+    .map((block) => block.runs.map((run) => run.text).join(''))
+    .join('\n');
+}
+
+export function tableModelToLegacyJson(model: WriterTableModel): string {
+  return JSON.stringify({
+    columns: model.columns,
+    rows: model.rows,
+    style: model.style,
+  });
+}
+
+export function imageModelToLegacyContent(model: WriterImageModel): string {
+  return model.src;
+}
+
+export function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+}
+```
+
+================================================================================
+FILE 4 — frontend/src/core/writer/migrations.ts
+================================================================================
+
+```ts
+import type { PlacedElement } from './types';
+import {
+  createEmptyRichTextModel,
+  normalizeWriterElement,
+} from './content-model';
+import {
+  syncElementContentFromModel,
+  tryParseLegacyContentModel,
+} from './content-serialization';
+
+export function migratePlacedElementToContentModel(element: PlacedElement): PlacedElement {
+  if (element.contentModel) {
+    return syncElementContentFromModel(normalizeWriterElement(element));
+  }
+
+  const parsed = tryParseLegacyContentModel(element.content);
+
+  if (parsed) {
+    return syncElementContentFromModel(
+      normalizeWriterElement({
+        ...element,
+        contentModel: parsed,
+        sourceMeta: element.sourceMeta ?? {
+          source: 'legacy',
+          importedAt: new Date().toISOString(),
+        },
+      }),
+    );
+  }
+
+  if (element.type === 'rich-text' || element.type === 'text') {
+    return syncElementContentFromModel(
+      normalizeWriterElement({
+        ...element,
+        type: 'rich-text',
+        contentModel: createEmptyRichTextModel(element.content ?? ''),
+        sourceMeta: element.sourceMeta ?? {
+          source: 'legacy',
+          importedAt: new Date().toISOString(),
+        },
+      }),
+    );
+  }
+
+  return normalizeWriterElement(element);
+}
+
+export function migratePlacedElementsToContentModel(elements: PlacedElement[]): PlacedElement[] {
+  return elements.map(migratePlacedElementToContentModel);
+}
+
+export function ensureWriterElementCompatibility(element: PlacedElement): PlacedElement {
+  return migratePlacedElementToContentModel(element);
+}
+```
+
+================================================================================
+FILE 5 — frontend/src/core/writer/clipboard/types.ts
+================================================================================
+
+```ts
+import type {
+  PlacedElement,
+  WriterElementInput,
+  WriterImageModel,
+  WriterRichTextModel,
+  WriterTableModel,
+} from '../types';
+
+export type ClipboardPayloadKind =
+  | 'plain-text'
+  | 'html'
+  | 'table'
+  | 'image'
+  | 'empty'
+  | 'unsupported';
+
+export interface WriterClipboardPayload {
+  kind: ClipboardPayloadKind;
+  plainText?: string;
+  html?: string;
+  table?: WriterTableModel;
+  richText?: WriterRichTextModel;
+  image?: WriterImageModel;
+  mimeType?: string;
+  warning?: string;
+}
+
+export interface ClipboardElementPlacement extends WriterElementInput {
+  defaultWidth?: number;
+  defaultHeight?: number;
+}
+
+export interface ClipboardToElementsResult {
+  elements: PlacedElement[];
+  warning?: string;
+}
+```
+
+================================================================================
+FILE 6 — frontend/src/core/writer/clipboard/sanitizeClipboardHtml.ts
+================================================================================
+
+```ts
+const BLOCKED_TAGS = new Set([
+  'script',
+  'iframe',
+  'object',
+  'embed',
+  'link',
+  'meta',
+  'base',
+  'form',
+  'input',
+  'button',
+  'textarea',
+  'select',
+  'style',
+]);
+
+const SAFE_STYLE_PROPS = new Set([
+  'font-weight',
+  'font-style',
+  'text-decoration',
+  'text-align',
+  'color',
+  'background-color',
+  'font-size',
+  'font-family',
+  'line-height',
+]);
+
+export function sanitizeClipboardHtml(html: string): string {
+  if (!html) return '';
+
+  if (typeof document === 'undefined') {
+    return stripDangerousHtmlFallback(html);
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  const nodes = Array.from(template.content.querySelectorAll('*'));
+
+  for (const node of nodes) {
+    const tagName = node.tagName.toLowerCase();
+
+    if (BLOCKED_TAGS.has(tagName)) {
+      node.remove();
+      continue;
+    }
+
+    for (const attr of Array.from(node.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim();
+
+      if (name.startsWith('on')) {
+        node.removeAttribute(attr.name);
+        continue;
+      }
+
+      if ((name === 'href' || name === 'src') && !isSafeClipboardUrl(value)) {
+        node.removeAttribute(attr.name);
+        continue;
+      }
+
+      if (name === 'style') {
+        const safeStyle = sanitizeStyleAttribute(value);
+
+        if (safeStyle) {
+          node.setAttribute('style', safeStyle);
+        } else {
+          node.removeAttribute('style');
+        }
+      }
+    }
+  }
+
+  return template.innerHTML;
+}
+
+export function escapeClipboardHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+export function isSafeClipboardUrl(value: string): boolean {
+  if (/^javascript:/i.test(value)) return false;
+  if (/^data:text\/html/i.test(value)) return false;
+
+  return (
+    /^https?:\/\//i.test(value) ||
+    /^data:image\/(png|jpeg|jpg|webp);base64,/i.test(value) ||
+    value.startsWith('#')
+  );
+}
+
+export function sanitizeStyleAttribute(style: string): string {
+  return style
+    .split(';')
+    .map((rule) => rule.trim())
+    .filter(Boolean)
+    .map((rule) => {
+      const [rawProp, ...rawValue] = rule.split(':');
+      const prop = rawProp?.trim().toLowerCase();
+      const value = rawValue.join(':').trim();
+
+      if (!prop || !SAFE_STYLE_PROPS.has(prop)) return '';
+      if (/url\s*\(/i.test(value)) return '';
+      if (/expression\s*\(/i.test(value)) return '';
+      if (/javascript:/i.test(value)) return '';
+
+      return `${prop}: ${value.replace(/[<>"'`]/g, '')}`;
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+function stripDangerousHtmlFallback(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi, '');
+}
+```
+
+================================================================================
+FILE 7 — frontend/src/core/writer/clipboard/parseClipboardTable.ts
+================================================================================
+
+```ts
+import {
+  createTableModelFromMatrix,
+} from '../content-model';
+import type { WriterTableModel } from '../types';
+import { sanitizeClipboardHtml } from './sanitizeClipboardHtml';
+
+export function parseClipboardTableFromText(text: string): WriterTableModel | null {
+  const normalized = String(text ?? '').replace(/\r\n/g, '\n').trimEnd();
+
+  if (!normalized) return null;
+
+  const delimiter = normalized.includes('\t') ? '\t' : normalized.includes(',') ? ',' : null;
+
+  if (!delimiter) return null;
+
+  const rows = normalized
+    .split('\n')
+    .map((line) => parseDelimitedLine(line, delimiter));
+
+  if (rows.length < 1) return null;
+
+  const hasMultipleColumns = rows.some((row) => row.length > 1);
+  if (!hasMultipleColumns) return null;
+
+  return createTableModelFromMatrix(rows);
+}
+
+export function parseClipboardTableFromHtml(html: string): WriterTableModel | null {
+  const sanitized = sanitizeClipboardHtml(html);
+
+  if (typeof document === 'undefined') return null;
+
+  const template = document.createElement('template');
+  template.innerHTML = sanitized;
+
+  const table = template.content.querySelector('table');
+  if (!table) return null;
+
+  const rows = Array.from(table.querySelectorAll('tr')).map((tr) => {
+    return Array.from(tr.querySelectorAll('th,td')).map((cell) =>
+      normalizeCellText(cell.textContent ?? ''),
+    );
+  });
+
+  const nonEmptyRows = rows.filter((row) => row.length > 0);
+  if (nonEmptyRows.length === 0) return null;
+
+  return createTableModelFromMatrix(nonEmptyRows);
+}
+
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  if (delimiter === '\t') return line.split('\t').map(normalizeCellText);
+  return parseCsvLine(line).map(normalizeCellText);
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      out.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  out.push(current);
+  return out;
+}
+
+function normalizeCellText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+```
+
+================================================================================
+FILE 8 — frontend/src/core/writer/clipboard/parseClipboardHtml.ts
+================================================================================
+
+```ts
+import type {
+  WriterRichTextBlock,
+  WriterRichTextModel,
+  WriterTextRun,
+} from '../types';
+import {
+  createRichTextBlock,
+  createTextRun,
+} from '../content-model';
+import { sanitizeClipboardHtml } from './sanitizeClipboardHtml';
+
+export function parseClipboardRichTextFromHtml(html: string): WriterRichTextModel {
+  const sanitized = sanitizeClipboardHtml(html);
+
+  if (typeof document === 'undefined') {
+    return {
+      kind: 'rich-text',
+      version: 1,
+      blocks: [createRichTextBlock(stripTags(sanitized))],
+    };
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = sanitized;
+
+  const blocks: WriterRichTextBlock[] = [];
+
+  const blockNodes = Array.from(
+    template.content.querySelectorAll('p,div,h1,h2,h3,li,blockquote'),
+  );
+
+  if (blockNodes.length === 0) {
+    const text = template.content.textContent ?? '';
+    return {
+      kind: 'rich-text',
+      version: 1,
+      blocks: [createRichTextBlock(text.trim())],
+    };
+  }
+
+  for (const node of blockNodes) {
+    const block = nodeToBlock(node);
+    if (block.runs.some((run) => run.text.length > 0)) {
+      blocks.push(block);
+    }
+  }
+
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: blocks.length > 0 ? blocks : [createRichTextBlock('')],
+  };
+}
+
+function nodeToBlock(node: Element): WriterRichTextBlock {
+  const tag = node.tagName.toLowerCase();
+  const runs = collectRuns(node);
+
+  return {
+    id: createRichTextBlock('').id,
+    type: tag === 'li'
+      ? 'bullet'
+      : tag === 'blockquote'
+        ? 'quote'
+        : tag === 'h1' || tag === 'h2' || tag === 'h3'
+          ? 'heading'
+          : 'paragraph',
+    level: tag === 'h1' ? 1 : tag === 'h2' ? 2 : tag === 'h3' ? 3 : undefined,
+    runs: runs.length > 0 ? runs : [createTextRun(node.textContent ?? '')],
+    align: readAlign(node),
+  };
+}
+
+function collectRuns(root: Element): WriterTextRun[] {
+  const runs: WriterTextRun[] = [];
+
+  function walk(node: Node, inherited: Partial<WriterTextRun>) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? '';
+      if (text) runs.push(createTextRun(text, inherited));
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    const style = (el as HTMLElement).style;
+
+    const next: Partial<WriterTextRun> = {
+      ...inherited,
+      bold: inherited.bold || tag === 'strong' || tag === 'b' || style.fontWeight === 'bold',
+      italic: inherited.italic || tag === 'em' || tag === 'i' || style.fontStyle === 'italic',
+      underline: inherited.underline || tag === 'u' || style.textDecoration.includes('underline'),
+      strike: inherited.strike || tag === 's' || style.textDecoration.includes('line-through'),
+      color: style.color || inherited.color,
+      backgroundColor: style.backgroundColor || inherited.backgroundColor,
+      fontFamily: style.fontFamily || inherited.fontFamily,
+      fontSize: style.fontSize ? parseFloat(style.fontSize) : inherited.fontSize,
+    };
+
+    for (const child of Array.from(el.childNodes)) {
+      walk(child, next);
+    }
+  }
+
+  walk(root, {});
+  return runs;
+}
+
+function readAlign(node: Element): WriterRichTextBlock['align'] {
+  const align = (node as HTMLElement).style.textAlign;
+  if (align === 'center' || align === 'right' || align === 'justify') return align;
+  return 'left';
+}
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]+>/g, '').trim();
+}
+```
+
+================================================================================
+FILE 9 — frontend/src/core/writer/clipboard/parseClipboardImage.ts
+================================================================================
+
+```ts
+import type { WriterImageModel } from '../types';
+import { createImageModel } from '../content-model';
+
+export async function blobToClipboardImage(blob: Blob, alt?: string): Promise<WriterImageModel> {
+  const src = await blobToDataUrl(blob);
+  const size = await readImageSize(src);
+
+  return createImageModel({
+    src,
+    mimeType: blob.type || inferMimeType(src) || 'image/png',
+    naturalWidth: size.width,
+    naturalHeight: size.height,
+    alt,
+  });
+}
+
+export function isClipboardImageType(type: string): boolean {
+  return /^image\/(png|jpeg|jpg|webp|gif)$/i.test(type);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function readImageSize(src: string): Promise<{ width: number; height: number }> {
+  if (typeof Image === 'undefined') {
+    return Promise.resolve({ width: 0, height: 0 });
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = src;
+  });
+}
+
+function inferMimeType(src: string): string | undefined {
+  const match = /^data:([^;,]+)[;,]/i.exec(src);
+  return match?.[1];
+}
+```
+
+================================================================================
+FILE 10 — frontend/src/core/writer/clipboard/readClipboard.ts
+================================================================================
+
+```ts
+import type { WriterClipboardPayload } from './types';
+import { parseClipboardTableFromHtml, parseClipboardTableFromText } from './parseClipboardTable';
+import { parseClipboardRichTextFromHtml } from './parseClipboardHtml';
+import { blobToClipboardImage, isClipboardImageType } from './parseClipboardImage';
+
+export async function readNavigatorClipboardPayload(): Promise<WriterClipboardPayload> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    return {
+      kind: 'unsupported',
+      warning: 'Navigator clipboard API is not available.',
+    };
+  }
+
+  const navClipboard = navigator.clipboard as Clipboard & {
+    read?: () => Promise<ClipboardItem[]>;
+  };
+
+  if (typeof navClipboard.read === 'function') {
+    try {
+      const items = await navClipboard.read();
+
+      for (const item of items) {
+        const imageType = item.types.find(isClipboardImageType);
+
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          return {
+            kind: 'image',
+            image: await blobToClipboardImage(blob),
+            mimeType: imageType,
+          };
+        }
+      }
+
+      for (const item of items) {
+        if (item.types.includes('text/html')) {
+          const blob = await item.getType('text/html');
+          const html = await blob.text();
+          const table = parseClipboardTableFromHtml(html);
+
+          if (table) {
+            return {
+              kind: 'table',
+              html,
+              table,
+              mimeType: 'text/html',
+            };
+          }
+
+          return {
+            kind: 'html',
+            html,
+            richText: parseClipboardRichTextFromHtml(html),
+            mimeType: 'text/html',
+          };
+        }
+      }
+
+      for (const item of items) {
+        if (item.types.includes('text/plain')) {
+          const blob = await item.getType('text/plain');
+          return textPayload(await blob.text());
+        }
+      }
+    } catch (err) {
+      return {
+        kind: 'unsupported',
+        warning: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  if (typeof navigator.clipboard.readText === 'function') {
+    try {
+      return textPayload(await navigator.clipboard.readText());
+    } catch (err) {
+      return {
+        kind: 'unsupported',
+        warning: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  return {
+    kind: 'unsupported',
+    warning: 'Clipboard read is not supported.',
+  };
+}
+
+export function payloadFromClipboardEvent(event: ClipboardEvent): WriterClipboardPayload {
+  const data = event.clipboardData;
+
+  if (!data) {
+    return { kind: 'empty' };
+  }
+
+  for (const item of Array.from(data.items)) {
+    if (item.kind === 'file' && isClipboardImageType(item.type)) {
+      const file = item.getAsFile();
+
+      if (file) {
+        return {
+          kind: 'unsupported',
+          warning: 'Image clipboard item detected. Use async image paste handler.',
+          mimeType: item.type,
+        };
+      }
+    }
+  }
+
+  const html = data.getData('text/html');
+
+  if (html) {
+    const table = parseClipboardTableFromHtml(html);
+
+    if (table) {
+      return {
+        kind: 'table',
+        html,
+        table,
+        mimeType: 'text/html',
+      };
+    }
+
+    return {
+      kind: 'html',
+      html,
+      richText: parseClipboardRichTextFromHtml(html),
+      mimeType: 'text/html',
+    };
+  }
+
+  const text = data.getData('text/plain');
+  return textPayload(text);
+}
+
+function textPayload(text: string): WriterClipboardPayload {
+  if (!text) {
+    return { kind: 'empty' };
+  }
+
+  const table = parseClipboardTableFromText(text);
+
+  if (table) {
+    return {
+      kind: 'table',
+      plainText: text,
+      table,
+      mimeType: 'text/plain',
+    };
+  }
+
+  return {
+    kind: 'plain-text',
+    plainText: text,
+    mimeType: 'text/plain',
+  };
+}
+```
+
+================================================================================
+FILE 11 — frontend/src/core/writer/clipboard/clipboardToElements.ts
+================================================================================
+
+```ts
+import type { PlacedElement } from '../types';
+import {
+  createEmptyRichTextModel,
+  createWriterId,
+} from '../content-model';
+import {
+  syncElementContentFromModel,
+} from '../content-serialization';
+import type {
+  ClipboardElementPlacement,
+  ClipboardToElementsResult,
+  WriterClipboardPayload,
+} from './types';
+
+export function clipboardPayloadToElements(
+  payload: WriterClipboardPayload,
+  placement: ClipboardElementPlacement,
+): ClipboardToElementsResult {
+  const base = {
+    id: createWriterId('element'),
+    pageNumber: placement.pageNumber,
+    x: placement.x,
+    y: placement.y,
+    zIndex: placement.zIndex ?? 0,
+    locked: false,
+    hidden: false,
+  };
+
+  const importedAt = new Date().toISOString();
+
+  if (payload.kind === 'table' && payload.table) {
+    const element: PlacedElement = syncElementContentFromModel({
+      ...base,
+      type: 'table',
+      width: placement.width ?? placement.defaultWidth ?? 420,
+      height: placement.height ?? placement.defaultHeight ?? 160,
+      content: '',
+      contentModel: payload.table,
+      sourceMeta: {
+        source: 'clipboard-table',
+        mimeType: payload.mimeType,
+        importedAt,
+        warning: payload.warning,
+      },
+      style: {
+        opacity: 1,
+      },
+    });
+
+    return { elements: [element], warning: payload.warning };
+  }
+
+  if ((payload.kind === 'html' || payload.kind === 'plain-text') && (payload.richText || payload.plainText)) {
+    const richText = payload.richText ?? createEmptyRichTextModel(payload.plainText ?? '');
+
+    const element: PlacedElement = syncElementContentFromModel({
+      ...base,
+      type: 'rich-text',
+      width: placement.width ?? placement.defaultWidth ?? 320,
+      height: placement.height ?? placement.defaultHeight ?? 96,
+      content: '',
+      contentModel: richText,
+      sourceMeta: {
+        source: payload.kind === 'html' ? 'clipboard-html' : 'clipboard-text',
+        mimeType: payload.mimeType,
+        importedAt,
+        warning: payload.warning,
+      },
+      style: {
+        fontSize: 12,
+        fontFamily: 'Arial',
+        color: '#111827',
+        backgroundColor: 'transparent',
+        opacity: 1,
+      },
+    });
+
+    return { elements: [element], warning: payload.warning };
+  }
+
+  if (payload.kind === 'image' && payload.image) {
+    const naturalWidth = payload.image.naturalWidth || 240;
+    const naturalHeight = payload.image.naturalHeight || 160;
+    const targetWidth = placement.width ?? Math.min(naturalWidth, placement.defaultWidth ?? 320);
+    const ratio = naturalHeight > 0 && naturalWidth > 0 ? naturalHeight / naturalWidth : 0.66;
+    const targetHeight = placement.height ?? Math.max(1, Math.round(targetWidth * ratio));
+
+    const element: PlacedElement = syncElementContentFromModel({
+      ...base,
+      type: 'image',
+      width: targetWidth,
+      height: targetHeight,
+      content: '',
+      contentModel: payload.image,
+      sourceMeta: {
+        source: 'clipboard-image',
+        mimeType: payload.mimeType,
+        importedAt,
+        warning: payload.warning,
+      },
+      style: {
+        opacity: payload.image.opacity ?? 1,
+      },
+    });
+
+    return { elements: [element], warning: payload.warning };
+  }
+
+  return {
+    elements: [],
+    warning: payload.warning ?? 'Clipboard payload did not produce writer elements.',
+  };
+}
+```
+
+================================================================================
+FILE 12 — frontend/src/core/writer/clipboard/pasteController.ts
+================================================================================
+
+```ts
+import type { PlacedElement } from '../types';
+import {
+  clipboardPayloadToElements,
+} from './clipboardToElements';
+import {
+  payloadFromClipboardEvent,
+  readNavigatorClipboardPayload,
+} from './readClipboard';
+import type {
+  ClipboardElementPlacement,
+  ClipboardToElementsResult,
+} from './types';
+
+export interface WriterPasteControllerOptions {
+  getPlacement: () => ClipboardElementPlacement;
+  addElements: (elements: PlacedElement[]) => void;
+  onWarning?: (message: string) => void;
+}
+
+export function createWriterPasteController(options: WriterPasteControllerOptions) {
+  return {
+    async pasteFromNavigator(): Promise<ClipboardToElementsResult> {
+      const payload = await readNavigatorClipboardPayload();
+      const result = clipboardPayloadToElements(payload, options.getPlacement());
+
+      if (result.warning) options.onWarning?.(result.warning);
+      if (result.elements.length > 0) options.addElements(result.elements);
+
+      return result;
+    },
+
+    pasteFromClipboardEvent(event: ClipboardEvent): ClipboardToElementsResult {
+      if (shouldIgnorePasteTarget(event.target)) {
+        return {
+          elements: [],
+          warning: 'Paste ignored because target is editable.',
+        };
+      }
+
+      const payload = payloadFromClipboardEvent(event);
+      const result = clipboardPayloadToElements(payload, options.getPlacement());
+
+      if (result.elements.length > 0) {
+        event.preventDefault();
+        options.addElements(result.elements);
+      }
+
+      if (result.warning) options.onWarning?.(result.warning);
+
+      return result;
+    },
+  };
+}
+
+export function shouldIgnorePasteTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tag = target.tagName.toLowerCase();
+
+  return (
+    target.isContentEditable ||
+    tag === 'input' ||
+    tag === 'textarea' ||
+    tag === 'select' ||
+    Boolean(target.closest('[data-writer-allow-native-paste="true"]')) ||
+    Boolean(target.closest('[data-macro-builder="true"]'))
+  );
+}
+```
+
+================================================================================
+TEST FILE 1 — frontend/src/core/writer/content-model.phaseB.test.ts
+================================================================================
+
+```ts
+import { describe, expect, it } from 'vitest';
+import {
+  createDefaultTableModel,
+  createEmptyRichTextModel,
+  createTableModelFromMatrix,
+  normalizeWriterElement,
+} from './content-model';
+import {
+  syncElementContentFromModel,
+} from './content-serialization';
+
+describe('writer content model phase B', () => {
+  it('creates rich text model', () => {
+    const model = createEmptyRichTextModel('Hello');
+
+    expect(model.kind).toBe('rich-text');
+    expect(model.blocks[0].runs[0].text).toBe('Hello');
+  });
+
+  it('creates default table model', () => {
+    const model = createDefaultTableModel(2, 2);
+
+    expect(model.kind).toBe('table');
+    expect(model.columns.length).toBe(2);
+    expect(model.rows.length).toBe(2);
+  });
+
+  it('creates table from matrix', () => {
+    const model = createTableModelFromMatrix([
+      ['A', 'B'],
+      ['1', '2'],
+    ]);
+
+    expect(model.rows[1].cells[1].text).toBe('2');
+  });
+
+  it('syncs element content from content model', () => {
+    const element = syncElementContentFromModel({
+      id: 'e1',
+      type: 'rich-text',
+      pageNumber: 1,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 40,
+      content: '',
+      contentModel: createEmptyRichTextModel('Hello'),
+    });
+
+    expect(element.content).toBe('Hello');
+  });
+
+  it('normalizes element geometry', () => {
+    const element = normalizeWriterElement({
+      id: '',
+      type: 'rich-text',
+      pageNumber: 0,
+      x: Number.NaN,
+      y: Number.NaN,
+      width: -10,
+      height: -10,
+      content: '',
+    });
+
+    expect(element.pageNumber).toBe(1);
+    expect(element.width).toBeGreaterThan(0);
+    expect(element.height).toBeGreaterThan(0);
+  });
+});
+```
+
+================================================================================
+TEST FILE 2 — frontend/src/core/writer/clipboard/clipboard.phaseB.test.ts
+================================================================================
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { parseClipboardTableFromText } from './parseClipboardTable';
+import { parseClipboardRichTextFromHtml } from './parseClipboardHtml';
+import { sanitizeClipboardHtml, escapeClipboardHtml } from './sanitizeClipboardHtml';
+import { clipboardPayloadToElements } from './clipboardToElements';
+import { shouldIgnorePasteTarget } from './pasteController';
+
+describe('writer clipboard phase B', () => {
+  it('parses TSV as table', () => {
+    const table = parseClipboardTableFromText('A\tB\n1\t2');
+
+    expect(table?.kind).toBe('table');
+    expect(table?.rows[1].cells[1].text).toBe('2');
+  });
+
+  it('parses CSV as table', () => {
+    const table = parseClipboardTableFromText('"A","B"\n"1","2"');
+
+    expect(table?.rows[1].cells[1].text).toBe('2');
+  });
+
+  it('sanitizes unsafe html', () => {
+    const html = sanitizeClipboardHtml('<p onclick="alert(1)">Hello</p><script>alert(1)</script>');
+
+    expect(html).toContain('Hello');
+    expect(html).not.toContain('onclick');
+    expect(html).not.toContain('script');
+  });
+
+  it('escapes html', () => {
+    expect(escapeClipboardHtml('<img src=x onerror=alert(1)>')).toContain('&lt;img');
+  });
+
+  it('parses rich text from html', () => {
+    const model = parseClipboardRichTextFromHtml('<p><strong>Hello</strong></p>');
+
+    expect(model.kind).toBe('rich-text');
+    expect(model.blocks[0].runs.map((run) => run.text).join('')).toContain('Hello');
+  });
+
+  it('converts plain text payload to element', () => {
+    const result = clipboardPayloadToElements(
+      {
+        kind: 'plain-text',
+        plainText: 'Hello',
+        mimeType: 'text/plain',
+      },
+      {
+        pageNumber: 1,
+        x: 10,
+        y: 20,
+      },
+    );
+
+    expect(result.elements.length).toBe(1);
+    expect(result.elements[0].type).toBe('rich-text');
+  });
+
+  it('ignores editable paste target', () => {
+    const input = document.createElement('input');
+
+    expect(shouldIgnorePasteTarget(input)).toBe(true);
+  });
+});
+```
+
+================================================================================
+PACKAGE / TEST ENVIRONMENT NOTES
+================================================================================
+
+If tests fail with "document is not defined", ensure Vitest uses jsdom.
+
+Check frontend/vitest.config.ts or vite config.
+
+Required test environment:
+
+```ts
+test: {
+  environment: 'jsdom'
+}
+```
+
+If no vitest config exists, create:
+
+frontend/vitest.config.ts
+
+```ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
+});
+```
+
+Only add this if the project does not already configure Vitest.
+
+================================================================================
+PHASE B RUN COMMANDS
+================================================================================
+
+From frontend/:
+
+```bash
+npm run typecheck
+npm run test -- --run src/core/writer
+npm run build
+```
+
+If test script does not accept path args:
+
+```bash
+npx vitest run src/core/writer
+```
+
+================================================================================
+PHASE B PASS CRITERIA
+================================================================================
+
+PASS:
+- types.ts compiles
+- content-model.ts compiles
+- content-serialization.ts compiles
+- migrations.ts compiles
+- clipboard modules compile
+- content model tests pass
+- clipboard tests pass
+- no unsafe HTML survives sanitizer tests
+- editable paste targets are ignored
+- table parsing creates table contentModel
+- plain text creates rich-text contentModel
+
+FAIL:
+- contentModel missing from PlacedElement
+- raw clipboard HTML is passed through unsanitized
+- paste controller hijacks input/textarea/contenteditable/macro builder fields
+- table parsing fails for TSV/CSV
+- tests are skipped or deleted to pass
+
+================================================================================
+NEXT FILE TO REQUEST
+================================================================================
+
+Ask for:
+  Phase C — Writer Rich Text + Table + Image Editor Code Pack
+
+That next file should include actual source code for:
+  richTextHtml.ts
+  richTextCommands.ts
+  RichTextEditorPanel.tsx
+  tableSelection.ts
+  tableCommands.ts
+  TableEditorPanel.tsx
+  imageImport.ts
+  imageTransforms.ts
+  ImageEditorPanel.tsx
