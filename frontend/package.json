@@ -16,6 +16,8 @@
     "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build"
   },
   "dependencies": {
+    "@emnapi/core": "^1.10.0",
+    "@emnapi/runtime": "^1.10.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
     "konva": "^10.2.5",
