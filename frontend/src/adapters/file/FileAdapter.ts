@@ -23,7 +23,7 @@ export class FileAdapter {
   private static readonly MAX_SIZE_BYTES = this.MAX_SIZE_MB * 1024 * 1024;
 
   static async hashBytes(bytes: Uint8Array): Promise<string> {
-    const digest = await crypto.subtle.digest('SHA-256', this.toArrayBuffer(bytes));
+    const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
     const hash = Array.from(new Uint8Array(digest))
       .map((value) => value.toString(16).padStart(2, '0'))
       .join('');
