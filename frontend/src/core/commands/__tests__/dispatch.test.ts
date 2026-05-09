@@ -19,6 +19,12 @@ const pdfMocks = vi.hoisted(() => ({
   countPages: vi.fn(),
 }));
 
+vi.mock('@/adapters/file/FileAdapter', () => ({
+  FileAdapter: {
+    hashBytes: vi.fn().mockResolvedValue('mock-hash'),
+  },
+}));
+
 vi.mock('@/core/annotations/persistence', () => ({
   saveAnnotations: vi.fn().mockResolvedValue(undefined),
 }));

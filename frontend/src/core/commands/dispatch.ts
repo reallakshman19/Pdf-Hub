@@ -364,6 +364,6 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
-    return commandError(command.type, source, 'EXECUTION_FAILED', message);
+    console.error(error); return commandError(command.type, source, 'EXECUTION_FAILED', message);
   }
 }
