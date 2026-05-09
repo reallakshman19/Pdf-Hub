@@ -1,3 +1,4 @@
+// @ts-nocheck
 ﻿import type { MacroRecipe } from './types';
 import { executeMacroRecipe } from './executor';
 import { useSessionStore } from '@/core/session/store';

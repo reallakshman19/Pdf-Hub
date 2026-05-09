@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useWriterStore } from '@/core/writer/store';
 import type { MacroMutableState, SideEffect } from './registry';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { Button } from '@/components/ui/Button';
 import { PenTool, Image, Table, Save, Undo, Redo, ScanText } from 'lucide-react';

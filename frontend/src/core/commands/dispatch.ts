@@ -155,7 +155,7 @@ async function applyMutation(
   return { nextBytes: afterBytes, nextPageCount: afterPageCount };
 }
 
-export async function dispatchCommand(payload: CommandPayload): Promise<CommandResult> {
+export async function dispatchCommand_inner(payload: CommandPayload): Promise<CommandResult> {
   const { command, source } = payload;
   const context = resolveContext(payload);
   if (!context) {
@@ -366,4 +366,12 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
     const message = error instanceof Error ? error.message : 'Command execution failed';
     return commandError(command.type, source, 'EXECUTION_FAILED', message);
   }
+}
+
+export async function dispatchCommand(
+  payload: CommandPayload,
+): Promise<CommandResult> {
+  const result = await dispatchCommand_inner(payload);
+  if (!result.success) console.error("DISPATCH ERROR:", result);
+  return result;
 }

@@ -1,172 +1,166 @@
-import React, { useState } from 'react';
-import { useWriterStore } from '../../core/writer/store';
-import type { PlacedElement } from '../../core/writer/types';
-import { Plus, Trash2, X } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Tooltip } from '@/components/ui/Tooltip';
+import React, { useMemo, useState } from 'react';
+import type {
+  PlacedElement,
+  WriterTableModel,
+} from '@/core/writer/types';
+import {
+  createDefaultTableModel,
+} from '@/core/writer/content-model';
+import {
+  syncElementContentFromModel,
+} from '@/core/writer/content-serialization';
+import {
+  deleteTableColumn,
+  deleteTableRow,
+  insertTableColumn,
+  insertTableRow,
+  pasteMatrixIntoTable,
+  updateTableCellText,
+} from '@/core/writer/tableCommands';
+import {
+  createSingleCellSelection,
+  isCellInSelection,
+  type WriterTableSelection,
+} from '@/core/writer/tableSelection';
 
-interface Props {
+export interface TableEditorPanelProps {
   element: PlacedElement;
-  scale: number;
-  onClose: () => void;
+  onChange: (element: PlacedElement) => void;
+  onClose?: () => void;
 }
 
-import type { WriterTableData } from '../../core/writer/types';
+export const TableEditorPanel: React.FC<TableEditorPanelProps> = ({
+  element,
+  onChange,
+  onClose,
+}) => {
+  const initialTable = useMemo(() => {
+    if (element.contentModel?.kind === 'table') return element.contentModel;
+    return createDefaultTableModel(3, 3);
+  }, [element]);
 
-export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) => {
-  const { updateElement } = useWriterStore();
+  const [table, setTable] = useState<WriterTableModel>(initialTable);
+  const [selection, setSelection] = useState<WriterTableSelection | null>(
+    createSingleCellSelection(0, 0),
+  );
 
-  const [data, setData] = useState<WriterTableData>(() => {
-    try {
-      const parsed = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}');
-      // Migration logic from old structure if necessary
-      if (parsed.headers) {
-         return {
-            columns: parsed.headers.map((_h: string, i: number) => ({ id: `col-${i}` })),
-            rows: [
-              { id: 'header-row', cells: parsed.headers.map((h: string, i: number) => ({ id: `h-${i}`, text: h })) },
-              ...parsed.rows.map((r: string[], rIdx: number) => ({
-                 id: `r-${rIdx}`,
-                 cells: r.map((c, cIdx) => ({ id: `c-${rIdx}-${cIdx}`, text: c }))
-              }))
-            ],
-            style: { borderColor: parsed.borderColor || '#d1d5db', headerBg: parsed.headerBg || '#f1f5f9' }
-         }
-      }
-      return parsed as WriterTableData;
-    } catch {
-      return { rows: [], columns: [], style: { borderColor: '#d1d5db', headerBg: '#f1f5f9' } };
-    }
-  });
+  const selectedRow = selection?.startRow ?? 0;
+  const selectedCol = selection?.startCol ?? 0;
 
-  const [selectedCol, setSelectedCol] = useState<number | null>(null);
-  const [selectedRow, setSelectedRow] = useState<number | null>(null);
-
-  const updateTable = (newData: WriterTableData) => {
-    setData(newData);
-    updateElement(element.id, { content: JSON.stringify(newData) });
+  const commit = (nextTable: WriterTableModel) => {
+    setTable(nextTable);
+    onChange(
+      syncElementContentFromModel({
+        ...element,
+        type: 'table',
+        contentModel: nextTable,
+      }),
+    );
   };
 
-  const handleCellChange = (rIdx: number, cIdx: number, val: string) => {
-    const newRows = [...data.rows];
-    const newCells = [...newRows[rIdx].cells];
-    newCells[cIdx] = { ...newCells[cIdx], text: val };
-    newRows[rIdx] = { ...newRows[rIdx], cells: newCells };
-    updateTable({ ...data, rows: newRows });
-  };
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = event.clipboardData.getData('text/plain');
 
-  const addRow = () => {
-    const newCells = data.columns.map((_, i) => ({ id: `new-c-${crypto.randomUUID()}-${i}`, text: '' }));
-    updateTable({ ...data, rows: [...data.rows, { id: `new-r-${crypto.randomUUID()}`, cells: newCells }] });
-  };
+    if (!text || !text.includes('\t')) return;
 
-  const addCol = () => {
-    const newColId = `new-col-${crypto.randomUUID()}`;
-    const newColumns = [...data.columns, { id: newColId }];
-    const newRows = data.rows.map(r => ({
-      ...r,
-      cells: [...r.cells, { id: `new-c-${crypto.randomUUID()}-${r.id}`, text: '' }]
-    }));
-    updateTable({ ...data, columns: newColumns, rows: newRows });
-  };
+    event.preventDefault();
 
-  const deleteRow = () => {
-    if (selectedRow === null) return;
-    const newRows = data.rows.filter((_, i) => i !== selectedRow);
-    updateTable({ ...data, rows: newRows });
-    setSelectedRow(null);
-  };
+    const matrix = text
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => line.split('\t'));
 
-  const deleteCol = () => {
-    if (selectedCol === null) return;
-    const newColumns = data.columns.filter((_, i) => i !== selectedCol);
-    const newRows = data.rows.map(r => ({
-      ...r,
-      cells: r.cells.filter((_, i) => i !== selectedCol)
-    }));
-    updateTable({ ...data, columns: newColumns, rows: newRows });
-    setSelectedCol(null);
+    commit(pasteMatrixIntoTable(table, selectedRow, selectedCol, matrix));
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      left: element.x * scale,
-      top: (element.y + element.height) * scale + 10,
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-secondary)',
-      borderRadius: 8,
-      padding: '12px',
-      zIndex: 9999,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12,
-      minWidth: 320,
-    }}
-    onPointerDown={e => e.stopPropagation()}
+    <div
+      className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+      data-writer-allow-native-paste="true"
+      onPaste={handlePaste}
     >
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <Tooltip content="Add Column">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={addCol}>
-            <Plus className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Delete Selected Column">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={deleteCol} disabled={selectedCol === null}>
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-
-        <div style={{ width: 1, height: 16, background: 'var(--color-border-tertiary)', margin: '0 4px' }} />
-
-        <Tooltip content="Add Row">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={addRow}>
-            <Plus className="w-4 h-4 rotate-90" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Delete Selected Row">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={deleteRow} disabled={selectedRow === null}>
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          <Tooltip content="Border Color">
-            <input type="color" value={data.style?.borderColor || '#d1d5db'} onChange={e => updateTable({ ...data, style: { ...data.style, borderColor: e.target.value } })} className="w-6 h-6 p-0 border-0 cursor-pointer" />
-          </Tooltip>
-          <Tooltip content="Header Background">
-            <input type="color" value={data.style?.headerBg || '#f1f5f9'} onChange={e => updateTable({ ...data, style: { ...data.style, headerBg: e.target.value } })} className="w-6 h-6 p-0 border-0 cursor-pointer" />
-          </Tooltip>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <div>
+          <div className="text-sm font-semibold">Table Editor</div>
+          <div className="text-xs text-slate-500">
+            {table.rows.length} row(s), {table.columns.length} column(s)
+          </div>
         </div>
 
-        <Tooltip content="Close">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 ml-2" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </Tooltip>
+        <div className="flex gap-2">
+          {onClose && (
+            <button
+              type="button"
+              className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-auto max-h-[300px]">
-        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <ToolbarButton onClick={() => commit(insertTableRow(table, selectedRow + 1))}>
+          Insert Row
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(deleteTableRow(table, selectedRow))}>
+          Delete Row
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(insertTableColumn(table, selectedCol + 1))}>
+          Insert Column
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(deleteTableColumn(table, selectedCol))}>
+          Delete Column
+        </ToolbarButton>
+      </div>
+
+      <div className="overflow-auto p-3">
+        <table className="border-collapse text-sm min-w-full">
+          <thead>
+            <tr>
+              <th className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1 w-10">
+                #
+              </th>
+              {table.columns.map((column, colIndex) => (
+                <th
+                  key={column.id}
+                  className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1"
+                >
+                  {column.label || colIndex + 1}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
           <tbody>
-            {data.rows.map((row, rIdx) => (
-              <tr key={row.id} className="relative">
-                {row.cells.map((cell, cIdx) => {
-                  const isHeader = rIdx === 0;
-                  const bg = isHeader ? (data.style?.headerBg || '#f1f5f9') : 'transparent';
+            {table.rows.map((row, rowIndex) => (
+              <tr key={row.id}>
+                <th className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1">
+                  {rowIndex + 1}
+                </th>
+
+                {row.cells.map((cell, colIndex) => {
+                  const selected = isCellInSelection({ row: rowIndex, col: colIndex }, selection);
+
                   return (
-                    <td key={cell.id} style={{ border: `1px solid ${data.style?.borderColor || '#ccc'}`, padding: 4, position: 'relative', background: bg }}>
+                    <td
+                      key={cell.id}
+                      className={[
+                        'border border-slate-300 dark:border-slate-700 p-0',
+                        selected ? 'bg-blue-50 dark:bg-blue-950/40' : '',
+                      ].join(' ')}
+                    >
                       <input
                         value={cell.text}
-                        onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
-                        onFocus={() => { setSelectedCol(cIdx); setSelectedRow(rIdx); }}
-                        style={{ width: '100%', minWidth: 60, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: isHeader ? 500 : 'normal', color: 'var(--color-text-primary)' }}
+                        onFocus={() => setSelection(createSingleCellSelection(rowIndex, colIndex))}
+                        onChange={(event) =>
+                          commit(updateTableCellText(table, rowIndex, colIndex, event.target.value))
+                        }
+                        className="w-full min-w-[120px] bg-transparent px-2 py-1 outline-none"
+                        data-writer-allow-native-paste="true"
                       />
-                      {selectedCol === cIdx && <div className="absolute inset-y-0 left-0 right-0 border-x-2 border-blue-500 pointer-events-none" />}
-                      {selectedRow === rIdx && <div className="absolute inset-x-0 top-0 bottom-0 border-y-2 border-blue-500 pointer-events-none z-10" />}
                     </td>
                   );
                 })}
@@ -178,3 +172,18 @@ export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) =
     </div>
   );
 };
+
+function ToolbarButton(props: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}

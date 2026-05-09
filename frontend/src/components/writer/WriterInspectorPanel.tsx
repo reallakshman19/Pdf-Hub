@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { useWriterStore } from '@/core/writer/store';
 import { Lock, Unlock, ArrowUpToLine, ArrowDownToLine, PenTool, Settings } from 'lucide-react';

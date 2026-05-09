@@ -1,399 +1,223 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useWriterStore } from '../../core/writer/store';
-import type { PlacedElement } from '../../core/writer/types';
+import React, { useMemo, useState } from 'react';
+import type {
+  PlacedElement,
+  WriterRichTextModel,
+} from '@/core/writer/types';
 import {
-  AlignCenter,
-  AlignJustify,
-  AlignLeft,
-  AlignRight,
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Save,
-  Underline,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Tooltip } from '@/components/ui/Tooltip';
-import { sanitizeHtml } from '../../core/writer/htmlSanitizer';
+  createEmptyRichTextModel,
+} from '@/core/writer/content-model';
+import {
+  richTextModelToHtml,
+  richTextModelToPlainText,
+} from '@/core/writer/richTextHtml';
+import {
+  setBlockAlign,
+  setBlockType,
+  setRunColor,
+  setRunFontFamily,
+  setRunFontSize,
+  toggleRunMark,
+  updateRichTextPlainText,
+} from '@/core/writer/richTextCommands';
+import {
+  syncElementContentFromModel,
+} from '@/core/writer/content-serialization';
 
-interface Props {
+export interface RichTextEditorPanelProps {
   element: PlacedElement;
-  scale: number;
-  onClose: () => void;
+  onChange: (element: PlacedElement) => void;
+  onClose?: () => void;
 }
 
-export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }) => {
-  const { updateElement } = useWriterStore();
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);
-  const [fontFamily, setFontFamily] = useState(element.styles.fontFamily ?? 'Arial');
-  const [fontSizePx, setFontSizePx] = useState(element.styles.fontSize ?? 14);
-  const [lineHeight, setLineHeight] = useState(element.styles.lineHeight ?? 1.4);
-  const [textColor, setTextColor] = useState(element.styles.color ?? '#0f172a');
+export const RichTextEditorPanel: React.FC<RichTextEditorPanelProps> = ({
+  element,
+  onChange,
+  onClose,
+}) => {
+  const initialModel = useMemo(() => {
+    if (element.contentModel?.kind === 'rich-text') return element.contentModel;
+    return createEmptyRichTextModel(element.content ?? '');
+  }, [element]);
 
-  const fontFamilies = [
-    'Arial',
-    'Times New Roman',
-    'Georgia',
-    'Verdana',
-    'Tahoma',
-    'Trebuchet MS',
-    'Courier New',
-  ];
-  const fontSizes = [10, 11, 12, 14, 16, 18, 20, 24, 28, 32];
-  const lineHeights = [1.2, 1.4, 1.6, 1.8, 2];
+  const [model, setModel] = useState<WriterRichTextModel>(initialModel);
+  const [selectedBlock, setSelectedBlock] = useState(0);
+  const [previewMode, setPreviewMode] = useState(false);
 
-  // Initialize with content, or empty paragraph
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== element.content) {
-      // Only update innerHTML if it's strictly different to avoid losing caret position
-      editorRef.current.innerHTML = element.content || '<p><br/></p>';
-    }
-  }, [element.content]);
-
-  useEffect(() => {
-    if (!editorRef.current) return;
-    editorRef.current.style.fontFamily = fontFamily;
-    editorRef.current.style.fontSize = `${fontSizePx}px`;
-    editorRef.current.style.lineHeight = String(lineHeight);
-    editorRef.current.style.color = textColor;
-  }, [fontFamily, fontSizePx, lineHeight, textColor]);
-
-  useEffect(() => {
-    // Focus on mount
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    const selection = window.getSelection();
-    if (!selection) return;
-    const range = document.createRange();
-    range.selectNodeContents(editorRef.current);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }, []);
-
-  const patchElementStyles = (patch: Partial<PlacedElement['styles']>) => {
-    updateElement(element.id, {
-      styles: {
-        ...element.styles,
-        ...patch,
-      },
-    });
+  const selectedRunRef = {
+    blockIndex: Math.max(0, Math.min(selectedBlock, model.blocks.length - 1)),
+    runIndex: 0,
   };
 
-  const saveContent = () => {
-    if (editorRef.current) {
-      updateElement(element.id, { content: editorRef.current.innerHTML });
-    }
+  const commit = (nextModel: WriterRichTextModel) => {
+    setModel(nextModel);
+    onChange(
+      syncElementContentFromModel({
+        ...element,
+        type: 'rich-text',
+        contentModel: nextModel,
+      }),
+    );
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.ctrlKey && e.key === 'Enter') {
-      saveContent();
-      onClose();
-      return;
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      if (e.shiftKey) {
-        execCmd('outdent');
-      } else {
-        execCmd('insertHTML', '&emsp;&emsp;');
-      }
-    }
-  };
-
-  const execCmd = (cmd: string, arg?: string) => {
-    document.execCommand(cmd, false, arg);
-    editorRef.current?.focus();
-  };
-
-  const handleFontFamilyChange = (nextFamily: string) => {
-    setFontFamily(nextFamily);
-    execCmd('fontName', nextFamily);
-    patchElementStyles({ fontFamily: nextFamily });
-    window.setTimeout(saveContent, 0);
-  };
-
-  const handleFontSizeChange = (nextSize: number) => {
-    setFontSizePx(nextSize);
-    patchElementStyles({ fontSize: nextSize });
-    window.setTimeout(saveContent, 0);
-  };
-
-  const handleLineHeightChange = (nextLineHeight: number) => {
-    setLineHeight(nextLineHeight);
-    patchElementStyles({ lineHeight: nextLineHeight });
-    window.setTimeout(saveContent, 0);
-  };
-
-  const handleTextColorChange = (nextColor: string) => {
-    setTextColor(nextColor);
-    execCmd('foreColor', nextColor);
-    patchElementStyles({ color: nextColor });
-    window.setTimeout(saveContent, 0);
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    // Look for image items in the clipboard
-    const items = e.clipboardData.items;
-    let handledImage = false;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        handledImage = true;
-        const file = items[i].getAsFile();
-        if (!file) continue;
-
-        e.preventDefault(); // Stop default paste
-
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const base64 = ev.target?.result as string;
-          // Create an image element and insert it at the cursor position
-          document.execCommand('insertImage', false, base64);
-
-          // Wait a tick and then find the newly inserted image to style it
-          setTimeout(() => {
-            if (!editorRef.current) return;
-            const imgs = editorRef.current.getElementsByTagName('img');
-            // Assuming the last image is the one just pasted
-            if (imgs.length > 0) {
-               const img = imgs[imgs.length - 1];
-               // Add default styles so it fits within the editor and exports nicely
-               img.style.maxWidth = '100%';
-               img.style.maxHeight = '300px';
-               img.style.objectFit = 'contain';
-               saveContent();
-            }
-          }, 0);
-        };
-        reader.readAsDataURL(file);
-        break; // Only handle the first image
-      }
-    }
-
-    // If it's not an image, try to grab text/html to sanitize it before pasting.
-    if (!handledImage) {
-      const htmlContent = e.clipboardData.getData('text/html');
-      if (htmlContent) {
-        e.preventDefault(); // Stop native unsafe paste
-        const sanitized = sanitizeHtml(htmlContent);
-        document.execCommand('insertHTML', false, sanitized);
-      }
-      setTimeout(saveContent, 0); // Save the content after paste completes
-    }
-  };
+  const plainText = richTextModelToPlainText(model);
 
   return (
-    <div style={{
-      position: 'absolute',
-      left: element.x * scale,
-      top: (element.y + element.height) * scale + 10,
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-secondary)',
-      borderRadius: 8,
-      padding: '8px',
-      zIndex: 9999,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8,
-      width: 480,
-    }}
-    onPointerDown={e => e.stopPropagation()}
+    <div
+      className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+      data-writer-allow-native-paste="true"
     >
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <Tooltip content="Font family">
-          <select
-            value={fontFamily}
-            onChange={(e) => handleFontFamilyChange(e.target.value)}
-            className="h-8 px-2 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 max-w-[140px]"
-          >
-            {fontFamilies.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </Tooltip>
-        <Tooltip content="Font size">
-          <select
-            value={fontSizePx}
-            onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
-            className="h-8 px-2 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 w-[72px]"
-          >
-            {fontSizes.map((size) => (
-              <option key={size} value={size}>{size}px</option>
-            ))}
-          </select>
-        </Tooltip>
-        <Tooltip content="Line spacing">
-          <select
-            value={lineHeight}
-            onChange={(e) => handleLineHeightChange(parseFloat(e.target.value))}
-            className="h-8 px-2 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 w-[80px]"
-          >
-            {lineHeights.map((value) => (
-              <option key={value} value={value}>{value}x</option>
-            ))}
-          </select>
-        </Tooltip>
-        <Tooltip content="Text color">
-          <input
-            type="color"
-            value={textColor}
-            onChange={(e) => handleTextColorChange(e.target.value)}
-            className="h-8 w-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5 cursor-pointer"
-          />
-        </Tooltip>
-        <Tooltip content="Bold (Ctrl+B)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('bold')}>
-            <Bold className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Italic (Ctrl+I)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('italic')}>
-            <Italic className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Underline (Ctrl+U)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('underline')}>
-            <Underline className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <div style={{ width: 1, height: 16, background: 'var(--color-border-tertiary)', margin: '0 4px' }} />
-        <Tooltip content="Bullet List">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('insertUnorderedList')}>
-            <List className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Numbered List">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('insertOrderedList')}>
-            <ListOrdered className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Align Left">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyLeft')}>
-            <AlignLeft className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Align Center">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyCenter')}>
-            <AlignCenter className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Align Right">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyRight')}>
-            <AlignRight className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Justify">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyFull')}>
-            <AlignJustify className="w-4 h-4" />
-          </Button>
-        </Tooltip>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <div>
+          <div className="text-sm font-semibold">Rich Text Editor</div>
+          <div className="text-xs text-slate-500">
+            {model.blocks.length} block(s)
+          </div>
+        </div>
 
-        <div className="flex-1" />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+            onClick={() => setPreviewMode((value) => !value)}
+          >
+            {previewMode ? 'Edit' : 'Preview'}
+          </button>
 
-        <Tooltip content="Save (Ctrl+Enter)">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 dark:text-blue-400" onClick={() => { saveContent(); onClose(); }}>
-            <Save className="w-4 h-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Discard">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </Tooltip>
+          {onClose && (
+            <button
+              type="button"
+              className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
 
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        tabIndex={0}
-        onBlur={saveContent}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          if ((e.target as HTMLElement).tagName === 'IMG') {
-            setSelectedImage(e.target as HTMLImageElement);
-          } else {
-            setSelectedImage(null);
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'bold'))}>
+          Bold
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'italic'))}>
+          Italic
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'underline'))}>
+          Underline
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'strike'))}>
+          Strike
+        </ToolbarButton>
+
+        <select
+          value={model.blocks[selectedRunRef.blockIndex]?.type ?? 'paragraph'}
+          onChange={(event) =>
+            commit(setBlockType(model, selectedRunRef.blockIndex, event.target.value as never))
           }
-        }}
-        style={{
-          minHeight: 120,
-          padding: '4px 8px',
-          outline: 'none',
-          color: textColor,
-          backgroundColor: 'var(--color-background-secondary)',
-          border: '0.5px solid var(--color-border-secondary)',
-          borderRadius: 6,
-          overflowY: 'auto',
-          maxHeight: '400px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-        }}
-      />
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="paragraph">Paragraph</option>
+          <option value="heading">Heading</option>
+          <option value="bullet">Bullet</option>
+          <option value="numbered">Numbered</option>
+          <option value="quote">Quote</option>
+        </select>
 
-      {selectedImage && (
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 justify-center">
-          <span className="text-xs text-slate-500 font-medium mr-2">Image Size:</span>
-          <Tooltip content="Shrink Image">
-             <Button
-                variant="secondary"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => {
-                  if (!editorRef.current) return;
-                  const currentWidth = selectedImage.style.width ? parseInt(selectedImage.style.width) : 100;
-                  const newWidth = Math.max(10, currentWidth - 10);
+        <select
+          value={model.blocks[selectedRunRef.blockIndex]?.align ?? 'left'}
+          onChange={(event) =>
+            commit(setBlockAlign(model, selectedRunRef.blockIndex, event.target.value as never))
+          }
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+          <option value="justify">Justify</option>
+        </select>
 
-                  // Clone the image node to modify it safely without violating React state immutability
-                  const newImg = selectedImage.cloneNode() as HTMLImageElement;
-                  newImg.style.width = `${newWidth}%`;
-                  newImg.style.maxWidth = 'none';
+        <input
+          type="number"
+          min={6}
+          max={96}
+          defaultValue={12}
+          onChange={(event) =>
+            commit(setRunFontSize(model, selectedRunRef, Number(event.target.value) || 12))
+          }
+          className="h-8 w-20 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+          title="Font size"
+        />
 
-                  selectedImage.replaceWith(newImg);
-                  setSelectedImage(newImg);
-                  saveContent();
-                }}
-              >
-                <ZoomOut className="w-3 h-3" />
-             </Button>
-          </Tooltip>
-          <Tooltip content="Enlarge Image">
-             <Button
-                variant="secondary"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => {
-                  if (!editorRef.current) return;
-                  const currentWidth = selectedImage.style.width ? parseInt(selectedImage.style.width) : 100;
-                  const newWidth = Math.min(100, currentWidth + 10);
+        <input
+          type="color"
+          defaultValue="#111827"
+          onChange={(event) => commit(setRunColor(model, selectedRunRef, event.target.value))}
+          className="h-8 w-12 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-1"
+          title="Text color"
+        />
 
-                  // Clone the image node to modify it safely without violating React state immutability
-                  const newImg = selectedImage.cloneNode() as HTMLImageElement;
-                  newImg.style.width = `${newWidth}%`;
-                  newImg.style.maxWidth = 'none';
+        <select
+          defaultValue="Arial"
+          onChange={(event) => commit(setRunFontFamily(model, selectedRunRef, event.target.value))}
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="Arial">Arial</option>
+          <option value="Calibri">Calibri</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Courier New">Courier New</option>
+        </select>
+      </div>
 
-                  selectedImage.replaceWith(newImg);
-                  setSelectedImage(newImg);
-                  saveContent();
-                }}
-              >
-                <ZoomIn className="w-3 h-3" />
-             </Button>
-          </Tooltip>
+      <div className="grid grid-cols-[160px_1fr] min-h-[320px]">
+        <div className="border-r border-slate-200 dark:border-slate-800 p-2 overflow-auto">
+          {model.blocks.map((block, index) => (
+            <button
+              key={block.id}
+              type="button"
+              className={[
+                'w-full text-left rounded px-2 py-1 text-xs mb-1',
+                selectedBlock === index
+                  ? 'bg-blue-100 dark:bg-blue-950'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-900',
+              ].join(' ')}
+              onClick={() => setSelectedBlock(index)}
+            >
+              {index + 1}. {block.type}
+            </button>
+          ))}
         </div>
-      )}
+
+        <div className="p-3">
+          {previewMode ? (
+            <div
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ __html: richTextModelToHtml(model) }}
+            />
+          ) : (
+            <textarea
+              value={plainText}
+              onChange={(event) => commit(updateRichTextPlainText(model, event.target.value))}
+              className="h-80 w-full resize-none rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm"
+              data-writer-allow-native-paste="true"
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
+function ToolbarButton(props: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}

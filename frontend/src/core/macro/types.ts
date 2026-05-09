@@ -225,3 +225,19 @@ export interface MacroDryRunReport {
   warnings: string[];
   diff: MacroDryRunDiff;
 }
+/**
+ * PDF_Hub_Enh2 Macro/Writer Contract Bridge
+ * -----------------------------------------
+ * Add this block at the END of:
+ *   frontend/src/core/macro/types.ts
+ *
+ * Use this only if older macro files import WriterStyles / WriterTableData
+ * through macro/types.ts rather than directly from writer/types.ts.
+ */
+
+export type {
+  WriterElementStyle,
+  WriterElementStyle as WriterStyles,
+  WriterTableModel,
+  WriterTableModel as WriterTableData,
+} from '../writer/types';

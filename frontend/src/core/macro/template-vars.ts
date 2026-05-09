@@ -62,3 +62,7 @@ export class TemplateVarEngine {
 }
 
 export const templateVarEngine = new TemplateVarEngine();
+export function buildDefaultVars(ctx: any) {
+  return templateVarEngine.buildDefaultVars(ctx);
+}
+templateVarEngine.buildDefaultVars = buildDefaultVars;

@@ -1,72 +1,87 @@
-import type { MacroStep, MacroExecutionContext } from './types';
+import type {
+  MacroExecutionContext,
+  MacroStep,
+} from './types';
+
+export type SideEffect =
+  | { type: 'bytes_updated'; bytes: Uint8Array }
+  | { type: 'output_file'; name: string; bytes: Uint8Array }
+  | { type: 'page_count_changed'; newCount: number }
+  | { type: 'selection_changed'; selectedPages: number[] }
+  | { type: 'log'; message: string };
 
 export interface StepResult {
-  status:     'success' | 'warning' | 'error';
-  message?:   string;
+  status: 'success' | 'warning' | 'error';
+  message?: string;
   sideEffects: SideEffect[];
 }
 
-export type SideEffect =
-  | { type: 'bytes_updated';      bytes: Uint8Array }
-  | { type: 'output_file';        name: string; bytes: Uint8Array }
-  | { type: 'page_count_changed'; newCount: number };
-
 export interface MacroMutableState {
-  workingBytes:  Uint8Array;
-  pageCount:     number;
+  workingBytes: Uint8Array;
+  pageCount: number;
   selectedPages: number[];
-  templateVars:  Record<string, string>;
-  logs:          string[];
-  outputFiles:   { name: string; bytes: Uint8Array }[];
+  outputFiles: Array<{ name: string; bytes: Uint8Array }>;
+  logs: string[];
+  templateVars: Record<string, string>;
 }
 
-export type StepExecutor<T extends MacroStep> = (
-  step: T,
+/**
+ * Contract bridge fix:
+ * Some step files return StepResult synchronously.
+ * Some future/pdf-lib-backed steps return Promise<StepResult>.
+ * The registry must support BOTH.
+ */
+export type MacroStepExecutor<TStep extends MacroStep = MacroStep> = (
+  step: TStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-) => Promise<StepResult>;
+) => StepResult | Promise<StepResult>;
 
-/**
- * Registry for macro step executors.
- * Owner: Agent A creates shell; Agent D populates all existing ops;
- *        Agent E adds new ops.
- */
-export class MacroStepRegistry {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly executors = new Map<string, StepExecutor<any>>();
+export class MacroRegistry {
+  private readonly executors = new Map<MacroStep['op'], MacroStepExecutor>();
 
-  register<T extends MacroStep>(
-    op: T['op'],
-    executor: StepExecutor<T>,
+  register<TStep extends MacroStep>(
+    op: TStep['op'],
+    executor: MacroStepExecutor<TStep>,
   ): void {
-    if (this.executors.has(op)) {
-      // console.warn(`[MacroRegistry] Re-registering op "${op}"`);
-    }
-    this.executors.set(op, executor);
+    this.executors.set(op, executor as MacroStepExecutor);
   }
 
-  /**
-   * Throws if the op is not registered.
-   * Executors must return StepResult — they must NOT throw.
-   */
+  has(op: string): boolean {
+    return this.executors.has(op as MacroStep['op']);
+  }
+
+  listOps(): MacroStep['op'][] {
+    return Array.from(this.executors.keys());
+  }
+
   async execute(
     step: MacroStep,
     ctx: MacroExecutionContext,
     state: MacroMutableState,
   ): Promise<StepResult> {
     const executor = this.executors.get(step.op);
-    if (!executor) {
-      throw new Error(
-        `[MacroRegistry] No executor registered for op "${step.op}". ` +
-        `Did you forget to import the relevant steps file in register-all.ts?`,
-      );
-    }
-    return executor(step, ctx, state);
-  }
 
-  getRegisteredOps(): string[] {
-    return Array.from(this.executors.keys());
+    if (!executor) {
+      return {
+        status: 'error',
+        message:
+          `[MacroRegistry] No executor registered for op "${step.op}". ` +
+          'Did you forget to import the relevant steps file in register-all.ts?',
+        sideEffects: [],
+      };
+    }
+
+    try {
+      return await executor(step, ctx, state);
+    } catch (err) {
+      return {
+        status: 'error',
+        message: err instanceof Error ? err.message : String(err),
+        sideEffects: [],
+      };
+    }
   }
 }
 
-export const macroRegistry = new MacroStepRegistry();
+export const macroRegistry = new MacroRegistry();

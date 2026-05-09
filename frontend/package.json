@@ -13,7 +13,12 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "audit:phase8": "node scripts/phase8-static-audit.mjs",
-    "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build"
+    "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build",
+    "audit:contracts": "node scripts/enh2-contract-bridge-audit.mjs",
+    "audit:writer": "node scripts/writer-static-audit.mjs",
+    "certify:writer": "npm run typecheck && npm run test && npm run audit:writer && npm run build",
+    "audit:macro": "node scripts/macro-static-audit.mjs",
+    "certify:macro": "npm run typecheck && npm run test && npm run audit:macro && npm run build"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

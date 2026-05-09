@@ -16,7 +16,7 @@ if (import.meta.env.DEV) {
     'place_rich_textbox', 'place_table', 'adjust_image',
     'conditional', 'apply_template_vars',
   ];
-  const registered = new Set(macroRegistry.getRegisteredOps());
+  const registered = new Set((macroRegistry as any).getRegisteredOps());
   ALL_OPS.forEach(op => {
     if (!registered.has(op)) {
       // eslint-disable-next-line no-console

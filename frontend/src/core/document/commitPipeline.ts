@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
-import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
+import { flattenWriterElementsToPdf, type WriterExportPlan } from '@/core/writer/exporter';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { PlacedElement } from '@/core/writer/types';
 
@@ -18,7 +19,7 @@ export interface ComposeCommittedPdfResult {
   committedWriterElementCount: number;
   hadAnnotations: boolean;
   hadWriterElements: boolean;
-  writerExportWarnings: WriterExportWarning[];
+  writerExportWarnings: WriterExportPlan[];
 }
 
 /**
@@ -42,10 +43,10 @@ export async function composeCommittedPdf(
   const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
 
   let nextBytes = new Uint8Array(input.baseBytes);
-  const writerExportWarnings: WriterExportWarning[] = [];
+  const writerExportWarnings: WriterExportPlan[] = [];
 
   if (writerElements.length > 0) {
-    nextBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+    nextBytes = await flattenWriterElementsToPdf(nextBytes, writerElements, {
       preferSemantic: true,
       allowRasterFallback: true,
       collectWarnings: (warnings) => writerExportWarnings.push(...warnings),

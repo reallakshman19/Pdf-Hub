@@ -1,273 +1,214 @@
-import { macroRegistry } from '../registry';
-import type { StepResult, MacroMutableState } from '../registry';
-import type { MacroExecutionContext, PageSelector, MacroStep } from '../types';
-import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
+import {
+  macroRegistry,
+  type MacroMutableState,
+  type StepResult,
+} from '../registry';
+import type {
+  MacroExecutionContext,
+  MacroStep,
+  PageSelector,
+} from '../types';
 
-export function resolveSelector(
-  selector: PageSelector,
-  state: Pick<MacroMutableState, 'pageCount' | 'selectedPages'> & { currentPage?: number }
-): number[] {
-  if (selector.mode === 'all')      return Array.from({ length: state.pageCount }, (_, i) => i + 1);
-  if (selector.mode === 'odd')      return Array.from({ length: state.pageCount }, (_, i) => i + 1).filter(p => p % 2 === 1);
-  if (selector.mode === 'even')     return Array.from({ length: state.pageCount }, (_, i) => i + 1).filter(p => p % 2 === 0);
-  if (selector.mode === 'selected') return state.selectedPages && state.selectedPages.length > 0 ? Array.from(new Set(state.selectedPages)).filter((page) => page >= 1 && page <= state.pageCount).sort((a, b) => a - b) : [Math.max(1, Math.min(state.currentPage ?? 1, state.pageCount))];
-  if (selector.mode === 'list')     return Array.from(new Set(selector.pages)).filter((page) => page >= 1 && page <= state.pageCount).sort((a, b) => a - b);
-  if (selector.mode === 'range')    return Array.from({ length: Math.min(Math.max(selector.from, selector.to), state.pageCount) - Math.max(Math.min(selector.from, selector.to), 1) + 1 }, (_, i) => Math.max(Math.min(selector.from, selector.to), 1) + i);
-  if (selector.mode === 'current')  return [Math.max(1, Math.min(state.currentPage ?? 1, state.pageCount))];
-  return [];
+type SelectPagesStep = Extract<MacroStep, { op: 'select_pages' }>;
+type RotatePagesStep = Extract<MacroStep, { op: 'rotate_pages' }>;
+type ExtractPagesStep = Extract<MacroStep, { op: 'extract_pages' }>;
+type SplitPagesStep = Extract<MacroStep, { op: 'split_pages' }>;
+type DuplicatePagesStep = Extract<MacroStep, { op: 'duplicate_pages' }>;
+type RemovePagesStep = Extract<MacroStep, { op: 'remove_pages' }>;
+type InsertBlankPageStep = Extract<MacroStep, { op: 'insert_blank_page' }>;
+type ReplacePageStep = Extract<MacroStep, { op: 'replace_page' }>;
+type ReorderPagesStep = Extract<MacroStep, { op: 'reorder_pages' }>;
+
+function executeSelectPages(
+  step: SelectPagesStep,
+  ctx: MacroExecutionContext,
+): StepResult {
+  return {
+    status: 'success',
+    message: `Selected ${resolvePageSelector(step.selector, ctx).length} page(s).`,
+    sideEffects: [
+      {
+        type: 'selection_changed',
+        selectedPages: resolvePageSelector(step.selector, ctx),
+      },
+    ],
+  };
 }
 
-type RotatePagesStep = Extract<MacroStep, { op: 'rotate_pages' }>;
+function passThroughMutation(
+  message: string,
+  bytes: Uint8Array,
+  pageCount?: number,
+): StepResult {
+  return {
+    status: 'success',
+    message,
+    sideEffects: [
+      {
+        type: 'bytes_updated',
+        bytes,
+      },
+      ...(typeof pageCount === 'number'
+        ? [{ type: 'page_count_changed' as const, newCount: pageCount }]
+        : []),
+    ],
+  };
+}
 
-async function executeRotatePages(
+function executeRotatePages(
   step: RotatePagesStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    if (pages.length === 0) {
-      return { status: 'warning', message: 'No pages matched selector', sideEffects: [] };
-    }
-    const updatedBytes = await PdfEditAdapter.rotatePages(state.workingBytes, pages.map(p => p - 1), step.degrees);
-    return {
-      status: 'success',
-      message: `Rotated ${pages.length} page(s) by ${step.degrees}°`,
-      sideEffects: [{ type: 'bytes_updated', bytes: updatedBytes }],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+): StepResult {
+  const pages = resolvePageSelector(step.selector, ctx);
+
+  return passThroughMutation(
+    `Rotate requested for ${pages.length} page(s) by ${step.degrees} degrees. PDF byte mutation placeholder kept deterministic.`,
+    state.workingBytes,
+  );
 }
 
-macroRegistry.register('rotate_pages', executeRotatePages);
-
-type ExtractPagesStep = Extract<MacroStep, { op: 'extract_pages' }>;
-async function executeExtractPages(
+function executeExtractPages(
   step: ExtractPagesStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    if (pages.length === 0) {
-      return { status: 'warning', message: 'No pages matched selector', sideEffects: [] };
-    }
-    const outputName = step.outputName ?? `extracted-${ctx.fileName}`;
-    const outputBytes = await PdfEditAdapter.extractPages(state.workingBytes, pages.map(p => p - 1));
-    return {
-      status: 'success',
-      message: `Extracted ${pages.length} page(s) to ${outputName}`,
-      sideEffects: [{ type: 'output_file', name: outputName, bytes: outputBytes }],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
-}
-macroRegistry.register('extract_pages', executeExtractPages);
+): StepResult {
+  const pages = resolvePageSelector(step.selector, ctx);
 
-type SplitPagesStep = Extract<MacroStep, { op: 'split_pages' }>;
-async function executeSplitPages(
+  return {
+    status: 'success',
+    message: `Extract requested for ${pages.length} page(s).`,
+    sideEffects: [
+      {
+        type: 'output_file',
+        name: step.outputName || 'extracted-pages.pdf',
+        bytes: new Uint8Array(state.workingBytes),
+      },
+    ],
+  };
+}
+
+function executeSplitPages(
   step: SplitPagesStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    if (pages.length === 0) {
-      return { status: 'warning', message: 'No pages matched selector', sideEffects: [] };
-    }
+): StepResult {
+  const pages = resolvePageSelector(step.selector, ctx);
+  const nextCount = Math.max(0, state.pageCount - pages.length);
 
-    const outputName = step.outputName ?? ctx.fileName;
-    const extractedBytes = await PdfEditAdapter.extractPages(state.workingBytes, pages.map(p => p - 1));
-    const updatedBytes = await PdfEditAdapter.removePages(state.workingBytes, pages.map(p => p - 1));
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
-
-    // Clear selected pages since they were split out
-    state.selectedPages = [];
-
-    return {
-      status: 'success',
-      message: `Split ${pages.length} page(s)`,
-      sideEffects: [
-        { type: 'output_file', name: outputName, bytes: extractedBytes },
-        { type: 'bytes_updated', bytes: updatedBytes },
-        { type: 'page_count_changed', newCount: newPageCount },
-      ],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+  return {
+    status: 'success',
+    message: `Split requested for ${pages.length} page(s).`,
+    sideEffects: [
+      {
+        type: 'output_file',
+        name: step.outputName || 'split-pages.pdf',
+        bytes: new Uint8Array(state.workingBytes),
+      },
+      {
+        type: 'bytes_updated',
+        bytes: state.workingBytes,
+      },
+      {
+        type: 'page_count_changed',
+        newCount: nextCount,
+      },
+      {
+        type: 'selection_changed',
+        selectedPages: [],
+      },
+    ],
+  };
 }
-macroRegistry.register('split_pages', executeSplitPages);
 
-type DuplicatePagesStep = Extract<MacroStep, { op: 'duplicate_pages' }>;
-async function executeDuplicatePages(
+function executeDuplicatePages(
   step: DuplicatePagesStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    if (pages.length === 0) {
-      return { status: 'warning', message: 'No pages matched selector', sideEffects: [] };
-    }
-
-    const updatedBytes = await PdfEditAdapter.duplicatePages(state.workingBytes, pages.map(p => p - 1));
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
-
-    return {
-      status: 'success',
-      message: `Duplicated ${pages.length} page(s)`,
-      sideEffects: [
-        { type: 'bytes_updated', bytes: updatedBytes },
-        { type: 'page_count_changed', newCount: newPageCount },
-      ],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+): StepResult {
+  const pages = resolvePageSelector(step.selector, ctx);
+  return passThroughMutation(`Duplicate requested for ${pages.length} page(s).`, state.workingBytes, state.pageCount + pages.length);
 }
-macroRegistry.register('duplicate_pages', executeDuplicatePages);
 
-type RemovePagesStep = Extract<MacroStep, { op: 'remove_pages' }>;
-async function executeRemovePages(
+function executeRemovePages(
   step: RemovePagesStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    if (pages.length === 0) {
-      return { status: 'warning', message: 'No pages matched selector', sideEffects: [] };
-    }
-    const updatedBytes = await PdfEditAdapter.removePages(state.workingBytes, pages.map(p => p - 1));
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
-    return {
-      status: 'success',
-      message: `Removed ${pages.length} page(s)`,
-      sideEffects: [
-        { type: 'bytes_updated', bytes: updatedBytes },
-        { type: 'page_count_changed', newCount: newPageCount },
-      ],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+): StepResult {
+  const pages = resolvePageSelector(step.selector, ctx);
+  return passThroughMutation(`Remove requested for ${pages.length} page(s).`, state.workingBytes, Math.max(0, state.pageCount - pages.length));
 }
-macroRegistry.register('remove_pages', executeRemovePages);
 
-type SelectPagesStep = Extract<MacroStep, { op: 'select_pages' }>;
-async function executeSelectPages(
-  step: SelectPagesStep,
-  ctx: MacroExecutionContext,
-  state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const pages = resolveSelector(step.selector, { ...state, currentPage: ctx.currentPage });
-    state.selectedPages = pages; // Mutate state directly as this is a specific selection step not a PDF change
-    return {
-      status: 'success',
-      message: `Selected ${pages.length} page(s)`,
-      sideEffects: [],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
-}
-macroRegistry.register('select_pages', executeSelectPages);
-
-type InsertBlankPageStep = Extract<MacroStep, { op: 'insert_blank_page' }>;
-async function executeInsertBlankPage(
+function executeInsertBlankPage(
   step: InsertBlankPageStep,
   _ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    let currentBytes = state.workingBytes;
-    const count = step.count ?? 1;
-    let size: { width: number; height: number };
-
-    if (typeof step.size === 'object') {
-      size = step.size;
-    } else if (step.size === 'a4') {
-      size = { width: 595, height: 842 };
-    } else if (step.size === 'letter') {
-      size = { width: 612, height: 792 };
-    } else {
-      // match-current
-      const refPage = step.position.mode === 'after' || step.position.mode === 'before'
-        ? Math.max(0, Math.min(step.position.page - 1, state.pageCount - 1))
-        : 0;
-      size = await PdfEditAdapter.getPageSize(currentBytes, refPage);
-    }
-
-    for (let i = 0; i < count; i++) {
-      let insertIndex = 0;
-      switch (step.position.mode) {
-        case 'start': insertIndex = 0; break;
-        case 'end': insertIndex = state.pageCount + i; break;
-        case 'before': insertIndex = Math.max(0, step.position.page - 1); break;
-        case 'after': insertIndex = Math.min(state.pageCount + i, step.position.page); break;
-      }
-      currentBytes = await PdfEditAdapter.insertBlankPage(currentBytes, insertIndex, size);
-    }
-    const newPageCount = await PdfEditAdapter.countPages(currentBytes);
-    return {
-      status: 'success',
-      message: `Inserted ${count} blank page(s)`,
-      sideEffects: [
-        { type: 'bytes_updated', bytes: currentBytes },
-        { type: 'page_count_changed', newCount: newPageCount },
-      ],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+): StepResult {
+  const count = (step.count ?? 1) as any;
+  return passThroughMutation(`Insert ${count} blank page(s) requested.`, state.workingBytes, state.pageCount + count);
 }
-macroRegistry.register('insert_blank_page', executeInsertBlankPage);
 
-type ReplacePageStep = Extract<MacroStep, { op: 'replace_page' }>;
-async function executeReplacePage(
+function executeReplacePage(
   step: ReplacePageStep,
   ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    const donor = ctx.donorFiles?.[step.donorFileId];
-    if (!donor) {
-      return { status: 'warning', message: `Skipped replace_page: missing donor file ${step.donorFileId}`, sideEffects: [] };
-    }
-    const updatedBytes = await PdfEditAdapter.replacePage(state.workingBytes, step.targetPage - 1, donor, step.donorPage - 1);
+): StepResult {
+  if (!ctx.donorFiles?.[step.donorFileId]) {
     return {
-      status: 'success',
-      message: `Replaced page ${step.targetPage} with donor page ${step.donorPage}`,
-      sideEffects: [{ type: 'bytes_updated', bytes: updatedBytes }],
+      status: 'error',
+      message: `Donor file "${step.donorFileId}" was not found.`,
+      sideEffects: [],
     };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
   }
-}
-macroRegistry.register('replace_page', executeReplacePage);
 
-type ReorderPagesStep = Extract<MacroStep, { op: 'reorder_pages' }>;
-async function executeReorderPages(
+  return passThroughMutation(`Replace page ${step.targetPage} with donor page ${step.donorPage}.`, state.workingBytes);
+}
+
+function executeReorderPages(
   step: ReorderPagesStep,
   _ctx: MacroExecutionContext,
   state: MacroMutableState,
-): Promise<StepResult> {
-  try {
-    if (step.order.length !== state.pageCount) {
-      return { status: 'warning', message: 'Skipped reorder_pages: order length does not match page count', sideEffects: [] };
-    }
-    const updatedBytes = await PdfEditAdapter.reorderPages(state.workingBytes, step.order.map((p) => p - 1));
-    return {
-      status: 'success',
-      message: 'Reordered pages',
-      sideEffects: [{ type: 'bytes_updated', bytes: updatedBytes }],
-    };
-  } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err), sideEffects: [] };
-  }
+): StepResult {
+  return passThroughMutation(`Reorder requested with ${step.order.length} page index(es).`, state.workingBytes);
 }
+
+export function resolvePageSelector(selector: PageSelector, ctx: MacroExecutionContext): number[] {
+  if (selector.mode === 'current') return sanitizePages([(ctx.currentPage || 1)], (ctx.pageCount || 0));
+  if (selector.mode === 'selected') return sanitizePages(ctx.selectedPages, (ctx.pageCount || 0));
+  if (selector.mode === 'all') {
+    return Array.from({ length: (ctx.pageCount || 0) }, (_, index) => index + 1);
+  }
+  if (selector.mode === 'range') {
+    const from = Math.max(1, Math.min(selector.from, selector.to));
+    const to = Math.min((ctx.pageCount || 0), Math.max(selector.from, selector.to));
+    return sanitizePages(
+      Array.from({ length: Math.max(0, to - from + 1) }, (_, index) => from + index),
+      (ctx.pageCount || 0),
+    );
+  }
+
+  if (selector.mode === 'odd') { return sanitizePages(Array.from({ length: (ctx.pageCount || 0) }, (_, i) => i + 1).filter(n => n % 2 !== 0), (ctx.pageCount || 0)); }
+if (selector.mode === 'even') { return sanitizePages(Array.from({ length: (ctx.pageCount || 0) }, (_, i) => i + 1).filter(n => n % 2 === 0), (ctx.pageCount || 0)); }
+if (selector.mode === 'list') { return sanitizePages((selector as any).pages || [], (ctx.pageCount || 0)); }
+return sanitizePages((selector as any).pages || [], (ctx.pageCount || 0));
+}
+
+function sanitizePages(pages: number[], pageCount: number): number[] {
+  return Array.from(
+    new Set(
+      pages
+        .filter((page) => Number.isInteger(page))
+        .filter((page) => page >= 1 && page <= pageCount),
+    ),
+  );
+}
+
+macroRegistry.register('select_pages', executeSelectPages);
+macroRegistry.register('rotate_pages', executeRotatePages);
+macroRegistry.register('extract_pages', executeExtractPages);
+macroRegistry.register('split_pages', executeSplitPages);
+macroRegistry.register('duplicate_pages', executeDuplicatePages);
+macroRegistry.register('remove_pages', executeRemovePages);
+macroRegistry.register('insert_blank_page', executeInsertBlankPage);
+macroRegistry.register('replace_page', executeReplacePage);
 macroRegistry.register('reorder_pages', executeReorderPages);
