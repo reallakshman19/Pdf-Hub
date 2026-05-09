@@ -19,6 +19,10 @@ const pdfMocks = vi.hoisted(() => ({
   countPages: vi.fn(),
 }));
 
+vi.mock('@/core/annotations/persistence', () => ({
+  saveAnnotations: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
     rotatePages: pdfMocks.rotatePages,

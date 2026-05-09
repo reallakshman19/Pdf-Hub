@@ -41,7 +41,7 @@ export async function composeCommittedPdf(
   const annotations = Array.isArray(input.annotations) ? input.annotations : [];
   const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
 
-  let nextBytes = new Uint8Array(input.baseBytes);
+  let nextBytes = new Uint8Array(input.baseBytes.buffer, input.baseBytes.byteOffset, input.baseBytes.byteLength);
   const writerExportWarnings: WriterExportWarning[] = [];
 
   if (writerElements.length > 0) {
@@ -60,7 +60,7 @@ export async function composeCommittedPdf(
   const documentKey = await FileAdapter.hashBytes(nextBytes);
 
   return {
-    bytes: new Uint8Array(nextBytes),
+    bytes: nextBytes as unknown as Uint8Array<ArrayBuffer>,
     pageCount,
     documentKey,
     committedAnnotationCount: annotations.length,

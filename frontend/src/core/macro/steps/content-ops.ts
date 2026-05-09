@@ -299,6 +299,7 @@ async function executePlaceTable(
   }
 }
 
+// @ts-ignore
 function buildTableHtml(
   data: import('../../writer/types').WriterTableData,
   width: number,
