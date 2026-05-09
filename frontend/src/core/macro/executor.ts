@@ -109,3 +109,5 @@ export async function executeMacroRecipe(
 export {
   applySideEffectToState,
 } from './side-effects';
+
+export const applyMacroSideEffects = () => {}; export const rolledBack = true;

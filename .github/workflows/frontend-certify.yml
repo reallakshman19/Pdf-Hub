@@ -37,5 +37,14 @@ jobs:
       - name: Phase 8 static audit
         run: npm run audit:phase8
 
+      - name: Writer static audit
+        run: npm run audit:writer
+
+      - name: Macro static audit
+        run: npm run audit:macro
+
+      - name: Contract bridge audit
+        run: npm run audit:contracts
+
       - name: Build
         run: npm run build

@@ -9,3 +9,5 @@ export function validateMacroRecipe(recipe: any) {
   }
   return true;
 }
+
+export const macroValidator = { validateRecipe: validateMacroRecipe };
