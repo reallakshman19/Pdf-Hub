@@ -542,7 +542,7 @@ async function executeReorderPages(
       return {
         status: 'error',
         message:
-          `reorder_pages failed: order length ${step.order.length} ` +
+          `Skipped reorder_pages: order length ${step.order.length} ` +
           `does not match page count ${state.pageCount}.`,
         sideEffects: [],
       };
