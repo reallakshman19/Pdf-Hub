@@ -8,7 +8,6 @@ import {
   importBuilderRecipeJson,
   moveMacroStep,
   removeMacroStep,
-  rootStepPath,
   setRecipeIdentity,
   updateMacroStep,
   type MacroRecipeBuilderState,
@@ -25,6 +24,7 @@ import { MacroStepList } from './MacroStepList';
 import { MacroValidationPanel } from './MacroValidationPanel';
 import { MacroRecipeImportExport } from './MacroRecipeImportExport';
 import { MacroStepEditor } from './MacroStepEditor';
+import { getChildParentPath } from './MacroNestedBranchEditor';
 
 export interface MacroRecipeBuilderProps {
   initialRecipe?: MacroRecipe;
@@ -63,6 +63,19 @@ export function MacroRecipeBuilder({
     commit(addMacroStep(state, op));
   }
 
+  function handleAddNestedStep(
+    conditionalPath: MacroStepPath,
+    branch: 'then' | 'else',
+    op: MacroStep['op'],
+  ): void {
+    commit(addMacroStep(state, op, {
+      target: {
+        parentPath: getChildParentPath(conditionalPath),
+        branch,
+      },
+    }));
+  }
+
   function handleSelect(path: MacroStepPath): void {
     setState({
       ...state,
@@ -79,15 +92,23 @@ export function MacroRecipeBuilder({
   }
 
   function handleMoveUp(path: MacroStepPath): void {
-    if (path.branch !== 'root' || path.index <= 0) return;
+    if (path.index <= 0) return;
 
-    commit(moveMacroStep(state, path, rootStepPath(path.index - 1)));
+    commit(moveMacroStep(state, path, {
+      ...path,
+      index: path.index - 1,
+    }));
   }
 
   function handleMoveDown(path: MacroStepPath): void {
-    if (path.branch !== 'root' || path.index >= state.recipe.steps.length - 1) return;
+    const listLength = getStepListLengthForPath(state.recipe.steps, path);
 
-    commit(moveMacroStep(state, path, rootStepPath(path.index + 1)));
+    if (path.index >= listLength - 1) return;
+
+    commit(moveMacroStep(state, path, {
+      ...path,
+      index: path.index + 1,
+    }));
   }
 
   function handlePatchStep(path: MacroStepPath, patch: Partial<MacroStep>): void {
@@ -119,7 +140,7 @@ export function MacroRecipeBuilder({
       aria-label="Macro recipe builder"
       style={{
         display: 'grid',
-        gridTemplateColumns: '280px minmax(320px, 1fr) 360px',
+        gridTemplateColumns: '280px minmax(320px, 1fr) 380px',
         gap: 12,
         alignItems: 'start',
       }}
@@ -205,7 +226,14 @@ export function MacroRecipeBuilder({
           recipe={state.recipe}
           selectedPath={state.selectedPath}
           validation={state.validation}
+          groupedSchemas={groupedSchemas}
           onPatchStep={handlePatchStep}
+          onAddNestedStep={handleAddNestedStep}
+          onSelect={handleSelect}
+          onDuplicate={handleDuplicate}
+          onRemove={handleRemove}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
         />
 
         <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
@@ -257,6 +285,52 @@ function useGroupedSchemas(): Record<MacroOpCategory, MacroOpSchema[]> {
 
     return grouped;
   }, []);
+}
+
+function getStepListLengthForPath(
+  rootSteps: MacroStep[],
+  path: MacroStepPath,
+): number {
+  if (path.branch === 'root') {
+    return rootSteps.length;
+  }
+
+  const parent = resolveStepByParentPath(rootSteps, path.parentPath);
+
+  if (!parent || parent.op !== 'conditional') {
+    return 0;
+  }
+
+  return path.branch === 'then'
+    ? parent.then.length
+    : parent.else?.length ?? 0;
+}
+
+function resolveStepByParentPath(
+  rootSteps: MacroStep[],
+  parentPath: Array<number | 'then' | 'else'>,
+): MacroStep | null {
+  if (parentPath.length === 0) return null;
+
+  let list = rootSteps;
+  let current: MacroStep | null = null;
+
+  for (const token of parentPath) {
+    if (typeof token === 'number') {
+      current = list[token] ?? null;
+      continue;
+    }
+
+    if (!current || current.op !== 'conditional') {
+      return null;
+    }
+
+    list = token === 'then'
+      ? current.then
+      : current.else ?? [];
+  }
+
+  return current;
 }
 
 const inputStyle: React.CSSProperties = {

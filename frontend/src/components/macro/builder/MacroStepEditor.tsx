@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MacroRecipe, MacroStep } from '../../../core/macro/types';
 import type { ValidationResult } from '../../../core/macro/validator';
+import type { MacroOpCategory, MacroOpSchema } from '../../../core/macro/schema/opSchema';
 import {
   getMacroStepAtPath,
   getMacroStepSchemaAtPath,
@@ -8,19 +9,38 @@ import {
   type MacroStepPath,
 } from '../../../core/macro/builder/recipeBuilderState';
 import { MacroFieldEditor } from './MacroFieldEditor';
+import { MacroNestedBranchEditor } from './MacroNestedBranchEditor';
 
 export interface MacroStepEditorProps {
   recipe: MacroRecipe;
   selectedPath: MacroStepPath | null;
   validation: ValidationResult;
+  groupedSchemas: Record<MacroOpCategory, MacroOpSchema[]>;
   onPatchStep: (path: MacroStepPath, patch: Partial<MacroStep>) => void;
+  onAddNestedStep: (
+    conditionalPath: MacroStepPath,
+    branch: 'then' | 'else',
+    op: MacroStep['op'],
+  ) => void;
+  onSelect: (path: MacroStepPath) => void;
+  onDuplicate: (path: MacroStepPath) => void;
+  onRemove: (path: MacroStepPath) => void;
+  onMoveUp: (path: MacroStepPath) => void;
+  onMoveDown: (path: MacroStepPath) => void;
 }
 
 export function MacroStepEditor({
   recipe,
   selectedPath,
   validation,
+  groupedSchemas,
   onPatchStep,
+  onAddNestedStep,
+  onSelect,
+  onDuplicate,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
 }: MacroStepEditorProps): React.ReactElement {
   if (!selectedPath) {
     return (
@@ -56,6 +76,8 @@ export function MacroStepEditor({
     selectedPath,
   );
 
+  const editableFields = schema.fields.filter((field) => field.kind !== 'macro-steps');
+
   return (
     <section aria-label="Macro step editor">
       <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Step Editor</h2>
@@ -74,7 +96,7 @@ export function MacroStepEditor({
         <p style={{ fontSize: 12, color: '#374151' }}>{schema.description}</p>
       </div>
 
-      {schema.fields.map((field) => (
+      {editableFields.map((field) => (
         <MacroFieldEditor
           key={field.name}
           field={field}
@@ -86,6 +108,22 @@ export function MacroStepEditor({
           }
         />
       ))}
+
+      {step.op === 'conditional' ? (
+        <MacroNestedBranchEditor
+          recipe={recipe}
+          conditionalPath={selectedPath}
+          conditionalStep={step}
+          groupedSchemas={groupedSchemas}
+          selectedPath={selectedPath}
+          onAddNestedStep={onAddNestedStep}
+          onSelect={onSelect}
+          onDuplicate={onDuplicate}
+          onRemove={onRemove}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+        />
+      ) : null}
 
       {errors.length > 0 ? (
         <div
