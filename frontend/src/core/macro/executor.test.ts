@@ -1,7 +1,6 @@
 import './steps/page-ops';
 import './steps/merge-ops';
 import './steps/content-ops';
-import './steps/generation-ops';
 import './steps/conditional-ops';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { executeMacroRecipe } from './executor';

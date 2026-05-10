@@ -1,7 +1,6 @@
 import './page-ops';
 import './merge-ops';
 import './content-ops';
-import './generation-ops';
 import './conditional-ops';
 
 import { macroRegistry } from '../registry';

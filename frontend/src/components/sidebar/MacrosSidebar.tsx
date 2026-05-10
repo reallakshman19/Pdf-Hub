@@ -18,7 +18,7 @@ import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
 import { BUILTIN_MACROS } from '@/core/macro/builtins';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
-import { GENERATION_MACROS } from '@/core/macro/generationBuiltins';
+
 import { validateRecipeBeforeRun, type PreflightReport } from '@/core/macro/validation/validator';
 import { macroValidator } from '@/core/macro/validator';
 import { usePresetsStore } from '@/core/macro/store/presets';
@@ -60,7 +60,7 @@ interface OutputQueueItem extends MacroOutputFile {
 }
 
 const BUILTIN_RECIPES: MacroRecipe[] = Object.values(BUILTIN_MACROS);
-const GENERATION_RECIPES: MacroRecipe[] = Object.values(GENERATION_MACROS);
+const GENERATION_RECIPES: MacroRecipe[] = [];
 const DEFAULT_EXPERT_RECIPE = BUILTIN_RECIPES[0] ?? null;
 
 export const MacrosSidebar: React.FC = () => {
