@@ -45,22 +45,24 @@ export async function composeCommittedPdf(
   const writerExportWarnings: WriterExportWarning[] = [];
 
   if (writerElements.length > 0) {
-    nextBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+    const rawBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
       preferSemantic: true,
       allowRasterFallback: true,
       collectWarnings: (warnings) => writerExportWarnings.push(...warnings),
     });
+    nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
   }
 
   if (annotations.length > 0) {
-    nextBytes = await PdfEditAdapter.exportWithAnnotations(nextBytes, annotations);
+    const rawBytes = await PdfEditAdapter.exportWithAnnotations(nextBytes, annotations);
+    nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
   }
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);
   const documentKey = await FileAdapter.hashBytes(nextBytes);
 
   return {
-    bytes: new Uint8Array(nextBytes),
+    bytes: new Uint8Array(nextBytes.buffer as ArrayBuffer, nextBytes.byteOffset, nextBytes.byteLength),
     pageCount,
     documentKey,
     committedAnnotationCount: annotations.length,

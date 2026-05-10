@@ -20,7 +20,6 @@ export const ToolbarFile: React.FC = () => {
     saveHandle,
     setSaveHandle,
     isDirty,
-    setDirty,
     recordSaveExportAction,
     commitWorkingCopy,
     beginSaveOperation,

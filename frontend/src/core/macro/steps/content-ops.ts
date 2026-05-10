@@ -299,34 +299,6 @@ async function executePlaceTable(
   }
 }
 
-function buildTableHtml(
-  data: import('../../writer/types').WriterTableData,
-  width: number,
-  scale: number,
-): string {
-  const { columns = [], rows = [], style = {} } = data;
-  const headers = columns.map((c) => c.id);
-  const borderColor = style.borderColor || '#d1d5db';
-  const headerBg = style.headerBg || '#f1f5f9';
-  const colWidth = headers.length > 0 ? Math.floor(width / headers.length) : width;
-  const fontSize = (style.fontSize || 11) * scale;
-
-  const headerRow = headers.map((h) =>
-    `<td style="padding:${4*scale}px ${6*scale}px;font-weight:500;background:${headerBg};border:1px solid ${borderColor};width:${colWidth}px;font-size:${fontSize}px">${h}</td>`
-  ).join('');
-
-  const dataRows = rows.map((row) =>
-    `<tr>${row.cells.map((cell) =>
-      `<td style="padding:${4*scale}px ${6*scale}px;border:1px solid ${borderColor};font-size:${fontSize}px">${cell.text}</td>`
-    ).join('')}</tr>`
-  ).join('');
-
-  return `<table style="border-collapse:collapse;width:100%;font-family:sans-serif">
-    <thead><tr>${headerRow}</tr></thead>
-    <tbody>${dataRows}</tbody>
-  </table>`;
-}
-
 macroRegistry.register('place_table', executePlaceTable);
 
 type AdjustImageStep = Extract<MacroStep, { op: 'adjust_image' }>;
