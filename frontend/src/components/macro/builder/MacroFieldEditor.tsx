@@ -137,40 +137,22 @@ function renderFieldControl(args: {
 
   if (field.kind === 'string-list') {
     return (
-      <textarea
+      <StringListEditor
         id={id}
-        aria-label={field.label}
-        rows={4}
-        value={Array.isArray(value) ? value.join('\n') : ''}
-        onChange={(event) =>
-          onChange(
-            event.currentTarget.value
-              .split(/\n|,/)
-              .map((item) => item.trim())
-              .filter(Boolean),
-          )
-        }
-        style={textareaStyle}
+        label={field.label}
+        value={value}
+        onChange={onChange}
       />
     );
   }
 
   if (field.kind === 'number-list') {
     return (
-      <textarea
+      <NumberListEditor
         id={id}
-        aria-label={field.label}
-        rows={3}
-        value={Array.isArray(value) ? value.join(', ') : ''}
-        onChange={(event) =>
-          onChange(
-            event.currentTarget.value
-              .split(/,|\n/)
-              .map((item) => Number(item.trim()))
-              .filter((item) => Number.isFinite(item)),
-          )
-        }
-        style={textareaStyle}
+        label={field.label}
+        value={value}
+        onChange={onChange}
       />
     );
   }
@@ -268,6 +250,10 @@ function JsonFieldEditor({
 
   const [text, setText] = useState(initialText);
   const [error, setError] = useState<string | null>(null);
+
+  if (text !== initialText && document.activeElement?.id !== id && error === null) {
+      setText(initialText);
+  }
 
   function commit(nextText: string): void {
     setText(nextText);
@@ -601,3 +587,83 @@ const rowStyle: React.CSSProperties = {
   gridTemplateColumns: '1fr 1fr',
   gap: 6,
 };
+function StringListEditor({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}): React.ReactElement {
+  const initialText = Array.isArray(value) ? value.join('\n') : '';
+  const [text, setText] = useState(initialText);
+
+  // Sync state manually if upstream resets entirely
+  if (text !== initialText && document.activeElement?.id !== id) {
+     setText(initialText);
+  }
+
+  function commit(nextText: string): void {
+    setText(nextText);
+    onChange(
+      nextText
+        .split(/\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+  }
+
+  return (
+    <textarea
+      id={id}
+      aria-label={label}
+      rows={4}
+      value={text}
+      onChange={(event) => commit(event.currentTarget.value)}
+      style={textareaStyle}
+    />
+  );
+}
+
+function NumberListEditor({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}): React.ReactElement {
+  const initialText = Array.isArray(value) ? value.join(', ') : '';
+  const [text, setText] = useState(initialText);
+
+  if (text !== initialText && document.activeElement?.id !== id) {
+     setText(initialText);
+  }
+
+  function commit(nextText: string): void {
+    setText(nextText);
+    onChange(
+      nextText
+        .split(/,|\n/)
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isFinite(item)),
+    );
+  }
+
+  return (
+    <textarea
+      id={id}
+      aria-label={label}
+      rows={3}
+      value={text}
+      onChange={(event) => commit(event.currentTarget.value)}
+      style={textareaStyle}
+    />
+  );
+}
