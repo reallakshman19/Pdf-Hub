@@ -10,6 +10,7 @@ import {
   removeMacroStep,
   rootStepPath,
   setRecipeIdentity,
+  updateMacroStep,
   type MacroRecipeBuilderState,
   type MacroStepPath,
 } from '../../../core/macro/builder/recipeBuilderState';
@@ -23,6 +24,7 @@ import { MacroStepPalette } from './MacroStepPalette';
 import { MacroStepList } from './MacroStepList';
 import { MacroValidationPanel } from './MacroValidationPanel';
 import { MacroRecipeImportExport } from './MacroRecipeImportExport';
+import { MacroStepEditor } from './MacroStepEditor';
 
 export interface MacroRecipeBuilderProps {
   initialRecipe?: MacroRecipe;
@@ -88,6 +90,10 @@ export function MacroRecipeBuilder({
     commit(moveMacroStep(state, path, rootStepPath(path.index + 1)));
   }
 
+  function handlePatchStep(path: MacroStepPath, patch: Partial<MacroStep>): void {
+    commit(updateMacroStep(state, path, patch));
+  }
+
   function handleExport(): void {
     setExportText(exportBuilderRecipeJson(state));
   }
@@ -113,7 +119,7 @@ export function MacroRecipeBuilder({
       aria-label="Macro recipe builder"
       style={{
         display: 'grid',
-        gridTemplateColumns: '280px minmax(320px, 1fr) 320px',
+        gridTemplateColumns: '280px minmax(320px, 1fr) 360px',
         gap: 12,
         alignItems: 'start',
       }}
@@ -195,9 +201,18 @@ export function MacroRecipeBuilder({
           background: '#ffffff',
         }}
       >
+        <MacroStepEditor
+          recipe={state.recipe}
+          selectedPath={state.selectedPath}
+          validation={state.validation}
+          onPatchStep={handlePatchStep}
+        />
+
+        <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
+
         <MacroValidationPanel validation={state.validation} />
 
-        <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+        <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
           <button type="button" onClick={handleExport}>
             Export JSON
           </button>
