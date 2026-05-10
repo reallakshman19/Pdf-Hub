@@ -11,7 +11,9 @@ export interface MacroTransactionSnapshot {
   writerElements: ReturnType<typeof useWriterStore.getState>['elements'];
 }
 
-export function beginMacroTransaction(state: MacroMutableState): MacroTransactionSnapshot {
+export function beginMacroTransaction(
+  state: MacroMutableState,
+): MacroTransactionSnapshot {
   return {
     workingBytes: new Uint8Array(state.workingBytes),
     pageCount: state.pageCount,
@@ -28,6 +30,7 @@ export function beginMacroTransaction(state: MacroMutableState): MacroTransactio
     writerElements: useWriterStore.getState().elements.map((element) => ({
       ...element,
       styles: { ...(element.styles ?? {}) },
+      style: { ...(element.style ?? element.styles ?? {}) },
     })),
   };
 }
@@ -63,13 +66,17 @@ export function applyMacroSideEffects(
   state: MacroMutableState,
 ): void {
   for (const effect of sideEffects) {
-    if (effect.type === 'bytes_updated') state.workingBytes = effect.bytes;
+    if (effect.type === 'bytes_updated') {
+      state.workingBytes = effect.bytes;
+      continue;
+    }
 
     if (effect.type === 'page_count_changed') {
       state.pageCount = effect.newCount;
       state.selectedPages = state.selectedPages.filter(
         (page) => page >= 1 && page <= effect.newCount,
       );
+      continue;
     }
 
     if (effect.type === 'output_file') {
@@ -77,6 +84,16 @@ export function applyMacroSideEffects(
         name: effect.name,
         bytes: effect.bytes,
       });
+      continue;
+    }
+
+    if (effect.type === 'selection_changed') {
+      state.selectedPages = effect.selectedPages;
+      continue;
+    }
+
+    if (effect.type === 'log') {
+      state.logs.push(effect.message);
     }
   }
 }

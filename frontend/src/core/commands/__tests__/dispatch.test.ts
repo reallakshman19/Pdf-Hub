@@ -3,6 +3,16 @@ import { dispatchCommand } from '../dispatch';
 import { useHistoryStore } from '../../document-history/store';
 import { useSessionStore } from '../../session/store';
 
+vi.mock('@/core/annotations/persistence', () => ({
+  saveAnnotations: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/adapters/file/FileAdapter', () => ({
+  FileAdapter: {
+    hashBytes: vi.fn().mockImplementation(async (bytes) => 'mock-hash-' + bytes.length),
+  },
+}));
+
 const pdfMocks = vi.hoisted(() => ({
   rotatePages: vi.fn(),
   movePage: vi.fn(),

@@ -13,7 +13,10 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "audit:phase8": "node scripts/phase8-static-audit.mjs",
-    "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build"
+    "certify": "npm run typecheck && vitest run && node scripts/phase8-static-audit.mjs && tsc -b && vite build",
+    "audit:no-placeholders": "node scripts/no-placeholder-audit.mjs",
+    "audit:contracts": "node scripts/contract-duplicate-audit.mjs",
+    "certify:slice1": "npm run typecheck && npm run audit:no-placeholders && npm run audit:contracts && npm run build"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

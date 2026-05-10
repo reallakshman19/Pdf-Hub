@@ -1,6 +1,7 @@
 import html2canvas from 'html2canvas';
 import { PdfEditAdapter } from '../../adapters/pdf-edit/PdfEditAdapter';
 import type { PlacedElement, WriterTableData } from './types';
+import { visibleWriterElementsForExport } from './writerObjects';
 
 export interface WriterExportWarning {
   elementId: string;
@@ -131,11 +132,12 @@ export async function bakeWriterElementsIntoPdf(
   elements: PlacedElement[],
   options: WriterExportOptions = {},
 ): Promise<Uint8Array> {
-  if (elements.length === 0) return baseBytes;
+  const exportElements = visibleWriterElementsForExport(elements);
+  if (exportElements.length === 0) return baseBytes;
 
   // Group by page, sort by zIndex within page
   const byPage = new Map<number, PlacedElement[]>();
-  for (const el of elements) {
+  for (const el of exportElements) {
     const page = byPage.get(el.pageNumber) ?? [];
     page.push(el);
     byPage.set(el.pageNumber, page);
@@ -250,3 +252,7 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
     document.body.removeChild(container);
   }
 }
+
+export {
+  visibleWriterElementsForExport,
+} from './writerObjects';
