@@ -1,27 +1,80 @@
 import { create } from 'zustand';
 import type { MacroRecipe } from '../types';
+import {
+  deleteCustomMacroRecipe,
+  loadCustomMacroRecipes,
+  subscribeCustomMacroRecipeChanges,
+  updateCustomMacroRecipe,
+  upsertCustomMacroRecipe,
+} from '../recipes/recipeStorage';
 
 export interface PresetsStore {
   savedPresets: MacroRecipe[];
+  loadPresets: () => void;
   savePreset: (recipe: MacroRecipe) => void;
   deletePreset: (id: string) => void;
   updatePreset: (id: string, updates: Partial<MacroRecipe>) => void;
 }
 
+function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
+  return JSON.parse(JSON.stringify(recipe)) as MacroRecipe;
+}
+
+function cloneRecipeList(recipes: MacroRecipe[]): MacroRecipe[] {
+  return recipes.map((recipe) => cloneRecipe(recipe));
+}
+
 export const usePresetsStore = create<PresetsStore>((set) => ({
-  savedPresets: [],
+  savedPresets: cloneRecipeList(loadCustomMacroRecipes()),
 
-  savePreset: (recipe) => set((state) => ({
-    savedPresets: [...state.savedPresets, { ...recipe, id: `custom_${Date.now()}` }]
-  })),
+  loadPresets: () => {
+    set({
+      savedPresets: cloneRecipeList(loadCustomMacroRecipes()),
+    });
+  },
 
-  deletePreset: (id) => set((state) => ({
-    savedPresets: state.savedPresets.filter(p => p.id !== id)
-  })),
+  savePreset: (recipe) => {
+    const next = upsertCustomMacroRecipe(cloneRecipe(recipe));
 
-  updatePreset: (id, updates) => set((state) => ({
-    savedPresets: state.savedPresets.map(p =>
-      p.id === id ? { ...p, ...updates } : p
-    )
-  })),
+    set({
+      savedPresets: cloneRecipeList(next),
+    });
+  },
+
+  deletePreset: (id) => {
+    const next = deleteCustomMacroRecipe(id);
+
+    set({
+      savedPresets: cloneRecipeList(next),
+    });
+  },
+
+  updatePreset: (id, updates) => {
+    const next = updateCustomMacroRecipe(id, updates);
+
+    set({
+      savedPresets: cloneRecipeList(next),
+    });
+  },
 }));
+
+let unsubscribeStorageBridge: (() => void) | null = null;
+
+export function startPresetStorageBridge(): () => void {
+  if (unsubscribeStorageBridge) {
+    return unsubscribeStorageBridge;
+  }
+
+  unsubscribeStorageBridge = subscribeCustomMacroRecipeChanges((recipes) => {
+    usePresetsStore.setState({
+      savedPresets: cloneRecipeList(recipes),
+    });
+  });
+
+  return () => {
+    unsubscribeStorageBridge?.();
+    unsubscribeStorageBridge = null;
+  };
+}
+
+startPresetStorageBridge();

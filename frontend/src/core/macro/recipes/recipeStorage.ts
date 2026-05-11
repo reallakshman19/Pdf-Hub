@@ -2,6 +2,7 @@ import type { MacroRecipe } from '../types';
 import { macroValidator } from '../validator';
 
 export const CUSTOM_MACRO_RECIPE_STORAGE_KEY = 'pdfhub.macro.customRecipes.v1';
+export const CUSTOM_MACRO_RECIPES_CHANGED_EVENT = 'pdfhub:macro-custom-recipes-changed';
 
 export interface StoredMacroRecipeRecord {
   recipe: MacroRecipe;
@@ -36,6 +37,8 @@ export function saveCustomMacroRecipes(recipes: MacroRecipe[]): void {
     CUSTOM_MACRO_RECIPE_STORAGE_KEY,
     JSON.stringify(records, null, 2),
   );
+
+  dispatchCustomRecipeStorageChanged(records.map((record) => record.recipe));
 }
 
 export function upsertCustomMacroRecipe(recipe: MacroRecipe): MacroRecipe[] {
@@ -56,6 +59,27 @@ export function deleteCustomMacroRecipe(recipeId: string): MacroRecipe[] {
   const next = loadCustomMacroRecipes().filter((recipe) => recipe.id !== recipeId);
   saveCustomMacroRecipes(next);
   return next;
+}
+
+export function updateCustomMacroRecipe(
+  recipeId: string,
+  updates: Partial<MacroRecipe>,
+): MacroRecipe[] {
+  const existing = loadCustomMacroRecipes();
+  const found = existing.find((recipe) => recipe.id === recipeId);
+
+  if (!found) {
+    throw new Error(`Custom macro recipe "${recipeId}" was not found.`);
+  }
+
+  const updated: MacroRecipe = {
+    ...found,
+    ...updates,
+    id: recipeId,
+    steps: updates.steps ?? found.steps,
+  };
+
+  return upsertCustomMacroRecipe(updated);
 }
 
 export function exportMacroRecipeJson(recipe: MacroRecipe): string {
@@ -80,6 +104,33 @@ export function importMacroRecipeJson(jsonText: string): MacroRecipe {
   assertValidRecipe(recipe);
 
   return cloneRecipe(recipe);
+}
+
+export function subscribeCustomMacroRecipeChanges(
+  listener: (recipes: MacroRecipe[]) => void,
+): () => void {
+  if (typeof window === 'undefined') {
+    return () => undefined;
+  }
+
+  const handleCustomEvent = (event: Event) => {
+    const detail = (event as CustomEvent<{ recipes?: MacroRecipe[] }>).detail;
+    listener(Array.isArray(detail?.recipes) ? cloneRecipeList(detail.recipes) : loadCustomMacroRecipes());
+  };
+
+  const handleStorageEvent = (event: StorageEvent) => {
+    if (event.key === CUSTOM_MACRO_RECIPE_STORAGE_KEY) {
+      listener(loadCustomMacroRecipes());
+    }
+  };
+
+  window.addEventListener(CUSTOM_MACRO_RECIPES_CHANGED_EVENT, handleCustomEvent);
+  window.addEventListener('storage', handleStorageEvent);
+
+  return () => {
+    window.removeEventListener(CUSTOM_MACRO_RECIPES_CHANGED_EVENT, handleCustomEvent);
+    window.removeEventListener('storage', handleStorageEvent);
+  };
 }
 
 function normalizeRecipeList(recipes: MacroRecipe[]): MacroRecipe[] {
@@ -150,10 +201,26 @@ function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
   return JSON.parse(JSON.stringify(recipe)) as MacroRecipe;
 }
 
+function cloneRecipeList(recipes: MacroRecipe[]): MacroRecipe[] {
+  return recipes.map((recipe) => cloneRecipe(recipe));
+}
+
 function getLocalStorage(): Storage | null {
   try {
     return globalThis.localStorage ?? null;
   } catch {
     return null;
   }
+}
+
+function dispatchCustomRecipeStorageChanged(recipes: MacroRecipe[]): void {
+  if (typeof window === 'undefined') return;
+
+  window.dispatchEvent(
+    new CustomEvent(CUSTOM_MACRO_RECIPES_CHANGED_EVENT, {
+      detail: {
+        recipes: cloneRecipeList(recipes),
+      },
+    }),
+  );
 }

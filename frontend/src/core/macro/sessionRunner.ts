@@ -1,4 +1,4 @@
-﻿import type { MacroRecipe } from './types';
+import type { MacroRecipe } from './types';
 import { executeMacroRecipe } from './executor';
 import { useSessionStore } from '@/core/session/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
@@ -18,8 +18,15 @@ export async function runMacroRecipeAgainstSession(
   }
 
   const donorFiles = options?.donorFiles ?? {};
+  const runtimeRecipe: MacroRecipe = options?.dryRun
+    ? {
+        ...recipe,
+        dryRun: true,
+      }
+    : recipe;
+
   const result = await executeMacroRecipe(
-    recipe,
+    runtimeRecipe,
     {
       workingBytes: session.workingBytes,
       pageCount: session.pageCount,
@@ -31,25 +38,27 @@ export async function runMacroRecipeAgainstSession(
     },
   );
 
-  if (!options?.dryRun) {
+  if (!options?.dryRun && result.success) {
     const { dispatchCommand } = await import('@/core/commands/dispatch');
+
     await dispatchCommand({
       source: 'macro-runner',
       command: {
         type: 'REPLACE_WORKING_COPY',
         nextBytes: result.finalBytes,
         nextPageCount: result.stepResults
-          .flatMap(r => r.sideEffects)
-          .filter(e => e.type === 'page_count_changed')
+          .flatMap((stepResult) => stepResult.sideEffects)
+          .filter((effect) => effect.type === 'page_count_changed')
           .at(-1)?.newCount
           ?? useSessionStore.getState().pageCount,
         reason: `Ran macro recipe ${recipe.name}`,
       },
     });
+
     useSessionStore.getState().setSelectedPages(result.selectedPages);
   }
 
-  if (options?.saveOutputs) {
+  if (options?.saveOutputs && result.success) {
     for (const output of result.outputFiles) {
       await FileAdapter.savePdfBytes(output.bytes, output.name, null);
     }
