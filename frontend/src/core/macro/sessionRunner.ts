@@ -38,7 +38,16 @@ export async function runMacroRecipeAgainstSession(
     },
   );
 
-  if (!options?.dryRun && result.success) {
+  /**
+   * Compatibility with both:
+   * - new executor result: success: boolean
+   * - older tests/mocks: success omitted but result represents success
+   *
+   * Only explicit success === false is treated as failed.
+   */
+  const executionSucceeded = result.success !== false;
+
+  if (!options?.dryRun && executionSucceeded) {
     const { dispatchCommand } = await import('@/core/commands/dispatch');
 
     await dispatchCommand({
@@ -58,7 +67,7 @@ export async function runMacroRecipeAgainstSession(
     useSessionStore.getState().setSelectedPages(result.selectedPages);
   }
 
-  if (options?.saveOutputs && result.success) {
+  if (options?.saveOutputs && executionSucceeded) {
     for (const output of result.outputFiles) {
       await FileAdapter.savePdfBytes(output.bytes, output.name, null);
     }

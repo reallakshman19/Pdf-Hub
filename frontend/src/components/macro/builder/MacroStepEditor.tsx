@@ -92,7 +92,12 @@ export function MacroStepEditor({
         }}
       >
         <strong>{schema.label}</strong>
-        <div style={{ fontSize: 12, color: '#6b7280' }}>{step.op}</div>
+        <div
+          aria-label="Selected step operation"
+          style={{ fontSize: 12, color: '#6b7280' }}
+        >
+          Operation: {step.op}
+        </div>
         <p style={{ fontSize: 12, color: '#374151' }}>{schema.description}</p>
       </div>
 

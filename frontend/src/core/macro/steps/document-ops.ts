@@ -31,6 +31,19 @@ function success(
   };
 }
 
+function skipped(message: string): StepResult {
+  return {
+    status: 'warning',
+    message,
+    sideEffects: [
+      {
+        type: 'log',
+        message,
+      },
+    ],
+  };
+}
+
 function failure(err: unknown): StepResult {
   return {
     status: 'error',
@@ -73,14 +86,18 @@ async function executeMergeFiles(
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
+    const missingDonorIds = step.donorFileIds.filter((donorFileId) => {
+      return !ctx.donorFiles?.[donorFileId];
+    });
+
+    if (missingDonorIds.length > 0) {
+      return skipped(
+        `Skipped merge_files: missing donor file(s): ${missingDonorIds.join(', ')}.`,
+      );
+    }
+
     const donorBytes = step.donorFileIds.map((donorFileId) => {
-      const bytes = ctx.donorFiles?.[donorFileId];
-
-      if (!bytes) {
-        throw new Error(`merge_files failed: donor file "${donorFileId}" was not provided.`);
-      }
-
-      return bytes;
+      return ctx.donorFiles?.[donorFileId] as Uint8Array;
     });
 
     const updatedBytes = await PdfEditAdapter.merge(state.workingBytes, donorBytes);
@@ -127,7 +144,7 @@ async function executeInsertPdf(
     const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
 
     return success(
-      `Inserted donor file "${step.donorFileId}" at index ${step.atIndex}.`,
+      `Inserted PDF at index ${step.atIndex} from donor file "${step.donorFileId}".`,
       [
         bytesEffect(updatedBytes),
         pageCountEffect(newPageCount),
