@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Moon, Search, Settings, Sun, TerminalSquare, X } from 'lucide-react';
+import { Moon, Search, Settings, Sun, TerminalSquare, Wand2, X } from 'lucide-react';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
@@ -160,6 +160,10 @@ export const TopNav: React.FC = () => {
     navigate('/debug');
   };
 
+  const handleOpenMacroBuilder = () => {
+    navigate('/macro-builder');
+  };
+
   return (
     <>
       <div className="flex items-center justify-between h-12 px-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -217,6 +221,16 @@ export const TopNav: React.FC = () => {
           <Tooltip content={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
             <Button data-testid="theme-toggle" variant="ghost" size="icon" onClick={toggleDarkMode}>
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+          </Tooltip>
+          <Tooltip content="Open macro builder">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Macro Builder"
+              onClick={handleOpenMacroBuilder}
+            >
+              <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </Button>
           </Tooltip>
           <Tooltip content="Open debug console">
