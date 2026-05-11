@@ -1,6 +1,8 @@
-﻿import type { MacroRecipe } from './types';
+import type { MacroRecipe } from './types';
+import type { MacroRecipeCatalogItem } from './recipes/builtInRecipes';
+import { getBuiltInMacroRecipes } from './recipes/builtInRecipes';
 
-export const BUILTIN_MACROS: Record<string, MacroRecipe> = {
+const LEGACY_BUILTIN_MACROS: Record<string, MacroRecipe> = {
   rotate_selected_90: {
     id: 'rotate_selected_90',
     name: 'Rotate selected pages 90°',
@@ -153,3 +155,44 @@ export const BUILTIN_MACROS: Record<string, MacroRecipe> = {
     ],
   },
 };
+
+const DONOR_BOUND_OPS = new Set<string>([
+  'merge_files',
+  'insert_pdf',
+  'replace_page',
+]);
+
+export function isRunnerSafeBuiltInRecipe(item: MacroRecipeCatalogItem): boolean {
+  return item.requiredOps.every((op) => !DONOR_BOUND_OPS.has(op));
+}
+
+export function getRunnerBuiltInMacros(): Record<string, MacroRecipe> {
+  const enhancedRunnerMacros = Object.fromEntries(
+    getBuiltInMacroRecipes()
+      .filter(isRunnerSafeBuiltInRecipe)
+      .map((item) => [item.recipe.id, cloneRecipe(item.recipe)]),
+  ) as Record<string, MacroRecipe>;
+
+  return {
+    ...enhancedRunnerMacros,
+    ...cloneRecipeRecord(LEGACY_BUILTIN_MACROS),
+  };
+}
+
+/**
+ * Existing runner sidebar consumes this export.
+ *
+ * Keep legacy IDs stable while adding enhanced runner-safe recipes from
+ * recipes/builtInRecipes.ts.
+ */
+export const BUILTIN_MACROS: Record<string, MacroRecipe> = getRunnerBuiltInMacros();
+
+function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
+  return JSON.parse(JSON.stringify(recipe)) as MacroRecipe;
+}
+
+function cloneRecipeRecord(record: Record<string, MacroRecipe>): Record<string, MacroRecipe> {
+  return Object.fromEntries(
+    Object.entries(record).map(([id, recipe]) => [id, cloneRecipe(recipe)]),
+  );
+}
