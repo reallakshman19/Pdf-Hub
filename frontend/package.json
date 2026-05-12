@@ -23,9 +23,14 @@
     "certify:writer-overlay-v2": "node scripts/certify-writer-overlay-v2.mjs"
   },
   "dependencies": {
+    "@lexical/history": "^0.44.0",
+    "@lexical/list": "^0.44.0",
+    "@lexical/react": "^0.44.0",
+    "@lexical/rich-text": "^0.44.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
     "konva": "^10.2.5",
+    "lexical": "^0.44.0",
     "lucide-react": "^1.8.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.6.205",

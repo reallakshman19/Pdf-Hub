@@ -160,4 +160,25 @@ describe('WriterOverlayLayer', () => {
     expect(document.querySelector('[data-writer-v2-selection-box="true"]')).toBeTruthy();
     expect(document.querySelector('[data-writer-v2-resize-handle="se"]')).toBeTruthy();
   });
+
+  it('opens popup editor on double-click and saves writer text', async () => {
+    useWriterV2Store.getState().hydrateWriterElements([
+      element('writer-1'),
+    ]);
+
+    render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
+
+    fireEvent.doubleClick(screen.getByLabelText('Writer element writer-1'));
+
+    expect(screen.getByRole('dialog', {
+      name: /edit writer element writer-1/i,
+    })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await screen.findByLabelText('Writer element writer-1');
+
+    expect(useWriterV2Store.getState().editingId).toBeNull();
+    expect(useWriterV2Store.getState().elements[0].editorStateJson).toContain('"root"');
+  });
 });

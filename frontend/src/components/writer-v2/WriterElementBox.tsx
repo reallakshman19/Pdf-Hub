@@ -11,6 +11,7 @@ import {
 } from '@/core/writer-v2/coordinateTransform';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterSelectionHandles } from './WriterSelectionHandles';
+import { WriterPopupEditor } from './WriterPopupEditor';
 
 interface DragState {
   mode: 'move' | 'resize';
@@ -31,11 +32,14 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
   selected,
 }) => {
   const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const editingId = useWriterV2Store((state) => state.editingId);
+  const beginEditingWriterElement = useWriterV2Store((state) => state.beginEditingWriterElement);
+  const endEditingWriterElement = useWriterV2Store((state) => state.endEditingWriterElement);
+
   const [draftRect, setDraftRect] = React.useState<PdfRect | null>(null);
   const [lastSourceRect, setLastSourceRect] = React.useState<PdfRect>(element.rect);
   const dragRef = React.useRef<DragState | null>(null);
 
-  // Derived state to automatically clear draft when the source prop rect updates
   if (
     lastSourceRect.x !== element.rect.x ||
     lastSourceRect.y !== element.rect.y ||
@@ -48,12 +52,13 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
   const effectiveRect = draftRect ?? element.rect;
   const viewportRect = pdfRectToViewportRect(effectiveRect, viewport);
+  const isEditing = editingId === element.id;
 
   const beginDrag = (
     event: React.PointerEvent<HTMLDivElement>,
     mode: 'move' | 'resize',
   ) => {
-    if (element.locked || element.hidden) return;
+    if (element.locked || element.hidden || isEditing) return;
 
     event.stopPropagation();
     event.preventDefault();
@@ -124,50 +129,80 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     });
   };
 
+  const openEditor = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+
+    beginEditingWriterElement(element.id);
+  };
+
   return (
-    <div
-      data-writer-v2-element-id={element.id}
-      aria-label={`Writer element ${element.id}`}
-      onPointerDown={(event) => beginDrag(event, 'move')}
-      onPointerMove={updateDrag}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      style={{
-        position: 'absolute',
-        left: viewportRect.x,
-        top: viewportRect.y,
-        width: viewportRect.width,
-        height: viewportRect.height,
-        boxSizing: 'border-box',
-        pointerEvents: 'auto',
-        cursor: element.locked ? 'not-allowed' : 'move',
-        zIndex: element.style.zIndex,
-        background: element.style.backgroundColor ?? 'rgba(255,255,255,0.88)',
-        border: `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
-        opacity: element.style.opacity ?? 1,
-        padding: element.style.padding ?? 8,
-        overflow: 'hidden',
-        color: '#111827',
-        fontSize: 13,
-        lineHeight: 1.35,
-        userSelect: 'none',
-      }}
-    >
+    <>
       <div
-        data-writer-v2-display-content="true"
+        data-writer-v2-element-id={element.id}
+        aria-label={`Writer element ${element.id}`}
+        onDoubleClick={openEditor}
+        onPointerDown={(event) => beginDrag(event, 'move')}
+        onPointerMove={updateDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         style={{
-          pointerEvents: 'none',
-          whiteSpace: 'pre-wrap',
+          position: 'absolute',
+          left: viewportRect.x,
+          top: viewportRect.y,
+          width: viewportRect.width,
+          height: viewportRect.height,
+          boxSizing: 'border-box',
+          pointerEvents: 'auto',
+          cursor: element.locked ? 'not-allowed' : 'move',
+          zIndex: element.style.zIndex,
+          background: element.style.backgroundColor ?? 'rgba(255,255,255,0.88)',
+          border: `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
+          opacity: element.style.opacity ?? 1,
+          padding: element.style.padding ?? 8,
+          overflow: 'hidden',
+          color: '#111827',
+          fontSize: 13,
+          lineHeight: 1.35,
+          userSelect: 'none',
         }}
       >
-        {element.plainText || 'Writer element'}
+        <div
+          data-writer-v2-display-content="true"
+          style={{
+            pointerEvents: 'none',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {element.plainText || 'Double-click to edit'}
+        </div>
+
+        {selected && !isEditing ? (
+          <WriterSelectionHandles
+            onResizePointerDown={(event) => beginDrag(event, 'resize')}
+          />
+        ) : null}
       </div>
 
-      {selected ? (
-        <WriterSelectionHandles
-          onResizePointerDown={(event) => beginDrag(event, 'resize')}
+      {isEditing ? (
+        <WriterPopupEditor
+          element={element}
+          onCancel={endEditingWriterElement}
+          onSave={(payload) => {
+            dispatchWriterCommand({
+              type: 'UPDATE_WRITER_ELEMENT',
+              id: element.id,
+              now: new Date().toISOString(),
+              patch: {
+                editorStateJson: payload.editorStateJson,
+                plainText: payload.plainText,
+              },
+            });
+
+            endEditingWriterElement();
+          }}
         />
       ) : null}
-    </div>
+    </>
   );
 };

@@ -22,7 +22,9 @@ const commands = [
       'src/core/writer-v2/writerCommandStore.test.ts',
       'src/core/writer-v2/persistence/documentFingerprint.test.ts',
       'src/core/writer-v2/persistence/indexedDbWriterStore.test.ts',
+      'src/core/writer-v2/editor/writerEditorState.test.ts',
       'src/components/writer-v2/WriterOverlayLayer.test.tsx',
+      'src/components/writer-v2/WriterPopupEditor.test.tsx',
       'src/core/tool-policy/disabledTools.test.ts',
     ],
   },
@@ -94,7 +96,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 3 — W3/W4',
+  wave: 'Wave 4 — W5',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -102,8 +104,11 @@ const report = {
     documentFingerprint: 'PASS_REQUIRED',
     overlayRender: 'PASS_REQUIRED',
     selectionMoveResizeShell: 'PASS_REQUIRED',
-    richEditor: 'NOT_STARTED',
+    richEditorShell: 'PASS_REQUIRED',
+    editorSaveCancel: 'PASS_REQUIRED',
+    editorSerialization: 'PASS_REQUIRED',
     clipboard: 'NOT_STARTED',
+    callout: 'NOT_STARTED',
     export: 'NOT_STARTED',
   },
   startedAt,
