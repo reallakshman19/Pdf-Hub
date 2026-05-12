@@ -5,6 +5,7 @@ import type {
   InspectorTab,
   SidebarTab,
 } from './types';
+import { normalizeActiveTool } from '@/core/tool-policy/disabledTools';
 
 export interface EditorActions {
   setActiveTool: (tool: ActiveTool) => void;
@@ -20,7 +21,9 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   inspectorTab: 'properties',
   leftPanelWidth: 20,
   rightPanelWidth: 18,
-  setActiveTool: (activeTool) => set({ activeTool }),
+  setActiveTool: (activeTool) => set({
+    activeTool: normalizeActiveTool(activeTool),
+  }),
   setSidebarTab: (sidebarTab) => set({ sidebarTab }),
   setInspectorTab: (inspectorTab) => set({ inspectorTab }),
   setLeftPanelWidth: (leftPanelWidth) => set({ leftPanelWidth }),

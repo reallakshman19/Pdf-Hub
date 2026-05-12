@@ -18,7 +18,9 @@
     "audit:contracts": "node scripts/contract-duplicate-audit.mjs",
     "certify:slice1": "npm run typecheck && npm run audit:no-placeholders && npm run audit:contracts && npm run build",
     "audit:macro-enh2-placeholders": "node scripts/macro-enh2-active-placeholder-audit.mjs",
-    "certify:macro-enh2": "node scripts/macro-enh2-certify.mjs"
+    "certify:macro-enh2": "node scripts/macro-enh2-certify.mjs",
+    "audit:writer-overlay-v2-boundary": "node scripts/writer-v2-boundary-audit.mjs",
+    "certify:writer-overlay-v2": "node scripts/certify-writer-overlay-v2.mjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

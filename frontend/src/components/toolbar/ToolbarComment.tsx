@@ -38,6 +38,10 @@ import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
 import type { ActiveTool } from '@/core/editor/types';
 import { Button } from '@/components/ui/Button';
+import {
+  getToolDisabledReason,
+  isToolDisabled,
+} from '@/core/tool-policy/disabledTools';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Separator } from '@/components/ui/Separator';
 
@@ -65,8 +69,22 @@ export const ToolbarComment: React.FC = () => {
   const hasSelection = selectedAnnotationIds.length > 0;
 
   const handleToolClick = (tool: Exclude<ActiveTool, 'select' | 'hand'>) => {
+    if (isToolDisabled(tool)) {
+      setWriterActiveTool('select');
+      setActiveTool('select');
+      return;
+    }
+
     setWriterActiveTool('select');
     setActiveTool(activeTool === tool ? 'select' : tool);
+  };
+
+  const disabledTitle = (tool: ActiveTool, fallback: string) => {
+    return getToolDisabledReason(tool) ?? fallback;
+  };
+
+  const disabledClass = (tool: ActiveTool) => {
+    return isToolDisabled(tool) ? 'opacity-50 cursor-not-allowed' : '';
   };
 
   const handleOcrToolClick = () => {
@@ -96,8 +114,15 @@ export const ToolbarComment: React.FC = () => {
       role="toolbar"
       aria-label="Annotation tools"
     >
-      <Tooltip content="Text Box">
-        <Button variant={getToolVariant('textbox')} size="icon" onClick={() => handleToolClick('textbox')}>
+      <Tooltip content={disabledTitle('textbox', 'Text Box')}>
+        <Button
+          variant={getToolVariant('textbox')}
+          size="icon"
+          title={disabledTitle('textbox', 'Text Box')}
+          aria-disabled={isToolDisabled('textbox')}
+          className={disabledClass('textbox')}
+          onClick={() => handleToolClick('textbox')}
+        >
           <Type className="w-4 h-4" />
         </Button>
       </Tooltip>
@@ -129,80 +154,171 @@ export const ToolbarComment: React.FC = () => {
         </Button>
       </Tooltip>
 
-      <Tooltip content="Squiggly Underline">
-        <Button variant={getToolVariant('squiggly')} size="icon" onClick={() => handleToolClick('squiggly')}>
+      <Tooltip content={disabledTitle('squiggly', 'Squiggly Underline')}>
+        <Button
+          variant={getToolVariant('squiggly')}
+          size="icon"
+          title={disabledTitle('squiggly', 'Squiggly Underline')}
+          aria-disabled={isToolDisabled('squiggly')}
+          className={disabledClass('squiggly')}
+          onClick={() => handleToolClick('squiggly')}
+        >
           <Activity className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Freehand / Ink">
-        <Button variant={getToolVariant('ink')} size="icon" onClick={() => handleToolClick('ink')}>
+      <Tooltip content={disabledTitle('ink', 'Freehand / Ink')}>
+        <Button
+          variant={getToolVariant('ink')}
+          size="icon"
+          title={disabledTitle('ink', 'Freehand / Ink')}
+          aria-disabled={isToolDisabled('ink')}
+          className={disabledClass('ink')}
+          onClick={() => handleToolClick('ink')}
+        >
           <PenTool className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Sticky Note">
-        <Button variant={getToolVariant('sticky-note')} size="icon" onClick={() => handleToolClick('sticky-note')}>
+      <Tooltip content={disabledTitle('sticky-note', 'Sticky Note')}>
+        <Button
+          variant={getToolVariant('sticky-note')}
+          size="icon"
+          title={disabledTitle('sticky-note', 'Sticky Note')}
+          aria-disabled={isToolDisabled('sticky-note')}
+          className={disabledClass('sticky-note')}
+          onClick={() => handleToolClick('sticky-note')}
+        >
           <MessageSquare className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Comment Box">
-        <Button variant={getToolVariant('comment')} size="icon" onClick={() => handleToolClick('comment')}>
+      <Tooltip content={disabledTitle('comment', 'Comment Box')}>
+        <Button
+          variant={getToolVariant('comment')}
+          size="icon"
+          title={disabledTitle('comment', 'Comment Box')}
+          aria-disabled={isToolDisabled('comment')}
+          className={disabledClass('comment')}
+          onClick={() => handleToolClick('comment')}
+        >
           <MessageCircle className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Callout">
-        <Button variant={getToolVariant('callout')} size="icon" onClick={() => handleToolClick('callout')}>
+      <Tooltip content={disabledTitle('callout', 'Callout')}>
+        <Button
+          variant={getToolVariant('callout')}
+          size="icon"
+          title={disabledTitle('callout', 'Callout')}
+          aria-disabled={isToolDisabled('callout')}
+          className={disabledClass('callout')}
+          onClick={() => handleToolClick('callout')}
+        >
           <SquareSquare className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Rectangle Shape">
-        <Button variant={getToolVariant('shape-rect')} size="icon" onClick={() => handleToolClick('shape-rect')}>
+      <Tooltip content={disabledTitle('shape-rect', 'Rectangle Shape')}>
+        <Button
+          variant={getToolVariant('shape-rect')}
+          size="icon"
+          title={disabledTitle('shape-rect', 'Rectangle Shape')}
+          aria-disabled={isToolDisabled('shape-rect')}
+          className={disabledClass('shape-rect')}
+          onClick={() => handleToolClick('shape-rect')}
+        >
           <Square className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Ellipse Shape">
-        <Button variant={getToolVariant('shape-ellipse')} size="icon" onClick={() => handleToolClick('shape-ellipse')}>
+      <Tooltip content={disabledTitle('shape-ellipse', 'Ellipse Shape')}>
+        <Button
+          variant={getToolVariant('shape-ellipse')}
+          size="icon"
+          title={disabledTitle('shape-ellipse', 'Ellipse Shape')}
+          aria-disabled={isToolDisabled('shape-ellipse')}
+          className={disabledClass('shape-ellipse')}
+          onClick={() => handleToolClick('shape-ellipse')}
+        >
           <Circle className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Polygon Shape">
-        <Button variant={getToolVariant('shape-polygon')} size="icon" onClick={() => handleToolClick('shape-polygon')}>
+      <Tooltip content={disabledTitle('shape-polygon', 'Polygon Shape')}>
+        <Button
+          variant={getToolVariant('shape-polygon')}
+          size="icon"
+          title={disabledTitle('shape-polygon', 'Polygon Shape')}
+          aria-disabled={isToolDisabled('shape-polygon')}
+          className={disabledClass('shape-polygon')}
+          onClick={() => handleToolClick('shape-polygon')}
+        >
           <Hexagon className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Cloud Shape">
-        <Button variant={getToolVariant('shape-cloud')} size="icon" onClick={() => handleToolClick('shape-cloud')}>
+      <Tooltip content={disabledTitle('shape-cloud', 'Cloud Shape')}>
+        <Button
+          variant={getToolVariant('shape-cloud')}
+          size="icon"
+          title={disabledTitle('shape-cloud', 'Cloud Shape')}
+          aria-disabled={isToolDisabled('shape-cloud')}
+          className={disabledClass('shape-cloud')}
+          onClick={() => handleToolClick('shape-cloud')}
+        >
           <Cloud className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Redaction">
-        <Button variant={getToolVariant('redaction')} size="icon" onClick={() => handleToolClick('redaction')}>
+      <Tooltip content={disabledTitle('redaction', 'Redaction')}>
+        <Button
+          variant={getToolVariant('redaction')}
+          size="icon"
+          title={disabledTitle('redaction', 'Redaction')}
+          aria-disabled={isToolDisabled('redaction')}
+          className={disabledClass('redaction')}
+          onClick={() => handleToolClick('redaction')}
+        >
           <Square className="w-4 h-4 fill-black" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Stamp">
-        <Button variant={getToolVariant('stamp')} size="icon" onClick={() => handleToolClick('stamp')}>
+      <Tooltip content={disabledTitle('stamp', 'Stamp')}>
+        <Button
+          variant={getToolVariant('stamp')}
+          size="icon"
+          title={disabledTitle('stamp', 'Stamp')}
+          aria-disabled={isToolDisabled('stamp')}
+          className={disabledClass('stamp')}
+          onClick={() => handleToolClick('stamp')}
+        >
           <Stamp className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Line">
-        <Button variant={getToolVariant('line')} size="icon" onClick={() => handleToolClick('line')}>
+      <Tooltip content={disabledTitle('line', 'Line')}>
+        <Button
+          variant={getToolVariant('line')}
+          size="icon"
+          title={disabledTitle('line', 'Line')}
+          aria-disabled={isToolDisabled('line')}
+          className={disabledClass('line')}
+          onClick={() => handleToolClick('line')}
+        >
           <Minus className="w-4 h-4" />
         </Button>
       </Tooltip>
 
-      <Tooltip content="Arrow">
-        <Button variant={getToolVariant('arrow')} size="icon" onClick={() => handleToolClick('arrow')}>
+      <Tooltip content={disabledTitle('arrow', 'Arrow')}>
+        <Button
+          variant={getToolVariant('arrow')}
+          size="icon"
+          title={disabledTitle('arrow', 'Arrow')}
+          aria-disabled={isToolDisabled('arrow')}
+          className={disabledClass('arrow')}
+          onClick={() => handleToolClick('arrow')}
+        >
           <MoveRight className="w-4 h-4" />
         </Button>
       </Tooltip>

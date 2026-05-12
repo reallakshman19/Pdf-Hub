@@ -23,6 +23,10 @@ import { SearchIndexer } from '@/core/search/indexer';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
+import {
+  isWriterOverlayV2Enabled,
+  WriterOverlayLayer,
+} from '@/components/writer-v2/WriterOverlayLayer';
 
 type TransformState =
   | {
@@ -1442,6 +1446,18 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         scale={scale}
         pageDimensions={renderSize || size}
       />
+
+      {isWriterOverlayV2Enabled() ? (
+        <WriterOverlayLayer
+          pageNumber={pageNumber}
+          viewport={{
+            pdfWidth: renderSize?.width || size.width,
+            pdfHeight: renderSize?.height || size.height,
+            scale,
+            rotation: 0,
+          }}
+        />
+      ) : null}
 
       <div className="absolute top-2 right-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded">
         Page {pageNumber}
