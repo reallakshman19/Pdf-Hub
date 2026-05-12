@@ -19,6 +19,7 @@ const commands = [
     args: [
       'run',
       'src/core/writer-v2/coordinateTransform.test.ts',
+      'src/core/writer-v2/writerCommandStore.test.ts',
       'src/core/tool-policy/disabledTools.test.ts',
     ],
   },
@@ -90,7 +91,14 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 1 — W0/W1',
+  wave: 'Wave 2 — W2',
+  gates: {
+    coordinateEngine: 'PASS_REQUIRED',
+    commandStore: 'PASS_REQUIRED',
+    undoRedo50Operations: 'PASS_REQUIRED',
+    lockHideZIndex: 'PASS_REQUIRED',
+    noUiDirectMutation: 'PASS_REQUIRED_BY_BOUNDARY_AND_NO_UI_SCOPE',
+  },
   startedAt,
   finishedAt: new Date().toISOString(),
   finalVerdict: failed ? 'FAIL' : 'PASS',
