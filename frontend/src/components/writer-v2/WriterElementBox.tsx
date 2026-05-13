@@ -162,6 +162,10 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
           element={element}
           onCancel={endEditingWriterElement}
           onSave={(payload) => {
+            if (payload.assets?.length) {
+              useWriterV2Store.getState().addWriterAssets(payload.assets);
+            }
+
             dispatchWriterCommand({
               type: 'UPDATE_WRITER_ELEMENT',
               id: element.id,

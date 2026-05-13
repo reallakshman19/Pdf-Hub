@@ -32,6 +32,8 @@ const commands = [
       'src/core/writer-v2/clipboard/tableImport.test.ts',
       'src/core/writer-v2/clipboard/importClipboardData.test.ts',
       'src/components/writer-v2/WriterClipboardPlugin.test.tsx',
+      'src/core/writer-v2/writerV2Store.test.ts',
+      'src/core/writer-v2/persistence/writerPersistenceController.test.ts',
     ],
   },
   {
@@ -102,7 +104,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 6 — W6',
+  wave: 'Wave 7 — W7',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -119,6 +121,9 @@ const report = {
     clipboardRichTextPaste: 'PASS_REQUIRED',
     clipboardImageAssetCapture: 'PASS_REQUIRED',
     clipboardTableDetection: 'PASS_REQUIRED',
+    persistenceIntegration: 'PASS_REQUIRED',
+    sameBrowserReload: 'PASS_REQUIRED',
+    imageAssetPersistence: 'PASS_REQUIRED',
     export: 'NOT_STARTED',
   },
   startedAt,

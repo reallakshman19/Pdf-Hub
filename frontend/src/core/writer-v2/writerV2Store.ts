@@ -10,9 +10,13 @@ import {
 } from './writerCommandStore';
 import type { WriterCommand } from './writerCommands';
 import type { WriterElementV2 } from './types';
+import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 
 export interface WriterV2StoreState extends WriterV2State {
   editingId: string | null;
+  currentDocumentFingerprint: string | null;
+  assetRecords: WriterAssetRecordV2[];
+  lastPersistedAt: string | null;
 
   dispatchWriterCommand: (command: WriterCommand) => WriterV2CommandResult;
   undoWriter: () => WriterV2CommandResult;
@@ -21,23 +25,41 @@ export interface WriterV2StoreState extends WriterV2State {
   beginEditingWriterElement: (id: string) => void;
   endEditingWriterElement: () => void;
 
+  addWriterAssets: (assets: WriterAssetRecordV2[]) => void;
+  removeWriterAsset: (assetId: string) => void;
+
   hydrateWriterElements: (elements: WriterElementV2[]) => void;
+  hydrateWriterSession: (input: {
+    documentFingerprint: string;
+    elements: WriterElementV2[];
+    assetRecords?: WriterAssetRecordV2[];
+    persistedAt?: string | null;
+  }) => void;
+
+  markWriterPersisted: (persistedAt?: string) => void;
   clearWriterV2: () => void;
 }
 
 export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   ...createInitialWriterV2State(),
   editingId: null,
+  currentDocumentFingerprint: null,
+  assetRecords: [],
+  lastPersistedAt: null,
 
   dispatchWriterCommand: (command) => {
+    const previousEditingId = get().editingId;
     const result = executeWriterCommand(get(), command);
 
     set({
       ...result.state,
       editingId: command.type === 'DELETE_WRITER_ELEMENT'
-        && get().editingId === command.id
+        && previousEditingId === command.id
           ? null
-          : get().editingId,
+          : previousEditingId,
+      currentDocumentFingerprint: get().currentDocumentFingerprint,
+      assetRecords: get().assetRecords,
+      lastPersistedAt: get().lastPersistedAt,
     });
 
     return result;
@@ -48,6 +70,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     set({
       ...result.state,
       editingId: null,
+      currentDocumentFingerprint: get().currentDocumentFingerprint,
+      assetRecords: get().assetRecords,
+      lastPersistedAt: get().lastPersistedAt,
     });
     return result;
   },
@@ -57,6 +82,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     set({
       ...result.state,
       editingId: null,
+      currentDocumentFingerprint: get().currentDocumentFingerprint,
+      assetRecords: get().assetRecords,
+      lastPersistedAt: get().lastPersistedAt,
     });
     return result;
   },
@@ -80,6 +108,28 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     set({ editingId: null });
   },
 
+  addWriterAssets: (assets) => {
+    if (assets.length === 0) return;
+
+    const existing = new Map(get().assetRecords.map((asset) => [asset.id, asset]));
+
+    for (const asset of assets) {
+      existing.set(asset.id, { ...asset });
+    }
+
+    set({
+      assetRecords: [...existing.values()],
+      dirty: true,
+    });
+  },
+
+  removeWriterAsset: (assetId) => {
+    set({
+      assetRecords: get().assetRecords.filter((asset) => asset.id !== assetId),
+      dirty: true,
+    });
+  },
+
   hydrateWriterElements: (elements) => {
     set({
       ...createInitialWriterV2State({
@@ -87,6 +137,34 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       }),
       dirty: false,
       editingId: null,
+      currentDocumentFingerprint: get().currentDocumentFingerprint,
+      assetRecords: get().assetRecords,
+      lastPersistedAt: get().lastPersistedAt,
+    });
+  },
+
+  hydrateWriterSession: ({
+    documentFingerprint,
+    elements,
+    assetRecords = [],
+    persistedAt = null,
+  }) => {
+    set({
+      ...createInitialWriterV2State({
+        elements,
+      }),
+      dirty: false,
+      editingId: null,
+      currentDocumentFingerprint: documentFingerprint,
+      assetRecords: assetRecords.map((asset) => ({ ...asset })),
+      lastPersistedAt: persistedAt,
+    });
+  },
+
+  markWriterPersisted: (persistedAt = new Date().toISOString()) => {
+    set({
+      dirty: false,
+      lastPersistedAt: persistedAt,
     });
   },
 
@@ -94,6 +172,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     set({
       ...createInitialWriterV2State(),
       editingId: null,
+      currentDocumentFingerprint: null,
+      assetRecords: [],
+      lastPersistedAt: null,
     });
   },
 }));

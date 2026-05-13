@@ -254,6 +254,7 @@ function getAllByIndex<T>(
 function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
   return elements.map((element) => ({
     ...element,
+    assetIds: element.assetIds ? [...element.assetIds] : undefined,
     rect: { ...element.rect },
     style: { ...element.style },
     tableData: element.tableData
