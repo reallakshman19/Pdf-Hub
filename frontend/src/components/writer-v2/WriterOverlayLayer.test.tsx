@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { WriterElementV2, WriterPageViewport } from '@/core/writer-v2/types';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterOverlayLayer } from './WriterOverlayLayer';
+import { createTextCalloutElement } from '@/core/writer-v2/writerElementFactory';
 
 const viewport: WriterPageViewport = {
   pdfWidth: 612,
@@ -180,5 +181,34 @@ describe('WriterOverlayLayer', () => {
 
     expect(useWriterV2Store.getState().editingId).toBeNull();
     expect(useWriterV2Store.getState().elements[0].editorStateJson).toContain('"root"');
+  });
+
+  it('renders and supports editing textCallout variant', async () => {
+    const callout = createTextCalloutElement({
+      documentFingerprint: 'doc-1',
+      pageIndex: 0,
+      rect: { x: 100, y: 100, width: 100, height: 100 },
+      text: 'My Callout',
+      anchorPoint: { x: 50, y: 50 },
+    });
+
+    useWriterV2Store.getState().hydrateWriterElements([callout]);
+
+    render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
+
+    const box = screen.getByLabelText(`Writer element ${callout.id}`);
+    expect(box).toBeTruthy();
+
+    expect(document.querySelector('svg.callout-leader-layer')).toBeTruthy();
+
+    fireEvent.doubleClick(box);
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await screen.findByLabelText(`Writer element ${callout.id}`);
+
+    expect(useWriterV2Store.getState().editingId).toBeNull();
   });
 });
