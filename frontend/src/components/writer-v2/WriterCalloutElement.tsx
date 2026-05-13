@@ -49,10 +49,24 @@ export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
     const dy = boxCenterY - anchorPoint.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Compute edge intersection of the box (approximate to avoid overlapping the box visually)
-    // Box boundaries:
-    const edgeX = distance > 0 ? boxCenterX - (dx / distance) * (viewportRect.width / 2) : boxCenterX;
-    const edgeY = distance > 0 ? boxCenterY - (dy / distance) * (viewportRect.height / 2) : boxCenterY;
+    // Compute precise edge intersection using AABB raycasting
+    let edgeX = boxCenterX;
+    let edgeY = boxCenterY;
+
+    if (distance > 0) {
+      const hw = viewportRect.width / 2;
+      const hh = viewportRect.height / 2;
+
+      // Calculate intersection t-values for X and Y planes
+      const tx = hw / Math.abs(dx);
+      const ty = hh / Math.abs(dy);
+
+      // The box edge is hit at the smaller of the two t-values
+      const t = Math.min(tx, ty);
+
+      edgeX = boxCenterX - dx * t;
+      edgeY = boxCenterY - dy * t;
+    }
 
     leaderSvg = (
       <svg
