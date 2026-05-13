@@ -31,6 +31,7 @@
     "@lexical/table": "^0.44.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
+    "jszip": "^3.10.1",
     "konva": "^10.2.5",
     "lexical": "^0.44.0",
     "lucide-react": "^1.8.0",

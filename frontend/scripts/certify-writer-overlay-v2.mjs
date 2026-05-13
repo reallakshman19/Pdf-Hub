@@ -36,6 +36,9 @@ const commands = [
       'src/core/writer-v2/persistence/writerPersistenceController.test.ts',
       'src/core/writer-v2/export/flattenedPdfExport.test.ts',
       'src/core/writer-v2/export/exportCurrentWriterPdf.test.ts',
+      'src/core/writer-v2/export/projectZip.test.ts',
+      'src/core/writer-v2/export/projectImportController.test.ts',
+      'src/core/writer-v2/export/exportCurrentWriterProject.test.ts',
     ],
   },
   {
@@ -106,7 +109,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 8 — W8',
+  wave: 'Wave 9 — W9',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -129,7 +132,9 @@ const report = {
     flattenedPdfExport: 'PASS_REQUIRED',
     flattenedCalloutExport: 'PASS_REQUIRED',
     flattenedImageAssetExport: 'PASS_REQUIRED',
-    projectZip: 'NOT_STARTED',
+    projectZipExport: 'PASS_REQUIRED',
+    projectZipImport: 'PASS_REQUIRED',
+    freshBrowserProjectRestore: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),
