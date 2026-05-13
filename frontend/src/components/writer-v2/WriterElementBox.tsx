@@ -169,6 +169,12 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
               patch: {
                 editorStateJson: payload.editorStateJson,
                 plainText: payload.plainText,
+                assetIds: payload.assets?.length
+                  ? [
+                      ...(element.assetIds ?? []),
+                      ...payload.assets.map((asset) => asset.id),
+                    ]
+                  : element.assetIds,
               },
             });
 

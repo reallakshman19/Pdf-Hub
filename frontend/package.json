@@ -24,9 +24,11 @@
   },
   "dependencies": {
     "@lexical/history": "^0.44.0",
+    "@lexical/html": "^0.44.0",
     "@lexical/list": "^0.44.0",
     "@lexical/react": "^0.44.0",
     "@lexical/rich-text": "^0.44.0",
+    "@lexical/table": "^0.44.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
     "konva": "^10.2.5",

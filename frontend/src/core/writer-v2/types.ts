@@ -103,6 +103,7 @@ export interface WriterElementV2 {
 
   tableData?: WriterTableData;
   imageAssetId?: string;
+  assetIds?: string[];
 
   callout?: {
     anchorPoint?: PdfPoint;

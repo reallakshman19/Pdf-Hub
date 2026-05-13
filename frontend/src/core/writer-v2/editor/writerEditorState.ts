@@ -1,6 +1,9 @@
+import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
+
 export interface WriterEditorSavePayload {
   editorStateJson: string;
   plainText: string;
+  assets?: WriterAssetRecordV2[];
 }
 
 export const EMPTY_WRITER_EDITOR_STATE_JSON = JSON.stringify({

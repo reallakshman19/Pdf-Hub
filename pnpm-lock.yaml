@@ -20,6 +20,9 @@ importers:
       '@lexical/history':
         specifier: ^0.44.0
         version: 0.44.0
+      '@lexical/html':
+        specifier: ^0.44.0
+        version: 0.44.0
       '@lexical/list':
         specifier: ^0.44.0
         version: 0.44.0
@@ -27,6 +30,9 @@ importers:
         specifier: ^0.44.0
         version: 0.44.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(yjs@13.6.30)
       '@lexical/rich-text':
+        specifier: ^0.44.0
+        version: 0.44.0
+      '@lexical/table':
         specifier: ^0.44.0
         version: 0.44.0
       html2canvas:

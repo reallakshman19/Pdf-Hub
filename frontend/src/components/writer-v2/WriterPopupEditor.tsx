@@ -12,6 +12,10 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { ListNode, ListItemNode } from '@lexical/list';
+import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
+import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
+import { WriterClipboardPlugin } from './WriterClipboardPlugin';
+import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
@@ -34,11 +38,18 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
 }) => {
   const editorRef = React.useRef<LexicalEditor | null>(null);
   const latestStateRef = React.useRef<EditorState | null>(null);
+  const pendingAssetsRef = React.useRef<WriterAssetRecordV2[]>([]);
 
   const initialConfig = React.useMemo(() => {
     return {
       namespace: `writer-v2-${element.id}`,
-      nodes: [ListNode, ListItemNode],
+      nodes: [
+        ListNode,
+        ListItemNode,
+        TableNode,
+        TableRowNode,
+        TableCellNode,
+      ],
       editorState: normalizeEditorStateJson(
         element.editorStateJson,
         element.plainText ?? '',
@@ -72,6 +83,7 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
     onSave({
       editorStateJson: JSON.stringify(editorState.toJSON()),
       plainText,
+      assets: [...pendingAssetsRef.current],
     });
   }, [onSave]);
 
@@ -170,6 +182,16 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
             />
             <HistoryPlugin />
             <ListPlugin />
+            <TablePlugin />
+            <WriterClipboardPlugin
+              documentFingerprint={element.documentFingerprint}
+              onAssetsImported={(assets) => {
+                pendingAssetsRef.current = [
+                  ...pendingAssetsRef.current,
+                  ...assets,
+                ];
+              }}
+            />
           </div>
 
           <div

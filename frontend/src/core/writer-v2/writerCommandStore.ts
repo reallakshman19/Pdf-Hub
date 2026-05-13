@@ -614,6 +614,7 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
 function cloneElement(element: WriterElementV2): WriterElementV2 {
   return {
     ...element,
+    assetIds: element.assetIds ? [...element.assetIds] : undefined,
     rect: { ...element.rect },
     tableData: element.tableData
       ? {

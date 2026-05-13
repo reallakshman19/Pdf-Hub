@@ -28,6 +28,10 @@ const commands = [
       'src/components/writer-v2/WriterPopupEditor.test.tsx',
       'src/components/writer-v2/WriterCalloutElement.test.tsx',
       'src/core/tool-policy/disabledTools.test.ts',
+      'src/core/writer-v2/clipboard/sanitizeClipboardHtml.test.ts',
+      'src/core/writer-v2/clipboard/tableImport.test.ts',
+      'src/core/writer-v2/clipboard/importClipboardData.test.ts',
+      'src/components/writer-v2/WriterClipboardPlugin.test.tsx',
     ],
   },
   {
@@ -98,7 +102,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 5 — W5',
+  wave: 'Wave 6 — W6',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -111,7 +115,10 @@ const report = {
     editorSerialization: 'PASS_REQUIRED',
     writerElementFactory: 'PASS_REQUIRED',
     calloutVariantRender: 'PASS_REQUIRED',
-    clipboard: 'NOT_STARTED',
+    clipboardHtmlSanitizer: 'PASS_REQUIRED',
+    clipboardRichTextPaste: 'PASS_REQUIRED',
+    clipboardImageAssetCapture: 'PASS_REQUIRED',
+    clipboardTableDetection: 'PASS_REQUIRED',
     export: 'NOT_STARTED',
   },
   startedAt,
