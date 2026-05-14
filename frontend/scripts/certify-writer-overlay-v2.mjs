@@ -45,6 +45,9 @@ const commands = [
       'src/core/writer-v2/writerSelectionActions.test.ts',
       'src/components/writer-v2/WriterV2Inspector.test.tsx',
       'src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.test.ts',
+      'src/core/select-box-copy/tableReconstruction.test.ts',
+      'src/core/select-box-copy/formatSelection.test.ts',
+      'src/core/select-box-copy/insertIntoWriterV2.test.ts',
     ],
   },
   {
@@ -120,7 +123,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 12 — Final Smoke Proof',
+  wave: 'Wave 13 — Select Box Copy V1',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -154,6 +157,10 @@ const report = {
     writerV2LockHideZOrder: 'PASS_REQUIRED',
     disabledOldAnnotationToolsAudit: 'PASS_REQUIRED',
     finalCreateEditExportProjectRestoreSmoke: 'PASS_REQUIRED',
+    selectBoxCopyTextExtraction: 'PASS_REQUIRED',
+    selectBoxCopyFormattedHtml: 'PASS_REQUIRED',
+    selectBoxCopyTableReconstruction: 'PASS_REQUIRED',
+    selectBoxCopyWriterInsertion: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),

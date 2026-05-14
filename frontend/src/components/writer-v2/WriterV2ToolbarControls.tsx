@@ -139,6 +139,21 @@ export const WriterV2ToolbarControls: React.FC = () => {
         </Button>
       </Tooltip>
 
+      <Tooltip content="Select Box Copy: copy text, formatted text, tables, or image from a rectangle">
+        <Button
+          variant={activeWriterTool === 'selectBoxCopy' ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setActiveWriterTool(
+              activeWriterTool === 'selectBoxCopy' ? 'select' : 'selectBoxCopy',
+            );
+          }}
+          title="Select Box Copy"
+        >
+          Select Copy
+        </Button>
+      </Tooltip>
+
       <Tooltip content="Export flattened Writer PDF">
         <Button
           variant="ghost"

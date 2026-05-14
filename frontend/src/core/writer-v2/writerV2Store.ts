@@ -12,7 +12,11 @@ import type { WriterCommand } from './writerCommands';
 import type { WriterElementV2 } from './types';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 
-export type WriterV2Tool = 'select' | 'richTextBox' | 'textCallout';
+export type WriterV2Tool =
+  | 'select'
+  | 'richTextBox'
+  | 'textCallout'
+  | 'selectBoxCopy';
 
 export interface WriterV2StoreState extends WriterV2State {
   activeWriterTool: WriterV2Tool;

@@ -36,6 +36,14 @@ describe('WriterV2ToolbarControls', () => {
     expect(useWriterV2Store.getState().activeWriterTool).toBe('textCallout');
   });
 
+  it('sets Select Box Copy tool', () => {
+    render(<WriterV2ToolbarControls />);
+
+    fireEvent.click(screen.getByRole('button', { name: /select copy/i }));
+
+    expect(useWriterV2Store.getState().activeWriterTool).toBe('selectBoxCopy');
+  });
+
   it('toggles active Writer V2 placement tool back to select', () => {
     render(<WriterV2ToolbarControls />);
 

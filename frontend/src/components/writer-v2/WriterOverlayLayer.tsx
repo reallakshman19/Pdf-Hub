@@ -11,6 +11,7 @@ import {
 import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlacement';
 import { useSessionStore } from '@/core/session/store';
 import { WriterElementBox } from './WriterElementBox';
+import { SelectBoxCopyLayer } from '@/components/select-box-copy/SelectBoxCopyLayer';
 
 export interface WriterOverlayLayerProps {
   pageNumber: number;
@@ -105,6 +106,10 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
       onPointerDown={(event) => {
         if (event.target !== event.currentTarget) return;
 
+        if (activeWriterTool === 'selectBoxCopy') {
+          return;
+        }
+
         if (activeWriterTool !== 'select') {
           placeWriterElement(event);
           return;
@@ -125,6 +130,10 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         cursor: activeWriterTool === 'select' ? 'default' : 'crosshair',
       }}
     >
+      <SelectBoxCopyLayer
+        pageNumber={pageNumber}
+        viewport={viewport}
+      />
       {elements.map((element) => (
         <WriterElementBox
           key={element.id}
