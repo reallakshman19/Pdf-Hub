@@ -42,12 +42,19 @@ const commands = [
       'src/core/writer-v2/writerPlacement.test.ts',
       'src/core/writer-v2/export/downloadWriterFile.test.ts',
       'src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
+      'src/core/writer-v2/writerSelectionActions.test.ts',
+      'src/components/writer-v2/WriterV2Inspector.test.tsx',
     ],
   },
   {
     name: 'boundary-audit',
     command: 'node',
     args: ['scripts/writer-v2-boundary-audit.mjs'],
+  },
+  {
+    name: 'disabled-tools-audit',
+    command: 'node',
+    args: ['scripts/writer-v2-disabled-tools-audit.mjs'],
   },
   {
     name: 'full-vitest-suite',
@@ -112,7 +119,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 10 — W10',
+  wave: 'Wave 11 — W11',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -141,6 +148,10 @@ const report = {
     writerV2Toolbar: 'PASS_REQUIRED',
     writerV2Placement: 'PASS_REQUIRED',
     writerV2ExportButtons: 'PASS_REQUIRED',
+    writerV2Inspector: 'PASS_REQUIRED',
+    writerV2DuplicateDelete: 'PASS_REQUIRED',
+    writerV2LockHideZOrder: 'PASS_REQUIRED',
+    disabledOldAnnotationToolsAudit: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),

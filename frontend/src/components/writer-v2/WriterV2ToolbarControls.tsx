@@ -11,6 +11,7 @@ import {
   downloadWriterBytes,
   safeDownloadBaseName,
 } from '@/core/writer-v2/export/downloadWriterFile';
+import { WriterV2Inspector } from './WriterV2Inspector';
 
 export const WriterV2ToolbarControls: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -187,6 +188,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
           }
         }}
       />
+      <WriterV2Inspector />
     </div>
   );
 };
