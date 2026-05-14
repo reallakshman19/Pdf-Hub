@@ -44,6 +44,7 @@ const commands = [
       'src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
       'src/core/writer-v2/writerSelectionActions.test.ts',
       'src/components/writer-v2/WriterV2Inspector.test.tsx',
+      'src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.test.ts',
     ],
   },
   {
@@ -119,7 +120,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 11 — W11',
+  wave: 'Wave 12 — Final Smoke Proof',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -152,6 +153,7 @@ const report = {
     writerV2DuplicateDelete: 'PASS_REQUIRED',
     writerV2LockHideZOrder: 'PASS_REQUIRED',
     disabledOldAnnotationToolsAudit: 'PASS_REQUIRED',
+    finalCreateEditExportProjectRestoreSmoke: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),

@@ -29,5 +29,8 @@ jobs:
       - name: Writer Overlay V2 certification
         run: cd frontend && pnpm run certify:writer-overlay-v2
 
+      - name: Writer Overlay V2 final certification
+        run: cd frontend && pnpm run certify:writer-overlay-v2-final
+
       - name: Build
         run: cd frontend && pnpm run build
