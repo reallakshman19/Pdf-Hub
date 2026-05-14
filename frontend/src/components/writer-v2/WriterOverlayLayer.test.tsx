@@ -183,6 +183,53 @@ describe('WriterOverlayLayer', () => {
     expect(useWriterV2Store.getState().elements[0].editorStateJson).toContain('"root"');
   });
 
+  it('places a rich text box when Writer V2 text tool is active', () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [],
+    });
+
+    useWriterV2Store.getState().setActiveWriterTool('richTextBox');
+
+    render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
+
+    fireEvent.pointerDown(screen.getByLabelText('Writer overlay v2 page 1'), {
+      clientX: 100,
+      clientY: 100,
+      pointerId: 10,
+    });
+
+    const state = useWriterV2Store.getState();
+
+    expect(state.elements).toHaveLength(1);
+    expect(state.elements[0].type).toBe('richTextBox');
+    expect(state.activeWriterTool).toBe('select');
+  });
+
+  it('places a text callout when Writer V2 callout tool is active', () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [],
+    });
+
+    useWriterV2Store.getState().setActiveWriterTool('textCallout');
+
+    render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
+
+    fireEvent.pointerDown(screen.getByLabelText('Writer overlay v2 page 1'), {
+      clientX: 120,
+      clientY: 140,
+      pointerId: 11,
+    });
+
+    const state = useWriterV2Store.getState();
+
+    expect(state.elements).toHaveLength(1);
+    expect(state.elements[0].type).toBe('textCallout');
+    expect(state.elements[0].callout?.anchorPoint).toBeTruthy();
+    expect(state.activeWriterTool).toBe('select');
+  });
+
   it('renders and supports editing textCallout variant', async () => {
     const callout = createTextCalloutElement({
       documentFingerprint: 'doc-1',

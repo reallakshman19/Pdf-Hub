@@ -12,7 +12,12 @@ import type { WriterCommand } from './writerCommands';
 import type { WriterElementV2 } from './types';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 
+export type WriterV2Tool = 'select' | 'richTextBox' | 'textCallout';
+
 export interface WriterV2StoreState extends WriterV2State {
+  activeWriterTool: WriterV2Tool;
+  setActiveWriterTool: (tool: WriterV2Tool) => void;
+
   editingId: string | null;
   currentDocumentFingerprint: string | null;
   assetRecords: WriterAssetRecordV2[];
@@ -42,10 +47,15 @@ export interface WriterV2StoreState extends WriterV2State {
 
 export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   ...createInitialWriterV2State(),
+  activeWriterTool: 'select',
   editingId: null,
   currentDocumentFingerprint: null,
   assetRecords: [],
   lastPersistedAt: null,
+
+  setActiveWriterTool: (activeWriterTool) => {
+    set({ activeWriterTool });
+  },
 
   dispatchWriterCommand: (command) => {
     const previousEditingId = get().editingId;
@@ -171,6 +181,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   clearWriterV2: () => {
     set({
       ...createInitialWriterV2State(),
+      activeWriterTool: 'select',
       editingId: null,
       currentDocumentFingerprint: null,
       assetRecords: [],

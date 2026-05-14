@@ -1,10 +1,15 @@
 import React from 'react';
 import type { WriterPageViewport } from '@/core/writer-v2/types';
-import { getViewportSize } from '@/core/writer-v2/coordinateTransform';
+import {
+  getViewportSize,
+  viewportToPdfPoint,
+} from '@/core/writer-v2/coordinateTransform';
 import {
   selectVisibleWriterElementsForPage,
   useWriterV2Store,
 } from '@/core/writer-v2/writerV2Store';
+import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlacement';
+import { useSessionStore } from '@/core/session/store';
 import { WriterElementBox } from './WriterElementBox';
 
 export interface WriterOverlayLayerProps {
@@ -18,7 +23,23 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
 }) => {
   const pageIndex = pageNumber - 1;
   const size = getViewportSize(viewport);
+
   const allElements = useWriterV2Store((state) => state.elements);
+  const selectedIds = useWriterV2Store((state) => state.selectedIds);
+  const activeWriterTool = useWriterV2Store((state) => state.activeWriterTool);
+  const currentDocumentFingerprint = useWriterV2Store(
+    (state) => state.currentDocumentFingerprint,
+  );
+  const dispatchWriterCommand = useWriterV2Store(
+    (state) => state.dispatchWriterCommand,
+  );
+  const setActiveWriterTool = useWriterV2Store(
+    (state) => state.setActiveWriterTool,
+  );
+
+  const sessionDocumentKey = useSessionStore((state) => state.documentKey);
+  const fileName = useSessionStore((state) => state.fileName);
+
   const elements = React.useMemo(
     () => selectVisibleWriterElementsForPage({
       elements: allElements,
@@ -30,8 +51,51 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
     }, pageIndex),
     [allElements, pageIndex],
   );
-  const selectedIds = useWriterV2Store((state) => state.selectedIds);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+
+  const placeWriterElement = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pdfPoint = viewportToPdfPoint(
+      {
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      },
+      viewport,
+    );
+
+    const documentFingerprint =
+      currentDocumentFingerprint ??
+      sessionDocumentKey ??
+      fileName ??
+      'writer-v2-unsaved-document';
+
+    const maxZIndex = allElements.reduce(
+      (max, element) => Math.max(max, element.style.zIndex),
+      0,
+    );
+
+    const element = createWriterElementFromPlacement({
+      tool: activeWriterTool,
+      documentFingerprint,
+      pageIndex,
+      clickPoint: pdfPoint,
+      pageBounds: {
+        x: 0,
+        y: 0,
+        width: viewport.pdfWidth,
+        height: viewport.pdfHeight,
+      },
+      zIndex: maxZIndex + 1,
+    });
+
+    if (!element) return;
+
+    dispatchWriterCommand({
+      type: 'ADD_WRITER_ELEMENT',
+      element,
+    });
+
+    setActiveWriterTool('select');
+  };
 
   return (
     <div
@@ -40,6 +104,11 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
       aria-label={`Writer overlay v2 page ${pageNumber}`}
       onPointerDown={(event) => {
         if (event.target !== event.currentTarget) return;
+
+        if (activeWriterTool !== 'select') {
+          placeWriterElement(event);
+          return;
+        }
 
         dispatchWriterCommand({
           type: 'CLEAR_WRITER_SELECTION',
@@ -53,6 +122,7 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         pointerEvents: 'auto',
         zIndex: 12,
         overflow: 'visible',
+        cursor: activeWriterTool === 'select' ? 'default' : 'crosshair',
       }}
     >
       {elements.map((element) => (

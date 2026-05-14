@@ -29,7 +29,6 @@ import {
   Trash2,
   Lock,
   ScanText,
-  SquarePen,
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
@@ -43,6 +42,7 @@ import {
   isToolDisabled,
 } from '@/core/tool-policy/disabledTools';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
 import { Separator } from '@/components/ui/Separator';
 
 export const ToolbarComment: React.FC = () => {
@@ -96,15 +96,6 @@ export const ToolbarComment: React.FC = () => {
     setWriterActiveTool('ocr-region');
   };
 
-  const handleWriterElementClick = () => {
-    if (writerActiveTool === 'place-text') {
-      setWriterActiveTool('select');
-      return;
-    }
-    setActiveTool('select');
-    setWriterActiveTool('place-text');
-  };
-
   const getToolVariant = (tool: string) =>
     activeTool === tool ? 'secondary' : 'ghost';
 
@@ -126,15 +117,7 @@ export const ToolbarComment: React.FC = () => {
           <Type className="w-4 h-4" />
         </Button>
       </Tooltip>
-      <Tooltip content="Writer Element">
-        <Button
-          variant={writerActiveTool === 'place-text' ? 'secondary' : 'ghost'}
-          size="icon"
-          onClick={handleWriterElementClick}
-        >
-          <SquarePen className="w-4 h-4" />
-        </Button>
-      </Tooltip>
+      <WriterV2ToolbarControls />
 
       <Tooltip content="Highlight">
         <Button variant={getToolVariant('highlight')} size="icon" onClick={() => handleToolClick('highlight')}>
