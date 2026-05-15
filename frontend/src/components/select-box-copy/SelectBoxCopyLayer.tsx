@@ -6,15 +6,21 @@ import {
   extractSelectBoxCopyFromPdf,
 } from '@/core/select-box-copy/selectBoxCopyEngine';
 import { renderSelectBoxImageSnapshot } from '@/core/select-box-copy/imageSnapshot';
-import { writeSelectBoxCopyToClipboard } from '@/core/select-box-copy/clipboardWriter';
+import {
+  writeSelectBoxCopyToClipboard,
+  type SelectBoxCopyMode,
+} from '@/core/select-box-copy/clipboardWriter';
 import { createWriterElementFromSelectBoxCopy } from '@/core/select-box-copy/insertIntoWriterV2';
 import {
   normalizeViewportRect,
 } from '@/core/select-box-copy/selectionGeometry';
+import { createSelectBoxImageAssetFromDataUrl } from '@/core/select-box-copy/selectBoxImageAsset';
+import type { SelectBoxInsertMode } from '@/core/select-box-copy/selectBoxCopyMode';
 import type {
   SelectBoxCopyResult,
   SelectBoxViewportRect,
 } from '@/core/select-box-copy/types';
+import { SelectBoxCopyResultPanel } from './SelectBoxCopyResultPanel';
 
 export interface SelectBoxCopyLayerProps {
   pageNumber: number;
@@ -30,6 +36,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const currentDocumentFingerprint = useWriterV2Store((state) => state.currentDocumentFingerprint);
   const allElements = useWriterV2Store((state) => state.elements);
   const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const addWriterAssets = useWriterV2Store((state) => state.addWriterAssets);
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const originalBytes = useSessionStore((state) => state.originalBytes);
@@ -124,9 +131,11 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       setResult(extracted);
       setDraftRect(normalized);
       completeSaveOperation(
-        extracted.table
-          ? `Select Box Copy captured ${extracted.items.length} text items; table confidence ${Math.round(extracted.table.confidence * 100)}%.`
-          : `Select Box Copy captured ${extracted.items.length} text items.`,
+        extracted.items.length === 0
+          ? 'Select Box Copy found no text. Copy Image or Insert as Image is available.'
+          : extracted.table
+            ? `Select Box Copy captured ${extracted.items.length} text items; table confidence ${Math.round(extracted.table.confidence * 100)}%.`
+            : `Select Box Copy captured ${extracted.items.length} text items.`,
       );
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
@@ -136,8 +145,27 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     }
   };
 
-  const copyImage = async () => {
-    if (!sourceBytes || !draftRect || !result) return;
+  const copySelection = async (
+    mode: SelectBoxCopyMode,
+    effectiveResult: SelectBoxCopyResult,
+  ) => {
+    try {
+      await writeSelectBoxCopyToClipboard(effectiveResult, mode);
+
+      completeSaveOperation(
+        mode === 'table'
+          ? 'Copied selected table.'
+          : mode === 'formatted'
+            ? 'Copied formatted selection.'
+            : 'Copied selected text.',
+      );
+    } catch (error) {
+      failSaveOperation(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const copyImage = async (effectiveResult: SelectBoxCopyResult) => {
+    if (!sourceBytes || !draftRect) return;
 
     try {
       const imageDataUrl = await renderSelectBoxImageSnapshot({
@@ -148,7 +176,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       });
 
       await writeSelectBoxCopyToClipboard({
-        ...result,
+        ...effectiveResult,
         imageDataUrl,
       }, 'image');
 
@@ -158,36 +186,72 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     }
   };
 
-  const insertIntoWriter = () => {
-    if (!result) return;
+  const insertIntoWriter = async (
+    mode: SelectBoxInsertMode,
+    effectiveResult: SelectBoxCopyResult,
+  ) => {
+    if (!sourceBytes || !draftRect) return;
 
-    const documentFingerprint =
-      currentDocumentFingerprint ??
-      documentKey ??
-      fileName ??
-      'select-box-copy-document';
+    try {
+      const documentFingerprint =
+        currentDocumentFingerprint ??
+        documentKey ??
+        fileName ??
+        'select-box-copy-document';
 
-    const maxZIndex = allElements.reduce(
-      (max, element) => Math.max(max, element.style.zIndex),
-      0,
-    );
+      const maxZIndex = allElements.reduce(
+        (max, element) => Math.max(max, element.style.zIndex),
+        0,
+      );
 
-    const element = createWriterElementFromSelectBoxCopy({
-      result,
-      documentFingerprint,
-      zIndex: maxZIndex + 1,
-    });
+      let imageAssetId: string | undefined;
 
-    dispatchWriterCommand({
-      type: 'ADD_WRITER_ELEMENT',
-      element,
-    });
+      if (mode === 'image') {
+        const imageDataUrl = await renderSelectBoxImageSnapshot({
+          pdfBytes: sourceBytes,
+          pageNumber,
+          viewport,
+          viewportRect: draftRect,
+        });
 
-    setActiveWriterTool('select');
+        const asset = createSelectBoxImageAssetFromDataUrl({
+          dataUrl: imageDataUrl,
+          documentFingerprint,
+        });
+
+        addWriterAssets([asset]);
+        imageAssetId = asset.id;
+      }
+
+      const element = createWriterElementFromSelectBoxCopy({
+        result: effectiveResult,
+        documentFingerprint,
+        zIndex: maxZIndex + 1,
+        mode,
+        imageAssetId,
+      });
+
+      dispatchWriterCommand({
+        type: 'ADD_WRITER_ELEMENT',
+        element,
+      });
+
+      setActiveWriterTool('select');
+      setDraftRect(null);
+      setResult(null);
+      completeSaveOperation('Select Box Copy inserted into Writer V2.');
+    } catch (error) {
+      failSaveOperation(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const closePanel = () => {
     setDraftRect(null);
     setResult(null);
-    completeSaveOperation('Select Box Copy inserted into Writer V2.');
+    setActiveWriterTool('select');
   };
+
+  const normalizedDraftRect = draftRect ? normalizeViewportRect(draftRect) : null;
 
   return (
     <div
@@ -209,80 +273,42 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
         zIndex: 30,
       }}
     >
-      {draftRect ? (
+      {normalizedDraftRect ? (
         <div
           data-select-box-copy-rect="true"
           style={{
             position: 'absolute',
-            left: normalizeViewportRect(draftRect).x,
-            top: normalizeViewportRect(draftRect).y,
-            width: normalizeViewportRect(draftRect).width,
-            height: normalizeViewportRect(draftRect).height,
+            left: normalizedDraftRect.x,
+            top: normalizedDraftRect.y,
+            width: normalizedDraftRect.width,
+            height: normalizedDraftRect.height,
             border: '1px solid #0f766e',
             background: 'rgba(20, 184, 166, 0.12)',
           }}
         />
       ) : null}
 
-      {result && draftRect ? (
+      {result && normalizedDraftRect ? (
         <div
-          data-select-box-copy-panel="true"
           style={{
             position: 'absolute',
-            left: normalizeViewportRect(draftRect).x,
-            top: Math.max(0, normalizeViewportRect(draftRect).y - 38),
-            display: 'flex',
-            gap: 4,
-            padding: 4,
-            borderRadius: 6,
-            background: '#ffffff',
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
+            left: normalizedDraftRect.x,
+            top: Math.max(0, normalizedDraftRect.y - 46),
             pointerEvents: 'auto',
           }}
         >
-          <PanelButton
-            label="Copy Text"
-            onClick={() => {
-              void writeSelectBoxCopyToClipboard(result, 'plain')
-                .then(() => completeSaveOperation('Copied selected text.'))
-                .catch((error) => failSaveOperation(String(error)));
+          <SelectBoxCopyResultPanel
+            result={result}
+            onCopy={(mode, effectiveResult) => {
+              void copySelection(mode, effectiveResult);
             }}
-          />
-          <PanelButton
-            label="Copy Formatted"
-            onClick={() => {
-              void writeSelectBoxCopyToClipboard(result, 'formatted')
-                .then(() => completeSaveOperation('Copied formatted selection.'))
-                .catch((error) => failSaveOperation(String(error)));
+            onCopyImage={(effectiveResult) => {
+              void copyImage(effectiveResult);
             }}
-          />
-          <PanelButton
-            label={result.table ? `Copy Table ${Math.round(result.table.confidence * 100)}%` : 'Copy Table'}
-            disabled={!result.table}
-            onClick={() => {
-              void writeSelectBoxCopyToClipboard(result, 'table')
-                .then(() => completeSaveOperation('Copied selected table.'))
-                .catch((error) => failSaveOperation(String(error)));
+            onInsertWriter={(mode, effectiveResult) => {
+              void insertIntoWriter(mode, effectiveResult);
             }}
-          />
-          <PanelButton
-            label="Copy Image"
-            onClick={() => {
-              void copyImage();
-            }}
-          />
-          <PanelButton
-            label="Insert Writer"
-            onClick={insertIntoWriter}
-          />
-          <PanelButton
-            label="Close"
-            onClick={() => {
-              setDraftRect(null);
-              setResult(null);
-              setActiveWriterTool('select');
-            }}
+            onClose={closePanel}
           />
         </div>
       ) : null}
@@ -306,36 +332,3 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     </div>
   );
 };
-
-function PanelButton({
-  label,
-  disabled = false,
-  onClick,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      style={{
-        height: 28,
-        padding: '0 8px',
-        fontSize: 12,
-        borderRadius: 5,
-        border: '1px solid #cbd5e1',
-        background: disabled ? '#f1f5f9' : '#ffffff',
-        color: disabled ? '#94a3b8' : '#0f172a',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-    >
-      {label}
-    </button>
-  );
-}

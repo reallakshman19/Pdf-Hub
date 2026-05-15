@@ -48,6 +48,10 @@ const commands = [
       'src/core/select-box-copy/tableReconstruction.test.ts',
       'src/core/select-box-copy/formatSelection.test.ts',
       'src/core/select-box-copy/insertIntoWriterV2.test.ts',
+      'src/core/select-box-copy/selectBoxCopyMode.test.ts',
+      'src/core/select-box-copy/tableDraft.test.ts',
+      'src/core/select-box-copy/selectBoxImageAsset.test.ts',
+      'src/components/select-box-copy/SelectBoxCopyResultPanel.test.tsx',
     ],
   },
   {
@@ -123,7 +127,7 @@ for (const item of commands) {
 
 const report = {
   name: 'Writer Overlay V2 Certification',
-  wave: 'Wave 13 — Select Box Copy V1',
+  wave: 'Wave 14 — Select Box Copy UX Hardening',
   gates: {
     coordinateEngine: 'PASS_REQUIRED',
     commandStore: 'PASS_REQUIRED',
@@ -161,6 +165,11 @@ const report = {
     selectBoxCopyFormattedHtml: 'PASS_REQUIRED',
     selectBoxCopyTableReconstruction: 'PASS_REQUIRED',
     selectBoxCopyWriterInsertion: 'PASS_REQUIRED',
+    selectBoxCopyUxInspector: 'PASS_REQUIRED',
+    selectBoxCopyConfidenceBadge: 'PASS_REQUIRED',
+    selectBoxCopyTablePreviewCorrection: 'PASS_REQUIRED',
+    selectBoxCopyForceModes: 'PASS_REQUIRED',
+    selectBoxCopyImageWriterInsertion: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),

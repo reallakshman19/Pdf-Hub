@@ -68,4 +68,17 @@ describe('insert Select Box Copy into Writer V2', () => {
     expect(element.tableData?.columns).toHaveLength(2);
     expect(element.plainText).toBe('A\tB');
   });
+
+  it('creates imageBox for forced image insertion', () => {
+    const element = createWriterElementFromSelectBoxCopy({
+      result: baseResult(),
+      documentFingerprint: 'doc-1',
+      mode: 'image',
+      imageAssetId: 'asset-1',
+    });
+
+    expect(element.type).toBe('imageBox');
+    expect(element.imageAssetId).toBe('asset-1');
+    expect(element.assetIds).toEqual(['asset-1']);
+  });
 });
