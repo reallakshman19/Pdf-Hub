@@ -1,0 +1,1948 @@
+PDF_HUB_ENH2 — PHASE C CODE PACK
+================================
+Phase C: Writer Rich Text + Table + Image Editor Code
+
+Purpose
+-------
+This phase builds on Phase B and adds the actual editor-level Writer functionality:
+
+1. Rich text HTML serialization and command helpers
+2. Rich text editor panel
+3. Table selection and command helpers
+4. Table editor panel
+5. Image import helper
+6. Image transform helpers
+7. Image editor panel
+8. Phase C tests
+
+Apply inside:
+  .../PDF_Hub_Enh2/frontend/
+
+Prerequisite:
+  Phase B files must already exist:
+    src/core/writer/types.ts
+    src/core/writer/content-model.ts
+    src/core/writer/content-serialization.ts
+    src/core/writer/clipboard/*
+
+================================================================================
+FOLDER CREATION
+================================================================================
+
+```bash
+mkdir -p src/components/writer
+mkdir -p src/core/writer
+```
+
+================================================================================
+FILE 1 — frontend/src/core/writer/richTextHtml.ts
+================================================================================
+
+```ts
+import type {
+  WriterRichTextBlock,
+  WriterRichTextModel,
+  WriterTextRun,
+} from './types';
+
+export function richTextModelToHtml(model: WriterRichTextModel): string {
+  return model.blocks.map(blockToHtml).join('');
+}
+
+export function richTextModelToPlainText(model: WriterRichTextModel): string {
+  return model.blocks
+    .map((block) => block.runs.map((run) => run.text).join(''))
+    .join('\n');
+}
+
+export function htmlToRichTextModel(html: string): WriterRichTextModel {
+  if (typeof document === 'undefined') {
+    return plainTextToRichTextModel(stripTags(html));
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = sanitizeWriterHtml(html);
+
+  const blockNodes = Array.from(
+    template.content.querySelectorAll('p,div,h1,h2,h3,li,blockquote'),
+  );
+
+  if (blockNodes.length === 0) {
+    return plainTextToRichTextModel(template.content.textContent ?? '');
+  }
+
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: blockNodes.map((node, index) => elementToBlock(node, index)),
+  };
+}
+
+export function plainTextToRichTextModel(text: string): WriterRichTextModel {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n');
+
+  return {
+    kind: 'rich-text',
+    version: 1,
+    blocks: lines.map((line, index) => ({
+      id: `block-${index + 1}`,
+      type: 'paragraph',
+      runs: [
+        {
+          id: `run-${index + 1}`,
+          text: line,
+        },
+      ],
+      align: 'left',
+    })),
+  };
+}
+
+export function sanitizeWriterHtml(html: string): string {
+  if (!html) return '';
+
+  if (typeof document === 'undefined') {
+    return stripDangerousHtmlFallback(html);
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  const blockedTags = new Set([
+    'script',
+    'iframe',
+    'object',
+    'embed',
+    'link',
+    'meta',
+    'base',
+    'form',
+    'input',
+    'button',
+    'textarea',
+    'select',
+    'style',
+  ]);
+
+  const safeStyleProps = new Set([
+    'font-weight',
+    'font-style',
+    'text-decoration',
+    'text-align',
+    'color',
+    'background-color',
+    'font-size',
+    'font-family',
+    'line-height',
+  ]);
+
+  for (const node of Array.from(template.content.querySelectorAll('*'))) {
+    const tag = node.tagName.toLowerCase();
+
+    if (blockedTags.has(tag)) {
+      node.remove();
+      continue;
+    }
+
+    for (const attr of Array.from(node.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim();
+
+      if (name.startsWith('on')) {
+        node.removeAttribute(attr.name);
+        continue;
+      }
+
+      if ((name === 'href' || name === 'src') && isUnsafeUrl(value)) {
+        node.removeAttribute(attr.name);
+        continue;
+      }
+
+      if (name === 'style') {
+        const safeStyle = value
+          .split(';')
+          .map((rule) => rule.trim())
+          .filter(Boolean)
+          .map((rule) => {
+            const [rawProp, ...rawValue] = rule.split(':');
+            const prop = rawProp?.trim().toLowerCase();
+            const styleValue = rawValue.join(':').trim();
+
+            if (!prop || !safeStyleProps.has(prop)) return '';
+            if (/url\s*\(/i.test(styleValue)) return '';
+            if (/expression\s*\(/i.test(styleValue)) return '';
+            if (/javascript:/i.test(styleValue)) return '';
+
+            return `${prop}: ${styleValue.replace(/[<>"'`]/g, '')}`;
+          })
+          .filter(Boolean)
+          .join('; ');
+
+        if (safeStyle) node.setAttribute('style', safeStyle);
+        else node.removeAttribute('style');
+      }
+    }
+  }
+
+  return template.innerHTML;
+}
+
+function blockToHtml(block: WriterRichTextBlock): string {
+  const body = block.runs.map(runToHtml).join('');
+  const style = block.align ? ` style="text-align: ${escapeAttr(block.align)}"` : '';
+
+  if (block.type === 'heading') {
+    const level = block.level ?? 2;
+    const tag = level === 1 ? 'h1' : level === 3 ? 'h3' : 'h2';
+    return `<${tag}${style}>${body}</${tag}>`;
+  }
+
+  if (block.type === 'bullet') return `<ul><li${style}>${body}</li></ul>`;
+  if (block.type === 'numbered') return `<ol><li${style}>${body}</li></ol>`;
+  if (block.type === 'quote') return `<blockquote${style}>${body}</blockquote>`;
+
+  return `<p${style}>${body}</p>`;
+}
+
+function runToHtml(run: WriterTextRun): string {
+  const styles: string[] = [];
+
+  if (run.color) styles.push(`color: ${escapeStyleValue(run.color)}`);
+  if (run.backgroundColor) styles.push(`background-color: ${escapeStyleValue(run.backgroundColor)}`);
+  if (run.fontSize) styles.push(`font-size: ${Number(run.fontSize)}px`);
+  if (run.fontFamily) styles.push(`font-family: ${escapeStyleValue(run.fontFamily)}`);
+
+  let html = escapeHtml(run.text);
+
+  if (run.bold) html = `<strong>${html}</strong>`;
+  if (run.italic) html = `<em>${html}</em>`;
+  if (run.underline) html = `<u>${html}</u>`;
+  if (run.strike) html = `<s>${html}</s>`;
+  if (run.superscript) html = `<sup>${html}</sup>`;
+  if (run.subscript) html = `<sub>${html}</sub>`;
+
+  if (styles.length > 0) {
+    html = `<span style="${styles.join('; ')}">${html}</span>`;
+  }
+
+  return html;
+}
+
+function elementToBlock(node: Element, index: number): WriterRichTextBlock {
+  const tag = node.tagName.toLowerCase();
+  const runs = collectRuns(node);
+
+  return {
+    id: `block-${index + 1}`,
+    type: tag === 'li'
+      ? 'bullet'
+      : tag === 'blockquote'
+        ? 'quote'
+        : tag === 'h1' || tag === 'h2' || tag === 'h3'
+          ? 'heading'
+          : 'paragraph',
+    level: tag === 'h1' ? 1 : tag === 'h2' ? 2 : tag === 'h3' ? 3 : undefined,
+    align: readAlign(node),
+    runs: runs.length > 0 ? runs : [{ id: `run-${index + 1}`, text: node.textContent ?? '' }],
+  };
+}
+
+function collectRuns(root: Element): WriterTextRun[] {
+  const runs: WriterTextRun[] = [];
+
+  function walk(node: Node, inherited: Partial<WriterTextRun>) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? '';
+      if (text) {
+        runs.push({
+          id: `run-${runs.length + 1}`,
+          text,
+          ...inherited,
+        });
+      }
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    const style = el.style;
+
+    const next: Partial<WriterTextRun> = {
+      ...inherited,
+      bold:
+        inherited.bold ||
+        tag === 'b' ||
+        tag === 'strong' ||
+        style.fontWeight === 'bold' ||
+        Number(style.fontWeight) >= 600,
+      italic: inherited.italic || tag === 'i' || tag === 'em' || style.fontStyle === 'italic',
+      underline: inherited.underline || tag === 'u' || style.textDecoration.includes('underline'),
+      strike: inherited.strike || tag === 's' || style.textDecoration.includes('line-through'),
+      color: style.color || inherited.color,
+      backgroundColor: style.backgroundColor || inherited.backgroundColor,
+      fontFamily: style.fontFamily || inherited.fontFamily,
+      fontSize: style.fontSize ? Number.parseFloat(style.fontSize) : inherited.fontSize,
+      superscript: inherited.superscript || tag === 'sup',
+      subscript: inherited.subscript || tag === 'sub',
+    };
+
+    for (const child of Array.from(el.childNodes)) {
+      walk(child, next);
+    }
+  }
+
+  walk(root, {});
+  return runs;
+}
+
+function readAlign(node: Element): WriterRichTextBlock['align'] {
+  const align = (node as HTMLElement).style.textAlign;
+
+  if (align === 'center' || align === 'right' || align === 'justify') return align;
+  return 'left';
+}
+
+function isUnsafeUrl(value: string): boolean {
+  return /^javascript:/i.test(value) || /^data:text\/html/i.test(value);
+}
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]+>/g, '').trim();
+}
+
+function stripDangerousHtmlFallback(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi, '');
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function escapeAttr(value: unknown): string {
+  return escapeHtml(value).replaceAll('`', '');
+}
+
+function escapeStyleValue(value: unknown): string {
+  return String(value ?? '').replace(/[<>"'`]/g, '');
+}
+```
+
+================================================================================
+FILE 2 — frontend/src/core/writer/richTextCommands.ts
+================================================================================
+
+```ts
+import type {
+  WriterRichTextBlock,
+  WriterRichTextBlockType,
+  WriterRichTextModel,
+  WriterTextRun,
+} from './types';
+import {
+  createTextRun,
+} from './content-model';
+
+export interface RichTextSelectionRef {
+  blockIndex: number;
+  runIndex?: number;
+}
+
+export function updateRichTextPlainText(
+  model: WriterRichTextModel,
+  text: string,
+): WriterRichTextModel {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n');
+
+  return {
+    ...model,
+    blocks: lines.map((line, index) => {
+      const existing = model.blocks[index];
+
+      return {
+        id: existing?.id ?? `block-${index + 1}`,
+        type: existing?.type ?? 'paragraph',
+        align: existing?.align ?? 'left',
+        level: existing?.level,
+        runs: [
+          {
+            ...(existing?.runs[0] ?? createTextRun('')),
+            text: line,
+          },
+        ],
+      };
+    }),
+  };
+}
+
+export function setBlockType(
+  model: WriterRichTextModel,
+  blockIndex: number,
+  type: WriterRichTextBlockType,
+): WriterRichTextModel {
+  return updateBlock(model, blockIndex, (block) => ({
+    ...block,
+    type,
+    level: type === 'heading' ? block.level ?? 2 : undefined,
+  }));
+}
+
+export function setBlockAlign(
+  model: WriterRichTextModel,
+  blockIndex: number,
+  align: WriterRichTextBlock['align'],
+): WriterRichTextModel {
+  return updateBlock(model, blockIndex, (block) => ({
+    ...block,
+    align,
+  }));
+}
+
+export function setHeadingLevel(
+  model: WriterRichTextModel,
+  blockIndex: number,
+  level: 1 | 2 | 3,
+): WriterRichTextModel {
+  return updateBlock(model, blockIndex, (block) => ({
+    ...block,
+    type: 'heading',
+    level,
+  }));
+}
+
+export function toggleRunMark(
+  model: WriterRichTextModel,
+  ref: RichTextSelectionRef,
+  mark: 'bold' | 'italic' | 'underline' | 'strike',
+): WriterRichTextModel {
+  return updateRun(model, ref, (run) => ({
+    ...run,
+    [mark]: !run[mark],
+  }));
+}
+
+export function setRunColor(
+  model: WriterRichTextModel,
+  ref: RichTextSelectionRef,
+  color: string,
+): WriterRichTextModel {
+  return updateRun(model, ref, (run) => ({
+    ...run,
+    color,
+  }));
+}
+
+export function setRunFontSize(
+  model: WriterRichTextModel,
+  ref: RichTextSelectionRef,
+  fontSize: number,
+): WriterRichTextModel {
+  return updateRun(model, ref, (run) => ({
+    ...run,
+    fontSize: Math.max(1, fontSize),
+  }));
+}
+
+export function setRunFontFamily(
+  model: WriterRichTextModel,
+  ref: RichTextSelectionRef,
+  fontFamily: string,
+): WriterRichTextModel {
+  return updateRun(model, ref, (run) => ({
+    ...run,
+    fontFamily,
+  }));
+}
+
+export function insertBlockAfter(
+  model: WriterRichTextModel,
+  blockIndex: number,
+  text = '',
+): WriterRichTextModel {
+  const blocks = [...model.blocks];
+
+  blocks.splice(blockIndex + 1, 0, {
+    id: `block-${Date.now().toString(36)}`,
+    type: 'paragraph',
+    align: 'left',
+    runs: [createTextRun(text)],
+  });
+
+  return {
+    ...model,
+    blocks,
+  };
+}
+
+export function removeBlock(
+  model: WriterRichTextModel,
+  blockIndex: number,
+): WriterRichTextModel {
+  const blocks = model.blocks.filter((_, index) => index !== blockIndex);
+
+  return {
+    ...model,
+    blocks: blocks.length > 0
+      ? blocks
+      : [
+          {
+            id: `block-${Date.now().toString(36)}`,
+            type: 'paragraph',
+            align: 'left',
+            runs: [createTextRun('')],
+          },
+        ],
+  };
+}
+
+export function mergeAdjacentRuns(model: WriterRichTextModel): WriterRichTextModel {
+  return {
+    ...model,
+    blocks: model.blocks.map((block) => ({
+      ...block,
+      runs: mergeRuns(block.runs),
+    })),
+  };
+}
+
+function updateBlock(
+  model: WriterRichTextModel,
+  blockIndex: number,
+  updater: (block: WriterRichTextBlock) => WriterRichTextBlock,
+): WriterRichTextModel {
+  return {
+    ...model,
+    blocks: model.blocks.map((block, index) =>
+      index === blockIndex ? updater(block) : block,
+    ),
+  };
+}
+
+function updateRun(
+  model: WriterRichTextModel,
+  ref: RichTextSelectionRef,
+  updater: (run: WriterTextRun) => WriterTextRun,
+): WriterRichTextModel {
+  return updateBlock(model, ref.blockIndex, (block) => ({
+    ...block,
+    runs: block.runs.map((run, index) =>
+      index === (ref.runIndex ?? 0) ? updater(run) : run,
+    ),
+  }));
+}
+
+function mergeRuns(runs: WriterTextRun[]): WriterTextRun[] {
+  const merged: WriterTextRun[] = [];
+
+  for (const run of runs) {
+    const previous = merged[merged.length - 1];
+
+    if (previous && sameRunStyle(previous, run)) {
+      previous.text += run.text;
+    } else {
+      merged.push({ ...run });
+    }
+  }
+
+  return merged;
+}
+
+function sameRunStyle(a: WriterTextRun, b: WriterTextRun): boolean {
+  return (
+    a.bold === b.bold &&
+    a.italic === b.italic &&
+    a.underline === b.underline &&
+    a.strike === b.strike &&
+    a.color === b.color &&
+    a.backgroundColor === b.backgroundColor &&
+    a.fontSize === b.fontSize &&
+    a.fontFamily === b.fontFamily &&
+    a.superscript === b.superscript &&
+    a.subscript === b.subscript
+  );
+}
+```
+
+================================================================================
+FILE 3 — frontend/src/components/writer/RichTextEditorPanel.tsx
+================================================================================
+
+```tsx
+import React, { useMemo, useState } from 'react';
+import type {
+  PlacedElement,
+  WriterRichTextModel,
+} from '@/core/writer/types';
+import {
+  createEmptyRichTextModel,
+} from '@/core/writer/content-model';
+import {
+  richTextModelToHtml,
+  richTextModelToPlainText,
+} from '@/core/writer/richTextHtml';
+import {
+  setBlockAlign,
+  setBlockType,
+  setRunColor,
+  setRunFontFamily,
+  setRunFontSize,
+  toggleRunMark,
+  updateRichTextPlainText,
+} from '@/core/writer/richTextCommands';
+import {
+  syncElementContentFromModel,
+} from '@/core/writer/content-serialization';
+
+export interface RichTextEditorPanelProps {
+  element: PlacedElement;
+  onChange: (element: PlacedElement) => void;
+  onClose?: () => void;
+}
+
+export const RichTextEditorPanel: React.FC<RichTextEditorPanelProps> = ({
+  element,
+  onChange,
+  onClose,
+}) => {
+  const initialModel = useMemo(() => {
+    if (element.contentModel?.kind === 'rich-text') return element.contentModel;
+    return createEmptyRichTextModel(element.content ?? '');
+  }, [element]);
+
+  const [model, setModel] = useState<WriterRichTextModel>(initialModel);
+  const [selectedBlock, setSelectedBlock] = useState(0);
+  const [previewMode, setPreviewMode] = useState(false);
+
+  const selectedRunRef = {
+    blockIndex: Math.max(0, Math.min(selectedBlock, model.blocks.length - 1)),
+    runIndex: 0,
+  };
+
+  const commit = (nextModel: WriterRichTextModel) => {
+    setModel(nextModel);
+    onChange(
+      syncElementContentFromModel({
+        ...element,
+        type: 'rich-text',
+        contentModel: nextModel,
+      }),
+    );
+  };
+
+  const plainText = richTextModelToPlainText(model);
+
+  return (
+    <div
+      className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+      data-writer-allow-native-paste="true"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <div>
+          <div className="text-sm font-semibold">Rich Text Editor</div>
+          <div className="text-xs text-slate-500">
+            {model.blocks.length} block(s)
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+            onClick={() => setPreviewMode((value) => !value)}
+          >
+            {previewMode ? 'Edit' : 'Preview'}
+          </button>
+
+          {onClose && (
+            <button
+              type="button"
+              className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'bold'))}>
+          Bold
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'italic'))}>
+          Italic
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'underline'))}>
+          Underline
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(toggleRunMark(model, selectedRunRef, 'strike'))}>
+          Strike
+        </ToolbarButton>
+
+        <select
+          value={model.blocks[selectedRunRef.blockIndex]?.type ?? 'paragraph'}
+          onChange={(event) =>
+            commit(setBlockType(model, selectedRunRef.blockIndex, event.target.value as never))
+          }
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="paragraph">Paragraph</option>
+          <option value="heading">Heading</option>
+          <option value="bullet">Bullet</option>
+          <option value="numbered">Numbered</option>
+          <option value="quote">Quote</option>
+        </select>
+
+        <select
+          value={model.blocks[selectedRunRef.blockIndex]?.align ?? 'left'}
+          onChange={(event) =>
+            commit(setBlockAlign(model, selectedRunRef.blockIndex, event.target.value as never))
+          }
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+          <option value="justify">Justify</option>
+        </select>
+
+        <input
+          type="number"
+          min={6}
+          max={96}
+          defaultValue={12}
+          onChange={(event) =>
+            commit(setRunFontSize(model, selectedRunRef, Number(event.target.value) || 12))
+          }
+          className="h-8 w-20 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+          title="Font size"
+        />
+
+        <input
+          type="color"
+          defaultValue="#111827"
+          onChange={(event) => commit(setRunColor(model, selectedRunRef, event.target.value))}
+          className="h-8 w-12 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-1"
+          title="Text color"
+        />
+
+        <select
+          defaultValue="Arial"
+          onChange={(event) => commit(setRunFontFamily(model, selectedRunRef, event.target.value))}
+          className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+        >
+          <option value="Arial">Arial</option>
+          <option value="Calibri">Calibri</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Courier New">Courier New</option>
+        </select>
+      </div>
+
+      <div className="grid grid-cols-[160px_1fr] min-h-[320px]">
+        <div className="border-r border-slate-200 dark:border-slate-800 p-2 overflow-auto">
+          {model.blocks.map((block, index) => (
+            <button
+              key={block.id}
+              type="button"
+              className={[
+                'w-full text-left rounded px-2 py-1 text-xs mb-1',
+                selectedBlock === index
+                  ? 'bg-blue-100 dark:bg-blue-950'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-900',
+              ].join(' ')}
+              onClick={() => setSelectedBlock(index)}
+            >
+              {index + 1}. {block.type}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-3">
+          {previewMode ? (
+            <div
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ __html: richTextModelToHtml(model) }}
+            />
+          ) : (
+            <textarea
+              value={plainText}
+              onChange={(event) => commit(updateRichTextPlainText(model, event.target.value))}
+              className="h-80 w-full resize-none rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm"
+              data-writer-allow-native-paste="true"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function ToolbarButton(props: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}
+```
+
+================================================================================
+FILE 4 — frontend/src/core/writer/tableSelection.ts
+================================================================================
+
+```ts
+export interface WriterTableSelection {
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+
+export interface WriterTableCellRef {
+  row: number;
+  col: number;
+}
+
+export function normalizeTableSelection(selection: WriterTableSelection): WriterTableSelection {
+  return {
+    startRow: Math.min(selection.startRow, selection.endRow),
+    endRow: Math.max(selection.startRow, selection.endRow),
+    startCol: Math.min(selection.startCol, selection.endCol),
+    endCol: Math.max(selection.startCol, selection.endCol),
+  };
+}
+
+export function isCellInSelection(
+  cell: WriterTableCellRef,
+  selection: WriterTableSelection | null,
+): boolean {
+  if (!selection) return false;
+
+  const normalized = normalizeTableSelection(selection);
+
+  return (
+    cell.row >= normalized.startRow &&
+    cell.row <= normalized.endRow &&
+    cell.col >= normalized.startCol &&
+    cell.col <= normalized.endCol
+  );
+}
+
+export function createSingleCellSelection(row: number, col: number): WriterTableSelection {
+  return {
+    startRow: row,
+    endRow: row,
+    startCol: col,
+    endCol: col,
+  };
+}
+
+export function expandSelectionToCell(
+  selection: WriterTableSelection,
+  row: number,
+  col: number,
+): WriterTableSelection {
+  return {
+    ...selection,
+    endRow: row,
+    endCol: col,
+  };
+}
+
+export function selectionToRefs(selection: WriterTableSelection): WriterTableCellRef[] {
+  const normalized = normalizeTableSelection(selection);
+  const refs: WriterTableCellRef[] = [];
+
+  for (let row = normalized.startRow; row <= normalized.endRow; row += 1) {
+    for (let col = normalized.startCol; col <= normalized.endCol; col += 1) {
+      refs.push({ row, col });
+    }
+  }
+
+  return refs;
+}
+```
+
+================================================================================
+FILE 5 — frontend/src/core/writer/tableCommands.ts
+================================================================================
+
+```ts
+import type {
+  WriterTableCell,
+  WriterTableColumn,
+  WriterTableModel,
+  WriterTableRow,
+} from './types';
+
+let idCounter = 0;
+
+function id(prefix: string): string {
+  idCounter += 1;
+  return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
+}
+
+export function updateTableCellText(
+  table: WriterTableModel,
+  rowIndex: number,
+  colIndex: number,
+  text: string,
+): WriterTableModel {
+  return {
+    ...table,
+    rows: table.rows.map((row, r) => ({
+      ...row,
+      cells: row.cells.map((cell, c) =>
+        r === rowIndex && c === colIndex
+          ? { ...cell, text }
+          : cell,
+      ),
+    })),
+  };
+}
+
+export function insertTableRow(
+  table: WriterTableModel,
+  atIndex: number,
+): WriterTableModel {
+  const safeIndex = Math.max(0, Math.min(atIndex, table.rows.length));
+  const row = createEmptyRow(table.columns.length);
+
+  return {
+    ...table,
+    rows: [
+      ...table.rows.slice(0, safeIndex),
+      row,
+      ...table.rows.slice(safeIndex),
+    ],
+  };
+}
+
+export function deleteTableRow(
+  table: WriterTableModel,
+  rowIndex: number,
+): WriterTableModel {
+  if (table.rows.length <= 1) return table;
+
+  return {
+    ...table,
+    rows: table.rows.filter((_, index) => index !== rowIndex),
+  };
+}
+
+export function insertTableColumn(
+  table: WriterTableModel,
+  atIndex: number,
+): WriterTableModel {
+  const safeIndex = Math.max(0, Math.min(atIndex, table.columns.length));
+  const column: WriterTableColumn = {
+    id: id('col'),
+    label: nextColumnLabel(table.columns.length),
+  };
+
+  return {
+    ...table,
+    columns: [
+      ...table.columns.slice(0, safeIndex),
+      column,
+      ...table.columns.slice(safeIndex),
+    ],
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: [
+        ...row.cells.slice(0, safeIndex),
+        createEmptyCell(),
+        ...row.cells.slice(safeIndex),
+      ],
+    })),
+  };
+}
+
+export function deleteTableColumn(
+  table: WriterTableModel,
+  colIndex: number,
+): WriterTableModel {
+  if (table.columns.length <= 1) return table;
+
+  return {
+    ...table,
+    columns: table.columns.filter((_, index) => index !== colIndex),
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.filter((_, index) => index !== colIndex),
+    })),
+  };
+}
+
+export function pasteMatrixIntoTable(
+  table: WriterTableModel,
+  startRow: number,
+  startCol: number,
+  matrix: string[][],
+): WriterTableModel {
+  let next = table;
+
+  const requiredRows = startRow + matrix.length;
+  while (next.rows.length < requiredRows) {
+    next = insertTableRow(next, next.rows.length);
+  }
+
+  const requiredCols = startCol + Math.max(0, ...matrix.map((row) => row.length));
+  while (next.columns.length < requiredCols) {
+    next = insertTableColumn(next, next.columns.length);
+  }
+
+  const rows = next.rows.map((row) => ({
+    ...row,
+    cells: row.cells.map((cell) => ({ ...cell })),
+  }));
+
+  matrix.forEach((matrixRow, r) => {
+    matrixRow.forEach((value, c) => {
+      rows[startRow + r].cells[startCol + c].text = value;
+    });
+  });
+
+  return {
+    ...next,
+    rows,
+  };
+}
+
+export function tableToMatrix(table: WriterTableModel): string[][] {
+  return table.rows.map((row) => row.cells.map((cell) => cell.text));
+}
+
+export function matrixToTsv(matrix: string[][]): string {
+  return matrix.map((row) => row.join('\t')).join('\n');
+}
+
+function createEmptyRow(columnCount: number): WriterTableRow {
+  return {
+    id: id('row'),
+    cells: Array.from({ length: columnCount }, () => createEmptyCell()),
+  };
+}
+
+function createEmptyCell(): WriterTableCell {
+  return {
+    id: id('cell'),
+    text: '',
+  };
+}
+
+function nextColumnLabel(index: number): string {
+  let n = index + 1;
+  let out = '';
+
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return out;
+}
+```
+
+================================================================================
+FILE 6 — frontend/src/components/writer/TableEditorPanel.tsx
+================================================================================
+
+```tsx
+import React, { useMemo, useState } from 'react';
+import type {
+  PlacedElement,
+  WriterTableModel,
+} from '@/core/writer/types';
+import {
+  createDefaultTableModel,
+} from '@/core/writer/content-model';
+import {
+  syncElementContentFromModel,
+} from '@/core/writer/content-serialization';
+import {
+  deleteTableColumn,
+  deleteTableRow,
+  insertTableColumn,
+  insertTableRow,
+  pasteMatrixIntoTable,
+  updateTableCellText,
+} from '@/core/writer/tableCommands';
+import {
+  createSingleCellSelection,
+  isCellInSelection,
+  type WriterTableSelection,
+} from '@/core/writer/tableSelection';
+
+export interface TableEditorPanelProps {
+  element: PlacedElement;
+  onChange: (element: PlacedElement) => void;
+  onClose?: () => void;
+}
+
+export const TableEditorPanel: React.FC<TableEditorPanelProps> = ({
+  element,
+  onChange,
+  onClose,
+}) => {
+  const initialTable = useMemo(() => {
+    if (element.contentModel?.kind === 'table') return element.contentModel;
+    return createDefaultTableModel(3, 3);
+  }, [element]);
+
+  const [table, setTable] = useState<WriterTableModel>(initialTable);
+  const [selection, setSelection] = useState<WriterTableSelection | null>(
+    createSingleCellSelection(0, 0),
+  );
+
+  const selectedRow = selection?.startRow ?? 0;
+  const selectedCol = selection?.startCol ?? 0;
+
+  const commit = (nextTable: WriterTableModel) => {
+    setTable(nextTable);
+    onChange(
+      syncElementContentFromModel({
+        ...element,
+        type: 'table',
+        contentModel: nextTable,
+      }),
+    );
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = event.clipboardData.getData('text/plain');
+
+    if (!text || !text.includes('\t')) return;
+
+    event.preventDefault();
+
+    const matrix = text
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => line.split('\t'));
+
+    commit(pasteMatrixIntoTable(table, selectedRow, selectedCol, matrix));
+  };
+
+  return (
+    <div
+      className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+      data-writer-allow-native-paste="true"
+      onPaste={handlePaste}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <div>
+          <div className="text-sm font-semibold">Table Editor</div>
+          <div className="text-xs text-slate-500">
+            {table.rows.length} row(s), {table.columns.length} column(s)
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          {onClose && (
+            <button
+              type="button"
+              className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <ToolbarButton onClick={() => commit(insertTableRow(table, selectedRow + 1))}>
+          Insert Row
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(deleteTableRow(table, selectedRow))}>
+          Delete Row
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(insertTableColumn(table, selectedCol + 1))}>
+          Insert Column
+        </ToolbarButton>
+        <ToolbarButton onClick={() => commit(deleteTableColumn(table, selectedCol))}>
+          Delete Column
+        </ToolbarButton>
+      </div>
+
+      <div className="overflow-auto p-3">
+        <table className="border-collapse text-sm min-w-full">
+          <thead>
+            <tr>
+              <th className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1 w-10">
+                #
+              </th>
+              {table.columns.map((column, colIndex) => (
+                <th
+                  key={column.id}
+                  className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1"
+                >
+                  {column.label || colIndex + 1}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {table.rows.map((row, rowIndex) => (
+              <tr key={row.id}>
+                <th className="border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-1">
+                  {rowIndex + 1}
+                </th>
+
+                {row.cells.map((cell, colIndex) => {
+                  const selected = isCellInSelection({ row: rowIndex, col: colIndex }, selection);
+
+                  return (
+                    <td
+                      key={cell.id}
+                      className={[
+                        'border border-slate-300 dark:border-slate-700 p-0',
+                        selected ? 'bg-blue-50 dark:bg-blue-950/40' : '',
+                      ].join(' ')}
+                    >
+                      <input
+                        value={cell.text}
+                        onFocus={() => setSelection(createSingleCellSelection(rowIndex, colIndex))}
+                        onChange={(event) =>
+                          commit(updateTableCellText(table, rowIndex, colIndex, event.target.value))
+                        }
+                        className="w-full min-w-[120px] bg-transparent px-2 py-1 outline-none"
+                        data-writer-allow-native-paste="true"
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+function ToolbarButton(props: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}
+```
+
+================================================================================
+FILE 7 — frontend/src/core/writer/imageImport.ts
+================================================================================
+
+```ts
+import type {
+  WriterImageModel,
+} from './types';
+import {
+  createImageModel,
+} from './content-model';
+
+export async function fileToWriterImageModel(file: File): Promise<WriterImageModel> {
+  if (!isSupportedWriterImageMime(file.type)) {
+    throw new Error(`Unsupported image type: ${file.type || 'unknown'}`);
+  }
+
+  const src = await blobToDataUrl(file);
+  const size = await readImageSize(src);
+
+  return createImageModel({
+    src,
+    mimeType: file.type,
+    naturalWidth: size.width,
+    naturalHeight: size.height,
+    alt: file.name,
+  });
+}
+
+export function isSupportedWriterImageMime(mimeType: string): boolean {
+  return /^image\/(png|jpeg|jpg|webp)$/i.test(mimeType);
+}
+
+export function extractImageFilesFromDataTransfer(dataTransfer: DataTransfer): File[] {
+  return Array.from(dataTransfer.files).filter((file) =>
+    isSupportedWriterImageMime(file.type),
+  );
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function readImageSize(src: string): Promise<{ width: number; height: number }> {
+  if (typeof Image === 'undefined') {
+    return Promise.resolve({ width: 0, height: 0 });
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = src;
+  });
+}
+```
+
+================================================================================
+FILE 8 — frontend/src/core/writer/imageTransforms.ts
+================================================================================
+
+```ts
+import type {
+  WriterImageCrop,
+  WriterImageModel,
+} from './types';
+
+export function setImageRotation(
+  image: WriterImageModel,
+  rotation: number,
+): WriterImageModel {
+  return {
+    ...image,
+    rotation: normalizeRotation(rotation),
+  };
+}
+
+export function rotateImageBy(
+  image: WriterImageModel,
+  delta: number,
+): WriterImageModel {
+  return setImageRotation(image, (image.rotation ?? 0) + delta);
+}
+
+export function setImageOpacity(
+  image: WriterImageModel,
+  opacity: number,
+): WriterImageModel {
+  return {
+    ...image,
+    opacity: Math.max(0, Math.min(1, opacity)),
+  };
+}
+
+export function setImageBorder(
+  image: WriterImageModel,
+  input: {
+    borderColor?: string;
+    borderWidth?: number;
+  },
+): WriterImageModel {
+  return {
+    ...image,
+    borderColor: input.borderColor ?? image.borderColor,
+    borderWidth:
+      typeof input.borderWidth === 'number'
+        ? Math.max(0, input.borderWidth)
+        : image.borderWidth,
+  };
+}
+
+export function setImageAlt(
+  image: WriterImageModel,
+  alt: string,
+): WriterImageModel {
+  return {
+    ...image,
+    alt,
+  };
+}
+
+export function setImageCrop(
+  image: WriterImageModel,
+  crop: WriterImageCrop | undefined,
+): WriterImageModel {
+  if (!crop) {
+    return {
+      ...image,
+      crop: undefined,
+    };
+  }
+
+  return {
+    ...image,
+    crop: normalizeCrop(crop),
+  };
+}
+
+export function normalizeCrop(crop: WriterImageCrop): WriterImageCrop {
+  const x = clamp01(crop.x);
+  const y = clamp01(crop.y);
+  const width = clamp01(crop.width);
+  const height = clamp01(crop.height);
+
+  return {
+    x,
+    y,
+    width: Math.min(width, 1 - x),
+    height: Math.min(height, 1 - y),
+  };
+}
+
+export function normalizeRotation(rotation: number): number {
+  if (!Number.isFinite(rotation)) return 0;
+
+  return ((rotation % 360) + 360) % 360;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+```
+
+================================================================================
+FILE 9 — frontend/src/components/writer/ImageEditorPanel.tsx
+================================================================================
+
+```tsx
+import React, { useMemo, useState } from 'react';
+import type {
+  PlacedElement,
+  WriterImageModel,
+} from '@/core/writer/types';
+import {
+  createImageModel,
+} from '@/core/writer/content-model';
+import {
+  syncElementContentFromModel,
+} from '@/core/writer/content-serialization';
+import {
+  fileToWriterImageModel,
+} from '@/core/writer/imageImport';
+import {
+  rotateImageBy,
+  setImageAlt,
+  setImageBorder,
+  setImageCrop,
+  setImageOpacity,
+  setImageRotation,
+} from '@/core/writer/imageTransforms';
+
+export interface ImageEditorPanelProps {
+  element: PlacedElement;
+  onChange: (element: PlacedElement) => void;
+  onClose?: () => void;
+}
+
+export const ImageEditorPanel: React.FC<ImageEditorPanelProps> = ({
+  element,
+  onChange,
+  onClose,
+}) => {
+  const initialImage = useMemo(() => {
+    if (element.contentModel?.kind === 'image') return element.contentModel;
+
+    return createImageModel({
+      src: element.content,
+      mimeType: inferMimeType(element.content) ?? 'image/png',
+      alt: element.name,
+    });
+  }, [element]);
+
+  const [image, setImage] = useState<WriterImageModel>(initialImage);
+  const [status, setStatus] = useState('');
+
+  const commit = (nextImage: WriterImageModel) => {
+    setImage(nextImage);
+    onChange(
+      syncElementContentFromModel({
+        ...element,
+        type: 'image',
+        contentModel: nextImage,
+        style: {
+          ...element.style,
+          opacity: nextImage.opacity,
+          borderColor: nextImage.borderColor,
+          borderWidth: nextImage.borderWidth,
+        },
+      }),
+    );
+  };
+
+  const replaceImage = async (file: File) => {
+    try {
+      const nextImage = await fileToWriterImageModel(file);
+      commit(nextImage);
+      setStatus(`Loaded image: ${file.name}`);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <div
+      className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+      data-writer-allow-native-paste="true"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 p-3">
+        <div>
+          <div className="text-sm font-semibold">Image Editor</div>
+          <div className="text-xs text-slate-500">
+            {image.mimeType} · {image.naturalWidth ?? 0} × {image.naturalHeight ?? 0}
+          </div>
+        </div>
+
+        {onClose && (
+          <button
+            type="button"
+            className="h-8 px-3 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-[280px_1fr] gap-4 p-3">
+        <div className="space-y-4">
+          <label className="block">
+            <div className="text-xs font-medium mb-1">Replace Image</div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void replaceImage(file);
+              }}
+              className="text-xs"
+            />
+          </label>
+
+          <Field label="Alt Text">
+            <input
+              value={image.alt ?? ''}
+              onChange={(event) => commit(setImageAlt(image, event.target.value))}
+              className="h-8 w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+            />
+          </Field>
+
+          <Field label="Rotation">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="h-8 px-2 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+                onClick={() => commit(rotateImageBy(image, -90))}
+              >
+                -90°
+              </button>
+              <input
+                type="number"
+                value={image.rotation ?? 0}
+                onChange={(event) =>
+                  commit(setImageRotation(image, Number(event.target.value) || 0))
+                }
+                className="h-8 w-20 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+              />
+              <button
+                type="button"
+                className="h-8 px-2 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+                onClick={() => commit(rotateImageBy(image, 90))}
+              >
+                +90°
+              </button>
+            </div>
+          </Field>
+
+          <Field label={`Opacity (${Math.round((image.opacity ?? 1) * 100)}%)`}>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={image.opacity ?? 1}
+              onChange={(event) => commit(setImageOpacity(image, Number(event.target.value)))}
+              className="w-full"
+            />
+          </Field>
+
+          <Field label="Border">
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={0}
+                value={image.borderWidth ?? 0}
+                onChange={(event) =>
+                  commit(setImageBorder(image, { borderWidth: Number(event.target.value) || 0 }))
+                }
+                className="h-8 w-20 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 text-xs"
+              />
+              <input
+                type="color"
+                value={image.borderColor && image.borderColor.startsWith('#') ? image.borderColor : '#111827'}
+                onChange={(event) =>
+                  commit(setImageBorder(image, { borderColor: event.target.value }))
+                }
+                className="h-8 w-12 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-1"
+              />
+            </div>
+          </Field>
+
+          <Field label="Crop normalized x/y/w/h">
+            <div className="grid grid-cols-4 gap-1">
+              {(['x', 'y', 'width', 'height'] as const).map((key) => (
+                <input
+                  key={key}
+                  type="number"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={image.crop?.[key] ?? (key === 'width' || key === 'height' ? 1 : 0)}
+                  onChange={(event) => {
+                    const current = image.crop ?? { x: 0, y: 0, width: 1, height: 1 };
+                    commit(
+                      setImageCrop(image, {
+                        ...current,
+                        [key]: Number(event.target.value),
+                      }),
+                    );
+                  }}
+                  className="h-8 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-1 text-xs"
+                  title={key}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="mt-2 h-8 px-2 rounded bg-slate-100 dark:bg-slate-800 text-xs"
+              onClick={() => commit(setImageCrop(image, undefined))}
+            >
+              Reset Crop
+            </button>
+          </Field>
+
+          {status && <div className="text-xs text-slate-500">{status}</div>}
+        </div>
+
+        <div className="flex items-center justify-center rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 min-h-[320px] overflow-hidden">
+          {image.src ? (
+            <img
+              src={image.src}
+              alt={image.alt ?? ''}
+              style={{
+                maxWidth: '90%',
+                maxHeight: '90%',
+                opacity: image.opacity ?? 1,
+                transform: `rotate(${image.rotation ?? 0}deg)`,
+                border: `${image.borderWidth ?? 0}px solid ${image.borderColor ?? 'transparent'}`,
+                objectFit: 'contain',
+              }}
+            />
+          ) : (
+            <div className="text-sm text-slate-500">No image loaded.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function Field(props: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <div className="text-xs font-medium mb-1">{props.label}</div>
+      {props.children}
+    </label>
+  );
+}
+
+function inferMimeType(src: string | undefined): string | undefined {
+  if (!src) return undefined;
+  const match = /^data:([^;,]+)[;,]/i.exec(src);
+  return match?.[1];
+}
+```
+
+================================================================================
+TEST FILE 1 — frontend/src/core/writer/richText.phaseC.test.ts
+================================================================================
+
+```ts
+import { describe, expect, it } from 'vitest';
+import {
+  htmlToRichTextModel,
+  richTextModelToHtml,
+  sanitizeWriterHtml,
+} from './richTextHtml';
+import {
+  setBlockAlign,
+  toggleRunMark,
+} from './richTextCommands';
+import {
+  createEmptyRichTextModel,
+} from './content-model';
+
+describe('writer rich text phase C', () => {
+  it('serializes rich text to html', () => {
+    const model = createEmptyRichTextModel('Hello');
+    const html = richTextModelToHtml(model);
+
+    expect(html).toContain('Hello');
+    expect(html).toContain('<p');
+  });
+
+  it('sanitizes unsafe html', () => {
+    const html = sanitizeWriterHtml('<p onclick="alert(1)">Hello</p><script>alert(1)</script>');
+
+    expect(html).toContain('Hello');
+    expect(html).not.toContain('onclick');
+    expect(html).not.toContain('<script');
+  });
+
+  it('parses html to rich text model', () => {
+    const model = htmlToRichTextModel('<p><strong>Hello</strong></p>');
+
+    expect(model.kind).toBe('rich-text');
+    expect(model.blocks[0].runs.map((run) => run.text).join('')).toContain('Hello');
+  });
+
+  it('toggles run mark', () => {
+    const model = createEmptyRichTextModel('Hello');
+    const next = toggleRunMark(model, { blockIndex: 0, runIndex: 0 }, 'bold');
+
+    expect(next.blocks[0].runs[0].bold).toBe(true);
+  });
+
+  it('sets block alignment', () => {
+    const model = createEmptyRichTextModel('Hello');
+    const next = setBlockAlign(model, 0, 'center');
+
+    expect(next.blocks[0].align).toBe('center');
+  });
+});
+```
+
+================================================================================
+TEST FILE 2 — frontend/src/core/writer/table.phaseC.test.ts
+================================================================================
+
+```ts
+import { describe, expect, it } from 'vitest';
+import {
+  createDefaultTableModel,
+} from './content-model';
+import {
+  deleteTableColumn,
+  deleteTableRow,
+  insertTableColumn,
+  insertTableRow,
+  pasteMatrixIntoTable,
+  updateTableCellText,
+} from './tableCommands';
+import {
+  createSingleCellSelection,
+  isCellInSelection,
+} from './tableSelection';
+
+describe('writer table phase C', () => {
+  it('updates cell text', () => {
+    const table = createDefaultTableModel(2, 2);
+    const next = updateTableCellText(table, 1, 1, 'X');
+
+    expect(next.rows[1].cells[1].text).toBe('X');
+  });
+
+  it('inserts and deletes row', () => {
+    const table = createDefaultTableModel(2, 2);
+    const withRow = insertTableRow(table, 1);
+    expect(withRow.rows.length).toBe(3);
+
+    const deleted = deleteTableRow(withRow, 1);
+    expect(deleted.rows.length).toBe(2);
+  });
+
+  it('inserts and deletes column', () => {
+    const table = createDefaultTableModel(2, 2);
+    const withCol = insertTableColumn(table, 1);
+    expect(withCol.columns.length).toBe(3);
+
+    const deleted = deleteTableColumn(withCol, 1);
+    expect(deleted.columns.length).toBe(2);
+  });
+
+  it('pastes matrix into table and expands size', () => {
+    const table = createDefaultTableModel(1, 1);
+    const next = pasteMatrixIntoTable(table, 0, 0, [
+      ['A', 'B'],
+      ['1', '2'],
+    ]);
+
+    expect(next.rows.length).toBe(2);
+    expect(next.columns.length).toBe(2);
+    expect(next.rows[1].cells[1].text).toBe('2');
+  });
+
+  it('checks selection', () => {
+    const selection = createSingleCellSelection(1, 2);
+
+    expect(isCellInSelection({ row: 1, col: 2 }, selection)).toBe(true);
+    expect(isCellInSelection({ row: 0, col: 0 }, selection)).toBe(false);
+  });
+});
+```
+
+================================================================================
+TEST FILE 3 — frontend/src/core/writer/image.phaseC.test.ts
+================================================================================
+
+```ts
+import { describe, expect, it } from 'vitest';
+import {
+  normalizeCrop,
+  normalizeRotation,
+  rotateImageBy,
+  setImageBorder,
+  setImageOpacity,
+} from './imageTransforms';
+import {
+  createImageModel,
+} from './content-model';
+import {
+  isSupportedWriterImageMime,
+} from './imageImport';
+
+describe('writer image phase C', () => {
+  it('normalizes rotation', () => {
+    expect(normalizeRotation(-90)).toBe(270);
+    expect(normalizeRotation(450)).toBe(90);
+  });
+
+  it('sets opacity within range', () => {
+    const image = createImageModel({ src: 'data:image/png;base64,AAAA', mimeType: 'image/png' });
+    const next = setImageOpacity(image, 2);
+
+    expect(next.opacity).toBe(1);
+  });
+
+  it('sets border', () => {
+    const image = createImageModel({ src: 'data:image/png;base64,AAAA', mimeType: 'image/png' });
+    const next = setImageBorder(image, { borderWidth: 3, borderColor: '#111827' });
+
+    expect(next.borderWidth).toBe(3);
+    expect(next.borderColor).toBe('#111827');
+  });
+
+  it('rotates image by delta', () => {
+    const image = createImageModel({ src: 'data:image/png;base64,AAAA', mimeType: 'image/png' });
+    const next = rotateImageBy(image, 90);
+
+    expect(next.rotation).toBe(90);
+  });
+
+  it('normalizes crop', () => {
+    const crop = normalizeCrop({ x: 0.8, y: 0.8, width: 0.5, height: 0.5 });
+
+    expect(crop.width).toBeLessThanOrEqual(0.2);
+    expect(crop.height).toBeLessThanOrEqual(0.2);
+  });
+
+  it('supports safe image mime types', () => {
+    expect(isSupportedWriterImageMime('image/png')).toBe(true);
+    expect(isSupportedWriterImageMime('image/svg+xml')).toBe(false);
+  });
+});
+```
+
+================================================================================
+PHASE C RUN COMMANDS
+================================================================================
+
+From frontend/:
+
+```bash
+npm run typecheck
+npx vitest run src/core/writer/richText.phaseC.test.ts src/core/writer/table.phaseC.test.ts src/core/writer/image.phaseC.test.ts
+npm run build
+```
+
+If your test script supports paths:
+
+```bash
+npm run test -- src/core/writer/richText.phaseC.test.ts src/core/writer/table.phaseC.test.ts src/core/writer/image.phaseC.test.ts
+```
+
+================================================================================
+PHASE C PASS CRITERIA
+================================================================================
+
+PASS:
+- richTextHtml.ts compiles
+- richTextCommands.ts compiles
+- RichTextEditorPanel.tsx compiles
+- tableSelection.ts compiles
+- tableCommands.ts compiles
+- TableEditorPanel.tsx compiles
+- imageImport.ts compiles
+- imageTransforms.ts compiles
+- ImageEditorPanel.tsx compiles
+- Phase C tests pass
+- unsafe rich text HTML is sanitized
+- table row/column/cell commands work
+- image crop/rotation/opacity/border helpers work
+
+FAIL:
+- component uses unsanitized HTML from user input without sanitizeWriterHtml
+- table commands mutate input object directly
+- image MIME accepts SVG or unknown active-content image formats
+- editor panels hijack global paste behavior
+- tests are deleted/skipped to pass
+
+================================================================================
+NEXT FILE TO REQUEST
+================================================================================
+
+Ask for:
+  Phase D — Writer Inspector + Templates + Ribbon + Overlay Integration Code Pack
+
+That next file should include actual source code for:
+  WriterInspectorPanel.tsx
+  WriterObjectListPanel.tsx
+  templates.ts
+  templatePersistence.ts
+  WriterTemplateGallery.tsx
+  HeaderFooterWriterPanel.tsx
+  WriterRibbon.tsx
+  WriterSidePanel.tsx
+  WriterOverlay integration patch notes/code

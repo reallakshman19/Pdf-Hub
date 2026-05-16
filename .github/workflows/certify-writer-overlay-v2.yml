@@ -1,0 +1,36 @@
+name: certify-writer-overlay-v2
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+
+      - run: cd frontend && pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: cd frontend && pnpm run typecheck
+
+      - name: Full Vitest suite
+        run: cd frontend && pnpm run test
+
+      - name: Writer Overlay V2 certification
+        run: cd frontend && pnpm run certify:writer-overlay-v2
+
+      - name: Writer Overlay V2 final certification
+        run: cd frontend && pnpm run certify:writer-overlay-v2-final
+
+      - name: Build
+        run: cd frontend && pnpm run build

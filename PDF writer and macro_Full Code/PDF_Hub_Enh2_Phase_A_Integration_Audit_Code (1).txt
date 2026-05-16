@@ -1,0 +1,711 @@
+PDF_HUB_ENH2 — PHASE A CODE PACK
+================================
+Phase A: Integration Audit + Shared Contract Scaffolding + Package Script Wiring
+
+Purpose
+-------
+This phase gives junior agents executable code, not Markdown-only work.
+
+It adds:
+1. frontend/scripts/enh2-integration-audit.mjs
+2. frontend/scripts/enh2-shared-contract-audit.mjs
+3. frontend/scripts/enh2-error-register-from-log.mjs
+4. package.json script wiring
+5. initial ENH2 conflict/final certification markdown files
+
+Apply this phase first inside:
+  .../PDF_Hub_Enh2/frontend/
+
+================================================================================
+FILE 1 — frontend/scripts/enh2-integration-audit.mjs
+================================================================================
+
+```js
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+
+const root = process.cwd();
+
+const REQUIRED_GROUPS = [
+  {
+    name: 'Writer core',
+    requiredAny: [
+      'src/core/writer/types.ts',
+      'src/core/writer/content-model.ts',
+      'src/core/writer/content-serialization.ts',
+      'src/core/writer/migrations.ts',
+    ],
+  },
+  {
+    name: 'Writer clipboard',
+    requiredAny: [
+      'src/core/writer/clipboard/readClipboard.ts',
+      'src/core/writer/clipboard/clipboardToElements.ts',
+      'src/core/writer/clipboard/pasteController.ts',
+    ],
+  },
+  {
+    name: 'Writer rich text',
+    requiredAny: [
+      'src/core/writer/richTextHtml.ts',
+      'src/core/writer/richTextCommands.ts',
+      'src/components/writer/RichTextEditorPanel.tsx',
+    ],
+  },
+  {
+    name: 'Writer table',
+    requiredAny: [
+      'src/core/writer/tableSelection.ts',
+      'src/core/writer/tableCommands.ts',
+      'src/components/writer/TableEditorPanel.tsx',
+    ],
+  },
+  {
+    name: 'Writer image',
+    requiredAny: [
+      'src/core/writer/imageImport.ts',
+      'src/core/writer/imageTransforms.ts',
+      'src/components/writer/ImageEditorPanel.tsx',
+    ],
+  },
+  {
+    name: 'Writer inspector/templates/ribbon',
+    requiredAny: [
+      'src/components/writer/WriterInspectorPanel.tsx',
+      'src/components/writer/WriterObjectListPanel.tsx',
+      'src/components/writer/WriterTemplateGallery.tsx',
+      'src/components/writer/WriterRibbon.tsx',
+      'src/components/writer/WriterSidePanel.tsx',
+    ],
+  },
+  {
+    name: 'Writer export/certification',
+    requiredAny: [
+      'src/core/writer/exporter.ts',
+      'scripts/writer-static-audit.mjs',
+      'WRITER_CERTIFICATION.md',
+    ],
+  },
+  {
+    name: 'Macro engine',
+    requiredAny: [
+      'src/core/macro/types.ts',
+      'src/core/macro/registry.ts',
+      'src/core/macro/executor.ts',
+      'src/core/macro/transaction.ts',
+      'src/core/macro/dry-run.ts',
+      'src/core/macro/register-all.ts',
+    ],
+  },
+  {
+    name: 'Macro validation/security',
+    requiredAny: [
+      'src/core/macro/validator.ts',
+      'src/core/macro/security.ts',
+      'src/core/macro/validation/guards.ts',
+      'src/core/macro/validation/op-validators.ts',
+    ],
+  },
+  {
+    name: 'Macro schema/catalog/builder state',
+    requiredAny: [
+      'src/core/macro/schema/opSchema.ts',
+      'src/core/macro/builder/recipeBuilderState.ts',
+      'src/core/macro/recipes/builtInRecipes.ts',
+      'src/core/macro/recipes/recipeStorage.ts',
+    ],
+  },
+  {
+    name: 'Macro UI',
+    requiredAny: [
+      'src/components/macro/MacroDropdown.tsx',
+      'src/components/macro/MacroPanel.tsx',
+      'src/components/macro/builder/MacroRecipeBuilder.tsx',
+      'src/components/macro/builder/MacroStepEditor.tsx',
+    ],
+  },
+  {
+    name: 'Macro certification',
+    requiredAny: [
+      'src/core/macro/macroCertification.wave7.test.ts',
+      'scripts/macro-static-audit.mjs',
+      'MACRO_CERTIFICATION.md',
+    ],
+  },
+];
+
+const EXPECTED_DOCS = [
+  'ENH2_INTEGRATION_AUDIT.md',
+  'ENH2_ERROR_REGISTER.md',
+  'ENH2_SHARED_CONTRACTS.md',
+  'ENH2_CONFLICT_RESOLUTION.md',
+  'ENH2_FINAL_CERTIFICATION.md',
+];
+
+const EXPECTED_SOURCE_ROOTS = [
+  'src/core/writer',
+  'src/components/writer',
+  'src/core/macro',
+  'src/components/macro',
+];
+
+const report = [];
+const warnings = [];
+const failures = [];
+
+main();
+
+function main() {
+  section('PDF Hub Enh2 Integration Audit');
+
+  report.push(`Working directory: ${root}`);
+  report.push(`Generated: ${new Date().toISOString()}`);
+  report.push('');
+
+  auditPackageJson();
+  auditExpectedRoots();
+  auditRequiredGroups();
+  auditDuplicateSuspiciousFiles();
+  auditExpectedDocs();
+  writeReports();
+
+  if (failures.length > 0) {
+    console.error(`ENH2 integration audit completed with ${failures.length} failure(s).`);
+    process.exitCode = 1;
+  } else {
+    console.log('ENH2 integration audit passed.');
+  }
+}
+
+function auditPackageJson() {
+  section('Package scripts');
+
+  const packagePath = path.join(root, 'package.json');
+
+  if (!fs.existsSync(packagePath)) {
+    fail('package.json not found in frontend root.');
+    return;
+  }
+
+  const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const scripts = pkg.scripts ?? {};
+
+  const scriptChecks = [
+    'typecheck',
+    'test',
+    'build',
+    'audit:writer',
+    'audit:macro',
+    'certify:writer',
+    'certify:macro',
+    'audit:enh2',
+    'audit:enh2:shared',
+    'errors:enh2',
+    'certify:enh2',
+  ];
+
+  for (const script of scriptChecks) {
+    if (scripts[script]) pass(`script ${script}: ${scripts[script]}`);
+    else warn(`missing script ${script}`);
+  }
+}
+
+function auditExpectedRoots() {
+  section('Expected source roots');
+
+  for (const rel of EXPECTED_SOURCE_ROOTS) {
+    if (exists(rel)) {
+      const fileCount = countFiles(rel);
+      pass(`${rel} exists (${fileCount} file(s))`);
+    } else {
+      warn(`${rel} missing`);
+    }
+  }
+}
+
+function auditRequiredGroups() {
+  section('Enhancement module groups');
+
+  for (const group of REQUIRED_GROUPS) {
+    const present = group.requiredAny.filter(exists);
+    const missing = group.requiredAny.filter((rel) => !exists(rel));
+
+    if (present.length > 0) {
+      pass(`${group.name}: ${present.length}/${group.requiredAny.length} expected file(s) present`);
+      for (const rel of present) report.push(`  PRESENT ${rel}`);
+    } else {
+      fail(`${group.name}: no expected files found`);
+    }
+
+    for (const rel of missing) report.push(`  MISSING ${rel}`);
+    report.push('');
+  }
+}
+
+function auditDuplicateSuspiciousFiles() {
+  section('Duplicate/suspicious files');
+
+  const all = listFiles('src');
+  const suspicious = all.filter((file) => /(\.tmp$|\.bak$| copy\.| copy |old|backup|duplicate)/i.test(file));
+
+  if (suspicious.length === 0) {
+    pass('No suspicious duplicate/temp source files found.');
+    return;
+  }
+
+  warn(`${suspicious.length} suspicious duplicate/temp file(s) found.`);
+  for (const file of suspicious) report.push(`  ${file}`);
+}
+
+function auditExpectedDocs() {
+  section('Expected integration documents');
+
+  for (const rel of EXPECTED_DOCS) {
+    if (exists(rel)) {
+      pass(`${rel} exists`);
+    } else {
+      warn(`${rel} missing; script will create placeholder.`);
+      const title = rel.replace(/_/g, ' ').replace(/\.md$/i, '');
+      writePlaceholderDoc(rel, title);
+    }
+  }
+}
+
+function writeReports() {
+  section('Summary');
+
+  report.push(`Warnings: ${warnings.length}`);
+  report.push(`Failures: ${failures.length}`);
+  report.push('');
+
+  if (warnings.length > 0) {
+    report.push('Warnings:');
+    for (const warning of warnings) report.push(`- ${warning}`);
+    report.push('');
+  }
+
+  if (failures.length > 0) {
+    report.push('Failures:');
+    for (const failure of failures) report.push(`- ${failure}`);
+    report.push('');
+  }
+
+  const auditPath = path.join(root, 'ENH2_INTEGRATION_AUDIT.md');
+  fs.writeFileSync(auditPath, report.join('\n') + '\n', 'utf8');
+
+  const errorRegisterPath = path.join(root, 'ENH2_ERROR_REGISTER.md');
+  if (!fs.existsSync(errorRegisterPath)) {
+    fs.writeFileSync(
+      errorRegisterPath,
+      [
+        '# ENH2 Error Register',
+        '',
+        '| ID | Module | Type | File | Error | Severity | Status |',
+        '|---|---|---|---|---|---|---|',
+        '| ENH2-ERR-001 | Pending | Baseline | TBD | Populate after typecheck/test/build | TBD | Open |',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+  }
+
+  console.log(`Wrote ${auditPath}`);
+}
+
+function section(title) {
+  report.push('');
+  report.push(`## ${title}`);
+  report.push('');
+}
+
+function exists(rel) {
+  return fs.existsSync(path.join(root, rel));
+}
+
+function listFiles(relRoot) {
+  const absRoot = path.join(root, relRoot);
+  if (!fs.existsSync(absRoot)) return [];
+
+  const out = [];
+  walk(absRoot, out);
+  return out.map((abs) => path.relative(root, abs).replaceAll(path.sep, '/'));
+}
+
+function walk(dir, out) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(abs, out);
+    else out.push(abs);
+  }
+}
+
+function countFiles(relRoot) {
+  return listFiles(relRoot).length;
+}
+
+function pass(message) {
+  report.push(`PASS: ${message}`);
+}
+
+function warn(message) {
+  warnings.push(message);
+  report.push(`WARN: ${message}`);
+}
+
+function fail(message) {
+  failures.push(message);
+  report.push(`FAIL: ${message}`);
+}
+
+function writePlaceholderDoc(rel, title) {
+  const abs = path.join(root, rel);
+  if (fs.existsSync(abs)) return;
+
+  fs.writeFileSync(
+    abs,
+    [
+      `# ${title}`,
+      '',
+      'Status: Placeholder generated by enh2-integration-audit.mjs.',
+      '',
+      'This file must be completed during the corresponding implementation phase.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+}
+```
+
+================================================================================
+FILE 2 — frontend/scripts/enh2-shared-contract-audit.mjs
+================================================================================
+
+```js
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+
+const root = process.cwd();
+
+const CANDIDATE_PATTERNS = [
+  {
+    id: 'PDF_BYTE_UPDATE',
+    description: 'Potential PDF byte update functions/state',
+    regex: /(set.*Pdf.*Bytes|update.*Pdf.*Bytes|finalBytes|workingBytes|pdfBytes|documentBytes)/i,
+  },
+  {
+    id: 'DIRTY_STATE',
+    description: 'Potential dirty-state functions/state',
+    regex: /(mark.*Dirty|set.*Dirty|dirty|isDirty|unsaved)/i,
+  },
+  {
+    id: 'SAVE_EXPORT',
+    description: 'Potential save/export functions',
+    regex: /(savePdf|save.*Document|exportPdf|export.*Document|downloadPdf|flatten)/i,
+  },
+  {
+    id: 'PAGE_SELECTION',
+    description: 'Potential selected page/current page state',
+    regex: /(selectedPages|setSelectedPages|currentPage|setCurrentPage|pageCount)/i,
+  },
+  {
+    id: 'WRITER_OVERLAY',
+    description: 'Potential writer overlay integration',
+    regex: /(WriterOverlay|WriterRibbon|WriterSidePanel|PlacedElement|contentModel)/i,
+  },
+  {
+    id: 'MACRO_PANEL',
+    description: 'Potential macro panel/dropdown integration',
+    regex: /(MacroPanel|MacroDropdown|executeMacroRecipe|buildMacroExecutionContext)/i,
+  },
+];
+
+const report = [];
+main();
+
+function main() {
+  report.push('# ENH2 Shared Contracts Audit');
+  report.push('');
+  report.push(`Generated: ${new Date().toISOString()}`);
+  report.push(`Working directory: ${root}`);
+  report.push('');
+
+  const files = listFiles('src').filter(isSourceFile);
+
+  for (const pattern of CANDIDATE_PATTERNS) {
+    report.push(`## ${pattern.id} — ${pattern.description}`);
+    report.push('');
+    let count = 0;
+
+    for (const file of files) {
+      const abs = path.join(root, file);
+      const text = safeRead(abs);
+      if (!text) continue;
+      const lines = text.split(/\r?\n/);
+
+      lines.forEach((line, index) => {
+        if (pattern.regex.test(line)) {
+          count += 1;
+          report.push(`- ${file}:${index + 1}: ${line.trim().slice(0, 220)}`);
+        }
+      });
+    }
+
+    if (count === 0) report.push('- No candidates found.');
+    report.push('');
+  }
+
+  report.push('## Required Final Contract Decisions');
+  report.push('');
+  report.push('| Contract | Chosen implementation | File/function | Status |');
+  report.push('|---|---|---|---|');
+  report.push('| PDF byte source | TBD | TBD | Open |');
+  report.push('| PDF byte update function | TBD | TBD | Open |');
+  report.push('| Dirty-state marker | TBD | TBD | Open |');
+  report.push('| Page count source | TBD | TBD | Open |');
+  report.push('| Selected pages source | TBD | TBD | Open |');
+  report.push('| Writer save/commit path | TBD | TBD | Open |');
+  report.push('| Macro apply result path | TBD | TBD | Open |');
+  report.push('| Render cache refresh | TBD | TBD | Open |');
+  report.push('');
+
+  fs.writeFileSync(path.join(root, 'ENH2_SHARED_CONTRACTS.md'), report.join('\n') + '\n', 'utf8');
+  console.log('Wrote ENH2_SHARED_CONTRACTS.md');
+}
+
+function listFiles(relRoot) {
+  const absRoot = path.join(root, relRoot);
+  if (!fs.existsSync(absRoot)) return [];
+  const out = [];
+  walk(absRoot, out);
+  return out.map((abs) => path.relative(root, abs).replaceAll(path.sep, '/'));
+}
+
+function walk(dir, out) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build') continue;
+      walk(abs, out);
+    } else {
+      out.push(abs);
+    }
+  }
+}
+
+function isSourceFile(file) {
+  return /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file);
+}
+
+function safeRead(abs) {
+  try {
+    return fs.readFileSync(abs, 'utf8');
+  } catch {
+    return '';
+  }
+}
+```
+
+================================================================================
+FILE 3 — frontend/scripts/enh2-error-register-from-log.mjs
+================================================================================
+
+```js
+import fs from 'node:fs';
+
+const input = fs.readFileSync(0, 'utf8');
+const lines = input.split(/\r?\n/);
+const rows = [];
+let id = 1;
+
+for (const line of lines) {
+  if (/error TS\d+:/i.test(line) || /failed/i.test(line) || /error/i.test(line)) {
+    rows.push({ id: `ENH2-ERR-${String(id).padStart(3, '0')}`, line });
+    id += 1;
+  }
+}
+
+const md = [
+  '# ENH2 Error Register',
+  '',
+  '| ID | Module | Type | File | Error | Severity | Status |',
+  '|---|---|---|---|---|---|---|',
+  ...rows.map((row) => {
+    const fileMatch = row.line.match(/([A-Za-z0-9_\-./\\]+\.(ts|tsx|js|jsx|mjs|cjs))/);
+    const file = fileMatch ? fileMatch[1].replaceAll('\\', '/') : 'TBD';
+    const module = file.includes('/writer/') || file.includes('components/writer') ? 'Writer'
+      : file.includes('/macro/') || file.includes('components/macro') ? 'Macro'
+      : 'Shared/App';
+    const type = /TS\d+/.test(row.line) ? 'TypeScript'
+      : /test/i.test(row.line) ? 'Test'
+      : /build/i.test(row.line) ? 'Build'
+      : 'General';
+    return `| ${row.id} | ${module} | ${type} | ${file} | ${escapeCell(row.line.trim())} | TBD | Open |`;
+  }),
+  '',
+];
+
+fs.writeFileSync('ENH2_ERROR_REGISTER.md', md.join('\n'), 'utf8');
+console.log(`Wrote ENH2_ERROR_REGISTER.md with ${rows.length} row(s).`);
+
+function escapeCell(value) {
+  return value.replaceAll('|', '\\|').slice(0, 500);
+}
+```
+
+================================================================================
+PACKAGE.JSON SCRIPT PATCH
+================================================================================
+
+Open frontend/package.json and add these scripts without deleting existing scripts:
+
+```json
+{
+  "scripts": {
+    "audit:enh2": "node scripts/enh2-integration-audit.mjs",
+    "audit:enh2:shared": "node scripts/enh2-shared-contract-audit.mjs",
+    "errors:enh2": "node scripts/enh2-error-register-from-log.mjs",
+    "certify:enh2": "npm run certify:writer && npm run certify:macro"
+  }
+}
+```
+
+If writer/macro certification scripts already exist, keep them.
+If they do not exist, Phase B/C and later macro phases will add them.
+
+================================================================================
+FILE 4 — frontend/ENH2_CONFLICT_RESOLUTION.md
+================================================================================
+
+```md
+# ENH2 Conflict Resolution
+
+## Status
+
+This file must be updated during integration.
+
+## Shared conflict areas
+
+| Area | Writer requirement | Macro requirement | Final decision | Status |
+|---|---|---|---|---|
+| PDF bytes | Writer export/commit may update bytes | Successful macro run updates bytes | TBD | Open |
+| Dirty state | Writer edit marks dirty | Successful macro run marks dirty | TBD | Open |
+| Dry-run | Not applicable | Must not mutate bytes | Dry-run never calls byte-update function | Open |
+| Save/export | Writer overlay must persist/export | Macro changes must not erase uncommitted overlays | TBD | Open |
+| Selected pages | Writer usually page-local | Macro uses selected/current/all pages | TBD | Open |
+| Render cache | Writer overlay render separate | Macro byte update requires PDF reload | TBD | Open |
+| Paste events | Writer captures paste/drop | Macro builder text fields need normal paste | Editable targets must bypass WriterOverlay paste | Open |
+| Side panels | WriterSidePanel | MacroPanel | z-index/layout decision required | Open |
+
+## Final decisions
+
+### PDF byte update path
+
+TBD
+
+### Dirty-state path
+
+TBD
+
+### Save/export path
+
+TBD
+
+### Writer + macro sequencing
+
+Required final rule:
+
+1. Macro dry-run must never mutate PDF bytes.
+2. Failed macro run must never mutate PDF bytes.
+3. Successful macro run may mutate PDF bytes only through the shared byte-update function.
+4. If writer overlays are uncommitted, either prompt/commit them first, or clearly preserve overlays after PDF byte replacement.
+
+## Open issues
+
+| ID | Severity | Issue | File | Owner | Status |
+|---|---|---|---|---|---|
+| ENH2-CONFLICT-001 | High | Shared PDF byte update path not selected | TBD | Integration Agent | Open |
+| ENH2-CONFLICT-002 | High | Writer overlay vs macro byte mutation policy not selected | TBD | Integration Agent | Open |
+| ENH2-CONFLICT-003 | Medium | Side panel z-index/layout not verified | TBD | Integration Agent | Open |
+```
+
+================================================================================
+FILE 5 — frontend/ENH2_FINAL_CERTIFICATION.md
+================================================================================
+
+```md
+# ENH2 Final Certification
+
+## Command
+
+```bash
+npm run certify:enh2
+```
+
+## Certification table
+
+| Area | Required Result | Actual Result | PASS/FAIL |
+|---|---:|---:|---|
+| TypeScript errors | 0 | TBD | TBD |
+| Unit test failures | 0 | TBD | TBD |
+| Writer static audit failures | 0 | TBD | TBD |
+| Macro static audit failures | 0 | TBD | TBD |
+| Build errors | 0 | TBD | TBD |
+| Writer certification | PASS | TBD | TBD |
+| Macro certification | PASS | TBD | TBD |
+| Combined certification | PASS | TBD | TBD |
+
+## Remaining issues register
+
+| ID | Severity | File | Issue | Reason not fixed | Recommended next action |
+|---|---|---|---|---|---|
+| TBD | TBD | TBD | TBD | TBD | TBD |
+```
+
+================================================================================
+PHASE A RUN COMMANDS
+================================================================================
+
+From frontend/:
+
+```bash
+npm run audit:enh2
+npm run audit:enh2:shared
+
+npm run typecheck 2>&1 | tee typecheck.log
+cat typecheck.log | npm run errors:enh2
+
+npm run test
+npm run build
+```
+
+================================================================================
+PHASE A PASS CRITERIA
+================================================================================
+
+PASS:
+- frontend/scripts/enh2-integration-audit.mjs exists
+- frontend/scripts/enh2-shared-contract-audit.mjs exists
+- frontend/scripts/enh2-error-register-from-log.mjs exists
+- package.json has audit:enh2
+- package.json has audit:enh2:shared
+- package.json has errors:enh2
+- ENH2_INTEGRATION_AUDIT.md generated
+- ENH2_SHARED_CONTRACTS.md generated
+- ENH2_ERROR_REGISTER.md generated or manually updated
+- ENH2_CONFLICT_RESOLUTION.md exists
+- ENH2_FINAL_CERTIFICATION.md exists
+
+FAIL:
+- agent only creates Markdown without scripts
+- agent claims Writer/Macro complete without running audits
+- agent hides missing source files
+- agent deletes tests or scripts to pass
+
+================================================================================
+NEXT FILE TO REQUEST
+================================================================================
+
+Ask for:
+  Phase B — Writer Core + Content Model + Clipboard Code Pack

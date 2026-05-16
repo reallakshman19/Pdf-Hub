@@ -1,0 +1,110 @@
+WAVE 6 — MACRO DROPDOWN / APP INTEGRATION CODE
+==============================================
+
+Objective:
+Expose macro recipes and builder in the app workflow.
+
+Files:
+Create:
+- frontend/src/core/macro/macroUiStore.ts
+- frontend/src/core/macro/macroExecutionContextAdapter.ts
+- frontend/src/components/macro/MacroDropdown.tsx
+- frontend/src/components/macro/MacroPanel.tsx
+- Wave 6 tests
+Modify:
+- MacroRecipeBuilder.tsx to accept initialRecipe
+- one workspace/toolbar integration file only
+
+1. macroUiStore.ts:
+Use zustand.
+State:
+- panelMode: 'dropdown' | 'builder' | 'results' | 'hidden'
+- activeRecipe
+- dryRunDefault
+Actions:
+- openDropdown
+- openBuilder(recipe?)
+- openResults
+- closeMacroPanel
+- setActiveRecipe
+- setDryRunDefault
+
+2. MacroDropdown:
+Props:
+- executionContext?
+- onRunResult?
+- onApplyResult?
+
+Behavior:
+- show search
+- show Recommended
+- Page Cleanup
+- Document Control
+- Review / Stamps
+- Tables / Authoring
+- Custom Recipes
+- Open Builder
+- Dry-run, Run, Edit actions
+
+Run logic:
+- no context -> status
+- validate recipe
+- executeMacroRecipe({ ...recipe, dryRun })
+- onRunResult always after execution
+- onApplyResult only if !dryRun && result.success
+
+3. MacroPanel:
+- hidden -> null
+- dropdown -> MacroDropdown
+- builder -> MacroRecipeBuilder
+- activeRecipe passed as initialRecipe
+- close hides panel
+
+4. MacroRecipeBuilder patch:
+Add initialRecipe prop.
+Initialize activeRecipe from initialRecipe.
+React effect reloads initialRecipe changes.
+
+5. macroExecutionContextAdapter.ts:
+Function buildMacroExecutionContext(input).
+Rules:
+- no bytes -> undefined
+- currentPage clamped
+- selectedPages deduped/clamped
+- fileName fallback document.pdf
+- abortOnError defaults true
+
+6. App integration:
+Render MacroPanel near workspace.
+Add macro toolbar/dropdown button calling useMacroUiStore.getState().openDropdown().
+
+handleMacroApplyResult(result):
+- if !result.success return
+- updatePdfBytes(result.finalBytes)
+- setSelectedPages(result.selectedPages)
+- markDocumentDirty('macro')
+- refreshPdfDocument()
+
+Rules:
+- do not apply dry-run
+- do not apply failed run
+- successful run marks dirty and refreshes render cache
+
+Tests:
+- macroUiStore open/close
+- context adapter sanitizes state
+- MacroPanel hidden/dropdown/builder modes
+- MacroDropdown grouped recipes
+- no context status
+- dry-run does not apply
+
+Pass matrix:
+dropdown visible: pass
+recommended/grouped/custom recipes visible: pass
+dry-run/run/edit/open-builder visible: pass
+builder opens selected recipe: pass
+context sanitized: pass
+dry-run not applied: pass
+failed run not applied: pass
+successful run applied: pass
+TypeScript/test/build errors: 0

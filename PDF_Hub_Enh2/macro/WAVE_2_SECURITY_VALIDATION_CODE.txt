@@ -1,0 +1,102 @@
+WAVE 2 — SECURITY + VALIDATION CODE
+===================================
+
+Objective:
+Reject invalid recipes and block unsafe macro content before builder activation.
+
+Files:
+Create:
+- frontend/src/core/macro/validation/guards.ts
+- frontend/src/core/macro/validation/op-validators.ts
+- frontend/src/core/macro/security.ts
+- Wave 2 tests
+Modify:
+- frontend/src/core/macro/validator.ts
+- frontend/src/core/macro/steps/content-ops.ts
+- frontend/src/core/macro/layout/LayoutEngine.tsx
+
+1. guards.ts exports:
+- ValidationIssue
+- isFiniteNumber
+- requireFiniteNumber
+- requirePositiveNumber
+- requireNonNegativeNumber
+- requireInteger
+- requireOpacity
+- requireCssColor
+- requireSafeRotation
+- requireText
+
+Rules:
+- x/y >= 0
+- width/height > 0
+- opacity 0..1
+- page numbers integer >= 1
+- rotation normalizes to 0/90/180/270
+- colors hex/rgb/rgba/transparent only
+
+2. op-validators.ts exports validateMacroStepByOp(step, stepIndex).
+
+Selector policy:
+Required selector:
+- select_pages, rotate_pages, extract_pages, split_pages, duplicate_pages, remove_pages, draw_text_on_pages, header_footer_text, inject_rich_text
+Optional selector:
+- place_rich_textbox, place_table, adjust_image
+No selector requirement:
+- insert_blank_page, replace_page, reorder_pages, apply_template_vars, conditional
+
+3. Patch validator.ts:
+Import validateMacroStepByOp and append its issues per step.
+Keep registry op existence check.
+
+4. security.ts exports:
+- sanitizeMacroHtml
+- sanitizeMacroStyle
+- escapeMacroHtml
+- isSafeMacroImageSrc
+- isSafeMacroUrl
+- safeMacroCssColor
+- safeMacroFontFamily
+
+Blocked:
+- script, iframe, object, embed, link, meta, base, form, input, button, textarea, select, style
+- on* attributes
+- javascript: URLs
+- data:text/html URLs
+- CSS url(...) / expression(...)
+
+Safe image source:
+- data:image/png;base64
+- data:image/jpeg;base64
+- data:image/jpg;base64
+- data:image/webp;base64
+
+5. Patch content-ops.ts:
+- container.innerHTML = sanitizeMacroHtml(htmlContent)
+- table cell/header text uses escapeMacroHtml(...)
+- colors use safeMacroCssColor(...)
+- measure table height before DOM removal
+
+6. Patch LayoutEngine.tsx:
+- use isSafeMacroImageSrc(block.src)
+- if unsafe, render “Unsafe image source blocked.”
+
+Tests:
+- place_table without selector accepted
+- place_rich_textbox without selector accepted
+- adjust_image without selector accepted
+- negative width rejected
+- invalid opacity rejected
+- invalid explicit selector page rejected
+- duplicate reorder pages rejected
+- script/event/javascript sanitized
+- table HTML escaped
+- remote image source rejected
+
+Pass matrix:
+valid optional-selector ops rejected: 0
+negative width accepted: 0
+unsafe script/onerror execution: 0
+raw table interpolation: 0
+unsafe image accepted: 0
+TypeScript/test/build errors: 0

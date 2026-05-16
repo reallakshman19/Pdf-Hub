@@ -1,0 +1,118 @@
+WAVE 4 — CUSTOM RECIPE BUILDER UI CODE
+======================================
+
+Objective:
+Create React UI for schema-driven macro recipe editing.
+
+Boundary:
+Wave 4 does not run macros. Wave 5 wires run/dry-run.
+
+Files:
+Create under frontend/src/components/macro/builder/:
+- MacroRecipeBuilder.tsx
+- MacroRecipeBrowser.tsx
+- MacroRecipeToolbar.tsx
+- MacroStepPalette.tsx
+- MacroStepList.tsx
+- MacroStepEditor.tsx
+- MacroValidationPanel.tsx
+
+Create under frontend/src/components/macro/builder/fields/:
+- MacroFieldFrame.tsx
+- MacroPrimitiveFields.tsx
+- MacroJsonField.tsx
+- MacroPageSelectorField.tsx
+- MacroInsertPositionField.tsx
+
+1. MacroRecipeBuilder:
+Props:
+- onRecipeChange?
+- onClose?
+
+State:
+- builtInRecipes = getBuiltInMacroRecipes()
+- customRecipes = loadCustomMacroRecipes()
+- activeRecipe = createEmptyMacroRecipe()
+- selectedStepIndex
+- status
+- validation = validateMacroRecipeWithSchema(activeRecipe)
+
+Behavior:
+- load built-in as editable custom copy
+- load custom
+- create new
+- save custom
+- delete custom
+- add step
+- update selected step
+- show validation
+
+2. MacroRecipeBrowser:
+- search
+- category filter
+- recommended recipes
+- built-in recipes
+- custom recipes
+- load/delete actions
+
+3. MacroRecipeToolbar:
+- recipe name editor
+- dry-run default checkbox
+- New
+- Save Custom
+- Close
+- status
+- validation count
+
+4. MacroStepPalette:
+- getMacroOpsByCategory()
+- createDefaultStep(schema.op)
+- onAddStep(step)
+
+5. MacroStepList:
+- list steps
+- select
+- validation count
+- move up/down
+- duplicate
+- delete
+
+6. MacroStepEditor:
+- getMacroOpSchema(step.op)
+- render fields by MacroFieldType
+- support raw JSON details block
+
+Field routing:
+- text -> MacroTextField
+- textarea -> MacroTextareaField
+- number -> MacroNumberField
+- color -> MacroColorField
+- boolean -> MacroBooleanField
+- select -> MacroSelectField
+- page-selector -> MacroPageSelectorField
+- insert-position -> MacroInsertPositionField
+- json/table-data/content-blocks/string-list/number-list -> MacroJsonField
+
+7. MacroValidationPanel:
+- valid recipe green message
+- invalid recipe issue list
+
+Tests:
+- builder shell renders
+- add Select Pages step from palette
+- load built-in as editable copy
+- save custom recipe
+- step editor renders draw_text_on_pages fields
+- update text field
+- page selector renders
+
+Pass matrix:
+builder renders: pass
+recipe browser renders: pass
+step palette renders: pass
+step editor renders: pass
+new/load/save/delete recipe: pass
+add/select/move/duplicate/remove step: pass
+all field types render: pass
+validation visible: pass
+TypeScript/test/build errors: 0

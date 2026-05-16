@@ -1,0 +1,99 @@
+WAVE 5 — RUN / DRY-RUN / IMPORT-EXPORT CODE
+===========================================
+
+Objective:
+Make the builder operational.
+
+Boundary:
+Wave 6 handles app dropdown/workspace integration.
+
+Files:
+Create:
+- frontend/src/components/macro/builder/MacroDryRunPanel.tsx
+- frontend/src/components/macro/builder/MacroRunResultPanel.tsx
+- frontend/src/components/macro/builder/MacroRecipeImportExport.tsx
+- Wave 5 tests
+Modify:
+- MacroRecipeBuilder.tsx
+- MacroRecipeToolbar.tsx
+
+1. Patch MacroRecipeBuilderProps:
+- executionContext?: MacroExecutionContext
+- onRunResult?: (result: MacroExecutionResult) => void
+- onApplyResult?: (result: MacroExecutionResult) => void
+- onRecipeChange?
+- onClose?
+
+2. Add state:
+- dryRunResult
+- runResult
+- isRunning
+
+3. runCurrentRecipe(dryRun):
+- no executionContext -> status
+- non-dry-run invalid -> block
+- recipeToRun = { ...activeRecipe, dryRun }
+- executeMacroRecipe(recipeToRun, executionContext)
+- dryRun: setDryRunResult only, never apply
+- run: setRunResult, onRunResult, onApplyResult only on success
+- failure: do not apply
+
+4. MacroDryRunPanel:
+Displays:
+- wouldMutateBytes
+- pageCount before/after
+- selectedPages before/after
+- predicted output files
+- step predicted effects
+
+5. MacroRunResultPanel:
+Displays:
+- success/failure
+- step result count
+- output files
+- selected pages
+- final bytes size
+- step effects
+- logs
+- download callback
+
+6. MacroRecipeImportExport:
+- Export JSON into textarea
+- copy JSON to clipboard if available
+- Import JSON using importMacroRecipeJson
+- validate with validateMacroRecipeWithSchema
+- reject invalid imports
+
+7. Patch MacroRecipeToolbar:
+Add props:
+- isRunning
+- canRun
+- onDryRun
+- onRun
+
+Buttons:
+- Dry Run
+- Run
+
+Rules:
+- Run disabled when invalid or no context
+- Buttons disabled while running
+
+Tests:
+- dry-run/run buttons visible
+- dry-run does not call onApplyResult
+- invalid run blocked
+- export JSON fills textarea
+- invalid import rejected
+- RunResultPanel output download callback
+- DryRunPanel diff display
+
+Pass matrix:
+dry-run visible: pass
+run visible: pass
+run disabled for invalid: pass
+dry-run does not apply: pass
+successful run applies: pass
+failed run does not apply: pass
+import/export JSON: pass
+TypeScript/test/build errors: 0

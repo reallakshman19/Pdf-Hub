@@ -1,0 +1,118 @@
+WAVE 3 — SCHEMA + RECIPE CATALOG CODE
+=====================================
+
+Objective:
+Create schema contract, builder-state helpers, built-in recipe catalog, and recipe storage core.
+
+Files:
+Create:
+- frontend/src/core/macro/schema/opSchema.ts
+- frontend/src/core/macro/schema/schemaCoverage.ts
+- frontend/src/core/macro/builder/recipeBuilderState.ts
+- frontend/src/core/macro/recipes/builtInRecipes.ts
+- frontend/src/core/macro/recipes/recipeStorage.ts
+- Wave 3 tests
+
+1. opSchema.ts:
+Define MacroFieldType, MacroOpFieldSchema, MacroOpSchema.
+
+Required operation schemas:
+- select_pages
+- rotate_pages
+- extract_pages
+- split_pages
+- duplicate_pages
+- remove_pages
+- insert_blank_page
+- replace_page
+- reorder_pages
+- draw_text_on_pages
+- header_footer_text
+- inject_rich_text
+- place_rich_textbox
+- place_table
+- adjust_image
+- apply_template_vars
+- conditional
+
+Each schema must include:
+- op
+- label
+- category: pages/content/files/logic/templates/authoring
+- description
+- fields
+- defaultStep()
+
+Utility exports:
+- MACRO_OP_SCHEMAS
+- OP_SCHEMA_BY_OP
+- getMacroOpSchema(op)
+- getMacroOpsByCategory()
+- createDefaultStep(op)
+
+2. recipeBuilderState.ts exports:
+- createEmptyMacroRecipe
+- cloneMacroRecipe
+- insertMacroStep
+- updateMacroStep
+- removeMacroStep
+- moveMacroStep
+- duplicateMacroStep
+- validateMacroRecipeWithSchema
+
+Validation:
+- recipe name required
+- at least one step required
+- unknown op rejected
+- required fields present
+- numeric min/max enforced
+
+3. builtInRecipes.ts:
+Catalog item:
+- id, name, description, category, tags, recipe, requiredOps, recommended
+
+Minimum recipes:
+1. Add Page Numbers Footer
+2. Add File Name Header
+3. DRAFT Watermark
+4. Reviewed Stamp — Current Page
+5. Review Checklist Table
+6. Engineering Note Box
+7. Rotate Selected Pages 90°
+8. Duplicate Selected Pages
+9. Extract Current Page
+10. Insert A4 Blank Page at End
+
+Target by final: >=20 recipes.
+
+Exports:
+- getBuiltInMacroRecipes()
+- getRecommendedMacroRecipes()
+- getMacroRecipesByCategory(category)
+
+4. recipeStorage.ts:
+Storage key: pdfhub.macro.customRecipes.v1
+Exports:
+- loadCustomMacroRecipes
+- saveCustomMacroRecipes
+- upsertCustomMacroRecipe
+- deleteCustomMacroRecipe
+- exportMacroRecipeJson
+- importMacroRecipeJson
+
+Tests:
+- unique schemas
+- defaultStep op matches schema op
+- category grouping works
+- builder helpers work
+- built-in recipes schema-valid
+- unique recipe IDs
+- custom recipe storage/import/export roundtrip
+
+Pass matrix:
+schema duplicate ops: 0
+schema default mismatch: 0
+built-in recipe count >=10
+schema-invalid built-in recipes: 0
+custom save/delete/import/export: pass
+TypeScript/test/build errors: 0

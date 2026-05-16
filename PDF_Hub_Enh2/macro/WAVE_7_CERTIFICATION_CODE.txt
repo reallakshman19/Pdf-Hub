@@ -1,0 +1,112 @@
+WAVE 7 — MACRO CERTIFICATION CODE
+=================================
+
+Objective:
+Add permanent macro certification tests, static audit, scripts, and documentation.
+
+Files:
+Create:
+- frontend/src/core/macro/macroCertification.wave7.test.ts
+- frontend/scripts/macro-static-audit.mjs
+- frontend/MACRO_CERTIFICATION.md
+- .github/workflows/macro-certify.yml optional
+Modify:
+- frontend/package.json
+
+1. macroCertification.wave7.test.ts:
+Coverage:
+- registry unknown op returns structured error
+- every schema creates matching default step
+- builder state operations deterministic
+- built-in recipe catalog schema-valid
+- custom recipe import/export/storage roundtrip
+- dry-run does not mutate bytes or create output files
+- apply_template_vars affects later steps
+- conditional executes without crash
+- security helpers block unsafe content
+
+2. macro-static-audit.mjs:
+Checks:
+- registry must not throw unknown op
+- executor must support stepwise template vars
+- executor must support dry-run
+- executor must support rollback
+- security helpers required
+- content-ops must not inject raw HTML/table text
+- layout must block unsafe image src
+- schema required
+- builder state required
+- recipe catalog required
+- recipe storage required
+- dropdown required
+- panel required
+
+Forbidden patterns:
+- throw new Error(...No executor registered...)
+- expandRecipe(recipe
+- container.innerHTML = htmlContent
+- ${cell.text}
+- ${header.text}
+- <img src={block.src}
+
+3. package.json scripts:
+"audit:macro": "node scripts/macro-static-audit.mjs"
+"certify:macro": "npm run typecheck && npm run test && npm run audit:macro && npm run build"
+
+Do not remove existing scripts.
+
+4. MACRO_CERTIFICATION.md:
+Must include:
+- Wave 1–7 scope
+- command: npm run certify:macro
+- numeric pass criteria
+- manual smoke test matrix
+- sign-off
+
+Manual smoke tests:
+S1 Open Macro Dropdown
+S2 Dry-run Built-in Recipe
+S3 Run Built-in Recipe
+S4 Edit Built-in Recipe as Custom Copy
+S5 Create Custom Recipe
+S6 Import / Export Recipe JSON
+S7 Security Test
+S8 Rollback Test
+S9 Conditional + Template Vars
+S10 Certification Command
+
+5. Optional GitHub workflow:
+.github/workflows/macro-certify.yml
+- node 22
+- npm ci
+- npm run certify:macro
+- trigger on macro source/component/script/package changes
+
+Final command:
+cd frontend
+npm run certify:macro
+
+Pass matrix:
+TypeScript errors: 0
+Unit test failures: 0
+Macro static audit failures: 0
+Build errors: 0
+
+dryRun mutation: 0
+rollback residual side effect: 0
+unknown op uncaught crash: 0
+unsafe rich HTML path: 0
+unsafe table interpolation path: 0
+unsafe image source path: 0
+schema-invalid built-in recipe: 0
+custom recipe import/export failure: 0
+
+Final status target:
+Wave 0 COMPLETE
+Wave 1 CERTIFIED
+Wave 2 CERTIFIED
+Wave 3 CERTIFIED
+Wave 4 CERTIFIED
+Wave 5 CERTIFIED
+Wave 6 CERTIFIED
+Wave 7 CERTIFIED
