@@ -1,3 +1,5 @@
+export type ActiveMode = 'view' | 'annotate' | 'draw' | 'write' | 'organize' | 'generate';
+
 export type ActiveTool =
   | 'select'
   | 'hand'
@@ -31,6 +33,7 @@ export type RibbonTab = 'file' | 'organize' | 'annotate' | 'macro' | 'view';
 
 export interface EditorState {
   activeTool: ActiveTool;
+  activeMode: ActiveMode;
   sidebarTab: SidebarTab;
   inspectorTab: InspectorTab;
   leftPanelWidth: number;
