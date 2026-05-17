@@ -9,7 +9,7 @@
  * transparency.
  */
 
-import React from 'react';
+import type React from 'react';
 import type { OcrStore } from '../../core/ocr/store';
 import type { OcrBlock } from '../../core/ocr/types';
 
@@ -23,7 +23,7 @@ export default function OcrResultOverlay({
   ocrStore,
   pageNumber,
   scale,
-}: OcrResultOverlayProps): JSX.Element | null {
+}: OcrResultOverlayProps): React.JSX.Element | null {
   const results = ocrStore.getResultsByPage()[pageNumber];
   if (!results || results.blocks.length === 0) return null;
   return (

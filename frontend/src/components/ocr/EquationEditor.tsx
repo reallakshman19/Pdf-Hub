@@ -9,7 +9,8 @@
  * formula bar or WYSIWYG interface.
  */
 
-import React, { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
+import type { JSX } from 'react';
 
 export interface EquationEditorProps {
   initialValue: string;
@@ -21,7 +22,7 @@ export default function EquationEditor({
   onChange,
 }: EquationEditorProps): JSX.Element {
   const [value, setValue] = useState(initialValue);
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setValue(newValue);
     if (onChange) onChange(newValue);

@@ -9,12 +9,13 @@
  * effects.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import type React from 'react';
 import { planCommands } from '../../core/generate/commandPlanner';
 import type { AiPlan } from '../../core/generate/types';
 import AiCommandPreview from './AiCommandPreview';
 
-export default function GeneratePanel(): JSX.Element {
+export default function GeneratePanel(): React.JSX.Element {
   const [prompt, setPrompt] = useState('');
   const [plan, setPlan] = useState<AiPlan | null>(null);
 

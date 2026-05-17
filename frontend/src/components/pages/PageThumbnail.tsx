@@ -7,7 +7,7 @@
  * relevant event modifiers.
  */
 
-import React from 'react';
+import type React from 'react';
 import type { PageDescriptor } from '../../core/pages/types';
 import PageBadges from './PageBadges';
 
@@ -26,7 +26,7 @@ export interface PageThumbnailProps {
   onClick: (pageId: string, event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
 }
 
-export default function PageThumbnail({ page, selected, onClick }: PageThumbnailProps): JSX.Element {
+export default function PageThumbnail({ page, selected, onClick }: PageThumbnailProps): React.JSX.Element {
   const handleClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     e.stopPropagation();
     onClick(page.pageId, e);

@@ -7,7 +7,8 @@
  * from the document itself.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import type { JSX } from 'react';
 import { BookmarkStore } from '../../core/bookmarks/store';
 import { generateToc } from '../../core/bookmarks/tocGenerator';
 

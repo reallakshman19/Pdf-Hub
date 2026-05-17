@@ -7,7 +7,7 @@
  * into the inspector.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export default function HistoryTab(): JSX.Element {
   return <div className="doccraft-inspector-history-tab">No history available</div>;

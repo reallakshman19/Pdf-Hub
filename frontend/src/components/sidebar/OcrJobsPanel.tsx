@@ -9,7 +9,7 @@
  * later.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
 import OcrLauncher from '../ocr/OcrLauncher';
 import OcrProgress from '../ocr/OcrProgress';

@@ -7,7 +7,7 @@
  * aggregated text; no download facility is provided.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
 
 export interface OcrTextExportPanelProps {

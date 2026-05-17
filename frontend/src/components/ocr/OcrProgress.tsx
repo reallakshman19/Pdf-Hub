@@ -8,7 +8,8 @@
  * progress indicator.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { JSX } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
 import type { OcrJob } from '../../core/ocr/types';
 

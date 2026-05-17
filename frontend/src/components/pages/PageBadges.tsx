@@ -6,17 +6,17 @@
  * corresponding value is meaningful.
  */
 
-import React from 'react';
+import type React from 'react';
 import type { PageDescriptor } from '../../core/pages/types';
 
 export interface PageBadgesProps {
   page: PageDescriptor;
 }
 
-export default function PageBadges({ page }: PageBadgesProps): JSX.Element {
+export default function PageBadges({ page }: PageBadgesProps): React.JSX.Element {
   const badges: React.ReactNode[] = [];
 
-  if (page.rotation && page.rotation !== 0) {
+  if (page.rotation) {
     badges.push(
       <span key="rotation" className="doccraft-page-badge rotation">
         {page.rotation}°

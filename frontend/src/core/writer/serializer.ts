@@ -1,4 +1,4 @@
-import { WriterElement } from './types';
+import type { PlacedElement } from './types';
 
 /**
  * Serialise writer elements into a JSON serialisable form.  The
@@ -7,6 +7,6 @@ import { WriterElement } from './types';
  * embedded images as data URIs or cross‑reference them via file
  * attachments.  Here we simply return the elements unchanged.
  */
-export function serialiseWriterElements(elements: WriterElement[]): unknown {
+export function serialiseWriterElements(elements: PlacedElement[]): unknown {
   return elements.map((e) => ({ ...e }));
 }

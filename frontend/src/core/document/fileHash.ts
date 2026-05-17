@@ -4,7 +4,7 @@
  * (in the browser), it is used; otherwise Node.js `crypto` is used.
  */
 export async function computeFileHash(data: ArrayBuffer | Uint8Array): Promise<string> {
-  const buffer = data instanceof Uint8Array ? data.buffer : data;
+  const buffer: ArrayBuffer = data instanceof Uint8Array ? data.buffer as ArrayBuffer : data;
   if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
     const digest = await window.crypto.subtle.digest('SHA-256', buffer);
     return Array.from(new Uint8Array(digest))

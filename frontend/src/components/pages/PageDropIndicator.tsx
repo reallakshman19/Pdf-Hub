@@ -7,7 +7,7 @@
  * control its visibility.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export interface PageDropIndicatorProps {
   visible: boolean;

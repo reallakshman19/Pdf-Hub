@@ -40,8 +40,10 @@ export class PdfPageCache {
     let evicted: number | null = null;
     if (this.cache.size > this.maxPages) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
-      evicted = oldestKey;
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+        evicted = oldestKey;
+      }
     }
     return evicted;
   }

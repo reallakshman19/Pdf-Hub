@@ -6,7 +6,7 @@
  * implemented later.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export default function StyleTab(): JSX.Element {
   return <div className="doccraft-inspector-style-tab">Style options not yet implemented</div>;

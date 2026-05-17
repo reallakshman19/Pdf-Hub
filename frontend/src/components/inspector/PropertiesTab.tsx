@@ -6,7 +6,7 @@
  * inspector selection logic is implemented.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export default function PropertiesTab(): JSX.Element {
   return <div className="doccraft-inspector-properties-tab">No properties available</div>;

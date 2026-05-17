@@ -8,7 +8,7 @@
  * be added later.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
 
 export interface OcrLauncherProps {

@@ -5,7 +5,7 @@
  * labels for the selected object.  Currently provides a placeholder.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export default function AccessibilityTab(): JSX.Element {
   return <div className="doccraft-inspector-accessibility-tab">Accessibility settings not yet implemented</div>;

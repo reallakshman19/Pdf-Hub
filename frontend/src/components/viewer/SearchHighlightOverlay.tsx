@@ -7,7 +7,7 @@
  * coordinates from PDF space to screen space using the page viewport.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { SearchResult } from '../../core/search/types';
 
 export interface SearchHighlightOverlayProps {

@@ -7,6 +7,8 @@
  * iterations when destructive commands are implemented.
  */
 
+import type { JSX } from 'react';
+
 export default function PageOperationPreview(): JSX.Element | null {
   return null;
 }

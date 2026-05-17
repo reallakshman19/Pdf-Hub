@@ -5,7 +5,7 @@
  * object.  For now, this component only renders a placeholder.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 export default function GeometryTab(): JSX.Element {
   return <div className="doccraft-inspector-geometry-tab">Geometry editing not yet implemented</div>;

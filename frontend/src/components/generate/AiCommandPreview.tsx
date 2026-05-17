@@ -8,7 +8,7 @@
  * implementation would call a command dispatcher on confirm.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { AiPlan } from '../../core/generate/types';
 import { generateDiffPreview } from '../../core/generate/diffPreview';
 

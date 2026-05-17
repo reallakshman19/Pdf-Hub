@@ -1,4 +1,6 @@
-import type { PdfCommand, Rect } from './types';
+import type { PdfCommand } from './types';
+
+type Rect = { x: number; y: number; width: number; height: number };
 
 export interface CommandValidationResult {
   ok: boolean;

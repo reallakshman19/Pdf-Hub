@@ -7,7 +7,7 @@
  * later phase; currently it renders a simple vertical list.
  */
 
-import React from 'react';
+import type React from 'react';
 import type { PageDescriptor, PageSelectionState } from '../../core/pages/types';
 import PageThumbnail from '../pages/PageThumbnail';
 
@@ -24,7 +24,7 @@ export default function ThumbnailPanel({
   pages,
   selection,
   onThumbnailClick,
-}: ThumbnailPanelProps): JSX.Element {
+}: ThumbnailPanelProps): React.JSX.Element {
   return (
     <div className="doccraft-thumbnail-panel">
       {pages.map((page) => (

@@ -7,7 +7,7 @@
  * caller via the onSelect callback.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 import type { BookmarkNode } from '../../core/bookmarks/types';
 
 export interface BookmarkTreeProps {
