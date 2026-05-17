@@ -29,7 +29,7 @@ export function MacroStepList({
   onMoveUp,
   onMoveDown,
 }: MacroStepListProps): React.ReactElement {
-  const [view, setView] = React.useState<'list' | 'table'>('table');
+  const [view, setView] = React.useState<'list' | 'table'>('list');
 
   const toggleButtons = (
     <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>

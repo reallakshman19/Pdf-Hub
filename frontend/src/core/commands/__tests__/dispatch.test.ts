@@ -27,6 +27,7 @@ const pdfMocks = vi.hoisted(() => ({
   addHeaderFooterText: vi.fn(),
   drawTextOnPages: vi.fn(),
   countPages: vi.fn(),
+  getPageSize: vi.fn(),
 }));
 
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
@@ -44,6 +45,7 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     addHeaderFooterText: pdfMocks.addHeaderFooterText,
     drawTextOnPages: pdfMocks.drawTextOnPages,
     countPages: pdfMocks.countPages,
+    getPageSize: pdfMocks.getPageSize,
   },
 }));
 
@@ -58,6 +60,7 @@ describe('dispatchCommand', () => {
       pageCount: 3,
     });
     pdfMocks.countPages.mockResolvedValue(3);
+    pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
   });
 
   it('pushes history and updates session for ROTATE_PAGES', async () => {
