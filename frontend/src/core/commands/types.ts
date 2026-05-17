@@ -1,3 +1,86 @@
+// ── Architecture-level command system (Agent 00 contract) ───────────────────
+
+export type PdfCommandSource = 'user' | 'macro' | 'ai' | 'system';
+
+export type PdfCommandRisk =
+  | 'safe'
+  | 'destructive-preview-required'
+  | 'destructive-confirm-required'
+  | 'server-only';
+
+export interface PdfCommandBase<TType extends string, TPayload> {
+  id: string;
+  type: TType;
+  source: PdfCommandSource;
+  risk: PdfCommandRisk;
+  createdAt: string;
+  documentKey: string;
+  payload: TPayload;
+}
+
+export interface PdfCommandResult {
+  commandId: string;
+  ok: boolean;
+  dirty: boolean;
+  message?: string;
+  inverseCommand?: PdfCommand;
+  diagnostics?: Record<string, unknown>;
+}
+
+export interface PdfCommandPreview {
+  commandId: string;
+  title: string;
+  summary: string;
+  affectedPages: number[];
+  warnings: string[];
+  before?: unknown;
+  after?: unknown;
+}
+
+export interface PdfPoint {
+  pageNumber: number;
+  x: number;
+  y: number;
+  coordinateSpace: 'pdf-points';
+}
+
+export type AddAnnotationCommand = PdfCommandBase<'ANNOTATION_ADD', { annotationType: 'highlight' | 'note' | 'callout' | 'stamp' | 'ink' | 'shape'; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; style: Record<string, unknown>; content?: string }>;
+export type UpdateAnnotationCommand = PdfCommandBase<'ANNOTATION_UPDATE', { annotationId: string; patch: Record<string, unknown> }>;
+export type DeleteAnnotationCommand = PdfCommandBase<'ANNOTATION_DELETE', { annotationIds: string[] }>;
+export type AddWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_ADD', { overlayType: 'textBox' | 'image' | 'table' | 'link'; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; content: unknown; style: Record<string, unknown> }>;
+export type UpdateWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_UPDATE', { overlayId: string; patch: Record<string, unknown> }>;
+export type DeleteWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_DELETE', { overlayIds: string[] }>;
+export type OrganizePagesCommand = PdfCommandBase<'PAGES_ORGANIZE', { operation: 'insertBlank' | 'insertFromFile' | 'delete' | 'duplicate' | 'rotate' | 'replace' | 'reorder' | 'extract' | 'split'; pageNumbers: number[]; targetIndex?: number; rotation?: 90 | 180 | 270; sourceDocumentKey?: string; sourcePageNumbers?: number[] }>;
+export type StartOcrCommand = PdfCommandBase<'OCR_START', { pageNumbers: number[]; mode: 'auto' | 'region'; language: string; regions?: Array<{ pageNumber: number; rect: { x: number; y: number; width: number; height: number } }> }>;
+export type CommitOcrTextLayerCommand = PdfCommandBase<'OCR_COMMIT_TEXT_LAYER', { jobId: string; pageNumbers: number[]; searchable: boolean }>;
+export type AddBookmarkCommand = PdfCommandBase<'BOOKMARK_ADD', { title: string; pageNumber: number; x?: number; y?: number; parentId?: string }>;
+export type UpdateBookmarkCommand = PdfCommandBase<'BOOKMARK_UPDATE', { bookmarkId: string; patch: Record<string, unknown> }>;
+export type DeleteBookmarkCommand = PdfCommandBase<'BOOKMARK_DELETE', { bookmarkIds: string[] }>;
+export type MacroCommand = PdfCommandBase<'MACRO_RUN', { macroId: string; commands: PdfCommand[] }>;
+export type AiGeneratedCommand = PdfCommandBase<'AI_GENERATED_COMMAND', { prompt: string; proposedCommands: PdfCommand[]; explanation: string; requiresUserConfirmation: true }>;
+export type PreviewRedactionCommand = PdfCommandBase<'REDACTION_PREVIEW', { pageNumber: number; rects: Array<{ x: number; y: number; width: number; height: number }>; reason?: string }>;
+export type ApplyRedactionCommand = PdfCommandBase<'REDACTION_APPLY', { redactionPreviewId: string; pageRects: Array<{ pageNumber: number; rects: Array<{ x: number; y: number; width: number; height: number }> }>; removeText: true; removeImages: true; removeAnnotations: true; removeOcrText: true }>;
+
+export type PdfCommand =
+  | AddAnnotationCommand
+  | UpdateAnnotationCommand
+  | DeleteAnnotationCommand
+  | AddWriterOverlayCommand
+  | UpdateWriterOverlayCommand
+  | DeleteWriterOverlayCommand
+  | OrganizePagesCommand
+  | StartOcrCommand
+  | CommitOcrTextLayerCommand
+  | AddBookmarkCommand
+  | UpdateBookmarkCommand
+  | DeleteBookmarkCommand
+  | MacroCommand
+  | AiGeneratedCommand
+  | PreviewRedactionCommand
+  | ApplyRedactionCommand;
+
+// ── Dispatch-level command system (existing implementation) ──────────────────
+
 export type CommandSource =
   | 'toolbar'
   | 'thumbnail-menu'
