@@ -91,3 +91,85 @@ export function remapAfterInsert(
     return a;
   });
 }
+
+/**
+ * Remaps annotation rects after pages are rotated.
+ * Transforms x/y/width/height (and any geometric sub-fields) to the new orientation.
+ *
+ * Coordinate convention: top-left origin, matching PDF.js viewport at scale=1.
+ * page dimensions (width/height) come from PdfEditAdapter.getPageSize (PDF user units).
+ *
+ * @param rotations - per-page rotation info: pageIndex (0-based), angle (degrees CW delta),
+ *                    width/height of the page BEFORE rotation
+ */
+export function remapAfterRotate(
+  annotations: PdfAnnotation[],
+  rotations: Array<{ pageIndex: number; angle: number; width: number; height: number }>,
+): PdfAnnotation[] {
+  if (rotations.length === 0) return annotations;
+
+  const rotationMap = new Map(rotations.map((r) => [r.pageIndex, r]));
+
+  return annotations.map((annotation) => {
+    const rot = rotationMap.get(annotation.pageNumber - 1);
+    if (!rot) return annotation;
+
+    const normalizedAngle = ((rot.angle % 360) + 360) % 360;
+    if (normalizedAngle === 0) return annotation;
+
+    const { width: W, height: H } = rot;
+    const { x, y, width: w, height: h } = annotation.rect;
+
+    let newRect: { x: number; y: number; width: number; height: number };
+    if (normalizedAngle === 90) {
+      newRect = { x: H - y - h, y: x, width: h, height: w };
+    } else if (normalizedAngle === 270) {
+      newRect = { x: y, y: W - x - w, width: h, height: w };
+    } else {
+      // 180°
+      newRect = { x: W - x - w, y: H - y - h, width: w, height: h };
+    }
+
+    const newData = { ...annotation.data };
+
+    if (annotation.data.anchor) {
+      const { x: ax, y: ay } = annotation.data.anchor as { x: number; y: number };
+      newData.anchor = rotatePoint(ax, ay, normalizedAngle, W, H);
+    }
+    if (annotation.data.knee) {
+      const { x: kx, y: ky } = annotation.data.knee as { x: number; y: number };
+      newData.knee = rotatePoint(kx, ky, normalizedAngle, W, H);
+    }
+    if (Array.isArray(annotation.data.paths)) {
+      newData.paths = (annotation.data.paths as number[][]).map((path) =>
+        rotatePath(path, normalizedAngle, W, H),
+      );
+    }
+    if (Array.isArray(annotation.data.points)) {
+      newData.points = rotatePath(annotation.data.points as number[], normalizedAngle, W, H);
+    }
+
+    return { ...annotation, rect: newRect, data: newData };
+  });
+}
+
+function rotatePoint(
+  px: number,
+  py: number,
+  angle: number,
+  W: number,
+  H: number,
+): { x: number; y: number } {
+  if (angle === 90)  return { x: H - py, y: px };
+  if (angle === 270) return { x: py, y: W - px };
+  return { x: W - px, y: H - py }; // 180°
+}
+
+function rotatePath(path: number[], angle: number, W: number, H: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i + 1 < path.length; i += 2) {
+    const pt = rotatePoint(path[i], path[i + 1], angle, W, H);
+    out.push(pt.x, pt.y);
+  }
+  return out;
+}

@@ -176,12 +176,27 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         if (pageIndices.length === 0) {
           return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for rotation');
         }
+        // Capture page dimensions BEFORE rotation for annotation coordinate transform
+        const rotations = await Promise.all(
+          pageIndices.map(async (idx) => {
+            const { width, height } = await PdfEditAdapter.getPageSize(context.workingBytes, idx);
+            return { pageIndex: idx, angle: command.angle, width, height };
+          }),
+        );
+        // Emit BEFORE applyMutation so the store remaps first, then saves remapped annotations
+        documentBus.emit({ type: 'PAGES_ROTATED', rotations });
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, command.angle);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
         return commandSuccess(command.type, source, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
       }
 
       case 'REORDER_PAGES': {
+        // Build full order array (order[newIndex] = oldIndex) from the single fromIndex→toIndex move
+        const order = Array.from({ length: pageCount }, (_, i) => i);
+        const [moved] = order.splice(command.fromIndex, 1);
+        order.splice(command.toIndex, 0, moved);
+        // Emit BEFORE applyMutation so the store remaps first, then saves remapped annotations
+        documentBus.emit({ type: 'PAGES_REORDERED', order });
         const nextBytes = await PdfEditAdapter.movePage(context.workingBytes, command.fromIndex, command.toIndex);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
         return commandSuccess(command.type, source, true, 'Page reordered', result.nextBytes, result.nextPageCount);
