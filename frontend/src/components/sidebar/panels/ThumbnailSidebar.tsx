@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layers, GripVertical, ZoomIn, ZoomOut } from 'lucide-react';
-import { VList } from 'virtua';
+import { VList, type VListHandle } from 'virtua';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useEditorStore } from '@/core/editor/store';
@@ -83,6 +83,7 @@ const ThumbnailSidebar: React.FC = () => {
 
   const [thumbs, setThumbs] = React.useState<ThumbItem[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const vlistRef = React.useRef<VListHandle>(null);
   // thumbHeight controls the pixel height of the thumbnail image area (sm/md/lg)
   const [thumbHeight, setThumbHeight] = React.useState(130);
   const THUMB_MIN = 60;
@@ -125,6 +126,12 @@ const ThumbnailSidebar: React.FC = () => {
     });
     return counts;
   }, [hits]);
+
+  React.useEffect(() => {
+    if (thumbs.length > 0) {
+      vlistRef.current?.scrollToIndex(viewState.currentPage - 1, { align: 'nearest' });
+    }
+  }, [viewState.currentPage, thumbs.length]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -367,7 +374,7 @@ const ThumbnailSidebar: React.FC = () => {
       {loading && <div className="text-sm text-slate-500 shrink-0 mb-3">Generating thumbnails...</div>}
 
       <div className="flex-1 overflow-y-auto">
-        <VList data={thumbs}>
+        <VList ref={vlistRef} data={thumbs}>
           {(thumb) => {
             const active = thumb.pageNumber === viewState.currentPage;
             const selected = selectedPages.includes(thumb.pageNumber);

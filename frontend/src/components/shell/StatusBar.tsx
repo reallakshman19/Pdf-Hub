@@ -51,6 +51,10 @@ export const StatusBar: React.FC = () => {
     return () => { observer.disconnect(); mutationObs.disconnect(); };
   }, []);
 
+  useEffect(() => {
+    if (pageCount > 0 && !isEditingPageInput) setPage(visiblePage);
+  }, [visiblePage, pageCount, isEditingPageInput, setPage]);
+
   const commitPageInput = React.useCallback(
     (raw: string) => {
       const parsed = parseInt(raw, 10);

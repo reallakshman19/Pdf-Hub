@@ -43,6 +43,7 @@ export function MacroStepPalette({
                   borderRadius: 6,
                   padding: '6px 8px',
                   background: '#f9fafb',
+                  color: '#111827',
                   cursor: 'pointer',
                 }}
               >

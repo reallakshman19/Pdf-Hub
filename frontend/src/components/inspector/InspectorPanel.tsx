@@ -31,7 +31,7 @@ const ANNOTATION_TYPES: AnnotationType[] = [
 ];
 
 export const InspectorPanel: React.FC = () => {
-  const { inspectorTab, setInspectorTab, rightPanelWidth, setRightPanelWidth } = useEditorStore();
+  const { inspectorTab, setInspectorTab, rightPanelWidth, setRightPanelWidth, activeMode } = useEditorStore();
   const {
     annotations,
     selectedAnnotationIds,
@@ -44,6 +44,7 @@ export const InspectorPanel: React.FC = () => {
   } = useAnnotationStore();
 
   const writerSelectedIds = useWriterStore(s => s.selectedIds);
+  const writerActiveTool = useWriterStore(s => s.activeTool);
 
   const [previousWidth, setPreviousWidth] = useState(18);
   const isCollapsed = rightPanelWidth <= 0.1;
@@ -65,8 +66,8 @@ export const InspectorPanel: React.FC = () => {
     }
   };
 
-  // If we are actively using Writer Mode (any of the writer tools) and have a selection, hijack the inspector panel
-  const isWriterActive = ['select', 'place-text', 'place-image', 'place-table'].includes(useWriterStore(s => s.activeTool));
+  // Only show the writer inspector in write mode when a writer element is selected
+  const isWriterActive = activeMode === 'write' && ['select', 'place-text', 'place-image', 'place-table'].includes(writerActiveTool);
   if (isWriterActive && writerSelectedIds.length > 0) {
     return <WriterInspectorPanel />;
   }

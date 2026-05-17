@@ -22,6 +22,7 @@ import { useSearchStore } from '@/core/search/store';
 import { SearchIndexer } from '@/core/search/indexer';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 
@@ -88,8 +89,9 @@ export const DocumentWorkspace: React.FC = () => {
     openDocument,
   } = useSessionStore();
 
-  const { activeTool } = useEditorStore();
+  const { activeTool, setActiveTool } = useEditorStore();
   const { hideResolved } = useReviewStore();
+  const setActiveWriterTool = useWriterV2Store((s) => s.setActiveWriterTool);
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
 
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
@@ -122,6 +124,18 @@ export const DocumentWorkspace: React.FC = () => {
       setLoadError(String(err));
     }
   };
+
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setActiveTool('select');
+      setActiveWriterTool('select');
+      clearSelection();
+      setActiveAnnotationId(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [setActiveTool, setActiveWriterTool, clearSelection, setActiveAnnotationId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -503,7 +517,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const isSelectTool = activeTool === 'select';
   const isTextMarkTool =
     activeTool === 'highlight' || activeTool === 'underline' || activeTool === 'strikeout' || activeTool === 'squiggly';
-  const isNoteTool = activeTool === 'comment' || activeTool === 'callout';
+  const isNoteTool = activeTool === 'comment';
   const isPlacementOnlyTool =
     activeTool === 'textbox' ||
     activeTool === 'shape-rect' ||
@@ -517,6 +531,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     activeTool === 'line' ||
     activeTool === 'arrow' ||
     activeTool === 'stamp' ||
+    activeTool === 'callout' || // click-to-place callout at cursor position
     activeTool === 'comment'; // click-to-place note box at cursor position
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
@@ -1150,6 +1165,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         item.rect = rect;
         item.data.paths = [path];
         onCreateAnnotation(item);
+        useEditorStore.getState().setActiveTool('select');
 
         setInkPaths([]);
         currentPathRef.current = [];
@@ -1276,6 +1292,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
 
       onCreateAnnotation(annotation);
+      useEditorStore.getState().setActiveTool('select');
     };
 
     window.addEventListener('mousemove', onMove);
