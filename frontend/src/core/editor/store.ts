@@ -15,6 +15,7 @@ export interface EditorActions {
   setInspectorTab: (tab: InspectorTab) => void;
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
+  setMacroBuilderOpen: (open: boolean) => void;
 }
 
 export const useEditorStore = create<EditorState & EditorActions>((set) => ({
@@ -24,6 +25,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   inspectorTab: 'properties',
   leftPanelWidth: 20,
   rightPanelWidth: 18,
+  macroBuilderOpen: false,
   setActiveTool: (activeTool) => set({
     activeTool: normalizeActiveTool(activeTool),
   }),
@@ -32,4 +34,5 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   setInspectorTab: (inspectorTab) => set({ inspectorTab }),
   setLeftPanelWidth: (leftPanelWidth) => set({ leftPanelWidth }),
   setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
+  setMacroBuilderOpen: (macroBuilderOpen) => set({ macroBuilderOpen }),
 }));

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  FolderOpen,
   MousePointer2,
   Highlighter,
   PenTool,
@@ -17,6 +18,7 @@ import { useSessionStore } from '@/core/session/store';
 import type { ActiveMode } from '@/core/editor/types';
 
 const MODES: Array<{ id: ActiveMode; icon: React.ComponentType<{ className?: string }>; label: string; ai?: boolean }> = [
+  { id: 'file',     icon: FolderOpen,    label: 'File' },
   { id: 'view',     icon: MousePointer2, label: 'View' },
   { id: 'annotate', icon: Highlighter,   label: 'Annotate' },
   { id: 'draw',     icon: PenTool,       label: 'Draw' },

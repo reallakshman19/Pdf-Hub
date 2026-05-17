@@ -6,6 +6,7 @@ import {
   rootStepPath,
   type MacroStepPath,
 } from '../../../core/macro/builder/recipeBuilderState';
+import { MacroStepsTable } from './MacroStepsTable';
 
 export interface MacroStepListProps {
   recipe: MacroRecipe;
@@ -28,18 +29,93 @@ export function MacroStepList({
   onMoveUp,
   onMoveDown,
 }: MacroStepListProps): React.ReactElement {
+  const [view, setView] = React.useState<'list' | 'table'>('table');
+
+  const toggleButtons = (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+      <button
+        type="button"
+        onClick={() => setView('list')}
+        style={{
+          padding: '2px 10px',
+          fontSize: 12,
+          borderRadius: 4,
+          border: '1px solid #d1d5db',
+          background: view === 'list' ? '#2563eb' : '#ffffff',
+          color: view === 'list' ? '#ffffff' : '#374151',
+          cursor: 'pointer',
+        }}
+      >
+        List
+      </button>
+      <button
+        type="button"
+        onClick={() => setView('table')}
+        style={{
+          padding: '2px 10px',
+          fontSize: 12,
+          borderRadius: 4,
+          border: '1px solid #d1d5db',
+          background: view === 'table' ? '#2563eb' : '#ffffff',
+          color: view === 'table' ? '#ffffff' : '#374151',
+          cursor: 'pointer',
+        }}
+      >
+        Table
+      </button>
+    </div>
+  );
+
   if (recipe.steps.length === 0) {
     return (
       <div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Steps</h2>
-        <p>No macro steps added.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Steps</h2>
+          {toggleButtons}
+        </div>
+        {view === 'table' ? (
+          <MacroStepsTable
+            recipe={recipe}
+            selectedPath={selectedPath}
+            validation={validation}
+            onSelect={onSelect}
+            onRemove={onRemove}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+          />
+        ) : (
+          <p>No macro steps added.</p>
+        )}
+      </div>
+    );
+  }
+
+  if (view === 'table') {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Steps</h2>
+          {toggleButtons}
+        </div>
+        <MacroStepsTable
+          recipe={recipe}
+          selectedPath={selectedPath}
+          validation={validation}
+          onSelect={onSelect}
+          onRemove={onRemove}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+        />
       </div>
     );
   }
 
   return (
     <div>
-      <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Steps</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Steps</h2>
+        {toggleButtons}
+      </div>
 
       <ol style={{ paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
         {recipe.steps.map((step, index) => {

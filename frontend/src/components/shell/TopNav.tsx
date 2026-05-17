@@ -18,7 +18,7 @@ export const TopNav: React.FC = () => {
   const navigate = useNavigate();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const { documentKey, fileName, isDirty } = useSessionStore();
-  const { setSidebarTab, setLeftPanelWidth, leftPanelWidth } = useEditorStore();
+  const { setSidebarTab, setLeftPanelWidth, leftPanelWidth, setMacroBuilderOpen } = useEditorStore();
   const addToast = useToastStore((state) => state.addToast);
   const debugEnabled = isDebugRouteEnabled(window.location.hostname, import.meta.env.DEV);
 
@@ -84,6 +84,8 @@ export const TopNav: React.FC = () => {
     setLocalQuery(value);
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!value.trim()) { setQuery(''); clearSearch(); return; }
+    setSidebarTab('search');
+    if (leftPanelWidth < 1) setLeftPanelWidth(20);
     debounceRef.current = window.setTimeout(() => {
       setQuery(value);
       void executeSearch(value);
@@ -111,8 +113,6 @@ export const TopNav: React.FC = () => {
     }
     navigate('/debug');
   };
-
-  const handleOpenMacroBuilder = () => navigate('/macro-builder');
 
   const displayName = fileName
     ? fileName.length > 38 ? `${fileName.slice(0, 37)}…` : fileName
@@ -203,7 +203,7 @@ export const TopNav: React.FC = () => {
           </Button>
         </Tooltip>
         <Tooltip content="Open macro builder">
-          <Button variant="ghost" size="icon" onClick={handleOpenMacroBuilder}>
+          <Button variant="ghost" size="icon" onClick={() => setMacroBuilderOpen(true)}>
             <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           </Button>
         </Tooltip>

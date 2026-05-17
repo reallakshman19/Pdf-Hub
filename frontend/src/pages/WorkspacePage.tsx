@@ -8,17 +8,21 @@ import { SidebarPanel } from '@/components/sidebar/SidebarPanel';
 import { DocumentWorkspace } from '@/components/workspace/DocumentWorkspace';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { StatusBar } from '@/components/shell/StatusBar';
+import { MacroBuilderDrawer } from '@/components/macro/MacroBuilderDrawer';
 
 export const WorkspacePage: React.FC = () => {
   return (
-    <AppShell
-      topnav={<TopNav />}
-      toolbar={<><ModeBar /><CtxBar /></>}
-      leftRail={<LeftRail />}
-      sidebar={<SidebarPanel />}
-      workspace={<DocumentWorkspace />}
-      inspector={<InspectorPanel />}
-      statusbar={<StatusBar />}
-    />
+    <>
+      <AppShell
+        topnav={<TopNav />}
+        toolbar={<><ModeBar /><CtxBar /></>}
+        leftRail={<LeftRail />}
+        sidebar={<SidebarPanel />}
+        workspace={<DocumentWorkspace />}
+        inspector={<InspectorPanel />}
+        statusbar={<StatusBar />}
+      />
+      <MacroBuilderDrawer />
+    </>
   );
 };

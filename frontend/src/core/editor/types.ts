@@ -1,4 +1,4 @@
-export type ActiveMode = 'view' | 'annotate' | 'draw' | 'write' | 'organize' | 'generate';
+export type ActiveMode = 'file' | 'view' | 'annotate' | 'draw' | 'write' | 'organize' | 'generate';
 
 export type ActiveTool =
   | 'select'
@@ -38,4 +38,5 @@ export interface EditorState {
   inspectorTab: InspectorTab;
   leftPanelWidth: number;
   rightPanelWidth: number;
+  macroBuilderOpen: boolean;
 }

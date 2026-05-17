@@ -5,6 +5,7 @@ import {
   Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
   PlusSquare, FilePlus2, Trash2, CopyPlus, RotateCw, Replace, Layers, Scissors, Split, PlaySquare,
+  Wand2,
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
@@ -14,6 +15,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
 import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
+import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
 import type { ActiveTool } from '@/core/editor/types';
 
@@ -82,6 +84,16 @@ const CtxBtn: React.FC<CtxBtnProps> = ({
 };
 
 // ── Mode sections ────────────────────────────────────────────────────────────
+
+const FileSection: React.FC = () => (
+  <div className="flex items-center h-full">
+    <CtxLabel first>Document</CtxLabel>
+    <ToolbarFile />
+    <CtxSep />
+    <CtxLabel>Project</CtxLabel>
+    <WriterV2ToolbarControls />
+  </div>
+);
 
 const ViewSection: React.FC = () => {
   const { activeTool, setActiveTool } = useEditorStore();
@@ -192,12 +204,16 @@ const OrganizeSection: React.FC = () => (
   </div>
 );
 
-const GenerateSection: React.FC = () => (
-  <div className="flex items-center h-full">
-    <CtxLabel first>AI Tools</CtxLabel>
-    <ToolbarMacro />
-  </div>
-);
+const GenerateSection: React.FC = () => {
+  const { setMacroBuilderOpen } = useEditorStore();
+  return (
+    <div className="flex items-center h-full">
+      <CtxLabel first>AI Tools</CtxLabel>
+      <CtxBtn icon={Wand2} label="Builder" onClick={() => setMacroBuilderOpen(true)} />
+      <ToolbarMacro />
+    </div>
+  );
+};
 
 // ── CtxBar shell ─────────────────────────────────────────────────────────────
 
@@ -206,6 +222,7 @@ export const CtxBar: React.FC = () => {
 
   return (
     <div className="flex items-center h-[34px] min-h-[34px] shrink-0 px-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {activeMode === 'file' && <FileSection />}
       {activeMode === 'view' && <ViewSection />}
       {activeMode === 'annotate' && <AnnotateSection />}
       {activeMode === 'draw' && <DrawSection />}
