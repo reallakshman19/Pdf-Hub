@@ -14,7 +14,7 @@
     "lint-staged": "^15.2.2"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx}": "eslint --fix"
+    "frontend/**/*.{js,jsx,ts,tsx}": "eslint --fix"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
