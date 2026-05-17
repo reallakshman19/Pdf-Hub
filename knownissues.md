@@ -1,6 +1,6 @@
 # Known Issues
 
-Captured from `pnpm lint` run on 2026-05-17. TypeScript (`pnpm typecheck`) is clean — zero errors.
+Captured from `pnpm lint` run on 2026-05-17 (updated after patch4 applied on 2026-05-17). TypeScript (`pnpm typecheck`) is clean — zero errors.
 
 ---
 
@@ -68,6 +68,20 @@ Captured from `pnpm lint` run on 2026-05-17. TypeScript (`pnpm typecheck`) is cl
 - **Rule**: `react-hooks/exhaustive-deps`
 - **Detail**: `React.useMemo` is missing `element.editorStateJson` and `element.plainText` from its dependency array.
 - **Fix**: Add the missing dependencies, or if the stale-closure is intentional, suppress with a comment explaining why.
+
+---
+
+---
+
+## Patch-Skipped Files (agent_07A_to_08B)
+
+The following files from patch4 were **not applied** because they conflict with the existing, richer macro system in `frontend/src/core/macro/` (which uses Zustand, a complex type hierarchy, and sub-directories for recipes and store presets):
+
+- `core/macro/types.ts` — patch defines a simple `Macro` interface; existing file has 200+ lines of `MacroStep`, `MacroRecipe`, `MacroCondition`, etc.
+- `core/macro/store.ts` — patch is a new file, but `core/macro/store/` is already a directory with Zustand-based store
+- `core/macro/recipes.ts` — patch is a new file, but `core/macro/recipes/` is already a directory with persistent recipe storage
+- `components/generate/MacroBuilder.tsx` — imports from the skipped patch macro store; would not compile against existing macro types
+- `pages/MacroConsolePage.tsx` — depends on the skipped patch `MacroStore` class
 
 ---
 
