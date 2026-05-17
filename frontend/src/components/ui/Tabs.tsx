@@ -6,7 +6,7 @@ interface TabsProps {
   children: React.ReactNode;
 }
 
-export const TabsContext = React.createContext<{
+const TabsContext = React.createContext<{
   value: string;
   onValueChange: (value: string) => void;
 } | null>(null);

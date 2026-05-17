@@ -73,9 +73,7 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
         throw error;
       },
     };
-    // Only re-create the Lexical composer when the element ID changes.
-    // editorStateJson and plainText are initial values only — LexicalComposer
-    // ignores config changes after mount, so including them would be misleading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editorStateJson and plainText are initial values; LexicalComposer ignores config after mount
   }, [element.id]);
 
   const save = React.useCallback(() => {

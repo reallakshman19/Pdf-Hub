@@ -744,7 +744,7 @@ const MetadataTab: React.FC<{ annotation: PdfAnnotation }> = ({ annotation }) =>
   </div>
 );
 
-export function isTextLike(type: AnnotationType): boolean {
+function isTextLike(type: AnnotationType): boolean {
   return (
     type === 'textbox' ||
     type === 'comment' ||

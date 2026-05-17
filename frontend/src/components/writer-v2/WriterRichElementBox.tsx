@@ -60,7 +60,6 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         <div
           data-writer-v2-display-content="true"
           style={{ pointerEvents: 'none' }}
-          // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{
             __html: writerDisplayHtml(element.editorStateJson, element.plainText) || '<span style="color:#9ca3af">Double-click to edit</span>',
           }}

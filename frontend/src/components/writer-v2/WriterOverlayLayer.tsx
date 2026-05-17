@@ -141,7 +141,3 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
     </div>
   );
 };
-
-export function isWriterOverlayV2Enabled(): boolean {
-  return import.meta.env.VITE_WRITER_OVERLAY_ENGINE === 'v2';
-}

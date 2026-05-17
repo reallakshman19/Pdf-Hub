@@ -44,10 +44,12 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
     return result.table ? createTableDraftFromResult(result.table) : null;
   });
 
-  React.useEffect(() => {
+  const [prevResult, setPrevResult] = React.useState<SelectBoxCopyResult>(result);
+  if (prevResult !== result) {
+    setPrevResult(result);
     setTableDraft(result.table ? createTableDraftFromResult(result.table) : null);
     setInsertMode('auto');
-  }, [result]);
+  }
 
   const effectiveResult = React.useMemo(() => {
     if (!tableDraft) return result;

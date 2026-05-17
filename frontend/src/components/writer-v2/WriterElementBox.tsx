@@ -41,10 +41,12 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
   const [draftRect, setDraftRect] = React.useState<PdfRect | null>(null);
   const dragRef = React.useRef<DragState | null>(null);
-
-  React.useEffect(() => {
+  const rectKey = `${element.rect.x},${element.rect.y},${element.rect.width},${element.rect.height}`;
+  const [prevRectKey, setPrevRectKey] = React.useState(rectKey);
+  if (prevRectKey !== rectKey) {
+    setPrevRectKey(rectKey);
     setDraftRect(null);
-  }, [element.rect.x, element.rect.y, element.rect.width, element.rect.height]);
+  }
 
   const effectiveRect = draftRect ?? element.rect;
   const viewportRect = pdfRectToViewportRect(effectiveRect, viewport);

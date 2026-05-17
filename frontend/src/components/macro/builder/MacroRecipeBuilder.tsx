@@ -24,7 +24,7 @@ import { MacroStepList } from './MacroStepList';
 import { MacroValidationPanel } from './MacroValidationPanel';
 import { MacroRecipeImportExport } from './MacroRecipeImportExport';
 import { MacroStepEditor } from './MacroStepEditor';
-import { getChildParentPath } from './MacroNestedBranchEditor';
+import { getChildParentPath } from './macroPathUtils';
 
 export interface MacroRecipeBuilderProps {
   initialRecipe?: MacroRecipe;

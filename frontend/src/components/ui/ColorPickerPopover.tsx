@@ -22,7 +22,11 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
   const [hex, setHex] = React.useState(value);
   const ref = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => { setHex(value); }, [value]);
+  const [prevValue, setPrevValue] = React.useState(value);
+  if (prevValue !== value) {
+    setPrevValue(value);
+    setHex(value);
+  }
 
   React.useEffect(() => {
     if (!open) return;

@@ -6,6 +6,7 @@ import {
 } from '../../../core/macro/builder/recipeBuilderState';
 import type { MacroRecipe } from '../../../core/macro/types';
 import type { MacroOpCategory, MacroOpSchema } from '../../../core/macro/schema/opSchema';
+import { getChildParentPath } from './macroPathUtils';
 
 export interface MacroNestedBranchEditorProps {
   recipe: MacroRecipe;
@@ -231,18 +232,6 @@ function BranchPanel({
       )}
     </div>
   );
-}
-
-export function getChildParentPath(path: MacroStepPath): Array<number | 'then' | 'else'> {
-  if (path.branch === 'root') {
-    return [path.index];
-  }
-
-  return [
-    ...path.parentPath,
-    path.branch,
-    path.index,
-  ];
 }
 
 function isSamePath(

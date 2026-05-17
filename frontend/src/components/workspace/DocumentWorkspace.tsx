@@ -180,8 +180,8 @@ export const DocumentWorkspace: React.FC = () => {
   }, [workingBytes, documentKey, setSharedPdfDoc]);
 
   React.useEffect(() => {
-    setRestoredCount(0); // reset banner on every document switch
     const loadStored = async () => {
+      setRestoredCount(0);
       if (!documentKey) return;
       const stored = await loadAnnotations(documentKey);
       setAnnotations(stored);
