@@ -2,9 +2,9 @@ import React from 'react';
 import {
   MousePointer2, Hand, Expand, Maximize, AlignJustify, FileIcon, Columns2,
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
-  Stamp, Square, ScanText, Eye, EyeOff,
+  MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  Wand2,
+  Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info,
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
@@ -15,6 +15,7 @@ import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
 import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
 import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
+import { useToastStore } from '@/core/toast/store';
 import type { ActiveTool } from '@/core/editor/types';
 
 // ── Primitive building blocks ────────────────────────────────────────────────
@@ -146,6 +147,7 @@ const AnnotateSection: React.FC = () => {
       <CtxLabel>Notes</CtxLabel>
       <CtxBtn icon={MessageSquare} label="Sticky Note" active={activeTool === 'sticky-note'} onClick={() => handleToolClick('sticky-note')} />
       <CtxBtn icon={MessageCircle} label="Comment" active={activeTool === 'comment'} onClick={() => handleToolClick('comment')} />
+      <CtxBtn icon={MessageSquareDot} label="Callout" active={activeTool === 'callout'} onClick={() => handleToolClick('callout')} />
       <CtxSep />
       <CtxLabel>Mark</CtxLabel>
       <CtxBtn icon={Stamp} label="Stamp" active={activeTool === 'stamp'} disabled={isToolDisabled('stamp')} title={getToolDisabledReason('stamp') ?? 'Stamp'} onClick={() => handleToolClick('stamp')} />
@@ -190,9 +192,14 @@ const DrawSection: React.FC = () => {
 };
 
 const WriteSection: React.FC = () => (
-  <div className="flex items-center h-full">
+  <div className="flex items-center h-full gap-2">
     <CtxLabel first>Writer Tools</CtxLabel>
     <WriterV2ToolbarControls />
+    <CtxSep />
+    <div className="flex items-center gap-1 text-[10.5px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 shrink-0 select-none">
+      <Info className="w-3 h-3 shrink-0" />
+      <span>Overlay only — does not edit existing PDF text</span>
+    </div>
   </div>
 );
 
@@ -204,10 +211,20 @@ const OrganizeSection: React.FC = () => (
 
 const GenerateSection: React.FC = () => {
   const { setMacroBuilderOpen } = useEditorStore();
+  const addToast = useToastStore((s) => s.addToast);
+  const stub = (name: string) => () =>
+    addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
   return (
     <div className="flex items-center h-full">
       <CtxLabel first>AI Tools</CtxLabel>
-      <CtxBtn icon={Wand2} label="Builder" onClick={() => setMacroBuilderOpen(true)} />
+      <CtxBtn icon={Wand2} label="Builder" ai onClick={() => setMacroBuilderOpen(true)} />
+      <CtxBtn icon={Sparkles} label="Smart Fill" ai onClick={stub('Smart Fill')} />
+      <CtxBtn icon={BrainCircuit} label="Ask AI" ai onClick={stub('Ask AI')} />
+      <CtxSep />
+      <CtxLabel>Extract</CtxLabel>
+      <CtxBtn icon={TableProperties} label="Extract Fields" ai onClick={stub('Extract Fields')} />
+      <CtxBtn icon={FileSearch} label="Summarize" ai onClick={stub('Summarize')} />
+      <CtxSep />
       <ToolbarMacro />
     </div>
   );

@@ -10,9 +10,8 @@
  */
 
 export async function renderToSvg(latex: string): Promise<string> {
-  // Return a wrapped LaTeX string as a placeholder SVG.  A true
-  // implementation would call MathJax.tex2svg() and return
-  // serialized SVG markup.
+  // eslint-disable-next-line no-console
+  console.warn('[MathJax STUB] renderToSvg returning placeholder. Real MathJax tex2svg not yet wired.');
   const escaped = latex.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return `<span class="latex-placeholder">${escaped}</span>`;
+  return `<span class="latex-placeholder" title="LaTeX preview — MathJax not loaded">${escaped}</span>`;
 }

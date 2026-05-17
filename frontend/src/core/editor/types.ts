@@ -26,9 +26,11 @@ export type SidebarTab =
   | 'bookmarks'
   | 'comments'
   | 'search'
-  | 'macros';
+  | 'macros'
+  | 'ocr'
+  | 'redaction';
 
-export type InspectorTab = 'properties' | 'style' | 'metadata' | 'review';
+export type InspectorTab = 'properties' | 'style' | 'history' | 'review';
 export type RibbonTab = 'file' | 'organize' | 'annotate' | 'macro' | 'view';
 
 export interface EditorState {

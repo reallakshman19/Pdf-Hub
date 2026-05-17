@@ -1,8 +1,20 @@
 import React, { useState, Suspense } from 'react';
 import { useEditorStore } from '@/core/editor/store';
+import { useSessionStore } from '@/core/session/store';
 import { MacrosSidebar } from '@/components/sidebar/MacrosSidebar';
+import OcrJobsPanel from '@/components/sidebar/OcrJobsPanel';
+import RedactionPreviewPanel from '@/components/redaction/RedactionPreviewPanel';
+import { OcrStore } from '@/core/ocr/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+
+const ocrStore = new OcrStore();
+
+const OcrPanelConnected: React.FC = () => {
+  const documentKey = useSessionStore((s) => s.documentKey) ?? '';
+  const selectedPages = useSessionStore((s) => s.selectedPages);
+  return <OcrJobsPanel ocrStore={ocrStore} documentKey={documentKey} selectedPages={selectedPages} />;
+};
 
 const ThumbnailSidebar = React.lazy(() => import('./panels/ThumbnailSidebar'));
 const BookmarksSidebar = React.lazy(() => import('./panels/BookmarksSidebar'));
@@ -34,18 +46,14 @@ export const SidebarPanel: React.FC = () => {
 
   const getPanelTitle = () => {
     switch (sidebarTab) {
-      case 'thumbnails':
-        return 'Pages';
-      case 'bookmarks':
-        return 'Bookmarks';
-      case 'comments':
-        return 'Comments';
-      case 'search':
-        return 'Search';
-      case 'macros':
-        return 'Macros';
-      default:
-        return 'Panel';
+      case 'thumbnails': return 'Pages';
+      case 'bookmarks':  return 'Bookmarks';
+      case 'comments':   return 'Comments';
+      case 'search':     return 'Search';
+      case 'macros':     return 'Macros';
+      case 'ocr':        return 'OCR';
+      case 'redaction':  return 'Redaction';
+      default:           return 'Panel';
     }
   };
 
@@ -90,6 +98,8 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
         {sidebarTab === 'macros' && <MacrosSidebar />}
+        {sidebarTab === 'ocr' && <OcrPanelConnected />}
+        {sidebarTab === 'redaction' && <RedactionPreviewPanel />}
       </div>
     </div>
   );

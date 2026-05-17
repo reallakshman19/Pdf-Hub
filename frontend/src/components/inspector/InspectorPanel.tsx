@@ -92,7 +92,7 @@ export const InspectorPanel: React.FC = () => {
   const tabs = [
     { id: 'properties', icon: Settings, label: 'Properties' },
     { id: 'style', icon: Palette, label: 'Style' },
-    { id: 'metadata', icon: Info, label: 'Metadata' },
+    { id: 'history', icon: Info, label: 'History' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
   ] as const;
 
@@ -176,7 +176,7 @@ export const InspectorPanel: React.FC = () => {
           />
         )}
 
-        {activeAnnotation && inspectorTab === 'metadata' && (
+        {activeAnnotation && inspectorTab === 'history' && (
           <MetadataTab annotation={activeAnnotation} />
         )}
 

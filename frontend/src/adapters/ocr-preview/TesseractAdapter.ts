@@ -40,7 +40,8 @@ export async function recognizePages({
   pageNumbers,
   language,
 }: RecognizePagesParams): Promise<OcrPageResult[]> {
-  // Wait for a short period to simulate asynchronous processing.
+  // eslint-disable-next-line no-console
+  console.warn('[OCR STUB] TesseractAdapter is returning simulated results. Real Tesseract.js worker not yet wired.');
   await new Promise((resolve) => setTimeout(resolve, 100));
   return pageNumbers.map((pageNumber) => {
     const block = makeDummyBlock(pageNumber);

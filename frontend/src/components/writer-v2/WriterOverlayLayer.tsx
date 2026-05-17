@@ -94,6 +94,7 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
       data-writer-overlay-v2="true"
       data-page-number={pageNumber}
       aria-label={`Writer overlay v2 page ${pageNumber}`}
+      data-overlay-notice="overlay only"
       onPointerDown={(event) => {
         if (event.target !== event.currentTarget) return;
 

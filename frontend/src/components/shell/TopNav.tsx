@@ -1,9 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Moon, Search, Settings, Sun, TerminalSquare, Wand2, X } from 'lucide-react';
+import { Moon, Search, Settings, Sun, TerminalSquare, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare, ChevronRight } from 'lucide-react';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
@@ -35,7 +35,19 @@ export const TopNav: React.FC = () => {
   const [localQuery, setLocalQuery] = useState(query);
   const [previousQuery, setPreviousQuery] = useState(query);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const debounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   React.useEffect(() => {
     if (fileName) {
@@ -230,9 +242,33 @@ export const TopNav: React.FC = () => {
         isDarkMode={isDarkMode}
         onToggleTheme={toggleDarkMode}
       />
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onToggleTheme={toggleDarkMode}
+        onOpenMacroBuilder={() => { setPaletteOpen(false); setMacroBuilderOpen(true); }}
+      />
     </>
   );
 };
+
+const ToggleRow: React.FC<{ label: string; on: boolean; onToggle: () => void }> = ({ label, on, onToggle }) => (
+  <div className="flex items-center justify-between py-1.5">
+    <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
+    <button
+      onClick={onToggle}
+      className={[
+        'relative w-9 h-5 rounded-full transition-colors shrink-0',
+        on ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600',
+      ].join(' ')}
+    >
+      <span className={[
+        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+        on ? 'translate-x-4' : 'translate-x-0.5',
+      ].join(' ')} />
+    </button>
+  </div>
+);
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -246,6 +282,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
   const pageCount = useSessionStore((state) => state.pageCount);
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
   const zoom = useSessionStore((state) => state.viewState.zoom);
+  const leftPanelWidth = useEditorStore((state) => state.leftPanelWidth);
+  const rightPanelWidth = useEditorStore((state) => state.rightPanelWidth);
   const setLeftPanelWidth = useEditorStore((state) => state.setLeftPanelWidth);
   const setRightPanelWidth = useEditorStore((state) => state.setRightPanelWidth);
   const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
@@ -261,6 +299,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
           <Button variant="secondary" size="sm" onClick={onToggleTheme}>
             Switch to {isDarkMode ? 'Light' : 'Dark'}
           </Button>
+        </div>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+          <div className="font-medium text-slate-800 dark:text-slate-100 mb-2">Visibility</div>
+          <ToggleRow
+            label="Show sidebar"
+            on={leftPanelWidth > 0.1}
+            onToggle={() => setLeftPanelWidth(leftPanelWidth > 0.1 ? 0 : 20)}
+          />
+          <ToggleRow
+            label="Show inspector"
+            on={rightPanelWidth > 0.1}
+            onToggle={() => setRightPanelWidth(rightPanelWidth > 0.1 ? 0 : 18)}
+          />
         </div>
         <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
           <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">Layout</div>
@@ -285,5 +336,96 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
         </div>
       </div>
     </Modal>
+  );
+};
+
+interface CommandPaletteProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onToggleTheme: () => void;
+  onOpenMacroBuilder: () => void;
+}
+
+const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onToggleTheme, onOpenMacroBuilder }) => {
+  const [filter, setFilter] = useState('');
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) setFilter('');
+  }
+
+  useEffect(() => {
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 30);
+  }, [isOpen]);
+
+  type Cmd = { icon: React.ComponentType<{ className?: string }>; label: string; hint?: string; section: string; action: () => void };
+
+  const commands: Cmd[] = [
+    { icon: FolderOpen,   label: 'Open PDF…',          hint: '⌘O', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:open')); } },
+    { icon: Save,         label: 'Save',                hint: '⌘S', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:save')); } },
+    { icon: Highlighter,  label: 'Highlight selection', hint: 'H',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
+    { icon: MessageSquare,label: 'Add sticky note',     hint: 'N',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
+    { icon: Wand2,        label: 'Open Macro Builder',  hint: '⌘M', section: 'Generate', action: onOpenMacroBuilder },
+    { icon: Moon,         label: 'Toggle dark mode',    section: 'View', action: () => { onClose(); onToggleTheme(); } },
+  ];
+
+  const filtered = filter.trim()
+    ? commands.filter((c) => c.label.toLowerCase().includes(filter.toLowerCase()))
+    : commands;
+
+  const sections = [...new Set(filtered.map((c) => c.section))];
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search or run a command…"
+            className="flex-1 bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
+          />
+          <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">ESC</kbd>
+        </div>
+
+        {/* Commands */}
+        <div className="max-h-80 overflow-y-auto py-2">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-slate-400 text-center">No commands found</div>
+          ) : (
+            sections.map((section) => (
+              <div key={section}>
+                <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{section}</div>
+                {filtered.filter((c) => c.section === section).map((cmd) => (
+                  <button
+                    key={cmd.label}
+                    onClick={cmd.action}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+                  >
+                    <cmd.icon className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="flex-1">{cmd.label}</span>
+                    {cmd.hint && (
+                      <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{cmd.hint}</kbd>
+                    )}
+                    <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600" />
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 };

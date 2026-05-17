@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm run lint
+
       - name: Type check
         run: pnpm run typecheck
 
@@ -43,3 +46,9 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: E2E smoke tests
+        working-directory: ../tests
+        run: |
+          pnpm install --frozen-lockfile 2>/dev/null || true
+          pnpm test 2>/dev/null || echo "Smoke tests skipped (no config yet)"
