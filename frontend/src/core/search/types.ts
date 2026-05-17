@@ -38,3 +38,29 @@ export interface PageTextItem {
   str: string;
   rect: { x: number; y: number; width: number; height: number };
 }
+
+export type SearchScope =
+  | 'nativeText'
+  | 'ocrText'
+  | 'annotations'
+  | 'bookmarks'
+  | 'pageLabels';
+
+export interface SearchQuery {
+  text: string;
+  scopes: SearchScope[];
+  exactPhrase?: boolean;
+  regex?: boolean;
+  caseSensitive?: boolean;
+  selectedPagesOnly?: boolean;
+  pageNumbers?: number[];
+}
+
+export interface SearchResult {
+  id: string;
+  scope: SearchScope;
+  pageNumber: number;
+  snippet: string;
+  rects: Array<{ x: number; y: number; width: number; height: number }>;
+  deepLink: string;
+}
