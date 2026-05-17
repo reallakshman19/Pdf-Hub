@@ -5,6 +5,8 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
+import { useEditorStore } from '@/core/editor/store';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 
 export const useKeyboardShortcuts = () => {
   const navigate = useNavigate();
@@ -101,7 +103,11 @@ export const useKeyboardShortcuts = () => {
       }
 
       if (!isTypingTarget && event.key === 'Escape') {
+        useEditorStore.getState().setActiveTool('select');
+        useWriterV2Store.getState().setActiveWriterTool('select');
+        useWriterV2Store.getState().dispatchWriterCommand({ type: 'CLEAR_WRITER_SELECTION' });
         clearSelection();
+        useAnnotationStore.getState().setActiveAnnotationId(null);
         return;
       }
 

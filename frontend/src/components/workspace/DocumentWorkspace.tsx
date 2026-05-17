@@ -22,7 +22,6 @@ import { useSearchStore } from '@/core/search/store';
 import { SearchIndexer } from '@/core/search/indexer';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
-import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 
@@ -89,9 +88,8 @@ export const DocumentWorkspace: React.FC = () => {
     openDocument,
   } = useSessionStore();
 
-  const { activeTool, setActiveTool } = useEditorStore();
+  const { activeTool } = useEditorStore();
   const { hideResolved } = useReviewStore();
-  const setActiveWriterTool = useWriterV2Store((s) => s.setActiveWriterTool);
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
 
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
@@ -124,18 +122,6 @@ export const DocumentWorkspace: React.FC = () => {
       setLoadError(String(err));
     }
   };
-
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setActiveTool('select');
-      setActiveWriterTool('select');
-      clearSelection();
-      setActiveAnnotationId(null);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [setActiveTool, setActiveWriterTool, clearSelection, setActiveAnnotationId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -531,8 +517,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     activeTool === 'line' ||
     activeTool === 'arrow' ||
     activeTool === 'stamp' ||
-    activeTool === 'callout' || // click-to-place callout at cursor position
-    activeTool === 'comment'; // click-to-place note box at cursor position
+    activeTool === 'callout' ||
+    activeTool === 'comment';
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
   const [textItems, setTextItems] = React.useState<TextLayerItem[]>([]);
@@ -1038,7 +1024,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       } else if (activeTool === 'strikeout') {
         const items = draft.rects.map((rect) => buildStrikeoutAnnotation(pageNumber, rect));
         onCreateManyAnnotations(items);
-      } else if (activeTool === 'comment' || activeTool === 'callout') {
+      } else if (activeTool === 'comment') {
         const item = buildCalloutFromSelection(
           pageNumber,
           draft.unionRect,

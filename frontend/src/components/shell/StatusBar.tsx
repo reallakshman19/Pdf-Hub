@@ -52,8 +52,10 @@ export const StatusBar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (pageCount > 0 && !isEditingPageInput) setPage(visiblePage);
-  }, [visiblePage, pageCount, isEditingPageInput, setPage]);
+    if (pageCount > 0 && !isEditingPageInput && visiblePage !== viewState.currentPage) {
+      setPage(visiblePage);
+    }
+  }, [visiblePage, pageCount, isEditingPageInput, viewState.currentPage, setPage]);
 
   const commitPageInput = React.useCallback(
     (raw: string) => {

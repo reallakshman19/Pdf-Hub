@@ -155,7 +155,7 @@ export function MacroRecipeBuilder({
           color: '#111827',
         }}
       >
-        <h2 style={{ margin: '0 0 8px', fontSize: 16, color: '#111827' }}>Macro Builder</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Macro Builder</h2>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Recipe ID</span>
