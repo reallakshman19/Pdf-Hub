@@ -153,6 +153,54 @@ export function remapAfterRotate(
   });
 }
 
+/**
+ * Remaps annotations after pages are duplicated.
+ * Each duplicated page at sortedIndex[i] is inserted immediately after the original.
+ * Annotations on duplicated pages are copied to the new pages; all other annotations
+ * shift up to account for the inserted pages.
+ *
+ * @param pageIndices - 0-based indices of pages that were duplicated (unsorted OK)
+ */
+export function remapAfterDuplicate(
+  annotations: PdfAnnotation[],
+  pageIndices: number[],
+): PdfAnnotation[] {
+  if (pageIndices.length === 0) return annotations;
+
+  const sortedIndices = [...pageIndices].sort((a, b) => a - b);
+
+  // For each annotation, compute its new page number after duplicates are inserted
+  // and collect copies for duplicated pages.
+  const result: PdfAnnotation[] = [];
+
+  for (const annotation of annotations) {
+    const zeroPage = annotation.pageNumber - 1;
+    // Count how many duplicated pages were inserted before this annotation's page
+    const insertedBefore = sortedIndices.filter(idx => idx < zeroPage).length;
+    result.push({ ...annotation, pageNumber: annotation.pageNumber + insertedBefore });
+  }
+
+  // Now add copies of annotations from duplicated pages to the new duplicate pages.
+  // Duplicate of page at sortedIndices[i] lands at sortedIndices[i] + i + 1 (after offset).
+  for (let i = 0; i < sortedIndices.length; i++) {
+    const origIndex = sortedIndices[i];
+    const insertedBefore = i; // i pages were already inserted before this one
+    const newPageNumber = origIndex + insertedBefore + 2; // +1 for 1-based, +1 for "after original"
+    const origPageNumber = origIndex + insertedBefore + 1; // original's new page number
+
+    for (const annotation of annotations) {
+      if (annotation.pageNumber - 1 === origIndex) {
+        result.push({ ...annotation, pageNumber: newPageNumber });
+        // Also fix the original which we already pushed — it now lives at origPageNumber
+        // (already handled in the loop above via insertedBefore count)
+        void origPageNumber; // used above for clarity
+      }
+    }
+  }
+
+  return result;
+}
+
 function rotatePoint(
   px: number,
   py: number,

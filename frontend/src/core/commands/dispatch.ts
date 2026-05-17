@@ -203,9 +203,10 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'REORDER_PAGES_BY_ORDER': {
+        // Emit BEFORE applyMutation so annotation store remaps first, then saves under new key
+        documentBus.emit({ type: 'PAGES_REORDERED', order: command.order });
         const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, command.order);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        documentBus.emit({ type: 'PAGES_REORDERED', order: command.order });
         return commandSuccess(command.type, source, true, 'Pages reordered', result.nextBytes, result.nextPageCount);
       }
 
@@ -230,9 +231,10 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
           return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for split');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
+        // Emit BEFORE applyMutation so annotation store remaps first
+        documentBus.emit({ type: 'PAGES_DELETED', indices: pageIndices });
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        documentBus.emit({ type: 'PAGES_DELETED', indices: pageIndices });
         return commandSuccess(command.type, source, true, 'Pages split into a new file', result.nextBytes, result.nextPageCount, [
           {
             kind: 'pdf',
@@ -247,25 +249,30 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         if (pageIndices.length === 0) {
           return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for deletion');
         }
+        // Emit BEFORE applyMutation so annotation store remaps first
+        documentBus.emit({ type: 'PAGES_DELETED', indices: pageIndices });
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        documentBus.emit({ type: 'PAGES_DELETED', indices: pageIndices });
         return commandSuccess(command.type, source, true, 'Pages deleted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_PAGES': {
+        // Count donor pages before mutation so we can emit the correct count
+        const donorPageCount = await PdfEditAdapter.countPages(command.newBytes);
+        // Emit BEFORE applyMutation so annotation store remaps first
+        documentBus.emit({ type: 'PAGES_INSERTED', atIndex: command.atIndex, count: donorPageCount });
         const nextBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
           command.newBytes,
           command.atIndex,
         );
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        const donorPageCount = await PdfEditAdapter.countPages(command.newBytes);
-        documentBus.emit({ type: 'PAGES_INSERTED', atIndex: command.atIndex, count: donorPageCount });
         return commandSuccess(command.type, source, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_BLANK_PAGE': {
+        // Emit BEFORE applyMutation so annotation store remaps first
+        documentBus.emit({ type: 'PAGES_INSERTED', atIndex: command.atIndex, count: 1 });
         const nextBytes = await PdfEditAdapter.insertBlankPage(
           context.workingBytes,
           command.atIndex,
@@ -276,6 +283,8 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'REPLACE_PAGE': {
+        // Treat as delete-then-insert: annotations on replaced page are cleared
+        documentBus.emit({ type: 'PAGES_DELETED', indices: [command.atIndex] });
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
           command.atIndex,
@@ -291,6 +300,8 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         if (pageIndices.length === 0) {
           return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for duplication');
         }
+        // Emit BEFORE applyMutation so annotation store can copy annotations to duplicate pages
+        documentBus.emit({ type: 'PAGES_DUPLICATED', pageIndices });
         const nextBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
         return commandSuccess(command.type, source, true, 'Pages duplicated', result.nextBytes, result.nextPageCount);

@@ -79,8 +79,8 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       break;
 
     case 'REDACTION_APPLY':
-      if (command.risk === 'safe') {
-        errors.push('Final redaction cannot be marked safe.');
+      if (command.risk !== 'destructive') {
+        errors.push('REDACTION_APPLY must be marked risk: destructive.');
       }
       break;
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { documentBus } from '../events/bus';
-import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate } from './pageRemapper';
+import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate, remapAfterDuplicate } from './pageRemapper';
 import { useSessionStore } from '../session/store';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -603,6 +603,13 @@ documentBus.subscribe((event) => {
   if (event.type === 'PAGES_ROTATED') {
     useAnnotationStore.setState((state) =>
       applyAnnotationHistoryTransaction(state, remapAfterRotate(state.annotations, event.rotations), [], null),
+    );
+    return;
+  }
+
+  if (event.type === 'PAGES_DUPLICATED') {
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(state, remapAfterDuplicate(state.annotations, event.pageIndices), [], null),
     );
     return;
   }

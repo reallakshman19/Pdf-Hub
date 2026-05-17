@@ -24,6 +24,7 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
+import { resetInteractionState } from '@/core/editor/resetInteraction';
 
 type TransformState =
   | {
@@ -256,6 +257,36 @@ export const DocumentWorkspace: React.FC = () => {
       window.clearTimeout(resizeTimer);
     };
   }, [pdfDoc, viewState.fitMode, viewState.currentPage, setZoom]);
+
+  // Track which page is most visible in the scroll container and update currentPage accordingly.
+  // This keeps the thumbnail strip and status bar in sync when the user scrolls continuously.
+  const visibleRatiosRef = React.useRef(new Map<number, number>());
+  React.useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !pdfDoc) return;
+
+    visibleRatiosRef.current.clear();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const page = Number((entry.target as HTMLElement).dataset.page);
+          if (Number.isFinite(page) && page > 0) {
+            visibleRatiosRef.current.set(page, entry.intersectionRatio);
+          }
+        }
+        const best = [...visibleRatiosRef.current.entries()]
+          .sort((a, b) => b[1] - a[1])[0];
+        if (best && best[1] > 0.2) {
+          setPage(best[0]);
+        }
+      },
+      { root, threshold: [0.1, 0.25, 0.5, 0.75, 1] },
+    );
+
+    root.querySelectorAll<HTMLElement>('[data-page]').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [pdfDoc, viewState.viewMode, setPage]);
 
   if (!workingBytes) {
     return (
@@ -1042,7 +1073,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
 
       clearTextSelectionDraft();
-      useEditorStore.getState().setActiveTool('select');
+      resetInteractionState();
     } else {
       setTextSelectionDraft(draft);
     }
@@ -1151,7 +1182,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         item.rect = rect;
         item.data.paths = [path];
         onCreateAnnotation(item);
-        useEditorStore.getState().setActiveTool('select');
+        resetInteractionState();
 
         setInkPaths([]);
         currentPathRef.current = [];
@@ -1278,7 +1309,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
 
       onCreateAnnotation(annotation);
-      useEditorStore.getState().setActiveTool('select');
+      resetInteractionState();
     };
 
     window.addEventListener('mousemove', onMove);

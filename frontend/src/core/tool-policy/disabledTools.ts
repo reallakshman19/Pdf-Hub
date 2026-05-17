@@ -13,11 +13,6 @@ export const DISABLED_TOOLS: Partial<Record<ActiveTool, DisabledToolInfo>> = {
     reason: 'Use the Writer V2 Text Box button instead (in the toolbar).',
     replacement: 'Writer V2 Text Box',
   },
-  callout: {
-    disabled: true,
-    reason: 'Use the Writer V2 Callout button instead (in the toolbar).',
-    replacement: 'Writer V2 Text Callout',
-  },
   stamp: {
     disabled: true,
     reason: 'Use the Writer V2 Stamp button instead (in the toolbar).',

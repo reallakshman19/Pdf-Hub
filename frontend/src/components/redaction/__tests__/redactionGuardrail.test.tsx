@@ -3,6 +3,7 @@ import { describe, test, expect, beforeEach } from 'vitest';
 import RedactionTool from '../RedactionTool';
 import RedactionPreviewPanel from '../RedactionPreviewPanel';
 import { clearRegions, addRegion, exportPlan } from '../../../core/redaction/store';
+import { validateCommand } from '../../../core/commands/validators';
 
 describe('Redaction guardrails', () => {
   beforeEach(() => clearRegions());
@@ -35,5 +36,15 @@ describe('Redaction guardrails', () => {
     const json = JSON.stringify(plan);
     expect(json).not.toMatch(/applied|redaction_apply|complete/i);
     expect(plan.pages[0].rects).toHaveLength(1);
+  });
+
+  test('REDACTION_APPLY validator rejects any non-destructive risk', () => {
+    const base = { id: 'r1', type: 'REDACTION_APPLY' as const, documentKey: 'doc1', createdAt: Date.now(), payload: {} };
+    expect(validateCommand({ ...base, risk: 'destructive' } as Parameters<typeof validateCommand>[0]).ok).toBe(true);
+    expect(validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
+    expect(validateCommand({ ...base, risk: 'destructive-preview-required' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
+
+    const safeResult = validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]);
+    expect(safeResult.errors[0]).toMatch(/destructive/);
   });
 });

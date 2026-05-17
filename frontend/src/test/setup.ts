@@ -1,5 +1,14 @@
 import '@testing-library/jest-dom';
 
+// Polyfill IntersectionObserver for jsdom (not implemented in jsdom)
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  globalThis.IntersectionObserver = class IntersectionObserverMock {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof IntersectionObserver;
+}
+
 // Polyfill DOMMatrix for pdfjs-dist in vitest (jsdom) environment
 if (typeof globalThis.DOMMatrix === 'undefined') {
   globalThis.DOMMatrix = class DOMMatrixMock {

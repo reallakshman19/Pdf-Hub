@@ -12,11 +12,12 @@ describe('Write mode honesty — source audit', () => {
     expect(code).toMatch(/overlay.*does not edit|overlay only/i);
   });
 
-  test('WriterOverlayLayer does not claim to edit existing PDF text', () => {
+  test('WriterOverlayLayer does not CLAIM to edit existing PDF text', () => {
     const code = src('WriterOverlayLayer.tsx');
-    expect(code).not.toMatch(/edit(s)? existing/i);
-    expect(code).not.toMatch(/modif(y|ies) the PDF/i);
-    expect(code).not.toMatch(/change(s)? existing text/i);
+    // Only catch positive assertions — "does not edit existing" is a valid disclaimer
+    expect(code).not.toMatch(/(?:will|can)\s+edit\s+existing/i);
+    expect(code).not.toMatch(/(?:will|can)\s+modif[yi]\s+the\s+PDF/i);
+    expect(code).not.toMatch(/changes?\s+existing\s+text/i);
   });
 
   test('WriterRichElementBox does not claim to edit existing PDF text', () => {

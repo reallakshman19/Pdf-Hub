@@ -11,6 +11,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
+import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
 import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
 import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
@@ -101,7 +102,7 @@ const ViewSection: React.FC = () => {
   return (
     <>
       <CtxLabel first>Navigate</CtxLabel>
-      <CtxBtn icon={MousePointer2} label="Select" active={activeTool === 'select'} onClick={() => setActiveTool('select')} />
+      <CtxBtn icon={MousePointer2} label="Select" active={activeTool === 'select'} onClick={() => resetInteractionState()} />
       <CtxBtn icon={Hand} label="Pan" active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} />
       <CtxSep />
       <CtxLabel>Fit</CtxLabel>

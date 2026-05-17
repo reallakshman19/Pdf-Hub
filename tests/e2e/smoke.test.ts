@@ -36,4 +36,5 @@ test('validateCommand accepts REDACTION_APPLY only as destructive risk', () => {
   const base = { id: 'r1', type: 'REDACTION_APPLY' as const, documentKey: 'doc1', createdAt: Date.now(), payload: {} };
   expect(validateCommand({ ...base, risk: 'destructive' } as Parameters<typeof validateCommand>[0]).ok).toBe(true);
   expect(validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
+  expect(validateCommand({ ...base, risk: 'destructive-preview-required' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
 });

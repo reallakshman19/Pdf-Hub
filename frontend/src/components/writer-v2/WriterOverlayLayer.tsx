@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { WriterPageViewport } from '@/core/writer-v2/types';
 import {
   getViewportSize,
@@ -36,6 +36,10 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
   );
   const setActiveWriterTool = useWriterV2Store(
     (state) => state.setActiveWriterTool,
+  );
+
+  const [chipDismissed, setChipDismissed] = useState(
+    () => sessionStorage.getItem('writerHonestyChipDismissed') === '1',
   );
 
   const sessionDocumentKey = useSessionStore((state) => state.documentKey);
@@ -129,6 +133,48 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         cursor: activeWriterTool === 'select' ? 'default' : 'crosshair',
       }}
     >
+      {activeMode === 'write' && pageNumber === 1 && !chipDismissed && (
+        <div
+          data-testid="writer-honesty-chip"
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'rgba(30,41,59,0.88)',
+            color: '#f1f5f9',
+            fontSize: 11,
+            padding: '4px 10px 4px 8px',
+            borderRadius: 6,
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+          }}
+        >
+          <span>Writer adds overlay content — it does not edit existing PDF text</span>
+          <button
+            aria-label="Dismiss"
+            onClick={() => {
+              sessionStorage.setItem('writerHonestyChipDismissed', '1');
+              setChipDismissed(true);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '0 0 0 4px',
+              fontSize: 13,
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <SelectBoxCopyLayer
         pageNumber={pageNumber}
         viewport={viewport}
