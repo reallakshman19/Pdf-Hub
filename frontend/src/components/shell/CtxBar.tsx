@@ -4,14 +4,12 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  PlusSquare, FilePlus2, Trash2, CopyPlus, RotateCw, Replace, Layers, Scissors, Split, PlaySquare,
   Wand2,
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
-import { useAnnotationStore } from '@/core/annotations/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
 import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
