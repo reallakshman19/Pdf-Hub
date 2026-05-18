@@ -15,8 +15,8 @@
     "fullVitestSuite": "PASS_REQUIRED",
     "build": "PASS_REQUIRED"
   },
-  "startedAt": "2026-05-18T12:10:35.725Z",
-  "finishedAt": "2026-05-18T12:12:43.437Z",
+  "startedAt": "2026-05-18T12:12:43.685Z",
+  "finishedAt": "2026-05-18T12:14:26.744Z",
   "results": [
     {
       "name": "typecheck",
@@ -38,8 +38,8 @@
         " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
         " Test Files  1 passed (1)",
         "      Tests  1 passed (1)",
-        "   Start at  12:10:36",
-        "   Duration  1.14s (transform 129ms, setup 71ms, import 227ms, tests 54ms, environment 629ms)"
+        "   Start at  12:12:44",
+        "   Duration  1.21s (transform 117ms, setup 69ms, import 227ms, tests 56ms, environment 708ms)"
       ],
       "stderrTail": []
     },
@@ -71,8 +71,8 @@
         " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
         " Test Files  34 passed (34)",
         "      Tests  149 passed (149)",
-        "   Start at  12:10:38",
-        "   Duration  14.98s (transform 1.05s, setup 2.66s, import 4.11s, tests 4.80s, environment 26.09s)",
+        "   Start at  12:12:46",
+        "   Duration  14.62s (transform 1.15s, setup 2.42s, import 4.07s, tests 4.40s, environment 26.05s)",
         "[PASS] writer-v2-focused-tests",
         "=== boundary-audit ===",
         "$ node scripts/writer-v2-boundary-audit.mjs",
@@ -89,8 +89,8 @@
         " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
         " Test Files  71 passed | 1 skipped (72)",
         "      Tests  373 passed | 1 skipped (374)",
-        "   Start at  12:10:54",
-        "   Duration  33.62s (transform 3.01s, setup 5.26s, import 10.52s, tests 16.03s, environment 55.66s)",
+        "   Start at  12:13:01",
+        "   Duration  33.57s (transform 3.13s, setup 5.02s, import 10.86s, tests 16.18s, environment 55.30s)",
         "[PASS] full-vitest-suite",
         "=== build ===",
         "$ npm run build",
@@ -126,19 +126,19 @@
         "dist/assets/PdfRendererAdapter-DDzlkdqG.js    408.70 kB │ gzip: 122.31 kB",
         "dist/assets/PdfEditAdapter-BsNA8C_r.js        432.29 kB │ gzip: 178.95 kB",
         "dist/assets/index-D4qJ6A6g.js               1,190.83 kB │ gzip: 336.72 kB",
-        "\u001b[32m✓ built in 1.08s\u001b[39m",
+        "\u001b[32m✓ built in 1.07s\u001b[39m",
         "[PASS] build",
         "Certification report written to reports/writer-overlay-v2-certification-report.json",
         "Final verdict: PASS"
       ],
       "stderrTail": [
+        "\u001b[33m\u001b[33m[INEFFECTIVE_DYNAMIC_IMPORT] Warning:\u001b[0m ../node_modules/.pnpm/html2canvas@1.4.1/node_modules/html2canvas/dist/html2canvas.js is dynamically imported by src/core/macro/steps/content-ops.ts but also statically imported by src/core/writer/exporter.ts, dynamic import will not move module into another chunk.",
+        "\u001b[39m",
         "\u001b[33m[plugin builtin:vite-reporter] ",
         "(!) Some chunks are larger than 500 kB after minification. Consider:",
         "- Using dynamic import() to code-split the application",
         "- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting",
-        "- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m",
-        "\u001b[33m\u001b[33m[INEFFECTIVE_DYNAMIC_IMPORT] Warning:\u001b[0m ../node_modules/.pnpm/html2canvas@1.4.1/node_modules/html2canvas/dist/html2canvas.js is dynamically imported by src/core/macro/steps/content-ops.ts but also statically imported by src/core/writer/exporter.ts, dynamic import will not move module into another chunk.",
-        "\u001b[39m"
+        "- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m"
       ]
     },
     {
@@ -152,8 +152,8 @@
         " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
         " Test Files  71 passed | 1 skipped (72)",
         "      Tests  373 passed | 1 skipped (374)",
-        "   Start at  12:11:36",
-        "   Duration  57.07s (transform 4.48s, setup 8.66s, import 18.91s, tests 24.89s, environment 92.78s)"
+        "   Start at  12:13:44",
+        "   Duration  33.76s (transform 3.08s, setup 4.96s, import 10.76s, tests 17.11s, environment 55.17s)"
       ],
       "stderrTail": []
     },
@@ -195,7 +195,7 @@
         "dist/assets/PdfRendererAdapter-DDzlkdqG.js    408.70 kB │ gzip: 122.31 kB",
         "dist/assets/PdfEditAdapter-BsNA8C_r.js        432.29 kB │ gzip: 178.95 kB",
         "dist/assets/index-D4qJ6A6g.js               1,190.83 kB │ gzip: 336.72 kB",
-        "\u001b[32m✓ built in 1.14s\u001b[39m"
+        "\u001b[32m✓ built in 1.13s\u001b[39m"
       ],
       "stderrTail": [
         "\u001b[33m\u001b[33m[INEFFECTIVE_DYNAMIC_IMPORT] Warning:\u001b[0m ../node_modules/.pnpm/html2canvas@1.4.1/node_modules/html2canvas/dist/html2canvas.js is dynamically imported by src/core/macro/steps/content-ops.ts but also statically imported by src/core/writer/exporter.ts, dynamic import will not move module into another chunk.",
