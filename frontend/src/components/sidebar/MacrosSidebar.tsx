@@ -38,6 +38,14 @@ import {
 import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
 
+function resolveFieldDefault(field: GenerationField): string {
+  const raw = field.defaultValue ?? '';
+  if (field.type === 'date' && /^\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}$/.test(raw.trim())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return raw;
+}
+
 type SelectorMode = 'selected' | 'current' | 'all' | 'range';
 type BlankPlacement = 'before' | 'after';
 type BlankSizeMode = 'match-current' | 'a4' | 'letter';
@@ -201,7 +209,7 @@ export const MacrosSidebar: React.FC = () => {
   const [generationValues, setGenerationValues] = React.useState<Record<string, string>>(() => {
     const template = getGenerationTemplateById(GENERATION_TEMPLATES[0]?.id ?? '');
     if (!template) return {};
-    return Object.fromEntries(template.fields.map((f) => [f.key, f.defaultValue ?? '']));
+    return Object.fromEntries(template.fields.map((f) => [f.key, resolveFieldDefault(f)]));
   });
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -214,7 +222,7 @@ export const MacrosSidebar: React.FC = () => {
     setSelectedGenerationId(newId);
     const template = getGenerationTemplateById(newId);
     if (template) {
-      setGenerationValues(Object.fromEntries(template.fields.map((f) => [f.key, f.defaultValue ?? ''])));
+      setGenerationValues(Object.fromEntries(template.fields.map((f) => [f.key, resolveFieldDefault(f)])));
     } else {
       setGenerationValues({});
     }
@@ -575,7 +583,7 @@ export const MacrosSidebar: React.FC = () => {
   };
 
   const renderGenerationField = (field: GenerationField) => {
-    const value = generationValues[field.key] ?? field.defaultValue ?? '';
+    const value = generationValues[field.key] ?? resolveFieldDefault(field);
 
     const baseClassName =
       'w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5';
