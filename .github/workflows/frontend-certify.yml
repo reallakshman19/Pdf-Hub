@@ -48,7 +48,7 @@ jobs:
         run: pnpm run build
 
       - name: E2E smoke tests
-        working-directory: ../tests
+        working-directory: ${{ github.workspace }}/tests
         run: |
           pnpm install --frozen-lockfile 2>/dev/null || true
           pnpm test 2>/dev/null || echo "Smoke tests skipped (no config yet)"
