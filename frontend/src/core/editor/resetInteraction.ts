@@ -5,10 +5,12 @@ import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 
 /**
  * Resets all active tool state across every store to a neutral "select" baseline.
+ * Bumps interactionResetVersion so PageSurface components can clear their local draft states.
  * Call this from Escape handlers, Select buttons, and annotation click handlers.
  */
 export function resetInteractionState(): void {
   useEditorStore.getState().setActiveTool('select');
+  useEditorStore.getState().bumpInteractionResetVersion();
   useAnnotationStore.getState().clearSelection();
   useAnnotationStore.getState().setActiveAnnotationId(null);
   useWriterStore.getState().setActiveTool('select');

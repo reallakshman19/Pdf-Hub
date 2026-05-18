@@ -16,6 +16,7 @@ export interface EditorActions {
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
   setMacroBuilderOpen: (open: boolean) => void;
+  bumpInteractionResetVersion: () => void;
 }
 
 export const useEditorStore = create<EditorState & EditorActions>((set) => ({
@@ -26,6 +27,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   leftPanelWidth: 20,
   rightPanelWidth: 18,
   macroBuilderOpen: false,
+  interactionResetVersion: 0,
   setActiveTool: (activeTool) => set({
     activeTool: normalizeActiveTool(activeTool),
   }),
@@ -35,4 +37,5 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   setLeftPanelWidth: (leftPanelWidth) => set({ leftPanelWidth }),
   setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
   setMacroBuilderOpen: (macroBuilderOpen) => set({ macroBuilderOpen }),
+  bumpInteractionResetVersion: () => set((s) => ({ interactionResetVersion: s.interactionResetVersion + 1 })),
 }));

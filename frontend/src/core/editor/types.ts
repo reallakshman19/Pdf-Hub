@@ -41,4 +41,5 @@ export interface EditorState {
   leftPanelWidth: number;
   rightPanelWidth: number;
   macroBuilderOpen: boolean;
+  interactionResetVersion: number;
 }

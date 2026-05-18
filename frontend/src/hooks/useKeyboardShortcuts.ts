@@ -102,6 +102,7 @@ export const useKeyboardShortcuts = () => {
       }
 
       if (!isTypingTarget && event.key === 'Escape') {
+        event.preventDefault();
         resetInteractionState();
         return;
       }

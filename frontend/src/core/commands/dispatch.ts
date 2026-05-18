@@ -283,8 +283,7 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'REPLACE_PAGE': {
-        // Treat as delete-then-insert: annotations on replaced page are cleared
-        documentBus.emit({ type: 'PAGES_DELETED', indices: [command.atIndex] });
+        documentBus.emit({ type: 'PAGES_REPLACED', index: command.atIndex });
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
           command.atIndex,

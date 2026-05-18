@@ -259,34 +259,16 @@ export const DocumentWorkspace: React.FC = () => {
   }, [pdfDoc, viewState.fitMode, viewState.currentPage, setZoom]);
 
   // Track which page is most visible in the scroll container and update currentPage accordingly.
-  // This keeps the thumbnail strip and status bar in sync when the user scrolls continuously.
+  // Per-page IntersectionObservers (in PageSurface) report back via handleVisibleRatioChange,
+  // which survives VList virtualization since each mounted page registers itself independently.
   const visibleRatiosRef = React.useRef(new Map<number, number>());
-  React.useEffect(() => {
-    const root = containerRef.current;
-    if (!root || !pdfDoc) return;
-
-    visibleRatiosRef.current.clear();
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const page = Number((entry.target as HTMLElement).dataset.page);
-          if (Number.isFinite(page) && page > 0) {
-            visibleRatiosRef.current.set(page, entry.intersectionRatio);
-          }
-        }
-        const best = [...visibleRatiosRef.current.entries()]
-          .sort((a, b) => b[1] - a[1])[0];
-        if (best && best[1] > 0.2) {
-          setPage(best[0]);
-        }
-      },
-      { root, threshold: [0.1, 0.25, 0.5, 0.75, 1] },
-    );
-
-    root.querySelectorAll<HTMLElement>('[data-page]').forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [pdfDoc, viewState.viewMode, setPage]);
+  const handleVisibleRatioChange = React.useCallback((pageNumber: number, ratio: number) => {
+    visibleRatiosRef.current.set(pageNumber, ratio);
+    const best = [...visibleRatiosRef.current.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] > 0.2) {
+      setPage(best[0]);
+    }
+  }, [setPage]);
 
   if (!workingBytes) {
     return (
@@ -376,6 +358,8 @@ export const DocumentWorkspace: React.FC = () => {
           onCommitManyAnnotations={(updates) => {
             updateManyAnnotations(updates);
           }}
+          scrollContainerRef={containerRef}
+          onVisibleRatioChange={handleVisibleRatioChange}
         />
       </div>
     );
@@ -509,6 +493,8 @@ interface PageSurfaceProps {
   onClearSelection: () => void;
   onCommitAnnotation: (id: string, patch: Partial<PdfAnnotation>) => void;
   onCommitManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
+  scrollContainerRef?: React.RefObject<HTMLDivElement>;
+  onVisibleRatioChange?: (pageNumber: number, ratio: number) => void;
 }
 
 const PageSurface: React.FC<PageSurfaceProps> = ({
@@ -527,6 +513,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   onClearSelection,
   onCommitAnnotation,
   onCommitManyAnnotations,
+  scrollContainerRef,
+  onVisibleRatioChange,
 }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
@@ -569,6 +557,11 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
 
+  const [pageRotation, setPageRotation] = React.useState(0);
+  const [inkPaths, setInkPaths] = React.useState<number[][]>([]);
+  const currentPathRef = React.useRef<number[]>([]);
+  const interactionResetVersion = useEditorStore((s) => s.interactionResetVersion);
+
   const { size: renderSize } = usePageRenderer({
     doc,
     pageNumber,
@@ -584,6 +577,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       if (!cancelled) {
         const viewport = page.getViewport({ scale });
         setSize({ width: viewport.width, height: viewport.height });
+        setPageRotation(page.rotate ?? 0);
       }
 
       const items = await PdfRendererAdapter.getPageTextItems(page, scale);
@@ -598,6 +592,38 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       cancelled = true;
     };
   }, [doc, pageNumber, scale]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  React.useEffect(() => {
+    if (interactionResetVersion === 0) return;
+    setEditingId(null);
+    setEditingValue('');
+    setMarquee(null);
+    setShapeDraft(null);
+    setTextSelectionDraft(null);
+    setInkPaths([]);
+    transformRef.current = null;
+    anchorDragRef.current = null;
+    setDraftRects({});
+    setDraftAnchors({});
+    setDraftKnees({});
+    setDraftLinePoints({});
+  }, [interactionResetVersion]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  React.useEffect(() => {
+    const el = pageRef.current;
+    const root = scrollContainerRef?.current;
+    if (!el || !root || !onVisibleRatioChange) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        onVisibleRatioChange(pageNumber, entry.intersectionRatio);
+      },
+      { root, threshold: [0.1, 0.25, 0.5, 0.75, 1] },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [pageNumber, scrollContainerRef, onVisibleRatioChange]);
 
   React.useEffect(() => {
     draftRectsRef.current = draftRects;
@@ -1086,6 +1112,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     );
     onCreateManyAnnotations(items);
     clearTextSelectionDraft();
+    resetInteractionState();
   };
 
   const createUnderlineFromSelection = () => {
@@ -1095,6 +1122,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     );
     onCreateManyAnnotations(items);
     clearTextSelectionDraft();
+    resetInteractionState();
   };
 
   const createStrikeoutFromSelection = () => {
@@ -1104,6 +1132,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     );
     onCreateManyAnnotations(items);
     clearTextSelectionDraft();
+    resetInteractionState();
   };
 
   const createSquigglyFromSelection = () => {
@@ -1113,6 +1142,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     );
     onCreateManyAnnotations(items);
     clearTextSelectionDraft();
+    resetInteractionState();
   };
 
   const createNoteFromSelection = (type: 'comment' | 'callout' = 'comment') => {
@@ -1132,15 +1162,13 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     }
     onCreateAnnotation(item);
     clearTextSelectionDraft();
+    resetInteractionState();
   };
 
   const marqueeRef = React.useRef<Rect | null>(null);
   React.useEffect(() => {
     marqueeRef.current = marquee;
   }, [marquee]);
-
-  const [inkPaths, setInkPaths] = React.useState<number[][]>([]);
-  const currentPathRef = React.useRef<number[]>([]);
 
   const startMarquee = (event: React.MouseEvent<HTMLDivElement>) => {
     if (activeTool === 'ink') {
@@ -1549,6 +1577,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               onSelect={(event: React.PointerEvent<HTMLDivElement>) => {
                 event.stopPropagation();
                 clearTextSelectionDraft();
+                resetInteractionState();
                 if (event.metaKey || event.ctrlKey) {
                   onToggleSelection(annotation.id);
                 } else {
@@ -1595,7 +1624,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           pdfWidth: renderSize?.width || size.width,
           pdfHeight: renderSize?.height || size.height,
           scale,
-          rotation: 0,
+          rotation: pageRotation,
         }}
       />
 

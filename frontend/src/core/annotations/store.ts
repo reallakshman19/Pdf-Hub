@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import { documentBus } from '../events/bus';
-import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate, remapAfterDuplicate } from './pageRemapper';
-import { useSessionStore } from '../session/store';
-
+import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate, remapAfterDuplicate, remapAfterReplace } from './pageRemapper';
 import { v4 as uuidv4 } from 'uuid';
+import { useSessionStore } from '../session/store';
 import type {
   AnnotationStyle,
   PdfAnnotation,
@@ -609,7 +608,19 @@ documentBus.subscribe((event) => {
 
   if (event.type === 'PAGES_DUPLICATED') {
     useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(state, remapAfterDuplicate(state.annotations, event.pageIndices), [], null),
+      applyAnnotationHistoryTransaction(state, remapAfterDuplicate(state.annotations, event.pageIndices, () => uuidv4()), [], null),
+    );
+    return;
+  }
+
+  if (event.type === 'PAGES_REPLACED') {
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(
+        state,
+        remapAfterReplace(state.annotations, event.index, event.preserveAnnotations),
+        [],
+        null,
+      ),
     );
     return;
   }
