@@ -1,4 +1,12 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  type PDFPage,
+  type PDFFont,
+} from 'pdf-lib';
+
+export type TextAlign = 'left' | 'center' | 'right';
 
 export type ContentBlock =
   | {
@@ -6,12 +14,14 @@ export type ContentBlock =
       text: string;
       fontSize?: number;
       color?: string;
+      align?: TextAlign;
     }
   | {
       type: 'paragraph' | 'text';
       text: string;
       fontSize?: number;
       color?: string;
+      align?: TextAlign;
     }
   | {
       type: 'spacer';
@@ -21,6 +31,29 @@ export type ContentBlock =
       type: 'table';
       rows: string[][];
       fontSize?: number;
+      columnWidths?: number[];
+    }
+  | {
+      type: 'separator';
+      color?: string;
+      thickness?: number;
+      marginTop?: number;
+      marginBottom?: number;
+    }
+  | {
+      type: 'list';
+      items: string[];
+      ordered?: boolean;
+      fontSize?: number;
+      color?: string;
+      indent?: number;
+    }
+  | {
+      type: 'signatureLine';
+      label?: string;
+      width?: number;
+      color?: string;
+      marginTop?: number;
     };
 
 export type PageSizeName = 'a4' | 'letter';
@@ -97,6 +130,7 @@ export async function buildContentPagePdf(
         font: boldFont,
         fontSize,
         color: block.color ?? '#111827',
+        align: block.align ?? 'left',
       });
       cursorY -= 12;
       continue;
@@ -113,6 +147,7 @@ export async function buildContentPagePdf(
         font: regularFont,
         fontSize,
         color: block.color ?? '#111827',
+        align: block.align ?? 'left',
       });
       cursorY -= 10;
       continue;
@@ -128,8 +163,56 @@ export async function buildContentPagePdf(
         width: maxWidth,
         font: regularFont,
         fontSize,
+        columnWidths: block.columnWidths,
       });
       cursorY -= 12;
+      continue;
+    }
+
+    if (block.type === 'separator') {
+      cursorY = drawSeparator({
+        page,
+        x: marginX,
+        y: cursorY,
+        width: maxWidth,
+        color: block.color ?? '#CBD5E1',
+        thickness: block.thickness ?? 1,
+        marginTop: block.marginTop ?? 8,
+        marginBottom: block.marginBottom ?? 12,
+      });
+      continue;
+    }
+
+    if (block.type === 'list') {
+      cursorY = drawList({
+        page,
+        items: block.items,
+        ordered: block.ordered ?? false,
+        x: marginX,
+        y: cursorY,
+        maxWidth,
+        font: regularFont,
+        fontSize: block.fontSize ?? 11,
+        color: block.color ?? '#111827',
+        indent: block.indent ?? 18,
+      });
+      cursorY -= 8;
+      continue;
+    }
+
+    if (block.type === 'signatureLine') {
+      cursorY = drawSignatureLine({
+        page,
+        x: marginX,
+        y: cursorY,
+        font: regularFont,
+        label: block.label ?? 'Signature',
+        width: block.width ?? 180,
+        color: block.color ?? '#64748B',
+        marginTop: block.marginTop ?? 24,
+      });
+      cursorY -= 12;
+      continue;
     }
   }
 
@@ -207,59 +290,227 @@ export async function buildImageHeaderPagePdf(
       font: regularFont,
       fontSize: 11,
       color: '#111827',
+      align: 'left',
     });
   }
 
   return await pdfDoc.save();
 }
 
+function resolveAlignedX(args: {
+  x: number;
+  maxWidth: number;
+  lineWidth: number;
+  align?: TextAlign;
+}): number {
+  if (args.align === 'center') {
+    return Math.max(args.x, args.x + (args.maxWidth - args.lineWidth) / 2);
+  }
+
+  if (args.align === 'right') {
+    return Math.max(args.x, args.x + args.maxWidth - args.lineWidth);
+  }
+
+  return args.x;
+}
+
 function drawWrappedText(args: {
-  page: Parameters<typeof drawSimpleTable>[0]['page'];
+  page: PDFPage;
   text: string;
   x: number;
   y: number;
   maxWidth: number;
-  font: Parameters<typeof drawSimpleTable>[0]['font'];
+  font: PDFFont;
   fontSize: number;
   color: string;
+  align?: TextAlign;
 }): number {
   const lines = wrapText(args.text, args.font, args.fontSize, args.maxWidth);
   let y = args.y;
 
   for (const line of lines) {
-    args.page.drawText(line, {
+    const lineWidth = args.font.widthOfTextAtSize(line, args.fontSize);
+    const drawX = resolveAlignedX({
       x: args.x,
+      maxWidth: args.maxWidth,
+      lineWidth,
+      align: args.align ?? 'left',
+    });
+
+    args.page.drawText(line, {
+      x: drawX,
       y,
       font: args.font,
       size: args.fontSize,
       color: hexToRgb(args.color),
       maxWidth: args.maxWidth,
     });
+
     y -= args.fontSize * 1.35;
   }
 
   return y;
 }
 
+function drawSeparator(args: {
+  page: PDFPage;
+  x: number;
+  y: number;
+  width: number;
+  color: string;
+  thickness: number;
+  marginTop: number;
+  marginBottom: number;
+}): number {
+  const safeThickness = Math.max(0.25, args.thickness);
+  const lineY = args.y - Math.max(0, args.marginTop);
+
+  args.page.drawLine({
+    start: { x: args.x, y: lineY },
+    end: { x: args.x + args.width, y: lineY },
+    thickness: safeThickness,
+    color: hexToRgb(args.color),
+  });
+
+  return lineY - Math.max(0, args.marginBottom);
+}
+
+function drawList(args: {
+  page: PDFPage;
+  items: string[];
+  ordered: boolean;
+  x: number;
+  y: number;
+  maxWidth: number;
+  font: PDFFont;
+  fontSize: number;
+  color: string;
+  indent: number;
+}): number {
+  if (args.items.length === 0) {
+    return args.y;
+  }
+
+  const safeIndent = Math.max(10, args.indent);
+  const markerWidth = safeIndent - 4;
+  const textX = args.x + safeIndent;
+  const textWidth = Math.max(20, args.maxWidth - safeIndent);
+  let y = args.y;
+
+  args.items.forEach((item, index) => {
+    const marker = args.ordered ? `${index + 1}.` : '-';
+
+    args.page.drawText(marker, {
+      x: args.x,
+      y,
+      font: args.font,
+      size: args.fontSize,
+      color: hexToRgb(args.color),
+      maxWidth: markerWidth,
+    });
+
+    const afterTextY = drawWrappedText({
+      page: args.page,
+      text: item,
+      x: textX,
+      y,
+      maxWidth: textWidth,
+      font: args.font,
+      fontSize: args.fontSize,
+      color: args.color,
+      align: 'left',
+    });
+
+    y = afterTextY - 4;
+  });
+
+  return y;
+}
+
+function drawSignatureLine(args: {
+  page: PDFPage;
+  x: number;
+  y: number;
+  font: PDFFont;
+  label: string;
+  width: number;
+  color: string;
+  marginTop: number;
+}): number {
+  const safeWidth = Math.max(60, args.width);
+  const lineY = args.y - Math.max(0, args.marginTop);
+
+  args.page.drawLine({
+    start: { x: args.x, y: lineY },
+    end: { x: args.x + safeWidth, y: lineY },
+    thickness: 0.75,
+    color: hexToRgb(args.color),
+  });
+
+  args.page.drawText(args.label, {
+    x: args.x,
+    y: lineY - 13,
+    font: args.font,
+    size: 9,
+    color: hexToRgb(args.color),
+    maxWidth: safeWidth,
+  });
+
+  return lineY - 24;
+}
+
+function resolveTableColumnWidths(args: {
+  totalWidth: number;
+  columnCount: number;
+  columnWidths?: number[];
+}): number[] {
+  const fallback = Array.from(
+    { length: args.columnCount },
+    () => args.totalWidth / args.columnCount,
+  );
+
+  if (
+    !args.columnWidths ||
+    args.columnWidths.length !== args.columnCount ||
+    args.columnWidths.some((value) => !Number.isFinite(value) || value <= 0)
+  ) {
+    return fallback;
+  }
+
+  const totalWeight = args.columnWidths.reduce((sum, value) => sum + value, 0);
+
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return fallback;
+  }
+
+  return args.columnWidths.map((weight) => (weight / totalWeight) * args.totalWidth);
+}
+
 function drawSimpleTable(args: {
-  page: Parameters<PDFDocument['addPage']>[0] extends never ? never : ReturnType<PDFDocument['addPage']>;
+  page: PDFPage;
   rows: string[][];
   x: number;
   y: number;
   width: number;
-  font: Awaited<ReturnType<PDFDocument['embedFont']>>;
+  font: PDFFont;
   fontSize: number;
+  columnWidths?: number[];
 }): number {
   const columnCount = Math.max(1, ...args.rows.map((row) => row.length));
-  const columnWidth = args.width / columnCount;
+  const columnWidths = resolveTableColumnWidths({
+    totalWidth: args.width,
+    columnCount,
+    columnWidths: args.columnWidths,
+  });
   const rowHeight = Math.max(18, args.fontSize * 2.4);
   let y = args.y;
 
   args.rows.forEach((row, rowIndex) => {
     const isHeader = rowIndex === 0;
+    let x = args.x;
 
     row.forEach((cell, columnIndex) => {
-      const x = args.x + columnIndex * columnWidth;
+      const columnWidth = columnWidths[columnIndex] ?? args.width / columnCount;
 
       args.page.drawRectangle({
         x,
@@ -277,8 +528,10 @@ function drawSimpleTable(args: {
         font: args.font,
         size: args.fontSize,
         color: rgb(0.07, 0.09, 0.16),
-        maxWidth: columnWidth - 8,
+        maxWidth: Math.max(1, columnWidth - 8),
       });
+
+      x += columnWidth;
     });
 
     y -= rowHeight;
@@ -289,7 +542,7 @@ function drawSimpleTable(args: {
 
 function wrapText(
   text: string,
-  font: Awaited<ReturnType<PDFDocument['embedFont']>>,
+  font: PDFFont,
   fontSize: number,
   maxWidth: number,
 ): string[] {
