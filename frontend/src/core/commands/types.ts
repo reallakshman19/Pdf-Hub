@@ -4,6 +4,7 @@ export type PdfCommandSource = 'user' | 'macro' | 'ai' | 'system';
 
 export type PdfCommandRisk =
   | 'safe'
+  | 'destructive'
   | 'destructive-preview-required'
   | 'destructive-confirm-required'
   | 'server-only';

@@ -24,6 +24,7 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
+import type { WriterRotation } from '@/core/writer-v2/types';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 
 type TransformState =
@@ -493,7 +494,7 @@ interface PageSurfaceProps {
   onClearSelection: () => void;
   onCommitAnnotation: (id: string, patch: Partial<PdfAnnotation>) => void;
   onCommitManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
-  scrollContainerRef?: React.RefObject<HTMLDivElement>;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   onVisibleRatioChange?: (pageNumber: number, ratio: number) => void;
 }
 
@@ -557,7 +558,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
 
-  const [pageRotation, setPageRotation] = React.useState(0);
+  const [pageRotation, setPageRotation] = React.useState<WriterRotation>(0);
   const [inkPaths, setInkPaths] = React.useState<number[][]>([]);
   const currentPathRef = React.useRef<number[]>([]);
   const interactionResetVersion = useEditorStore((s) => s.interactionResetVersion);
@@ -577,7 +578,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       if (!cancelled) {
         const viewport = page.getViewport({ scale });
         setSize({ width: viewport.width, height: viewport.height });
-        setPageRotation(page.rotate ?? 0);
+        setPageRotation((page.rotate ?? 0) as WriterRotation);
       }
 
       const items = await PdfRendererAdapter.getPageTextItems(page, scale);
