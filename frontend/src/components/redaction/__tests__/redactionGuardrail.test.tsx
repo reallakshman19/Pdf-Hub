@@ -39,7 +39,7 @@ describe('Redaction guardrails', () => {
   });
 
   test('REDACTION_APPLY validator rejects any non-destructive risk', () => {
-    const base = { id: 'r1', type: 'REDACTION_APPLY' as const, documentKey: 'doc1', createdAt: Date.now(), payload: {} };
+    const base = { id: 'r1', type: 'REDACTION_APPLY' as const, source: 'user' as const, documentKey: 'doc1', createdAt: new Date().toISOString(), payload: {} };
     expect(validateCommand({ ...base, risk: 'destructive' } as Parameters<typeof validateCommand>[0]).ok).toBe(true);
     expect(validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
     expect(validateCommand({ ...base, risk: 'destructive-preview-required' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
