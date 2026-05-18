@@ -582,6 +582,18 @@ export const MacrosSidebar: React.FC = () => {
     }));
   };
 
+  const resetGenerationValues = React.useCallback(() => {
+    if (!selectedGenerationTemplate) {
+      setGenerationValues({});
+      return;
+    }
+    setGenerationValues(
+      Object.fromEntries(
+        selectedGenerationTemplate.fields.map((field) => [field.key, resolveFieldDefault(field)]),
+      ),
+    );
+  }, [selectedGenerationTemplate]);
+
   const renderGenerationField = (field: GenerationField) => {
     const value = generationValues[field.key] ?? resolveFieldDefault(field);
 
@@ -715,7 +727,12 @@ export const MacrosSidebar: React.FC = () => {
           Generate Document
         </div>
 
+        <label className="sr-only" htmlFor="generate-document-template">
+          Generate Document Template
+        </label>
         <select
+          id="generate-document-template"
+          aria-label="Generate Document Template"
           className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
           value={selectedGenerationId}
           onChange={(e) => handleGenerationTemplateChange(e.target.value)}
@@ -729,10 +746,14 @@ export const MacrosSidebar: React.FC = () => {
         </select>
 
         {selectedGenerationTemplate && (
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             {selectedGenerationTemplate.description}
           </p>
         )}
+
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+          {GENERATION_TEMPLATES.length} templates available. Fields update when the template changes.
+        </p>
 
         {selectedGenerationId === 'branded_cover_page' && (
           <label className="flex flex-col gap-1.5">
@@ -777,6 +798,16 @@ export const MacrosSidebar: React.FC = () => {
             {renderGenerationField(field)}
           </label>
         ))}
+
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={resetGenerationValues}
+          disabled={isRunning || !selectedGenerationTemplate}
+          className="w-full justify-center text-xs"
+        >
+          Reset Fields
+        </Button>
 
         <Button
           onClick={handleGenerate}
