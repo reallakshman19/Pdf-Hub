@@ -26,6 +26,7 @@ export const DISABLED_TOOLS: Partial<Record<ActiveTool, DisabledToolInfo>> = {
 export const WRITE_MODE_BLOCKED_TOOLS: Partial<Record<ActiveTool, true>> = {
   ink: true,
   comment: true,
+  callout: true,
   'sticky-note': true,
   'shape-rect': true,
   'shape-ellipse': true,
