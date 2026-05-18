@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildGenerationRecipe } from './buildGenerationRecipe';
-import { getGenerationTemplateById } from './generationRecipes';
+import { GENERATION_TEMPLATES, getGenerationTemplateById } from './generationRecipes';
 
 describe('buildGenerationRecipe', () => {
   it('prepends apply_template_vars', () => {
@@ -172,3 +172,88 @@ describe('buildGenerationRecipe', () => {
     expect(firstStep.vars.filename).toBe('token-source.pdf');
   });
 });
+
+function valuesForTemplate(template: (typeof GENERATION_TEMPLATES)[number]): Record<string, string> {
+  return Object.fromEntries(
+    template.fields.map((field) => [
+      field.key,
+      `value_for_${field.key}`,
+    ]),
+  );
+}
+
+describe('buildGenerationRecipe template library coverage', () => {
+  it.each(GENERATION_TEMPLATES.map((template) => [template.id, template] as const))(
+    'prepends apply_template_vars for template %s',
+    (_templateId, template) => {
+      const built = buildGenerationRecipe({
+        template,
+        values: valuesForTemplate(template),
+        fileName: 'source.pdf',
+        pageCount: 7,
+        now: new Date('2026-05-18T00:00:00.000Z'),
+      });
+
+      expect(built.steps[0].op).toBe('apply_template_vars');
+    },
+  );
+
+  it.each(GENERATION_TEMPLATES.map((template) => [template.id, template] as const))(
+    'injects all field values for template %s',
+    (_templateId, template) => {
+      const values = valuesForTemplate(template);
+      const built = buildGenerationRecipe({
+        template,
+        values,
+        fileName: 'source.pdf',
+        pageCount: 7,
+        now: new Date('2026-05-18T00:00:00.000Z'),
+      });
+
+      const firstStep = built.steps[0];
+      expect(firstStep.op).toBe('apply_template_vars');
+
+      if (firstStep.op !== 'apply_template_vars') {
+        throw new Error('Expected apply_template_vars step.');
+      }
+
+      for (const field of template.fields) {
+        expect(firstStep.vars[field.key]).toBe(values[field.key]);
+      }
+    },
+  );
+
+  it.each(GENERATION_TEMPLATES.map((template) => [template.id, template] as const))(
+    'does not mutate template recipe for template %s',
+    (_templateId, template) => {
+      const before = JSON.stringify(template.recipe);
+
+      buildGenerationRecipe({
+        template,
+        values: valuesForTemplate(template),
+        fileName: 'source.pdf',
+        pageCount: 7,
+        now: new Date('2026-05-18T00:00:00.000Z'),
+      });
+
+      expect(JSON.stringify(template.recipe)).toBe(before);
+    },
+  );
+
+  it.each(GENERATION_TEMPLATES.map((template) => [template.id, template] as const))(
+    'built recipe keeps original template steps after apply_template_vars for template %s',
+    (_templateId, template) => {
+      const built = buildGenerationRecipe({
+        template,
+        values: valuesForTemplate(template),
+        fileName: 'source.pdf',
+        pageCount: 7,
+        now: new Date('2026-05-18T00:00:00.000Z'),
+      });
+
+      expect(built.steps.length).toBe(template.recipe.steps.length + 1);
+      expect(built.steps.slice(1)).toEqual(template.recipe.steps);
+    },
+  );
+});
+

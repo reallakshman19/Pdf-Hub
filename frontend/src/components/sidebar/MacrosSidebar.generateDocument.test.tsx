@@ -36,7 +36,7 @@ function openTestDocument() {
 
 function selectGenerationTemplate(templateId: string) {
   const generateSection = getGenerateSection();
-  const select = within(generateSection).getByRole('combobox');
+  const select = within(generateSection).getByRole('combobox', { name: /generate document template/i });
   fireEvent.change(select, { target: { value: templateId } });
   return generateSection;
 }
@@ -206,6 +206,79 @@ describe('MacrosSidebar Generate Document', () => {
     expect(
       screen.queryByText('Generate Document completed but produced no output files.'),
     ).not.toBeInTheDocument();
+  });
+
+
+
+  it('shows selected template description and template count helper text', () => {
+    render(<MacrosSidebar />);
+
+    expect(screen.getByText(/Generate a simple professional report cover and summary page/i)).toBeInTheDocument();
+    expect(screen.getByText(/templates available/i)).toBeInTheDocument();
+  });
+
+  it('switching to Meeting Minutes renders meeting-specific fields', () => {
+    render(<MacrosSidebar />);
+
+    const generateSection = selectGenerationTemplate('meeting_minutes');
+
+    expect(within(generateSection).getByText(/Generate concise meeting minutes/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Meeting Date/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Attendees/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Agenda/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Decisions/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Actions/i)).toBeInTheDocument();
+    expect(within(generateSection).getByLabelText(/Prepared By/i)).toBeInTheDocument();
+  });
+
+  it('textarea fields render as textarea elements', () => {
+    render(<MacrosSidebar />);
+
+    const generateSection = selectGenerationTemplate('meeting_minutes');
+    const attendees = within(generateSection).getByLabelText(/Attendees/i);
+    const agenda = within(generateSection).getByLabelText(/Agenda/i);
+
+    expect(attendees.tagName.toLowerCase()).toBe('textarea');
+    expect(agenda.tagName.toLowerCase()).toBe('textarea');
+  });
+
+  it('Reset Fields restores selected template defaults', () => {
+    render(<MacrosSidebar />);
+
+    const generateSection = selectGenerationTemplate('meeting_minutes');
+    const titleInput = within(generateSection).getByLabelText(/Title/i);
+
+    fireEvent.change(titleInput, { target: { value: 'Changed Title' } });
+    expect(titleInput).toHaveValue('Changed Title');
+
+    fireEvent.click(within(generateSection).getByRole('button', { name: /Reset Fields/i }));
+
+    expect(within(generateSection).getByLabelText(/Title/i)).toHaveValue('Meeting Minutes');
+  });
+
+  it('output fallback name reflects selected template name', async () => {
+    runMacroRecipeAgainstSessionMock.mockResolvedValueOnce({
+      success: true,
+      outputFiles: [],
+      logs: ['Added content page at index 0.'],
+      finalBytes: new Uint8Array([9, 8, 7]),
+      selectedPages: [],
+      stepResults: [],
+    });
+
+    render(<MacrosSidebar />);
+
+    const generateSection = selectGenerationTemplate('meeting_minutes');
+
+    fireEvent.click(
+      within(generateSection).getByRole('button', {
+        name: /Generate PDF/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('meeting-minutes.pdf')).toBeInTheDocument();
+    });
   });
 
 });
