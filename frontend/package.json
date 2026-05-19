@@ -22,7 +22,7 @@
     "audit:writer-overlay-v2-boundary": "node scripts/writer-v2-boundary-audit.mjs",
     "certify:writer-overlay-v2": "node scripts/certify-writer-overlay-v2.mjs",
     "certify:writer-overlay-v2-final": "node scripts/final-certify-writer-overlay-v2.mjs",
-    "certify:generate-document": "vitest run src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx",
+    "certify:generate-document": "node scripts/certify-generate-document.mjs",
     "certify:layout-engine": "vitest run src/core/macro/layout/LayoutEngine.test.ts",
     "certify:generation-recipes": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts",
     "certify:generation-template-library": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts src/core/macro/generateDocument/templateLibraryValidation.test.ts src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx"
