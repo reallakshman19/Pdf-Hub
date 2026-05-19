@@ -281,4 +281,29 @@ describe('MacrosSidebar Generate Document', () => {
     });
   });
 
+  it('fallback output name uses shared helper for Meeting Minutes', async () => {
+    runMacroRecipeAgainstSessionMock.mockResolvedValueOnce({
+      success: true,
+      outputFiles: [],
+      logs: ['Added content page at index 0.'],
+      finalBytes: new Uint8Array([9, 8, 7]),
+      selectedPages: [],
+      stepResults: [],
+    });
+
+    render(<MacrosSidebar />);
+
+    const generateSection = selectGenerationTemplate('meeting_minutes');
+
+    fireEvent.click(
+      within(generateSection).getByRole('button', {
+        name: /Generate PDF/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('meeting-minutes.pdf')).toBeInTheDocument();
+    });
+  });
+
 });

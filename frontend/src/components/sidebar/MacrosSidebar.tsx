@@ -36,6 +36,7 @@ import {
   getGenerationTemplateById,
 } from '@/core/macro/generateDocument/generationRecipes';
 import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
+import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
 
 function resolveFieldDefault(field: GenerationField): string {
@@ -698,7 +699,7 @@ export const MacrosSidebar: React.FC = () => {
         ? result.outputFiles
         : [
             {
-              name: `${generationTemplate.name.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+              name: buildGeneratedDocumentOutputName(generationTemplate),
               bytes: result.finalBytes,
             },
           ];
