@@ -299,6 +299,33 @@ export const DocumentWorkspace: React.FC = () => {
     return () => observer.disconnect();
   }, [pdfDoc, viewState.viewMode, setPage]);
 
+  const sortedVisibleAnnotations = React.useMemo(
+    () =>
+      annotations
+        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
+        .slice()
+        .sort((a, b) => {
+          if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
+          return readZIndex(a) - readZIndex(b);
+        }),
+    [annotations, hideResolved],
+  );
+
+  const pageAnnotationsMap = React.useMemo(() => {
+    const byPage = new Map<number, PdfAnnotation[]>();
+    for (const annotation of sortedVisibleAnnotations) {
+      const existing = byPage.get(annotation.pageNumber);
+      if (existing) {
+        existing.push(annotation);
+      } else {
+        byPage.set(annotation.pageNumber, [annotation]);
+      }
+    }
+    return byPage;
+  }, [sortedVisibleAnnotations]);
+
+  const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
+
   if (!workingBytes) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50">
@@ -343,16 +370,12 @@ export const DocumentWorkspace: React.FC = () => {
     const pageNumber = index + 1;
     return (
       <div key={pageNumber} className="flex justify-center mb-8">
-        <PageSurface
+        <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
           scale={viewState.zoom / 100}
           activeTool={activeTool}
-          pageAnnotations={annotations
-            .filter((annotation) => annotation.pageNumber === pageNumber)
-            .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
-            .slice()
-            .sort((a, b) => readZIndex(a) - readZIndex(b))}
+          pageAnnotations={pageAnnotationsMap.get(pageNumber) ?? emptyPageAnnotations}
           selectedAnnotationIds={selectedAnnotationIds}
           onActivate={() => setPage(pageNumber)}
           onCreateAnnotation={(annotation) => {
@@ -1616,6 +1639,17 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     </div>
   );
 };
+
+const PageSurfaceMemo = React.memo(
+  PageSurface,
+  (prev, next) =>
+    prev.doc === next.doc &&
+    prev.pageNumber === next.pageNumber &&
+    prev.scale === next.scale &&
+    prev.activeTool === next.activeTool &&
+    prev.pageAnnotations === next.pageAnnotations &&
+    prev.selectedAnnotationIds === next.selectedAnnotationIds,
+);
 
 
 
