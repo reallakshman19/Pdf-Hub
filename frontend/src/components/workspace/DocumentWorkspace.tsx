@@ -5,16 +5,15 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { VList } from 'virtua';
 
 import { PdfRendererAdapter, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
-import { loadAnnotations, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
-import { error as logError } from '@/core/logger/service';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
+import { useAnnotationPersistence } from './useAnnotationPersistence';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 
@@ -151,6 +150,7 @@ export const DocumentWorkspace: React.FC = () => {
           // Cache text indexing for regex/word search
           const pagesText: Record<number, import('@/core/search/types').PageTextItem[]> = {};
           for (let i = 1; i <= doc.numPages; i++) {
+            if (cancelled) break;
             const pageProxy = await doc.getPage(i);
             const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
             pagesText[i] = textItems.map(item => ({
@@ -180,42 +180,13 @@ export const DocumentWorkspace: React.FC = () => {
     };
   }, [workingBytes, documentKey, setSharedPdfDoc]);
 
-  React.useEffect(() => {
-    const loadStored = async () => {
-      setRestoredCount(0);
-      if (!documentKey) return;
-      const stored = await loadAnnotations(documentKey);
-      setAnnotations(stored);
-      if (stored.length > 0) setRestoredCount(stored.length);
-    };
-    void loadStored();
-  }, [documentKey, setAnnotations]);
-
-  React.useEffect(() => {
-    if (!documentKey) return;
-
-    const timer = window.setTimeout(() => {
-      void saveAnnotations(documentKey, annotations);
-    }, 400);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [annotations, documentKey]);
-
-  React.useEffect(() => {
-    if (!documentKey) return;
-
-    const flushNow = () => {
-      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations);
-    };
-
-    window.addEventListener('pagehide', flushNow);
-
-    return () => {
-      window.removeEventListener('pagehide', flushNow);
-    };
-  }, [documentKey]);
+  useAnnotationPersistence({
+    documentKey,
+    pdfDoc,
+    annotations,
+    setAnnotations,
+    setRestoredCount,
+  });
 
   React.useLayoutEffect(() => {
     if (!pdfDoc || !containerRef.current || viewState.fitMode === 'manual') return;
@@ -288,6 +259,33 @@ export const DocumentWorkspace: React.FC = () => {
     return () => observer.disconnect();
   }, [pdfDoc, viewState.viewMode, setPage]);
 
+  const sortedVisibleAnnotations = React.useMemo(
+    () =>
+      annotations
+        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
+        .slice()
+        .sort((a, b) => {
+          if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
+          return readZIndex(a) - readZIndex(b);
+        }),
+    [annotations, hideResolved],
+  );
+
+  const pageAnnotationsMap = React.useMemo(() => {
+    const byPage = new Map<number, PdfAnnotation[]>();
+    for (const annotation of sortedVisibleAnnotations) {
+      const existing = byPage.get(annotation.pageNumber);
+      if (existing) {
+        existing.push(annotation);
+      } else {
+        byPage.set(annotation.pageNumber, [annotation]);
+      }
+    }
+    return byPage;
+  }, [sortedVisibleAnnotations]);
+
+  const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
+
   if (!workingBytes) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50">
@@ -332,16 +330,12 @@ export const DocumentWorkspace: React.FC = () => {
     const pageNumber = index + 1;
     return (
       <div key={pageNumber} className="flex justify-center mb-8">
-        <PageSurface
+        <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
           scale={viewState.zoom / 100}
           activeTool={activeTool}
-          pageAnnotations={annotations
-            .filter((annotation) => annotation.pageNumber === pageNumber)
-            .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
-            .slice()
-            .sort((a, b) => readZIndex(a) - readZIndex(b))}
+          pageAnnotations={pageAnnotationsMap.get(pageNumber) ?? emptyPageAnnotations}
           selectedAnnotationIds={selectedAnnotationIds}
           onActivate={() => setPage(pageNumber)}
           onCreateAnnotation={(annotation) => {
@@ -1605,6 +1599,17 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     </div>
   );
 };
+
+const PageSurfaceMemo = React.memo(
+  PageSurface,
+  (prev, next) =>
+    prev.doc === next.doc &&
+    prev.pageNumber === next.pageNumber &&
+    prev.scale === next.scale &&
+    prev.activeTool === next.activeTool &&
+    prev.pageAnnotations === next.pageAnnotations &&
+    prev.selectedAnnotationIds === next.selectedAnnotationIds,
+);
 
 
 
