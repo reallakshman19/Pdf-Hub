@@ -1,4 +1,10 @@
 import type { PdfAnnotation } from './types';
+import {
+  denormalizeAnnotationGeometry,
+  normalizeAnnotationGeometry,
+  rotateNormalizedAnnotationGeometry,
+  type NormalizedAnnotationGeometry,
+} from './normalized';
 
 /**
  * Pure page-remapping functions.
@@ -117,39 +123,24 @@ export function remapAfterRotate(
     const normalizedAngle = ((rot.angle % 360) + 360) % 360;
     if (normalizedAngle === 0) return annotation;
 
-    const { width: W, height: H } = rot;
-    const { x, y, width: w, height: h } = annotation.rect;
+    const page = { width: rot.width, height: rot.height };
+    const existingNormalized = annotation.data.normalizedGeometry as NormalizedAnnotationGeometry | undefined;
+    const normalizedGeometry = existingNormalized ?? normalizeAnnotationGeometry(annotation, page);
+    const rotatedNormalizedGeometry = rotateNormalizedAnnotationGeometry(normalizedGeometry, normalizedAngle);
+    const outputPage =
+      normalizedAngle === 90 || normalizedAngle === 270
+        ? { width: rot.height, height: rot.width }
+        : page;
+    const denormalized = denormalizeAnnotationGeometry(annotation, rotatedNormalizedGeometry, outputPage);
 
-    let newRect: { x: number; y: number; width: number; height: number };
-    if (normalizedAngle === 90) {
-      newRect = { x: H - y - h, y: x, width: h, height: w };
-    } else if (normalizedAngle === 270) {
-      newRect = { x: y, y: W - x - w, width: h, height: w };
-    } else {
-      // 180°
-      newRect = { x: W - x - w, y: H - y - h, width: w, height: h };
-    }
-
-    const newData = { ...annotation.data };
-
-    if (annotation.data.anchor) {
-      const { x: ax, y: ay } = annotation.data.anchor as { x: number; y: number };
-      newData.anchor = rotatePoint(ax, ay, normalizedAngle, W, H);
-    }
-    if (annotation.data.knee) {
-      const { x: kx, y: ky } = annotation.data.knee as { x: number; y: number };
-      newData.knee = rotatePoint(kx, ky, normalizedAngle, W, H);
-    }
-    if (Array.isArray(annotation.data.paths)) {
-      newData.paths = (annotation.data.paths as number[][]).map((path) =>
-        rotatePath(path, normalizedAngle, W, H),
-      );
-    }
-    if (Array.isArray(annotation.data.points)) {
-      newData.points = rotatePath(annotation.data.points as number[], normalizedAngle, W, H);
-    }
-
-    return { ...annotation, rect: newRect, data: newData };
+    return {
+      ...denormalized,
+      data: {
+        ...denormalized.data,
+        geometryVersion: 2,
+        normalizedGeometry: rotatedNormalizedGeometry,
+      },
+    };
   });
 }
 
@@ -199,25 +190,4 @@ export function remapAfterDuplicate(
   }
 
   return result;
-}
-
-function rotatePoint(
-  px: number,
-  py: number,
-  angle: number,
-  W: number,
-  H: number,
-): { x: number; y: number } {
-  if (angle === 90)  return { x: H - py, y: px };
-  if (angle === 270) return { x: py, y: W - px };
-  return { x: W - px, y: H - py }; // 180°
-}
-
-function rotatePath(path: number[], angle: number, W: number, H: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i + 1 < path.length; i += 2) {
-    const pt = rotatePoint(path[i], path[i + 1], angle, W, H);
-    out.push(pt.x, pt.y);
-  }
-  return out;
 }
