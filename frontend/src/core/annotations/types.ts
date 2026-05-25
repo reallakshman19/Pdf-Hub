@@ -96,6 +96,8 @@ export interface AnnotationData extends Record<string, unknown> {
   review?: ReviewMetadata;
   reviewStatus?: ReviewStatus;
   style?: AnnotationStyle;
+  geometryVersion?: number;
+  normalizedGeometry?: unknown;
 }
 
 export interface PdfAnnotation {
