@@ -13,6 +13,7 @@ import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
 import { error as logError } from '@/core/logger/service';
+import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 
@@ -151,6 +152,7 @@ export const DocumentWorkspace: React.FC = () => {
           // Cache text indexing for regex/word search
           const pagesText: Record<number, import('@/core/search/types').PageTextItem[]> = {};
           for (let i = 1; i <= doc.numPages; i++) {
+            if (cancelled) break;
             const pageProxy = await doc.getPage(i);
             const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
             pagesText[i] = textItems.map(item => ({
@@ -182,8 +184,8 @@ export const DocumentWorkspace: React.FC = () => {
 
   React.useEffect(() => {
     const loadStored = async () => {
-      setRestoredCount(0);
       if (!documentKey) return;
+      setRestoredCount(0);
       const stored = await loadAnnotations(documentKey);
       setAnnotations(stored);
       if (stored.length > 0) setRestoredCount(stored.length);
@@ -192,10 +194,52 @@ export const DocumentWorkspace: React.FC = () => {
   }, [documentKey, setAnnotations]);
 
   React.useEffect(() => {
+    if (!documentKey || !pdfDoc) return;
+
+    const run = async () => {
+      const current = useAnnotationStore.getState().annotations;
+      if (current.length === 0) return;
+      if (current.every((annotation) => annotation.data.geometryVersion === 2 && annotation.data.normalizedGeometry)) {
+        return;
+      }
+
+      const pageDims = new Map<number, { width: number; height: number }>();
+      for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
+        const page = await pdfDoc.getPage(pageNumber);
+        pageDims.set(pageNumber, PdfRendererAdapter.getPageDimensions(page));
+        page.cleanup();
+      }
+
+      const migrated = current.map((annotation) => {
+        const dims = pageDims.get(annotation.pageNumber);
+        if (!dims) return annotation;
+        return ensureAnnotationHasNormalizedGeometry(annotation, dims);
+      });
+
+      if (JSON.stringify(migrated) !== JSON.stringify(current)) {
+        setAnnotations(migrated);
+        void saveAnnotations(documentKey, migrated).catch((err) => {
+          logError('annotation', 'Failed to persist normalized geometry migration', {
+            documentKey,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      }
+    };
+
+    void run();
+  }, [documentKey, pdfDoc, setAnnotations]);
+
+  React.useEffect(() => {
     if (!documentKey) return;
 
     const timer = window.setTimeout(() => {
-      void saveAnnotations(documentKey, annotations);
+      void saveAnnotations(documentKey, annotations).catch(err => {
+        logError('annotation', 'Annotation autosave failed', {
+          documentKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     }, 400);
 
     return () => {
@@ -207,7 +251,12 @@ export const DocumentWorkspace: React.FC = () => {
     if (!documentKey) return;
 
     const flushNow = () => {
-      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations);
+      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations).catch(err => {
+        logError('annotation', 'Annotation pagehide flush failed', {
+          documentKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     };
 
     window.addEventListener('pagehide', flushNow);
@@ -288,6 +337,33 @@ export const DocumentWorkspace: React.FC = () => {
     return () => observer.disconnect();
   }, [pdfDoc, viewState.viewMode, setPage]);
 
+  const sortedVisibleAnnotations = React.useMemo(
+    () =>
+      annotations
+        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
+        .slice()
+        .sort((a, b) => {
+          if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
+          return readZIndex(a) - readZIndex(b);
+        }),
+    [annotations, hideResolved],
+  );
+
+  const pageAnnotationsMap = React.useMemo(() => {
+    const byPage = new Map<number, PdfAnnotation[]>();
+    for (const annotation of sortedVisibleAnnotations) {
+      const existing = byPage.get(annotation.pageNumber);
+      if (existing) {
+        existing.push(annotation);
+      } else {
+        byPage.set(annotation.pageNumber, [annotation]);
+      }
+    }
+    return byPage;
+  }, [sortedVisibleAnnotations]);
+
+  const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
+
   if (!workingBytes) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50">
@@ -332,16 +408,12 @@ export const DocumentWorkspace: React.FC = () => {
     const pageNumber = index + 1;
     return (
       <div key={pageNumber} className="flex justify-center mb-8">
-        <PageSurface
+        <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
           scale={viewState.zoom / 100}
           activeTool={activeTool}
-          pageAnnotations={annotations
-            .filter((annotation) => annotation.pageNumber === pageNumber)
-            .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
-            .slice()
-            .sort((a, b) => readZIndex(a) - readZIndex(b))}
+          pageAnnotations={pageAnnotationsMap.get(pageNumber) ?? emptyPageAnnotations}
           selectedAnnotationIds={selectedAnnotationIds}
           onActivate={() => setPage(pageNumber)}
           onCreateAnnotation={(annotation) => {
@@ -1605,6 +1677,17 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     </div>
   );
 };
+
+const PageSurfaceMemo = React.memo(
+  PageSurface,
+  (prev, next) =>
+    prev.doc === next.doc &&
+    prev.pageNumber === next.pageNumber &&
+    prev.scale === next.scale &&
+    prev.activeTool === next.activeTool &&
+    prev.pageAnnotations === next.pageAnnotations &&
+    prev.selectedAnnotationIds === next.selectedAnnotationIds,
+);
 
 
 

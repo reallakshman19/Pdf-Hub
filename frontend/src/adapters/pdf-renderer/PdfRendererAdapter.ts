@@ -41,6 +41,11 @@ export interface TextSearchHit {
   rects: SearchHitRect[];
 }
 
+export interface PageDimensions {
+  width: number;
+  height: number;
+}
+
 export interface OutlineItem {
   id: string;
   title: string;
@@ -198,6 +203,11 @@ export class PdfRendererAdapter {
       });
       return [];
     }
+  }
+
+  static getPageDimensions(page: PDFPageProxy): PageDimensions {
+    const viewport = page.getViewport({ scale: 1 });
+    return { width: viewport.width, height: viewport.height };
   }
 
   static async getThumbnail(page: PDFPageProxy): Promise<string> {

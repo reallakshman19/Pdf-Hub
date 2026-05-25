@@ -19,14 +19,9 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
   label,
 }) => {
   const [open, setOpen] = React.useState(false);
-  const [hex, setHex] = React.useState(value);
+  const [hexDraft, setHexDraft] = React.useState<string | null>(null);
   const ref = React.useRef<HTMLDivElement>(null);
-
-  const [prevValue, setPrevValue] = React.useState(value);
-  if (prevValue !== value) {
-    setPrevValue(value);
-    setHex(value);
-  }
+  const hex = hexDraft ?? value;
 
   React.useEffect(() => {
     if (!open) return;
@@ -38,7 +33,7 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
   }, [open]);
 
   const commit = (v: string) => {
-    setHex(v);
+    setHexDraft(v);
     onChange(v);
   };
 
@@ -48,7 +43,17 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
       <button
         type="button"
         title={value}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen((prev) => {
+            const next = !prev;
+            if (next) {
+              setHexDraft(value);
+            } else {
+              setHexDraft(null);
+            }
+            return next;
+          });
+        }}
         style={{
           width: 20,
           height: 20,
@@ -81,7 +86,11 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
                 key={c}
                 type="button"
                 title={c}
-                onClick={() => { commit(c); setOpen(false); }}
+                onClick={() => {
+                  commit(c);
+                  setOpen(false);
+                  setHexDraft(null);
+                }}
                 style={{
                   width: 18,
                   height: 18,
@@ -99,7 +108,7 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
               type="text"
               value={hex}
               maxLength={7}
-              onChange={(e) => setHex(e.target.value)}
+              onChange={(e) => setHexDraft(e.target.value)}
               onBlur={() => { if (/^#[0-9a-fA-F]{6}$/.test(hex)) commit(hex); }}
               style={{
                 flex: 1,
