@@ -13,6 +13,7 @@ import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
 import { error as logError } from '@/core/logger/service';
+import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 
@@ -191,6 +192,43 @@ export const DocumentWorkspace: React.FC = () => {
     };
     void loadStored();
   }, [documentKey, setAnnotations]);
+
+  React.useEffect(() => {
+    if (!documentKey || !pdfDoc) return;
+
+    const run = async () => {
+      const current = useAnnotationStore.getState().annotations;
+      if (current.length === 0) return;
+      if (current.every((annotation) => annotation.data.geometryVersion === 2 && annotation.data.normalizedGeometry)) {
+        return;
+      }
+
+      const pageDims = new Map<number, { width: number; height: number }>();
+      for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
+        const page = await pdfDoc.getPage(pageNumber);
+        pageDims.set(pageNumber, PdfRendererAdapter.getPageDimensions(page));
+        page.cleanup();
+      }
+
+      const migrated = current.map((annotation) => {
+        const dims = pageDims.get(annotation.pageNumber);
+        if (!dims) return annotation;
+        return ensureAnnotationHasNormalizedGeometry(annotation, dims);
+      });
+
+      if (JSON.stringify(migrated) !== JSON.stringify(current)) {
+        setAnnotations(migrated);
+        void saveAnnotations(documentKey, migrated).catch((err) => {
+          logError('annotation', 'Failed to persist normalized geometry migration', {
+            documentKey,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      }
+    };
+
+    void run();
+  }, [documentKey, pdfDoc, setAnnotations]);
 
   React.useEffect(() => {
     if (!documentKey) return;

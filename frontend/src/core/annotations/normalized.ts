@@ -202,3 +202,22 @@ export const migrateAnnotationFromNormalized = (
     },
   };
 };
+
+export const ensureAnnotationHasNormalizedGeometry = (
+  annotation: PdfAnnotation,
+  dims: PageDimensions,
+): PdfAnnotation => {
+  const existing = annotation.data.normalizedGeometry as NormalizedAnnotationGeometry | undefined;
+  if (annotation.data.geometryVersion === 2 && existing) {
+    return annotation;
+  }
+  const normalized = normalizeAnnotationGeometry(annotation, dims);
+  return {
+    ...annotation,
+    data: {
+      ...annotation.data,
+      geometryVersion: 2,
+      normalizedGeometry: normalized,
+    },
+  };
+};
