@@ -17,7 +17,7 @@ const ALLOWED_TAGS = new Set([
 ]);
 
 const ALLOWED_ATTRIBUTES = new Set([
-  'href', 'src', 'alt', 'title', 'class', 'style',
+  'href', 'src', 'alt', 'title', 'class',
   'colspan', 'rowspan', 'cellpadding', 'cellspacing', 'border', 'width', 'height'
 ]);
 
@@ -81,9 +81,13 @@ function cleanAttributes(el: HTMLElement) {
     if (!ALLOWED_ATTRIBUTES.has(attrName) || attrName.startsWith('on')) {
       el.removeAttribute(attrName);
     } else if (attrName === 'href' || attrName === 'src') {
-      // Basic safeguard against javascript: URIs.
+      // URI protocol allowlist for links/media.
       const val = attr.value.toLowerCase().trim();
-      if (val.startsWith('javascript:') || val.startsWith('vbscript:') || val.startsWith('data:text/html')) {
+      const isUnsafeProtocol =
+        val.startsWith('javascript:') ||
+        val.startsWith('vbscript:') ||
+        val.startsWith('data:');
+      if (isUnsafeProtocol) {
         el.removeAttribute(attrName);
       }
     }
