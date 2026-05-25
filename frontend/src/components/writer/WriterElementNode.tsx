@@ -2,12 +2,66 @@ import React, { useRef, useState, useCallback } from 'react';
 import { useWriterStore } from '../../core/writer/store';
 import { RichTextEditorPanel } from './RichTextEditorPanel';
 import { TableEditorPanel } from './TableEditorPanel';
-import type { PlacedElement, TransformHandle } from '../../core/writer/types';
+import type { PlacedElement, TransformHandle, WriterTableData } from '../../core/writer/types';
 import { buildTableHtml } from '../../core/writer/exporter';
 import { calculateSnaps, type SnapGuide } from '../../core/writer/geometry';
 import { sanitizeHtml } from '../../core/writer/htmlSanitizer';
 import { error as logError } from '../../core/logger/service';
 import './WriterElementNode.css';
+
+type LegacyTableJson = {
+  headers?: string[];
+  rows?: string[][];
+  borderColor?: string;
+  headerBg?: string;
+};
+
+function toWriterTableData(content: string | undefined): WriterTableData {
+  const fallback: WriterTableData = {
+    columns: [],
+    rows: [],
+    style: {},
+  };
+  if (!content) return fallback;
+
+  try {
+    const parsed = JSON.parse(content) as WriterTableData | LegacyTableJson;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      Array.isArray((parsed as WriterTableData).columns) &&
+      Array.isArray((parsed as WriterTableData).rows) &&
+      typeof (parsed as WriterTableData).style === 'object'
+    ) {
+      return parsed as WriterTableData;
+    }
+
+    const legacy = parsed as LegacyTableJson;
+    if (Array.isArray(legacy.headers) || Array.isArray(legacy.rows)) {
+      const headers = Array.isArray(legacy.headers) ? legacy.headers : [];
+      const rows = Array.isArray(legacy.rows) ? legacy.rows : [];
+      return {
+        columns: headers.map((_h, i) => ({ id: `col-${i}` })),
+        rows: [
+          ...(headers.length > 0
+            ? [{ id: 'header-row', cells: headers.map((h, i) => ({ id: `h-${i}`, text: h })) }]
+            : []),
+          ...rows.map((row, rIdx) => ({
+            id: `r-${rIdx}`,
+            cells: row.map((cell, cIdx) => ({ id: `c-${rIdx}-${cIdx}`, text: String(cell ?? '') })),
+          })),
+        ],
+        style: {
+          borderColor: legacy.borderColor ?? '#d1d5db',
+          headerBg: legacy.headerBg ?? '#f1f5f9',
+        },
+      };
+    }
+  } catch {
+    // handled by caller logging
+  }
+  return fallback;
+}
 
 interface Props {
   element: PlacedElement;
@@ -221,17 +275,14 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
     [element.content],
   );
   const parsedTableData = React.useMemo(() => {
-    const fallback = { headers: [], rows: [] };
-    if (!element.content) return fallback;
-    try {
-      return JSON.parse(element.content) as { headers: string[]; rows: string[][] };
-    } catch (err) {
+    const parsed = toWriterTableData(element.content);
+    if (element.content && parsed.columns.length === 0 && parsed.rows.length === 0) {
       logError('system', 'Failed to parse writer table content', {
         elementId: element.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: 'Invalid table payload format',
       });
-      return fallback;
     }
+    return parsed;
   }, [element.content, element.id]);
 
   return (
