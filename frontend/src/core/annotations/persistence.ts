@@ -6,11 +6,13 @@ import { error, debug } from '@/core/logger/service';
 const DB_NAME = 'DocCraftAnnotations';
 const STORE_NAME = 'annotations';
 const DB_VERSION = 1;
+const ANNOTATION_SCHEMA_VERSION = 2;
 
 interface AnnotationRecord {
   id: string;
   annotations: PdfAnnotation[];
   updatedAt: number;
+  schemaVersion?: number;
 }
 
 interface AnnotationDbSchema extends DBSchema {
@@ -58,6 +60,7 @@ export const saveAnnotations = async (
       id: documentKey,
       annotations,
       updatedAt: Date.now(),
+      schemaVersion: ANNOTATION_SCHEMA_VERSION,
     });
 
     await tx.done;
@@ -91,10 +94,12 @@ export const loadAnnotations = async (
     const annotations = Array.isArray(result?.annotations)
       ? result.annotations
       : [];
+    const schemaVersion = typeof result?.schemaVersion === 'number' ? result.schemaVersion : 1;
 
     debug('annotation', 'Annotation store loaded from IndexedDB', {
       count: annotations.length,
       documentKey,
+      schemaVersion,
     });
 
     return annotations;

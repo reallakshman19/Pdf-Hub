@@ -5,6 +5,8 @@ import { TableEditorPanel } from './TableEditorPanel';
 import type { PlacedElement, TransformHandle } from '../../core/writer/types';
 import { buildTableHtml } from '../../core/writer/exporter';
 import { calculateSnaps, type SnapGuide } from '../../core/writer/geometry';
+import { sanitizeHtml } from '../../core/writer/htmlSanitizer';
+import { error as logError } from '../../core/logger/service';
 import './WriterElementNode.css';
 
 interface Props {
@@ -214,6 +216,23 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
   const sh = element.height * scale;
 
   const HANDLE_SIZE = 8;
+  const sanitizedRichTextHtml = React.useMemo(
+    () => sanitizeHtml(element.content || '<span style="opacity:0.4">Double-click to edit</span>'),
+    [element.content],
+  );
+  const parsedTableData = React.useMemo(() => {
+    const fallback = { headers: [], rows: [] };
+    if (!element.content) return fallback;
+    try {
+      return JSON.parse(element.content) as { headers: string[]; rows: string[][] };
+    } catch (err) {
+      logError('system', 'Failed to parse writer table content', {
+        elementId: element.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return fallback;
+    }
+  }, [element.content, element.id]);
 
   return (
     <>
@@ -243,7 +262,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
         {element.type === 'rich-text' && (
           <div
             style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
-            dangerouslySetInnerHTML={{ __html: element.content || '<span style="opacity:0.4">Double-click to edit</span>' }}
+            dangerouslySetInnerHTML={{ __html: sanitizedRichTextHtml }}
           />
         )}
         {element.type === 'image' && element.content && (
@@ -254,7 +273,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
             style={{ width: '100%', height: '100%', pointerEvents: 'none', overflow: 'hidden' }}
             dangerouslySetInnerHTML={{
               __html: buildTableHtml(
-                JSON.parse(element.content || '{"headers":[],"rows":[]}'),
+                parsedTableData,
                 sw,
                 scale // Pass true scale so font sizes zoom correctly
               )
