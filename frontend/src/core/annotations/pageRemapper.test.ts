@@ -1,8 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { remapAfterReorder, remapAfterDelete, remapAfterInsert } from './pageRemapper';
+import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate } from './pageRemapper';
 import type { PdfAnnotation } from './types';
 
 describe('pageRemapper', () => {
+  const expectRectClose = (
+    actual: { x: number; y: number; width: number; height: number },
+    expected: { x: number; y: number; width: number; height: number },
+  ) => {
+    expect(actual.x).toBeCloseTo(expected.x, 10);
+    expect(actual.y).toBeCloseTo(expected.y, 10);
+    expect(actual.width).toBeCloseTo(expected.width, 10);
+    expect(actual.height).toBeCloseTo(expected.height, 10);
+  };
+
   const createMockAnnotation = (id: string, pageNumber: number): PdfAnnotation => ({
     id,
     pageNumber,
@@ -81,6 +91,52 @@ describe('pageRemapper', () => {
       const annotations = [createMockAnnotation('1', 1)];
       const remapped = remapAfterInsert(annotations, 0, 0);
       expect(remapped).toBe(annotations);
+    });
+  });
+
+  describe('remapAfterRotate', () => {
+    it('rotates rectangle and geometry fields by 90 degrees and stores normalized metadata', () => {
+      const annotations: PdfAnnotation[] = [{
+        ...createMockAnnotation('r1', 1),
+        rect: { x: 20, y: 30, width: 50, height: 60 },
+        data: {
+          anchor: { x: 180, y: 140 },
+          knee: { x: 120, y: 80 },
+          points: [20, 30, 70, 90],
+          paths: [[10, 20, 30, 40]],
+        },
+      }];
+
+      const remapped = remapAfterRotate(annotations, [{ pageIndex: 0, angle: 90, width: 200, height: 150 }]);
+      const first = remapped[0];
+
+      expectRectClose(first.rect, { x: 60, y: 20, width: 60, height: 50 });
+      expect(first.data.anchor?.x).toBeCloseTo(10, 10);
+      expect(first.data.anchor?.y).toBeCloseTo(180, 10);
+      expect(first.data.knee?.x).toBeCloseTo(70, 10);
+      expect(first.data.knee?.y).toBeCloseTo(120, 10);
+      expect(first.data.points).toEqual([120, 20, 60, 70]);
+      expect(first.data.paths?.[0]?.[0]).toBeCloseTo(130, 10);
+      expect(first.data.paths?.[0]?.[1]).toBeCloseTo(10, 10);
+      expect(first.data.paths?.[0]?.[2]).toBeCloseTo(110, 10);
+      expect(first.data.paths?.[0]?.[3]).toBeCloseTo(30, 10);
+      expect(first.data.geometryVersion).toBe(2);
+      expect(first.data.normalizedGeometry).toBeDefined();
+    });
+
+    it('matches legacy rectangle rotation outputs for 90/180/270 degrees', () => {
+      const annotation: PdfAnnotation = {
+        ...createMockAnnotation('legacy-match', 1),
+        rect: { x: 10, y: 15, width: 40, height: 25 },
+      };
+
+      const [rot90] = remapAfterRotate([annotation], [{ pageIndex: 0, angle: 90, width: 200, height: 150 }]);
+      const [rot180] = remapAfterRotate([annotation], [{ pageIndex: 0, angle: 180, width: 200, height: 150 }]);
+      const [rot270] = remapAfterRotate([annotation], [{ pageIndex: 0, angle: 270, width: 200, height: 150 }]);
+
+      expectRectClose(rot90.rect, { x: 110, y: 10, width: 25, height: 40 });
+      expectRectClose(rot180.rect, { x: 150, y: 110, width: 40, height: 25 });
+      expectRectClose(rot270.rect, { x: 15, y: 150, width: 25, height: 40 });
     });
   });
 });

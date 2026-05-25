@@ -38,18 +38,28 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
   onInsertWriter,
   onClose,
 }) => {
-  const [insertMode, setInsertMode] = React.useState<SelectBoxInsertMode>('auto');
   const [showPreview, setShowPreview] = React.useState(false);
-  const [tableDraft, setTableDraft] = React.useState<SelectBoxTableDraft | null>(() => {
-    return result.table ? createTableDraftFromResult(result.table) : null;
-  });
-
-  const [prevResult, setPrevResult] = React.useState<SelectBoxCopyResult>(result);
-  if (prevResult !== result) {
-    setPrevResult(result);
-    setTableDraft(result.table ? createTableDraftFromResult(result.table) : null);
-    setInsertMode('auto');
-  }
+  const resultKey = React.useMemo(
+    () =>
+      JSON.stringify({
+        plainText: result.plainText,
+        table: result.table ?? null,
+      }),
+    [result],
+  );
+  const baseTableDraft = React.useMemo(
+    () => (result.table ? createTableDraftFromResult(result.table) : null),
+    [result],
+  );
+  const [draftState, setDraftState] = React.useState<{
+    key: string;
+    insertMode: SelectBoxInsertMode;
+    tableDraft: SelectBoxTableDraft | null;
+  } | null>(null);
+  const insertMode =
+    draftState?.key === resultKey ? draftState.insertMode : 'auto';
+  const tableDraft =
+    draftState?.key === resultKey ? draftState.tableDraft : baseTableDraft;
 
   const effectiveResult = React.useMemo(() => {
     if (!tableDraft) return result;
@@ -133,7 +143,13 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
               value={mode}
               checked={insertMode === mode}
               disabled={mode === 'table' && !canTable}
-              onChange={() => setInsertMode(mode)}
+              onChange={() =>
+                setDraftState({
+                  key: resultKey,
+                  insertMode: mode,
+                  tableDraft,
+                })
+              }
             />
             {mode}
           </label>
@@ -184,7 +200,13 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
           {showPreview && tableDraft ? (
             <TableDraftPreview
               draft={tableDraft}
-              onChange={setTableDraft}
+              onChange={(nextDraft) =>
+                setDraftState({
+                  key: resultKey,
+                  insertMode,
+                  tableDraft: nextDraft,
+                })
+              }
             />
           ) : null}
         </div>

@@ -39,15 +39,10 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
   const beginEditingWriterElement = useWriterV2Store((state) => state.beginEditingWriterElement);
   const endEditingWriterElement = useWriterV2Store((state) => state.endEditingWriterElement);
 
-  const [draftRect, setDraftRect] = React.useState<PdfRect | null>(null);
+  const [draftRectState, setDraftRectState] = React.useState<{ rectKey: string; rect: PdfRect } | null>(null);
   const dragRef = React.useRef<DragState | null>(null);
   const rectKey = `${element.rect.x},${element.rect.y},${element.rect.width},${element.rect.height}`;
-  const [prevRectKey, setPrevRectKey] = React.useState(rectKey);
-  if (prevRectKey !== rectKey) {
-    setPrevRectKey(rectKey);
-    setDraftRect(null);
-  }
-
+  const draftRect = draftRectState?.rectKey === rectKey ? draftRectState.rect : null;
   const effectiveRect = draftRect ?? element.rect;
   const viewportRect = pdfRectToViewportRect(effectiveRect, viewport);
   const isEditing = editingId === element.id;
@@ -114,7 +109,10 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
       nextViewportRect = { x: newX, y: newY, width: newW, height: newH };
     }
 
-    setDraftRect(viewportRectToPdfRect(nextViewportRect, viewport));
+    setDraftRectState({
+      rectKey,
+      rect: viewportRectToPdfRect(nextViewportRect, viewport),
+    });
   };
 
   const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -128,7 +126,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
     const finalRect = draftRect ?? element.rect;
     dragRef.current = null;
-    setDraftRect(null);
+    setDraftRectState(null);
 
     const pageBounds = {
       x: 0,
