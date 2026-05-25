@@ -102,7 +102,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
       if (e.shiftKey) {
         execCmd('outdent');
       } else {
-        execCmd('insertHTML', '&emsp;&emsp;');
+        insertHtmlAtCaret('&emsp;&emsp;');
       }
     }
   };
@@ -110,6 +110,40 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
   const execCmd = (cmd: string, arg?: string) => {
     document.execCommand(cmd, false, arg);
     editorRef.current?.focus();
+  };
+
+  const insertHtmlAtCaret = (html: string) => {
+    const selection = window.getSelection();
+    const editor = editorRef.current;
+    if (!selection || !editor) return;
+
+    if (selection.rangeCount === 0) {
+      editor.focus();
+    }
+
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
+    if (selection.rangeCount === 0) {
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+
+    const fragment = range.createContextualFragment(html);
+    const lastNode = fragment.lastChild;
+    range.deleteContents();
+    range.insertNode(fragment);
+
+    if (lastNode) {
+      range.setStartAfter(lastNode);
+      range.setEndAfter(lastNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    editor.focus();
+  };
+
+  const insertImageAtCaret = (dataUrl: string) => {
+    insertHtmlAtCaret(`<img src="${dataUrl}" alt="" />`);
   };
 
   const handleFontFamilyChange = (nextFamily: string) => {
@@ -155,7 +189,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
         reader.onload = (ev) => {
           const base64 = ev.target?.result as string;
           // Create an image element and insert it at the cursor position
-          document.execCommand('insertImage', false, base64);
+          insertImageAtCaret(base64);
 
           // Wait a tick and then find the newly inserted image to style it
           setTimeout(() => {
@@ -183,7 +217,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
       if (htmlContent) {
         e.preventDefault(); // Stop native unsafe paste
         const sanitized = sanitizeHtml(htmlContent);
-        document.execCommand('insertHTML', false, sanitized);
+        insertHtmlAtCaret(sanitized);
       }
       setTimeout(saveContent, 0); // Save the content after paste completes
     }

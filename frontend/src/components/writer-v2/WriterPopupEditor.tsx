@@ -46,6 +46,14 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
   const editorRef = React.useRef<LexicalEditor | null>(null);
   const latestStateRef = React.useRef<EditorState | null>(null);
   const pendingAssetsRef = React.useRef<WriterAssetRecordV2[]>([]);
+  const initialEditorStateJson = React.useMemo(
+    () => normalizeEditorStateJson(element.editorStateJson, element.plainText ?? ''),
+    [element.editorStateJson, element.plainText],
+  );
+  const composerKey = React.useMemo(
+    () => `${element.id}::${initialEditorStateJson}`,
+    [element.id, initialEditorStateJson],
+  );
 
   const initialConfig = React.useMemo(() => {
     return {
@@ -57,10 +65,7 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
         TableRowNode,
         TableCellNode,
       ],
-      editorState: normalizeEditorStateJson(
-        element.editorStateJson,
-        element.plainText ?? '',
-      ),
+      editorState: initialEditorStateJson,
       theme: {
         paragraph: 'writer-v2-editor-paragraph',
         text: {
@@ -73,8 +78,7 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
         throw error;
       },
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- editorStateJson and plainText are initial values; LexicalComposer ignores config after mount
-  }, [element.id]);
+  }, [element.id, initialEditorStateJson]);
 
   const save = React.useCallback(() => {
     const editor = editorRef.current;
@@ -151,7 +155,7 @@ export const WriterPopupEditor: React.FC<WriterPopupEditorProps> = ({
           flexDirection: 'column',
         }}
       >
-        <LexicalComposer initialConfig={initialConfig}>
+        <LexicalComposer key={composerKey} initialConfig={initialConfig}>
           <EditorBridgePlugin
             onEditor={(editor) => {
               editorRef.current = editor;
