@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useWriterStore } from '../../core/writer/store';
 import type { PlacedElement } from '../../core/writer/types';
 import {
@@ -76,20 +76,20 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
     selection.addRange(range);
   }, []);
 
-  const patchElementStyles = (patch: Partial<PlacedElement['styles']>) => {
+  const patchElementStyles = useCallback((patch: Partial<PlacedElement['styles']>) => {
     updateElement(element.id, {
       styles: {
         ...element.styles,
         ...patch,
       },
     });
-  };
+  }, [element.id, element.styles, updateElement]);
 
-  const saveContent = () => {
+  const saveContent = useCallback(() => {
     if (editorRef.current) {
       updateElement(element.id, { content: editorRef.current.innerHTML });
     }
-  };
+  }, [element.id, updateElement]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.ctrlKey && e.key === 'Enter') {
@@ -100,21 +100,145 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
     if (e.key === 'Tab') {
       e.preventDefault();
       if (e.shiftKey) {
-        execCmd('outdent');
+        applyTextAlign('left');
       } else {
-        execCmd('insertHTML', '&emsp;&emsp;');
+        insertHtmlAtCaret('&emsp;&emsp;');
       }
     }
   };
 
-  const execCmd = (cmd: string, arg?: string) => {
-    document.execCommand(cmd, false, arg);
-    editorRef.current?.focus();
+  const withEditorRange = useCallback((handler: (range: Range, selection: Selection) => void) => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection) return;
+
+    if (selection.rangeCount === 0) {
+      editor.focus();
+      const fallbackRange = document.createRange();
+      fallbackRange.selectNodeContents(editor);
+      fallbackRange.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(fallbackRange);
+    }
+
+    if (selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) {
+      editor.focus();
+      return;
+    }
+
+    handler(range, selection);
+    editor.focus();
+    window.setTimeout(saveContent, 0);
+  }, [saveContent]);
+
+  const wrapSelectionWithTag = (tag: 'strong' | 'em' | 'u') => {
+    withEditorRange((range) => {
+      if (range.collapsed) return;
+      const wrapper = document.createElement(tag);
+      const fragment = range.extractContents();
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+      range.selectNodeContents(wrapper);
+    });
+  };
+
+  const applyTextColor = (color: string) => {
+    withEditorRange((range) => {
+      if (range.collapsed) return;
+      const span = document.createElement('span');
+      span.style.color = color;
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+      range.selectNodeContents(span);
+    });
+  };
+
+  const applyTextAlign = (textAlign: 'left' | 'center' | 'right' | 'justify') => {
+    withEditorRange((range) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      let node: Node | null = range.startContainer;
+      while (node && node !== editor) {
+        if (node instanceof HTMLElement && /^(P|DIV|LI|H[1-6]|BLOCKQUOTE)$/.test(node.tagName)) {
+          node.style.textAlign = textAlign;
+          return;
+        }
+        node = node.parentNode;
+      }
+      editor.style.textAlign = textAlign;
+    });
+  };
+
+  const toggleList = (ordered: boolean) => {
+    withEditorRange((range) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const listTag = ordered ? 'OL' : 'UL';
+      const currentList = range.startContainer instanceof Element
+        ? range.startContainer.closest('ol,ul')
+        : range.startContainer.parentElement?.closest('ol,ul');
+
+      if (currentList) {
+        const fragment = document.createDocumentFragment();
+        Array.from(currentList.children).forEach((child) => {
+          const paragraph = document.createElement('p');
+          paragraph.innerHTML = child instanceof HTMLElement ? child.innerHTML : child.textContent ?? '';
+          fragment.appendChild(paragraph);
+        });
+        currentList.replaceWith(fragment);
+        return;
+      }
+
+      const contents = range.extractContents();
+      const wrapper = document.createElement(listTag);
+      const li = document.createElement('li');
+      li.appendChild(contents);
+      wrapper.appendChild(li);
+      range.insertNode(wrapper);
+      range.selectNodeContents(li);
+    });
+  };
+
+  const insertHtmlAtCaret = (html: string) => {
+    const selection = window.getSelection();
+    const editor = editorRef.current;
+    if (!selection || !editor) return;
+
+    if (selection.rangeCount === 0) {
+      editor.focus();
+    }
+
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
+    if (selection.rangeCount === 0) {
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+
+    const fragment = range.createContextualFragment(html);
+    const lastNode = fragment.lastChild;
+    range.deleteContents();
+    range.insertNode(fragment);
+
+    if (lastNode) {
+      range.setStartAfter(lastNode);
+      range.setEndAfter(lastNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    editor.focus();
+  };
+
+  const insertImageAtCaret = (dataUrl: string) => {
+    insertHtmlAtCaret(`<img src="${dataUrl}" alt="" />`);
   };
 
   const handleFontFamilyChange = (nextFamily: string) => {
     setFontFamily(nextFamily);
-    execCmd('fontName', nextFamily);
     patchElementStyles({ fontFamily: nextFamily });
     window.setTimeout(saveContent, 0);
   };
@@ -133,7 +257,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
 
   const handleTextColorChange = (nextColor: string) => {
     setTextColor(nextColor);
-    execCmd('foreColor', nextColor);
+    applyTextColor(nextColor);
     patchElementStyles({ color: nextColor });
     window.setTimeout(saveContent, 0);
   };
@@ -155,7 +279,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
         reader.onload = (ev) => {
           const base64 = ev.target?.result as string;
           // Create an image element and insert it at the cursor position
-          document.execCommand('insertImage', false, base64);
+          insertImageAtCaret(base64);
 
           // Wait a tick and then find the newly inserted image to style it
           setTimeout(() => {
@@ -183,7 +307,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
       if (htmlContent) {
         e.preventDefault(); // Stop native unsafe paste
         const sanitized = sanitizeHtml(htmlContent);
-        document.execCommand('insertHTML', false, sanitized);
+        insertHtmlAtCaret(sanitized);
       }
       setTimeout(saveContent, 0); // Save the content after paste completes
     }
@@ -250,48 +374,48 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
           />
         </Tooltip>
         <Tooltip content="Bold (Ctrl+B)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('bold')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => wrapSelectionWithTag('strong')}>
             <Bold className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Italic (Ctrl+I)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('italic')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => wrapSelectionWithTag('em')}>
             <Italic className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Underline (Ctrl+U)">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('underline')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => wrapSelectionWithTag('u')}>
             <Underline className="w-4 h-4" />
           </Button>
         </Tooltip>
         <div style={{ width: 1, height: 16, background: 'var(--color-border-tertiary)', margin: '0 4px' }} />
         <Tooltip content="Bullet List">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('insertUnorderedList')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleList(false)}>
             <List className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Numbered List">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('insertOrderedList')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleList(true)}>
             <ListOrdered className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Align Left">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyLeft')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyTextAlign('left')}>
             <AlignLeft className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Align Center">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyCenter')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyTextAlign('center')}>
             <AlignCenter className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Align Right">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyRight')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyTextAlign('right')}>
             <AlignRight className="w-4 h-4" />
           </Button>
         </Tooltip>
         <Tooltip content="Justify">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd('justifyFull')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyTextAlign('justify')}>
             <AlignJustify className="w-4 h-4" />
           </Button>
         </Tooltip>

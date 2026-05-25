@@ -277,6 +277,29 @@ describe('content-ops slice 3', () => {
     );
   });
 
+  it('place_rich_textbox tolerates malformed/deep HTML payloads', async () => {
+    const result = await macroRegistry.execute(
+      {
+        op: 'place_rich_textbox',
+        selector: { mode: 'current' },
+        x: 5,
+        y: 5,
+        width: 180,
+        height: 90,
+        content: '<table><tr><td><div><span>Broken<div><script>alert(1)</script></span></td></tr></table>',
+        styles: { fontSize: 12, color: '#111827' },
+      },
+      ctx(),
+      state(),
+    );
+
+    expect(result.status).toBe('success');
+    expect(PdfEditAdapter.insertImage).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      expect.objectContaining({ pages: [0], mimeType: 'image/png' }),
+    );
+  });
+
   it('place_table rasterizes table and sends zero-based pages', async () => {
     const result = await macroRegistry.execute(
       {
@@ -323,6 +346,39 @@ describe('content-ops slice 3', () => {
         pages: [1],
         mimeType: 'image/png',
       }),
+    );
+  });
+
+  it('place_table supports deeply nested and multiline cell content safely', async () => {
+    const result = await macroRegistry.execute(
+      {
+        op: 'place_table',
+        selector: { mode: 'current' },
+        x: 12,
+        y: 16,
+        width: 260,
+        tableData: {
+          columns: [{ id: 'c1', label: 'Nested' }, { id: 'c2', label: 'Script' }],
+          rows: [
+            {
+              id: 'r1',
+              cells: [
+                { id: 'r1c1', text: '<div><table><tr><td>deep</td></tr></table></div>' },
+                { id: 'r1c2', text: '<img src=x onerror=alert(1)>\nline2' },
+              ],
+            },
+          ],
+          style: { borderColor: '#d1d5db', headerBg: '#f1f5f9', fontSize: 11 },
+        },
+      },
+      ctx(),
+      state(),
+    );
+
+    expect(result.status).toBe('success');
+    expect(PdfEditAdapter.insertImage).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      expect.objectContaining({ pages: [0], mimeType: 'image/png' }),
     );
   });
 
