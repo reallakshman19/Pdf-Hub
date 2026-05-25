@@ -151,6 +151,7 @@ export const DocumentWorkspace: React.FC = () => {
           // Cache text indexing for regex/word search
           const pagesText: Record<number, import('@/core/search/types').PageTextItem[]> = {};
           for (let i = 1; i <= doc.numPages; i++) {
+            if (cancelled) break;
             const pageProxy = await doc.getPage(i);
             const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
             pagesText[i] = textItems.map(item => ({
@@ -182,8 +183,8 @@ export const DocumentWorkspace: React.FC = () => {
 
   React.useEffect(() => {
     const loadStored = async () => {
-      setRestoredCount(0);
       if (!documentKey) return;
+      setRestoredCount(0);
       const stored = await loadAnnotations(documentKey);
       setAnnotations(stored);
       if (stored.length > 0) setRestoredCount(stored.length);
@@ -195,7 +196,12 @@ export const DocumentWorkspace: React.FC = () => {
     if (!documentKey) return;
 
     const timer = window.setTimeout(() => {
-      void saveAnnotations(documentKey, annotations);
+      void saveAnnotations(documentKey, annotations).catch(err => {
+        logError('annotation', 'Annotation autosave failed', {
+          documentKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     }, 400);
 
     return () => {
@@ -207,7 +213,12 @@ export const DocumentWorkspace: React.FC = () => {
     if (!documentKey) return;
 
     const flushNow = () => {
-      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations);
+      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations).catch(err => {
+        logError('annotation', 'Annotation pagehide flush failed', {
+          documentKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     };
 
     window.addEventListener('pagehide', flushNow);
