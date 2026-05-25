@@ -5,17 +5,15 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { VList } from 'virtua';
 
 import { PdfRendererAdapter, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
-import { loadAnnotations, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
-import { error as logError } from '@/core/logger/service';
-import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
+import { useAnnotationPersistence } from './useAnnotationPersistence';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 
@@ -182,89 +180,13 @@ export const DocumentWorkspace: React.FC = () => {
     };
   }, [workingBytes, documentKey, setSharedPdfDoc]);
 
-  React.useEffect(() => {
-    const loadStored = async () => {
-      if (!documentKey) return;
-      setRestoredCount(0);
-      const stored = await loadAnnotations(documentKey);
-      setAnnotations(stored);
-      if (stored.length > 0) setRestoredCount(stored.length);
-    };
-    void loadStored();
-  }, [documentKey, setAnnotations]);
-
-  React.useEffect(() => {
-    if (!documentKey || !pdfDoc) return;
-
-    const run = async () => {
-      const current = useAnnotationStore.getState().annotations;
-      if (current.length === 0) return;
-      if (current.every((annotation) => annotation.data.geometryVersion === 2 && annotation.data.normalizedGeometry)) {
-        return;
-      }
-
-      const pageDims = new Map<number, { width: number; height: number }>();
-      for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
-        const page = await pdfDoc.getPage(pageNumber);
-        pageDims.set(pageNumber, PdfRendererAdapter.getPageDimensions(page));
-        page.cleanup();
-      }
-
-      const migrated = current.map((annotation) => {
-        const dims = pageDims.get(annotation.pageNumber);
-        if (!dims) return annotation;
-        return ensureAnnotationHasNormalizedGeometry(annotation, dims);
-      });
-
-      if (JSON.stringify(migrated) !== JSON.stringify(current)) {
-        setAnnotations(migrated);
-        void saveAnnotations(documentKey, migrated).catch((err) => {
-          logError('annotation', 'Failed to persist normalized geometry migration', {
-            documentKey,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      }
-    };
-
-    void run();
-  }, [documentKey, pdfDoc, setAnnotations]);
-
-  React.useEffect(() => {
-    if (!documentKey) return;
-
-    const timer = window.setTimeout(() => {
-      void saveAnnotations(documentKey, annotations).catch(err => {
-        logError('annotation', 'Annotation autosave failed', {
-          documentKey,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    }, 400);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [annotations, documentKey]);
-
-  React.useEffect(() => {
-    if (!documentKey) return;
-
-    const flushNow = () => {
-      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations).catch(err => {
-        logError('annotation', 'Annotation pagehide flush failed', {
-          documentKey,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    };
-
-    window.addEventListener('pagehide', flushNow);
-
-    return () => {
-      window.removeEventListener('pagehide', flushNow);
-    };
-  }, [documentKey]);
+  useAnnotationPersistence({
+    documentKey,
+    pdfDoc,
+    annotations,
+    setAnnotations,
+    setRestoredCount,
+  });
 
   React.useLayoutEffect(() => {
     if (!pdfDoc || !containerRef.current || viewState.fitMode === 'manual') return;
