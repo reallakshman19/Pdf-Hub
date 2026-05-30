@@ -7,6 +7,8 @@ import RedactionPreviewPanel from '@/components/redaction/RedactionPreviewPanel'
 import { OcrStore } from '@/core/ocr/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useCapabilities } from '@/hooks/useCapabilities';
+import { FeatureUnavailable } from '@/components/ui/FeatureUnavailable';
 
 const ocrStore = new OcrStore();
 
@@ -31,6 +33,7 @@ const SearchPanel = React.lazy(() =>
 
 export const SidebarPanel: React.FC = () => {
   const { sidebarTab, leftPanelWidth, setLeftPanelWidth } = useEditorStore();
+  const capabilities = useCapabilities();
   const [previousWidth, setPreviousWidth] = useState(20);
 
   const isCollapsed = leftPanelWidth <= 0.1;
@@ -97,7 +100,13 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'comments' && <CommentsSidebar />}
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
-        {sidebarTab === 'macros' && <MacrosSidebar />}
+        {sidebarTab === 'macros' && (
+          capabilities.hasMacroConsole ? (
+            <MacrosSidebar />
+          ) : (
+            <FeatureUnavailable reason="The macro console requires the local server. Start the server to enable macros." />
+          )
+        )}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
         {sidebarTab === 'redaction' && <RedactionPreviewPanel />}
       </div>

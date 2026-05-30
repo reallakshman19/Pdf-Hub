@@ -175,7 +175,7 @@ const DrawSection: React.FC = () => {
 
   return (
     <>
-      <CtxLabel first>Freehand</CtxLabel>
+      <CtxLabel first>Ink</CtxLabel>
       <CtxBtn icon={PenTool} label="Ink" active={activeTool === 'ink'} onClick={() => handleToolClick('ink')} />
       <CtxBtn icon={Type} label="Text Box" active={activeTool === 'textbox'} disabled={isToolDisabled('textbox')} title={getToolDisabledReason('textbox') ?? 'Text Box'} onClick={() => handleToolClick('textbox')} />
       <CtxSep />

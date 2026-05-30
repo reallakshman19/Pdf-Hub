@@ -178,6 +178,7 @@ export interface MacroExecutionContext {
   now?: Date;
   options?: {
     abortOnError?: boolean;
+    rollbackOnError?: boolean;
   };
 }
 

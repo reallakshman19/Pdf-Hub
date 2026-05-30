@@ -37,7 +37,16 @@ export class MacroStepRegistry {
   register<T extends MacroStep>(
     op: T['op'],
     executor: StepExecutor<T>,
+    options?: { override?: boolean },
   ): void {
+    if (this.executors.has(op) && !options?.override) {
+      throw new Error(
+        `[MacroRegistry] Duplicate registration for op "${op}". ` +
+        'Pass { override: true } if intentional. ' +
+        'Check register-all.ts import order.',
+      );
+    }
+
     this.executors.set(op, executor as StepExecutor);
   }
 

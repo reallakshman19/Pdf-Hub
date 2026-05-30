@@ -2,6 +2,7 @@ import React from 'react';
 import { Bookmark, Layers, MessageSquare, Search, Sparkles, HelpCircle, ScanText, ShieldOff } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useEditorStore } from '@/core/editor/store';
+import { useCapabilities } from '@/hooks/useCapabilities';
 import type { SidebarTab } from '@/core/editor/types';
 
 const allTabs: Array<{ id: SidebarTab; icon: React.ComponentType<{ className?: string }>; label: string }> = [
@@ -16,10 +17,23 @@ const allTabs: Array<{ id: SidebarTab; icon: React.ComponentType<{ className?: s
 
 export const LeftRail: React.FC = () => {
   const { sidebarTab, setSidebarTab } = useEditorStore();
+  const capabilities = useCapabilities();
+  const visibleTabs = React.useMemo(
+    () => allTabs.filter((tab) => {
+      if (tab.id === 'macros') return capabilities.hasMacroConsole;
+      return true;
+    }),
+    [capabilities.hasMacroConsole],
+  );
+
+  React.useEffect(() => {
+    if (visibleTabs.some((tab) => tab.id === sidebarTab)) return;
+    setSidebarTab('thumbnails');
+  }, [setSidebarTab, sidebarTab, visibleTabs]);
 
   return (
     <div className="w-12 h-full flex flex-col items-center py-2 gap-0.5 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0">
-      {allTabs.map(({ id, icon: Icon, label }) => {
+      {visibleTabs.map(({ id, icon: Icon, label }) => {
         const isActive = sidebarTab === id;
         return (
           <Tooltip key={id} content={label} position="right">
