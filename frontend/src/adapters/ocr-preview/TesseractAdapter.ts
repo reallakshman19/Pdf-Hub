@@ -9,6 +9,7 @@
  */
 
 import type { OcrPageResult, OcrBlock } from '../../core/ocr/types';
+import { warn } from '@/core/logger/service';
 
 export interface RecognizePagesParams {
   documentKey: string;
@@ -40,8 +41,10 @@ export async function recognizePages({
   pageNumbers,
   language,
 }: RecognizePagesParams): Promise<OcrPageResult[]> {
-  // eslint-disable-next-line no-console
-  console.warn('[OCR STUB] TesseractAdapter is returning simulated results. Real Tesseract.js worker not yet wired.');
+  warn('ocr', 'Preview OCR is returning simulated results; Tesseract worker is not wired yet.', {
+    pageCount: pageNumbers.length,
+    language,
+  });
   await new Promise((resolve) => setTimeout(resolve, 100));
   return pageNumbers.map((pageNumber) => {
     const block = makeDummyBlock(pageNumber);

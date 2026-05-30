@@ -9,7 +9,7 @@ import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 
 import { emitStartupLog } from '@/core/logger/service';
 
-emitStartupLog('static', '0.0.0', navigator.userAgent);
+emitStartupLog('preview', '0.0.0', navigator.userAgent);
 PdfRendererAdapter.configureWorker({ workerSrc });
 
 

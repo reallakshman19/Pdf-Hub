@@ -47,17 +47,3 @@ annotationRegistry.register('ink',            InkNode);
 annotationRegistry.register('stamp',          StampNode);
 annotationRegistry.register('comment',        CommentNode);
 annotationRegistry.register('redaction',      RedactionNode);
-
-// Verify completeness at boot (dev only)
-if (import.meta.env.DEV) {
-  const ALL_TYPES: import('./types').AnnotationType[] = [
-    'textbox','callout','sticky-note','highlight','underline','strikeout',
-    'squiggly','shape-rect','shape-ellipse','shape-polygon','shape-cloud',
-    'line','arrow','ink','stamp','comment','redaction',
-  ];
-  ALL_TYPES.forEach(t => {
-    if (!annotationRegistry.has(t)) {
-      // console.error(`[register-all] Missing renderer for annotation type: "${t}"`);
-    }
-  });
-}
