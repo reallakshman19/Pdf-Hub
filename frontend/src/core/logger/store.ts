@@ -11,6 +11,12 @@ export interface LoggerActions {
 }
 
 const MAX_LOG_ENTRIES = 500;
+const SESSION_LOG_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+const shouldMirrorLogsToSessionStorage = (): boolean => {
+  if (typeof globalThis.location === 'undefined') return false;
+  return SESSION_LOG_HOSTS.has(globalThis.location.hostname);
+};
 
 export const useLoggerStore = create<LoggerState & LoggerActions>((set) => ({
   entries: [],
@@ -21,7 +27,7 @@ export const useLoggerStore = create<LoggerState & LoggerActions>((set) => ({
         newEntries.length = MAX_LOG_ENTRIES;
       }
       
-      if (import.meta.env?.DEV) {
+      if (shouldMirrorLogsToSessionStorage()) {
         try {
           sessionStorage.setItem('doccraft_logs', JSON.stringify(newEntries));
         } catch {
