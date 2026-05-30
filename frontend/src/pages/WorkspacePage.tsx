@@ -9,8 +9,11 @@ import { DocumentWorkspace } from '@/components/workspace/DocumentWorkspace';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { StatusBar } from '@/components/shell/StatusBar';
 import { MacroBuilderDrawer } from '@/components/macro/MacroBuilderDrawer';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 export const WorkspacePage: React.FC = () => {
+  const capabilities = useCapabilities();
+
   return (
     <>
       <AppShell
@@ -22,7 +25,7 @@ export const WorkspacePage: React.FC = () => {
         inspector={<InspectorPanel />}
         statusbar={<StatusBar />}
       />
-      <MacroBuilderDrawer />
+      {capabilities.hasMacroConsole && <MacroBuilderDrawer />}
     </>
   );
 };

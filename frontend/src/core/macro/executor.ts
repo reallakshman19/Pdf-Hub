@@ -91,37 +91,54 @@ export async function executeMacroRecipe(
 
   const stepResults: StepResult[] = [];
   const snapshot = beginMacroTransaction(state);
+  let executionFailed = false;
   let rolledBack = false;
 
-  for (let index = 0; index < recipe.steps.length; index += 1) {
-    const rawStep = recipe.steps[index];
-    const step = templateVarEngine.expandStep(rawStep, state.templateVars);
+  try {
+    for (let index = 0; index < recipe.steps.length; index += 1) {
+      const rawStep = recipe.steps[index];
+      const step = templateVarEngine.expandStep(rawStep, state.templateVars);
 
-    onProgress?.({
-      current: index + 1,
-      total: recipe.steps.length,
-      currentOp: step.op,
-    });
+      onProgress?.({
+        current: index + 1,
+        total: recipe.steps.length,
+        currentOp: step.op,
+      });
 
-    const result = await macroRegistry.execute(step, ctx, state);
-    stepResults.push(result);
+      const result = await macroRegistry.execute(step, ctx, state);
+      stepResults.push(result);
 
-    applyMacroSideEffects(result.sideEffects, state);
+      applyMacroSideEffects(result.sideEffects, state);
 
-    if (result.message) {
-      state.logs.push(`[step ${index + 1}/${recipe.steps.length}] ${step.op}: ${result.message}`);
+      if (result.message) {
+        state.logs.push(`[step ${index + 1}/${recipe.steps.length}] ${step.op}: ${result.message}`);
+      }
+
+      if (result.status === 'error') {
+        executionFailed = true;
+        if (ctx.options?.abortOnError !== false) {
+          state.logs.push(buildMacroRollbackMessage(ctx, index, step.op, result.message));
+          break;
+        }
+      }
     }
-
-    if (result.status === 'error' && ctx.options?.abortOnError !== false) {
-      rollbackMacroTransaction(state, snapshot);
-      rolledBack = true;
-      state.logs.push(buildMacroRollbackMessage(ctx, index, step.op, result.message));
-      break;
-    }
+  } catch (unexpectedErr) {
+    executionFailed = true;
+    rollbackMacroTransaction(state, snapshot);
+    rolledBack = true;
+    state.logs.push('[fatal] Unexpected error — document rolled back to pre-macro state');
+    throw unexpectedErr;
   }
 
+  if (executionFailed && ctx.options?.rollbackOnError !== false && !rolledBack) {
+    rollbackMacroTransaction(state, snapshot);
+    rolledBack = true;
+    state.logs.push('[rollback] Macro failed — document restored to pre-run state');
+  }
+
+
   return {
-    success: !rolledBack && stepResults.every((result) => result.status !== 'error'),
+    success: !executionFailed && stepResults.every((result) => result.status !== 'error'),
     outputFiles: state.outputFiles,
     stepResults,
     finalBytes: state.workingBytes,

@@ -413,7 +413,6 @@ function buildSystemSnapshot(): SystemSnapshot {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     devicePixelRatio: window.devicePixelRatio,
     logicalCores,
-    debugRouteEnabled: isDebugRouteEnabled(window.location.hostname, import.meta.env.DEV),
-    devMode: import.meta.env.DEV,
+    debugRouteEnabled: isDebugRouteEnabled(window.location.hostname),
   };
 }
