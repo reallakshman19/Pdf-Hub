@@ -3,7 +3,9 @@ import { executeMacroRecipe } from './executor';
 import { useSessionStore } from '@/core/session/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 
-export async function runMacroRecipeAgainstSession(
+let runPromise: Promise<unknown> = Promise.resolve();
+
+async function runMacroRecipeAgainstSessionNow(
   recipe: MacroRecipe,
   options?: {
     donorFiles?: Record<string, Uint8Array>;
@@ -74,4 +76,17 @@ export async function runMacroRecipeAgainstSession(
   }
 
   return result;
+}
+
+export async function runMacroRecipeAgainstSession(
+  recipe: MacroRecipe,
+  options?: {
+    donorFiles?: Record<string, Uint8Array>;
+    saveOutputs?: boolean;
+    dryRun?: boolean;
+  },
+) {
+  const run = runPromise.then(() => runMacroRecipeAgainstSessionNow(recipe, options));
+  runPromise = run.catch(() => undefined);
+  return run;
 }

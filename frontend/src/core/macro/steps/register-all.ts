@@ -4,7 +4,7 @@ import './content-ops';
 import './conditional-ops';
 
 import { macroRegistry } from '../registry';
-import { warn } from '@/core/logger/service';
+import { info, warn } from '@/core/logger/service';
 
 const ALL_OPS = [
   'rotate_pages', 'extract_pages', 'split_pages', 'duplicate_pages',
@@ -21,4 +21,10 @@ ALL_OPS.forEach((op) => {
   if (!registered.has(op)) {
     warn('macro', 'Missing macro executor registration', { op });
   }
+});
+
+const registeredOps = macroRegistry.getRegisteredOps().sort();
+info('macro', 'Macro registry initialised', {
+  registeredOps: registeredOps.length,
+  ops: registeredOps.join(', '),
 });
