@@ -26,14 +26,33 @@ function readPointArray(value: unknown): number[] | null {
   return [...value];
 }
 
-function readInkPoints(annotation: PdfAnnotation, width: number, height: number): number[] {
+function pointsFitLocalBounds(points: number[], width: number, height: number): boolean {
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    const x = points[i];
+    const y = points[i + 1];
+    if (x < 0 || y < 0 || x > width || y > height) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function toLocalAnnotationPoints(points: number[], originX: number, originY: number, width: number, height: number): number[] {
+  if (pointsFitLocalBounds(points, width, height)) {
+    return [...points];
+  }
+
+  return points.map((value, index) => (index % 2 === 0 ? value - originX : value - originY));
+}
+
+function readInkPoints(annotation: PdfAnnotation, originX: number, originY: number, width: number, height: number): number[] {
   const pointsFromData = readPointArray(annotation.data.points);
-  if (pointsFromData) return pointsFromData;
+  if (pointsFromData) return toLocalAnnotationPoints(pointsFromData, originX, originY, width, height);
 
   if (Array.isArray(annotation.data.paths)) {
     for (const stroke of annotation.data.paths) {
       const strokePoints = readPointArray(stroke);
-      if (strokePoints) return strokePoints;
+      if (strokePoints) return toLocalAnnotationPoints(strokePoints, originX, originY, width, height);
     }
   }
 
@@ -52,7 +71,13 @@ function normalizePolygonPoints(
     return [width / 2, 0, width, height, 0, height];
   }
 
-  return points.map((value, index) => (index % 2 === 0 ? value - originX : value - originY));
+  return toLocalAnnotationPoints(points, originX, originY, width, height);
+}
+
+function readLinePoints(annotation: PdfAnnotation, originX: number, originY: number, width: number, height: number): number[] {
+  const points = readPointArray(annotation.data.points);
+  if (!points) return [0, height / 2, width, height / 2];
+  return toLocalAnnotationPoints(points, originX, originY, width, height);
 }
 
 function buildSquigglyPoints(width: number, height: number): number[] {
@@ -189,7 +214,7 @@ export class KonvaAdapter {
       case 'ink':
         node = new Konva.Line({
           ...config,
-          points: readInkPoints(annotation, width, height),
+          points: readInkPoints(annotation, x, y, width, height),
           stroke: readStringValue(annotation.data.borderColor, '#111827'),
           strokeWidth: borderWidth,
           tension: 0.4,
@@ -201,7 +226,7 @@ export class KonvaAdapter {
       case 'line':
         node = new Konva.Line({
           ...config,
-          points: readPointArray(annotation.data.points) ?? [0, height / 2, width, height / 2],
+          points: readLinePoints(annotation, x, y, width, height),
           stroke: readStringValue(annotation.data.borderColor, '#111827'),
           strokeWidth: borderWidth,
           opacity,
@@ -210,7 +235,7 @@ export class KonvaAdapter {
       case 'arrow':
         node = new Konva.Arrow({
           ...config,
-          points: readPointArray(annotation.data.points) ?? [0, height / 2, width, height / 2],
+          points: readLinePoints(annotation, x, y, width, height),
           stroke: readStringValue(annotation.data.borderColor, '#111827'),
           strokeWidth: borderWidth,
           pointerLength: 8,
@@ -285,9 +310,25 @@ export class KonvaAdapter {
           opacity: 1,
         });
         break;
-      default:
-        node = new Konva.Rect({ ...config, fill: 'gray', opacity: 0.5 });
+      default: {
+        const unknownType = (annotation as { type: string }).type;
+        void import('@/core/logger/service').then(({ warn }) => {
+          warn('annotation', 'Fallback renderer used — type not implemented in KonvaAdapter', {
+            type: unknownType,
+            id: annotation.id,
+            pageNumber: annotation.pageNumber,
+          });
+        });
+        node = new Konva.Rect({
+          ...config,
+          fill: '#fef9c3',
+          stroke: '#f59e0b',
+          strokeWidth: 2,
+          dash: [3, 3],
+          opacity: 0.7,
+        });
         break;
+      }
     }
 
     // Add draggable capability for editor mode

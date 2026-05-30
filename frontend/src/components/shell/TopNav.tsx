@@ -1,26 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Moon, Search, Settings, Sun, TerminalSquare, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare, ChevronRight } from 'lucide-react';
+import { Moon, Search, Settings, Sun, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare, ChevronRight } from 'lucide-react';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
-import { useLoggerStore } from '@/core/logger/store';
 import { SearchIndexer } from '@/core/search/indexer';
-import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 export const TopNav: React.FC = () => {
-  const navigate = useNavigate();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const { documentKey, fileName, isDirty } = useSessionStore();
   const { setSidebarTab, setLeftPanelWidth, leftPanelWidth, setMacroBuilderOpen } = useEditorStore();
   const addToast = useToastStore((state) => state.addToast);
-  const debugEnabled = isDebugRouteEnabled(window.location.hostname, import.meta.env.DEV);
+  const capabilities = useCapabilities();
 
   const {
     query,
@@ -118,13 +115,6 @@ export const TopNav: React.FC = () => {
 
   const handleClear = () => { setLocalQuery(''); setQuery(''); clearSearch(); };
 
-  const handleOpenDebug = () => {
-    if (!debugEnabled) {
-      addToast({ type: 'info', title: 'Debug Console', message: 'Debug console is available only on local development hosts.' });
-      return;
-    }
-    navigate('/debug');
-  };
 
   const displayName = fileName
     ? fileName.length > 38 ? `${fileName.slice(0, 37)}…` : fileName
@@ -214,16 +204,13 @@ export const TopNav: React.FC = () => {
             {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
         </Tooltip>
-        <Tooltip content="Open macro builder">
-          <Button variant="ghost" size="icon" onClick={() => setMacroBuilderOpen(true)}>
-            <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="Open debug console">
-          <Button variant="ghost" size="icon" onClick={handleOpenDebug} disabled={!debugEnabled}>
-            <TerminalSquare className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-          </Button>
-        </Tooltip>
+        {capabilities.hasMacroConsole && (
+          <Tooltip content="Open macro builder">
+            <Button variant="ghost" size="icon" onClick={() => setMacroBuilderOpen(true)}>
+              <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+            </Button>
+          </Tooltip>
+        )}
         <Tooltip content="Open settings">
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
             <Settings className="w-4 h-4 text-slate-400 dark:text-slate-500" />
@@ -246,6 +233,7 @@ export const TopNav: React.FC = () => {
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onToggleTheme={toggleDarkMode}
+        canOpenMacroBuilder={capabilities.hasMacroConsole}
         onOpenMacroBuilder={() => { setPaletteOpen(false); setMacroBuilderOpen(true); }}
       />
     </>
@@ -288,7 +276,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
   const setRightPanelWidth = useEditorStore((state) => state.setRightPanelWidth);
   const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
   const setInspectorTab = useEditorStore((state) => state.setInspectorTab);
-  const clearLogs = useLoggerStore((state) => state.clear);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Settings">
@@ -320,11 +307,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
             Reset Layout
           </Button>
         </div>
-        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
-          <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">Debug Logs</div>
-          <div className="text-xs text-slate-500 mb-2">Clear in-memory debug logs for this session.</div>
-          <Button variant="secondary" size="sm" onClick={clearLogs}>Clear Logs</Button>
-        </div>
         <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-500">
           <div>Document: {fileName ?? 'None'}</div>
           <div>Pages: {pageCount}</div>
@@ -343,10 +325,11 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   onToggleTheme: () => void;
+  canOpenMacroBuilder: boolean;
   onOpenMacroBuilder: () => void;
 }
 
-const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onToggleTheme, onOpenMacroBuilder }) => {
+const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onToggleTheme, canOpenMacroBuilder, onOpenMacroBuilder }) => {
   const [filter, setFilter] = useState('');
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -367,7 +350,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onTogg
     { icon: Save,         label: 'Save',                hint: '⌘S', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:save')); } },
     { icon: Highlighter,  label: 'Highlight selection', hint: 'H',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
     { icon: MessageSquare,label: 'Add sticky note',     hint: 'N',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
-    { icon: Wand2,        label: 'Open Macro Builder',  hint: '⌘M', section: 'Generate', action: onOpenMacroBuilder },
+    ...(canOpenMacroBuilder
+      ? [{ icon: Wand2, label: 'Open Macro Builder', hint: '⌘M', section: 'Generate', action: onOpenMacroBuilder }]
+      : []),
     { icon: Moon,         label: 'Toggle dark mode',    section: 'View', action: () => { onClose(); onToggleTheme(); } },
   ];
 

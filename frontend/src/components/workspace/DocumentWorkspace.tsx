@@ -7,6 +7,7 @@ import { VList } from 'virtua';
 import { PdfRendererAdapter, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
+import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
@@ -24,6 +25,7 @@ import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
+import { error as logError } from '@/core/logger/service';
 
 type TransformState =
   | {
@@ -526,8 +528,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const pageRef = React.useRef<HTMLDivElement | null>(null);
   const { hits, activeHitId } = useSearchStore();
   const isSelectTool = activeTool === 'select';
-  const isTextMarkTool =
-    activeTool === 'highlight' || activeTool === 'underline' || activeTool === 'strikeout' || activeTool === 'squiggly';
+  const isTextMarkTool = isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
   const isNoteTool = activeTool === 'comment';
   const isPlacementOnlyTool =
     activeTool === 'textbox' ||
@@ -1276,7 +1277,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       setShapeDraft(null);
       clearTextSelectionDraft();
 
-      const tool = activeTool as AnnotationType;
+      if (!isAnnotationType(activeTool)) return;
+      const tool = activeTool;
       const annotation = buildAnnotation(tool, pageNumber, startX, startY);
 
       if (isDrag) {

@@ -67,4 +67,44 @@ describe('runMacroRecipeAgainstSession', () => {
     await runMacroRecipeAgainstSession({ id: 'r4', name: 'R4', steps: [] }, { saveOutputs: true });
     expect(mockSavePdfBytes).toHaveBeenCalledWith(new Uint8Array([9]), 'out.pdf', null);
   });
+  it('queues concurrent macro runs against the session', async () => {
+    let releaseFirst!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      mockExecuteMacroRecipe.mockImplementationOnce(async () => {
+        resolve();
+        await new Promise<void>((release) => {
+          releaseFirst = release;
+        });
+        return {
+          finalBytes: new Uint8Array([7]),
+          selectedPages: [1],
+          logs: ['first'],
+          outputFiles: [],
+          stepResults: [],
+        };
+      });
+    });
+    mockExecuteMacroRecipe.mockResolvedValueOnce({
+      finalBytes: new Uint8Array([8]),
+      selectedPages: [2],
+      logs: ['second'],
+      outputFiles: [],
+      stepResults: [],
+    });
+
+    const first = runMacroRecipeAgainstSession({ id: 'queued-1', name: 'Queued 1', steps: [] });
+    await firstStarted;
+    const second = runMacroRecipeAgainstSession({ id: 'queued-2', name: 'Queued 2', steps: [] });
+
+    await Promise.resolve();
+    expect(mockExecuteMacroRecipe).toHaveBeenCalledTimes(1);
+
+    releaseFirst();
+    await first;
+    await second;
+
+    expect(mockExecuteMacroRecipe).toHaveBeenCalledTimes(2);
+    expect(mockExecuteMacroRecipe.mock.calls[1]?.[0]).toMatchObject({ id: 'queued-2' });
+  });
+
 });

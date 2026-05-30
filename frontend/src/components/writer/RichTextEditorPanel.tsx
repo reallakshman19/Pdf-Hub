@@ -237,40 +237,6 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
     insertHtmlAtCaret(`<img src="${dataUrl}" alt="" />`);
   };
 
-  const insertHtmlAtCaret = (html: string) => {
-    const selection = window.getSelection();
-    const editor = editorRef.current;
-    if (!selection || !editor) return;
-
-    if (selection.rangeCount === 0) {
-      editor.focus();
-    }
-
-    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
-    if (selection.rangeCount === 0) {
-      range.selectNodeContents(editor);
-      range.collapse(false);
-    }
-
-    const fragment = range.createContextualFragment(html);
-    const lastNode = fragment.lastChild;
-    range.deleteContents();
-    range.insertNode(fragment);
-
-    if (lastNode) {
-      range.setStartAfter(lastNode);
-      range.setEndAfter(lastNode);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    editor.focus();
-  };
-
-  const insertImageAtCaret = (dataUrl: string) => {
-    insertHtmlAtCaret(`<img src="${dataUrl}" alt="" />`);
-  };
-
   const handleFontFamilyChange = (nextFamily: string) => {
     setFontFamily(nextFamily);
     patchElementStyles({ fontFamily: nextFamily });

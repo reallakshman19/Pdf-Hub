@@ -755,6 +755,22 @@ test.describe('P4: OCR and equations', () => {
 □ Handoff notes written
 ```
 
+### Phase 5 resilience/capability slice — 2026-05-30
+```
+☑ Capability probe records latency for preview fallbacks
+☑ Capability probe honors VITE_API_BASE_URL without double slashes
+☑ Capability hook has unit coverage for preview/server health outcomes
+☑ Macro sidebar stale-state guard renders FeatureUnavailable instead of a blank panel
+☑ Preview-mode macro console rail item remains hidden by capabilities
+☑ Client OCR singleton queue has unit coverage for 5 concurrent requests
+☑ Client OCR queue remains usable after a failed recognition
+☑ terminateOcrWorker still clears the singleton worker on shutdown
+☑ check:static passes
+☑ typecheck and lint pass
+☑ Full pnpm test suite passes
+☐ Backend fitz-boundary command deferred because this checkout has no backend/ tree
+```
+
 ### Phase 5
 ```
 □ Merge 5+7 pages → 12 pages
@@ -765,4 +781,20 @@ test.describe('P4: OCR and equations', () => {
 □ grep "import fitz" outside pdf_engine/ → empty
 □ Playwright p5-macro.spec.ts — all green
 □ Handoff notes written
+```
+
+### Phase 6 performance/polish slice — 2026-05-30
+```
+☑ VITE_BASE_PATH controls Vite base with /Pdf-Hub/ fallback
+☑ frontend/.env.development created with VITE_BASE_PATH=/Pdf-Hub/
+☑ frontend/.env.production created with VITE_BASE_PATH=/Pdf-Hub/
+☑ Konva fallback annotation renderer emits structured warn log and visible placeholder
+☑ PERFORMANCE_BASELINE.md created with all measured cells populated or explicitly marked manual
+☑ AUDIT_BASELINE.md updated with Phase 6 static-check outcomes
+☑ Build-blocking TypeScript regressions fixed
+☑ pnpm --dir frontend typecheck passes
+☑ pnpm --dir frontend build passes with Vite chunk-size warnings
+☑ pnpm --dir frontend test passes
+☐ Browser smoke checklist deferred; no browser/DevTools or Math SA-Dec-25.pdf fixture in container
+☐ Backend fitz-boundary command deferred because this checkout has no backend/ tree
 ```

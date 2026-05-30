@@ -1,5 +1,5 @@
 import './steps/page-ops';
-import './steps/merge-ops';
+import './steps/document-ops';
 import './steps/content-ops';
 import './steps/conditional-ops';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
@@ -299,4 +299,45 @@ describe('macro executor', () => {
     expect(pdfMocks.reorderPages).not.toHaveBeenCalled();
     expect(result.logs[0]).toContain('Skipped reorder_pages');
   });
+  it('rolls back to pre-run bytes when any step fails even if abortOnError is false', async () => {
+    const recipe: MacroRecipe = {
+      id: 'rollback-on-error',
+      name: 'Rollback on error',
+      steps: [
+        { op: 'rotate_pages', selector: { mode: 'selected' }, degrees: 90 },
+        { op: 'replace_page', targetPage: 1, donorFileId: 'missing', donorPage: 1 },
+      ],
+    };
+
+    const result = await executeMacroRecipe(recipe, {
+      ...baseContext,
+      options: { abortOnError: false },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.rolledBack).toBe(true);
+    expect(result.finalBytes).toEqual(baseContext.workingBytes);
+    expect(result.logs).toContain('[rollback] Macro failed — document restored to pre-run state');
+  });
+
+  it('can keep partial bytes when rollbackOnError is explicitly disabled', async () => {
+    const recipe: MacroRecipe = {
+      id: 'no-rollback-on-error',
+      name: 'No rollback on error',
+      steps: [
+        { op: 'rotate_pages', selector: { mode: 'selected' }, degrees: 90 },
+        { op: 'replace_page', targetPage: 1, donorFileId: 'missing', donorPage: 1 },
+      ],
+    };
+
+    const result = await executeMacroRecipe(recipe, {
+      ...baseContext,
+      options: { abortOnError: false, rollbackOnError: false },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.rolledBack).toBe(false);
+    expect(result.finalBytes).toEqual(new Uint8Array([4, 4, 4]));
+  });
+
 });

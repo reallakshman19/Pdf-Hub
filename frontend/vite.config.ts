@@ -4,7 +4,7 @@ import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH || '/Pdf-Hub/',
+  base: process.env.VITE_BASE_PATH ?? '/Pdf-Hub/',
   plugins: [react()],
   resolve: {
     alias: {
