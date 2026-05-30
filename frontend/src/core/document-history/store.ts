@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { DocumentHistory, Transaction } from './types';
-
-const MAX_UNDO_DEPTH = 15;
+import { HISTORY_POLICY } from './historyPolicy';
 
 interface HistoryActions {
   push: (transaction: Transaction) => void;
@@ -20,7 +19,7 @@ export const useHistoryStore = create<DocumentHistory & HistoryActions>((set, ge
 
   push: (transaction) =>
     set((state) => ({
-      undoStack: [...state.undoStack, transaction].slice(-MAX_UNDO_DEPTH),
+      undoStack: [...state.undoStack, transaction].slice(-HISTORY_POLICY.maxUndoDepth),
       redoStack: [], // clear redo stack on new action
     })),
 
