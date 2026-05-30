@@ -8,6 +8,7 @@ import { OcrStore } from '@/core/ocr/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useCapabilities } from '@/hooks/useCapabilities';
+import { FeatureUnavailable } from '@/components/ui/FeatureUnavailable';
 
 const ocrStore = new OcrStore();
 
@@ -99,7 +100,13 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'comments' && <CommentsSidebar />}
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
-        {sidebarTab === 'macros' && capabilities.hasMacroConsole && <MacrosSidebar />}
+        {sidebarTab === 'macros' && (
+          capabilities.hasMacroConsole ? (
+            <MacrosSidebar />
+          ) : (
+            <FeatureUnavailable reason="The macro console requires the local server. Start the server to enable macros." />
+          )
+        )}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
         {sidebarTab === 'redaction' && <RedactionPreviewPanel />}
       </div>

@@ -16,6 +16,17 @@ export interface Capabilities {
 const SERVER_HEALTH_PATH = '/api/health';
 const SERVER_PROBE_TIMEOUT_MS = 800;
 
+const withPreviewLatency = (latencyMs: number): Capabilities => ({
+  ...PREVIEW_CAPABILITIES,
+  latencyMs,
+});
+
+const getServerHealthUrl = (): string => {
+  const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (!apiBase) return SERVER_HEALTH_PATH;
+  return `${apiBase.replace(/\/$/, '')}${SERVER_HEALTH_PATH}`;
+};
+
 const PREVIEW_CAPABILITIES: Capabilities = {
   mode: 'preview',
   serverAlive: false,
@@ -60,20 +71,21 @@ export async function detectCapabilities(): Promise<Capabilities> {
   const timer = window.setTimeout(() => controller.abort(), SERVER_PROBE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(SERVER_HEALTH_PATH, {
+    const response = await fetch(getServerHealthUrl(), {
       method: 'GET',
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     });
 
-    if (!response.ok) {
-      return PREVIEW_CAPABILITIES;
-    }
-
     const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
+
+    if (!response.ok) {
+      return withPreviewLatency(latencyMs);
+    }
     return SERVER_CAPABILITIES(latencyMs);
   } catch {
-    return PREVIEW_CAPABILITIES;
+    const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
+    return withPreviewLatency(latencyMs);
   } finally {
     window.clearTimeout(timer);
   }
