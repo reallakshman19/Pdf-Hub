@@ -10,6 +10,7 @@
 
 import type { JSX } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 export interface OcrLauncherProps {
   ocrStore: OcrStore;
@@ -23,14 +24,20 @@ export default function OcrLauncher({
   documentKey,
   pageNumbers,
   language = 'eng',
-}: OcrLauncherProps): JSX.Element {
+}: OcrLauncherProps): JSX.Element | null {
+  const capabilities = useCapabilities();
+
+  if (!capabilities.hasPreviewOcr) {
+    return null;
+  }
+
   const handleClick = () => {
     if (pageNumbers.length === 0) return;
     void ocrStore.startJob(documentKey, pageNumbers, language);
   };
   return (
-    <button onClick={handleClick} disabled={pageNumbers.length === 0}>
-      Run OCR
+    <button data-ocr-mode="preview" onClick={handleClick} disabled={pageNumbers.length === 0}>
+      Run preview OCR
     </button>
   );
 }

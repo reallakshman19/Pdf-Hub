@@ -78,7 +78,7 @@ export const saveAnnotations = async (
 
     throw new AnnotationPersistenceError(
       'save',
-      'Failed to save annotations to local storage',
+      'Failed to save annotations to IndexedDB',
       err,
     );
   }
@@ -111,7 +111,7 @@ export const loadAnnotations = async (
 
     throw new AnnotationPersistenceError(
       'load',
-      'Failed to load annotations from local storage',
+      'Failed to load annotations from IndexedDB',
       err,
     );
   }

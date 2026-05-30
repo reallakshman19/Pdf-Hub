@@ -7,6 +7,7 @@ import RedactionPreviewPanel from '@/components/redaction/RedactionPreviewPanel'
 import { OcrStore } from '@/core/ocr/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 const ocrStore = new OcrStore();
 
@@ -31,6 +32,7 @@ const SearchPanel = React.lazy(() =>
 
 export const SidebarPanel: React.FC = () => {
   const { sidebarTab, leftPanelWidth, setLeftPanelWidth } = useEditorStore();
+  const capabilities = useCapabilities();
   const [previousWidth, setPreviousWidth] = useState(20);
 
   const isCollapsed = leftPanelWidth <= 0.1;
@@ -97,7 +99,7 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'comments' && <CommentsSidebar />}
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
-        {sidebarTab === 'macros' && <MacrosSidebar />}
+        {sidebarTab === 'macros' && capabilities.hasMacroConsole && <MacrosSidebar />}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
         {sidebarTab === 'redaction' && <RedactionPreviewPanel />}
       </div>
