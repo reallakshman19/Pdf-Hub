@@ -15,7 +15,7 @@ import {
   MessageCircle,
   Eye,
   EyeOff,
-  PenTool,
+  PenTool as InkIcon,
   Cloud,
   Hexagon,
   SquareSquare,
@@ -36,6 +36,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
 import type { ActiveTool } from '@/core/editor/types';
+import type { AnnotationType } from '@/core/annotations/annotationTypes';
 import { Button } from '@/components/ui/Button';
 import {
   getToolDisabledReason,
@@ -68,7 +69,7 @@ export const ToolbarComment: React.FC = () => {
   const { hideResolved, setHideResolved } = useReviewStore();
   const hasSelection = selectedAnnotationIds.length > 0;
 
-  const handleToolClick = (tool: Exclude<ActiveTool, 'select' | 'hand'>) => {
+  const handleToolClick = (tool: AnnotationType) => {
     if (isToolDisabled(tool)) {
       setWriterActiveTool('select');
       setActiveTool('select');
@@ -150,16 +151,16 @@ export const ToolbarComment: React.FC = () => {
         </Button>
       </Tooltip>
 
-      <Tooltip content={disabledTitle('ink', 'Freehand / Ink')}>
+      <Tooltip content={disabledTitle('ink', 'Ink')}>
         <Button
           variant={getToolVariant('ink')}
           size="icon"
-          title={disabledTitle('ink', 'Freehand / Ink')}
+          title={disabledTitle('ink', 'Ink')}
           aria-disabled={isToolDisabled('ink')}
           className={disabledClass('ink')}
           onClick={() => handleToolClick('ink')}
         >
-          <PenTool className="w-4 h-4" />
+          <InkIcon className="w-4 h-4" />
         </Button>
       </Tooltip>
 

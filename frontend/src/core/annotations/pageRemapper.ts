@@ -1,9 +1,9 @@
+import { v4 as uuidv4 } from 'uuid';
 import type { PdfAnnotation } from './types';
 import {
   denormalizeAnnotationGeometry,
   normalizeAnnotationGeometry,
   rotateNormalizedAnnotationGeometry,
-  type NormalizedAnnotationGeometry,
 } from './normalized';
 
 /**
@@ -124,8 +124,10 @@ export function remapAfterRotate(
     if (normalizedAngle === 0) return annotation;
 
     const page = { width: rot.width, height: rot.height };
-    const existingNormalized = annotation.data.normalizedGeometry as NormalizedAnnotationGeometry | undefined;
-    const normalizedGeometry = existingNormalized ?? normalizeAnnotationGeometry(annotation, page);
+    // Always normalize from the current rect/data rather than trusting cached
+    // metadata, because live drag/resize edits can leave older persisted
+    // normalizedGeometry behind. Rotation must follow what the user sees now.
+    const normalizedGeometry = normalizeAnnotationGeometry(annotation, page);
     const rotatedNormalizedGeometry = rotateNormalizedAnnotationGeometry(normalizedGeometry, normalizedAngle);
     const outputPage =
       normalizedAngle === 90 || normalizedAngle === 270
@@ -152,13 +154,21 @@ export function remapAfterRotate(
  *
  * @param pageIndices - 0-based indices of pages that were duplicated (unsorted OK)
  */
+export interface DuplicateRemapOptions {
+  createId?: () => string;
+  now?: number;
+}
+
 export function remapAfterDuplicate(
   annotations: PdfAnnotation[],
   pageIndices: number[],
+  options: DuplicateRemapOptions = {},
 ): PdfAnnotation[] {
   if (pageIndices.length === 0) return annotations;
 
-  const sortedIndices = [...pageIndices].sort((a, b) => a - b);
+  const sortedIndices = Array.from(new Set(pageIndices)).sort((a, b) => a - b);
+  const createId = options.createId ?? uuidv4;
+  const now = options.now ?? Date.now();
 
   // For each annotation, compute its new page number after duplicates are inserted
   // and collect copies for duplicated pages.
@@ -177,14 +187,17 @@ export function remapAfterDuplicate(
     const origIndex = sortedIndices[i];
     const insertedBefore = i; // i pages were already inserted before this one
     const newPageNumber = origIndex + insertedBefore + 2; // +1 for 1-based, +1 for "after original"
-    const origPageNumber = origIndex + insertedBefore + 1; // original's new page number
 
     for (const annotation of annotations) {
       if (annotation.pageNumber - 1 === origIndex) {
-        result.push({ ...annotation, pageNumber: newPageNumber });
-        // Also fix the original which we already pushed — it now lives at origPageNumber
-        // (already handled in the loop above via insertedBefore count)
-        void origPageNumber; // used above for clarity
+        result.push({
+          ...annotation,
+          id: createId(),
+          pageNumber: newPageNumber,
+          data: { ...annotation.data },
+          createdAt: now,
+          updatedAt: now,
+        });
       }
     }
   }

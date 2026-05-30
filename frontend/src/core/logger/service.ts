@@ -15,6 +15,8 @@ export const log = (source: LogSource, message: string, data?: Record<string, un
   useLoggerStore.getState().addEntry(createEntry('info', source, message, data));
 };
 
+export const info = log;
+
 export const debug = (source: LogSource, message: string, data?: Record<string, unknown>) => {
   useLoggerStore.getState().addEntry(createEntry('debug', source, message, data));
 };

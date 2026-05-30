@@ -25,7 +25,9 @@
     "certify:generate-document": "node scripts/certify-generate-document.mjs",
     "certify:layout-engine": "vitest run src/core/macro/layout/LayoutEngine.test.ts",
     "certify:generation-recipes": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts",
-    "certify:generation-template-library": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts src/core/macro/generateDocument/templateLibraryValidation.test.ts src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx"
+    "certify:generation-template-library": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts src/core/macro/generateDocument/templateLibraryValidation.test.ts src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx",
+    "check:static": "node scripts/static-contract-checks.mjs",
+    "check:all": "npm run typecheck && npm test && npm run check:static"
   },
   "dependencies": {
     "@lexical/history": "^0.44.0",

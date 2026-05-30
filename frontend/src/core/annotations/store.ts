@@ -42,6 +42,7 @@ interface AnnotationActions {
   undo: () => void;
   redo: () => void;
   setAnnotations: (annotations: PdfAnnotation[]) => void;
+  applyPageRemap: (annotations: PdfAnnotation[]) => void;
   copySelection: () => void;
   pasteClipboard: (targetPage?: number) => void;
   duplicateSelection: () => void;
@@ -264,6 +265,9 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       selectedAnnotationIds: [],
       activeAnnotationId: null,
     }),
+
+  applyPageRemap: (annotations) =>
+    set((state) => applyAnnotationHistoryTransaction(state, annotations, [], null)),
 
   copySelection: () =>
     set((state) => {

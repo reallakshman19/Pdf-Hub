@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate } from './pageRemapper';
+import {
+  remapAfterReorder,
+  remapAfterDelete,
+  remapAfterInsert,
+  remapAfterRotate,
+  remapAfterDuplicate,
+} from './pageRemapper';
 import type { PdfAnnotation } from './types';
 
 describe('pageRemapper', () => {
@@ -94,6 +100,52 @@ describe('pageRemapper', () => {
     });
   });
 
+  describe('remapAfterDuplicate', () => {
+    it('copies annotations to duplicated pages with fresh ids and timestamps', () => {
+      const annotations = [
+        createMockAnnotation('a-page-1', 1),
+        createMockAnnotation('a-page-2', 2),
+        createMockAnnotation('a-page-3', 3),
+      ];
+      const ids = ['copy-a'];
+
+      const remapped = remapAfterDuplicate(annotations, [1], {
+        createId: () => ids.shift() ?? 'unexpected',
+        now: 1234,
+      });
+
+      expect(remapped).toHaveLength(4);
+      expect(remapped.find(a => a.id === 'a-page-1')?.pageNumber).toBe(1);
+      expect(remapped.find(a => a.id === 'a-page-2')?.pageNumber).toBe(2);
+      expect(remapped.find(a => a.id === 'copy-a')?.pageNumber).toBe(3);
+      expect(remapped.find(a => a.id === 'a-page-3')?.pageNumber).toBe(4);
+      expect(remapped.find(a => a.id === 'copy-a')?.createdAt).toBe(1234);
+      expect(remapped.find(a => a.id === 'copy-a')?.updatedAt).toBe(1234);
+      expect(new Set(remapped.map(a => a.id)).size).toBe(remapped.length);
+    });
+
+    it('handles multiple duplicated pages without duplicate annotation ids', () => {
+      const annotations = [
+        createMockAnnotation('p1', 1),
+        createMockAnnotation('p3', 3),
+      ];
+      let nextId = 0;
+
+      const remapped = remapAfterDuplicate(annotations, [0, 2, 2], {
+        createId: () => `copy-${nextId++}`,
+        now: 999,
+      });
+
+      expect(remapped.map(a => [a.id, a.pageNumber])).toEqual([
+        ['p1', 1],
+        ['p3', 4],
+        ['copy-0', 2],
+        ['copy-1', 5],
+      ]);
+      expect(new Set(remapped.map(a => a.id)).size).toBe(remapped.length);
+    });
+  });
+
   describe('remapAfterRotate', () => {
     it('rotates rectangle and geometry fields by 90 degrees and stores normalized metadata', () => {
       const annotations: PdfAnnotation[] = [{
@@ -122,6 +174,23 @@ describe('pageRemapper', () => {
       expect(first.data.paths?.[0]?.[3]).toBeCloseTo(30, 10);
       expect(first.data.geometryVersion).toBe(2);
       expect(first.data.normalizedGeometry).toBeDefined();
+    });
+
+    it('rotates from current geometry instead of stale normalized metadata', () => {
+      const annotation: PdfAnnotation = {
+        ...createMockAnnotation('stale-normalized', 1),
+        rect: { x: 20, y: 30, width: 50, height: 60 },
+        data: {
+          geometryVersion: 2,
+          normalizedGeometry: {
+            rect: { x: 0, y: 0, width: 0.1, height: 0.1 },
+          },
+        },
+      };
+
+      const [rotated] = remapAfterRotate([annotation], [{ pageIndex: 0, angle: 90, width: 200, height: 150 }]);
+
+      expectRectClose(rotated.rect, { x: 60, y: 20, width: 60, height: 50 });
     });
 
     it('matches legacy rectangle rotation outputs for 90/180/270 degrees', () => {

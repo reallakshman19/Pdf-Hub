@@ -2,6 +2,7 @@
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
+import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Send, Minus, X } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
@@ -10,25 +11,6 @@ import type { ReviewReply, ReviewStatus } from '@/core/review/types';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 
-const ANNOTATION_TYPES: AnnotationType[] = [
-  'textbox',
-  'callout',
-  'sticky-note',
-  'highlight',
-  'underline',
-  'strikeout',
-  'squiggly',
-  'shape-rect',
-  'shape-ellipse',
-  'shape-polygon',
-  'shape-cloud',
-  'line',
-  'arrow',
-  'ink',
-  'stamp',
-  'comment',
-  'redaction',
-];
 
 export const InspectorPanel: React.FC = () => {
   const { inspectorTab, setInspectorTab, rightPanelWidth, setRightPanelWidth, activeMode } = useEditorStore();
