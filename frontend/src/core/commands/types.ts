@@ -1,5 +1,8 @@
 // ── Architecture-level command system (Agent 00 contract) ───────────────────
 
+import type { AnnotationType } from '@/core/annotations/annotationTypes';
+
+
 export type PdfCommandSource = 'user' | 'macro' | 'ai' | 'system';
 
 export type PdfCommandRisk =
@@ -45,7 +48,7 @@ export interface PdfPoint {
   coordinateSpace: 'pdf-points';
 }
 
-export type AddAnnotationCommand = PdfCommandBase<'ANNOTATION_ADD', { annotationType: 'highlight' | 'note' | 'callout' | 'stamp' | 'ink' | 'shape'; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; style: Record<string, unknown>; content?: string }>;
+export type AddAnnotationCommand = PdfCommandBase<'ANNOTATION_ADD', { annotationType: AnnotationType; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; style: Record<string, unknown>; content?: string }>;
 export type UpdateAnnotationCommand = PdfCommandBase<'ANNOTATION_UPDATE', { annotationId: string; patch: Record<string, unknown> }>;
 export type DeleteAnnotationCommand = PdfCommandBase<'ANNOTATION_DELETE', { annotationIds: string[] }>;
 export type AddWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_ADD', { overlayType: 'textBox' | 'image' | 'table' | 'link'; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; content: unknown; style: Record<string, unknown> }>;

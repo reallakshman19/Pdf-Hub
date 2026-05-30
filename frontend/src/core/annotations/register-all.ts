@@ -5,7 +5,7 @@
  * NEVER import this from a component — it must run exactly once at startup.
  *
  * Adding a new annotation type:
- * 1. Add the type string to AnnotationType in types.ts (Agent A only)
+ * 1. Add the type string to annotationTypes.ts (Agent A only)
  * 2. Create a new Node component in components/annotations/
  * 3. Add a register() call below
  * That's it. DocumentWorkspace.tsx does NOT need editing.
