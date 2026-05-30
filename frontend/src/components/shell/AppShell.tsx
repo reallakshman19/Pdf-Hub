@@ -9,6 +9,8 @@ import {
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { PreviewModeBanner } from '@/components/shell/PreviewModeBanner';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 interface AppShellProps {
   topnav: ReactNode;
@@ -30,6 +32,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   statusbar,
 }) => {
   const { leftPanelWidth, rightPanelWidth, setLeftPanelWidth, setRightPanelWidth } = useEditorStore();
+  const capabilities = useCapabilities();
   const documentKey = useSessionStore((state) => state.documentKey);
   const fileName = useSessionStore((state) => state.fileName);
   const boundaryResetKey = documentKey ?? fileName ?? '';
@@ -121,10 +124,13 @@ export const AppShell: React.FC<AppShellProps> = ({
           <PanelResizeHandle className="w-2 shrink-0 bg-slate-200 dark:bg-slate-800 hover:bg-blue-500 dark:hover:bg-blue-500 transition-colors cursor-col-resize" />
 
           <Panel id="workspace" className="flex flex-col bg-slate-100 dark:bg-slate-950/50">
-            <div data-testid="document-workspace" className="h-full w-full">
-              <ErrorBoundary zone="Document Workspace" resetKey={boundaryResetKey}>
-                {workspace}
-              </ErrorBoundary>
+            <div data-testid="document-workspace" className="h-full w-full flex flex-col">
+              {capabilities.mode === 'preview' && <PreviewModeBanner />}
+              <div className="min-h-0 flex-1">
+                <ErrorBoundary zone="Document Workspace" resetKey={boundaryResetKey}>
+                  {workspace}
+                </ErrorBoundary>
+              </div>
             </div>
           </Panel>
 

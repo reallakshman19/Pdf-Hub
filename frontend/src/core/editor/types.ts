@@ -1,25 +1,8 @@
+import type { AnnotationType } from '@/core/annotations/annotationTypes';
+
 export type ActiveMode = 'file' | 'view' | 'annotate' | 'draw' | 'write' | 'organize' | 'generate';
 
-export type ActiveTool =
-  | 'select'
-  | 'hand'
-  | 'textbox'
-  | 'highlight'
-  | 'underline'
-  | 'strikeout'
-  | 'squiggly'
-  | 'shape-rect'
-  | 'shape-ellipse'
-  | 'shape-cloud'
-  | 'shape-polygon'
-  | 'ink'
-  | 'stamp'
-  | 'sticky-note'
-  | 'comment'
-  | 'line'
-  | 'arrow'
-  | 'callout'
-  | 'redaction';
+export type ActiveTool = 'select' | 'hand' | AnnotationType;
 
 export type SidebarTab =
   | 'thumbnails'

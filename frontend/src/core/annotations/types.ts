@@ -1,23 +1,7 @@
 import type { ReviewMetadata } from '../review/types';
 
-export type AnnotationType =
-  | 'textbox'        // multiline, no leader
-  | 'callout'        // textbox + 3-point leader (anchor → knee → box edge)
-  | 'sticky-note'    // collapsible pushpin icon → expands to note
-  | 'highlight'      // text-based, follows selection
-  | 'underline'
-  | 'strikeout'
-  | 'squiggly'       // NEW — wavy red underline
-  | 'shape-rect'     // was 'shape'
-  | 'shape-ellipse'  // was 'ellipse'
-  | 'shape-polygon'  // NEW — freeform polygon
-  | 'shape-cloud'    // NEW — rect with wavy cloud border
-  | 'line'
-  | 'arrow'
-  | 'ink'            // NEW — freehand polyline paths
-  | 'stamp'          // text + custom image stamps
-  | 'comment'
-  | 'redaction';     // NEW — black out content
+import type { AnnotationType } from './annotationTypes';
+export type { AnnotationType } from './annotationTypes';
 
 export type ReviewStatus = 'open' | 'resolved' | 'rejected';
 
