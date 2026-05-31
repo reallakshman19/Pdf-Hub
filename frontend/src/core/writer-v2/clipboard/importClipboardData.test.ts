@@ -1,0 +1,70 @@
+import { describe, expect, it } from 'vitest';
+import { importClipboardDataForWriter } from './importClipboardData';
+
+function clipboardStub(input: {
+  html?: string;
+  text?: string;
+  files?: File[];
+}): Pick<DataTransfer, 'getData' | 'files' | 'items'> {
+  return {
+    getData(type: string) {
+      if (type === 'text/html') return input.html ?? '';
+      if (type === 'text/plain') return input.text ?? '';
+      return '';
+    },
+    files: (input.files ?? []) as unknown as FileList,
+    items: [] as unknown as DataTransferItemList,
+  };
+}
+
+describe('importClipboardDataForWriter', () => {
+  it('imports sanitized html and table metadata', async () => {
+    const result = await importClipboardDataForWriter(
+      clipboardStub({
+        html: `
+          <table><tr><td>A</td><td>B</td></tr></table>
+          <script>alert(1)</script>
+        `,
+        text: 'A\tB',
+      }),
+      'doc-1',
+    );
+
+    expect(result.source).toBe('mixed');
+    expect(result.sanitizedHtml).not.toContain('<script');
+    expect(result.hasTable).toBe(true);
+    expect(result.tableData?.rows[0].cells[0].text).toBe('A');
+  });
+
+  it('imports plain text fallback', async () => {
+    const result = await importClipboardDataForWriter(
+      clipboardStub({
+        text: 'plain text only',
+      }),
+      'doc-1',
+    );
+
+    expect(result.source).toBe('text');
+    expect(result.plainText).toBe('plain text only');
+    expect(result.assets).toEqual([]);
+  });
+
+  it('imports image files as asset records', async () => {
+    const file = new File(['fake'], 'screenshot.png', {
+      type: 'image/png',
+    });
+
+    const result = await importClipboardDataForWriter(
+      clipboardStub({
+        files: [file],
+      }),
+      'doc-1',
+    );
+
+    expect(result.source).toBe('image');
+    expect(result.assets).toHaveLength(1);
+    expect(result.assets[0].documentFingerprint).toBe('doc-1');
+    expect(result.assets[0].mimeType).toBe('image/png');
+    expect(result.assets[0].dataUrl).toMatch(/^data:image\/png;base64,/);
+  });
+});

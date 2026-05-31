@@ -1,0 +1,4 @@
+@import "./styles/themes.css";
+
+.toolbar-band-no-scrollbar::-webkit-scrollbar { display: none; }
+.toolbar-band-no-scrollbar { -ms-overflow-style: none; }

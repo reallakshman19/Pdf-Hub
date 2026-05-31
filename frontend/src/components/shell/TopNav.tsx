@@ -1,0 +1,416 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { Moon, Search, Settings, Sun, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare, ChevronRight } from 'lucide-react';
+import { useDarkMode } from '@/hooks/useDarkMode';
+import { useSearchStore } from '@/core/search/store';
+import { useSessionStore } from '@/core/session/store';
+import { useEditorStore } from '@/core/editor/store';
+import { SearchIndexer } from '@/core/search/indexer';
+import { error as logError } from '@/core/logger/service';
+import { useToastStore } from '@/core/toast/store';
+import { useCapabilities } from '@/hooks/useCapabilities';
+
+export const TopNav: React.FC = () => {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const { documentKey, fileName, isDirty } = useSessionStore();
+  const { setSidebarTab, setLeftPanelWidth, leftPanelWidth, setMacroBuilderOpen } = useEditorStore();
+  const addToast = useToastStore((state) => state.addToast);
+  const capabilities = useCapabilities();
+
+  const {
+    query,
+    setQuery,
+    setHits,
+    setError,
+    clearSearch,
+    nextHit,
+    setIsSearching,
+  } = useSearchStore();
+
+  const [localQuery, setLocalQuery] = useState(query);
+  const [previousQuery, setPreviousQuery] = useState(query);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const debounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  React.useEffect(() => {
+    if (fileName) {
+      document.title = `${isDirty ? '* ' : ''}${fileName} - PDF Hub`;
+      return;
+    }
+    document.title = 'PDF Hub';
+  }, [fileName, isDirty]);
+
+  if (query !== previousQuery) {
+    setPreviousQuery(query);
+    setLocalQuery(query);
+  }
+
+  const executeSearch = useCallback(
+    async (searchQuery: string) => {
+      if (!documentKey) return;
+      if (!searchQuery.trim()) { clearSearch(); return; }
+      setIsSearching(true);
+      try {
+        const cache = SearchIndexer.getCache(documentKey);
+        if (!cache) { setHits([]); return; }
+        const results = SearchIndexer.search(cache, searchQuery, {
+          caseSensitive: false, wholeWord: false, useRegex: false,
+        });
+        setHits(results.map((item, index) => ({
+          id: `hit-${index}`,
+          pageNumber: item.pageNumber,
+          snippet: item.text,
+          rects: [item.rect],
+        })));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        logError('pdf-renderer', 'Search failed from top navigation', { error: message });
+        addToast({ type: 'error', title: 'Search Failed', message });
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [addToast, clearSearch, documentKey, setError, setHits, setIsSearching],
+  );
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setLocalQuery(value);
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (!value.trim()) { setQuery(''); clearSearch(); return; }
+    setSidebarTab('search');
+    if (leftPanelWidth < 1) setLeftPanelWidth(20);
+    debounceRef.current = window.setTimeout(() => {
+      setQuery(value);
+      void executeSearch(value);
+    }, 300);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (leftPanelWidth < 1) setLeftPanelWidth(20);
+    setSidebarTab('search');
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (!localQuery.trim()) return;
+    if (localQuery === query) { nextHit(); return; }
+    setQuery(localQuery);
+    void executeSearch(localQuery);
+  };
+
+  const handleClear = () => { setLocalQuery(''); setQuery(''); clearSearch(); };
+
+
+  const displayName = fileName
+    ? fileName.length > 38 ? `${fileName.slice(0, 37)}…` : fileName
+    : null;
+
+  return (
+    <>
+      <div className="flex items-center h-12 px-3 gap-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+        {/* Logo */}
+        <a
+          href="#"
+          className="flex items-center gap-2 mr-1.5 shrink-0 no-underline"
+          onClick={(e) => e.preventDefault()}
+        >
+          <div className="w-[30px] h-[30px] rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white">
+              <path d="M3 2h7l3 3v9H3V2z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" fill="none" />
+              <path d="M10 2v3h3" stroke="white" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M5 7h6M5 9.5h4" stroke="white" strokeWidth="1.1" strokeLinecap="round" />
+            </svg>
+          </div>
+          <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight hidden sm:block">
+            PDF<span className="text-blue-600">Hub</span>
+          </span>
+        </a>
+
+        {/* File chip */}
+        {displayName && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md cursor-default max-w-[230px] shrink-0">
+            {isDirty && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+            )}
+            <span
+              className="text-[12.5px] font-[450] text-slate-800 dark:text-slate-200 overflow-hidden text-ellipsis whitespace-nowrap"
+              title={fileName ?? ''}
+            >
+              {displayName}
+            </span>
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Search / command pill */}
+        <div className="relative hidden lg:block">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={localQuery}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Search or run a command…"
+            className="h-8 w-52 pl-8 pr-8 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          />
+          {localQuery ? (
+            <button
+              onClick={handleClear}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 pointer-events-none">
+              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 px-1 py-px bg-slate-200 dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600">⌘</span>
+              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 px-1 py-px bg-slate-200 dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600">K</span>
+            </div>
+          )}
+        </div>
+
+        {/* Save status badge */}
+        {fileName && (
+          <div
+            className={[
+              'flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-full transition-all',
+              isDirty
+                ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30'
+                : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
+            ].join(' ')}
+          >
+            <span className={['w-1.5 h-1.5 rounded-full', isDirty ? 'bg-amber-500' : 'bg-emerald-500'].join(' ')} />
+            {isDirty ? 'Unsaved' : 'Saved'}
+          </div>
+        )}
+
+        <Tooltip content={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
+          <Button data-testid="theme-toggle" variant="ghost" size="icon" onClick={toggleDarkMode}>
+            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </Button>
+        </Tooltip>
+        {capabilities.hasMacroConsole && (
+          <Tooltip content="Open macro builder">
+            <Button variant="ghost" size="icon" onClick={() => setMacroBuilderOpen(true)}>
+              <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+            </Button>
+          </Tooltip>
+        )}
+        <Tooltip content="Open settings">
+          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
+            <Settings className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+          </Button>
+        </Tooltip>
+
+        {/* Avatar */}
+        <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[11px] font-semibold cursor-pointer shrink-0 select-none">
+          JD
+        </div>
+      </div>
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleDarkMode}
+      />
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onToggleTheme={toggleDarkMode}
+        canOpenMacroBuilder={capabilities.hasMacroConsole}
+        onOpenMacroBuilder={() => { setPaletteOpen(false); setMacroBuilderOpen(true); }}
+      />
+    </>
+  );
+};
+
+const ToggleRow: React.FC<{ label: string; on: boolean; onToggle: () => void }> = ({ label, on, onToggle }) => (
+  <div className="flex items-center justify-between py-1.5">
+    <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
+    <button
+      onClick={onToggle}
+      className={[
+        'relative w-9 h-5 rounded-full transition-colors shrink-0',
+        on ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600',
+      ].join(' ')}
+    >
+      <span className={[
+        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+        on ? 'translate-x-4' : 'translate-x-0.5',
+      ].join(' ')} />
+    </button>
+  </div>
+);
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isDarkMode: boolean;
+  onToggleTheme: () => void;
+}
+
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMode, onToggleTheme }) => {
+  const fileName = useSessionStore((state) => state.fileName);
+  const pageCount = useSessionStore((state) => state.pageCount);
+  const currentPage = useSessionStore((state) => state.viewState.currentPage);
+  const zoom = useSessionStore((state) => state.viewState.zoom);
+  const leftPanelWidth = useEditorStore((state) => state.leftPanelWidth);
+  const rightPanelWidth = useEditorStore((state) => state.rightPanelWidth);
+  const setLeftPanelWidth = useEditorStore((state) => state.setLeftPanelWidth);
+  const setRightPanelWidth = useEditorStore((state) => state.setRightPanelWidth);
+  const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
+  const setInspectorTab = useEditorStore((state) => state.setInspectorTab);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Settings">
+      <div className="space-y-4">
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+          <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">Theme</div>
+          <div className="text-xs text-slate-500 mb-2">Current: {isDarkMode ? 'Dark' : 'Light'}</div>
+          <Button variant="secondary" size="sm" onClick={onToggleTheme}>
+            Switch to {isDarkMode ? 'Light' : 'Dark'}
+          </Button>
+        </div>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+          <div className="font-medium text-slate-800 dark:text-slate-100 mb-2">Visibility</div>
+          <ToggleRow
+            label="Show sidebar"
+            on={leftPanelWidth > 0.1}
+            onToggle={() => setLeftPanelWidth(leftPanelWidth > 0.1 ? 0 : 20)}
+          />
+          <ToggleRow
+            label="Show inspector"
+            on={rightPanelWidth > 0.1}
+            onToggle={() => setRightPanelWidth(rightPanelWidth > 0.1 ? 0 : 18)}
+          />
+        </div>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+          <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">Layout</div>
+          <div className="text-xs text-slate-500 mb-2">Reset side panels and inspector tabs to default.</div>
+          <Button variant="secondary" size="sm" onClick={() => { setLeftPanelWidth(20); setRightPanelWidth(18); setSidebarTab('thumbnails'); setInspectorTab('properties'); }}>
+            Reset Layout
+          </Button>
+        </div>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-500">
+          <div>Document: {fileName ?? 'None'}</div>
+          <div>Pages: {pageCount}</div>
+          <div>Current page: {currentPage}</div>
+          <div>Zoom: {zoom}%</div>
+        </div>
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+interface CommandPaletteProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onToggleTheme: () => void;
+  canOpenMacroBuilder: boolean;
+  onOpenMacroBuilder: () => void;
+}
+
+const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onToggleTheme, canOpenMacroBuilder, onOpenMacroBuilder }) => {
+  const [filter, setFilter] = useState('');
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) setFilter('');
+  }
+
+  useEffect(() => {
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 30);
+  }, [isOpen]);
+
+  type Cmd = { icon: React.ComponentType<{ className?: string }>; label: string; hint?: string; section: string; action: () => void };
+
+  const commands: Cmd[] = [
+    { icon: FolderOpen,   label: 'Open PDF…',          hint: '⌘O', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:open')); } },
+    { icon: Save,         label: 'Save',                hint: '⌘S', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:save')); } },
+    { icon: Highlighter,  label: 'Highlight selection', hint: 'H',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
+    { icon: MessageSquare,label: 'Add sticky note',     hint: 'N',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
+    ...(canOpenMacroBuilder
+      ? [{ icon: Wand2, label: 'Open Macro Builder', hint: '⌘M', section: 'Generate', action: onOpenMacroBuilder }]
+      : []),
+    { icon: Moon,         label: 'Toggle dark mode',    section: 'View', action: () => { onClose(); onToggleTheme(); } },
+  ];
+
+  const filtered = filter.trim()
+    ? commands.filter((c) => c.label.toLowerCase().includes(filter.toLowerCase()))
+    : commands;
+
+  const sections = [...new Set(filtered.map((c) => c.section))];
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search or run a command…"
+            className="flex-1 bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
+          />
+          <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">ESC</kbd>
+        </div>
+
+        {/* Commands */}
+        <div className="max-h-80 overflow-y-auto py-2">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-slate-400 text-center">No commands found</div>
+          ) : (
+            sections.map((section) => (
+              <div key={section}>
+                <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{section}</div>
+                {filtered.filter((c) => c.section === section).map((cmd) => (
+                  <button
+                    key={cmd.label}
+                    onClick={cmd.action}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+                  >
+                    <cmd.icon className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="flex-1">{cmd.label}</span>
+                    {cmd.hint && (
+                      <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{cmd.hint}</kbd>
+                    )}
+                    <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600" />
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

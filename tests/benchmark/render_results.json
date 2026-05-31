@@ -1,0 +1,14 @@
+[
+  {
+    "fixture": "simple-text.pdf",
+    "first_page_ms": 120
+  },
+  {
+    "fixture": "1mb-sample.pdf",
+    "first_page_ms": 200
+  },
+  {
+    "fixture": "10mb-sample.pdf",
+    "first_page_ms": 450
+  }
+]

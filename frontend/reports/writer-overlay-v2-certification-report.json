@@ -1,0 +1,163 @@
+{
+  "name": "Writer Overlay V2 Certification",
+  "wave": "Wave 14 — Select Box Copy UX Hardening",
+  "gates": {
+    "coordinateEngine": "PASS_REQUIRED",
+    "commandStore": "PASS_REQUIRED",
+    "persistenceAdapter": "PASS_REQUIRED",
+    "documentFingerprint": "PASS_REQUIRED",
+    "overlayRender": "PASS_REQUIRED",
+    "selectionMoveResizeShell": "PASS_REQUIRED",
+    "richEditorShell": "PASS_REQUIRED",
+    "editorSaveCancel": "PASS_REQUIRED",
+    "editorSerialization": "PASS_REQUIRED",
+    "writerElementFactory": "PASS_REQUIRED",
+    "calloutVariantRender": "PASS_REQUIRED",
+    "clipboardHtmlSanitizer": "PASS_REQUIRED",
+    "clipboardRichTextPaste": "PASS_REQUIRED",
+    "clipboardImageAssetCapture": "PASS_REQUIRED",
+    "clipboardTableDetection": "PASS_REQUIRED",
+    "persistenceIntegration": "PASS_REQUIRED",
+    "sameBrowserReload": "PASS_REQUIRED",
+    "imageAssetPersistence": "PASS_REQUIRED",
+    "flattenedPdfExport": "PASS_REQUIRED",
+    "flattenedCalloutExport": "PASS_REQUIRED",
+    "flattenedImageAssetExport": "PASS_REQUIRED",
+    "projectZipExport": "PASS_REQUIRED",
+    "projectZipImport": "PASS_REQUIRED",
+    "freshBrowserProjectRestore": "PASS_REQUIRED",
+    "writerV2Toolbar": "PASS_REQUIRED",
+    "writerV2Placement": "PASS_REQUIRED",
+    "writerV2ExportButtons": "PASS_REQUIRED",
+    "writerV2Inspector": "PASS_REQUIRED",
+    "writerV2DuplicateDelete": "PASS_REQUIRED",
+    "writerV2LockHideZOrder": "PASS_REQUIRED",
+    "disabledOldAnnotationToolsAudit": "PASS_REQUIRED",
+    "finalCreateEditExportProjectRestoreSmoke": "PASS_REQUIRED",
+    "selectBoxCopyTextExtraction": "PASS_REQUIRED",
+    "selectBoxCopyFormattedHtml": "PASS_REQUIRED",
+    "selectBoxCopyTableReconstruction": "PASS_REQUIRED",
+    "selectBoxCopyWriterInsertion": "PASS_REQUIRED",
+    "selectBoxCopyUxInspector": "PASS_REQUIRED",
+    "selectBoxCopyConfidenceBadge": "PASS_REQUIRED",
+    "selectBoxCopyTablePreviewCorrection": "PASS_REQUIRED",
+    "selectBoxCopyForceModes": "PASS_REQUIRED",
+    "selectBoxCopyImageWriterInsertion": "PASS_REQUIRED"
+  },
+  "startedAt": "2026-05-18T12:12:45.820Z",
+  "finishedAt": "2026-05-18T12:13:43.785Z",
+  "finalVerdict": "PASS",
+  "results": [
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        "> frontend@0.0.0 typecheck",
+        "> tsc --noEmit"
+      ],
+      "stderrTail": []
+    },
+    {
+      "name": "writer-v2-focused-tests",
+      "command": "/home/user/Pdf-Hub/frontend/node_modules/.bin/vitest run src/core/writer-v2/coordinateTransform.test.ts src/core/writer-v2/writerCommandStore.test.ts src/core/writer-v2/persistence/documentFingerprint.test.ts src/core/writer-v2/persistence/indexedDbWriterStore.test.ts src/core/writer-v2/editor/writerEditorState.test.ts src/core/writer-v2/writerElementFactory.test.ts src/components/writer-v2/WriterOverlayLayer.test.tsx src/components/writer-v2/WriterPopupEditor.test.tsx src/components/writer-v2/WriterCalloutElement.test.tsx src/core/tool-policy/disabledTools.test.ts src/core/writer-v2/clipboard/sanitizeClipboardHtml.test.ts src/core/writer-v2/clipboard/tableImport.test.ts src/core/writer-v2/clipboard/importClipboardData.test.ts src/components/writer-v2/WriterClipboardPlugin.test.tsx src/core/writer-v2/writerV2Store.test.ts src/core/writer-v2/persistence/writerPersistenceController.test.ts src/core/writer-v2/export/flattenedPdfExport.test.ts src/core/writer-v2/export/exportCurrentWriterPdf.test.ts src/core/writer-v2/export/projectZip.test.ts src/core/writer-v2/export/projectImportController.test.ts src/core/writer-v2/export/exportCurrentWriterProject.test.ts src/core/writer-v2/writerPlacement.test.ts src/core/writer-v2/export/downloadWriterFile.test.ts src/components/writer-v2/WriterV2ToolbarControls.test.tsx src/core/writer-v2/writerSelectionActions.test.ts src/components/writer-v2/WriterV2Inspector.test.tsx src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.test.ts src/core/select-box-copy/tableReconstruction.test.ts src/core/select-box-copy/formatSelection.test.ts src/core/select-box-copy/insertIntoWriterV2.test.ts src/core/select-box-copy/selectBoxCopyMode.test.ts src/core/select-box-copy/tableDraft.test.ts src/core/select-box-copy/selectBoxImageAsset.test.ts src/components/select-box-copy/SelectBoxCopyResultPanel.test.tsx",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
+        " Test Files  34 passed (34)",
+        "      Tests  149 passed (149)",
+        "   Start at  12:12:46",
+        "   Duration  14.62s (transform 1.15s, setup 2.42s, import 4.07s, tests 4.40s, environment 26.05s)"
+      ],
+      "stderrTail": []
+    },
+    {
+      "name": "boundary-audit",
+      "command": "node scripts/writer-v2-boundary-audit.mjs",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        "Writer Overlay V2 boundary audit passed."
+      ],
+      "stderrTail": []
+    },
+    {
+      "name": "disabled-tools-audit",
+      "command": "node scripts/writer-v2-disabled-tools-audit.mjs",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        "Writer V2 disabled-tools audit passed."
+      ],
+      "stderrTail": []
+    },
+    {
+      "name": "full-vitest-suite",
+      "command": "npm run test",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        "> frontend@0.0.0 test",
+        "> vitest run",
+        " RUN  v4.1.4 /home/user/Pdf-Hub/frontend",
+        " Test Files  71 passed | 1 skipped (72)",
+        "      Tests  373 passed | 1 skipped (374)",
+        "   Start at  12:13:01",
+        "   Duration  33.57s (transform 3.13s, setup 5.02s, import 10.86s, tests 16.18s, environment 55.30s)"
+      ],
+      "stderrTail": []
+    },
+    {
+      "name": "build",
+      "command": "npm run build",
+      "statusCode": 0,
+      "passed": true,
+      "stdoutTail": [
+        "> frontend@0.0.0 build",
+        "> tsc -b && vite build",
+        "\u001b[36mvite v8.0.8 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m",
+        "\u001b[2K\rtransforming...✓ 2161 modules transformed.",
+        "rendering chunks...",
+        "computing gzip size...",
+        "dist/index.html                                 2.07 kB │ gzip:   0.64 kB",
+        "dist/assets/pdf.worker.min-FHbmGBN0.mjs     1,244.25 kB",
+        "dist/assets/index-CVyUVfuG.css                 60.78 kB │ gzip:  10.89 kB",
+        "dist/assets/html2canvas-CXqLj77Y.js             0.05 kB │ gzip:   0.07 kB",
+        "dist/assets/dispatch-Dfa1Lqxw.js                0.07 kB │ gzip:   0.08 kB",
+        "dist/assets/trash-2-CEf2E8gQ.js                 0.31 kB │ gzip:   0.21 kB",
+        "dist/assets/plus-DAKnOFvQ.js                    0.32 kB │ gzip:   0.23 kB",
+        "dist/assets/store-Ck-yxoUv.js                   0.57 kB │ gzip:   0.35 kB",
+        "dist/assets/service-DDTChzqs.js                 0.60 kB │ gzip:   0.34 kB",
+        "dist/assets/indexer-DYPp3pJf.js                 0.93 kB │ gzip:   0.59 kB",
+        "dist/assets/chunk-zsgVPwQN.js                   1.20 kB │ gzip:   0.66 kB",
+        "dist/assets/store-BXSSYH2o.js                   1.32 kB │ gzip:   0.53 kB",
+        "dist/assets/Button-DpHLcqU-.js                  2.65 kB │ gzip:   1.34 kB",
+        "dist/assets/build-_AY9N8OK.js                   3.32 kB │ gzip:   1.34 kB",
+        "dist/assets/SearchPanel-DSA73Ivx.js             4.44 kB │ gzip:   1.81 kB",
+        "dist/assets/BookmarksSidebar-DpkwIWGM.js        4.44 kB │ gzip:   1.53 kB",
+        "dist/assets/CommentsSidebar-CUVa8ETc.js         7.76 kB │ gzip:   2.74 kB",
+        "dist/assets/store-FnAjQw8b.js                   9.13 kB │ gzip:   2.60 kB",
+        "dist/assets/dispatch-CWnYBs-0.js               13.13 kB │ gzip:   4.06 kB",
+        "dist/assets/v4-vEihnu_P.js                     13.35 kB │ gzip:   4.54 kB",
+        "dist/assets/pdfStore-Dqb6KQW-.js               16.26 kB │ gzip:   7.07 kB",
+        "dist/assets/ThumbnailSidebar-DXH-UTYe.js       17.03 kB │ gzip:   5.19 kB",
+        "dist/assets/src-FQAqxU4_.js                    17.23 kB │ gzip:   7.31 kB",
+        "dist/assets/PdfRendererAdapter-DDzlkdqG.js    408.70 kB │ gzip: 122.31 kB",
+        "dist/assets/PdfEditAdapter-BsNA8C_r.js        432.29 kB │ gzip: 178.95 kB",
+        "dist/assets/index-D4qJ6A6g.js               1,190.83 kB │ gzip: 336.72 kB",
+        "\u001b[32m✓ built in 1.07s\u001b[39m"
+      ],
+      "stderrTail": [
+        "\u001b[33m\u001b[33m[INEFFECTIVE_DYNAMIC_IMPORT] Warning:\u001b[0m ../node_modules/.pnpm/html2canvas@1.4.1/node_modules/html2canvas/dist/html2canvas.js is dynamically imported by src/core/macro/steps/content-ops.ts but also statically imported by src/core/writer/exporter.ts, dynamic import will not move module into another chunk.",
+        "\u001b[39m",
+        "\u001b[33m[plugin builtin:vite-reporter] ",
+        "(!) Some chunks are larger than 500 kB after minification. Consider:",
+        "- Using dynamic import() to code-split the application",
+        "- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting",
+        "- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m"
+      ]
+    }
+  ]
+}

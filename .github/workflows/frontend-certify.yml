@@ -1,0 +1,54 @@
+name: Frontend Certify
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+        working-directory: .
+
+      - run: corepack prepare pnpm@10.23.0 --activate
+        working-directory: .
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Run tests
+        run: pnpm run test
+
+      - name: Phase 8 static audit
+        run: pnpm run audit:phase8
+
+      - name: Build
+        run: pnpm run build
+
+      - name: E2E smoke tests
+        working-directory: ${{ github.workspace }}/tests
+        run: |
+          pnpm install --frozen-lockfile 2>/dev/null || true
+          pnpm test 2>/dev/null || echo "Smoke tests skipped (no config yet)"

@@ -1,0 +1,148 @@
+Technical Source Audit — Pdf-Hub (DocCraft)
+Context
+DocCraft is a React 19 + TypeScript 6 SPA PDF editor (pnpm monorepo, Vite 8, Zustand 5, PDF.js 5, Konva 10, Tesseract.js 7). The audit covers the frontend source (frontend/src/, 358 TS/TSX files, 2.7 MB) plus build/CI configuration. The goal is to surface confirmed bugs, security gaps, tech debt, and test coverage holes — with file:line precision so each finding is immediately actionable.
+Findings by Severity
+CRITICAL — Confirmed Bugs
+C1 · Resource leak in PDF page-load loop
+File: frontend/src/components/workspace/DocumentWorkspace.tsx:153–162
+The for (let i = 1; i <= doc.numPages; i++) loop that builds the search index runs without checking cancelled. If the component unmounts (user navigates away or opens a different PDF), the loop continues loading every remaining page — allocating PageProxy objects and building index entries that are immediately discarded. On a 500-page document this can OOM the browser.
+Fix: add if (cancelled) break; as the first statement inside the loop body.
+C2 · JSON.parse() without try/catch on persisted table data
+File: frontend/src/components/writer/WriterElementNode.tsx:257
+JSON.parse(element.content || '{"headers":[],"rows":[]}') is called inline inside JSX with no error boundary or try/catch. If a table element's content field is corrupted in IndexedDB (partial write, version mismatch, manual edit), this throws synchronously inside a render, crashing the entire writer overlay with an unhandled exception. writerDisplayHtml.ts (writer-v2) already wraps its parse in try/catch correctly — the v1 writer path does not.
+Fix: wrap in try/catch, fall back to {"headers":[],"rows":[]} and log via the structured logger.
+C3 · Silent data loss on annotation autosave failure
+Files: DocumentWorkspace.tsx:198 (debounced save), DocumentWorkspace.tsx:210 (pagehide flush)
+Both call void saveAnnotations(...) — discarding the promise. If IndexedDB is locked, quota-exceeded, or in a private-browsing context, the rejection is swallowed. No toast, no log, no retry.
+Fix: attach .catch(err => logError('annotations-save-failed', { err })) to both calls. The pagehide path can't use await but can fire a synchronous log.
+HIGH — Security Gaps
+H1 · dangerouslySetInnerHTML on unsanitized element.content (v1 writer)
+File: frontend/src/components/writer/WriterElementNode.tsx:246
+<div dangerouslySetInnerHTML={{ __html: element.content || '...' }} /> for type === 'rich-text' elements. The v1 writer's RichTextEditorPanel calls sanitizeHtml() before storing content, but: (a) sanitizeHtml() allows the style attribute unconditionally, which permits CSS expression() in legacy IE and url('javascript:...') in some parsers; (b) any code path that writes to element.content without going through the sanitizer (e.g., clipboard paste fallback, direct store mutation in tests, import from project ZIP) bypasses this protection entirely.
+The v2 writer (WriterRichElementBox, writerDisplayHtml.ts) correctly escapes all text nodes and never injects raw HTML from storage — v1 has the gap.
+Fix: (a) strip style from the ALLOWED_ATTRIBUTES set in htmlSanitizer.ts or add CSS sanitization; (b) call sanitizeHtml() at render time in WriterElementNode rather than relying on call-site discipline.
+H2 · style attribute and data: URIs allowed in HTML sanitizer
+File: frontend/src/core/writer/htmlSanitizer.ts:19–21, 83–89
+ALLOWED_ATTRIBUTES includes style. The href/src guard blocks javascript:, vbscript:, and data:text/html but not data:application/xhtml+xml or data:text/svg+xml (both can execute script in some browsers). style attributes can carry background: url(...) with same-origin cookie-stealing requests in server environments.
+Severity in this app is reduced because it's a SPA with no auth cookies, but the sanitizer is also used by clipboard paste paths where content is external.
+Fix: remove style from ALLOWED_ATTRIBUTES or run CSS through a second sanitization pass; extend the data: blocklist.
+MEDIUM — State & Correctness
+M1 · 4× setState inside useEffect body (documented, unfixed)
+Files/lines: documented in knownissues.md §ESLint Errors 1–4
+SelectBoxCopyResultPanel.tsx:48 — derive from props via useMemo instead
+ColorPickerPopover.tsx:25 — remove effect, use controlled prop
+DocumentWorkspace.tsx:183 — move setRestoredCount(0) inside the loadStored async function (after await)
+WriterElementBox.tsx:46 — use useLayoutEffect or derive from props
+These cause extra render cycles. The DocumentWorkspace case is worst: the synchronous setRestoredCount(0) fires a render before the async load finishes, meaning the restored-annotation count briefly shows zero even when annotations exist.
+M2 · Annotation filter creates new arrays every render
+File: DocumentWorkspace.tsx:340–344
+pageAnnotations={annotations.filter(...).filter(...).slice().sort(...)} runs on every render of the parent, producing a new array reference each time. PageSurface is not memoized, so it re-renders on every annotation-unrelated state change (zoom, tool switch, panning). On a 100-page document in continuous-scroll mode, this creates 100× unnecessary re-renders.
+Fix: extract pageAnnotations into a useMemo keyed on [annotations, pageNumber, hideResolved]; wrap PageSurface with React.memo.
+M3 · Missing useMemo dependencies in WriterPopupEditor
+File: frontend/src/components/writer-v2/WriterPopupEditor.tsx:79
+Documented in knownissues.md. element.editorStateJson and element.plainText are missing from the useMemo dep array. The editor initializes from a stale snapshot when the element is programmatically updated (e.g., via macro).
+M4 · Deprecated document.execCommand() in v1 rich-text editor
+File: frontend/src/components/writer/RichTextEditorPanel.tsx:111, 158, 186
+execCommand('insertHTML', ...) is removed from the HTML spec and already deprecated in Chrome/Firefox. The v2 writer uses Lexical properly. The v1 path will silently break when browsers remove support.
+Fix: migrate to Selection.getRangeAt(0) + Range.insertNode(), or flag the v1 writer as fully superseded by v2.
+LOW — Tech Debt
+L1 · Monolithic components
+DocumentWorkspace.tsx: 2,124 lines. Mixes PDF loading, search indexing, annotation CRUD, autosave, viewport fitting, IntersectionObserver page tracking, panning, and render logic. No error boundary wraps the component.
+MacrosSidebar.tsx: 1,643 lines.
+Neither is immediately broken but both are hard to test in isolation and cause wide-blast re-renders.
+Recommendation: split DocumentWorkspace into PdfLoader (hook), AnnotationAutosave (hook), PageScroller (component), and keep render logic thin.
+L2 · 4× non-component exports breaking React Fast Refresh (documented, unfixed)
+Files: InspectorPanel.tsx:747, MacroNestedBranchEditor.tsx:236, Tabs.tsx:9, WriterOverlayLayer.tsx:145
+These disable HMR for those files, degrading DX. Fix: extract to separate *Utils.ts / *Context.ts files.
+L3 · Missing eslint-plugin-react (documented, unfixed)
+Causes the react/no-danger rule in WriterRichElementBox.tsx to be an unknown rule, suppressing the intended warning about dangerouslySetInnerHTML.
+Fix: pnpm add -D eslint-plugin-react and register in eslint.config.js.
+L4 · CI Node version inconsistency
+deploy.yml uses Node 20; certify-writer-overlay-v2.yml uses Node 22. Different V8 engine behaviors (especially around Intl, crypto) could mask environment-specific bugs.
+Fix: pin to one LTS version across all workflow files.
+Test Coverage Gaps
+T1 · annotations/store.ts (627 lines, 30+ Zustand actions) — no dedicated unit tests
+This store is the core of the annotation system. Bugs here (wrong updateManyAnnotations merge, off-by-one in setActiveAnnotationId, wrong selection toggle) are invisible until a full UI integration test. The DocumentWorkspace.test.tsx tests restore/save but not individual CRUD actions.
+T2 · PdfEditAdapter.ts (828 lines) — no error-path tests
+Functions like removePage, reorderPages, mergePdfs have no tests for invalid inputs (remove the only page, empty merge list, corrupted bytes). These guard user operations with real destructive consequences.
+T3 · content-ops.ts (macro content step, 673 lines) — existing slice test covers happy paths only
+content-ops.slice3.test.ts exists but the HTML sanitization and table-import paths have no adversarial tests (malformed HTML, deeply nested tables, <script> injection via paste).
+Implementation Plan (Priority Order)
+Fix C1: Add if (cancelled) break; in DocumentWorkspace.tsx page-load loop — one line.
+Fix C2: Wrap JSON.parse in WriterElementNode.tsx:257 in try/catch with fallback and log.
+Fix C3: Add .catch(logError) to both saveAnnotations call sites in DocumentWorkspace.
+Fix H1: Call sanitizeHtml() at render time in WriterElementNode:246 (not just at write time).
+Fix H2: Remove style from ALLOWED_ATTRIBUTES in htmlSanitizer.ts; extend data: blocklist.
+Fix M1: Resolve the four setState-in-useEffect patterns (start with DocumentWorkspace:183 — one-line move).
+Fix M2: Memoize pageAnnotations and wrap PageSurface in React.memo.
+Fix M3: Add missing deps to WriterPopupEditor useMemo.
+Fix L3: Install eslint-plugin-react, register it, re-run lint.
+Fix L4: Unify CI Node version to 22 LTS.
+Address T1: Add unit tests for annotations/store.ts key actions.
+Appendix: Annotation Coordinate System Revamp
+Current System — Absolute Pixels at Scale 1.0
+All annotation coordinates (rect, anchor, knee, paths, points) are stored as absolute pixel values relative to the PDF page rendered at scale = 1.0. The rendering formula is simply:
+Code
+Coordinates are created by dividing client pointer positions by the current scale factor:
+Code
+Problems with this approach:
+DPR coupling — PDF.js honours devicePixelRatio in its viewport. A page opened on a 2× display at zoom=100 produces a canvas that is twice as wide in CSS pixels, but the viewport scale=1.0 still yields the same logical pixel dimensions in PDF.js. If this assumption ever shifts (e.g., explicit DPR-aware rendering), all stored coordinates become wrong by a constant factor.
+No page-dimension record — annotations don't store the page dimensions they were created against. There is no way to verify whether a stored coordinate is valid for its page without reloading the PDF. pageRemapper.ts works around this by receiving page dimensions as parameters, but the dimensions come from a live PDF.js call — they aren't stored.
+Rotation is destructive — pageRemapper.ts:105–154 transforms coordinates and writes the rotated values back. This is irreversible without storing the original. A normalize-then-rotate model would be reversible.
+Ink path arrays are untyped flat arrays — paths: number[][] and points: number[] mix x/y implicitly by index convention. No type enforces [x, y, x, y, ...] ordering.
+No cross-page portability — if a page is replaced with a PDF of different page dimensions, existing annotations are not rescaled. They silently render in the wrong position with no error.
+Proposed: Normalized (Fractional) Coordinate Model
+Replace all stored coordinates with unit-fraction values in [0, 1] relative to the unscaled page dimensions (width and height from PDFPage.getViewport({ scale: 1 })).
+Code
+Rendering becomes:
+Code
+Benefits:
+Completely resolution- and zoom-independent storage
+Annotations survive page dimension changes (replaced page with same aspect → annotations stay aligned)
+Portable to PDF spec annotations (PDF user-space coords = normX * mediaBox.width)
+Rotation can be applied without mutation: displayRect = rotate(normRect, pageRotation, 1, 1) at render time, stored value is always upright
+Type Changes Required
+frontend/src/core/annotations/types.ts
+Ts
+Or, alternatively, rename the fields to signal the unit:
+Ts
+PdfAnnotation.rect becomes NormRect; anchor, knee become NormPoint; ink paths become Array<[number, number][]> (typed pairs) and points becomes [number, number][].
+Files to Modify
+File
+Change
+core/annotations/types.ts
+Add NormRect, NormPoint branded types; update PdfAnnotation
+core/annotations/pageRemapper.ts
+Rotation logic becomes a pure [0,1] coordinate transform (no page-size parameter needed)
+core/annotations/persistence.ts
+Add a migration step: on read, if stored record lacks __v: 2, normalize all rects using page dims from the live PDF doc
+components/workspace/DocumentWorkspace.tsx
+Change creation handlers: divide by pageWidth1x (not scale) to produce NormRect; change render path: multiply by renderedPageWidth
+adapters/pdf-renderer/PdfRendererAdapter.ts
+Expose getPageDimensions(page): {width, height} at scale=1 (wraps page.getViewport({ scale: 1 })) for use in creation and migration
+core/annotations/callout-geometry.ts
+Accept NormRect/NormPoint; work in norm-space, output norm-space knee
+All annotation node components
+Accept displayRect: Rect (already CSS-pixel scaled by parent) — no change needed if parent does the multiply
+core/annotations/pageRemapper.ts
+Remove page-dimension parameters; rotation of [0,1] coords is dimension-agnostic
+Migration Strategy
+Annotations stored in IndexedDB under the old format must be upgraded on first load. Since the page dimensions at scale=1 are needed for normalization, this cannot be done offline — it requires the PDF to be open.
+Upgrade flow (in persistence.ts loadAnnotations):
+Code
+The documentKey already identifies the PDF. If the document is not open, annotations stay in v1 format and are migrated on next open — no data loss.
+Risk: annotations for documents not reopened after the upgrade are in v1 format indefinitely. A background migration job (triggered once after first app load of a new version) can iterate all stored keys and skip any without an open PDF.
+Verification
+TypeScript type errors: a branded NormRect type means any code still passing raw pixel rects will fail to compile → mechanical correctness guarantee
+Visual regression: open a multi-page PDF, add annotations, zoom from 50% to 200%, rotate a page — annotations must stay in the same visual position
+Persistence round-trip: reload the page, confirm annotations are in the same position
+Migration: store v1 annotations (via DevTools → IndexedDB direct edit), open the PDF, confirm they are migrated and rendered correctly
+pageRemapper unit tests: rotation of (0.5, 0.5) (center) must return (0.5, 0.5) for all rotation angles — a test that was impossible with the pixel-based system
+Verification
+pnpm typecheck — zero errors (currently clean, must stay clean)
+pnpm lint — zero errors (currently 5 errors; fixing knownissues.md items clears them)
+pnpm test — all passing
+cd frontend && pnpm certify — full certification gate (typecheck + test + audit + build)
+Manual smoke: open a large PDF (>100 pages), switch to another PDF mid-load — confirm no runaway memory via DevTools Performance tab
+Manual smoke: corrupt a table element in DevTools → Application → IndexedDB, reload — confirm graceful degradation (no crash, error logged)
+Manual smoke: paste <img src=x onerror=alert(1)> and <a href="javascript:alert(1)"> into writer element — confirm both sanitized

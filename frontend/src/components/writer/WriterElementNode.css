@@ -1,0 +1,65 @@
+.writer-element-node {
+  position: absolute;
+  pointer-events: all;
+  box-sizing: border-box;
+  user-select: none;
+  overflow: hidden;
+}
+
+.writer-element-node-selected {
+  outline: 1.5px dashed #3b82f6;
+}
+
+.writer-element-node-unselected {
+  outline: 1px solid transparent;
+}
+
+.writer-element-node-locked {
+  cursor: default;
+}
+
+.writer-element-node-unlocked {
+  cursor: move;
+}
+
+.writer-resize-handle {
+  position: absolute;
+  background: #3b82f6;
+  border: 1.5px solid white;
+  border-radius: 2px;
+  pointer-events: all;
+}
+
+.writer-context-menu-container {
+  position: absolute;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 999;
+  min-width: 140px;
+  pointer-events: all;
+}
+
+.writer-context-menu-item {
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.writer-context-menu-item-danger {
+  color: var(--color-text-danger);
+}
+
+.writer-context-menu-divider {
+  height: 1px;
+  background: var(--color-border-tertiary);
+  margin: 2px 0;
+}
+
+.writer-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+}

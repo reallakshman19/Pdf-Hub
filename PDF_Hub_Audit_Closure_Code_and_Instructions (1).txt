@@ -1,0 +1,1899 @@
+
+PDF HUB — AUDIT CLOSURE IMPLEMENTATION PACK
+Generated from the chat: phase-wise code + instructions + validation gates
+Scope: PDF Hub / reallaksh19/Pdf-Hub frontend audit closure
+Mode: CHAT ONLY / NO REPO UPLOAD
+
+IMPORTANT NOTE
+==============
+This TXT is a consolidated implementation workbook built from the code and instructions provided in the chat.
+It is not a raw UI transcript export. It is organized for direct copy/paste into files and agent prompts.
+
+MASTER OBJECTIVE
+================
+Close the audit points around:
+1. Save/rebase model coherence.
+2. Writer normal-save durability.
+3. Annotation persistence visibility.
+4. Annotation undo/redo/page-remap dirty tracking.
+5. Writer overlay interaction blocking.
+6. OCR/writer/macro HTML injection.
+7. Macro dry-run behavior.
+8. Macro rollback.
+9. Semantic writer text/table export.
+10. Permanent certification gates.
+
+EXECUTION ORDER
+===============
+Wave 1:
+  Phase 1 + Phase 2
+  Owner: Agent 1
+  Files:
+    frontend/src/core/document/commitPipeline.ts
+    frontend/src/core/session/store.ts
+    frontend/src/components/toolbar/ToolbarFile.tsx
+
+Wave 2A:
+  Phase 3 + Phase 7 annotation/session status
+  Owner: Agent 2
+  Files:
+    frontend/src/core/annotations/store.ts
+    frontend/src/core/annotations/persistence.ts
+    frontend/src/components/workspace/DocumentWorkspace.tsx
+    frontend/src/core/session/types.ts
+    frontend/src/core/session/store.ts
+    frontend/src/components/status/SaveStatusIndicator.tsx
+
+Wave 2B:
+  Phase 4 + Phase 6
+  Owner: Agent 3
+  Files:
+    frontend/src/core/writer/store.ts
+    frontend/src/components/writer/WriterOverlay.tsx
+    frontend/src/core/writer/exporter.ts
+    frontend/src/components/toolbar/ToolbarFile.tsx only for clearElementsAfterCommit wiring
+
+Wave 3:
+  Phase 5
+  Owner: Agent 4
+  Files:
+    frontend/src/core/macro/types.ts
+    frontend/src/core/macro/dry-run.ts
+    frontend/src/core/macro/transaction.ts
+    frontend/src/core/macro/executor.ts
+    frontend/src/core/macro/validation/validator.ts
+    frontend/src/core/macro/steps/content-ops.ts
+
+Wave 4:
+  Phase 8
+  Owner: Agent 5
+  Files:
+    frontend/src/core/audit/phase8-audit-gates.test.ts
+    frontend/scripts/phase8-static-audit.mjs
+    frontend/package.json
+    frontend/PHASE8_CERTIFICATION.md
+    .github/workflows/frontend-certify.yml
+
+
+================================================================================
+PHASE 1 — DOCUMENT COMMIT PIPELINE + SESSION REBASE
+================================================================================
+
+FILE: frontend/src/core/document/commitPipeline.ts
+---------------------------------------------------
+
+import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
+import type { PdfAnnotation } from '@/core/annotations/types';
+import type { PlacedElement } from '@/core/writer/types';
+
+export interface ComposeCommittedPdfInput {
+  baseBytes: Uint8Array;
+  annotations: PdfAnnotation[];
+  writerElements: PlacedElement[];
+}
+
+export interface ComposeCommittedPdfResult {
+  bytes: Uint8Array;
+  pageCount: number;
+  documentKey: string;
+  committedAnnotationCount: number;
+  committedWriterElementCount: number;
+  hadAnnotations: boolean;
+  hadWriterElements: boolean;
+  writerExportWarnings: WriterExportWarning[];
+}
+
+/**
+ * Creates the exact PDF bytes that should be written to disk for Save/Export.
+ *
+ * Contract:
+ * 1. Start from current working PDF bytes.
+ * 2. Bake writer/page-builder elements first.
+ * 3. Flatten annotations second so review markup remains visually above writer content.
+ * 4. Recount pages from final bytes.
+ * 5. Hash final bytes for the next durable documentKey.
+ *
+ * This function is intentionally pure from app-state perspective:
+ * it does not mutate session store, annotation store, writer store, file handles,
+ * dirty flags, or UI state.
+ */
+export async function composeCommittedPdf(
+  input: ComposeCommittedPdfInput,
+): Promise<ComposeCommittedPdfResult> {
+  const annotations = Array.isArray(input.annotations) ? input.annotations : [];
+  const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
+
+  let nextBytes = new Uint8Array(input.baseBytes);
+  const writerExportWarnings: WriterExportWarning[] = [];
+
+  if (writerElements.length > 0) {
+    nextBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+      preferSemantic: true,
+      allowRasterFallback: true,
+      collectWarnings: (warnings) => writerExportWarnings.push(...warnings),
+    });
+  }
+
+  if (annotations.length > 0) {
+    nextBytes = await PdfEditAdapter.exportWithAnnotations(nextBytes, annotations);
+  }
+
+  const pageCount = await PdfEditAdapter.countPages(nextBytes);
+  const documentKey = await FileAdapter.hashBytes(nextBytes);
+
+  return {
+    bytes: new Uint8Array(nextBytes),
+    pageCount,
+    documentKey,
+    committedAnnotationCount: annotations.length,
+    committedWriterElementCount: writerElements.length,
+    hadAnnotations: annotations.length > 0,
+    hadWriterElements: writerElements.length > 0,
+    writerExportWarnings,
+  };
+}
+
+export async function makeCommittedDocumentKey(bytes: Uint8Array): Promise<string> {
+  return FileAdapter.hashBytes(bytes);
+}
+
+
+FILE: frontend/src/core/session/types.ts
+---------------------------------------
+
+export type FitMode = 'manual' | 'width' | 'page';
+export type ViewMode = 'continuous' | 'single' | 'two-page';
+
+export interface ViewState {
+  currentPage: number;
+  zoom: number;
+  fitMode: FitMode;
+  viewMode: ViewMode;
+}
+
+export interface SaveDocumentAction {
+  type: 'SAVE_WORKING_DOCUMENT';
+}
+
+export interface ExportReviewAction {
+  type: 'EXPORT_REVIEW_SNAPSHOT';
+}
+
+export interface DownloadPdfAction {
+  type: 'DOWNLOAD_PROCESSED_PDF';
+}
+
+export interface SaveSessionSnapshotAction {
+  type: 'SAVE_SESSION_SNAPSHOT';
+}
+
+export type SessionSaveExportAction =
+  | SaveDocumentAction
+  | ExportReviewAction
+  | DownloadPdfAction
+  | SaveSessionSnapshotAction;
+
+export type SessionOperationStatus = 'success' | 'failure';
+
+export interface SessionOperationMetadata {
+  action: SessionSaveExportAction['type'];
+  status: SessionOperationStatus;
+  timestamp: number;
+  message?: string;
+}
+
+export type SaveLifecycleStatus =
+  | 'idle'
+  | 'saving'
+  | 'saved'
+  | 'exporting'
+  | 'failed';
+
+export type AutosaveStatus =
+  | 'idle'
+  | 'pending'
+  | 'saving'
+  | 'saved'
+  | 'failed';
+
+export interface SessionSaveState {
+  status: SaveLifecycleStatus;
+  startedAt?: number;
+  completedAt?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface AnnotationAutosaveState {
+  status: AutosaveStatus;
+  pendingCount: number;
+  lastSavedAt?: number;
+  lastFailedAt?: number;
+  error?: string;
+}
+
+export interface DocumentSession {
+  documentKey: string | null;
+  fileName: string | null;
+  originalBytes: Uint8Array | null;
+  workingBytes: Uint8Array | null;
+  pageCount: number;
+
+  isDocumentDirty: boolean;
+  isReviewDirty: boolean;
+  isSessionDirty: boolean;
+  isDirty: boolean;
+
+  saveHandle: FileSystemFileHandle | null;
+  selectedPages: number[];
+  viewState: ViewState;
+
+  saveState: SessionSaveState;
+  annotationAutosaveState: AnnotationAutosaveState;
+
+  lastExportAction?: SessionSaveExportAction;
+  lastOperation?: SessionOperationMetadata;
+}
+
+
+FILE PATCH: frontend/src/core/session/store.ts
+---------------------------------------------
+
+Add to SessionActions:
+  commitWorkingCopy(payload)
+  beginSaveOperation()
+  beginExportOperation()
+  completeSaveOperation()
+  failSaveOperation()
+  setAnnotationAutosavePending()
+  beginAnnotationAutosave()
+  completeAnnotationAutosave()
+  failAnnotationAutosave()
+  clearAnnotationAutosaveError()
+
+Key implementation:
+
+export interface CommitWorkingCopyPayload {
+  bytes: Uint8Array;
+  pageCount: number;
+  documentKey?: string | null;
+}
+
+function uniqSorted(values: number[]): number[] {
+  return Array.from(new Set(values)).sort((a, b) => a - b);
+}
+
+function clampPage(pageNumber: number, pageCount: number): number {
+  return Math.max(1, Math.min(pageNumber, Math.max(1, pageCount)));
+}
+
+function validSelectedPages(pages: number[], pageCount: number): number[] {
+  return uniqSorted(pages.filter((page) => page >= 1 && page <= Math.max(1, pageCount)));
+}
+
+commitWorkingCopy: ({ bytes, pageCount, documentKey }) =>
+  set((state) => ({
+    documentKey: documentKey === undefined ? state.documentKey : documentKey,
+    originalBytes: new Uint8Array(bytes),
+    workingBytes: new Uint8Array(bytes),
+    pageCount,
+    isDirty: false,
+    isDocumentDirty: false,
+    isReviewDirty: false,
+    isSessionDirty: false,
+    selectedPages: validSelectedPages(state.selectedPages, pageCount),
+    viewState: {
+      ...state.viewState,
+      currentPage: clampPage(state.viewState.currentPage, pageCount),
+    },
+    saveState: {
+      status: 'saved',
+      completedAt: Date.now(),
+      message: 'Document saved',
+    },
+    annotationAutosaveState: {
+      status: 'saved',
+      pendingCount: 0,
+      lastSavedAt: Date.now(),
+    },
+  })),
+
+replaceWorkingCopy: (bytes, pageCount) =>
+  set((state) => ({
+    workingBytes: new Uint8Array(bytes),
+    pageCount,
+    isDirty: true,
+    isDocumentDirty: true,
+    isSessionDirty: true,
+    saveState: {
+      status: 'idle',
+      message: 'Unsaved document changes',
+    },
+    selectedPages: validSelectedPages(state.selectedPages, pageCount),
+    viewState: {
+      ...state.viewState,
+      currentPage: clampPage(state.viewState.currentPage, pageCount),
+    },
+  })),
+
+beginSaveOperation: (message = 'Saving document…') =>
+  set({
+    saveState: {
+      status: 'saving',
+      startedAt: Date.now(),
+      message,
+    },
+  }),
+
+beginExportOperation: (message = 'Exporting document…') =>
+  set({
+    saveState: {
+      status: 'exporting',
+      startedAt: Date.now(),
+      message,
+    },
+  }),
+
+completeSaveOperation: (message = 'Document saved') =>
+  set({
+    saveState: {
+      status: 'saved',
+      completedAt: Date.now(),
+      message,
+    },
+  }),
+
+failSaveOperation: (error) =>
+  set({
+    saveState: {
+      status: 'failed',
+      completedAt: Date.now(),
+      error,
+      message: 'Save/export failed',
+    },
+  }),
+
+setAnnotationAutosavePending: (pendingCount) =>
+  set({
+    annotationAutosaveState: {
+      status: pendingCount > 0 ? 'pending' : 'idle',
+      pendingCount,
+    },
+  }),
+
+beginAnnotationAutosave: (pendingCount) =>
+  set({
+    annotationAutosaveState: {
+      status: 'saving',
+      pendingCount,
+    },
+  }),
+
+completeAnnotationAutosave: (pendingCount = 0) =>
+  set({
+    annotationAutosaveState: {
+      status: pendingCount > 0 ? 'pending' : 'saved',
+      pendingCount,
+      lastSavedAt: Date.now(),
+    },
+  }),
+
+failAnnotationAutosave: (error, pendingCount = 0) =>
+  set({
+    annotationAutosaveState: {
+      status: 'failed',
+      pendingCount,
+      lastFailedAt: Date.now(),
+      error,
+    },
+  }),
+
+clearAnnotationAutosaveError: () =>
+  set((state) => ({
+    annotationAutosaveState: {
+      status: state.annotationAutosaveState.pendingCount > 0 ? 'pending' : 'idle',
+      pendingCount: state.annotationAutosaveState.pendingCount,
+      lastSavedAt: state.annotationAutosaveState.lastSavedAt,
+    },
+  })),
+
+
+================================================================================
+PHASE 2 — TOOLBAR SAVE/EXPORT UNIFICATION
+================================================================================
+
+FILE: frontend/src/components/toolbar/ToolbarFile.tsx
+-----------------------------------------------------
+
+Key final behavior:
+- Save calls composeCommittedPdf()
+- Save writes committed bytes
+- Save calls commitWorkingCopy()
+- Save clears annotations and writer elements only after successful commit
+- Export calls composeCommittedPdf()
+- Export does not mutate live session/overlays
+- Download downloads current workingBytes only
+
+Core imports:
+
+import { saveAnnotations } from '@/core/annotations/persistence';
+import { useWriterStore } from '@/core/writer/store';
+import { composeCommittedPdf } from '@/core/document/commitPipeline';
+
+Inside component:
+const writerElements = useWriterStore((state) => state.elements);
+const clearWriterElementsAfterCommit = useWriterStore(
+  (state) => state.clearElementsAfterCommit,
+);
+
+const buildCommittedPdf = async () => {
+  if (!workingBytes) {
+    throw new Error('No working PDF is loaded');
+  }
+
+  return composeCommittedPdf({
+    baseBytes: workingBytes,
+    annotations,
+    writerElements,
+  });
+};
+
+const clearCommittedOverlays = async (nextDocumentKey: string) => {
+  if (annotations.length > 0) {
+    setAnnotations([]);
+    await saveAnnotations(nextDocumentKey, []);
+  }
+
+  if (writerElements.length > 0) {
+    clearWriterElementsAfterCommit();
+  }
+};
+
+Save flow:
+beginSaveOperation('Committing annotations and writer elements…');
+const committed = await buildCommittedPdf();
+const nextHandle = await FileAdapter.savePdfBytes(committed.bytes, fileName, saveHandle);
+if (nextHandle) setSaveHandle(nextHandle);
+commitWorkingCopy({
+  bytes: committed.bytes,
+  pageCount: committed.pageCount,
+  documentKey: committed.documentKey,
+});
+await clearCommittedOverlays(committed.documentKey);
+completeSaveOperation(`Saved ${fileName}`);
+
+Export flow:
+beginExportOperation('Building flattened export…');
+const committed = await buildCommittedPdf();
+const exportName = fileName.replace(/\.pdf$/i, '') + '-flattened.pdf';
+await FileAdapter.savePdfBytes(committed.bytes, exportName, null);
+completeSaveOperation(`Exported ${exportName}`);
+
+Do not call commitWorkingCopy() in export handlers.
+Do not call clearCommittedOverlays() in export handlers.
+Do not call setDirty(false) directly in ToolbarFile.
+
+
+================================================================================
+PHASE 3 — ANNOTATION TRANSACTION + PERSISTENCE VISIBILITY
+================================================================================
+
+FILE PATCH: frontend/src/core/annotations/store.ts
+--------------------------------------------------
+
+Add after snapshot():
+
+function markAnnotationDirty(): void {
+  useSessionStore.getState().setDirty(true);
+}
+
+function pushAnnotationHistory(state: AnnotationState): PdfAnnotation[][] {
+  return [...state.history, state.annotations].slice(-MAX_HISTORY);
+}
+
+function applyAnnotationHistoryTransaction(
+  state: AnnotationState,
+  nextAnnotations: PdfAnnotation[],
+  nextSelectedIds: string[] = [],
+  nextActiveId: string | null = null,
+): Partial<AnnotationState> {
+  markAnnotationDirty();
+
+  return {
+    annotations: nextAnnotations,
+    history: pushAnnotationHistory(state),
+    future: [],
+    selectedAnnotationIds: normalizeIds(nextSelectedIds, nextAnnotations),
+    activeAnnotationId:
+      nextActiveId && normalizeIds([nextActiveId], nextAnnotations).length > 0
+        ? nextActiveId
+        : normalizeIds(nextSelectedIds, nextAnnotations)[0] ?? null,
+  };
+}
+
+function clearAnnotationInteractionState(): Pick<
+  AnnotationState,
+  'selectedAnnotationIds' | 'activeAnnotationId'
+> {
+  return {
+    selectedAnnotationIds: [],
+    activeAnnotationId: null,
+  };
+}
+
+Replace undo:
+undo: () =>
+  set((state) => {
+    if (state.history.length === 0) return state;
+    markAnnotationDirty();
+    const previous = state.history[state.history.length - 1];
+    const newHistory = state.history.slice(0, -1);
+    const newFuture = [state.annotations, ...state.future].slice(0, MAX_HISTORY);
+    return {
+      annotations: previous,
+      history: newHistory,
+      future: newFuture,
+      ...clearAnnotationInteractionState(),
+    };
+  }),
+
+Replace redo:
+redo: () =>
+  set((state) => {
+    if (state.future.length === 0) return state;
+    markAnnotationDirty();
+    const next = state.future[0];
+    const newFuture = state.future.slice(1);
+    const newHistory = pushAnnotationHistory(state);
+    return {
+      annotations: next,
+      history: newHistory,
+      future: newFuture,
+      ...clearAnnotationInteractionState(),
+    };
+  }),
+
+Replace documentBus remapper block:
+documentBus.subscribe((event) => {
+  if (event.type === 'PAGES_REORDERED') {
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(state, remapAfterReorder(state.annotations, event.order), [], null),
+    );
+    return;
+  }
+
+  if (event.type === 'PAGES_DELETED') {
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(state, remapAfterDelete(state.annotations, event.indices), [], null),
+    );
+    return;
+  }
+
+  if (event.type === 'PAGES_INSERTED') {
+    useAnnotationStore.setState((state) =>
+      applyAnnotationHistoryTransaction(
+        state,
+        remapAfterInsert(state.annotations, event.atIndex, event.count),
+        [],
+        null,
+      ),
+    );
+    return;
+  }
+
+  if (event.type === 'DOCUMENT_REPLACED') {
+    useAnnotationStore.setState({
+      annotations: [],
+      history: [],
+      future: [],
+      selectedAnnotationIds: [],
+      activeAnnotationId: null,
+      clipboard: [],
+    });
+  }
+});
+
+
+FILE: frontend/src/core/annotations/persistence.ts
+-------------------------------------------------
+
+import { openDB } from 'idb';
+import type { DBSchema, IDBPDatabase } from 'idb';
+import type { PdfAnnotation } from './types';
+import { error, debug } from '@/core/logger/service';
+
+const DB_NAME = 'DocCraftAnnotations';
+const STORE_NAME = 'annotations';
+const DB_VERSION = 1;
+
+interface AnnotationRecord {
+  id: string;
+  annotations: PdfAnnotation[];
+  updatedAt: number;
+}
+
+interface AnnotationDbSchema extends DBSchema {
+  annotations: {
+    key: string;
+    value: AnnotationRecord;
+  };
+}
+
+export class AnnotationPersistenceError extends Error {
+  readonly cause?: unknown;
+  readonly operation: 'load' | 'save';
+
+  constructor(
+    operation: 'load' | 'save',
+    message: string,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = 'AnnotationPersistenceError';
+    this.operation = operation;
+    this.cause = cause;
+  }
+}
+
+export const getDb = async (): Promise<IDBPDatabase<AnnotationDbSchema>> => {
+  return openDB<AnnotationDbSchema>(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    },
+  });
+};
+
+export const saveAnnotations = async (
+  documentKey: string,
+  annotations: PdfAnnotation[],
+): Promise<void> => {
+  try {
+    const db = await getDb();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+
+    await tx.store.put({
+      id: documentKey,
+      annotations,
+      updatedAt: Date.now(),
+    });
+
+    await tx.done;
+
+    debug('annotation', 'Annotation store flushed to IndexedDB', {
+      count: annotations.length,
+      documentKey,
+    });
+  } catch (err) {
+    error('annotation', 'Failed to save annotations to IndexedDB', {
+      error: String(err),
+      documentKey,
+      count: annotations.length,
+    });
+
+    throw new AnnotationPersistenceError(
+      'save',
+      'Failed to save annotations to local storage',
+      err,
+    );
+  }
+};
+
+export const loadAnnotations = async (
+  documentKey: string,
+): Promise<PdfAnnotation[]> => {
+  try {
+    const db = await getDb();
+    const result = await db.get(STORE_NAME, documentKey);
+
+    const annotations = Array.isArray(result?.annotations)
+      ? result.annotations
+      : [];
+
+    debug('annotation', 'Annotation store loaded from IndexedDB', {
+      count: annotations.length,
+      documentKey,
+    });
+
+    return annotations;
+  } catch (err) {
+    error('annotation', 'Failed to load annotations from IndexedDB', {
+      error: String(err),
+      documentKey,
+    });
+
+    throw new AnnotationPersistenceError(
+      'load',
+      'Failed to load annotations from local storage',
+      err,
+    );
+  }
+};
+
+export function isAnnotationPersistenceError(
+  err: unknown,
+): err is AnnotationPersistenceError {
+  return err instanceof AnnotationPersistenceError;
+}
+
+
+================================================================================
+PHASE 4 — WRITER STORE, OCR ESCAPING, EXPORT HARDENING
+================================================================================
+
+FILE: frontend/src/core/writer/store.ts
+--------------------------------------
+
+Key final requirements:
+- All writer mutations call useSessionStore.getState().setDirty(true)
+- clearElements() is a user edit and marks dirty
+- clearElementsAfterCommit() is a save-level rebase and must not mark dirty
+
+Critical actions:
+import { useSessionStore } from '@/core/session/store';
+
+function markWriterDirty(): void {
+  useSessionStore.getState().setDirty(true);
+}
+
+clearElementsAfterCommit: () =>
+  set({
+    elements: [],
+    selectedIds: [],
+    activeId: null,
+    undoStack: [],
+    redoStack: [],
+    activeTool: 'select',
+  }),
+
+Mutating methods to mark dirty:
+  addElement
+  updateElement
+  updateSelectedElements
+  commitElementTransform
+  removeElement
+  removeSelection
+  duplicateSelection
+  clearPage
+  clearElements
+  undo
+  redo
+  bringForward
+  sendBackward
+  bringToFront
+  sendToBack
+
+
+FILE PATCH: frontend/src/components/writer/WriterOverlay.tsx
+------------------------------------------------------------
+
+Add helpers:
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function ocrTextToHtml(value: string): string {
+  const escaped = escapeHtml(value);
+  return `<p>${escaped.replace(/\r?\n/g, '<br/>')}</p>`;
+}
+
+function isWriterPlacementTool(tool: string): boolean {
+  return tool === 'place-text' || tool === 'place-image' || tool === 'place-table';
+}
+
+Replace:
+const isPlacing = activeTool !== 'select';
+const isOcr = activeTool === 'ocr-region';
+
+With:
+const isPlacementTool = isWriterPlacementTool(activeTool);
+const isOcr = activeTool === 'ocr-region';
+const isWriterCaptureMode = isPlacementTool || isOcr || isShiftDown;
+
+Replace OCR content:
+content: `<p>${text.replace(/\n/g, '<br/>')}</p>`,
+
+With:
+content: ocrTextToHtml(text),
+
+Overlay rule:
+- writer capture layer pointer-events all only when placement/OCR/shift marquee active
+- otherwise pointer-events none on empty overlay
+- WriterElementNode remains interactive
+
+
+================================================================================
+PHASE 6 — SEMANTIC WRITER EXPORT
+================================================================================
+
+FILE: frontend/src/core/writer/exporter.ts
+-----------------------------------------
+
+Final behavior:
+- simple rich text exported as PDF text
+- tables exported as vector lines + PDF text
+- images embedded as images
+- complex unsupported rich HTML falls back to raster with warning
+- rich HTML is sanitized
+- table cell text is escaped
+
+Required exported API:
+export interface WriterExportWarning {
+  elementId: string;
+  pageNumber: number;
+  reason: string;
+  fallback: 'raster' | 'skipped';
+}
+
+export interface WriterExportOptions {
+  preferSemantic?: boolean;
+  allowRasterFallback?: boolean;
+  collectWarnings?: (warnings: WriterExportWarning[]) => void;
+}
+
+export async function bakeWriterElementsIntoPdf(
+  baseBytes: Uint8Array,
+  elements: PlacedElement[],
+  options: WriterExportOptions = {},
+): Promise<Uint8Array>;
+
+Required helper exports:
+export function buildTableHtml(data: WriterTableData, width: number, scale: number): string;
+export function sanitizeWriterHtml(html: string): string;
+
+Core algorithm:
+1. PDFDocument.load(baseBytes)
+2. Embed Helvetica regular/bold/italic/boldItalic.
+3. Sort elements by pageNumber then zIndex.
+4. For image:
+   - parse data URL/base64
+   - embedPng/embedJpg
+   - drawImage at top-to-PDF coordinates
+5. For table:
+   - parse JSON table data
+   - compute column widths
+   - draw rectangles with border/background
+   - draw cell text with PDF text calls
+6. For rich-text:
+   - sanitize HTML
+   - reject unsupported nodes for semantic export: table,img,svg,canvas,video,audio,iframe,object,embed,form,input,button,textarea,select
+   - parse simple p/div/li/headings and b/strong/i/em/color/align
+   - wrap text by font width
+   - draw real PDF text
+7. If semantic export fails and allowRasterFallback true:
+   - render sanitized HTML/table to offscreen DOM
+   - html2canvas
+   - embed PNG fallback
+   - collect warning
+8. Return saved bytes.
+
+Static anti-regression requirements:
+- No container.innerHTML = element.content
+- No ${cell.text} raw interpolation
+- sanitizeWriterHtml must exist
+- escapeHtml must exist
+- drawTableElement must exist
+- drawRichTextElement must exist
+
+
+================================================================================
+PHASE 5 — MACRO DRY-RUN + TRANSACTION ROLLBACK
+================================================================================
+
+FILE PATCH: frontend/src/core/macro/types.ts
+--------------------------------------------
+
+export interface MacroDryRunOutputFile {
+  name: string;
+  reason: string;
+  pageCount?: number;
+}
+
+export interface MacroDryRunObjectChanges {
+  added: number;
+  updated: number;
+  deleted: number;
+}
+
+export interface MacroDryRunDiff {
+  initialPageCount: number;
+  finalPageCount: number;
+  modifiedBytes: boolean;
+  selectedPagesBefore: number[];
+  selectedPagesAfter: number[];
+  outputFiles: MacroDryRunOutputFile[];
+  annotationChanges: MacroDryRunObjectChanges;
+  writerChanges: MacroDryRunObjectChanges;
+  warnings: string[];
+  logs: string[];
+}
+
+export interface MacroDryRunReport {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  diff: MacroDryRunDiff;
+}
+
+
+FILE: frontend/src/core/macro/dry-run.ts
+---------------------------------------
+
+Purpose:
+- Predict macro effects without mutating bytes or stores.
+- Must simulate page count, selected pages, output files, writer object additions, warnings/logs.
+
+Required export:
+export async function simulateMacroDryRun(
+  recipe: MacroRecipe,
+  ctx: Omit<MacroExecutionContext, 'workingBytes'> & Partial<Pick<MacroExecutionContext, 'workingBytes'>>,
+): Promise<MacroDryRunReport>;
+
+Must simulate:
+  select_pages
+  insert_blank_page
+  insert_pdf
+  merge_files
+  replace_page
+  duplicate_pages
+  remove_pages
+  extract_pages
+  split_pages
+  rotate_pages
+  reorder_pages
+  draw_text_on_pages
+  inject_rich_text
+  header_footer_text
+  insert_image
+  adjust_image
+  place_rich_textbox
+  place_table
+  add_content_page
+  add_image_header_page
+  conditional
+  apply_template_vars
+
+Pass gates:
+  dry-run byte mutation: 0
+  page-count prediction failures: 0
+  output prediction failures: 0
+
+
+FILE: frontend/src/core/macro/transaction.ts
+-------------------------------------------
+
+import { useAnnotationStore } from '@/core/annotations/store';
+import { useWriterStore } from '@/core/writer/store';
+import type { MacroMutableState, SideEffect } from './registry';
+import type { MacroExecutionContext } from './types';
+
+export interface MacroTransactionSnapshot {
+  workingBytes: Uint8Array;
+  pageCount: number;
+  selectedPages: number[];
+  outputFiles: { name: string; bytes: Uint8Array }[];
+  annotations: ReturnType<typeof useAnnotationStore.getState>['annotations'];
+  writerElements: ReturnType<typeof useWriterStore.getState>['elements'];
+}
+
+export function beginMacroTransaction(state: MacroMutableState): MacroTransactionSnapshot {
+  return {
+    workingBytes: new Uint8Array(state.workingBytes),
+    pageCount: state.pageCount,
+    selectedPages: [...state.selectedPages],
+    outputFiles: state.outputFiles.map((file) => ({
+      name: file.name,
+      bytes: new Uint8Array(file.bytes),
+    })),
+    annotations: useAnnotationStore.getState().annotations.map((annotation) => ({
+      ...annotation,
+      rect: { ...annotation.rect },
+      data: { ...annotation.data },
+    })),
+    writerElements: useWriterStore.getState().elements.map((element) => ({
+      ...element,
+      styles: { ...element.styles },
+    })),
+  };
+}
+
+export function rollbackMacroTransaction(
+  state: MacroMutableState,
+  snapshot: MacroTransactionSnapshot,
+): void {
+  state.workingBytes = new Uint8Array(snapshot.workingBytes);
+  state.pageCount = snapshot.pageCount;
+  state.selectedPages = [...snapshot.selectedPages];
+  state.outputFiles = snapshot.outputFiles.map((file) => ({
+    name: file.name,
+    bytes: new Uint8Array(file.bytes),
+  }));
+
+  useAnnotationStore.setState({
+    annotations: snapshot.annotations,
+    selectedAnnotationIds: [],
+    activeAnnotationId: null,
+  });
+
+  useWriterStore.setState({
+    elements: snapshot.writerElements,
+    selectedIds: [],
+    activeId: null,
+    activeTool: 'select',
+  });
+}
+
+export function applyMacroSideEffects(
+  sideEffects: SideEffect[],
+  state: MacroMutableState,
+): void {
+  for (const effect of sideEffects) {
+    if (effect.type === 'bytes_updated') state.workingBytes = effect.bytes;
+
+    if (effect.type === 'page_count_changed') {
+      state.pageCount = effect.newCount;
+      state.selectedPages = state.selectedPages.filter(
+        (page) => page >= 1 && page <= effect.newCount,
+      );
+    }
+
+    if (effect.type === 'output_file') {
+      state.outputFiles.push({
+        name: effect.name,
+        bytes: effect.bytes,
+      });
+    }
+  }
+}
+
+export function buildMacroRollbackMessage(
+  ctx: MacroExecutionContext,
+  stepIndex: number,
+  op: string,
+  message?: string,
+): string {
+  return [
+    `Macro rolled back for ${ctx.fileName}`,
+    `at step ${stepIndex + 1}`,
+    `(${op})`,
+    message ? `: ${message}` : '',
+  ].join(' ');
+}
+
+
+FILE PATCH: frontend/src/core/macro/executor.ts
+-----------------------------------------------
+
+Required imports:
+import { simulateMacroDryRun } from './dry-run';
+import {
+  applyMacroSideEffects,
+  beginMacroTransaction,
+  buildMacroRollbackMessage,
+  rollbackMacroTransaction,
+} from './transaction';
+
+Required behavior:
+- If recipe.dryRun is true:
+  - call simulateMacroDryRun()
+  - return original ctx.workingBytes
+  - outputFiles = []
+  - stepResults = []
+  - dryRunDiff included
+- If normal run:
+  - beginMacroTransaction(state)
+  - execute registry steps
+  - apply side effects through applyMacroSideEffects()
+  - if error and abortOnError !== false:
+    rollbackMacroTransaction()
+    rolledBack = true
+    add rollback log
+
+Result interface adds:
+  dryRunDiff?: MacroDryRunDiff;
+  rolledBack?: boolean;
+
+
+FILE PATCH: frontend/src/core/macro/validation/validator.ts
+-----------------------------------------------------------
+
+Replace validation-only dry run with:
+import { simulateMacroDryRun } from '../dry-run';
+
+Return:
+  dryRunLogs: dryRun.diff.logs
+  dryRunDiff: dryRun.diff
+
+Forbidden:
+  "Dry run validation complete."
+
+
+FILE PATCH: frontend/src/core/macro/steps/content-ops.ts
+--------------------------------------------------------
+
+Add:
+import {
+  buildTableHtml as buildSafeWriterTableHtml,
+  sanitizeWriterHtml,
+} from '../../writer/exporter';
+
+Replace:
+container.innerHTML = htmlContent;
+
+With:
+container.innerHTML = sanitizeWriterHtml(htmlContent);
+
+Replace macro table HTML builder with buildSafeWriterTableHtml().
+
+Fix table height calculation:
+- capture container.offsetHeight before document.body.removeChild(container)
+
+
+================================================================================
+PHASE 7 — SAVE STATUS + AUTOSAVE STATUS
+================================================================================
+
+FILE: frontend/src/components/status/SaveStatusIndicator.tsx
+-----------------------------------------------------------
+
+import React from 'react';
+import { AlertCircle, CheckCircle2, Clock, Loader2, Save, WifiOff } from 'lucide-react';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { useSessionStore } from '@/core/session/store';
+import { useWriterStore } from '@/core/writer/store';
+import { useAnnotationStore } from '@/core/annotations/store';
+
+export const SaveStatusIndicator: React.FC = () => {
+  const {
+    isDirty,
+    isDocumentDirty,
+    isReviewDirty,
+    isSessionDirty,
+    saveState,
+    annotationAutosaveState,
+    fileName,
+  } = useSessionStore();
+
+  const writerElementCount = useWriterStore((state) => state.elements.length);
+  const annotationCount = useAnnotationStore((state) => state.annotations.length);
+
+  const status = resolveStatus({
+    isDirty,
+    isDocumentDirty,
+    isReviewDirty,
+    isSessionDirty,
+    saveStatus: saveState.status,
+    annotationAutosaveStatus: annotationAutosaveState.status,
+    writerElementCount,
+    annotationCount,
+  });
+
+  const Icon = status.icon;
+
+  return (
+    <Tooltip content={status.tooltip}>
+      <div
+        className={[
+          'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+          status.className,
+        ].join(' ')}
+        aria-label={status.tooltip}
+      >
+        <Icon className={status.spin ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+        <span className="hidden md:inline">{status.label}</span>
+        {fileName && (
+          <span className="hidden xl:inline max-w-[180px] truncate opacity-70">
+            {fileName}
+          </span>
+        )}
+      </div>
+    </Tooltip>
+  );
+};
+
+function resolveStatus(input: {
+  isDirty: boolean;
+  isDocumentDirty: boolean;
+  isReviewDirty: boolean;
+  isSessionDirty: boolean;
+  saveStatus: string;
+  annotationAutosaveStatus: string;
+  writerElementCount: number;
+  annotationCount: number;
+}) {
+  if (input.saveStatus === 'saving') {
+    return {
+      label: 'Saving…',
+      tooltip: 'Saving document bytes, annotations, and writer elements.',
+      icon: Loader2,
+      spin: true,
+      className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    };
+  }
+
+  if (input.saveStatus === 'exporting') {
+    return {
+      label: 'Exporting…',
+      tooltip: 'Building an exported PDF. The current session will remain editable.',
+      icon: Loader2,
+      spin: true,
+      className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    };
+  }
+
+  if (input.saveStatus === 'failed') {
+    return {
+      label: 'Save failed',
+      tooltip: 'The last save/export failed. Your in-session changes are still present.',
+      icon: AlertCircle,
+      className: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+    };
+  }
+
+  if (input.annotationAutosaveStatus === 'failed') {
+    return {
+      label: 'Autosave failed',
+      tooltip:
+        'Local annotation autosave failed. Save/export the PDF or retry after checking browser storage permissions.',
+      icon: WifiOff,
+      className: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+    };
+  }
+
+  if (input.annotationAutosaveStatus === 'saving') {
+    return {
+      label: 'Autosaving…',
+      tooltip: 'Saving annotation overlay state to local browser storage.',
+      icon: Loader2,
+      spin: true,
+      className: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+    };
+  }
+
+  if (input.isDirty) {
+    const details: string[] = [];
+    if (input.isDocumentDirty) details.push('document bytes changed');
+    if (input.isReviewDirty || input.annotationCount > 0) {
+      details.push(`${input.annotationCount} annotation${input.annotationCount === 1 ? '' : 's'}`);
+    }
+    if (input.isSessionDirty || input.writerElementCount > 0) {
+      details.push(`${input.writerElementCount} writer element${input.writerElementCount === 1 ? '' : 's'}`);
+    }
+
+    return {
+      label: 'Unsaved',
+      tooltip: details.length > 0 ? `Unsaved changes: ${details.join(', ')}.` : 'There are unsaved changes.',
+      icon: Clock,
+      className: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+    };
+  }
+
+  if (input.saveStatus === 'saved' || input.annotationAutosaveStatus === 'saved') {
+    return {
+      label: 'Saved',
+      tooltip: 'Current document state is saved.',
+      icon: CheckCircle2,
+      className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    };
+  }
+
+  return {
+    label: 'Ready',
+    tooltip: 'No active save operation.',
+    icon: Save,
+    className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  };
+}
+
+
+FILE: frontend/src/core/session/recovery.ts
+------------------------------------------
+
+import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { composeCommittedPdf } from '@/core/document/commitPipeline';
+import type { PdfAnnotation } from '@/core/annotations/types';
+import type { PlacedElement } from '@/core/writer/types';
+
+export async function emergencyDownloadCommittedPdf(input: {
+  workingBytes: Uint8Array;
+  fileName: string;
+  annotations: PdfAnnotation[];
+  writerElements: PlacedElement[];
+}): Promise<void> {
+  const committed = await composeCommittedPdf({
+    baseBytes: input.workingBytes,
+    annotations: input.annotations,
+    writerElements: input.writerElements,
+  });
+
+  const safeName = input.fileName.replace(/\.pdf$/i, '') + '-recovery.pdf';
+  FileAdapter.downloadBytes(committed.bytes, safeName);
+}
+
+
+================================================================================
+PHASE 8 — CERTIFICATION GATES
+================================================================================
+
+FILE: frontend/scripts/phase8-static-audit.mjs
+---------------------------------------------
+
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+
+const root = process.cwd();
+
+const checks = [
+  {
+    id: 'SAVE_DIRECT_EXPORT_WITHOUT_COMMIT_PIPELINE',
+    file: 'src/components/toolbar/ToolbarFile.tsx',
+    failIfMatches: [
+      /PdfEditAdapter\.exportWithAnnotations\(workingBytes,\s*annotations\)/,
+      /\bsetDirty\(false\)/,
+    ],
+    requiredMatches: [
+      /composeCommittedPdf/,
+      /commitWorkingCopy/,
+      /clearElementsAfterCommit/,
+    ],
+    message:
+      'ToolbarFile must use composeCommittedPdf() + commitWorkingCopy(), not direct exportWithAnnotations() + setDirty(false).',
+  },
+  {
+    id: 'ANNOTATION_PERSISTENCE_MUST_THROW',
+    file: 'src/core/annotations/persistence.ts',
+    failIfMatches: [
+      /catch\s*\([^)]*\)\s*{[\s\S]*return\s+\[\]/,
+    ],
+    requiredMatches: [
+      /AnnotationPersistenceError/,
+      /throw new AnnotationPersistenceError/,
+    ],
+    message:
+      'Annotation persistence failures must throw AnnotationPersistenceError and must not silently return [].',
+  },
+  {
+    id: 'OCR_TEXT_MUST_BE_ESCAPED',
+    file: 'src/components/writer/WriterOverlay.tsx',
+    failIfMatches: [
+      /content:\s*`<p>\$\{text\.replace/,
+    ],
+    requiredMatches: [
+      /ocrTextToHtml/,
+      /escapeHtml/,
+    ],
+    message:
+      'OCR text must be escaped before insertion into writer HTML.',
+  },
+  {
+    id: 'WRITER_EXPORT_TABLE_CELL_ESCAPE',
+    file: 'src/core/writer/exporter.ts',
+    failIfMatches: [
+      /\$\{cell\.text\}/,
+      /container\.innerHTML\s*=\s*element\.content/,
+    ],
+    requiredMatches: [
+      /sanitizeWriterHtml/,
+      /escapeHtml/,
+      /drawTableElement/,
+      /drawRichTextElement/,
+    ],
+    message:
+      'Writer export must sanitize rich HTML and escape table cell text; semantic text/table export should be present.',
+  },
+  {
+    id: 'MACRO_DRY_RUN_MUST_BE_BEHAVIORAL',
+    file: 'src/core/macro/validation/validator.ts',
+    failIfMatches: [
+      /Dry run validation complete/,
+    ],
+    requiredMatches: [
+      /simulateMacroDryRun/,
+      /dryRunDiff/,
+    ],
+    message:
+      'Macro dry-run must report behavioral diff, not only validation logs.',
+  },
+  {
+    id: 'MACRO_EXECUTOR_MUST_ROLL_BACK',
+    file: 'src/core/macro/executor.ts',
+    failIfMatches: [],
+    requiredMatches: [
+      /beginMacroTransaction/,
+      /rollbackMacroTransaction/,
+      /applyMacroSideEffects/,
+      /rolledBack/,
+    ],
+    message:
+      'Macro executor must run inside a transaction and roll back on aborting error.',
+  },
+];
+
+let failures = 0;
+
+for (const check of checks) {
+  const filePath = path.join(root, check.file);
+
+  if (!fs.existsSync(filePath)) {
+    console.error(`[FAIL] ${check.id}: missing file ${check.file}`);
+    failures += 1;
+    continue;
+  }
+
+  const content = fs.readFileSync(filePath, 'utf8');
+
+  for (const pattern of check.failIfMatches) {
+    if (pattern.test(content)) {
+      console.error(`[FAIL] ${check.id}: forbidden pattern found in ${check.file}`);
+      console.error(`       ${check.message}`);
+      failures += 1;
+    }
+  }
+
+  for (const pattern of check.requiredMatches) {
+    if (!pattern.test(content)) {
+      console.error(`[FAIL] ${check.id}: required pattern missing in ${check.file}`);
+      console.error(`       Missing: ${pattern}`);
+      console.error(`       ${check.message}`);
+      failures += 1;
+    }
+  }
+
+  if (failures === 0) {
+    console.log(`[PASS] ${check.id}`);
+  }
+}
+
+if (failures > 0) {
+  console.error(`\nPhase 8 static audit failed: ${failures} issue(s).`);
+  process.exit(1);
+}
+
+console.log('\nPhase 8 static audit passed.');
+
+
+PACKAGE.JSON SCRIPTS
+--------------------
+Add:
+"audit:phase8": "node scripts/phase8-static-audit.mjs",
+"certify": "npm run typecheck && npm run test && npm run audit:phase8 && npm run build"
+
+
+CERTIFICATION COMMANDS
+----------------------
+cd frontend
+npm run typecheck
+npm run test
+npm run audit:phase8
+npm run build
+
+Single command:
+cd frontend
+npm run certify
+
+
+FINAL PASS CRITERIA
+-------------------
+TypeScript errors: 0
+Unit test failures: 0
+Static audit failures: 0
+Build errors: 0
+
+Repeated-save duplicate annotations: 0
+Writer normal-save loss: 0
+Silent annotation persistence failures: 0
+Writer overlay blocking annotation/text selection: 0
+Unsafe OCR/writer/macro HTML paths: 0
+Macro dry-run byte mutation: 0
+Macro rollback residual side effects: 0
+Simple writer text/table semantic export failures: 0
+
+
+================================================================================
+AGENT PROMPTS
+================================================================================
+
+AGENT 1 — COMMIT PIPELINE + SAVE/EXPORT
+---------------------------------------
+You are Agent 1 — Document Commit Pipeline Owner.
+
+Implement only:
+- Phase 1
+- Phase 2
+
+Files you may edit:
+- frontend/src/core/document/commitPipeline.ts
+- frontend/src/core/session/store.ts
+- frontend/src/components/toolbar/ToolbarFile.tsx
+- test files directly related to these changes
+
+Do not edit:
+- writer/exporter.ts
+- writer/store.ts
+- annotations/store.ts
+- macro files
+
+Tasks:
+1. Add composeCommittedPdf().
+2. Add commitWorkingCopy() to session store.
+3. Ensure replaceWorkingCopy() sets isSessionDirty true.
+4. Replace ToolbarFile Save/Export paths.
+5. Normal Save must:
+   - compose writer + annotations
+   - save bytes
+   - commitWorkingCopy()
+   - clear committed annotation overlay
+   - clear committed writer overlay
+6. Export must:
+   - compose writer + annotations
+   - save exported copy
+   - not mutate live workingBytes
+   - not clear overlays
+   - not clear dirty state
+
+Validation:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Pass criteria:
+- TypeScript errors: 0
+- Build errors: 0
+- Test failures: 0
+- Save uses composeCommittedPdf(): yes
+- Save calls commitWorkingCopy(): yes
+- Export does not call commitWorkingCopy(): yes
+- Direct ToolbarFile exportWithAnnotations(workingBytes, annotations): 0 occurrences
+- Direct setDirty(false) in ToolbarFile Save path: 0 occurrences
+
+
+AGENT 2 — ANNOTATION + AUTOSAVE STATUS
+--------------------------------------
+You are Agent 2 — Annotation Transaction and Persistence Owner.
+
+Implement only:
+- Phase 3
+- Phase 7 session/autosave status parts
+
+Files you may edit:
+- frontend/src/core/annotations/store.ts
+- frontend/src/core/annotations/persistence.ts
+- frontend/src/components/workspace/DocumentWorkspace.tsx
+- frontend/src/core/session/types.ts
+- frontend/src/core/session/store.ts
+- frontend/src/components/status/SaveStatusIndicator.tsx
+- test files directly related to these changes
+
+Do not edit:
+- writer/exporter.ts
+- macro files
+- ToolbarFile except if strictly required for save status calls
+
+Tasks:
+1. Make annotation undo/redo mark session dirty.
+2. Make page remap events mark dirty and push history where appropriate.
+3. Replace silent IndexedDB failure behavior with AnnotationPersistenceError.
+4. Patch DocumentWorkspace so annotation load/autosave failures show toasts and status.
+5. Add saveState and annotationAutosaveState to session model.
+6. Add SaveStatusIndicator component.
+
+Validation:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Pass criteria:
+- TypeScript errors: 0
+- Build errors: 0
+- Test failures: 0
+- Undo dirty tracking missed: 0
+- Redo dirty tracking missed: 0
+- Page-remap dirty tracking missed: 0
+- loadAnnotations() silent [] on DB failure: 0
+- saveAnnotations() silent failure: 0
+- Autosave failure visible to user: yes
+
+
+AGENT 3 — WRITER DURABILITY + SEMANTIC EXPORT
+---------------------------------------------
+You are Agent 3 — Writer System Owner.
+
+Implement only:
+- Phase 4
+- Phase 6
+
+Files you may edit:
+- frontend/src/core/writer/store.ts
+- frontend/src/components/writer/WriterOverlay.tsx
+- frontend/src/core/writer/exporter.ts
+- frontend/src/components/toolbar/ToolbarFile.tsx only for clearElementsAfterCommit wiring
+- test files directly related to these changes
+
+Do not edit:
+- macro files
+- annotation persistence
+- session store except if absolutely required and already coordinated with Orchestrator
+
+Tasks:
+1. Add writer dirty tracking to all writer mutations.
+2. Add clearElementsAfterCommit() that does not mark dirty.
+3. Harden writer overlay pointer-events so it does not block annotation/text selection.
+4. Escape OCR text before storing as writer HTML.
+5. Sanitize rich text before export.
+6. Escape table cell text before HTML generation.
+7. Implement semantic export:
+   - simple rich text as PDF text
+   - table as vector lines + text
+   - image as image
+   - unsupported rich content as raster fallback with warning
+
+Validation:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Pass criteria:
+- TypeScript errors: 0
+- Build errors: 0
+- Test failures: 0
+- Writer mutation missed by dirty flag: 0
+- clearElementsAfterCommit marks dirty: no
+- OCR raw HTML injection path: 0
+- table cell raw interpolation path: 0
+- simple text raster fallback rate: 0%
+- simple table raster fallback rate: 0%
+- annotation selection blocked by writer overlay: 0
+
+
+AGENT 4 — MACRO DRY-RUN + ROLLBACK
+----------------------------------
+You are Agent 4 — Macro Engine Owner.
+
+Implement only:
+- Phase 5
+
+Files you may edit:
+- frontend/src/core/macro/types.ts
+- frontend/src/core/macro/dry-run.ts
+- frontend/src/core/macro/transaction.ts
+- frontend/src/core/macro/executor.ts
+- frontend/src/core/macro/validation/validator.ts
+- frontend/src/core/macro/steps/content-ops.ts
+- test files directly related to these changes
+
+Do not edit:
+- ToolbarFile
+- DocumentWorkspace
+- writer/store.ts
+- annotation/store.ts unless strictly needed for rollback snapshot and coordinated
+
+Tasks:
+1. Add MacroDryRunDiff types.
+2. Add simulateMacroDryRun().
+3. Replace validation-only dry-run with behavioral dry-run diff.
+4. Add macro transaction snapshot.
+5. Add rollbackMacroTransaction().
+6. Patch executor to rollback on aborting errors.
+7. Sanitize macro rich text.
+8. Use hardened writer table HTML builder for macro table rendering.
+9. Fix table height calculation before DOM removal.
+
+Validation:
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+
+Pass criteria:
+- TypeScript errors: 0
+- Build errors: 0
+- Test failures: 0
+- Dry-run byte mutations: 0
+- Dry-run page-count prediction failures: 0
+- Rollback residual byte side effects: 0
+- Rollback residual writer side effects: 0
+- Rollback residual annotation side effects: 0
+- Raw macro HTML render path: 0
+- Raw macro table interpolation path: 0
+
+
+AGENT 5 — QA AND CERTIFICATION
+------------------------------
+You are Agent 5 — QA and Certification Owner.
+
+Implement only:
+- Phase 8
+
+Files you may edit:
+- frontend/src/core/audit/phase8-audit-gates.test.ts
+- frontend/scripts/phase8-static-audit.mjs
+- frontend/package.json
+- frontend/PHASE8_CERTIFICATION.md
+- .github/workflows/frontend-certify.yml
+
+Do not edit product source code unless fixing test-only import paths.
+
+Tasks:
+1. Add audit regression test suite.
+2. Add static audit script.
+3. Add npm scripts:
+   - audit:phase8
+   - certify
+4. Add certification checklist.
+5. Add optional GitHub Actions workflow.
+6. Run full certification.
+
+Validation:
+cd frontend
+npm run certify
+
+Pass criteria:
+- TypeScript errors: 0
+- Test failures: 0
+- Static audit failures: 0
+- Build errors: 0
+
+Final audit closure must confirm:
+- Save/rebase issue closed.
+- Writer normal-save durability closed.
+- Annotation persistence visibility closed.
+- Annotation dirty tracking gaps closed.
+- Writer overlay interaction issue closed.
+- OCR HTML injection closed.
+- Writer table/rich HTML hardening closed.
+- Macro dry-run behavior closed.
+- Macro rollback closed.
+- Semantic writer export closed.
+
+
+================================================================================
+MANUAL SMOKE MATRIX
+================================================================================
+
+S1 — Annotation Save Rebase
+1. Open PDF.
+2. Add one highlight.
+3. Press Save.
+4. Press Save again.
+5. Reopen saved PDF.
+Expected:
+- Highlight appears once only.
+- Dirty indicator clears after Save.
+- No duplicated overlay.
+
+S2 — Writer Normal Save Durability
+1. Open PDF.
+2. Add writer text.
+3. Press normal Save.
+4. Reopen saved PDF.
+Expected:
+- Writer text is present.
+- Writer overlay is cleared after committed Save.
+- No writer element is lost.
+
+S3 — Mixed Writer + Annotation Save
+1. Add writer table.
+2. Add annotation over table.
+3. Press Save.
+4. Reopen saved PDF.
+Expected:
+- Table is present.
+- Annotation is present.
+- Annotation appears above writer content.
+
+S4 — Export Is Non-Mutating
+1. Add writer text and annotation.
+2. Press Export flattened PDF.
+3. Return to current workspace.
+Expected:
+- Exported file contains writer + annotation.
+- Current workspace still has editable writer element.
+- Current workspace still has editable annotation.
+- Dirty state remains unchanged.
+
+S5 — Annotation Persistence Failure
+1. Simulate IndexedDB failure.
+2. Add annotation.
+3. Wait for autosave.
+Expected:
+- Error toast appears.
+- Status indicator says autosave failed.
+- Store does not silently clear annotations.
+
+S6 — Undo/Redo Dirty Tracking
+1. Add annotation.
+2. Save or clear dirty state.
+3. Undo annotation.
+4. Redo annotation.
+Expected:
+- Undo marks dirty.
+- Redo marks dirty.
+- Selection state remains valid.
+
+S7 — Page Remap Dirty Tracking
+1. Add annotations on multiple pages.
+2. Reorder/delete/insert pages.
+Expected:
+- Annotation page references remap correctly.
+- Dirty state becomes true.
+- Invalid selection IDs are cleared.
+
+S8 — Writer Overlay Interaction
+1. Place writer text.
+2. Switch to annotation select/highlight.
+3. Select annotation and highlight text.
+Expected:
+- Writer overlay does not block annotation interaction.
+- Writer element remains selectable in writer select mode.
+
+S9 — OCR Escaping
+1. OCR or inject text containing <b>ABC</b><script>alert(1)</script>.
+2. Place into writer layer.
+Expected:
+- Text is escaped/sanitized.
+- No script executes.
+- Literal text remains visible.
+
+S10 — Macro Dry-Run Diff
+1. Run dry-run macro with insert blank page.
+2. Run dry-run macro with extract pages.
+3. Run dry-run macro with place table.
+Expected:
+- Page count predictions are correct.
+- Output files are predicted.
+- Writer changes are predicted.
+- Actual bytes do not mutate.
+
+S11 — Macro Rollback
+1. Run macro with successful step 1 and failing step 2.
+2. Use abortOnError true.
+Expected:
+- Final bytes match original bytes.
+- Writer store restored.
+- Annotation store restored.
+- Output files restored.
+- Rollback log present.
+
+S12 — Semantic Writer Export
+1. Add simple writer text.
+2. Add simple writer table.
+3. Export flattened PDF.
+Expected:
+- Text is searchable/selectable in capable PDF viewer.
+- Table cell text is searchable/selectable.
+- Unsupported rich content falls back to raster with warning.
+
+END OF IMPLEMENTATION PACK
