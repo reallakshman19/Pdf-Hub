@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AppMode } from '@/hooks/useCapabilities';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface ModeBannerProps {
   mode: AppMode;
@@ -11,15 +12,20 @@ const BANNER_TEXT: Record<Exclude<AppMode, 'server'>, string> = {
 };
 
 /**
- * Always-visible indicator for non-server modes. INV-9: non-dismissible.
+ * Subtle indicator for non-server modes. On desktop, we show this in the StatusBar.
+ * On mobile, since there's no status bar, we show a highly elegant subtle banner.
  */
 export const PreviewModeBanner: React.FC<ModeBannerProps> = ({ mode }) => {
+  const isMobile = useIsMobile();
   if (mode === 'server') return null;
+
+  // On desktop, the status message is already integrated into the StatusBar
+  if (!isMobile) return null;
+
   return (
     <div
       role="status"
-      aria-live="polite"
-      className="shrink-0 w-full bg-amber-400 text-amber-950 px-4 py-1.5 text-center text-xs font-semibold select-none"
+      className="bg-amber-50/85 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-[11px] font-medium text-center py-1.5 px-3 border-b border-amber-100 dark:border-amber-900/40 select-none"
     >
       {BANNER_TEXT[mode]}
     </div>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { useCapabilities } from '@/hooks/useCapabilities';
 
 const MODE_LABELS: Record<string, string> = {
   view: 'View',
@@ -14,53 +15,26 @@ const MODE_LABELS: Record<string, string> = {
 export const StatusBar: React.FC = () => {
   const { isDirty, viewState, pageCount, setZoom, setPage } = useSessionStore();
   const { activeMode } = useEditorStore();
+  const capabilities = useCapabilities();
 
-  const [visiblePage, setVisiblePage] = useState(1);
   const [localPageValue, setLocalPageValue] = useState<string>('');
   const [isEditingPageInput, setIsEditingPageInput] = useState(false);
 
   const pageDisplayValue = isEditingPageInput
     ? localPageValue
-    : String(visiblePage ?? viewState.currentPage);
-
-  useEffect(() => {
-    const container = document.getElementById('workspace-scroll-container');
-    if (!container) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const mostVisible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (mostVisible) {
-          const pageAttr = (mostVisible.target as HTMLElement).dataset.page;
-          if (pageAttr) setVisiblePage(parseInt(pageAttr, 10));
-        }
-      },
-      { root: container, threshold: [0, 0.5, 1.0] },
-    );
-
-    container.querySelectorAll('[data-page]').forEach((el) => observer.observe(el));
-
-    const mutationObs = new MutationObserver(() => {
-      observer.disconnect();
-      container.querySelectorAll('[data-page]').forEach((el) => observer.observe(el));
-    });
-    mutationObs.observe(container, { childList: true, subtree: true });
-
-    return () => { observer.disconnect(); mutationObs.disconnect(); };
-  }, []);
-
-  useEffect(() => {
-    if (pageCount > 0 && !isEditingPageInput && visiblePage !== viewState.currentPage) {
-      setPage(visiblePage);
-    }
-  }, [visiblePage, pageCount, isEditingPageInput, viewState.currentPage, setPage]);
+    : String(viewState.currentPage);
 
   const commitPageInput = React.useCallback(
     (raw: string) => {
+      if (raw === '') {
+        setIsEditingPageInput(false);
+        return;
+      }
       const parsed = parseInt(raw, 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= pageCount) setPage(parsed);
+      if (!isNaN(parsed)) {
+        const clamped = Math.min(Math.max(1, parsed), pageCount);
+        setPage(clamped);
+      }
       setIsEditingPageInput(false);
     },
     [pageCount, setPage],
@@ -102,7 +76,12 @@ export const StatusBar: React.FC = () => {
           aria-label={`Page ${pageDisplayValue} of ${pageCount}`}
           className="w-8 text-center text-[11px] font-mono px-1 py-px bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
           onFocus={() => { setLocalPageValue(String(viewState.currentPage)); setIsEditingPageInput(true); }}
-          onChange={(e) => setLocalPageValue(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '' || /^[0-9]+$/.test(val)) {
+              setLocalPageValue(val);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') { commitPageInput(e.currentTarget.value); e.currentTarget.blur(); }
             if (e.key === 'Escape') { setIsEditingPageInput(false); e.currentTarget.blur(); }
@@ -118,7 +97,19 @@ export const StatusBar: React.FC = () => {
       {/* Active mode indicator */}
       <div className="px-1.5 text-slate-600 dark:text-slate-300">{MODE_LABELS[activeMode] ?? activeMode}</div>
 
-      <div className="flex-1" />
+      {/* Center status message */}
+      <div role="status" className="flex-1 flex justify-center items-center overflow-hidden">
+        {capabilities.mode === 'preview' && (
+          <span className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/30 overflow-hidden text-ellipsis whitespace-nowrap">
+            Preview Mode — Start local server for full features
+          </span>
+        )}
+        {capabilities.mode === 'static' && (
+          <span className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/30 overflow-hidden text-ellipsis whitespace-nowrap">
+            Static Mode — Some features require local server
+          </span>
+        )}
+      </div>
 
       {/* Zoom */}
       <div className="flex items-center gap-1.5 px-1.5">

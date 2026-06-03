@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   MousePointer2, Hand, Expand, Maximize, AlignJustify, FileIcon, Columns2,
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
@@ -18,23 +18,31 @@ import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
 import { useToastStore } from '@/core/toast/store';
 import type { ActiveTool } from '@/core/editor/types';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
-// ── Primitive building blocks ────────────────────────────────────────────────
+// Primitive building blocks
+const CtxLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => {
+  const isMobile = useIsMobile();
+  if (isMobile) return null;
+  return (
+    <span
+      className={[
+        'text-[9.5px] font-semibold tracking-[0.6px] uppercase text-slate-400 dark:text-slate-500 whitespace-nowrap select-none shrink-0',
+        first ? 'pl-0.5 pr-1' : 'pl-2 pr-1',
+      ].join(' ')}
+    >
+      {children}
+    </span>
+  );
+};
 
-const CtxLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => (
-  <span
-    className={[
-      'text-[9.5px] font-semibold tracking-[0.6px] uppercase text-slate-400 dark:text-slate-500 whitespace-nowrap select-none shrink-0',
-      first ? 'pl-0.5 pr-1' : 'pl-2 pr-1',
-    ].join(' ')}
-  >
-    {children}
-  </span>
-);
-
-const CtxSep: React.FC = () => (
-  <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
-);
+const CtxSep: React.FC = () => {
+  const isMobile = useIsMobile();
+  if (isMobile) return null;
+  return (
+    <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
+  );
+};
 
 interface CtxBtnProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -59,8 +67,11 @@ const CtxBtn: React.FC<CtxBtnProps> = ({
   onClick,
   iconOnly,
 }) => {
-  const base =
-    'flex items-center gap-1 h-6 px-1.5 rounded-sm text-[11.5px] whitespace-nowrap cursor-pointer border-none shrink-0 transition-all';
+  const isMobile = useIsMobile();
+
+  const base = isMobile && iconOnly
+    ? 'flex items-center justify-center h-8 w-8 rounded-md whitespace-nowrap cursor-pointer border-none shrink-0 transition-all'
+    : 'flex items-center gap-1 h-6 px-1.5 rounded-sm text-[11.5px] whitespace-nowrap cursor-pointer border-none shrink-0 transition-all';
 
   let cls = base;
   if (disabled) {
@@ -75,9 +86,18 @@ const CtxBtn: React.FC<CtxBtnProps> = ({
     cls += ' text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 bg-transparent';
   }
 
+  const iconSizeClass = isMobile && iconOnly ? 'w-[18px] h-[18px]' : 'w-[13px] h-[13px]';
+
   return (
-    <button className={cls} title={title} onClick={onClick} disabled={disabled}>
-      <Icon className="w-[13px] h-[13px] shrink-0" />
+    <button
+      type="button"
+      className={cls}
+      title={title ?? label}
+      onClick={onClick}
+      onMouseDown={(e) => e.preventDefault()}
+      disabled={disabled}
+    >
+      <Icon className={[iconSizeClass, 'shrink-0'].join(' ')} />
       {!iconOnly && label && <span>{label}</span>}
     </button>
   );
@@ -89,9 +109,6 @@ const FileSection: React.FC = () => (
   <div className="flex items-center h-full">
     <CtxLabel first>Document</CtxLabel>
     <ToolbarFile />
-    <CtxSep />
-    <CtxLabel>Project</CtxLabel>
-    <WriterV2ToolbarControls />
   </div>
 );
 
@@ -235,9 +252,15 @@ const GenerateSection: React.FC = () => {
 
 export const CtxBar: React.FC = () => {
   const { activeMode } = useEditorStore();
+  const isMobile = useIsMobile();
 
   return (
-    <div className="flex items-center h-[34px] min-h-[34px] shrink-0 px-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      className={[
+        "flex items-center shrink-0 px-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        isMobile ? "h-10 min-h-10" : "h-[34px] min-h-[34px]"
+      ].join(" ")}
+    >
       {activeMode === 'file' && <FileSection />}
       {activeMode === 'view' && <ViewSection />}
       {activeMode === 'annotate' && <AnnotateSection />}

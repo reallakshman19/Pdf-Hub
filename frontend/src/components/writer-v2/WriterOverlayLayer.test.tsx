@@ -162,7 +162,7 @@ describe('WriterOverlayLayer', () => {
     expect(document.querySelector('[data-writer-v2-resize-handle="se"]')).toBeTruthy();
   });
 
-  it('opens popup editor on double-click and saves writer text', async () => {
+  it('opens inline editor on double-click and saves writer text', async () => {
     useWriterV2Store.getState().hydrateWriterElements([
       element('writer-1'),
     ]);
@@ -171,11 +171,12 @@ describe('WriterOverlayLayer', () => {
 
     fireEvent.doubleClick(screen.getByLabelText('Writer element writer-1'));
 
-    expect(screen.getByRole('dialog', {
-      name: /edit writer element writer-1/i,
+    expect(screen.getByRole('textbox', {
+      name: /writer rich text inline editor/i,
     })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    // Trigger save by simulating click-outside (pointerdown on the overlay surface)
+    fireEvent.pointerDown(screen.getByLabelText('Writer overlay v2 page 1'));
 
     await screen.findByLabelText('Writer element writer-1');
 
@@ -250,9 +251,11 @@ describe('WriterOverlayLayer', () => {
 
     fireEvent.doubleClick(box);
 
-    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByRole('textbox', {
+      name: /writer rich text inline editor/i,
+    })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    fireEvent.pointerDown(screen.getByLabelText('Writer overlay v2 page 1'));
 
     await screen.findByLabelText(`Writer element ${callout.id}`);
 

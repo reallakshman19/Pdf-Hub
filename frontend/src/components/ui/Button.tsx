@@ -18,14 +18,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizes = {
-      sm: 'h-8 px-3 text-xs',
-      md: 'h-9 px-4 py-2 text-sm',
-      lg: 'h-10 px-8 text-base',
-      icon: 'h-9 w-9',
+      sm: 'h-11 md:h-8 px-4 md:px-3 text-sm md:text-xs min-w-[44px] md:min-w-0',
+      md: 'h-11 md:h-9 px-5 md:px-4 py-2 text-base md:text-sm min-w-[44px] md:min-w-0',
+      lg: 'h-12 md:h-10 px-8 text-base min-w-[44px]',
+      icon: 'h-11 w-11 md:h-9 md:w-9',
     };
 
     return (
       <button
+        type="button"
         ref={ref}
         className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
         {...props}

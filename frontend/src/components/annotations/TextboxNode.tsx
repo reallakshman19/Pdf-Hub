@@ -5,7 +5,7 @@ import { Lock } from 'lucide-react';
 
 export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
-  onSelect, onTransformStart, onDoubleClick, onCommitEdit,
+  onSelect, onTransformStart, onDoubleClick, onCommitEdit, pageRotation = 0,
 }) => {
   const isLocked = annotation.data?.locked === true;
   return (
@@ -22,6 +22,7 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         pointerEvents: 'all',
         cursor: isLocked ? 'default' : 'pointer',
         outline: isSelected ? '2px solid rgba(37, 99, 235, 0.18)' : 'none',
+        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => {
         onSelect(e);

@@ -6,6 +6,8 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
+import { useEditorStore } from '@/core/editor/store';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 
 export const useKeyboardShortcuts = () => {
   const navigate = useNavigate();
@@ -40,8 +42,12 @@ export const useKeyboardShortcuts = () => {
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        if (isTypingTarget) return;
         event.preventDefault();
-        if (useHistoryStore.getState().canUndo()) {
+        const activeMode = useEditorStore.getState().activeMode;
+        if (activeMode === 'write') {
+          useWriterV2Store.getState().undoWriter();
+        } else if (useHistoryStore.getState().canUndo()) {
           applyUndo();
         } else {
           undo();
@@ -53,8 +59,12 @@ export const useKeyboardShortcuts = () => {
         ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'z') ||
         ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y')
       ) {
+        if (isTypingTarget) return;
         event.preventDefault();
-        if (useHistoryStore.getState().canRedo()) {
+        const activeMode = useEditorStore.getState().activeMode;
+        if (activeMode === 'write') {
+          useWriterV2Store.getState().redoWriter();
+        } else if (useHistoryStore.getState().canRedo()) {
           applyRedo();
         } else {
           redo();

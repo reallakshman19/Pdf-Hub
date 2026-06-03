@@ -102,6 +102,7 @@ export interface AnnotationNodeProps<T extends AnnotationType = AnnotationType> 
   isSelected: boolean;
   isEditing?: boolean;
   editingValue?: string;
+  pageRotation?: number;
   onSelect: (e: React.PointerEvent<HTMLDivElement>) => void;
   onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => void;
   onDoubleClick?: () => void;

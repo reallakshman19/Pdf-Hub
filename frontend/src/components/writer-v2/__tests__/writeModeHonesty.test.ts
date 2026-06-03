@@ -26,8 +26,8 @@ describe('Write mode honesty — source audit', () => {
     expect(code).not.toMatch(/modif(y|ies) the PDF/i);
   });
 
-  test('WriterPopupEditor does not claim to edit existing PDF text', () => {
-    const code = src('WriterPopupEditor.tsx');
+  test('WriterInlineEditor does not claim to edit existing PDF text', () => {
+    const code = src('WriterInlineEditor.tsx');
     expect(code).not.toMatch(/edit(s)? existing/i);
     expect(code).not.toMatch(/modif(y|ies) the PDF/i);
   });

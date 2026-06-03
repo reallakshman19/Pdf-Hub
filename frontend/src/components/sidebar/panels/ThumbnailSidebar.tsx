@@ -67,9 +67,13 @@ function buildReorderOrder(
   ];
 }
 
+// Global cache for thumbnail image URLs to prevent flickering and regeneration on active editing passes
+const thumbnailCache = new Map<string, string>(); // key: `${documentKey}-${pageNumber}`
+
 const ThumbnailSidebar: React.FC = () => {
   const {
     workingBytes,
+    documentKey,
     viewState,
     setPage,
     selectedPages,
@@ -134,6 +138,13 @@ const ThumbnailSidebar: React.FC = () => {
   }, [viewState.currentPage, thumbs.length]);
 
   React.useEffect(() => {
+    // Synchronize selectedPages with viewState.currentPage when scrolling or clicking inside the main viewer
+    if (viewState.currentPage && !selectedPages.includes(viewState.currentPage)) {
+      setSelectedPages([viewState.currentPage]);
+    }
+  }, [viewState.currentPage, selectedPages, setSelectedPages]);
+
+  React.useEffect(() => {
     let cancelled = false;
 
     const loadThumbnails = async () => {
@@ -156,9 +167,17 @@ const ThumbnailSidebar: React.FC = () => {
 
           const batchResults = await Promise.all(
             batch.map(async (pageNumber) => {
+              const cacheKey = `${documentKey || 'default'}-${pageNumber}`;
+              let imageUrl = thumbnailCache.get(cacheKey);
+
               const page = await pdfDoc.getPage(pageNumber);
               const viewport = page.getViewport({ scale: 1.0 });
-              const imageUrl = await PdfRendererAdapter.getThumbnail(page);
+
+              if (!imageUrl) {
+                imageUrl = await PdfRendererAdapter.getThumbnail(page);
+                thumbnailCache.set(cacheKey, imageUrl);
+              }
+
               page.cleanup();
               return {
                 pageNumber,
@@ -183,7 +202,7 @@ const ThumbnailSidebar: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [workingBytes, pdfDoc]);
+  }, [workingBytes, pdfDoc, documentKey]);
 
   const applySelection = (
     event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>,
@@ -373,7 +392,7 @@ const ThumbnailSidebar: React.FC = () => {
 
       {loading && <div className="text-sm text-slate-500 shrink-0 mb-3">Generating thumbnails...</div>}
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         <VList ref={vlistRef} data={thumbs}>
           {(thumb) => {
             const active = thumb.pageNumber === viewState.currentPage;
@@ -382,6 +401,9 @@ const ThumbnailSidebar: React.FC = () => {
             const annotationCount = annotationCountByPage[thumb.pageNumber] ?? 0;
             const unresolvedCount = unresolvedCountByPage[thumb.pageNumber] ?? 0;
             const searchHitCount = searchHitCountByPage[thumb.pageNumber] ?? 0;
+
+            const aspectRatio = thumb.pageWidth && thumb.pageHeight ? thumb.pageWidth / thumb.pageHeight : 0.707;
+            const calculatedWidth = thumbHeight * aspectRatio;
 
             return (
               <div
@@ -392,6 +414,9 @@ const ThumbnailSidebar: React.FC = () => {
                 role="button"
                 aria-label={`Page ${thumb.pageNumber}`}
                 aria-pressed={selected || active}
+                onFocus={() => {
+                  vlistRef.current?.scrollToIndex(thumb.pageNumber - 1, { align: 'nearest' });
+                }}
                 onDragStart={() => {
                   const movingPages =
                     selectedPages.includes(thumb.pageNumber) && selectedPages.length > 1
@@ -411,48 +436,56 @@ const ThumbnailSidebar: React.FC = () => {
                 onClick={(event) => applySelection(event, thumb.pageNumber)}
                 onKeyDown={(event) => handleKeyDown(event, thumb.pageNumber)}
                 onContextMenu={(event) => handleContextMenu(event, thumb.pageNumber)}
-                className={`group rounded-lg border p-2 mb-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-slate-900 ${
-                  selected
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/30'
-                    : active
-                    ? 'border-slate-400 bg-slate-50 dark:bg-slate-900'
-                    : 'border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700'
-                } ${dragOver ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-slate-900' : ''}`}
+                className={`group rounded-lg p-2 mb-3 cursor-pointer transition-all focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-800 ${
+                  dragOver ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <GripVertical className="w-4 h-4 text-slate-400" />
+                    <GripVertical className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-slate-400" />
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       Page {thumb.pageNumber}
                     </span>
                   </div>
                   {selected ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600 text-white">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                       Selected
                     </span>
                   ) : active ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-white">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                       Current
                     </span>
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap gap-1 mb-2 text-[10px]">
-                  <span className="px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    Ann {annotationCount}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
-                    Open {unresolvedCount}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
-                    Hits {searchHitCount}
-                  </span>
+                <div className="flex flex-wrap gap-1 mb-2 text-[10px] pl-6">
+                  {annotationCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      Ann {annotationCount}
+                    </span>
+                  )}
+                  {unresolvedCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
+                      Open {unresolvedCount}
+                    </span>
+                  )}
+                  {searchHitCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+                      Hits {searchHitCount}
+                    </span>
+                  )}
                 </div>
 
                 {/* Thumbnail image + annotation overlay */}
                 <div
-                  className="relative bg-white dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 overflow-hidden"
-                  style={{ height: thumbHeight }}
+                  className={`relative bg-white dark:bg-slate-950 overflow-hidden mx-auto transition-all ${
+                    selected
+                      ? 'border-2 border-blue-600 dark:border-blue-500 ring-4 ring-blue-500/20 shadow-md rounded-md'
+                      : active
+                      ? 'border-2 border-slate-400 dark:border-slate-500 ring-4 ring-slate-400/20 shadow-sm rounded-md'
+                      : 'border border-slate-200 dark:border-slate-800 shadow-sm rounded'
+                  }`}
+                  style={{ height: thumbHeight, width: calculatedWidth }}
                 >
                   <img
                     src={thumb.imageUrl}

@@ -11,6 +11,8 @@ import { useSessionStore } from '@/core/session/store';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { PreviewModeBanner } from '@/components/shell/PreviewModeBanner';
 import { useCapabilities } from '@/hooks/useCapabilities';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { MobileShell } from '@/components/shell/MobileShell';
 
 interface AppShellProps {
   topnav: ReactNode;
@@ -22,15 +24,9 @@ interface AppShellProps {
   statusbar: ReactNode;
 }
 
-export const AppShell: React.FC<AppShellProps> = ({
-  topnav,
-  toolbar,
-  leftRail,
-  sidebar,
-  workspace,
-  inspector,
-  statusbar,
-}) => {
+export const AppShell: React.FC<AppShellProps> = (props) => {
+  const { topnav, toolbar, leftRail, sidebar, workspace, inspector, statusbar } = props;
+  const isMobile = useIsMobile();
   const { leftPanelWidth, rightPanelWidth, setLeftPanelWidth, setRightPanelWidth } = useEditorStore();
   const capabilities = useCapabilities();
   const documentKey = useSessionStore((state) => state.documentKey);
@@ -89,6 +85,10 @@ export const AppShell: React.FC<AppShellProps> = ({
     }
     panel.resize(`${rightPanelWidth}%`);
   }, [rightPanelWidth]);
+
+  if (isMobile) {
+    return <MobileShell {...props} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden">

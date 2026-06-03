@@ -3,14 +3,11 @@ import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { MacrosSidebar } from '@/components/sidebar/MacrosSidebar';
 import OcrJobsPanel from '@/components/sidebar/OcrJobsPanel';
-import RedactionPreviewPanel from '@/components/redaction/RedactionPreviewPanel';
-import { OcrStore } from '@/core/ocr/store';
+import { ocrStore } from '@/core/ocr/store';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureUnavailable } from '@/components/ui/FeatureUnavailable';
-
-const ocrStore = new OcrStore();
 
 const OcrPanelConnected: React.FC = () => {
   const documentKey = useSessionStore((s) => s.documentKey) ?? '';
@@ -55,7 +52,6 @@ export const SidebarPanel: React.FC = () => {
       case 'search':     return 'Search';
       case 'macros':     return 'Macros';
       case 'ocr':        return 'OCR';
-      case 'redaction':  return 'Redaction';
       default:           return 'Panel';
     }
   };
@@ -108,7 +104,6 @@ export const SidebarPanel: React.FC = () => {
           )
         )}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
-        {sidebarTab === 'redaction' && <RedactionPreviewPanel />}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { SelectionHandles } from './shared/SelectionHandles';
 
 export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
-  onSelect, onTransformStart, onDoubleClick, onCommitEdit,
+  onSelect, onTransformStart, onDoubleClick, onCommitEdit, pageRotation = 0,
 }) => {
   return (
     <div
@@ -17,6 +17,7 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
         borderRadius: 6, padding: 4,
         cursor: 'pointer', pointerEvents: 'all',
+        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
       onDoubleClick={onDoubleClick}

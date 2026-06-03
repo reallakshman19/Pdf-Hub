@@ -17,7 +17,7 @@
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
-import type { OcrJob, OcrResultsByPage } from './types';
+import type { OcrJob, OcrResultsByPage, OcrBlock } from './types';
 import { recognizePages } from '../../adapters/ocr-preview/TesseractAdapter';
 
 export type OcrStoreListener = () => void;
@@ -120,6 +120,15 @@ export class OcrStore {
     return job;
   }
 
+  updateBlock(pageNumber: number, blockId: string, patch: Partial<OcrBlock>): void {
+    const result = this.resultsByPage[pageNumber];
+    if (!result) return;
+    const block = result.blocks.find(b => b.id === blockId);
+    if (!block) return;
+    Object.assign(block, patch);
+    this.notify();
+  }
+
   /**
    * Cancel a running job.  This marks the job as cancelled and
    * prevents further results from being merged.  Currently there is
@@ -136,3 +145,5 @@ export class OcrStore {
     this.notify();
   }
 }
+
+export const ocrStore = new OcrStore();

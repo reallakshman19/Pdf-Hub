@@ -1,0 +1,64 @@
+/*
+ * Visual styles for Lexical editor theme classes used by the writer-v2 inline
+ * editor (see WriterInlineEditor `theme`). Without these, text formats applied
+ * via the ribbon would not render inside the editing surface.
+ */
+
+.writer-v2-editor-bold {
+  font-weight: 700;
+}
+
+.writer-v2-editor-italic {
+  font-style: italic;
+}
+
+.writer-v2-editor-underline {
+  text-decoration: underline;
+}
+
+.writer-v2-editor-strikethrough {
+  text-decoration: line-through;
+}
+
+/* When both underline + strikethrough are applied */
+.writer-v2-editor-underline.writer-v2-editor-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.writer-v2-editor-subscript {
+  font-size: 0.8em;
+  vertical-align: sub;
+}
+
+.writer-v2-editor-superscript {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.writer-v2-editor-text-code {
+  font-family: 'Courier New', monospace;
+  background-color: rgba(135, 131, 120, 0.15);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.95em;
+}
+
+.writer-v2-editor-quote {
+  margin: 0 0 6px 0;
+  padding-left: 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+  font-style: italic;
+}
+
+.writer-v2-editor-code {
+  display: block;
+  margin: 0 0 6px 0;
+  padding: 8px 10px;
+  background-color: #f1f5f9;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  tab-size: 2;
+}

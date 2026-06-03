@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Moon, Search, Settings, Sun, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare, ChevronRight } from 'lucide-react';
+import {
+  Moon, Search, Settings, Sun, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare,
+  ChevronRight, Menu, FlaskConical, MousePointer2, PenTool, Type, Layers, Sparkles,
+  Undo2, Redo2, Minus, Plus
+} from 'lucide-react';
+import { useAnnotationStore } from '@/core/annotations/store';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import type { ActiveMode } from '@/core/editor/types';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
@@ -11,13 +18,52 @@ import { SearchIndexer } from '@/core/search/indexer';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useCapabilities } from '@/hooks/useCapabilities';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { isMockEnabled } from '@/core/mock/isMockEnabled';
+import { useMockPdf } from '@/hooks/useMockPdf';
 
 export const TopNav: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const { documentKey, fileName, isDirty } = useSessionStore();
-  const { setSidebarTab, setLeftPanelWidth, leftPanelWidth, setMacroBuilderOpen } = useEditorStore();
+  const { documentKey, fileName, isDirty, viewState, setZoom } = useSessionStore();
+  const {
+    setSidebarTab,
+    setLeftPanelWidth,
+    leftPanelWidth,
+    setMacroBuilderOpen,
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+    activeMode,
+    setActiveMode,
+  } = useEditorStore();
+  const { history, future, undo, redo } = useAnnotationStore();
+  const { undoWriter, redoWriter, undoStack, redoStack } = useWriterV2Store();
+
+  const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
+
+  const handleZoomOut = () => {
+    const next = [...ZOOM_STEPS].reverse().find((s) => s < viewState.zoom) ?? 25;
+    setZoom(next);
+  };
+
+  const handleZoomIn = () => {
+    const next = ZOOM_STEPS.find((s) => s > viewState.zoom) ?? 400;
+    setZoom(next);
+  };
+
+  const MODES: Array<{ id: ActiveMode; icon: React.ComponentType<{ className?: string }>; label: string; ai?: boolean }> = [
+    { id: 'file',     icon: FolderOpen,    label: 'File' },
+    { id: 'view',     icon: MousePointer2, label: 'View' },
+    { id: 'annotate', icon: Highlighter,   label: 'Annotate' },
+    { id: 'draw',     icon: PenTool,       label: 'Draw' },
+    { id: 'write',    icon: Type,          label: 'Write' },
+    { id: 'organize', icon: Layers,        label: 'Organize' },
+    { id: 'generate', icon: Sparkles,      label: 'Generate', ai: true },
+  ];
   const addToast = useToastStore((state) => state.addToast);
   const capabilities = useCapabilities();
+  const isMobile = useIsMobile();
+  const mockEnabled = isMockEnabled(window.location.hostname);
+  const { openMockPdf, loading: mockLoading } = useMockPdf();
 
   const {
     query,
@@ -120,13 +166,13 @@ export const TopNav: React.FC = () => {
     ? fileName.length > 38 ? `${fileName.slice(0, 37)}…` : fileName
     : null;
 
-  return (
-    <>
-      <div className="flex items-center h-12 px-3 gap-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+  if (isMobile) {
+    return (
+      <div className="flex items-center justify-between h-12 px-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
         {/* Logo */}
         <a
           href="#"
-          className="flex items-center gap-2 mr-1.5 shrink-0 no-underline"
+          className="flex items-center gap-2 shrink-0 no-underline"
           onClick={(e) => e.preventDefault()}
         >
           <div className="w-[30px] h-[30px] rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
@@ -136,90 +182,238 @@ export const TopNav: React.FC = () => {
               <path d="M5 7h6M5 9.5h4" stroke="white" strokeWidth="1.1" strokeLinecap="round" />
             </svg>
           </div>
-          <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight hidden sm:block">
-            PDF<span className="text-blue-600">Hub</span>
-          </span>
         </a>
 
         {/* File chip */}
-        {displayName && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md cursor-default max-w-[230px] shrink-0">
+        {displayName ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md cursor-default max-w-[180px] shrink-0">
             {isDirty && (
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
             )}
             <span
-              className="text-[12.5px] font-[450] text-slate-800 dark:text-slate-200 overflow-hidden text-ellipsis whitespace-nowrap"
+              className="text-[12px] font-medium text-slate-800 dark:text-slate-200 overflow-hidden text-ellipsis whitespace-nowrap"
               title={fileName ?? ''}
             >
-              {displayName}
+              {fileName && fileName.length > 20 ? `${fileName.slice(0, 19)}…` : fileName}
             </span>
           </div>
+        ) : (
+          <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+            PDF<span className="text-blue-600">Hub</span>
+          </span>
         )}
 
-        <div className="flex-1" />
-
-        {/* Search / command pill */}
-        <div className="relative hidden lg:block">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={localQuery}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Search or run a command…"
-            className="h-8 w-52 pl-8 pr-8 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-          />
-          {localQuery ? (
-            <button
-              onClick={handleClear}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 pointer-events-none">
-              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 px-1 py-px bg-slate-200 dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600">⌘</span>
-              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 px-1 py-px bg-slate-200 dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600">K</span>
-            </div>
+        {/* Right side: Mock + Hamburger */}
+        <div className="flex items-center gap-1">
+          {mockEnabled && (
+            <Tooltip content={mockLoading ? 'Generating…' : 'Open mock benchmark PDF'}>
+              <Button
+                data-testid="mock-pdf-btn"
+                variant="ghost"
+                size="icon"
+                onClick={() => void openMockPdf()}
+                disabled={mockLoading}
+                className="min-h-[44px] min-w-[44px] text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              >
+                <FlaskConical className="w-5 h-5" />
+              </Button>
+            </Tooltip>
           )}
+          {/* Hamburger Menu Button */}
+          <Button
+            data-testid="mobile-hamburger"
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
+            className="min-h-[44px] min-w-[44px]"
+          >
+            <Menu className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between h-[48px] px-3 gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 select-none">
+        {/* Left: Logo & Modes Tab Group */}
+        <div className="flex items-center gap-4 shrink-0">
+          <a
+            href="#"
+            className="flex items-center gap-2 no-underline"
+            onClick={(e) => e.preventDefault()}
+          >
+            <div className="w-[30px] h-[30px] rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white">
+                <path d="M3 2h7l3 3v9H3V2z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" fill="none" />
+                <path d="M10 2v3h3" stroke="white" strokeWidth="1.3" strokeLinejoin="round" />
+                <path d="M5 7h6M5 9.5h4" stroke="white" strokeWidth="1.1" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span className="text-[14px] font-bold text-slate-900 dark:text-slate-100 tracking-tight hidden lg:block">
+              PDF<span className="text-blue-600">Hub</span>
+            </span>
+          </a>
+
+          {/* Mode tab group */}
+          <div className="flex items-center gap-px bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-855 rounded-xl p-[2px] shrink-0">
+            {MODES.map(({ id, icon: Icon, label, ai }) => {
+              const isActive = activeMode === id;
+              return (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveMode(id)}
+                  className={[
+                    'flex items-center gap-1.5 px-[10px] py-1 rounded-[8px] text-[11.5px] font-[500] whitespace-nowrap transition-all select-none border-none cursor-pointer bg-transparent',
+                    isActive
+                      ? ai
+                        ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm'
+                      : ai
+                        ? 'text-slate-500 dark:text-slate-400 hover:text-purple-500 hover:bg-slate-100 dark:hover:bg-slate-850/50'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-850/50',
+                  ].join(' ')}
+                >
+                  <Icon className="w-[12.5px] h-[12.5px] shrink-0" />
+                  <span className="hidden xl:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Save status badge */}
-        {fileName && (
-          <div
-            className={[
-              'flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-full transition-all',
-              isDirty
-                ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30'
-                : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
-            ].join(' ')}
-          >
-            <span className={['w-1.5 h-1.5 rounded-full', isDirty ? 'bg-amber-500' : 'bg-emerald-500'].join(' ')} />
-            {isDirty ? 'Unsaved' : 'Saved'}
-          </div>
-        )}
+        {/* Middle: File Info & Search Bar */}
+        <div className="flex items-center gap-2 justify-center flex-1 max-w-[420px] min-w-[200px]">
+          {/* File chip */}
+          {displayName && (
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 rounded-md cursor-default shrink-0 overflow-hidden max-w-[150px]">
+              {isDirty && (
+                <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+              )}
+              <span
+                className="text-[11px] font-[450] text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis whitespace-nowrap"
+                title={fileName ?? ''}
+              >
+                {displayName}
+              </span>
+            </div>
+          )}
 
-        <Tooltip content={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
-          <Button data-testid="theme-toggle" variant="ghost" size="icon" onClick={toggleDarkMode}>
-            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
-        </Tooltip>
-        {capabilities.hasMacroConsole && (
-          <Tooltip content="Open macro builder">
-            <Button variant="ghost" size="icon" onClick={() => setMacroBuilderOpen(true)}>
-              <Wand2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+          {/* Search / command pill */}
+          <div className="relative flex-1 max-w-[240px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={localQuery}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Search or run command…"
+              className="h-[28px] w-full pl-8 pr-8 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+            {localQuery ? (
+              <button
+                onClick={handleClear}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 pointer-events-none">
+                <span className="font-mono text-[9px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 py-px rounded border border-slate-300/40">⌘</span>
+                <span className="font-mono text-[9px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 py-px rounded border border-slate-300/40">K</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Undo/Redo, Zoom & Action Controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Undo / Redo */}
+          <div className="flex items-center border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 rounded-lg p-[1px]">
+            <button
+              onClick={activeMode === 'write' ? undoWriter : undo}
+              disabled={activeMode === 'write' ? undoStack.length === 0 : history.length === 0}
+              title="Undo"
+              className="flex items-center justify-center h-6 w-7 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
+            >
+              <Undo2 className="w-[13px] h-[13px]" />
+            </button>
+            <button
+              onClick={activeMode === 'write' ? redoWriter : redo}
+              disabled={activeMode === 'write' ? redoStack.length === 0 : future.length === 0}
+              title="Redo"
+              className="flex items-center justify-center h-6 w-7 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
+            >
+              <Redo2 className="w-[13px] h-[13px]" />
+            </button>
+          </div>
+
+          {/* Zoom controls */}
+          <div className="flex items-center border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 rounded-lg p-[1px]">
+            <button
+              onClick={handleZoomOut}
+              disabled={viewState.zoom <= 25}
+              className="flex items-center justify-center h-6 w-6 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
+            >
+              <Minus className="w-[11px] h-[11px]" />
+            </button>
+            <span className="flex items-center justify-center h-6 px-1.5 font-mono text-[10px] font-medium text-slate-600 dark:text-slate-400 select-none">
+              {viewState.zoom}%
+            </span>
+            <button
+              onClick={handleZoomIn}
+              disabled={viewState.zoom >= 400}
+              className="flex items-center justify-center h-6 w-6 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
+            >
+              <Plus className="w-[11px] h-[11px]" />
+            </button>
+          </div>
+
+          <div className="w-px h-4 bg-slate-200 dark:bg-slate-800 mx-0.5 shrink-0" />
+
+          {/* Mock PDF button — dev/localhost only */}
+          {mockEnabled && (
+            <Tooltip content={mockLoading ? 'Generating benchmark PDF…' : 'Open mock benchmark PDF (dev only)'}>
+              <Button
+                data-testid="mock-pdf-btn"
+                variant="ghost"
+                size="icon"
+                onClick={() => void openMockPdf()}
+                disabled={mockLoading}
+                className="relative h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              >
+                <FlaskConical className={['w-3.5 h-3.5', mockLoading ? 'animate-pulse' : ''].join(' ')} />
+                {/* Amber dot indicator */}
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
+              </Button>
+            </Tooltip>
+          )}
+
+          <Tooltip content={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
+            <Button data-testid="theme-toggle" variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={toggleDarkMode}>
+              {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </Button>
           </Tooltip>
-        )}
-        <Tooltip content="Open settings">
-          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
-            <Settings className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-          </Button>
-        </Tooltip>
+          {capabilities.hasMacroConsole && (
+            <Tooltip content="Open macro builder">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => setMacroBuilderOpen(true)}>
+                <Wand2 className="w-3.5 h-3.5" />
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip content="Open settings">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => setSettingsOpen(true)}>
+              <Settings className="w-3.5 h-3.5" />
+            </Button>
+          </Tooltip>
 
-        {/* Avatar */}
-        <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[11px] font-semibold cursor-pointer shrink-0 select-none">
-          JD
+          {/* Avatar */}
+          <div className="w-6.5 h-6.5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-semibold cursor-pointer shrink-0 select-none">
+            JD
+          </div>
         </div>
       </div>
 

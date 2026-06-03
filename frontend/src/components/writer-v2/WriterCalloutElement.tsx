@@ -13,8 +13,11 @@ export interface WriterCalloutElementProps {
   onBeginDrag: (event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize', handle?: import('./WriterSelectionHandles').ResizeHandle) => void;
   onUpdateDrag: (event: React.PointerEvent<HTMLDivElement>) => void;
   onEndDrag: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
+  onSave?: (payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => void;
+  onCancel?: () => void;
 }
 
 export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
@@ -25,8 +28,11 @@ export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
   onBeginDrag,
   onUpdateDrag,
   onEndDrag,
+  onClick,
   onDoubleClick,
   viewportRect,
+  onSave,
+  onCancel,
 }) => {
   const callout = element.callout;
 
@@ -120,8 +126,11 @@ export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
         onBeginDrag={onBeginDrag}
         onUpdateDrag={onUpdateDrag}
         onEndDrag={onEndDrag}
+        onClick={onClick}
         onDoubleClick={onDoubleClick}
         viewportRect={viewportRect}
+        onSave={onSave}
+        onCancel={onCancel}
       />
     </div>
   );

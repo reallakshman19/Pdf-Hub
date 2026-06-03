@@ -24,4 +24,6 @@ export interface EditorState {
   leftPanelWidth: number;
   rightPanelWidth: number;
   macroBuilderOpen: boolean;
+  mobileDrawerOpen: boolean;
+  mobileSheetOpen: boolean;
 }

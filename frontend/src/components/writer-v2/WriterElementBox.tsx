@@ -10,7 +10,6 @@ import {
   viewportRectToPdfRect,
 } from '@/core/writer-v2/coordinateTransform';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import { WriterPopupEditor } from './WriterPopupEditor';
 import { WriterCalloutElement } from './WriterCalloutElement';
 import { WriterRichElementBox } from './WriterRichElementBox';
 import type { ResizeHandle } from './WriterSelectionHandles';
@@ -21,7 +20,18 @@ interface DragState {
   startClientX: number;
   startClientY: number;
   startViewportRect: ViewportRect;
+  pointerId: number;
+  /**
+   * Pointer capture is deferred until the pointer actually moves past a small
+   * threshold. Capturing on pointerdown suppresses the browser's dblclick
+   * synthesis in Chromium, which breaks double-click-to-edit.
+   */
+  captured: boolean;
 }
+
+// Minimum movement (in client pixels) before a pointerdown is treated as a drag.
+const DRAG_THRESHOLD_PX = 3;
+const DOUBLE_CLICK_WINDOW_MS = 400;
 
 export interface WriterElementBoxProps {
   element: WriterElementV2;
@@ -41,6 +51,12 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
   const [draftRectState, setDraftRectState] = React.useState<{ rectKey: string; rect: PdfRect } | null>(null);
   const dragRef = React.useRef<DragState | null>(null);
+  // Timestamp of the last non-drag pointerup, used to detect double-clicks
+  // manually. The native `dblclick` event is unreliable on an element that also
+  // handles pointer-drag interactions, so we open the editor from the pointer
+  // events (which always fire) rather than depending on `dblclick`.
+  const lastClickAtRef = React.useRef(0);
+  const lastPointerDownAtRef = React.useRef(0);
   const rectKey = `${element.rect.x},${element.rect.y},${element.rect.width},${element.rect.height}`;
   const draftRect = draftRectState?.rectKey === rectKey ? draftRectState.rect : null;
   const effectiveRect = draftRect ?? element.rect;
@@ -55,7 +71,22 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     if (element.locked || element.hidden || isEditing) return;
 
     event.stopPropagation();
-    event.preventDefault();
+
+    if (mode === 'move') {
+      const now = event.timeStamp || Date.now();
+      if (
+        lastPointerDownAtRef.current > 0
+        && now - lastPointerDownAtRef.current <= DOUBLE_CLICK_WINDOW_MS
+      ) {
+        lastPointerDownAtRef.current = 0;
+        lastClickAtRef.current = 0;
+        dragRef.current = null;
+        event.preventDefault();
+        beginEditingWriterElement(element.id);
+        return;
+      }
+      lastPointerDownAtRef.current = now;
+    }
 
     dispatchWriterCommand({
       type: 'SET_ACTIVE_WRITER_ELEMENT',
@@ -68,20 +99,38 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
       startClientX: event.clientX,
       startClientY: event.clientY,
       startViewportRect: pdfRectToViewportRect(element.rect, viewport),
+      pointerId: event.pointerId,
+      captured: false,
     };
-
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Pointer capture is deferred to updateDrag (see DragState.captured) so that
+    // a click/double-click that never moves still fires its native events.
   };
 
   const updateDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag) return;
 
-    event.stopPropagation();
-    event.preventDefault();
-
     const dx = event.clientX - drag.startClientX;
     const dy = event.clientY - drag.startClientY;
+
+    // Ignore tiny pointer jitter so plain clicks/double-clicks are preserved.
+    if (!drag.captured) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX && Math.abs(dy) < DRAG_THRESHOLD_PX) {
+        return;
+      }
+      lastPointerDownAtRef.current = 0;
+      lastClickAtRef.current = 0;
+      drag.captured = true;
+      const container = event.currentTarget.closest('[data-writer-v2-element-id]') as HTMLDivElement | null;
+      if (container) {
+        container.setPointerCapture?.(drag.pointerId);
+      } else {
+        event.currentTarget.setPointerCapture?.(drag.pointerId);
+      }
+    }
+
+    event.stopPropagation();
+    event.preventDefault();
 
     let nextViewportRect: ViewportRect;
 
@@ -119,14 +168,36 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     const drag = dragRef.current;
     if (!drag) return;
 
-    event.stopPropagation();
-    event.preventDefault();
-
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (drag.captured) {
+      const container = event.currentTarget.closest('[data-writer-v2-element-id]') as HTMLDivElement | null;
+      if (container) {
+        container.releasePointerCapture?.(event.pointerId);
+      } else {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    }
 
     const finalRect = draftRect ?? element.rect;
     dragRef.current = null;
     setDraftRectState(null);
+
+    // A pointerdown that never moved is a click/double-click, not a drag —
+    // don't emit a no-op move/resize command. Detect the double-click here
+    // (rather than relying on the native `dblclick`, which is unreliable on a
+    // drag-handling element) and open the inline editor.
+    if (!drag.captured) {
+      if (!element.locked && !element.hidden && !isEditing) {
+        const now = event.timeStamp || Date.now();
+        if (now - lastClickAtRef.current <= DOUBLE_CLICK_WINDOW_MS) {
+          lastClickAtRef.current = 0;
+          lastPointerDownAtRef.current = 0;
+          beginEditingWriterElement(element.id);
+        } else {
+          lastClickAtRef.current = now;
+        }
+      }
+      return;
+    }
 
     const pageBounds = {
       x: 0,
@@ -158,8 +229,36 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     event.stopPropagation();
     event.preventDefault();
 
+    dragRef.current = null;
+    setDraftRectState(null);
+    lastClickAtRef.current = 0;
+    lastPointerDownAtRef.current = 0;
     beginEditingWriterElement(element.id);
   };
+
+  const handleSave = React.useCallback((payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => {
+    if (payload.assets?.length) {
+      useWriterV2Store.getState().addWriterAssets(payload.assets);
+    }
+
+    dispatchWriterCommand({
+      type: 'UPDATE_WRITER_ELEMENT',
+      id: element.id,
+      now: new Date().toISOString(),
+      patch: {
+        editorStateJson: payload.editorStateJson,
+        plainText: payload.plainText,
+        assetIds: payload.assets?.length
+          ? [
+              ...(element.assetIds ?? []),
+              ...payload.assets.map((asset) => asset.id),
+            ]
+          : element.assetIds,
+      },
+    });
+
+    endEditingWriterElement();
+  }, [dispatchWriterCommand, element.id, element.assetIds, endEditingWriterElement]);
 
   const commonProps = {
     element,
@@ -169,47 +268,16 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     onBeginDrag: beginDrag,
     onUpdateDrag: updateDrag,
     onEndDrag: endDrag,
+    onClick: undefined,
     onDoubleClick: openEditor,
     viewportRect,
+    onSave: handleSave,
+    onCancel: endEditingWriterElement,
   };
 
-  return (
-    <>
-      {element.type === 'textCallout' ? (
-        <WriterCalloutElement {...commonProps} />
-      ) : (
-        <WriterRichElementBox {...commonProps} />
-      )}
-
-      {isEditing ? (
-        <WriterPopupEditor
-          element={element}
-          onCancel={endEditingWriterElement}
-          onSave={(payload) => {
-            if (payload.assets?.length) {
-              useWriterV2Store.getState().addWriterAssets(payload.assets);
-            }
-
-            dispatchWriterCommand({
-              type: 'UPDATE_WRITER_ELEMENT',
-              id: element.id,
-              now: new Date().toISOString(),
-              patch: {
-                editorStateJson: payload.editorStateJson,
-                plainText: payload.plainText,
-                assetIds: payload.assets?.length
-                  ? [
-                      ...(element.assetIds ?? []),
-                      ...payload.assets.map((asset) => asset.id),
-                    ]
-                  : element.assetIds,
-              },
-            });
-
-            endEditingWriterElement();
-          }}
-        />
-      ) : null}
-    </>
+  return element.type === 'textCallout' ? (
+    <WriterCalloutElement {...commonProps} />
+  ) : (
+    <WriterRichElementBox {...commonProps} />
   );
 };

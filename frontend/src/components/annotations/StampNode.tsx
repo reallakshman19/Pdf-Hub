@@ -3,7 +3,7 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 
 export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
-  annotation, rect, scale, isSelected, onSelect, onTransformStart,
+  annotation, rect, scale, isSelected, onSelect, onTransformStart, pageRotation = 0,
 }) => {
   return (
     <div
@@ -17,6 +17,7 @@ export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
         fontWeight: 'bold',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', pointerEvents: 'all',
+        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >

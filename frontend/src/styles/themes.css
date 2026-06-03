@@ -7,6 +7,11 @@
 
 @layer base {
   :root {
+    --mobile-touch-target: 44px;
+    --mobile-bottom-bar-height: 56px;
+    --mobile-drawer-width: 280px;
+    --mobile-sheet-max-height: 60vh;
+
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -78,3 +83,12 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+

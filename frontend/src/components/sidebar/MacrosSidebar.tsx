@@ -1294,6 +1294,7 @@ export const MacrosSidebar: React.FC = () => {
             Expert JSON Builder
           </div>
           <Button variant="ghost" size="sm" onClick={loadSelectedRecipeIntoExpert} disabled={!selectedRecipe}>
+            <Code2 className="w-3.5 h-3.5 mr-1" />
             Load Selected
           </Button>
         </div>

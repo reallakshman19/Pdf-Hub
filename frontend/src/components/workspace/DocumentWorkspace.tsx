@@ -2,7 +2,8 @@ import React from 'react';
 import { UploadCloud } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { VList } from 'virtua';
+import { VList, type VListHandle } from 'virtua';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { PdfRendererAdapter, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
@@ -15,6 +16,7 @@ import { useReviewStore } from '@/core/review/store';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { useAnnotationPersistence } from './useAnnotationPersistence';
+import { useWriterPersistence } from './useWriterPersistence';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 
@@ -24,6 +26,8 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
+import { ocrStore } from '@/core/ocr/store';
+import EquationOverlay from '@/components/viewer/EquationOverlay';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
 
@@ -80,6 +84,7 @@ export const DocumentWorkspace: React.FC = () => {
     toggleSelection,
     clearSelection,
   } = useAnnotationStore();
+  const isMobile = useIsMobile();
 
   const {
     workingBytes,
@@ -99,8 +104,19 @@ export const DocumentWorkspace: React.FC = () => {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [restoredCount, setRestoredCount] = React.useState(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const vlistRef = React.useRef<VListHandle>(null);
   const [isPanning, setIsPanning] = React.useState(false);
   const lastPanPos = React.useRef<{ x: number; y: number } | null>(null);
+
+  const [drawingLineStart, setDrawingLineStart] = React.useState<{
+    pageNumber: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [drawingLineCurrent, setDrawingLineCurrent] = React.useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const handleBrowse = async () => {
     try {
@@ -182,12 +198,55 @@ export const DocumentWorkspace: React.FC = () => {
     };
   }, [workingBytes, documentKey, setSharedPdfDoc]);
 
+  // Reset drawing state when tool changes
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDrawingLineStart(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDrawingLineCurrent(null);
+  }, [activeTool]);
+
+  // Manage window drawing-line preview mousemove/Escape key event listeners cleanly via React lifecycles
+  React.useEffect(() => {
+    if (!drawingLineStart) return;
+
+    const scale = viewState.zoom / 100;
+
+    const onMove = (e: MouseEvent) => {
+      const pageEl = containerRef.current?.querySelector(`[data-page="${drawingLineStart.pageNumber}"]`);
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
+      const currentX = (e.clientX - rect.left) / scale;
+      const currentY = (e.clientY - rect.top) / scale;
+      setDrawingLineCurrent({ x: currentX, y: currentY });
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDrawingLineStart(null);
+        setDrawingLineCurrent(null);
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [drawingLineStart, viewState.zoom]);
+
   useAnnotationPersistence({
     documentKey,
     pdfDoc,
     annotations,
     setAnnotations,
     setRestoredCount,
+  });
+
+  useWriterPersistence({
+    documentKey,
   });
 
   React.useLayoutEffect(() => {
@@ -233,10 +292,17 @@ export const DocumentWorkspace: React.FC = () => {
 
   // Track which page is most visible in the scroll container and update currentPage accordingly.
   // This keeps the thumbnail strip and status bar in sync when the user scrolls continuously.
+  const isProgrammaticScrollRef = React.useRef(false);
+  const scrollTimeoutRef = React.useRef<number | null>(null);
   const visibleRatiosRef = React.useRef(new Map<number, number>());
   React.useEffect(() => {
     const root = containerRef.current;
     if (!root || !pdfDoc) return;
+
+    // Resolve the actual scrollable container parent. In continuous mode, this is the Virtua VList scrolling element.
+    const scrollContainer = viewState.viewMode === 'continuous'
+      ? (root.querySelector('.min-h-full')?.firstElementChild as HTMLElement) || root
+      : root;
 
     visibleRatiosRef.current.clear();
 
@@ -251,15 +317,64 @@ export const DocumentWorkspace: React.FC = () => {
         const best = [...visibleRatiosRef.current.entries()]
           .sort((a, b) => b[1] - a[1])[0];
         if (best && best[1] > 0.2) {
-          setPage(best[0]);
+          if (!isProgrammaticScrollRef.current) {
+            setPage(best[0]);
+          }
         }
       },
-      { root, threshold: [0.1, 0.25, 0.5, 0.75, 1] },
+      { root: scrollContainer, threshold: [0.1, 0.25, 0.5, 0.75, 1] },
     );
 
-    root.querySelectorAll<HTMLElement>('[data-page]').forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    const observeAll = () => {
+      scrollContainer.querySelectorAll<HTMLElement>('[data-page]').forEach((el) => observer.observe(el));
+    };
+
+    observeAll();
+
+    const mutationObs = new MutationObserver(() => {
+      observer.disconnect();
+      observeAll();
+    });
+    mutationObs.observe(root, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mutationObs.disconnect();
+    };
   }, [pdfDoc, viewState.viewMode, setPage]);
+
+  // Smooth scroll into view when viewState.currentPage changes programmatically (e.g., from the sidebar).
+  // Uses visibleRatiosRef to prevent visual feedback loops during manual scroll.
+  const lastScrolledPageRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!pdfDoc || !containerRef.current) return;
+    if (lastScrolledPageRef.current === viewState.currentPage) return;
+
+    // Determine if the target page is already highly visible in the viewport.
+    // If it's already the primary visible page (> 70% visible), we do not scroll.
+    const best = [...visibleRatiosRef.current.entries()]
+      .sort((a, b) => b[1] - a[1])[0];
+    if (best && best[0] === viewState.currentPage && best[1] > 0.7) {
+      return;
+    }
+
+    isProgrammaticScrollRef.current = true;
+    if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 800);
+
+    if (viewState.viewMode === 'continuous' && vlistRef.current) {
+      lastScrolledPageRef.current = viewState.currentPage;
+      vlistRef.current.scrollToIndex(viewState.currentPage - 1, { align: 'start' });
+    } else {
+      const pageEl = containerRef.current.querySelector(`[data-page="${viewState.currentPage}"]`);
+      if (pageEl && typeof pageEl.scrollIntoView === 'function') {
+        lastScrolledPageRef.current = viewState.currentPage;
+        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [viewState.currentPage, pdfDoc, viewState.viewMode]);
 
   const sortedVisibleAnnotations = React.useMemo(
     () =>
@@ -290,29 +405,41 @@ export const DocumentWorkspace: React.FC = () => {
 
   if (!workingBytes) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50">
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 max-w-md w-full text-center">
+      <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4">
+        <div className={[
+          "flex flex-col items-center justify-center text-center bg-white dark:bg-slate-900 w-full",
+          isMobile
+            ? "p-6 rounded-xl border border-slate-200 dark:border-slate-800"
+            : "p-12 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl max-w-md"
+        ].join(' ')}>
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6">
             <UploadCloud className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
             Open a PDF to get started
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-            Drag &amp; drop a file here, or click below.
-          </p>
+          {!isMobile && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+              Drag &amp; drop a file here, or click below.
+            </p>
+          )}
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
             Supports PDF up to 500 MB.
           </p>
           <button
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors"
+            className={[
+              "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
+              isMobile ? "w-full h-14 text-base" : "px-6 py-2 text-sm"
+            ].join(' ')}
             onClick={handleBrowse}
           >
             Browse Files
           </button>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
-            or paste a file with <kbd className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">⌘V</kbd>
-          </p>
+          {!isMobile && (
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
+              or paste a file with <kbd className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">⌘V</kbd>
+            </p>
+          )}
         </div>
       </div>
     );
@@ -339,6 +466,10 @@ export const DocumentWorkspace: React.FC = () => {
           activeTool={activeTool}
           pageAnnotations={pageAnnotationsMap.get(pageNumber) ?? emptyPageAnnotations}
           selectedAnnotationIds={selectedAnnotationIds}
+          drawingLineStart={drawingLineStart}
+          drawingLineCurrent={drawingLineCurrent}
+          setDrawingLineStart={setDrawingLineStart}
+          setDrawingLineCurrent={setDrawingLineCurrent}
           onActivate={() => setPage(pageNumber)}
           onCreateAnnotation={(annotation) => {
             addAnnotation(annotation);
@@ -475,6 +606,7 @@ export const DocumentWorkspace: React.FC = () => {
       <div className="min-h-full flex flex-col items-center py-8">
         {viewState.viewMode === 'continuous' ? (
           <VList
+            ref={vlistRef}
             style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}
           >
             {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
@@ -505,6 +637,10 @@ interface PageSurfaceProps {
   onClearSelection: () => void;
   onCommitAnnotation: (id: string, patch: Partial<PdfAnnotation>) => void;
   onCommitManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
+  drawingLineStart: { pageNumber: number; x: number; y: number } | null;
+  drawingLineCurrent: { x: number; y: number } | null;
+  setDrawingLineStart: (val: { pageNumber: number; x: number; y: number } | null) => void;
+  setDrawingLineCurrent: (val: { x: number; y: number } | null) => void;
 }
 
 const PageSurface: React.FC<PageSurfaceProps> = ({
@@ -523,6 +659,10 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   onClearSelection,
   onCommitAnnotation,
   onCommitManyAnnotations,
+  drawingLineStart,
+  drawingLineCurrent,
+  setDrawingLineStart,
+  setDrawingLineCurrent,
 }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
@@ -547,6 +687,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     activeTool === 'comment';
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
+  const [rotation, setRotation] = React.useState(0);
   const [textItems, setTextItems] = React.useState<TextLayerItem[]>([]);
   const [draftRects, setDraftRects] = React.useState<Record<string, Rect>>({});
   const [draftAnchors, setDraftAnchors] = React.useState<Record<string, Point2D | null>>({});
@@ -579,6 +720,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       if (!cancelled) {
         const viewport = page.getViewport({ scale });
         setSize({ width: viewport.width, height: viewport.height });
+        setRotation(viewport.rotation || 0);
       }
 
       const items = await PdfRendererAdapter.getPageTextItems(page, scale);
@@ -1250,6 +1392,62 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     const startX = (event.clientX - hostRect.left) / scale;
     const startY = (event.clientY - hostRect.top) / scale;
 
+    if (!isAnnotationType(activeTool)) return;
+    const tool = activeTool;
+
+    // Line and arrow are placed via exactly two clicks.
+    if (tool === 'line' || tool === 'arrow') {
+      if (!drawingLineStart || drawingLineStart.pageNumber !== pageNumber) {
+        setDrawingLineStart({ pageNumber, x: startX, y: startY });
+        setDrawingLineCurrent({ x: startX, y: startY });
+      } else {
+        const x1 = drawingLineStart.x;
+        const y1 = drawingLineStart.y;
+        const x2 = startX;
+        const y2 = startY;
+
+        const rectX = Math.min(x1, x2);
+        const rectY = Math.min(y1, y2);
+        const rectWidth = Math.max(Math.abs(x2 - x1), 8);
+        const rectHeight = Math.max(Math.abs(y2 - y1), 8);
+
+        const points = [
+          x1 - rectX,
+          y1 - rectY,
+          x2 - rectX,
+          y2 - rectY
+        ];
+
+        const annotation: PdfAnnotation = {
+          id: uuidv4(),
+          type: tool,
+          pageNumber,
+          rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight },
+          data: {
+            borderColor: '#111827',
+            points,
+            ...(tool === 'arrow' ? { lineEndCap: 'arrow' } : {}),
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        onCreateAnnotation(annotation);
+        setDrawingLineStart(null);
+        setDrawingLineCurrent(null);
+        resetInteractionState();
+      }
+      return;
+    }
+
+    // Callout is placed directly via a single click event.
+    if (tool === 'callout') {
+      const annotation = buildAnnotation('callout', pageNumber, startX, startY);
+      onCreateAnnotation(annotation);
+      resetInteractionState();
+      return;
+    }
+
     let rawEndX = startX;
     let rawEndY = startY;
     let latestDraft: Rect = { x: startX, y: startY, width: 0, height: 0 };
@@ -1277,8 +1475,6 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       setShapeDraft(null);
       clearTextSelectionDraft();
 
-      if (!isAnnotationType(activeTool)) return;
-      const tool = activeTool;
       const annotation = buildAnnotation(tool, pageNumber, startX, startY);
 
       if (isDrag) {
@@ -1289,19 +1485,6 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           height: Math.max(latestDraft.height, 8),
         };
         annotation.rect = finalRect;
-
-        // For line/arrow make the stroke run along the drag diagonal
-        if ((tool === 'line' || tool === 'arrow') && annotation.data) {
-          annotation.data = {
-            ...annotation.data,
-            points: [
-              startX - finalRect.x,
-              startY - finalRect.y,
-              rawEndX - finalRect.x,
-              rawEndY - finalRect.y,
-            ],
-          };
-        }
       }
 
       onCreateAnnotation(annotation);
@@ -1485,6 +1668,33 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             }}
           />
         )}
+        {/* Dashed line/arrow preview while placing with click events */}
+        {drawingLineStart && drawingLineStart.pageNumber === pageNumber && drawingLineCurrent && (
+          <svg className="absolute inset-0 pointer-events-none w-full h-full" style={{ overflow: 'visible' }}>
+            <defs>
+              <marker
+                id="arrow-preview-end"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 z" fill="#2563eb" />
+              </marker>
+            </defs>
+            <line
+              x1={drawingLineStart.x * scale}
+              y1={drawingLineStart.y * scale}
+              x2={drawingLineCurrent.x * scale}
+              y2={drawingLineCurrent.y * scale}
+              stroke="#2563eb"
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              markerEnd={activeTool === 'arrow' ? 'url(#arrow-preview-end)' : undefined}
+            />
+          </svg>
+        )}
         {pageAnnotations
         .slice()
         .sort((a, b) => (a.data?.zIndex ?? 0) - (b.data?.zIndex ?? 0))
@@ -1542,6 +1752,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               isSelected={selected}
               isEditing={editingId === annotation.id}
               editingValue={editingValue}
+              pageRotation={rotation}
               onSelect={(event: React.PointerEvent<HTMLDivElement>) => {
                 event.stopPropagation();
                 clearTextSelectionDraft();
@@ -1595,6 +1806,12 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         }}
       />
 
+      <EquationOverlay
+        ocrStore={ocrStore}
+        pageNumber={pageNumber}
+        scale={scale}
+      />
+
       <div className="absolute top-2 right-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded">
         Page {pageNumber}
       </div>
@@ -1610,7 +1827,9 @@ const PageSurfaceMemo = React.memo(
     prev.scale === next.scale &&
     prev.activeTool === next.activeTool &&
     prev.pageAnnotations === next.pageAnnotations &&
-    prev.selectedAnnotationIds === next.selectedAnnotationIds,
+    prev.selectedAnnotationIds === next.selectedAnnotationIds &&
+    prev.drawingLineStart === next.drawingLineStart &&
+    prev.drawingLineCurrent === next.drawingLineCurrent,
 );
 
 

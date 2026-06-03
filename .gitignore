@@ -29,6 +29,13 @@ Thumbs.db
 # test cache
 coverage/
 .vitest/
+test-results/
+
+# local browser profiles (preview/automation)
+*-user-data/
 
 # misc archives
 *.zip
+
+# generated reports
+playwright-report/

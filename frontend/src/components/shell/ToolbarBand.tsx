@@ -84,7 +84,7 @@ export function ToolbarBand() {
         maxHeight:      40,         // FIXED — prevents accidental growth
         padding:        '0 8px',
         borderBottom:   '0.5px solid var(--color-border-tertiary)',
-        background:     'var(--color-background-primary)',
+        background:     'white',
         overflowX:      'auto',
         overflowY:      'hidden',
         scrollbarWidth: 'none',     // Firefox

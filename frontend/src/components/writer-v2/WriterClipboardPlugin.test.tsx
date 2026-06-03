@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { WriterPopupEditor } from './WriterPopupEditor';
+import { WriterInlineEditor } from './WriterInlineEditor';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
 
@@ -57,15 +57,15 @@ describe('WriterClipboardPlugin', () => {
   it('pastes plain text into the editor and saves it', async () => {
     const onSave = vi.fn();
 
-    render(
-      <WriterPopupEditor
+    const { unmount } = render(
+      <WriterInlineEditor
         element={element()}
         onSave={onSave}
         onCancel={vi.fn()}
       />,
     );
 
-    const editor = screen.getByLabelText('Writer rich text editor');
+    const editor = screen.getByLabelText('Writer rich text inline editor');
 
     fireEvent.paste(editor, clipboardEvent({
       text: 'Pasted plain text',
@@ -78,7 +78,7 @@ describe('WriterClipboardPlugin', () => {
       { timeout: 2000 }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    unmount();
 
     expect(onSave).toHaveBeenCalled();
     expect(onSave.mock.calls.at(-1)?.[0].plainText).toContain('Pasted plain text');
@@ -90,26 +90,28 @@ describe('WriterClipboardPlugin', () => {
       type: 'image/png',
     });
 
-    render(
-      <WriterPopupEditor
+    const { unmount } = render(
+      <WriterInlineEditor
         element={element()}
         onSave={onSave}
         onCancel={vi.fn()}
       />,
     );
 
-    fireEvent.paste(screen.getByLabelText('Writer rich text editor'), clipboardEvent({
+    const editor = screen.getByLabelText('Writer rich text inline editor');
+
+    fireEvent.paste(editor, clipboardEvent({
       files: [file],
     }));
 
     await waitFor(
       () => {
-        expect(screen.getByLabelText('Writer rich text editor').textContent).toContain('[Image: writer-asset-');
+        expect(editor.textContent).toContain('[Image: writer-asset-');
       },
       { timeout: 2000 }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    unmount();
 
     expect(onSave).toHaveBeenCalled();
 
@@ -119,3 +121,4 @@ describe('WriterClipboardPlugin', () => {
     expect(payload.assets[0].mimeType).toBe('image/png');
   });
 });
+

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -15,6 +15,49 @@ import { WriterKeyboardHandler } from './WriterKeyboardHandler';
 import {
   Type, MessageSquareDot, Scan, FileDown, FolderArchive, FolderOpen,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/useIsMobile';
+
+interface ResponsiveBtnProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  title: string;
+  onClick: () => void;
+}
+
+const ResponsiveBtn: React.FC<ResponsiveBtnProps> = ({
+  icon: Icon,
+  label,
+  active,
+  disabled,
+  title,
+  onClick,
+}) => {
+  const isMobile = useIsMobile();
+  return (
+    <Tooltip content={title}>
+      <Button
+        variant={active ? 'secondary' : 'ghost'}
+        size={isMobile ? 'icon' : 'sm'}
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        aria-label={label}
+        className={isMobile ? 'h-8 w-8 min-w-[32px] md:h-8 md:w-8' : undefined}
+      >
+        {isMobile ? (
+          <Icon className="w-[18px] h-[18px]" />
+        ) : (
+          <span className="flex items-center gap-1">
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </span>
+        )}
+      </Button>
+    </Tooltip>
+  );
+};
 
 export const WriterV2ToolbarControls: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -121,101 +164,47 @@ export const WriterV2ToolbarControls: React.FC = () => {
       data-writer-v2-toolbar="true"
     >
       <WriterKeyboardHandler />
-      <Tooltip content="Writer V2 Rich Text Box">
-        <Button
-          variant={activeWriterTool === 'richTextBox' ? 'secondary' : 'ghost'}
-          size="sm"
-          onClick={() => toggleTool('richTextBox')}
-          title="Text Box"
-          aria-label="Text Box"
-        >
-          <span className="flex items-center gap-1">
-            <Type className="w-3.5 h-3.5" />
-            Text Box
-          </span>
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Writer V2 Text Callout">
-        <Button
-          variant={activeWriterTool === 'textCallout' ? 'secondary' : 'ghost'}
-          size="sm"
-          onClick={() => toggleTool('textCallout')}
-          title="Callout"
-          aria-label="Callout"
-        >
-          <span className="flex items-center gap-1">
-            <MessageSquareDot className="w-3.5 h-3.5" />
-            Callout
-          </span>
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Select Box Copy: copy text, formatted text, tables, or image from a rectangle">
-        <Button
-          variant={activeWriterTool === 'selectBoxCopy' ? 'secondary' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setActiveWriterTool(
-              activeWriterTool === 'selectBoxCopy' ? 'select' : 'selectBoxCopy',
-            );
-          }}
-          title="Copy Region"
-          aria-label="Copy Region"
-        >
-          <span className="flex items-center gap-1">
-            <Scan className="w-3.5 h-3.5" />
-            Copy Region
-          </span>
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Export flattened Writer PDF">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={exportFlattenedPdf}
-          disabled={!sourceBytes}
-          title="Flatten"
-          aria-label="Flatten"
-        >
-          <span className="flex items-center gap-1">
-            <FileDown className="w-3.5 h-3.5" />
-            Flatten
-          </span>
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Export editable PDF Hub project">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={exportProjectZip}
-          disabled={!sourceBytes}
-          title="Save Project"
-          aria-label="Save Project"
-        >
-          <span className="flex items-center gap-1">
-            <FolderArchive className="w-3.5 h-3.5" />
-            Save Project
-          </span>
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Import editable PDF Hub project">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          title="Open Project"
-          aria-label="Open Project"
-        >
-          <span className="flex items-center gap-1">
-            <FolderOpen className="w-3.5 h-3.5" />
-            Open Project
-          </span>
-        </Button>
-      </Tooltip>
+      <ResponsiveBtn
+        icon={Type}
+        label="Text Box"
+        active={activeWriterTool === 'richTextBox'}
+        onClick={() => toggleTool('richTextBox')}
+        title="Writer V2 Rich Text Box"
+      />
+      <ResponsiveBtn
+        icon={MessageSquareDot}
+        label="Callout"
+        active={activeWriterTool === 'textCallout'}
+        onClick={() => toggleTool('textCallout')}
+        title="Writer V2 Text Callout"
+      />
+      <ResponsiveBtn
+        icon={Scan}
+        label="Copy Region"
+        active={activeWriterTool === 'selectBoxCopy'}
+        onClick={() => setActiveWriterTool(activeWriterTool === 'selectBoxCopy' ? 'select' : 'selectBoxCopy')}
+        title="Select Box Copy: copy text, formatted text, tables, or image from a rectangle"
+      />
+      <ResponsiveBtn
+        icon={FileDown}
+        label="Flatten"
+        disabled={!sourceBytes}
+        onClick={exportFlattenedPdf}
+        title="Export flattened Writer PDF"
+      />
+      <ResponsiveBtn
+        icon={FolderArchive}
+        label="Save Project"
+        disabled={!sourceBytes}
+        onClick={exportProjectZip}
+        title="Export editable PDF Hub project"
+      />
+      <ResponsiveBtn
+        icon={FolderOpen}
+        label="Open Project"
+        onClick={() => fileInputRef.current?.click()}
+        title="Import editable PDF Hub project"
+      />
 
       <input
         ref={fileInputRef}

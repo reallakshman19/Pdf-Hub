@@ -2,6 +2,8 @@ import React from 'react';
 import type { WriterElementV2, WriterPageViewport } from '@/core/writer-v2/types';
 import { writerDisplayHtml } from '@/core/writer-v2/editor/writerDisplayHtml';
 import { WriterSelectionHandles, type ResizeHandle } from './WriterSelectionHandles';
+import { WriterInlineEditor } from './WriterInlineEditor';
+import type { WriterEditorSavePayload } from '@/core/writer-v2/editor/writerEditorState';
 
 export interface WriterRichElementBoxProps {
   element: WriterElementV2;
@@ -11,8 +13,11 @@ export interface WriterRichElementBoxProps {
   onBeginDrag: (event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize', handle?: ResizeHandle) => void;
   onUpdateDrag: (event: React.PointerEvent<HTMLDivElement>) => void;
   onEndDrag: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
+  onSave?: (payload: WriterEditorSavePayload) => void;
+  onCancel?: () => void;
 }
 
 export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
@@ -22,18 +27,32 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
   onBeginDrag,
   onUpdateDrag,
   onEndDrag,
+  onClick,
   onDoubleClick,
   viewportRect,
+  onSave,
+  onCancel,
 }) => {
   return (
     <div
       data-writer-v2-element-id={element.id}
       aria-label={`Writer element ${element.id}`}
+      onClick={onClick}
+      onMouseDown={(event) => {
+        const target = event.target;
+        if (
+          event.detail < 2 ||
+          (target instanceof HTMLElement && target.closest('[data-writer-v2-resize-handle]'))
+        ) {
+          return;
+        }
+        onDoubleClick(event);
+      }}
       onDoubleClick={onDoubleClick}
-      onPointerDown={(event) => onBeginDrag(event, 'move')}
-      onPointerMove={onUpdateDrag}
-      onPointerUp={onEndDrag}
-      onPointerCancel={onEndDrag}
+      onPointerDown={isEditing ? undefined : (event) => onBeginDrag(event, 'move')}
+      onPointerMove={isEditing ? undefined : onUpdateDrag}
+      onPointerUp={isEditing ? undefined : onEndDrag}
+      onPointerCancel={isEditing ? undefined : onEndDrag}
       style={{
         position: 'absolute',
         left: viewportRect.x,
@@ -42,7 +61,7 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         height: viewportRect.height,
         boxSizing: 'border-box',
         pointerEvents: 'auto',
-        cursor: element.locked ? 'not-allowed' : 'move',
+        cursor: isEditing ? 'text' : element.locked ? 'not-allowed' : 'move',
         zIndex: element.style.zIndex,
         background: element.style.backgroundColor ?? 'rgba(255,255,255,0.88)',
         border: `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
@@ -53,10 +72,16 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         fontSize: element.style.fontSize ?? 13,
         fontFamily: element.style.fontFamily ?? 'inherit',
         lineHeight: 1.35,
-        userSelect: 'none',
+        userSelect: isEditing ? 'text' : 'none',
       }}
     >
-      {element.editorStateJson ? (
+      {isEditing && onSave && onCancel ? (
+        <WriterInlineEditor
+          element={element}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      ) : element.editorStateJson ? (
         <div
           data-writer-v2-display-content="true"
           style={{ pointerEvents: 'none' }}

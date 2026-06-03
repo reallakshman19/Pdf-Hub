@@ -89,12 +89,10 @@ export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) =
   };
 
   return (
-    <div style={{
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" style={{
       position: 'absolute',
       left: element.x * scale,
       top: (element.y + element.height) * scale + 10,
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-secondary)',
       borderRadius: 8,
       padding: '12px',
       zIndex: 9999,
@@ -163,7 +161,8 @@ export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) =
                         value={cell.text}
                         onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
                         onFocus={() => { setSelectedCol(cIdx); setSelectedRow(rIdx); }}
-                        style={{ width: '100%', minWidth: 60, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: isHeader ? 500 : 'normal', color: 'var(--color-text-primary)' }}
+                        className="w-full min-w-[60px] bg-transparent border-none outline-none text-[13px] text-slate-800 dark:text-slate-200"
+                        style={{ fontWeight: isHeader ? 500 : 'normal' }}
                       />
                       {selectedCol === cIdx && <div className="absolute inset-y-0 left-0 right-0 border-x-2 border-blue-500 pointer-events-none" />}
                       {selectedRow === rIdx && <div className="absolute inset-x-0 top-0 bottom-0 border-y-2 border-blue-500 pointer-events-none z-10" />}

@@ -22,6 +22,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
   anchorPoint,
   kneePoint,
   onAnchorDragStart,
+  pageRotation = 0,
 }) => {
   const borderColor = annotation.data?.borderColor ?? '#475569';
   const fillColor = annotation.data?.backgroundColor ?? '#ffffff';
@@ -98,6 +99,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           outline: isSelected ? `2px solid ${borderColor}` : 'none',
           overflow: 'hidden',
           boxSizing: 'border-box',
+          transform: `rotate(${pageRotation}deg)`,
         }}
         onPointerDown={(e) => {
           onSelect(e);

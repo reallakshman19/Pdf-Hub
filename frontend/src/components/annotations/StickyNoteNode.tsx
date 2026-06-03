@@ -16,7 +16,7 @@ function darken(hex: string, amount = 0.18): string {
 }
 
 export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
-  annotation, rect, isSelected, onSelect, onTransformStart, onDoubleClick,
+  annotation, rect, isSelected, onSelect, onTransformStart, onDoubleClick, pageRotation = 0,
 }) => {
   const bg = annotation.data?.backgroundColor ?? '#fde047';
   const author = annotation.data?.author ?? 'Note';
@@ -43,7 +43,7 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
             borderRadius: 3,
             outline: isSelected ? '2px solid #3b82f6' : 'none',
             outlineOffset: 2,
-            transform: 'rotate(-1.8deg)',
+            transform: `rotate(${pageRotation - 1.8}deg)`,
             transition: 'transform 120ms ease, box-shadow 120ms ease',
             boxShadow: '2px 5px 12px rgba(0,0,0,0.28)',
           }}
@@ -131,6 +131,7 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
           ? '0 0 0 2px #3b82f6, 3px 6px 18px rgba(0,0,0,0.30)'
           : '3px 6px 16px rgba(0,0,0,0.22)',
         overflow: 'hidden',
+        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
     >

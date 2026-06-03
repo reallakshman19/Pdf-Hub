@@ -46,3 +46,14 @@
 - The E2E tests run in headless mode against the localhost preview server; full browser interactions should be tested on real devices during manual QA.
 - PDF generation uses standard Helvetica and maps non-supported fonts to Helvetica variants.
 
+## Writer V2 — Inline Editing & Global Formatting Ribbon (2026-06-02)
+
+### Built
+- **Zustand activeEditorStore**: Added global store `activeEditorStore` to track the currently focused Lexical editor instance across the application.
+- **Global Formatting Ribbon (WriterRibbon)**: Built a horizontal formatting ribbon that renders below the `CtxBar` when in "Write" mode. Ported all text formatting options (Font family, size, colors, style, headings, alignments, lists, insert table, insert image) to dispatch commands to the active editor.
+- **In-Place Inline Editor (WriterInlineEditor)**: Replaced the modal-based `WriterPopupEditor` with a seamless inline Lexical editor rendering directly within the element box on the canvas, inheriting the box's dimensions and text styles.
+- **Auto-Save and Cancel**: Implemented auto-saving on outside click or when switching modes/unmounting, and canceling on Escape key.
+- **Unit and Integration Tests**: Created `WriterInlineEditor.test.tsx` and updated existing tests in `WriterOverlayLayer.test.tsx`, `WriterClipboardPlugin.test.tsx`, and `writeModeHonesty.test.ts` to match the new inline editor model.
+- **Auditing and Verification**: Verified that typechecking (`npm run typecheck`), linting (`npm run lint`), and all 606 unit tests (`npm test`) pass successfully.
+
+

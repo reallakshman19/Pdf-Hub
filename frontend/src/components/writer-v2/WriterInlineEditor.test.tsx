@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
-import { WriterPopupEditor } from './WriterPopupEditor';
+import { WriterInlineEditor } from './WriterInlineEditor';
 
 function element(patch: Partial<WriterElementV2> = {}): WriterElementV2 {
   return {
@@ -34,67 +34,62 @@ function element(patch: Partial<WriterElementV2> = {}): WriterElementV2 {
   };
 }
 
-describe('WriterPopupEditor', () => {
-  it('renders rich editor shell and toolbar', () => {
+describe('WriterInlineEditor', () => {
+  it('renders content editable rich editor inline', () => {
     render(
-      <WriterPopupEditor
+      <WriterInlineEditor
         element={element()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole('dialog', {
-      name: /edit writer element writer-1/i,
+    expect(screen.getByRole('textbox', {
+      name: /writer rich text inline editor/i,
     })).toBeTruthy();
-
-    expect(screen.getByRole('toolbar', {
-      name: /writer editor toolbar/i,
-    })).toBeTruthy();
-
-    expect(screen.getByRole('button', { name: /bold/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /italic/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /underline/i })).toBeTruthy();
   });
 
-  it('saves serialized editor state and plain text', async () => {
-    const onSave = vi.fn();
-
+  it('triggers onCancel when Escape key is pressed', () => {
+    const onCancel = vi.fn();
     render(
-      <WriterPopupEditor
+      <WriterInlineEditor
+        element={element()}
+        onSave={vi.fn()}
+        onCancel={onCancel}
+      />,
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves when clicking outside or unmounting', async () => {
+    const onSave = vi.fn();
+    const { unmount } = render(
+      <WriterInlineEditor
         element={element()}
         onSave={onSave}
         onCancel={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    // The unmount-save is gated behind a setTimeout(0) guard (so StrictMode's
+    // immediate dev-only remount doesn't save+close the editor). Let that guard
+    // enable before unmounting, mirroring a real unmount after the editor has
+    // been open.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    // Unmount triggers save
+    unmount();
 
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledTimes(1);
     });
 
     const payload = onSave.mock.calls[0][0];
-
     expect(payload.editorStateJson).toContain('"root"');
     expect(payload.plainText).toBe('Hello writer');
-  });
-
-  it('cancels without saving', () => {
-    const onSave = vi.fn();
-    const onCancel = vi.fn();
-
-    render(
-      <WriterPopupEditor
-        element={element()}
-        onSave={onSave}
-        onCancel={onCancel}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
-
-    expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(onSave).not.toHaveBeenCalled();
   });
 });

@@ -314,12 +314,10 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
   };
 
   return (
-    <div style={{
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" style={{
       position: 'absolute',
       left: element.x * scale,
       top: (element.y + element.height) * scale + 10,
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-secondary)',
       borderRadius: 8,
       padding: '8px',
       zIndex: 9999,
@@ -452,13 +450,12 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
             setSelectedImage(null);
           }
         }}
+        className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
         style={{
           minHeight: 120,
           padding: '4px 8px',
           outline: 'none',
           color: textColor,
-          backgroundColor: 'var(--color-background-secondary)',
-          border: '0.5px solid var(--color-border-secondary)',
           borderRadius: 6,
           overflowY: 'auto',
           maxHeight: '400px',

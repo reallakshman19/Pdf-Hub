@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bookmark, Layers, MessageSquare, Search, Sparkles, HelpCircle, ScanText, ShieldOff } from 'lucide-react';
+import { Bookmark, Layers, MessageSquare, Search, Sparkles, HelpCircle, ScanText } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useEditorStore } from '@/core/editor/store';
 import { useCapabilities } from '@/hooks/useCapabilities';
@@ -12,7 +12,6 @@ const allTabs: Array<{ id: SidebarTab; icon: React.ComponentType<{ className?: s
   { id: 'macros',     icon: Sparkles,      label: 'Macros' },
   { id: 'bookmarks',  icon: Bookmark,      label: 'Bookmarks' },
   { id: 'ocr',        icon: ScanText,      label: 'OCR' },
-  { id: 'redaction',  icon: ShieldOff,     label: 'Redaction' },
 ];
 
 export const LeftRail: React.FC = () => {

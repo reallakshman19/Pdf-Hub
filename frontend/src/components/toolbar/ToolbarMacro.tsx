@@ -1,10 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   PanelLeft,
   Sparkles,
   Hash,
   RotateCw,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useEditorStore } from '@/core/editor/store';
@@ -55,59 +56,65 @@ export const ToolbarMacro: React.FC = () => {
     }
   };
 
+  const isMobile = useIsMobile();
+
   return (
     <div className="flex items-center gap-2">
       <Tooltip content="Open macro panel">
         <Button
           variant="secondary"
-          size="sm"
+          size={isMobile ? 'icon' : 'sm'}
           onClick={() => setSidebarTab('macros')}
-          className="h-8"
+          className={isMobile ? 'h-8 w-8 min-w-[32px] md:h-8 md:w-8' : 'h-8'}
+          title="Open macro panel"
         >
-          <PanelLeft className="w-4 h-4 mr-1" />
-          Macro Panel
+          <PanelLeft className={isMobile ? 'w-[18px] h-[18px]' : 'w-4 h-4 mr-1'} />
+          {!isMobile && 'Macro Panel'}
         </Button>
       </Tooltip>
 
       <Tooltip content="Rotate selected pages by 90 degrees">
         <Button
           variant="ghost"
-          size="sm"
+          size={isMobile ? 'icon' : 'sm'}
           onClick={() => void runRecipe('rotate_selected_90')}
           disabled={!workingBytes || runningRecipeId !== null}
-          className="h-8"
+          className={isMobile ? 'h-8 w-8 min-w-[32px] md:h-8 md:w-8' : 'h-8'}
+          title="Rotate selected pages by 90 degrees"
         >
           {runningRecipeId === 'rotate_selected_90' ? (
-            <RotateCw className="w-4 h-4 mr-1 animate-spin" />
+            <RotateCw className={isMobile ? 'w-[18px] h-[18px] animate-spin' : 'w-4 h-4 mr-1 animate-spin'} />
           ) : (
-            <RotateCw className="w-4 h-4 mr-1" />
+            <RotateCw className={isMobile ? 'w-[18px] h-[18px]' : 'w-4 h-4 mr-1'} />
           )}
-          Rotate 90
+          {!isMobile && 'Rotate 90'}
         </Button>
       </Tooltip>
 
       <Tooltip content="Add page numbers to footer">
         <Button
           variant="ghost"
-          size="sm"
+          size={isMobile ? 'icon' : 'sm'}
           onClick={() => void runRecipe('add_page_numbers_footer')}
           disabled={!workingBytes || runningRecipeId !== null}
-          className="h-8"
+          className={isMobile ? 'h-8 w-8 min-w-[32px] md:h-8 md:w-8' : 'h-8'}
+          title="Add page numbers to footer"
         >
-          <Hash className="w-4 h-4 mr-1" />
-          Page Numbers
+          <Hash className={isMobile ? 'w-[18px] h-[18px]' : 'w-4 h-4 mr-1'} />
+          {!isMobile && 'Page Numbers'}
         </Button>
       </Tooltip>
 
       <Tooltip content="Open built-in macro recipes">
         <Button
           variant="ghost"
-          size="sm"
+          size={isMobile ? 'icon' : 'sm'}
           onClick={() => setSidebarTab('macros')}
-          className="h-8"
+          className={isMobile ? 'h-8 w-8 min-w-[32px] md:h-8 md:w-8' : 'h-8'}
+          title="Open built-in macro recipes"
         >
-          <Sparkles className="w-4 h-4 mr-1" />
-          Built-ins
+          <Sparkles className={isMobile ? 'w-[18px] h-[18px]' : 'w-4 h-4 mr-1'} />
+          {!isMobile && 'Built-ins'}
         </Button>
       </Tooltip>
     </div>
