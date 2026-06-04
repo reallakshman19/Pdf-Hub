@@ -12,6 +12,8 @@ export interface PdfTextStyle {
 export interface PdfInlineText {
   text: string;
   style: PdfTextStyle;
+  /** HTTP/HTTPS URL when this run is a hyperlink. */
+  href?: string;
 }
 
 export type PdfBlock =
@@ -29,9 +31,10 @@ export type PdfBlock =
     }
   | {
       type: 'list';
-      listType: 'bullet' | 'number';
+      listType: 'bullet' | 'number' | 'check';
       items: {
         indent?: number;
+        checked?: boolean;
         children: PdfInlineText[];
       }[];
     }
@@ -59,7 +62,10 @@ interface LexicalJsonNode {
   style?: string;
   tag?: 'h1' | 'h2' | 'h3';
   listType?: string;
+  listStyleType?: string;
   value?: number;
+  checked?: boolean;
+  url?: string;
   src?: string;
   altText?: string;
   width?: number | 'inherit';
@@ -107,17 +113,28 @@ function parseTextNode(node: LexicalJsonNode): PdfInlineText {
   };
 }
 
-function parseChildrenToInlineText(children: LexicalJsonNode[]): PdfInlineText[] {
+function parseChildrenToInlineText(
+  children: LexicalJsonNode[],
+  inheritedHref?: string,
+): PdfInlineText[] {
   const result: PdfInlineText[] = [];
   if (!children) return result;
 
   for (const child of children) {
     if (child.type === 'text') {
-      result.push(parseTextNode(child));
+      const run = parseTextNode(child);
+      if (inheritedHref) run.href = inheritedHref;
+      result.push(run);
     } else if (child.type === 'linebreak') {
       result.push({ text: '\n', style: {} });
+    } else if (child.type === 'link' || child.type === 'autolink') {
+      // Link node — propagate its URL down to all descendant text runs.
+      const href = child.url ?? '';
+      if (child.children) {
+        result.push(...parseChildrenToInlineText(child.children, href || inheritedHref));
+      }
     } else if (child.children) {
-      result.push(...parseChildrenToInlineText(child.children));
+      result.push(...parseChildrenToInlineText(child.children, inheritedHref));
     }
   }
   return result;
@@ -146,13 +163,19 @@ function parseLexicalNode(node: LexicalJsonNode): PdfBlock[] {
       children: parseChildrenToInlineText(node.children ?? []),
     });
   } else if (type === 'list') {
-    const listType = node.listType === 'number' ? 'number' : 'bullet';
-    const items: { indent?: number; children: PdfInlineText[] }[] = [];
+    const isCheck = node.listStyleType === 'check' || node.listType === 'check';
+    const listType: 'bullet' | 'number' | 'check' = isCheck
+      ? 'check'
+      : node.listType === 'number'
+      ? 'number'
+      : 'bullet';
+    const items: { indent?: number; checked?: boolean; children: PdfInlineText[] }[] = [];
     if (node.children) {
       for (const child of node.children) {
         if (child.type === 'listitem') {
           items.push({
             indent: child.value || undefined,
+            checked: child.checked,
             children: parseChildrenToInlineText(child.children ?? []),
           });
         }

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   MousePointer2, Hand, Expand, Maximize, AlignJustify, FileIcon, Columns2,
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,

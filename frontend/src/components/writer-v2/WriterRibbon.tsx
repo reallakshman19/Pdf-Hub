@@ -10,11 +10,19 @@ import {
   OUTDENT_CONTENT_COMMAND,
   UNDO_COMMAND,
   REDO_COMMAND,
+  $createParagraphNode,
+  type LexicalEditor,
   type TextFormatType,
 } from 'lexical';
-import { $patchStyleText, $getSelectionStyleValueForProperty } from '@lexical/selection';
-import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from '@lexical/list';
+import { $patchStyleText, $getSelectionStyleValueForProperty, $setBlocksType } from '@lexical/selection';
+import {
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  INSERT_CHECK_LIST_COMMAND,
+  REMOVE_LIST_COMMAND,
+} from '@lexical/list';
 import { INSERT_HORIZONTAL_RULE_COMMAND } from '@lexical/react/LexicalHorizontalRuleNode';
+import { $isLinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link';
 import { toggleHeading } from '@/core/writer-v2/lexical-nodes/headingHelpers';
 import { insertTable } from '@/core/writer-v2/lexical-nodes/tableHelpers';
 import {
@@ -25,24 +33,29 @@ import {
   type WriterBlockType,
 } from '@/core/writer-v2/lexical-nodes/blockHelpers';
 import { ColorPickerPopover } from '@/components/ui/ColorPickerPopover';
+import { RIBBON_FONT_FAMILIES } from '@/core/writer-v2/export/fontFamilyResolver';
 import {
   Bold, Italic, Underline, Strikethrough,
   Superscript, Subscript,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   IndentIncrease, IndentDecrease,
-  List, ListOrdered,
+  List, ListOrdered, ListTodo,
   Heading1, Heading2, Heading3,
   Quote, Code, Minus,
+  Link, Unlink,
+  Search,
   Image as ImageIcon, Table as TableIcon,
   Undo2, Redo2, RemoveFormatting,
   Check, X as XIcon,
 } from 'lucide-react';
+import { WriterFindReplacePanel } from './WriterFindReplacePanel';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
 
-const FONT_FAMILIES = ['Inter', 'IBM Plex Sans', 'Georgia', 'Arial', 'Times New Roman', 'Courier New'];
+// Only Standard-14 mappable families - ensures the export is honest.
+const FONT_FAMILIES = RIBBON_FONT_FAMILIES;
 const FONT_SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 
 const LINE_HEIGHTS: Array<{ label: string; value: string }> = [
@@ -73,7 +86,7 @@ export const WriterRibbon: React.FC = () => {
   const [activeFormats, setActiveFormats] = React.useState<Set<string>>(new Set());
   const [textColor, setTextColor] = React.useState('#111827');
   const [highlightColor, setHighlightColor] = React.useState('#ffffff');
-  const [fontFamily, setFontFamily] = React.useState('Inter');
+  const [fontFamily, setFontFamily] = React.useState('Helvetica');
   const [fontSize, setFontSize] = React.useState(14);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -81,6 +94,14 @@ export const WriterRibbon: React.FC = () => {
   const [letterSpacing, setLetterSpacing] = React.useState('normal');
   const [textTransform, setTextTransform] = React.useState('none');
   const [activeBlockType, setActiveBlockType] = React.useState<WriterBlockType | null>(null);
+  const [wordCount, setWordCount] = React.useState(0);
+  const [charCount, setCharCount] = React.useState(0);
+  const [findReplaceOpen, setFindReplaceOpen] = React.useState(false);
+
+  // Link state
+  const [linkPopover, setLinkPopover] = React.useState(false);
+  const [linkUrl, setLinkUrl] = React.useState('');
+  const [activeLink, setActiveLink] = React.useState(false);
 
   // Table insertion inline popover state
   const [tablePopover, setTablePopover] = React.useState(false);
@@ -97,7 +118,6 @@ export const WriterRibbon: React.FC = () => {
   // Track selection state updates in active editor
   React.useEffect(() => {
     if (!activeEditor) {
-      setActiveFormats(new Set());
       return;
     }
 
@@ -131,10 +151,10 @@ export const WriterRibbon: React.FC = () => {
         }
 
         try {
-          const font = $getSelectionStyleValueForProperty(selection, 'font-family', 'Inter');
+          const font = $getSelectionStyleValueForProperty(selection, 'font-family', 'Helvetica');
           setFontFamily(font.replace(/['"]/g, ''));
         } catch {
-          setFontFamily('Inter');
+          setFontFamily('Helvetica');
         }
 
         try {
@@ -160,6 +180,25 @@ export const WriterRibbon: React.FC = () => {
         }
       });
 
+      // Document-wide word / character count
+      activeEditor.getEditorState().read(() => {
+        const fullText = $getRoot().getTextContent();
+        setCharCount(fullText.length);
+        const words = fullText.trim().match(/\S+/g);
+        setWordCount(words ? words.length : 0);
+
+        // Detect if cursor is inside a link node
+        const sel = $getSelection();
+        if ($isRangeSelection(sel)) {
+          const node = sel.anchor.getNode();
+          const parent = node.getParent();
+          const isLink = $isLinkNode(node) || $isLinkNode(parent);
+          setActiveLink(isLink);
+        } else {
+          setActiveLink(false);
+        }
+      });
+
       // Block-level reads (own their own editor-state read internally)
       setActiveBlockType(getActiveBlockType(activeEditor));
       setLineHeight(getBlockStyleValue(activeEditor, 'line-height'));
@@ -168,6 +207,17 @@ export const WriterRibbon: React.FC = () => {
     checkSelection();
     return activeEditor.registerUpdateListener(() => {
       checkSelection();
+    });
+  }, [activeEditor]);
+
+  const runWithFocusedEditor = React.useCallback((
+    operation: (editor: LexicalEditor) => void,
+  ): void => {
+    const editor = activeEditor;
+    if (!editor) return;
+
+    editor.focus(() => {
+      operation(editor);
     });
   }, [activeEditor]);
 
@@ -240,10 +290,11 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const applyParagraphSpacing = () => {
-    if (!activeEditor) return;
-    applyBlockStyle(activeEditor, {
-      'margin-top': spaceBefore > 0 ? `${spaceBefore}px` : '',
-      'margin-bottom': spaceAfter > 0 ? `${spaceAfter}px` : '',
+    runWithFocusedEditor((editor) => {
+      applyBlockStyle(editor, {
+        'margin-top': spaceBefore > 0 ? `${spaceBefore}px` : '',
+        'margin-bottom': spaceAfter > 0 ? `${spaceAfter}px` : '',
+      });
     });
     setSpacingPopover(false);
   };
@@ -255,7 +306,7 @@ export const WriterRibbon: React.FC = () => {
       if (!$isRangeSelection(selection)) return;
 
       // Toggle off active inline formats
-      (['bold', 'italic', 'underline', 'strikethrough'] as TextFormatType[]).forEach((fmt) => {
+      (['bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript'] as TextFormatType[]).forEach((fmt) => {
         if (selection.hasFormat(fmt)) {
           selection.formatText(fmt);
         }
@@ -267,11 +318,47 @@ export const WriterRibbon: React.FC = () => {
         'background-color': '',
         'font-size': '',
         'font-family': '',
+        'letter-spacing': '',
+        'line-height': '',
+        'text-transform': '',
       });
+
+      // Reset block types (headings, quotes, code blocks) back to paragraph
+      $setBlocksType(selection, () => $createParagraphNode());
     });
 
     // Also remove lists
     activeEditor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+  };
+
+  const openLinkPopover = () => {
+    if (!activeEditor) return;
+    // Pre-populate with existing link URL if cursor is inside one.
+    activeEditor.getEditorState().read(() => {
+      const sel = $getSelection();
+      if ($isRangeSelection(sel)) {
+        const node = sel.anchor.getNode();
+        const parent = node.getParent();
+        const linkNode = $isLinkNode(node) ? node : $isLinkNode(parent) ? parent : null;
+        setLinkUrl(linkNode ? linkNode.getURL() : '');
+      }
+    });
+    setLinkPopover(true);
+  };
+
+  const applyLink = () => {
+    if (!activeEditor) return;
+    const url = linkUrl.trim();
+    const safeUrl = /^https?:\/\//i.test(url) ? url : url ? `https://${url}` : null;
+    activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, safeUrl);
+    setLinkPopover(false);
+    setLinkUrl('');
+  };
+
+  const removeLink = () => {
+    if (!activeEditor) return;
+    activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+    setLinkPopover(false);
   };
 
   const handleInsertTable = () => {
@@ -280,16 +367,16 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const confirmInsertTable = () => {
-    if (!activeEditor) return;
     const rows = Math.max(1, Math.min(50, tableRows));
     const cols = Math.max(1, Math.min(20, tableCols));
-    insertTable(activeEditor, rows, cols);
+    runWithFocusedEditor((editor) => insertTable(editor, rows, cols));
     setTablePopover(false);
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !activeEditor) return;
+    const editor = activeEditor;
+    if (!file || !editor) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -318,15 +405,16 @@ export const WriterRibbon: React.FC = () => {
         });
       }
 
-      activeEditor.update(() => {
-        const selection = $getSelection();
-        const imageNode = $createImageNode(dataUrl, file.name);
-        if ($isRangeSelection(selection)) {
-          selection.insertNodes([imageNode]);
-        } else {
-          // No active selection — append to end of document
-          $getRoot().append(imageNode);
-        }
+      editor.focus(() => {
+        editor.update(() => {
+          const selection = $getSelection();
+          const imageNode = $createImageNode(dataUrl, file.name);
+          if ($isRangeSelection(selection)) {
+            selection.insertNodes([imageNode]);
+          } else {
+            $getRoot().append(imageNode);
+          }
+        });
       });
     };
     reader.readAsDataURL(file);
@@ -336,6 +424,20 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const hasActive = !!activeEditor;
+
+  // Ctrl+H / Cmd+H - toggle Find & Replace (only when an editor is active)
+  React.useEffect(() => {
+    if (!hasActive) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFindReplaceOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [hasActive]);
 
   return (
     <div
@@ -392,7 +494,7 @@ export const WriterRibbon: React.FC = () => {
           }}
           className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
         >
-          {FONT_FAMILIES.map((f) => <option key={f} value={f}>{f}</option>)}
+          {FONT_FAMILIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
         </select>
 
         <select
@@ -485,19 +587,19 @@ export const WriterRibbon: React.FC = () => {
           label="Heading 1"
           icon={<Heading1 size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor && toggleHeading(activeEditor, 'h1')}
+          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h1'))}
         />
         <RibbonBtn
           label="Heading 2"
           icon={<Heading2 size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor && toggleHeading(activeEditor, 'h2')}
+          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h2'))}
         />
         <RibbonBtn
           label="Heading 3"
           icon={<Heading3 size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor && toggleHeading(activeEditor, 'h3')}
+          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h3'))}
         />
       </div>
 
@@ -509,37 +611,61 @@ export const WriterRibbon: React.FC = () => {
           label="Align Left"
           icon={<AlignLeft size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left')}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left'),
+            )
+          }
         />
         <RibbonBtn
           label="Align Center"
           icon={<AlignCenter size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center')}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center'),
+            )
+          }
         />
         <RibbonBtn
           label="Align Right"
           icon={<AlignRight size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right')}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right'),
+            )
+          }
         />
         <RibbonBtn
           label="Justify"
           icon={<AlignJustify size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify')}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify'),
+            )
+          }
         />
         <RibbonBtn
           label="Outdent"
           icon={<IndentDecrease size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined),
+            )
+          }
         />
         <RibbonBtn
           label="Indent"
           icon={<IndentIncrease size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined),
+            )
+          }
         />
       </div>
 
@@ -551,13 +677,31 @@ export const WriterRibbon: React.FC = () => {
           label="Bullet list"
           icon={<List size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
+            )
+          }
         />
         <RibbonBtn
           label="Numbered list"
           icon={<ListOrdered size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
+            )
+          }
+        />
+        <RibbonBtn
+          label="Checklist"
+          icon={<ListTodo size={13} />}
+          disabled={!hasActive}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined),
+            )
+          }
         />
       </div>
 
@@ -570,20 +714,24 @@ export const WriterRibbon: React.FC = () => {
           icon={<Quote size={13} />}
           active={activeBlockType === 'quote'}
           disabled={!hasActive}
-          onClick={() => activeEditor && toggleBlockType(activeEditor, 'quote')}
+          onClick={() => runWithFocusedEditor((editor) => toggleBlockType(editor, 'quote'))}
         />
         <RibbonBtn
           label="Code block"
           icon={<Code size={13} />}
           active={activeBlockType === 'code'}
           disabled={!hasActive}
-          onClick={() => activeEditor && toggleBlockType(activeEditor, 'code')}
+          onClick={() => runWithFocusedEditor((editor) => toggleBlockType(editor, 'code'))}
         />
         <RibbonBtn
           label="Horizontal rule"
           icon={<Minus size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)}
+          onClick={() =>
+            runWithFocusedEditor((editor) =>
+              editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+            )
+          }
         />
       </div>
 
@@ -688,6 +836,99 @@ export const WriterRibbon: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSpacingPopover(false)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1',
+                  borderRadius: 5, padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+                }}
+              >
+                <XIcon size={11} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+
+      {/* Group: Link */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '2px', position: 'relative' }}>
+        <RibbonBtn
+          label={activeLink ? 'Edit link' : 'Insert link'}
+          icon={<Link size={13} />}
+          active={activeLink}
+          disabled={!hasActive}
+          onClick={openLinkPopover}
+        />
+        {activeLink && (
+          <RibbonBtn
+            label="Remove link"
+            icon={<Unlink size={13} />}
+            disabled={!hasActive}
+            onClick={removeLink}
+          />
+        )}
+
+        {linkPopover && (
+          <div
+            data-color-picker-popover="true"
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '10px 12px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              minWidth: 260,
+            }}
+            className="dark:bg-slate-900 dark:border-slate-700"
+          >
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+              Insert / Edit Link
+            </div>
+            <input
+              type="url"
+              placeholder="https://example.com"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+                if (e.key === 'Escape') { e.preventDefault(); setLinkPopover(false); }
+              }}
+              autoFocus
+              style={{
+                border: '1px solid #cbd5e1',
+                borderRadius: 4,
+                padding: '4px 8px',
+                fontSize: 12,
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+              className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={applyLink}
+                disabled={!linkUrl.trim()}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  background: '#2563eb', color: '#fff', border: 'none', borderRadius: 5,
+                  padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+                  opacity: linkUrl.trim() ? 1 : 0.5,
+                }}
+              >
+                <Check size={11} /> Apply
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkPopover(false)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1',
@@ -823,6 +1064,37 @@ export const WriterRibbon: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Find & Replace */}
+      <div style={{ position: 'relative', marginLeft: 'auto' }}>
+        <RibbonBtn
+          label="Find & Replace (Ctrl+H)"
+          icon={<Search size={13} />}
+          active={findReplaceOpen}
+          disabled={!hasActive}
+          onClick={() => setFindReplaceOpen((v) => !v)}
+        />
+        {findReplaceOpen && (
+          <WriterFindReplacePanel onClose={() => setFindReplaceOpen(false)} />
+        )}
+      </div>
+
+      {/* Word / character count */}
+      <div
+        aria-label="Word and character count"
+        title={`${wordCount} words, ${charCount} characters`}
+        style={{
+          marginLeft: 'auto',
+          fontSize: 11,
+          color: '#64748b',
+          whiteSpace: 'nowrap',
+          padding: '0 6px',
+          userSelect: 'none',
+        }}
+        className="dark:text-slate-400"
+      >
+        {hasActive ? `${wordCount} words · ${charCount} chars` : ''}
       </div>
 
       <input

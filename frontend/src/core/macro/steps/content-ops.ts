@@ -380,6 +380,7 @@ async function executeDrawTextOnPages(
       color: step.color ?? '#111827',
       opacity: step.opacity ?? 0.95,
       align: step.align ?? 'left',
+      rotation: step.rotation,
       fileName: ctx.fileName,
       now: ctx.now ?? new Date(),
       enablePageNumberToken: step.pageNumberToken ?? true,
@@ -671,3 +672,37 @@ async function executeAdjustImage(
 }
 
 macroRegistry.register('adjust_image', executeAdjustImage);
+
+type DrawRedactionBoxStep = Extract<MacroStep, { op: 'draw_redaction_box' }>;
+
+async function executeDrawRedactionBox(
+  step: DrawRedactionBoxStep,
+  ctx: MacroExecutionContext,
+  state: MacroMutableState,
+): Promise<StepResult> {
+  try {
+    const pages = resolvePageSelector(step.selector, getSelectionState(ctx, state));
+
+    if (pages.length === 0) {
+      return warning('No pages matched draw_redaction_box selector.');
+    }
+
+    const updatedBytes = await PdfEditAdapter.drawRedactionBoxes(state.workingBytes, {
+      pages: toZeroBasedPageIndices(pages),
+      x: step.x,
+      y: step.y,
+      width: step.width,
+      height: step.height,
+      fillColor: step.fillColor ?? '#ffffff',
+    });
+
+    return success(
+      `Applied redaction box on ${pages.length} page(s)`,
+      [bytesEffect(updatedBytes)],
+    );
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+macroRegistry.register('draw_redaction_box', executeDrawRedactionBox);

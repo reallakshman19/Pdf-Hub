@@ -370,6 +370,12 @@ const OP_SCHEMAS: MacroOpSchema[] = [
         options: ['left', 'center', 'right'],
       },
       {
+        name: 'rotation',
+        label: 'Rotation (degrees)',
+        kind: 'number',
+        help: 'Counter-clockwise rotation in degrees (e.g. 45 for diagonal watermark).',
+      },
+      {
         name: 'pageNumberToken',
         label: 'Enable Page Token',
         kind: 'boolean',
@@ -584,6 +590,25 @@ const OP_SCHEMAS: MacroOpSchema[] = [
         name: 'donorFileId',
         label: 'Donor File ID',
         kind: 'string',
+      },
+    ],
+  },
+  {
+    op: 'draw_redaction_box',
+    label: 'Redaction Box',
+    category: 'content',
+    description: 'Draw a filled rectangle over a page region to redact content.',
+    fields: [
+      PAGE_SELECTOR_FIELD,
+      X_FIELD,
+      Y_FIELD,
+      WIDTH_FIELD,
+      { ...HEIGHT_FIELD, required: true },
+      {
+        name: 'fillColor',
+        label: 'Fill Color',
+        kind: 'string',
+        help: 'CSS hex color (#ffffff = white-out, #000000 = black redaction).',
       },
     ],
   },
@@ -808,6 +833,17 @@ export function buildDefaultStep(op: MacroStep['op']): MacroStep {
         vars: {
           status: 'REVIEWED',
         },
+      };
+
+    case 'draw_redaction_box':
+      return {
+        op,
+        selector: { mode: 'current' },
+        x: 36,
+        y: 36,
+        width: 200,
+        height: 40,
+        fillColor: '#ffffff',
       };
 
     case 'conditional':

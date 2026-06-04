@@ -13,6 +13,7 @@ const ALL_OPS = [
   'header_footer_text', 'draw_text_on_pages', 'inject_rich_text',
   'insert_image', 'add_content_page', 'add_image_header_page',
   'place_rich_textbox', 'place_table', 'adjust_image',
+  'draw_redaction_box',
   'conditional', 'apply_template_vars',
 ];
 

@@ -30,6 +30,7 @@ type DrawTextOptions = {
   color: string;
   opacity: number;
   align: 'left' | 'center' | 'right';
+  rotation?: number;
   fileName: string;
   now: Date;
   enablePageNumberToken: boolean;
@@ -483,6 +484,7 @@ export class PdfEditAdapter {
         size: options.fontSize,
         color: hexToRgb(options.color),
         opacity: options.opacity,
+        rotate: options.rotation !== undefined ? degrees(options.rotation) : undefined,
       });
     }
 
@@ -527,6 +529,38 @@ export class PdfEditAdapter {
       const pageHeight = page.getHeight();
       const drawY = pageHeight - options.y - drawHeight;
       page.drawImage(image, { x: options.x, y: drawY, width: drawWidth, height: drawHeight });
+    }
+
+    return await pdfDoc.save();
+  }
+
+  static async drawRedactionBoxes(
+    baseBytes: Uint8Array,
+    options: {
+      pages: number[];
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      fillColor: string;
+    },
+  ): Promise<Uint8Array> {
+    const pdfDoc = await PDFDocument.load(baseBytes);
+    const fill = hexToRgb(options.fillColor);
+
+    for (const pageIndex of options.pages) {
+      const page = pdfDoc.getPage(pageIndex);
+      const pageHeight = page.getHeight();
+      const drawY = pageHeight - options.y - options.height;
+
+      page.drawRectangle({
+        x: options.x,
+        y: drawY,
+        width: options.width,
+        height: options.height,
+        color: fill,
+        opacity: 1,
+      });
     }
 
     return await pdfDoc.save();

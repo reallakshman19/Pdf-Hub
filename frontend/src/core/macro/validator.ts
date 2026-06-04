@@ -39,6 +39,7 @@ const KNOWN_MACRO_OPS = new Set<MacroStep['op']>([
   'place_rich_textbox',
   'place_table',
   'adjust_image',
+  'draw_redaction_box',
   'conditional',
   'apply_template_vars',
 ]);
@@ -54,6 +55,7 @@ const REQUIRED_SELECTOR_OPS = new Set<MacroStep['op']>([
   'header_footer_text',
   'insert_image',
   'inject_rich_text',
+  'draw_redaction_box',
 ]);
 
 const OPTIONAL_SELECTOR_OPS = new Set<MacroStep['op']>([
@@ -275,6 +277,14 @@ export class MacroValidator {
         validatePositiveNumber(step.height, stepIndex, step.op, `${path}.height`, errors);
         validateOpacity(step.opacity, stepIndex, step.op, `${path}.opacity`, errors);
         validateImageSource(step.base64Image, step.donorFileId, stepIndex, step.op, path, errors);
+        break;
+
+      case 'draw_redaction_box':
+        validatePageSelector(step.selector, stepIndex, step.op, `${path}.selector`, errors);
+        validateFiniteNumber(step.x, stepIndex, step.op, `${path}.x`, errors);
+        validateFiniteNumber(step.y, stepIndex, step.op, `${path}.y`, errors);
+        validatePositiveNumber(step.width, stepIndex, step.op, `${path}.width`, errors);
+        validatePositiveNumber(step.height, stepIndex, step.op, `${path}.height`, errors);
         break;
 
       case 'conditional':

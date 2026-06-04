@@ -127,7 +127,13 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         // PDF text layer so native text selection continues to work.
         // Individual WriterRichElementBox children have explicit pointerEvents:'auto'
         // and remain interactive regardless of the container value.
-        pointerEvents: activeMode === 'write' && (activeWriterTool === 'richTextBox' || activeWriterTool === 'textCallout') ? 'auto' : 'none',
+        pointerEvents: activeMode === 'write' && (
+          activeWriterTool === 'richTextBox' ||
+          activeWriterTool === 'textCallout' ||
+          activeWriterTool === 'textStamp' ||
+          activeWriterTool === 'reviewLabel' ||
+          activeWriterTool === 'richNote'
+        ) ? 'auto' : 'none',
         zIndex: 12,
         overflow: 'visible',
         cursor: activeWriterTool === 'select' ? 'default' : 'crosshair',

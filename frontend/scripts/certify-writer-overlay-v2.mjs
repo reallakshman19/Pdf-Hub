@@ -7,6 +7,9 @@ const root = process.cwd();
 const reportDir = path.join(root, 'reports');
 const reportPath = path.join(reportDir, 'writer-overlay-v2-certification-report.json');
 
+const VITEST_SERIAL_ARGS = ['--pool=forks', '--maxWorkers=1'];
+const CERT_NODE_OPTIONS = mergeNodeOptions(process.env.NODE_OPTIONS, '--max-old-space-size=4096');
+
 const commands = [
   {
     name: 'typecheck',
@@ -14,10 +17,16 @@ const commands = [
     args: ['run', 'typecheck'],
   },
   {
+    name: 'mojibake-audit',
+    command: 'npm',
+    args: ['run', 'audit:no-mojibake'],
+  },
+  {
     name: 'writer-v2-focused-tests',
     command: executable('vitest'),
     args: [
       'run',
+      ...VITEST_SERIAL_ARGS,
       'src/core/writer-v2/coordinateTransform.test.ts',
       'src/core/writer-v2/writerCommandStore.test.ts',
       'src/core/writer-v2/persistence/documentFingerprint.test.ts',
@@ -25,7 +34,8 @@ const commands = [
       'src/core/writer-v2/editor/writerEditorState.test.ts',
       'src/core/writer-v2/writerElementFactory.test.ts',
       'src/components/writer-v2/WriterOverlayLayer.test.tsx',
-      'src/components/writer-v2/WriterPopupEditor.test.tsx',
+      'src/components/writer-v2/WriterInlineEditor.test.tsx',
+      'src/components/writer-v2/WriterDoubleClickEdit.test.tsx',
       'src/components/writer-v2/WriterCalloutElement.test.tsx',
       'src/core/tool-policy/disabledTools.test.ts',
       'src/core/writer-v2/clipboard/sanitizeClipboardHtml.test.ts',
@@ -66,8 +76,8 @@ const commands = [
   },
   {
     name: 'full-vitest-suite',
-    command: 'npm',
-    args: ['run', 'test'],
+    command: executable('vitest'),
+    args: ['run', ...VITEST_SERIAL_ARGS],
   },
   {
     name: 'build',
@@ -90,10 +100,13 @@ for (const item of commands) {
     cwd: root,
     encoding: 'utf8',
     stdio: 'pipe',
-    shell: false,
+    shell: true,
     env: {
       ...process.env,
       CI: process.env.CI ?? 'true',
+      NODE_OPTIONS: CERT_NODE_OPTIONS,
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
     },
   });
 
@@ -192,10 +205,20 @@ function executable(binName) {
 }
 
 function tail(text) {
-  return text
-    .split(/\r?\n/)
+  const clean = text
+    .replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '')
+    .replace(/\r/g, '');
+  return clean
+    .split(/\n/)
     .filter(Boolean)
     .slice(-80);
+}
+
+function mergeNodeOptions(existing, required) {
+  const current = existing?.trim() ?? '';
+  if (!current) return required;
+  if (current.includes('--max-old-space-size')) return current;
+  return `${current} ${required}`;
 }
 
 function normalize(value) {

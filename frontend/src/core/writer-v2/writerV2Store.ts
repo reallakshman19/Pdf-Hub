@@ -16,6 +16,9 @@ export type WriterV2Tool =
   | 'select'
   | 'richTextBox'
   | 'textCallout'
+  | 'textStamp'
+  | 'reviewLabel'
+  | 'richNote'
   | 'selectBoxCopy';
 
 export interface WriterV2StoreState extends WriterV2State {

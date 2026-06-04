@@ -65,6 +65,6 @@ describe('WriterV2ToolbarControls', () => {
   it('renders import project file input', () => {
     render(<WriterV2ToolbarControls />);
 
-    expect(screen.getByLabelText(/import pdf hub project file/i)).toBeTruthy();
+    expect(screen.getByLabelText(/import editable writer project or pdf/i)).toBeTruthy();
   });
 });

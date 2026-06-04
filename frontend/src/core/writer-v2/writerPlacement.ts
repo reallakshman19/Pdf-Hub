@@ -7,6 +7,9 @@ import type { WriterV2Tool } from './writerV2Store';
 import {
   createRichTextBoxElement,
   createTextCalloutElement,
+  createReviewLabelElement,
+  createTextStampElement,
+  createRichNoteElement,
 } from './writerElementFactory';
 
 export interface WriterPlacementInput {
@@ -20,6 +23,10 @@ export interface WriterPlacementInput {
 
 const DEFAULT_BOX_WIDTH = 220;
 const DEFAULT_BOX_HEIGHT = 90;
+const STAMP_WIDTH = 180;
+const STAMP_HEIGHT = 50;
+const NOTE_WIDTH = 200;
+const NOTE_HEIGHT = 110;
 const CALLOUT_OFFSET_X = 48;
 const CALLOUT_OFFSET_Y = 28;
 
@@ -55,6 +62,51 @@ export function createWriterElementFromPlacement(
       ),
       anchorPoint: input.clickPoint,
       text: 'Callout note',
+      zIndex: input.zIndex,
+    });
+  }
+
+  if (input.tool === 'textStamp') {
+    return createTextStampElement({
+      documentFingerprint: input.documentFingerprint,
+      pageIndex: input.pageIndex,
+      rect: placeRectAtTopLeft(
+        input.clickPoint,
+        input.pageBounds,
+        STAMP_WIDTH,
+        STAMP_HEIGHT,
+      ),
+      text: 'DRAFT',
+      zIndex: input.zIndex,
+    });
+  }
+
+  if (input.tool === 'reviewLabel') {
+    return createReviewLabelElement({
+      documentFingerprint: input.documentFingerprint,
+      pageIndex: input.pageIndex,
+      rect: placeRectAtTopLeft(
+        input.clickPoint,
+        input.pageBounds,
+        DEFAULT_BOX_WIDTH,
+        DEFAULT_BOX_HEIGHT,
+      ),
+      text: 'Review comment',
+      zIndex: input.zIndex,
+    });
+  }
+
+  if (input.tool === 'richNote') {
+    return createRichNoteElement({
+      documentFingerprint: input.documentFingerprint,
+      pageIndex: input.pageIndex,
+      rect: placeRectAtTopLeft(
+        input.clickPoint,
+        input.pageBounds,
+        NOTE_WIDTH,
+        NOTE_HEIGHT,
+      ),
+      text: 'Note',
       zIndex: input.zIndex,
     });
   }

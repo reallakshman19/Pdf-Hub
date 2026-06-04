@@ -64,15 +64,21 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         cursor: isEditing ? 'text' : element.locked ? 'not-allowed' : 'move',
         zIndex: element.style.zIndex,
         background: element.style.backgroundColor ?? 'rgba(255,255,255,0.88)',
-        border: `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
+        border:
+          element.type === 'textStamp'
+            ? 'none'
+            : `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
         opacity: element.style.opacity ?? 1,
         padding: element.style.padding ?? 8,
         overflow: 'hidden',
         color: element.style.textColor ?? '#111827',
         fontSize: element.style.fontSize ?? 13,
         fontFamily: element.style.fontFamily ?? 'inherit',
+        fontWeight: element.type === 'textStamp' ? 700 : undefined,
+        letterSpacing: element.type === 'textStamp' ? '0.08em' : undefined,
         lineHeight: 1.35,
         userSelect: isEditing ? 'text' : 'none',
+        boxShadow: element.type === 'richNote' ? '2px 2px 6px rgba(0,0,0,0.12)' : undefined,
       }}
     >
       {isEditing && onSave && onCancel ? (

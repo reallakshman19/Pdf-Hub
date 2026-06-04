@@ -4,6 +4,10 @@ import { dispatchCommand } from '@/core/commands/dispatch';
 import type { DocumentCommand } from '@/core/commands/types';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
+import {
+  ThumbnailMacroConfigDialog,
+  type ThumbnailMacroKind,
+} from './ThumbnailMacroConfigDialog';
 
 interface ThumbnailContextMenuProps {
   x: number;
@@ -27,8 +31,14 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
   const addToast = useToastStore((state) => state.addToast);
   const targetPages = selectedPages.includes(page) ? selectedPages : [page];
   const pageIndices = targetPages.map((value) => value - 1);
+  const [configKind, setConfigKind] = React.useState<ThumbnailMacroKind | null>(
+    null,
+  );
 
   useEffect(() => {
+    // While the config dialog is open it owns outside-click / Escape handling.
+    if (configKind) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         onClose();
@@ -47,7 +57,7 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, configKind]);
 
   const handleCommand = async (command: DocumentCommand, successMessage: string) => {
     if (!workingBytes) return;
@@ -99,6 +109,20 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       `Replaced page ${page} using the first donor page from ${donor.name}.`,
     );
   };
+
+  if (configKind) {
+    return (
+      <ThumbnailMacroConfigDialog
+        kind={configKind}
+        pageIndices={pageIndices}
+        onCancel={() => setConfigKind(null)}
+        onApply={(command, message) => {
+          setConfigKind(null);
+          void handleCommand(command, message);
+        }}
+      />
+    );
+  }
 
   const style: React.CSSProperties = {
     position: 'fixed',
@@ -189,76 +213,33 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
 
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() =>
-          handleCommand(
-            {
-              type: 'ADD_HEADER_FOOTER_TEXT',
-              pageIndices,
-              options: {
-                zone: 'footer',
-                text: 'Page {page} of {pages}',
-                align: 'center',
-                marginX: 24,
-                marginY: 20,
-                fontSize: 10,
-                color: '#475569',
-                opacity: 0.9,
-                pageNumberToken: true,
-              },
-            },
-            'Added page numbers to footer.',
-          )
-        }
+        onClick={() => setConfigKind('pageNumbers')}
       >
-        Add Page Numbers (Footer)
+        Add Page Numbers (Footer)...
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() =>
-          handleCommand(
-            {
-              type: 'ADD_HEADER_FOOTER_TEXT',
-              pageIndices,
-              options: {
-                zone: 'header',
-                text: '{file}',
-                align: 'right',
-                marginX: 24,
-                marginY: 18,
-                fontSize: 10,
-                color: '#334155',
-                opacity: 0.85,
-                fileNameToken: true,
-              },
-            },
-            'Added file name to header.',
-          )
-        }
+        onClick={() => setConfigKind('fileHeader')}
       >
-        Add File Header
+        Add File Header...
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() =>
-          handleCommand(
-            {
-              type: 'DRAW_TEXT_ON_PAGES',
-              pageIndices,
-              options: {
-                text: 'REVIEW COPY',
-                x: 32,
-                y: 32,
-                fontSize: 11,
-                color: '#7c2d12',
-                opacity: 0.75,
-                align: 'left',
-              },
-            },
-            'Applied text batch stamp on selected pages.',
-          )
-        }
+        onClick={() => setConfigKind('textStamp')}
       >
-        Batch Text Stamp
+        Batch Text Stamp...
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => setConfigKind('watermark')}
+      >
+        Diagonal Watermark...
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => setConfigKind('redaction')}
+      >
+        Redaction Box...
       </button>
 
       <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />

@@ -8,12 +8,15 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { ListNode, ListItemNode } from '@lexical/list';
+import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin';
 import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { QuoteNode } from '@lexical/rich-text';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { HorizontalRuleNode } from '@lexical/react/LexicalHorizontalRuleNode';
 import { HorizontalRulePlugin } from '@lexical/react/LexicalHorizontalRulePlugin';
+import { LinkNode, AutoLinkNode } from '@lexical/link';
+import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { ImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
 import { HeadingNode } from '@/core/writer-v2/lexical-nodes/headingHelpers';
 import { WriterClipboardPlugin } from './WriterClipboardPlugin';
@@ -72,12 +75,15 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         CodeNode,
         CodeHighlightNode,
         HorizontalRuleNode,
+        LinkNode,
+        AutoLinkNode,
       ],
       editorState: initialEditorStateJson,
       theme: {
         paragraph: 'writer-v2-editor-paragraph',
         quote: 'writer-v2-editor-quote',
         code: 'writer-v2-editor-code',
+        link: 'writer-v2-editor-link',
         text: {
           bold: 'writer-v2-editor-bold',
           italic: 'writer-v2-editor-italic',
@@ -86,6 +92,10 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
           subscript: 'writer-v2-editor-subscript',
           superscript: 'writer-v2-editor-superscript',
           code: 'writer-v2-editor-text-code',
+        },
+        list: {
+          listitemChecked: 'writer-v2-editor-listitem-checked',
+          listitemUnchecked: 'writer-v2-editor-listitem-unchecked',
         },
       },
       onError(error: Error) {
@@ -193,6 +203,11 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         <ActiveEditorRegisterPlugin
           onEditor={(editor) => {
             editorRef.current = editor;
+            // Focus the editor after registration so the user can type immediately
+            // without needing an extra click.
+            requestAnimationFrame(() => {
+              editor.focus();
+            });
           }}
         />
 
@@ -206,6 +221,7 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
           contentEditable={
             <ContentEditable
               aria-label="Writer rich text inline editor"
+              autoFocus
               style={{
                 width: '100%',
                 height: '100%',
@@ -241,6 +257,8 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         <ListPlugin />
         <TablePlugin />
         <HorizontalRulePlugin />
+        <LinkPlugin validateUrl={(url) => /^https?:\/\//i.test(url)} />
+        <CheckListPlugin />
         <WriterClipboardPlugin
           documentFingerprint={element.documentFingerprint}
           onAssetsImported={(assets) => {

@@ -105,7 +105,12 @@ export const WriterV2Inspector: React.FC = () => {
   if (!selected) return null;
 
   const style = selected.style;
-  const isText = selected.type === 'richTextBox' || selected.type === 'textCallout';
+  const isText =
+    selected.type === 'richTextBox' ||
+    selected.type === 'textCallout' ||
+    selected.type === 'reviewLabel' ||
+    selected.type === 'textStamp' ||
+    selected.type === 'richNote';
   const isCallout = selected.type === 'textCallout';
 
   const patchStyle = (patch: Partial<typeof style>) => {

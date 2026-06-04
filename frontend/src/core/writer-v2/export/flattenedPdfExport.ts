@@ -1,10 +1,14 @@
 import {
   PDFDocument,
+  PDFName,
+  PDFArray,
+  PDFString,
   rgb,
   StandardFonts,
   type PDFPage,
   type PDFFont,
 } from 'pdf-lib';
+import { pickStandard14Font } from './fontFamilyResolver';
 import type {
   PdfPoint,
   PdfRect,
@@ -31,16 +35,25 @@ export interface FlattenWriterExportResult {
   embeddedAssetCount: number;
 }
 
+interface PendingLinkAnnotation {
+  page: PDFPage;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  url: string;
+}
+
 interface DrawContext {
   doc: PDFDocument;
   page: PDFPage;
-  font: PDFFont;
-  fontRegular: PDFFont;
-  fontBold: PDFFont;
-  fontItalic: PDFFont;
-  fontBoldItalic: PDFFont;
+  /** Lazily-populated cache: StandardFonts enum value → embedded PDFFont. */
+  fontCache: Map<StandardFonts, PDFFont>;
+  /** Fallback element-level font family (from element.style.fontFamily). */
+  elementFontFamily: string | undefined;
   assetsById: Map<string, WriterAssetRecordV2>;
   embeddedAssetIds: Set<string>;
+  pendingLinks: PendingLinkAnnotation[];
 }
 
 const DEFAULT_FONT_SIZE = 11;
@@ -50,14 +63,13 @@ export async function exportFlattenedWriterPdf(
 ): Promise<FlattenWriterExportResult> {
   const doc = await PDFDocument.load(input.pdfBytes);
 
-  const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
-  const fontBoldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+  // Shared font cache — variants are embedded on first use, reused after.
+  const fontCache = new Map<StandardFonts, PDFFont>();
 
   const pages = doc.getPages();
   const assetsById = new Map((input.assets ?? []).map((asset) => [asset.id, asset]));
   const embeddedAssetIds = new Set<string>();
+  const pendingLinks: PendingLinkAnnotation[] = [];
 
   const elements = input.elements
     .filter((element) => !element.hidden)
@@ -72,14 +84,17 @@ export async function exportFlattenedWriterPdf(
     await drawWriterElement({
       doc,
       page,
-      font: fontRegular,
-      fontRegular,
-      fontBold,
-      fontItalic,
-      fontBoldItalic,
+      fontCache,
+      elementFontFamily: element.style.fontFamily,
       assetsById,
       embeddedAssetIds,
+      pendingLinks,
     }, element);
+  }
+
+  // Emit PDF URI link annotations collected during drawing.
+  for (const link of pendingLinks) {
+    registerLinkAnnotation(doc, link);
   }
 
   return {
@@ -187,20 +202,31 @@ function drawBoxBackground(
   }
 }
 
-function getFontForStyle(
+/**
+ * Resolve and (if needed) embed the correct Standard-14 font for a text run.
+ * Family resolution order: run-level fontFamily → element-level fontFamily → Helvetica.
+ * Bold / italic variants are selected within the resolved family.
+ */
+async function getFontForStyle(
   context: DrawContext,
   style: PdfTextStyle,
-): PDFFont {
-  if (style.bold && style.italic) return context.fontBoldItalic;
-  if (style.bold) return context.fontBold;
-  if (style.italic) return context.fontItalic;
-  return context.fontRegular;
+): Promise<PDFFont> {
+  const family = style.fontFamily ?? context.elementFontFamily;
+  const variant = pickStandard14Font(family, !!style.bold, !!style.italic);
+
+  const cached = context.fontCache.get(variant);
+  if (cached) return cached;
+
+  const embedded = await context.doc.embedFont(variant);
+  context.fontCache.set(variant, embedded);
+  return embedded;
 }
 
 interface StyledWord {
   text: string;
   style: PdfTextStyle;
   isWhitespace: boolean;
+  href?: string;
 }
 
 interface StyledLine {
@@ -209,22 +235,23 @@ interface StyledLine {
   height: number;
 }
 
-function wrapStyledText(
+async function wrapStyledText(
   context: DrawContext,
   children: PdfInlineText[],
   maxWidth: number,
   defaultFontSize: number,
-): StyledLine[] {
+): Promise<StyledLine[]> {
   const words: StyledWord[] = [];
   for (const child of children) {
     const text = child.text;
     const style = child.style;
+    const href = child.href;
     let currentWord = '';
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       if (char === ' ' || char === '\t' || char === '\n') {
         if (currentWord) {
-          words.push({ text: currentWord, style, isWhitespace: false });
+          words.push({ text: currentWord, style, isWhitespace: false, href });
           currentWord = '';
         }
         words.push({ text: char, style, isWhitespace: true });
@@ -233,7 +260,7 @@ function wrapStyledText(
       }
     }
     if (currentWord) {
-      words.push({ text: currentWord, style, isWhitespace: false });
+      words.push({ text: currentWord, style, isWhitespace: false, href });
     }
   }
 
@@ -243,7 +270,7 @@ function wrapStyledText(
   let currentLineHeight = defaultFontSize * 1.25;
 
   for (const word of words) {
-    const font = getFontForStyle(context, word.style);
+    const font = await getFontForStyle(context, word.style);
     const size = word.style.fontSize ?? defaultFontSize;
     const wordWidth = font.widthOfTextAtSize(word.text, size);
     const wordHeight = size * 1.25;
@@ -322,7 +349,7 @@ async function drawRichBlocks(
         return child;
       });
 
-      const lines = wrapStyledText(
+      const lines = await wrapStyledText(
         context,
         childrenWithHeadingOverrides,
         maxWidth,
@@ -348,7 +375,7 @@ async function drawRichBlocks(
 
         let currentX = startX;
         for (const word of line.words) {
-          const font = getFontForStyle(context, word.style);
+          const font = await getFontForStyle(context, word.style);
           const size = word.style.fontSize ?? headingSize;
           const wordWidth = font.widthOfTextAtSize(word.text, size);
 
@@ -391,6 +418,17 @@ async function drawRichBlocks(
             });
           }
 
+          if (word.href) {
+            context.pendingLinks.push({
+              page: context.page,
+              x: currentX,
+              y: y - size * 0.2,
+              width: wordWidth,
+              height: size * 1.3,
+              url: word.href,
+            });
+          }
+
           currentX += wordWidth;
         }
 
@@ -406,11 +444,18 @@ async function drawRichBlocks(
         const listIndent = indentLevel * 15;
         const itemMaxWidth = maxWidth - listIndent;
 
-        const lines = wrapStyledText(context, item.children, itemMaxWidth, defaultFontSize);
+        const lines = await wrapStyledText(context, item.children, itemMaxWidth, defaultFontSize);
         if (lines.length === 0) continue;
 
-        const prefix = block.listType === 'number' ? `${index + 1}. ` : '• ';
-        const prefixFont = context.fontBold;
+        const prefix =
+          block.listType === 'number'
+            ? `${index + 1}. `
+            : block.listType === 'check'
+            ? item.checked
+              ? '☑ '
+              : '☐ '
+            : '• ';
+        const prefixFont = await getFontForStyle(context, { bold: true });
         const prefixWidth = prefixFont.widthOfTextAtSize(prefix, defaultFontSize);
         const prefixX = rect.x + padding + listIndent - prefixWidth - 4;
 
@@ -435,7 +480,7 @@ async function drawRichBlocks(
 
           let currentX = rect.x + padding + listIndent;
           for (const word of line.words) {
-            const font = getFontForStyle(context, word.style);
+            const font = await getFontForStyle(context, word.style);
             const size = word.style.fontSize ?? defaultFontSize;
             const wordWidth = font.widthOfTextAtSize(word.text, size);
 
@@ -475,6 +520,17 @@ async function drawRichBlocks(
                 end: { x: currentX + wordWidth, y: y + size * 0.35 },
                 thickness: size * 0.07,
                 color: rgb(textColor.r, textColor.g, textColor.b),
+              });
+            }
+
+            if (word.href) {
+              context.pendingLinks.push({
+                page: context.page,
+                x: currentX,
+                y: y - size * 0.2,
+                width: wordWidth,
+                height: size * 1.3,
+                url: word.href,
               });
             }
 
@@ -529,7 +585,7 @@ async function drawRichBlocks(
           y -= imgHeight + 4;
 
           if (block.caption) {
-            const captionFont = context.fontItalic;
+            const captionFont = await getFontForStyle(context, { italic: true });
             const captionSize = 9;
             const captionWidth = captionFont.widthOfTextAtSize(block.caption, captionSize);
             const captionX = rect.x + padding + (maxWidth - captionWidth) / 2;
@@ -788,4 +844,42 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
+}
+
+/**
+ * Register a PDF URI link annotation on the page.
+ * Uses the low-level pdf-lib API because the high-level PDFPage API only
+ * exposes widget annotations (form fields).
+ */
+function registerLinkAnnotation(
+  doc: PDFDocument,
+  link: PendingLinkAnnotation,
+): void {
+  try {
+    const actionDict = doc.context.obj({
+      Type: 'Action',
+      S: 'URI',
+      URI: PDFString.of(link.url),
+    });
+
+    const annotRef = doc.context.register(
+      doc.context.obj({
+        Type: 'Annot',
+        Subtype: 'Link',
+        Rect: [link.x, link.y, link.x + link.width, link.y + link.height],
+        Border: [0, 0, 0],
+        C: [],
+        A: actionDict,
+      }),
+    );
+
+    const pageDict = link.page.node;
+    const existing =
+      pageDict.lookupMaybe(PDFName.of('Annots'), PDFArray) ??
+      doc.context.obj([]);
+    existing.push(annotRef);
+    pageDict.set(PDFName.of('Annots'), existing);
+  } catch {
+    // Non-fatal — skip unregisterable annotations rather than failing the export.
+  }
 }

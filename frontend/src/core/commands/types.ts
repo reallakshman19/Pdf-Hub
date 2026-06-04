@@ -116,9 +116,18 @@ export interface DrawTextCommandOptions {
   color?: string;
   opacity?: number;
   align?: 'left' | 'center' | 'right';
+  rotation?: number;
   pageNumberToken?: boolean;
   fileNameToken?: boolean;
   dateToken?: boolean;
+}
+
+export interface RedactionBoxCommandOptions {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor?: string;
 }
 
 export type DocumentCommand =
@@ -135,6 +144,7 @@ export type DocumentCommand =
   | { type: 'MERGE_PDF'; additionalBytes: Uint8Array[] }
   | { type: 'ADD_HEADER_FOOTER_TEXT'; pageIndices: number[]; options: HeaderFooterCommandOptions }
   | { type: 'DRAW_TEXT_ON_PAGES'; pageIndices: number[]; options: DrawTextCommandOptions }
+  | { type: 'DRAW_REDACTION_BOX'; pageIndices: number[]; options: RedactionBoxCommandOptions }
   | { type: 'REPLACE_WORKING_COPY'; nextBytes: Uint8Array; nextPageCount?: number; reason?: string };
 
 export interface CommandContext {

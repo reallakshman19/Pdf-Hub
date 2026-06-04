@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -6,14 +6,19 @@ import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
 import { exportCurrentWriterProject } from '@/core/writer-v2/export/exportCurrentWriterProject';
-import { importProjectIntoWriterStore } from '@/core/writer-v2/export/projectImportController';
+import { exportCurrentWriterRoundTripPdf } from '@/core/writer-v2/export/exportCurrentWriterRoundTripPdf';
+import {
+  importProjectIntoWriterStore,
+  importRoundTripPdfIntoWriterStore,
+} from '@/core/writer-v2/export/projectImportController';
 import {
   downloadWriterBytes,
   safeDownloadBaseName,
 } from '@/core/writer-v2/export/downloadWriterFile';
 import { WriterKeyboardHandler } from './WriterKeyboardHandler';
 import {
-  Type, MessageSquareDot, Scan, FileDown, FolderArchive, FolderOpen,
+  Type, MessageSquareDot, Stamp, Tag, NotebookPen, Scan,
+  FileDown, FileText, FolderArchive, FolderOpen,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -77,7 +82,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
   const sourceBytes = workingBytes ?? originalBytes;
   const baseName = safeDownloadBaseName(fileName);
 
-  const toggleTool = (tool: 'richTextBox' | 'textCallout') => {
+  const toggleTool = (tool: Exclude<typeof activeWriterTool, 'select' | 'selectBoxCopy'>) => {
     setActiveWriterTool(activeWriterTool === tool ? 'select' : tool);
   };
 
@@ -101,6 +106,32 @@ export const WriterV2ToolbarControls: React.FC = () => {
       );
 
       completeSaveOperation('Flattened Writer V2 PDF exported.');
+    } catch (error) {
+      failSaveOperation(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const exportEditablePdf = async () => {
+    if (!sourceBytes) {
+      failSaveOperation('No PDF is open for editable Writer PDF export.');
+      return;
+    }
+
+    try {
+      beginExportOperation('Exporting editable Writer PDF...');
+
+      const bytes = await exportCurrentWriterRoundTripPdf({
+        pdfBytes: sourceBytes,
+        documentFingerprint: documentKey ?? undefined,
+      });
+
+      downloadWriterBytes(
+        bytes,
+        `${baseName}.editable.pdf`,
+        'application/pdf',
+      );
+
+      completeSaveOperation('Editable Writer PDF exported.');
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
@@ -132,12 +163,25 @@ export const WriterV2ToolbarControls: React.FC = () => {
     }
   };
 
-  const importProjectZip = async (file: File) => {
+  const importProjectFile = async (file: File) => {
     try {
-      beginExportOperation('Importing editable PDF Hub project…');
+      beginExportOperation('Opening editable Writer project…');
 
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const imported = await importProjectIntoWriterStore(bytes);
+      const isPdf = /\.pdf$/i.test(file.name);
+
+      // Editable round-trip PDF (Option C) carries the project as an attachment.
+      const imported = isPdf
+        ? await importRoundTripPdfIntoWriterStore(bytes)
+        : await importProjectIntoWriterStore(bytes);
+
+      if (!imported) {
+        failSaveOperation(
+          'This PDF has no editable Writer layer. Open it normally to view the flattened content.',
+        );
+        return;
+      }
+
       const pdf = await PDFDocument.load(imported.originalPdfBytes);
 
       openDocument({
@@ -147,7 +191,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
         pageCount: pdf.getPageCount(),
       });
 
-      completeSaveOperation('Editable PDF Hub project imported.');
+      completeSaveOperation('Editable Writer project imported.');
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     } finally {
@@ -179,6 +223,27 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Writer V2 Text Callout"
       />
       <ResponsiveBtn
+        icon={Stamp}
+        label="Stamp"
+        active={activeWriterTool === 'textStamp'}
+        onClick={() => toggleTool('textStamp')}
+        title="Text Stamp - borderless bold text (DRAFT, REVIEWED, etc.)"
+      />
+      <ResponsiveBtn
+        icon={Tag}
+        label="Review"
+        active={activeWriterTool === 'reviewLabel'}
+        onClick={() => toggleTool('reviewLabel')}
+        title="Review Label - amber highlight annotation"
+      />
+      <ResponsiveBtn
+        icon={NotebookPen}
+        label="Note"
+        active={activeWriterTool === 'richNote'}
+        onClick={() => toggleTool('richNote')}
+        title="Rich Note - yellow notepad-style sticky"
+      />
+      <ResponsiveBtn
         icon={Scan}
         label="Copy Region"
         active={activeWriterTool === 'selectBoxCopy'}
@@ -186,37 +251,44 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Select Box Copy: copy text, formatted text, tables, or image from a rectangle"
       />
       <ResponsiveBtn
+        icon={FileText}
+        label="Editable PDF"
+        disabled={!sourceBytes}
+        onClick={exportEditablePdf}
+        title="Save as editable .pdf - flattened for viewing, re-openable for editing in PDF Hub"
+      />
+      <ResponsiveBtn
         icon={FileDown}
         label="Flatten"
         disabled={!sourceBytes}
         onClick={exportFlattenedPdf}
-        title="Export flattened Writer PDF"
+        title="Export flattened Writer PDF (view-only, smaller)"
       />
       <ResponsiveBtn
         icon={FolderArchive}
         label="Save Project"
         disabled={!sourceBytes}
         onClick={exportProjectZip}
-        title="Export editable PDF Hub project"
+        title="Export editable PDF Hub project (.pdfhub.zip)"
       />
       <ResponsiveBtn
         icon={FolderOpen}
         label="Open Project"
         onClick={() => fileInputRef.current?.click()}
-        title="Import editable PDF Hub project"
+        title="Open an editable .pdf or .pdfhub.zip project"
       />
 
       <input
         ref={fileInputRef}
-        aria-label="Import PDF Hub project file"
+        aria-label="Import editable Writer project or PDF"
         type="file"
-        accept=".pdfhub.zip,.zip,application/zip"
+        accept=".pdf,application/pdf,.pdfhub.zip,.zip,application/zip"
         style={{ display: 'none' }}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
 
           if (file) {
-            void importProjectZip(file);
+            void importProjectFile(file);
           }
         }}
       />

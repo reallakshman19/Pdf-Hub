@@ -85,6 +85,25 @@ export function createTextStampElement(input: WriterFactoryInput): WriterElement
       backgroundColor: 'transparent',
       borderColor: 'transparent',
       borderWidth: 0,
+      fontSize: 22,
+      textColor: '#b91c1c',
+      opacity: 0.75,
+    },
+  };
+}
+
+export function createRichNoteElement(input: WriterFactoryInput): WriterElementV2 {
+  const base = createRichTextBoxElement(input);
+
+  return {
+    ...base,
+    type: 'richNote',
+    style: {
+      ...base.style,
+      backgroundColor: '#fefce8',
+      borderColor: '#ca8a04',
+      borderWidth: 1,
+      padding: 10,
     },
   };
 }

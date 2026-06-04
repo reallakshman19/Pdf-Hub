@@ -1,4 +1,4 @@
-import type { LexicalEditor, ElementNode } from 'lexical';
+import type { LexicalEditor, ElementNode, LexicalNode } from 'lexical';
 import {
   $getSelection,
   $isRangeSelection,
@@ -50,7 +50,7 @@ export function applyBlockStyle(
     if (!$isRangeSelection(selection)) return;
 
     const topLevels = new Set<ElementNode>();
-    const addTop = (node: ReturnType<typeof selection.anchor.getNode>) => {
+    const addTop = (node: LexicalNode) => {
       const top = node.getTopLevelElement();
       if (top && $isElementNode(top)) topLevels.add(top);
     };

@@ -1,10 +1,17 @@
 import type { LexicalEditor } from 'lexical';
-import { $getSelection, $isRangeSelection, $createParagraphNode } from 'lexical';
-import { $createHeadingNode, HeadingNode, type HeadingTagType } from '@lexical/rich-text';
+import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical';
+import { $setBlocksType } from '@lexical/selection';
+import {
+  $createHeadingNode,
+  $isHeadingNode,
+  HeadingNode,
+  type HeadingTagType,
+} from '@lexical/rich-text';
 
 /**
- * Toggle heading level for the current selection.
- * If already at the target level, convert back to paragraph.
+ * Toggles the selected block between a heading level and a paragraph.
+ * Expects a mounted Lexical editor with an active range selection; returns no
+ * output and does not apply a fallback when the selection is unavailable.
  */
 export function toggleHeading(
   editor: LexicalEditor,
@@ -14,22 +21,13 @@ export function toggleHeading(
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) return;
 
-    const anchorNode = selection.anchor.getNode();
-    const element = anchorNode.getTopLevelElementOrThrow();
+    const element = selection.anchor.getNode().getTopLevelElementOrThrow();
+    const isActiveHeading = $isHeadingNode(element) && element.getTag() === level;
 
-    if (element instanceof HeadingNode && element.getTag() === level) {
-      // Already this heading — convert back to paragraph
-      const paragraph = $createParagraphNode();
-      element.getChildren().forEach((child) => paragraph.append(child));
-      element.replace(paragraph);
-    } else {
-      // Convert to heading
-      const heading = $createHeadingNode(level);
-      element.getChildren().forEach((child) => heading.append(child));
-      element.replace(heading);
-    }
+    $setBlocksType(selection, () =>
+      isActiveHeading ? $createParagraphNode() : $createHeadingNode(level),
+    );
   });
 }
 
-/** Re-export for editor config registration */
 export { HeadingNode };

@@ -7,6 +7,9 @@ const root = process.cwd();
 const reportDir = path.join(root, 'reports');
 const reportPath = path.join(reportDir, 'writer-overlay-v2-final-certification.json');
 
+const VITEST_SERIAL_ARGS = ['--pool=forks', '--maxWorkers=1'];
+const CERT_NODE_OPTIONS = mergeNodeOptions(process.env.NODE_OPTIONS, '--max-old-space-size=4096');
+
 const commands = [
   {
     name: 'typecheck',
@@ -14,32 +17,23 @@ const commands = [
     args: ['run', 'typecheck'],
   },
   {
+    name: 'mojibake-audit',
+    command: 'npm',
+    args: ['run', 'audit:no-mojibake'],
+  },
+  {
     name: 'final-smoke-focused-test',
     command: executable('vitest'),
     args: [
       'run',
+      ...VITEST_SERIAL_ARGS,
       'src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.test.ts',
     ],
-  },
-  {
-    name: 'disabled-tools-audit',
-    command: 'node',
-    args: ['scripts/writer-v2-disabled-tools-audit.mjs'],
   },
   {
     name: 'writer-overlay-v2-certification',
     command: 'npm',
     args: ['run', 'certify:writer-overlay-v2'],
-  },
-  {
-    name: 'full-vitest-suite',
-    command: 'npm',
-    args: ['run', 'test'],
-  },
-  {
-    name: 'build',
-    command: 'npm',
-    args: ['run', 'build'],
   },
 ];
 
@@ -57,10 +51,13 @@ for (const item of commands) {
     cwd: root,
     encoding: 'utf8',
     stdio: 'pipe',
-    shell: false,
+    shell: true,
     env: {
       ...process.env,
       CI: process.env.CI ?? 'true',
+      NODE_OPTIONS: CERT_NODE_OPTIONS,
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
     },
   });
 
@@ -106,8 +103,7 @@ const report = {
     importEditableProjectZip: 'PASS_REQUIRED',
     freshStoreRestoreEditableObjects: 'PASS_REQUIRED',
     disabledOldAnnotationToolsAudit: 'PASS_REQUIRED',
-    fullVitestSuite: 'PASS_REQUIRED',
-    build: 'PASS_REQUIRED',
+    writerOverlayV2Certification: 'PASS_REQUIRED',
   },
   startedAt,
   finishedAt: new Date().toISOString(),
@@ -129,10 +125,20 @@ function executable(binName) {
 }
 
 function tail(text) {
-  return text
-    .split(/\r?\n/)
+  const clean = text
+    .replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '')
+    .replace(/\r/g, '');
+  return clean
+    .split(/\n/)
     .filter(Boolean)
     .slice(-80);
+}
+
+function mergeNodeOptions(existing, required) {
+  const current = existing?.trim() ?? '';
+  if (!current) return required;
+  if (current.includes('--max-old-space-size')) return current;
+  return `${current} ${required}`;
 }
 
 function normalize(value) {

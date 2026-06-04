@@ -68,6 +68,7 @@ export type MacroStep =
       opacity?: number;
       align?: 'left' | 'center' | 'right';
       fontFamily?: string;
+      rotation?: number;
       pageNumberToken?: boolean;
       fileNameToken?: boolean;
       dateToken?: boolean;
@@ -150,6 +151,15 @@ export type MacroStep =
       rotation?: number;
       base64Image?: string;
       donorFileId?: string;
+    }
+  | {
+      op: 'draw_redaction_box';
+      selector: PageSelector;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      fillColor?: string;
     }
   | { op: 'conditional'; condition: MacroCondition; then: MacroStep[]; else?: MacroStep[] }
   | { op: 'apply_template_vars'; vars: Record<string, string> };

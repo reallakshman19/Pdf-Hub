@@ -100,10 +100,22 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
       startClientY: event.clientY,
       startViewportRect: pdfRectToViewportRect(element.rect, viewport),
       pointerId: event.pointerId,
-      captured: false,
+      // For resize, capture immediately: handles are positioned *outside* the
+      // box div (negative offsets), so the pointer leaves the box before the
+      // threshold in updateDrag is ever reached, breaking resize.
+      // For move, capture is deferred so a plain click/double-click (which never
+      // moves past the threshold) still triggers the manual dblclick detection
+      // in endDrag without capturing and consuming the pointer events.
+      captured: mode === 'resize',
     };
-    // Pointer capture is deferred to updateDrag (see DragState.captured) so that
-    // a click/double-click that never moves still fires its native events.
+
+    if (mode === 'resize') {
+      // Capture immediately so pointer events route to the box even when the
+      // mouse leaves the box boundary mid-resize.
+      const target = event.currentTarget;
+      const box = target.closest('[data-writer-v2-element-id]') as HTMLDivElement | null;
+      (box ?? target).setPointerCapture?.(event.pointerId);
+    }
   };
 
   const updateDrag = (event: React.PointerEvent<HTMLDivElement>) => {

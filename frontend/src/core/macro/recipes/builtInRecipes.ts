@@ -1,3 +1,5 @@
+// Keep this file UTF-8. The no-mojibake audit fails if common encoding corruption appears.
+
 import type { MacroRecipe } from '../types';
 
 export type MacroRecipeCatalogCategory =
@@ -6,7 +8,8 @@ export type MacroRecipeCatalogCategory =
   | 'stamps'
   | 'tables'
   | 'page-cleanup'
-  | 'authoring';
+  | 'authoring'
+  | 'redaction';
 
 export interface MacroRecipeCatalogItem {
   id: string;
@@ -499,6 +502,248 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
           targetPage: 1,
           donorFileId: 'donorA',
           donorPage: 1,
+        },
+      ],
+    },
+  },
+  {
+    id: 'bates-numbering',
+    name: 'Bates Numbering (Footer)',
+    description: 'Add sequential Bates-style numbers to the footer of every page.',
+    category: 'document-control',
+    tags: ['bates', 'numbering', 'legal'],
+    requiredOps: ['header_footer_text'],
+    recipe: {
+      id: 'bates-numbering',
+      name: 'Bates Numbering (Footer)',
+      steps: [
+        {
+          op: 'header_footer_text',
+          selector: { mode: 'all' },
+          zone: 'footer',
+          text: 'DOC {page}',
+          align: 'right',
+          marginX: 36,
+          marginY: 24,
+          fontSize: 9,
+          color: '#475569',
+          pageNumberToken: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'date-stamp-footer',
+    name: 'Date Stamp (Footer)',
+    description: 'Stamp the current date in the footer of every page.',
+    category: 'document-control',
+    tags: ['date', 'footer', 'stamp'],
+    requiredOps: ['header_footer_text'],
+    recipe: {
+      id: 'date-stamp-footer',
+      name: 'Date Stamp (Footer)',
+      steps: [
+        {
+          op: 'header_footer_text',
+          selector: { mode: 'all' },
+          zone: 'footer',
+          text: '{date}',
+          align: 'left',
+          marginX: 36,
+          marginY: 24,
+          fontSize: 9,
+          color: '#475569',
+          dateToken: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'confidential-review-pack',
+    name: 'Confidential Review Pack',
+    description: 'Add a CONFIDENTIAL header and "Page X of Y" footer to every page.',
+    category: 'review',
+    tags: ['confidential', 'header', 'footer'],
+    requiredOps: ['header_footer_text'],
+    recipe: {
+      id: 'confidential-review-pack',
+      name: 'Confidential Review Pack',
+      steps: [
+        {
+          op: 'header_footer_text',
+          selector: { mode: 'all' },
+          zone: 'header',
+          text: 'CONFIDENTIAL',
+          align: 'center',
+          marginX: 36,
+          marginY: 24,
+          fontSize: 10,
+          color: '#b91c1c',
+          opacity: 0.85,
+        },
+        {
+          op: 'header_footer_text',
+          selector: { mode: 'all' },
+          zone: 'footer',
+          text: 'Page {page} of {pages}',
+          align: 'center',
+          marginX: 36,
+          marginY: 24,
+          fontSize: 9,
+          color: '#475569',
+          pageNumberToken: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'diagonal-watermark-draft',
+    name: 'Diagonal DRAFT Watermark',
+    description: 'Stamp a semi-transparent DRAFT watermark diagonally across every page.',
+    category: 'stamps',
+    tags: ['watermark', 'draft', 'diagonal'],
+    requiredOps: ['draw_text_on_pages'],
+    recipe: {
+      id: 'diagonal-watermark-draft',
+      name: 'Diagonal DRAFT Watermark',
+      steps: [
+        {
+          op: 'draw_text_on_pages',
+          selector: { mode: 'all' },
+          text: 'DRAFT',
+          x: 100,
+          y: 300,
+          fontSize: 80,
+          color: '#94a3b8',
+          opacity: 0.18,
+          align: 'left',
+          rotation: 45,
+        },
+      ],
+    },
+  },
+  {
+    id: 'diagonal-watermark-confidential',
+    name: 'Diagonal CONFIDENTIAL Watermark',
+    description: 'Stamp a semi-transparent CONFIDENTIAL watermark diagonally across every page.',
+    category: 'stamps',
+    tags: ['watermark', 'confidential', 'diagonal'],
+    requiredOps: ['draw_text_on_pages'],
+    recipe: {
+      id: 'diagonal-watermark-confidential',
+      name: 'Diagonal CONFIDENTIAL Watermark',
+      steps: [
+        {
+          op: 'draw_text_on_pages',
+          selector: { mode: 'all' },
+          text: 'CONFIDENTIAL',
+          x: 40,
+          y: 280,
+          fontSize: 52,
+          color: '#ef4444',
+          opacity: 0.15,
+          align: 'left',
+          rotation: 45,
+        },
+      ],
+    },
+  },
+  {
+    id: 'white-out-redaction',
+    name: 'White-Out Redaction Box',
+    description: 'Draw a white filled rectangle to cover (white-out) content on the current page.',
+    category: 'redaction',
+    tags: ['redact', 'white-out', 'cover'],
+    requiredOps: ['draw_redaction_box'],
+    recipe: {
+      id: 'white-out-redaction',
+      name: 'White-Out Redaction Box',
+      steps: [
+        {
+          op: 'draw_redaction_box',
+          selector: { mode: 'current' },
+          x: 36,
+          y: 100,
+          width: 300,
+          height: 30,
+          fillColor: '#ffffff',
+        },
+      ],
+    },
+  },
+  {
+    id: 'black-redaction',
+    name: 'Black Redaction Box',
+    description: 'Draw a solid black rectangle to redact content on the current page.',
+    category: 'redaction',
+    tags: ['redact', 'black-out', 'censor'],
+    requiredOps: ['draw_redaction_box'],
+    recipe: {
+      id: 'black-redaction',
+      name: 'Black Redaction Box',
+      steps: [
+        {
+          op: 'draw_redaction_box',
+          selector: { mode: 'current' },
+          x: 36,
+          y: 100,
+          width: 300,
+          height: 30,
+          fillColor: '#000000',
+        },
+      ],
+    },
+  },
+  {
+    id: 'place-signature-block',
+    name: 'Place Signature Block',
+    description: 'Place a role / name / signature / date approval block on the current page.',
+    category: 'tables',
+    tags: ['signature', 'approval', 'sign-off'],
+    requiredOps: ['place_table'],
+    recipe: {
+      id: 'place-signature-block',
+      name: 'Place Signature Block',
+      steps: [
+        {
+          op: 'place_table',
+          selector: { mode: 'current' },
+          x: 36,
+          y: 120,
+          width: 360,
+          tableData: {
+            columns: [
+              { id: 'role', label: 'Role' },
+              { id: 'name', label: 'Name' },
+              { id: 'sign', label: 'Signature' },
+              { id: 'date', label: 'Date' },
+            ],
+            rows: [
+              {
+                id: 'r1',
+                cells: [
+                  { id: 'r1c1', text: 'Prepared by' },
+                  { id: 'r1c2', text: '' },
+                  { id: 'r1c3', text: '' },
+                  { id: 'r1c4', text: '' },
+                ],
+              },
+              {
+                id: 'r2',
+                cells: [
+                  { id: 'r2c1', text: 'Approved by' },
+                  { id: 'r2c2', text: '' },
+                  { id: 'r2c3', text: '' },
+                  { id: 'r2c4', text: '' },
+                ],
+              },
+            ],
+            style: {
+              borderColor: '#d1d5db',
+              headerBg: '#f1f5f9',
+              fontSize: 10,
+            },
+          },
         },
       ],
     },

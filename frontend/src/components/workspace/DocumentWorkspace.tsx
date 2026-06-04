@@ -202,7 +202,6 @@ export const DocumentWorkspace: React.FC = () => {
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawingLineStart(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawingLineCurrent(null);
   }, [activeTool]);
 

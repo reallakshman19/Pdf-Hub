@@ -115,6 +115,8 @@ function commandLabel(command: DocumentCommand): string {
       return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
       return 'Draw text on pages';
+    case 'DRAW_REDACTION_BOX':
+      return 'Draw redaction box';
     case 'REPLACE_WORKING_COPY':
       return command.reason ?? 'Apply macro output';
   }
@@ -369,6 +371,7 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
           color: command.options.color ?? '#111827',
           opacity: command.options.opacity ?? 0.95,
           align: command.options.align ?? 'left',
+          rotation: command.options.rotation,
           fileName: context.fileName,
           now: new Date(),
           enablePageNumberToken: command.options.pageNumberToken ?? true,
@@ -377,6 +380,23 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         });
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
         return commandSuccess(command.type, source, true, 'Text applied to pages', result.nextBytes, result.nextPageCount);
+      }
+
+      case 'DRAW_REDACTION_BOX': {
+        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        if (pageIndices.length === 0) {
+          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for redaction');
+        }
+        const nextBytes = await PdfEditAdapter.drawRedactionBoxes(context.workingBytes, {
+          pages: pageIndices,
+          x: command.options.x,
+          y: command.options.y,
+          width: command.options.width,
+          height: command.options.height,
+          fillColor: command.options.fillColor ?? '#ffffff',
+        });
+        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
+        return commandSuccess(command.type, source, true, 'Redaction applied to pages', result.nextBytes, result.nextPageCount);
       }
 
       case 'REPLACE_WORKING_COPY': {

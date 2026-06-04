@@ -257,7 +257,7 @@ export const TopNav: React.FC = () => {
           </a>
 
           {/* Mode tab group */}
-          <div className="flex items-center gap-px bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-855 rounded-xl p-[2px] shrink-0">
+          <div className="flex items-center gap-px bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-xl p-[2px] shrink-0">
             {MODES.map(({ id, icon: Icon, label, ai }) => {
               const isActive = activeMode === id;
               return (

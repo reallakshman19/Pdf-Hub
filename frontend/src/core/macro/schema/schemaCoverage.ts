@@ -25,6 +25,7 @@ export const SUPPORTED_MACRO_OPS: MacroStep['op'][] = [
   'place_rich_textbox',
   'place_table',
   'adjust_image',
+  'draw_redaction_box',
   'conditional',
   'apply_template_vars',
 ];
