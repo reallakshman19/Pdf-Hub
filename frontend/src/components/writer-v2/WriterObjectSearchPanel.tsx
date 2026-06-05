@@ -23,11 +23,13 @@ const WRITER_TYPES: WriterElementV2['type'][] = [
   'imageBox',
 ];
 
-/**
- * Provides local search, filter, and jump-to-object behavior for Writer V2 objects.
- * Inputs: Writer/session stores; output: page jump and active selection; fallback: returns null without objects.
- */
-export const WriterObjectSearchPanel: React.FC = () => {
+export interface WriterObjectSearchPanelProps {
+  embedded?: boolean;
+}
+
+export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = ({
+  embedded = false,
+}) => {
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
   const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
@@ -86,14 +88,14 @@ export const WriterObjectSearchPanel: React.FC = () => {
       data-writer-v2-search-panel="true"
       aria-label="Writer V2 object search"
       style={{
-        width: 320,
-        maxHeight: 'calc(100vh - 120px)',
+        width: embedded ? '100%' : 320,
+        maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
         background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 10,
-        boxShadow: '0 8px 28px rgba(15, 23, 42, 0.14)',
+        border: embedded ? 'none' : '1px solid #e2e8f0',
+        borderRadius: embedded ? 0 : 10,
+        boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
       }}
     >

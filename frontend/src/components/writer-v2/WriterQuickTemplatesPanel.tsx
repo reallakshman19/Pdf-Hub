@@ -5,24 +5,26 @@ import {
   type WriterQuickTemplate,
 } from '@/core/writer-v2/writerQuickTemplates';
 
-/**
- * Displays reusable Writer V2 templates and inserts them into the active PDF.
- * Inputs: active session from stores; output: Writer object insertion; fallback: per-button error title.
- */
-export const WriterQuickTemplatesPanel: React.FC = () => {
+export interface WriterQuickTemplatesPanelProps {
+  embedded?: boolean;
+}
+
+export const WriterQuickTemplatesPanel: React.FC<WriterQuickTemplatesPanelProps> = ({
+  embedded = false,
+}) => {
   return (
     <aside
       data-writer-v2-quick-templates="true"
       aria-label="Writer V2 quick templates"
       style={{
-        width: 280,
-        maxHeight: 'calc(100vh - 120px)',
+        width: embedded ? '100%' : 280,
+        maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
         background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 10,
-        boxShadow: '0 8px 28px rgba(15, 23, 42, 0.14)',
+        border: embedded ? 'none' : '1px solid #e2e8f0',
+        borderRadius: embedded ? 0 : 10,
+        boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
       }}
     >

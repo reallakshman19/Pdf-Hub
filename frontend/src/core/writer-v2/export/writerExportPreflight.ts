@@ -2,6 +2,11 @@ import type { WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '../writerV2Store';
+import {
+  editorStateToPdfBlocks,
+  type PdfBlock,
+} from './richTextRenderer';
+import { estimateRichContentMetrics } from './richContentMetrics';
 
 export type WriterExportPreflightSeverity = 'error' | 'warning' | 'info';
 
@@ -18,6 +23,11 @@ export type WriterExportPreflightIssueCode =
   | 'EMPTY_IMAGE_OBJECT'
   | 'EMPTY_TABLE_OBJECT'
   | 'TABLE_SHAPE_MISMATCH'
+  | 'RICH_IMAGE_EMPTY_SOURCE'
+  | 'RICH_IMAGE_UNSUPPORTED_FORMAT'
+  | 'RICH_TABLE_EMPTY'
+  | 'RICH_TABLE_LARGE'
+  | 'RICH_CONTENT_MAY_CLIP'
   | 'HIDDEN_OBJECTS_EXCLUDED';
 
 export interface WriterExportPreflightIssue {
@@ -229,6 +239,10 @@ function collectElementIssues({
     });
   }
 
+  if (TEXT_TYPES.has(element.type)) {
+    collectRichContentIssues(element, issues);
+  }
+
   if (element.type === 'imageBox') {
     collectImageIssues(element, assetsById, issues);
   }
@@ -332,3 +346,118 @@ async function safeReadPageSizes(
 function shortId(id: string): string {
   return id.length <= 8 ? id : id.slice(0, 8);
 }
+
+function collectRichContentIssues(
+  element: WriterElementV2,
+  issues: WriterExportPreflightIssue[],
+): void {
+  const blocks = editorStateToPdfBlocks(element.editorStateJson, element.plainText ?? '');
+
+  visitRichBlocks(blocks, (block) => {
+    if (block.type === 'image') {
+      collectRichImageIssues(element, block, issues);
+    }
+
+    if (block.type === 'table') {
+      collectRichTableIssues(element, block, issues);
+    }
+  });
+
+  const padding = element.style.padding ?? 8;
+  const availableHeight = Math.max(1, element.rect.height - padding * 2);
+  const metrics = estimateRichContentMetrics(blocks, {
+    fontSize: element.style.fontSize ?? 11,
+    availableWidth: Math.max(1, element.rect.width - padding * 2),
+    padding,
+  });
+
+  if (metrics.estimatedHeight > availableHeight * 1.25) {
+    issues.push({
+      code: 'RICH_CONTENT_MAY_CLIP',
+      severity: 'warning',
+      elementId: element.id,
+      pageIndex: element.pageIndex,
+      message: `Writer rich box ${shortId(element.id)} may clip content during flattened export.`,
+    });
+  }
+}
+
+function collectRichImageIssues(
+  element: WriterElementV2,
+  block: Extract<PdfBlock, { type: 'image' }>,
+  issues: WriterExportPreflightIssue[],
+): void {
+  if (!block.src) {
+    issues.push({
+      code: 'RICH_IMAGE_EMPTY_SOURCE',
+      severity: 'error',
+      elementId: element.id,
+      pageIndex: element.pageIndex,
+      message: `Writer rich box ${shortId(element.id)} contains an image block with no source.`,
+    });
+    return;
+  }
+
+  const supported =
+    block.src.startsWith('data:image/png') ||
+    block.src.startsWith('data:image/jpeg') ||
+    block.src.startsWith('data:image/jpg');
+
+  if (!supported) {
+    issues.push({
+      code: 'RICH_IMAGE_UNSUPPORTED_FORMAT',
+      severity: 'warning',
+      elementId: element.id,
+      pageIndex: element.pageIndex,
+      message: `Writer rich box ${shortId(element.id)} contains an image format that flattened export may replace with a placeholder.`,
+    });
+  }
+}
+
+function collectRichTableIssues(
+  element: WriterElementV2,
+  block: Extract<PdfBlock, { type: 'table' }>,
+  issues: WriterExportPreflightIssue[],
+): void {
+  if (block.rows.length === 0 || block.rows.every((row) => row.cells.length === 0)) {
+    issues.push({
+      code: 'RICH_TABLE_EMPTY',
+      severity: 'warning',
+      elementId: element.id,
+      pageIndex: element.pageIndex,
+      message: `Writer rich box ${shortId(element.id)} contains an empty table.`,
+    });
+    return;
+  }
+
+  const maxColumns = Math.max(0, ...block.rows.map((row) => row.cells.length));
+
+  if (block.rows.length > 20 || maxColumns > 8) {
+    issues.push({
+      code: 'RICH_TABLE_LARGE',
+      severity: 'warning',
+      elementId: element.id,
+      pageIndex: element.pageIndex,
+      message: `Writer rich box ${shortId(element.id)} contains a large table that may not fit inside the overlay box.`,
+    });
+  }
+}
+
+function visitRichBlocks(
+  blocks: PdfBlock[],
+  visitor: (block: PdfBlock) => void,
+): void {
+  for (const block of blocks) {
+    visitor(block);
+
+    if (block.type === 'table') {
+      for (const row of block.rows) {
+        for (const cell of row.cells) {
+          visitRichBlocks(cell.children, visitor);
+        }
+      }
+    }
+  }
+}
+
+

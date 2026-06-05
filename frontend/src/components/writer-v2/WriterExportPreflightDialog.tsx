@@ -9,6 +9,7 @@ export interface WriterExportPreflightDialogProps {
   exportLabel: string;
   onCancel: () => void;
   onContinue: () => void;
+  onFixRichContentClipping?: () => void | Promise<void>;
 }
 
 export const WriterExportPreflightDialog: React.FC<WriterExportPreflightDialogProps> = ({
@@ -16,10 +17,12 @@ export const WriterExportPreflightDialog: React.FC<WriterExportPreflightDialogPr
   exportLabel,
   onCancel,
   onContinue,
+  onFixRichContentClipping,
 }) => {
   const errors = result.issues.filter((issue) => issue.severity === 'error');
   const warnings = result.issues.filter((issue) => issue.severity === 'warning');
   const info = result.issues.filter((issue) => issue.severity === 'info');
+  const richClipCount = result.issues.filter((issue) => issue.code === 'RICH_CONTENT_MAY_CLIP').length;
 
   return (
     <div
@@ -182,6 +185,18 @@ export const WriterExportPreflightDialog: React.FC<WriterExportPreflightDialogPr
             background: '#f8fafc',
           }}
         >
+          {richClipCount > 0 && onFixRichContentClipping ? (
+            <button
+              type="button"
+              onClick={() => {
+                void onFixRichContentClipping();
+              }}
+              style={fixButtonStyle}
+            >
+              Fit clipped rich boxes ({richClipCount})
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={onCancel}
@@ -373,6 +388,18 @@ const secondaryButtonStyle: React.CSSProperties = {
   color: '#334155',
   fontSize: 12,
   fontWeight: 700,
+  cursor: 'pointer',
+};
+
+const fixButtonStyle: React.CSSProperties = {
+  height: 32,
+  padding: '0 12px',
+  borderRadius: 7,
+  border: '1px solid #f59e0b',
+  background: '#fffbeb',
+  color: '#92400e',
+  fontSize: 12,
+  fontWeight: 800,
   cursor: 'pointer',
 };
 

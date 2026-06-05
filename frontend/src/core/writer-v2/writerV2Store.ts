@@ -11,6 +11,7 @@ import {
 import type { WriterCommand } from './writerCommands';
 import type { WriterElementV2 } from './types';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
+import { normalizeWriterToolForRichAuthoring } from './writerToolPolicy';
 
 export type WriterV2Tool =
   | 'select'
@@ -62,7 +63,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   lastPersistedAt: null,
 
   setActiveWriterTool: (activeWriterTool) => {
-    set({ activeWriterTool });
+    set({
+      activeWriterTool: normalizeWriterToolForRichAuthoring(activeWriterTool),
+    });
   },
 
   dispatchWriterCommand: (command) => {

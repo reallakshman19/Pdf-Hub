@@ -1,5 +1,6 @@
 import {
   $createParagraphNode,
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $createTextNode,
@@ -28,8 +29,18 @@ export function insertTable(
   const clampedCols = Math.max(1, Math.min(cols, 20));
 
   editor.update(() => {
-    const selection = $getSelection();
-    if (!$isRangeSelection(selection)) return;
+    let selection = $getSelection();
+
+    // Fallback: no range selection — select the root's last child so the
+    // table is inserted at the end of the editor content.
+    if (!$isRangeSelection(selection)) {
+      const root = $getRoot();
+      const last = root.getLastChild();
+      if (last) {
+        last.selectEnd();
+        selection = $getSelection();
+      }
+    }
 
     const tableNode = $createTableNodeWithDimensions(
       clampedRows,
@@ -37,7 +48,12 @@ export function insertTable(
       false, // includeHeaders
     );
 
-    selection.insertNodes([tableNode]);
+    if ($isRangeSelection(selection)) {
+      selection.insertNodes([tableNode]);
+    } else {
+      // Last resort: append directly to root
+      $getRoot().append(tableNode);
+    }
 
     // Place cursor after table
     const paragraph = $createParagraphNode();

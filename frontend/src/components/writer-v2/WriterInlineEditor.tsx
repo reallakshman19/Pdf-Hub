@@ -1,6 +1,24 @@
 import React from 'react';
-import type { EditorState, LexicalEditor } from 'lexical';
-import { $getRoot } from 'lexical';
+import type { EditorState, LexicalEditor, TextFormatType } from 'lexical';
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $insertNodes,
+  $isRangeSelection,
+  FORMAT_ELEMENT_COMMAND,
+  FORMAT_TEXT_COMMAND,
+  INDENT_CONTENT_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
+} from 'lexical';
+import {
+  INSERT_CHECK_LIST_COMMAND,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  REMOVE_LIST_COMMAND,
+} from '@lexical/list';
+import { $patchStyleText, $setBlocksType } from '@lexical/selection';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
@@ -11,14 +29,26 @@ import { ListNode, ListItemNode } from '@lexical/list';
 import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin';
 import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
-import { QuoteNode } from '@lexical/rich-text';
+import { QuoteNode, type HeadingTagType, $createHeadingNode } from '@lexical/rich-text';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
-import { HorizontalRuleNode } from '@lexical/react/LexicalHorizontalRuleNode';
+import { HorizontalRuleNode, INSERT_HORIZONTAL_RULE_COMMAND } from '@lexical/react/LexicalHorizontalRuleNode';
 import { HorizontalRulePlugin } from '@lexical/react/LexicalHorizontalRulePlugin';
 import { LinkNode, AutoLinkNode } from '@lexical/link';
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
-import { ImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
-import { HeadingNode } from '@/core/writer-v2/lexical-nodes/headingHelpers';
+import {
+  $createImageNode,
+  ImageNode,
+} from '@/core/writer-v2/lexical-nodes/ImageNode';
+import {
+  HeadingNode,
+  toggleHeading,
+} from '@/core/writer-v2/lexical-nodes/headingHelpers';
+import { insertTable } from '@/core/writer-v2/lexical-nodes/tableHelpers';
+import {
+  applyBlockStyle,
+  toggleBlockType,
+} from '@/core/writer-v2/lexical-nodes/blockHelpers';
+import { useRichEditorCommandQueue } from '@/core/writer-v2/richEditorCommandQueue';
 import { WriterClipboardPlugin } from './WriterClipboardPlugin';
 import { ImageDropPlugin } from './plugins/ImageDropPlugin';
 import { TablePastePlugin } from './plugins/TablePastePlugin';
@@ -84,6 +114,30 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         quote: 'writer-v2-editor-quote',
         code: 'writer-v2-editor-code',
         link: 'writer-v2-editor-link',
+        heading: {
+          h1: 'writer-v2-editor-h1',
+          h2: 'writer-v2-editor-h2',
+          h3: 'writer-v2-editor-h3',
+          h4: 'writer-v2-editor-h4',
+          h5: 'writer-v2-editor-h5',
+          h6: 'writer-v2-editor-h6',
+        },
+        list: {
+          listitemChecked: 'writer-v2-editor-listitem-checked',
+          listitemUnchecked: 'writer-v2-editor-listitem-unchecked',
+          ul: 'writer-v2-editor-ul',
+          ol: 'writer-v2-editor-ol',
+          listitem: 'writer-v2-editor-listitem',
+          nested: {
+            listitem: 'writer-v2-editor-nested-listitem',
+          },
+        },
+        table: 'writer-v2-editor-table',
+        tableCell: 'writer-v2-editor-table-cell',
+        tableCellHeader: 'writer-v2-editor-table-cell-header',
+        tableRow: 'writer-v2-editor-table-row',
+        tableSelected: 'writer-v2-editor-table-selected',
+        tableCellSelected: 'writer-v2-editor-table-cell-selected',
         text: {
           bold: 'writer-v2-editor-bold',
           italic: 'writer-v2-editor-italic',
@@ -92,10 +146,6 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
           subscript: 'writer-v2-editor-subscript',
           superscript: 'writer-v2-editor-superscript',
           code: 'writer-v2-editor-text-code',
-        },
-        list: {
-          listitemChecked: 'writer-v2-editor-listitem-checked',
-          listitemUnchecked: 'writer-v2-editor-listitem-unchecked',
         },
       },
       onError(error: Error) {
@@ -197,6 +247,7 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         height: '100%',
         position: 'relative',
         cursor: 'text',
+        overflow: 'auto',
       }}
     >
       <LexicalComposer key={composerKey} initialConfig={initialConfig}>
@@ -210,6 +261,7 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
             });
           }}
         />
+        <QueuedRichEditorCommandPlugin />
 
         <OnChangePlugin
           onChange={(editorState) => {
@@ -224,14 +276,17 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
               autoFocus
               style={{
                 width: '100%',
-                height: '100%',
                 minHeight: '100%',
                 outline: 'none',
-                whiteSpace: 'pre-wrap',
+                // Do NOT set whiteSpace:pre-wrap here — it breaks <table> rendering
+                // inside Lexical. Block-level nodes (paragraphs, headings, tables)
+                // control their own whitespace. Text nodes inside them inherit
+                // correctly without this override.
                 fontSize: 'inherit',
                 fontFamily: 'inherit',
                 lineHeight: 'inherit',
                 color: 'inherit',
+                overflow: 'auto',
               }}
             />
           }
@@ -304,3 +359,172 @@ function ActiveEditorRegisterPlugin({
 
   return null;
 }
+
+function QueuedRichEditorCommandPlugin(): null {
+  const [editor] = useLexicalComposerContext();
+  const pendingCount = useRichEditorCommandQueue((state) => state.pending.length);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const commands = useRichEditorCommandQueue.getState().drain();
+
+      if (commands.length === 0) {
+        return;
+      }
+
+      editor.focus(() => {
+        for (const command of commands) {
+          switch (command.type) {
+            case 'insertTable':
+              insertTable(editor, command.rows, command.cols);
+              break;
+
+            case 'insertImage':
+              editor.update(() => {
+                $insertNodes([
+                  $createImageNode(
+                    command.src,
+                    command.altText,
+                    command.width,
+                    command.height,
+                    command.caption,
+                  ),
+                ]);
+              });
+              break;
+
+            case 'applyHeading':
+              toggleHeading(editor, `h${command.level}` as HeadingTagType);
+              break;
+
+            case 'formatText':
+              editor.dispatchCommand(FORMAT_TEXT_COMMAND, command.format);
+              break;
+
+            case 'formatElement':
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
+              break;
+
+            case 'indent':
+              editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+              break;
+
+            case 'outdent':
+              editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+              break;
+
+            case 'list':
+              if (command.command === 'bullet') {
+                editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
+              } else if (command.command === 'number') {
+                editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
+              } else if (command.command === 'check') {
+                editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
+              } else {
+                editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+              }
+              break;
+
+            case 'horizontalRule':
+              editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined);
+              break;
+
+            case 'applyTextStyle':
+              editor.update(() => {
+                const selection = $getSelection();
+                if ($isRangeSelection(selection)) {
+                  $patchStyleText(selection, {
+                    [command.property]: command.value,
+                  });
+                }
+              });
+              break;
+
+            case 'applyBlockStyle':
+              applyBlockStyle(editor, command.style);
+              break;
+
+            case 'toggleBlockType':
+              toggleBlockType(editor, command.blockType);
+              break;
+
+            case 'clearFormatting':
+              clearEditorFormatting(editor);
+              break;
+
+            case 'insertTemplateSnippet':
+              editor.update(() => {
+                const nodes = command.blocks.map((block) => {
+                  const node = block.kind === 'heading'
+                    ? $createHeadingNode(levelToTag(block.level ?? 2))
+                    : $createParagraphNode();
+
+                  if (block.text) {
+                    const textNode = $createTextNode(block.text);
+
+                    if (block.style) {
+                      textNode.setStyle(block.style);
+                    }
+
+                    node.append(textNode);
+                  }
+
+                  return node;
+                });
+
+                $insertNodes(nodes);
+              });
+              break;
+
+            case 'focus':
+              break;
+          }
+        }
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [editor, pendingCount]);
+
+  return null;
+}
+
+function levelToTag(level: 1 | 2 | 3): HeadingTagType {
+  return `h${level}` as HeadingTagType;
+}
+
+function clearEditorFormatting(editor: LexicalEditor): void {
+  editor.update(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return;
+
+    ([
+      'bold',
+      'italic',
+      'underline',
+      'strikethrough',
+      'superscript',
+      'subscript',
+      'code',
+    ] as TextFormatType[]).forEach((format) => {
+      if (selection.hasFormat(format)) {
+        selection.formatText(format);
+      }
+    });
+
+    $patchStyleText(selection, {
+      color: '',
+      'background-color': '',
+      'font-size': '',
+      'font-family': '',
+      'letter-spacing': '',
+      'line-height': '',
+      'text-transform': '',
+    });
+
+    $setBlocksType(selection, () => $createParagraphNode());
+  });
+
+  editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+}
+

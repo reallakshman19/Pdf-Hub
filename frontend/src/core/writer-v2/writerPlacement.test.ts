@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { createWriterElementFromPlacement } from './writerPlacement';
 
 const pageBounds = {
@@ -9,6 +9,13 @@ const pageBounds = {
 };
 
 describe('writer-v2 placement', () => {
+  beforeEach(() => {
+    localStorage.setItem('writer-v2-enable-legacy-placement', '1');
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
   it('creates a rich text box from click point', () => {
     const element = createWriterElementFromPlacement({
       tool: 'richTextBox',

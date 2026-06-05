@@ -30,3 +30,34 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
     }
   } as unknown as typeof DOMMatrix;
 }
+
+// Polyfill localStorage/sessionStorage for jsdom in environments where globalThis.localStorage is restricted
+if (typeof window !== 'undefined') {
+  const mockStorage = () => {
+    let store: Record<string, string> = {};
+    return {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => {
+        store[key] = String(value);
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      key: (index: number) => Object.keys(store)[index] || null,
+      get length() {
+        return Object.keys(store).length;
+      },
+    };
+  };
+
+  if (!window.localStorage) {
+    Object.defineProperty(window, 'localStorage', { value: mockStorage() });
+  }
+  if (!globalThis.localStorage) {
+    Object.defineProperty(globalThis, 'localStorage', { value: window.localStorage });
+  }
+}
+

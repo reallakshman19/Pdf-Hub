@@ -7,6 +7,7 @@ export interface WriterFactoryInput {
   pageIndex: number;
   rect: PdfRect;
   text?: string;
+  editorStateJson?: string;
   zIndex?: number;
 }
 
@@ -30,7 +31,7 @@ export function createRichTextBoxElement(input: WriterFactoryInput): WriterEleme
     pageIndex: input.pageIndex,
     type: 'richTextBox',
     rect: input.rect,
-    editorStateJson: createPlainTextEditorStateJson(input.text ?? ''),
+    editorStateJson: input.editorStateJson ?? createPlainTextEditorStateJson(input.text ?? ''),
     plainText: input.text ?? '',
     style: {
       backgroundColor: 'rgba(255, 255, 255, 0.88)',

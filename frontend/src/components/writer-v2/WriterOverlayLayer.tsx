@@ -7,6 +7,7 @@ import {
 import { getVisibleWriterElements } from '@/core/writer-v2/writerCommandStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlacement';
+import { shouldWriterOverlayCapturePlacement } from '@/core/writer-v2/writerToolPolicy';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { WriterElementBox } from './WriterElementBox';
@@ -108,7 +109,7 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
           return;
         }
 
-        if (activeWriterTool !== 'select') {
+        if (shouldWriterOverlayCapturePlacement(activeWriterTool)) {
           placeWriterElement(event);
           return;
         }
@@ -127,16 +128,12 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         // PDF text layer so native text selection continues to work.
         // Individual WriterRichElementBox children have explicit pointerEvents:'auto'
         // and remain interactive regardless of the container value.
-        pointerEvents: activeMode === 'write' && (
-          activeWriterTool === 'richTextBox' ||
-          activeWriterTool === 'textCallout' ||
-          activeWriterTool === 'textStamp' ||
-          activeWriterTool === 'reviewLabel' ||
-          activeWriterTool === 'richNote'
-        ) ? 'auto' : 'none',
+        pointerEvents: activeMode === 'write' && shouldWriterOverlayCapturePlacement(activeWriterTool)
+          ? 'auto'
+          : 'none',
         zIndex: 12,
         overflow: 'visible',
-        cursor: activeWriterTool === 'select' ? 'default' : 'crosshair',
+        cursor: shouldWriterOverlayCapturePlacement(activeWriterTool) ? 'crosshair' : 'default',
       }}
     >
       {activeMode === 'write' && pageNumber === 1 && !chipDismissed && (

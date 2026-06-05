@@ -118,3 +118,97 @@ function collectText(node: unknown, chunks: string[]): void {
     }
   }
 }
+
+export type WriterStarterTemplateId =
+  | 'blank'
+  | 'authoringCard'
+  | 'reviewComment'
+  | 'engineeringNote';
+
+export function createWriterStarterEditorStateJson(
+  templateId: WriterStarterTemplateId,
+): string {
+  switch (templateId) {
+    case 'authoringCard':
+      return createStructuredEditorStateJson([
+        headingNode('Document Heading', 'h1'),
+        paragraphNode('Write your content here. Use the ribbon to add tables, images, lists, colors, and review comments.'),
+        paragraphNode('Action / comment: '),
+      ]);
+
+    case 'reviewComment':
+      return createStructuredEditorStateJson([
+        headingNode('Review Comment', 'h2'),
+        paragraphNode('Observation: '),
+        paragraphNode('Required action: '),
+        paragraphNode('Status: Open'),
+      ]);
+
+    case 'engineeringNote':
+      return createStructuredEditorStateJson([
+        headingNode('Engineering Note', 'h2'),
+        paragraphNode('Reference: '),
+        paragraphNode('Finding: '),
+        paragraphNode('Recommendation: '),
+      ]);
+
+    case 'blank':
+    default:
+      return createPlainTextEditorStateJson('');
+  }
+}
+
+function createStructuredEditorStateJson(
+  children: Array<Record<string, unknown>>,
+): string {
+  return JSON.stringify({
+    root: {
+      children,
+      direction: null,
+      format: '',
+      indent: 0,
+      type: 'root',
+      version: 1,
+    },
+  });
+}
+
+function headingNode(
+  text: string,
+  tag: 'h1' | 'h2' | 'h3',
+): Record<string, unknown> {
+  return {
+    children: [textNode(text)],
+    direction: null,
+    format: '',
+    indent: 0,
+    type: 'heading',
+    version: 1,
+    tag,
+  };
+}
+
+function paragraphNode(text: string): Record<string, unknown> {
+  return {
+    children: text ? [textNode(text)] : [],
+    direction: null,
+    format: '',
+    indent: 0,
+    type: 'paragraph',
+    version: 1,
+    textFormat: 0,
+    textStyle: '',
+  };
+}
+
+function textNode(text: string): Record<string, unknown> {
+  return {
+    detail: 0,
+    format: 0,
+    mode: 'normal',
+    style: '',
+    text,
+    type: 'text',
+    version: 1,
+  };
+}

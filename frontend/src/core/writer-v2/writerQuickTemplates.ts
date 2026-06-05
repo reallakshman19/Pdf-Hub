@@ -1,18 +1,15 @@
-import { useSessionStore } from '@/core/session/store';
 import type {
-  PdfRect,
   WriterElementV2,
   WriterReviewCategory,
   WriterReviewPriority,
   WriterReviewStatus,
 } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import { ensureRichTextEditing } from './ensureRichTextEditing';
 import {
-  createReviewLabelElement,
-  createRichNoteElement,
-  createTextCalloutElement,
-  createTextStampElement,
-} from './writerElementFactory';
+  useRichEditorCommandQueue,
+  type PendingRichTemplateBlock,
+} from './richEditorCommandQueue';
 
 export type WriterQuickTemplateId =
   | 'stampDraft'
@@ -373,131 +370,143 @@ export async function insertWriterQuickTemplate(
   id: WriterQuickTemplateId,
 ): Promise<InsertWriterQuickTemplateResult> {
   const template = getWriterQuickTemplate(id);
-  const session = useSessionStore.getState();
-  const writer = useWriterV2Store.getState();
-  const sourceBytes = session.workingBytes ?? session.originalBytes;
 
-  if (!sourceBytes || session.pageCount <= 0) {
+  useRichEditorCommandQueue.getState().enqueue({
+    type: 'insertTemplateSnippet',
+    blocks: templateToRichBlocks(template),
+  });
+
+  const elementId = await ensureRichTextEditing();
+
+  if (!elementId) {
+    useRichEditorCommandQueue.getState().clear();
+
     return {
       changed: false,
       message: 'Open a PDF before inserting a Writer template.',
     };
   }
 
-  const { PDFDocument } = await import('pdf-lib');
-  const pdf = await PDFDocument.load(sourceBytes);
-  const pageIndex = Math.max(
-    0,
-    Math.min(session.viewState.currentPage - 1, pdf.getPageCount() - 1),
-  );
-  const page = pdf.getPage(pageIndex);
-  const pageSize = page.getSize();
-
-  const maxZIndex = writer.elements.reduce(
-    (max, element) => Math.max(max, element.style.zIndex),
-    0,
-  );
-
-  const element = createElementFromTemplate({
-    template,
-    documentFingerprint:
-      writer.currentDocumentFingerprint ??
-      session.documentKey ??
-      session.fileName ??
-      'writer-v2-unsaved-document',
-    pageIndex,
-    rect: centerRect(pageSize.width, pageSize.height, template.width, template.height),
-    zIndex: maxZIndex + 1,
-  });
-
-  writer.dispatchWriterCommand({
-    type: 'ADD_WRITER_ELEMENT',
-    element,
-  });
+  applyTemplateReviewMetadata(elementId, template);
 
   return {
     changed: true,
-    id: element.id,
-    message: `Inserted Writer template "${template.label}".`,
+    id: elementId,
+    message: `Inserted "${template.label}" into Writer rich box.`,
   };
 }
 
-function createElementFromTemplate({
-  template,
-  documentFingerprint,
-  pageIndex,
-  rect,
-  zIndex,
-}: {
-  template: WriterQuickTemplate;
-  documentFingerprint: string;
-  pageIndex: number;
-  rect: PdfRect;
-  zIndex: number;
-}): WriterElementV2 {
-  const input = {
-    documentFingerprint,
-    pageIndex,
-    rect,
-    text: template.text,
-    zIndex,
-  };
+function templateToRichBlocks(
+  template: WriterQuickTemplate,
+): PendingRichTemplateBlock[] {
+  const textStyle = templateTextStyle(template);
 
-  const element = (() => {
-    switch (template.elementType) {
-      case 'textStamp':
-        return createTextStampElement(input);
+  switch (template.group) {
+    case 'stamp':
+      return [
+        {
+          kind: 'heading',
+          level: 2,
+          text: template.text,
+          style: textStyle,
+        },
+      ];
 
-      case 'reviewLabel':
-        return createReviewLabelElement(input);
+    case 'review':
+      return [
+        {
+          kind: 'heading',
+          level: 3,
+          text: template.text,
+          style: textStyle,
+        },
+        {
+          kind: 'paragraph',
+          text: `Status: ${template.review?.status ?? 'open'} | Priority: ${template.review?.priority ?? 'medium'} | Category: ${template.review?.category ?? 'general'}`,
+        },
+        {
+          kind: 'paragraph',
+          text: 'Comment: ',
+        },
+      ];
 
-      case 'richNote':
-        return createRichNoteElement(input);
+    case 'note':
+      return [
+        {
+          kind: 'heading',
+          level: 3,
+          text: template.text,
+          style: textStyle,
+        },
+        {
+          kind: 'paragraph',
+          text: 'Details: ',
+        },
+        {
+          kind: 'paragraph',
+          text: 'Action: ',
+        },
+      ];
 
-      case 'textCallout':
-        return createTextCalloutElement({
-          ...input,
-          anchorPoint: {
-            x: rect.x + rect.width + 24,
-            y: rect.y + rect.height / 2,
-          },
-        });
-    }
-  })();
+    case 'callout':
+      return [
+        {
+          kind: 'paragraph',
+          text: `Callout: ${template.text}`,
+          style: textStyle,
+        },
+        {
+          kind: 'paragraph',
+          text: 'Resolution: ',
+        },
+      ];
+  }
+}
+
+function templateTextStyle(template: WriterQuickTemplate): string {
+  const parts: string[] = [];
+
+  if (template.style.textColor) {
+    parts.push(`color: ${template.style.textColor}`);
+  }
+
+  if (template.style.fontSize) {
+    parts.push(`font-size: ${template.style.fontSize}px`);
+  }
+
+  if (template.style.backgroundColor && template.style.backgroundColor !== 'transparent') {
+    parts.push(`background-color: ${template.style.backgroundColor}`);
+  }
+
+  return parts.join('; ');
+}
+
+function applyTemplateReviewMetadata(
+  elementId: string,
+  template: WriterQuickTemplate,
+): void {
+  if (!template.review) return;
+
+  const store = useWriterV2Store.getState();
+  const element = store.elements.find((item) => item.id === elementId);
+
+  if (!element) return;
 
   const now = new Date().toISOString();
 
-  return {
-    ...element,
-    plainText: template.text,
-    style: {
-      ...element.style,
-      ...template.style,
-      zIndex,
+  store.dispatchWriterCommand({
+    type: 'UPDATE_WRITER_ELEMENT',
+    id: elementId,
+    patch: {
+      review: {
+        ...element.review,
+        ...template.review,
+        commentId: element.review?.commentId ?? createReviewId(),
+        createdAt: element.review?.createdAt ?? now,
+        updatedAt: now,
+      },
     },
-    review: template.review
-      ? {
-          ...template.review,
-          commentId: createReviewId(),
-          createdAt: now,
-          updatedAt: now,
-        }
-      : element.review,
-  };
-}
-
-function centerRect(
-  pageWidth: number,
-  pageHeight: number,
-  width: number,
-  height: number,
-): PdfRect {
-  return {
-    x: pageWidth / 2 - width / 2,
-    y: pageHeight / 2 - height / 2,
-    width,
-    height,
-  };
+  });
 }
 
 function createReviewId(): string {

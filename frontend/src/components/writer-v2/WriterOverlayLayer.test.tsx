@@ -44,6 +44,7 @@ function element(id: string, patch: Partial<WriterElementV2> = {}): WriterElemen
 
 describe('WriterOverlayLayer', () => {
   beforeEach(() => {
+    localStorage.clear();
     useWriterV2Store.getState().clearWriterV2();
   });
 
@@ -185,6 +186,7 @@ describe('WriterOverlayLayer', () => {
   });
 
   it('places a rich text box when Writer V2 text tool is active', () => {
+    localStorage.setItem('writer-v2-enable-legacy-placement', '1');
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [],
@@ -208,6 +210,7 @@ describe('WriterOverlayLayer', () => {
   });
 
   it('places a text callout when Writer V2 callout tool is active', () => {
+    localStorage.setItem('writer-v2-enable-legacy-placement', '1');
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [],

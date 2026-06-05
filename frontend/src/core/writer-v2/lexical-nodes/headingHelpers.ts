@@ -1,5 +1,5 @@
 import type { LexicalEditor } from 'lexical';
-import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical';
+import { $createParagraphNode, $getRoot, $getSelection, $isRangeSelection } from 'lexical';
 import { $setBlocksType } from '@lexical/selection';
 import {
   $createHeadingNode,
@@ -10,15 +10,27 @@ import {
 
 /**
  * Toggles the selected block between a heading level and a paragraph.
- * Expects a mounted Lexical editor with an active range selection; returns no
- * output and does not apply a fallback when the selection is unavailable.
+ * If no range selection is active (e.g., the editor has focus but no caret
+ * was placed), selects the first paragraph as a fallback so the command
+ * always has something to act on.
  */
 export function toggleHeading(
   editor: LexicalEditor,
   level: HeadingTagType,
 ): void {
   editor.update(() => {
-    const selection = $getSelection();
+    let selection = $getSelection();
+
+    // Fallback: no range selection — select the root's first child
+    if (!$isRangeSelection(selection)) {
+      const root = $getRoot();
+      const first = root.getFirstChild();
+      if (first) {
+        first.selectStart();
+        selection = $getSelection();
+      }
+    }
+
     if (!$isRangeSelection(selection)) return;
 
     const element = selection.anchor.getNode().getTopLevelElementOrThrow();
@@ -31,3 +43,4 @@ export function toggleHeading(
 }
 
 export { HeadingNode };
+

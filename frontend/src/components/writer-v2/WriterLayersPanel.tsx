@@ -12,7 +12,13 @@ import {
   toggleLockSelectedWriterElements,
 } from '@/core/writer-v2/writerSelectionActions';
 
-export const WriterLayersPanel: React.FC = () => {
+export interface WriterLayersPanelProps {
+  embedded?: boolean;
+}
+
+export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
+  embedded = false,
+}) => {
   const elements = useWriterV2Store((state) => state.elements);
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
   const activeId = useWriterV2Store((state) => state.activeId);
@@ -88,14 +94,14 @@ export const WriterLayersPanel: React.FC = () => {
       data-writer-v2-layers-panel="true"
       aria-label="Writer V2 object layers"
       style={{
-        width: 280,
-        maxHeight: 'calc(100vh - 120px)',
+        width: embedded ? '100%' : 280,
+        maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
         background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 10,
-        boxShadow: '0 8px 28px rgba(15, 23, 42, 0.14)',
+        border: embedded ? 'none' : '1px solid #e2e8f0',
+        borderRadius: embedded ? 0 : 10,
+        boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
       }}
     >

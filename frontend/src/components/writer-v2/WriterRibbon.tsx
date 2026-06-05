@@ -49,10 +49,28 @@ import {
   Check, X as XIcon,
 } from 'lucide-react';
 import { WriterFindReplacePanel } from './WriterFindReplacePanel';
+import { WriterRichAuthoringStatus } from './WriterRichAuthoringStatus';
+import { WriterRichBoxStyleControl } from './WriterRichBoxStyleControl';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
+import { ensureRichTextEditing } from '@/core/writer-v2/ensureRichTextEditing';
+import {
+  $isTableCellNode,
+  $insertTableRowAtSelection,
+  $insertTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $deleteTableColumnAtSelection,
+} from '@lexical/table';
+import { $findMatchingParent } from '@lexical/utils';
+import {
+  useRichEditorCommandQueue,
+  type PendingRichEditorCommand,
+  type PendingElementFormat,
+  type PendingListCommand,
+} from '@/core/writer-v2/richEditorCommandQueue';
+
 
 // Only Standard-14 mappable families - ensures the export is honest.
 const FONT_FAMILIES = RIBBON_FONT_FAMILIES;
@@ -90,9 +108,16 @@ export const WriterRibbon: React.FC = () => {
   const [fontSize, setFontSize] = React.useState(14);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  const [_isSubscript, _setIsSubscript] = React.useState(false);
+  const [_isSuperscript, _setIsSuperscript] = React.useState(false);
+  const [_isCode, _setIsCode] = React.useState(false);
+  const [isInTable, setIsInTable] = React.useState(false);
+
   const [lineHeight, setLineHeight] = React.useState('');
   const [letterSpacing, setLetterSpacing] = React.useState('normal');
   const [textTransform, setTextTransform] = React.useState('none');
+
+  // Lists & headings
   const [activeBlockType, setActiveBlockType] = React.useState<WriterBlockType | null>(null);
   const [wordCount, setWordCount] = React.useState(0);
   const [charCount, setCharCount] = React.useState(0);
@@ -190,14 +215,24 @@ export const WriterRibbon: React.FC = () => {
         // Detect if cursor is inside a link node
         const sel = $getSelection();
         if ($isRangeSelection(sel)) {
+          // Formatting
+          _setIsSubscript(sel.hasFormat('subscript'));
+          _setIsSuperscript(sel.hasFormat('superscript'));
+          _setIsCode(sel.hasFormat('code'));
+
           const node = sel.anchor.getNode();
-          const parent = node.getParent();
-          const isLink = $isLinkNode(node) || $isLinkNode(parent);
-          setActiveLink(isLink);
-        } else {
-          setActiveLink(false);
-        }
-      });
+        const parent = node.getParent();
+        
+        // Track if selection is inside a table
+        const inTable = $isTableCellNode(node) || $findMatchingParent(node, $isTableCellNode) !== null;
+        setIsInTable(inTable);
+        
+        const isLink = $isLinkNode(node) || $isLinkNode(parent);
+        setActiveLink(isLink);
+      } else {
+        setActiveLink(false);
+      }
+    });
 
       // Block-level reads (own their own editor-state read internally)
       setActiveBlockType(getActiveBlockType(activeEditor));
@@ -211,124 +246,225 @@ export const WriterRibbon: React.FC = () => {
   }, [activeEditor]);
 
   const runWithFocusedEditor = React.useCallback((
+    _label: string,
     operation: (editor: LexicalEditor) => void,
   ): void => {
     const editor = activeEditor;
     if (!editor) return;
 
-    editor.focus(() => {
+    try {
       operation(editor);
-    });
+    } catch (err) {
+      console.error('[WriterRibbon]', err);
+    }
   }, [activeEditor]);
 
+  const runOrQueueRichCommand = React.useCallback(async (
+    _label: string,
+    command: PendingRichEditorCommand,
+    immediate: (editor: LexicalEditor) => void,
+  ): Promise<void> => {
+    if (activeEditor) {
+      runWithFocusedEditor(_label, immediate);
+      return;
+    }
+
+    useRichEditorCommandQueue.getState().enqueue(command);
+    await ensureRichTextEditing();
+  }, [activeEditor, runWithFocusedEditor]);
+
+  const runSmartTextFormat = React.useCallback((format: TextFormatType) => {
+    void runOrQueueRichCommand(
+      `formatText:${format}`,
+      {
+        type: 'formatText',
+        format,
+      },
+      (editor) => {
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
+      },
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartElementFormat = React.useCallback((format: PendingElementFormat) => {
+    void runOrQueueRichCommand(
+      `formatElement:${format}`,
+      {
+        type: 'formatElement',
+        format,
+      },
+      (editor) => {
+        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, format);
+      },
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartListCommand = React.useCallback((command: PendingListCommand) => {
+    void runOrQueueRichCommand(
+      `list:${command}`,
+      {
+        type: 'list',
+        command,
+      },
+      (editor) => {
+        if (command === 'bullet') {
+          editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
+        } else if (command === 'number') {
+          editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
+        } else if (command === 'check') {
+          editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
+        } else {
+          editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+        }
+      },
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartIndent = React.useCallback((direction: 'in' | 'out') => {
+    void runOrQueueRichCommand(
+      `indent:${direction}`,
+      {
+        type: direction === 'in' ? 'indent' : 'outdent',
+      },
+      (editor) => {
+        editor.dispatchCommand(
+          direction === 'in' ? INDENT_CONTENT_COMMAND : OUTDENT_CONTENT_COMMAND,
+          undefined,
+        );
+      },
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartTextStyle = React.useCallback((
+    property: string,
+    value: string,
+  ) => {
+    void runOrQueueRichCommand(
+      `textStyle:${property}`,
+      {
+        type: 'applyTextStyle',
+        property,
+        value,
+      },
+      (editor) => {
+        editor.update(() => {
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            $patchStyleText(selection, {
+              [property]: value,
+            });
+          }
+        });
+      },
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartBlockStyle = React.useCallback((style: Record<string, string>) => {
+    void runOrQueueRichCommand(
+      `blockStyle:${Object.keys(style).join(',')}`,
+      {
+        type: 'applyBlockStyle',
+        style,
+      },
+      (editor) => applyBlockStyle(editor, style),
+    );
+  }, [runOrQueueRichCommand]);
+
+  const runSmartBlockType = React.useCallback((blockType: WriterBlockType) => {
+    void runOrQueueRichCommand(
+      `blockType:${blockType}`,
+      {
+        type: 'toggleBlockType',
+        blockType,
+      },
+      (editor) => toggleBlockType(editor, blockType),
+    );
+  }, [runOrQueueRichCommand]);
+
   const applyFontFamily = (family: string) => {
-    if (!activeEditor) return;
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { 'font-family': family });
-      }
-    });
+    setFontFamily(family);
+    runSmartTextStyle('font-family', family);
   };
 
   const applyFontSize = (size: number) => {
-    if (!activeEditor) return;
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { 'font-size': `${size}px` });
-      }
-    });
+    setFontSize(size);
+    runSmartTextStyle('font-size', `${size}px`);
   };
 
   const applyColor = (color: string) => {
-    if (!activeEditor) return;
     setTextColor(color);
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { color });
-      }
-    });
+    runSmartTextStyle('color', color);
   };
 
   const applyHighlightColor = (color: string) => {
-    if (!activeEditor) return;
     setHighlightColor(color);
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { 'background-color': color });
-      }
-    });
-  };
-
-  const applyTextStyle = (property: string, value: string) => {
-    if (!activeEditor) return;
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { [property]: value });
-      }
-    });
+    runSmartTextStyle('background-color', color);
   };
 
   const applyLineHeight = (value: string) => {
-    if (!activeEditor) return;
     setLineHeight(value);
-    applyBlockStyle(activeEditor, { 'line-height': value });
+    runSmartBlockStyle({ 'line-height': value });
   };
 
   const applyLetterSpacing = (value: string) => {
     setLetterSpacing(value);
-    applyTextStyle('letter-spacing', value === 'normal' ? '' : value);
+    runSmartTextStyle('letter-spacing', value === 'normal' ? '' : value);
   };
 
   const applyTextTransform = (value: string) => {
     setTextTransform(value);
-    applyTextStyle('text-transform', value === 'none' ? '' : value);
+    runSmartTextStyle('text-transform', value === 'none' ? '' : value);
   };
 
   const applyParagraphSpacing = () => {
-    runWithFocusedEditor((editor) => {
-      applyBlockStyle(editor, {
-        'margin-top': spaceBefore > 0 ? `${spaceBefore}px` : '',
-        'margin-bottom': spaceAfter > 0 ? `${spaceAfter}px` : '',
-      });
+    runSmartBlockStyle({
+      'margin-top': spaceBefore > 0 ? `${spaceBefore}px` : '',
+      'margin-bottom': spaceAfter > 0 ? `${spaceAfter}px` : '',
     });
     setSpacingPopover(false);
   };
 
   const clearFormatting = () => {
-    if (!activeEditor) return;
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return;
+    void runOrQueueRichCommand(
+      'clearFormatting',
+      {
+        type: 'clearFormatting',
+      },
+      (editor) => {
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
 
-      // Toggle off active inline formats
-      (['bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript'] as TextFormatType[]).forEach((fmt) => {
-        if (selection.hasFormat(fmt)) {
-          selection.formatText(fmt);
-        }
-      });
+          ([
+            'bold',
+            'italic',
+            'underline',
+            'strikethrough',
+            'superscript',
+            'subscript',
+            'code',
+          ] as TextFormatType[]).forEach((fmt) => {
+            if (selection.hasFormat(fmt)) {
+              selection.formatText(fmt);
+            }
+          });
 
-      // Clear all inline styles
-      $patchStyleText(selection, {
-        color: '',
-        'background-color': '',
-        'font-size': '',
-        'font-family': '',
-        'letter-spacing': '',
-        'line-height': '',
-        'text-transform': '',
-      });
+          $patchStyleText(selection, {
+            color: '',
+            'background-color': '',
+            'font-size': '',
+            'font-family': '',
+            'letter-spacing': '',
+            'line-height': '',
+            'text-transform': '',
+          });
 
-      // Reset block types (headings, quotes, code blocks) back to paragraph
-      $setBlocksType(selection, () => $createParagraphNode());
-    });
+          $setBlocksType(selection, () => $createParagraphNode());
+        });
 
-    // Also remove lists
-    activeEditor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+        editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      },
+    );
   };
 
   const openLinkPopover = () => {
@@ -362,21 +498,27 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const handleInsertTable = () => {
-    if (!activeEditor) return;
     setTablePopover(true);
   };
 
   const confirmInsertTable = () => {
     const rows = Math.max(1, Math.min(50, tableRows));
     const cols = Math.max(1, Math.min(20, tableCols));
-    runWithFocusedEditor((editor) => insertTable(editor, rows, cols));
+    void runOrQueueRichCommand(
+      `insertTable:${rows}x${cols}`,
+      {
+        type: 'insertTable',
+        rows,
+        cols,
+      },
+      (editor) => insertTable(editor, rows, cols),
+    );
     setTablePopover(false);
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    const editor = activeEditor;
-    if (!file || !editor) return;
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -405,17 +547,27 @@ export const WriterRibbon: React.FC = () => {
         });
       }
 
-      editor.focus(() => {
-        editor.update(() => {
-          const selection = $getSelection();
-          const imageNode = $createImageNode(dataUrl, file.name);
-          if ($isRangeSelection(selection)) {
-            selection.insertNodes([imageNode]);
-          } else {
-            $getRoot().append(imageNode);
-          }
-        });
-      });
+      void runOrQueueRichCommand(
+        'insertImage',
+        {
+          type: 'insertImage',
+          src: dataUrl,
+          altText: file.name,
+        },
+        (editor) => {
+          editor.focus(() => {
+            editor.update(() => {
+              const selection = $getSelection();
+              const imageNode = $createImageNode(dataUrl, file.name);
+              if ($isRangeSelection(selection)) {
+                selection.insertNodes([imageNode]);
+              } else {
+                $getRoot().append(imageNode);
+              }
+            });
+          });
+        },
+      );
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) {
@@ -445,7 +597,8 @@ export const WriterRibbon: React.FC = () => {
       style={{
         display: 'flex',
         alignItems: 'center',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
+        overflowX: 'auto',
         gap: '4px',
         padding: '4px 12px',
         background: '#ffffff',
@@ -455,6 +608,9 @@ export const WriterRibbon: React.FC = () => {
       }}
       className="dark:bg-slate-900 dark:border-slate-800"
     >
+      <WriterRichAuthoringStatus />
+      <WriterRichBoxStyleControl />
+
       {/* Group 1: Undo / Redo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
         <RibbonBtn
@@ -480,19 +636,19 @@ export const WriterRibbon: React.FC = () => {
           value={fontFamily}
           onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => applyFontFamily(e.target.value)}
-          disabled={!hasActive}
+          disabled={!documentFingerprint}
           style={{
             height: '26px',
             borderRadius: '5px',
             border: '1px solid #cbd5e1',
             fontSize: '11px',
             background: '#ffffff',
-            cursor: hasActive ? 'pointer' : 'not-allowed',
+            cursor: documentFingerprint ? 'pointer' : 'not-allowed',
             padding: '0 4px',
             width: '110px',
-            opacity: hasActive ? 1 : 0.5,
+            opacity: documentFingerprint ? 1 : 0.5,
           }}
-          className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+          className="dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
         >
           {FONT_FAMILIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
         </select>
@@ -502,24 +658,24 @@ export const WriterRibbon: React.FC = () => {
           value={fontSize}
           onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => applyFontSize(Number(e.target.value))}
-          disabled={!hasActive}
+          disabled={!documentFingerprint}
           style={{
             height: '26px',
             borderRadius: '5px',
             border: '1px solid #cbd5e1',
             fontSize: '11px',
             background: '#ffffff',
-            cursor: hasActive ? 'pointer' : 'not-allowed',
+            cursor: documentFingerprint ? 'pointer' : 'not-allowed',
             padding: '0 4px',
             width: '46px',
-            opacity: hasActive ? 1 : 0.5,
+            opacity: documentFingerprint ? 1 : 0.5,
           }}
-          className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+          className="dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
         >
           {FONT_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        <div style={{ opacity: hasActive ? 1 : 0.5, pointerEvents: hasActive ? 'auto' : 'none', display: 'flex', gap: '4px' }}>
+        <div style={{ opacity: documentFingerprint ? 1 : 0.5, pointerEvents: documentFingerprint ? 'auto' : 'none', display: 'flex', gap: '4px' }}>
           <ColorPickerPopover value={textColor} onChange={applyColor} label="Text" />
           <ColorPickerPopover value={highlightColor} onChange={applyHighlightColor} label="Highlight" />
         </div>
@@ -533,48 +689,41 @@ export const WriterRibbon: React.FC = () => {
           label="Bold (Ctrl+B)"
           icon={<Bold size={13} />}
           active={activeFormats.has('bold')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold')}
+          onClick={() => runSmartTextFormat('bold')}
         />
         <RibbonBtn
           label="Italic (Ctrl+I)"
           icon={<Italic size={13} />}
           active={activeFormats.has('italic')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic')}
+          onClick={() => runSmartTextFormat('italic')}
         />
         <RibbonBtn
           label="Underline (Ctrl+U)"
           icon={<Underline size={13} />}
           active={activeFormats.has('underline')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline')}
+          onClick={() => runSmartTextFormat('underline')}
         />
         <RibbonBtn
           label="Strikethrough"
           icon={<Strikethrough size={13} />}
           active={activeFormats.has('strikethrough')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough')}
+          onClick={() => runSmartTextFormat('strikethrough')}
         />
         <RibbonBtn
           label="Superscript"
           icon={<Superscript size={13} />}
           active={activeFormats.has('superscript')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript')}
+          onClick={() => runSmartTextFormat('superscript')}
         />
         <RibbonBtn
           label="Subscript"
           icon={<Subscript size={13} />}
           active={activeFormats.has('subscript')}
-          disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript')}
+          onClick={() => runSmartTextFormat('subscript')}
         />
         <RibbonBtn
           label="Clear formatting"
           icon={<RemoveFormatting size={13} />}
-          disabled={!hasActive}
           onClick={clearFormatting}
         />
       </div>
@@ -586,20 +735,35 @@ export const WriterRibbon: React.FC = () => {
         <RibbonBtn
           label="Heading 1"
           icon={<Heading1 size={13} />}
-          disabled={!hasActive}
-          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h1'))}
+          onClick={() => {
+            void runOrQueueRichCommand(
+              'applyHeading:h1',
+              { type: 'applyHeading', level: 1 },
+              (editor) => toggleHeading(editor, 'h1'),
+            );
+          }}
         />
         <RibbonBtn
           label="Heading 2"
           icon={<Heading2 size={13} />}
-          disabled={!hasActive}
-          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h2'))}
+          onClick={() => {
+            void runOrQueueRichCommand(
+              'applyHeading:h2',
+              { type: 'applyHeading', level: 2 },
+              (editor) => toggleHeading(editor, 'h2'),
+            );
+          }}
         />
         <RibbonBtn
           label="Heading 3"
           icon={<Heading3 size={13} />}
-          disabled={!hasActive}
-          onClick={() => runWithFocusedEditor((editor) => toggleHeading(editor, 'h3'))}
+          onClick={() => {
+            void runOrQueueRichCommand(
+              'applyHeading:h3',
+              { type: 'applyHeading', level: 3 },
+              (editor) => toggleHeading(editor, 'h3'),
+            );
+          }}
         />
       </div>
 
@@ -610,62 +774,32 @@ export const WriterRibbon: React.FC = () => {
         <RibbonBtn
           label="Align Left"
           icon={<AlignLeft size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left'),
-            )
-          }
+          onClick={() => runSmartElementFormat('left')}
         />
         <RibbonBtn
           label="Align Center"
           icon={<AlignCenter size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center'),
-            )
-          }
+          onClick={() => runSmartElementFormat('center')}
         />
         <RibbonBtn
           label="Align Right"
           icon={<AlignRight size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right'),
-            )
-          }
+          onClick={() => runSmartElementFormat('right')}
         />
         <RibbonBtn
           label="Justify"
           icon={<AlignJustify size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify'),
-            )
-          }
+          onClick={() => runSmartElementFormat('justify')}
         />
         <RibbonBtn
           label="Outdent"
           icon={<IndentDecrease size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined),
-            )
-          }
+          onClick={() => runSmartIndent('out')}
         />
         <RibbonBtn
           label="Indent"
           icon={<IndentIncrease size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined),
-            )
-          }
+          onClick={() => runSmartIndent('in')}
         />
       </div>
 
@@ -676,32 +810,17 @@ export const WriterRibbon: React.FC = () => {
         <RibbonBtn
           label="Bullet list"
           icon={<List size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
-            )
-          }
+          onClick={() => runSmartListCommand('bullet')}
         />
         <RibbonBtn
           label="Numbered list"
           icon={<ListOrdered size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
-            )
-          }
+          onClick={() => runSmartListCommand('number')}
         />
         <RibbonBtn
           label="Checklist"
           icon={<ListTodo size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined),
-            )
-          }
+          onClick={() => runSmartListCommand('check')}
         />
       </div>
 
@@ -713,25 +832,24 @@ export const WriterRibbon: React.FC = () => {
           label="Blockquote"
           icon={<Quote size={13} />}
           active={activeBlockType === 'quote'}
-          disabled={!hasActive}
-          onClick={() => runWithFocusedEditor((editor) => toggleBlockType(editor, 'quote'))}
+          onClick={() => runSmartBlockType('quote')}
         />
         <RibbonBtn
           label="Code block"
           icon={<Code size={13} />}
           active={activeBlockType === 'code'}
-          disabled={!hasActive}
-          onClick={() => runWithFocusedEditor((editor) => toggleBlockType(editor, 'code'))}
+          onClick={() => runSmartBlockType('code')}
         />
         <RibbonBtn
           label="Horizontal rule"
           icon={<Minus size={13} />}
-          disabled={!hasActive}
-          onClick={() =>
-            runWithFocusedEditor((editor) =>
-              editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
-            )
-          }
+          onClick={() => {
+            void runOrQueueRichCommand(
+              'horizontalRule',
+              { type: 'horizontalRule' },
+              (editor: LexicalEditor) => editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+            );
+          }}
         />
       </div>
 
@@ -739,38 +857,11 @@ export const WriterRibbon: React.FC = () => {
 
       {/* Group: Spacing & transform */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-        <RibbonSelect
-          ariaLabel="Line height"
-          title="Line height"
-          value={lineHeight}
-          disabled={!hasActive}
-          width="62px"
-          onChange={applyLineHeight}
-          options={LINE_HEIGHTS}
-        />
-        <RibbonSelect
-          ariaLabel="Letter spacing"
-          title="Letter spacing"
-          value={letterSpacing}
-          disabled={!hasActive}
-          width="72px"
-          onChange={applyLetterSpacing}
-          options={LETTER_SPACINGS}
-        />
-        <RibbonSelect
-          ariaLabel="Text transform"
-          title="Text transform"
-          value={textTransform}
-          disabled={!hasActive}
-          width="62px"
-          onChange={applyTextTransform}
-          options={TEXT_TRANSFORMS}
-        />
         <RibbonBtn
-          label="Paragraph spacing"
+          label="Typography & Spacing"
           icon={<span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>¶</span>}
           active={spacingPopover}
-          disabled={!hasActive}
+          disabled={!documentFingerprint}
           onClick={() => setSpacingPopover((v) => !v)}
         />
 
@@ -785,20 +876,61 @@ export const WriterRibbon: React.FC = () => {
               background: '#ffffff',
               border: '1px solid #cbd5e1',
               borderRadius: 8,
-              padding: '10px 12px',
+              padding: '12px 14px',
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
-              minWidth: 180,
+              gap: 12,
+              minWidth: 200,
             }}
             className="dark:bg-slate-900 dark:border-slate-700"
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
-              Paragraph spacing (px)
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+              Typography
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                Line height
+                <select
+                  value={lineHeight}
+                  onChange={(e) => applyLineHeight(e.target.value)}
+                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                >
+                  {LINE_HEIGHTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              
+              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                Letter spacing
+                <select
+                  value={letterSpacing}
+                  onChange={(e) => applyLetterSpacing(e.target.value)}
+                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                >
+                  {LETTER_SPACINGS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              
+              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                Text transform
+                <select
+                  value={textTransform}
+                  onChange={(e) => applyTextTransform(e.target.value)}
+                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                >
+                  {TEXT_TRANSFORMS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div style={{ height: 1, background: '#cbd5e1' }} />
+
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+              Paragraph Spacing (px)
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
                 Before
                 <input
                   type="number"
@@ -806,10 +938,10 @@ export const WriterRibbon: React.FC = () => {
                   max={200}
                   value={spaceBefore}
                   onChange={(e) => setSpaceBefore(Math.max(0, Number(e.target.value)))}
-                  style={{ width: 56, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
                 />
               </label>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
                 After
                 <input
                   type="number"
@@ -817,11 +949,11 @@ export const WriterRibbon: React.FC = () => {
                   max={200}
                   value={spaceAfter}
                   onChange={(e) => setSpaceAfter(Math.max(0, Number(e.target.value)))}
-                  style={{ width: 56, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
                 />
               </label>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <button
                 type="button"
                 onClick={applyParagraphSpacing}
@@ -831,7 +963,7 @@ export const WriterRibbon: React.FC = () => {
                   padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
                 }}
               >
-                <Check size={11} /> Apply
+                Apply
               </button>
               <button
                 type="button"
@@ -842,7 +974,7 @@ export const WriterRibbon: React.FC = () => {
                   borderRadius: 5, padding: '4px 8px', fontSize: 11, cursor: 'pointer',
                 }}
               >
-                <XIcon size={11} />
+                Close
               </button>
             </div>
           </div>
@@ -949,14 +1081,12 @@ export const WriterRibbon: React.FC = () => {
         <RibbonBtn
           label="Insert table"
           icon={<TableIcon size={13} />}
-          disabled={!hasActive}
           active={tablePopover}
           onClick={handleInsertTable}
         />
         <RibbonBtn
           label="Insert image"
           icon={<ImageIcon size={13} />}
-          disabled={!hasActive}
           onClick={() => fileInputRef.current?.click()}
         />
 
@@ -1066,6 +1196,52 @@ export const WriterRibbon: React.FC = () => {
         )}
       </div>
 
+      {/* Group 8: Table Operations (Dynamic) */}
+      {isInTable && (
+        <>
+          <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginRight: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Table</span>
+            <RibbonBtn
+              label="Add Row"
+              icon={<span style={{ fontSize: '11px', fontWeight: 600 }}>+ Row</span>}
+              onClick={() => runWithFocusedEditor('insertTableRow', (editor) => {
+                editor.update(() => {
+                  $insertTableRowAtSelection(false);
+                });
+              })}
+            />
+            <RibbonBtn
+              label="Delete Row"
+              icon={<span style={{ fontSize: '11px', fontWeight: 600 }}>- Row</span>}
+              onClick={() => runWithFocusedEditor('deleteTableRow', (editor) => {
+                editor.update(() => {
+                  $deleteTableRowAtSelection();
+                });
+              })}
+            />
+            <RibbonBtn
+              label="Add Column"
+              icon={<span style={{ fontSize: '11px', fontWeight: 600 }}>+ Col</span>}
+              onClick={() => runWithFocusedEditor('insertTableColumn', (editor) => {
+                editor.update(() => {
+                  $insertTableColumnAtSelection(false);
+                });
+              })}
+            />
+            <RibbonBtn
+              label="Delete Column"
+              icon={<span style={{ fontSize: '11px', fontWeight: 600 }}>- Col</span>}
+              onClick={() => runWithFocusedEditor('deleteTableColumn', (editor) => {
+                editor.update(() => {
+                  $deleteTableColumnAtSelection();
+                });
+              })}
+            />
+          </div>
+        </>
+      )}
+
       {/* Find & Replace */}
       <div style={{ position: 'relative', marginLeft: 'auto' }}>
         <RibbonBtn
@@ -1109,42 +1285,6 @@ export const WriterRibbon: React.FC = () => {
   );
 };
 
-const RibbonSelect: React.FC<{
-  ariaLabel: string;
-  title: string;
-  value: string;
-  disabled?: boolean;
-  width?: string;
-  options: Array<{ label: string; value: string }>;
-  onChange: (value: string) => void;
-}> = ({ ariaLabel, title, value, disabled = false, width = '64px', options, onChange }) => {
-  return (
-    <select
-      aria-label={ariaLabel}
-      title={title}
-      value={value}
-      disabled={disabled}
-      onMouseDown={(e) => e.stopPropagation()}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        height: '26px',
-        borderRadius: '5px',
-        border: '1px solid #cbd5e1',
-        fontSize: '11px',
-        background: '#ffffff',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        padding: '0 4px',
-        width,
-        opacity: disabled ? 0.5 : 1,
-      }}
-      className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  );
-};
 
 const RibbonBtn: React.FC<{
   label: string;

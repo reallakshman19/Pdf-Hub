@@ -5,6 +5,10 @@ import type {
 } from './types';
 import type { WriterV2Tool } from './writerV2Store';
 import {
+  isLegacyWriterPlacementEnabled,
+  isLegacyWriterPlacementTool,
+} from './writerToolPolicy';
+import {
   createRichTextBoxElement,
   createTextCalloutElement,
   createReviewLabelElement,
@@ -37,6 +41,13 @@ export function createWriterElementFromPlacement(
   input: WriterPlacementInput,
 ): WriterElementV2 | null {
   if (input.tool === 'select') return null;
+
+  if (
+    isLegacyWriterPlacementTool(input.tool) &&
+    !isLegacyWriterPlacementEnabled()
+  ) {
+    return null;
+  }
 
   if (input.tool === 'richTextBox') {
     return createRichTextBoxElement({
