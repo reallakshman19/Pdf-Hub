@@ -12,6 +12,7 @@ import type { WriterCommand } from './writerCommands';
 import type { WriterElementV2 } from './types';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 import { normalizeWriterToolForRichAuthoring } from './writerToolPolicy';
+import type { WriterTableSelection } from './table-pro/writerTableSelection';
 
 export type WriterV2Tool =
   | 'select'
@@ -31,6 +32,9 @@ export interface WriterV2StoreState extends WriterV2State {
   currentDocumentFingerprint: string | null;
   assetRecords: WriterAssetRecordV2[];
   lastPersistedAt: string | null;
+
+  tableSelection: WriterTableSelection | null;
+  setTableSelection: (selection: WriterTableSelection | null) => void;
 
   dispatchWriterCommand: (command: WriterCommand) => WriterV2CommandResult;
   undoWriter: () => WriterV2CommandResult;
@@ -61,6 +65,11 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   currentDocumentFingerprint: null,
   assetRecords: [],
   lastPersistedAt: null,
+  tableSelection: null,
+
+  setTableSelection: (tableSelection) => {
+    set({ tableSelection });
+  },
 
   setActiveWriterTool: (activeWriterTool) => {
     set({
@@ -181,6 +190,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       currentDocumentFingerprint: null,
       assetRecords: [],
       lastPersistedAt: null,
+      tableSelection: null,
     });
   },
 }));

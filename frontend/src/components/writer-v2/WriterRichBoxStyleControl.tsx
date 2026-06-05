@@ -20,6 +20,7 @@ export const WriterRichBoxStyleControl: React.FC = () => {
 
   const target = React.useMemo(
     () => getActiveRichBoxStyleTarget(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeId, editingId, elements, selectedIds],
   );
 

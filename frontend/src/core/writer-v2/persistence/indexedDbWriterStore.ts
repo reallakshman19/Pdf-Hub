@@ -1,4 +1,4 @@
-import type { WriterElementV2 } from '../types';
+import type { WriterElementV2, WriterTableCellStyle } from '../types';
 
 export interface WriterAssetRecordV2 {
   id: string;
@@ -251,6 +251,20 @@ function getAllByIndex<T>(
   });
 }
 
+function cloneCellStyle(style: WriterTableCellStyle): WriterTableCellStyle {
+  return {
+    ...style,
+    borders: style.borders
+      ? {
+          top: style.borders.top ? { ...style.borders.top } : undefined,
+          right: style.borders.right ? { ...style.borders.right } : undefined,
+          bottom: style.borders.bottom ? { ...style.borders.bottom } : undefined,
+          left: style.borders.left ? { ...style.borders.left } : undefined,
+        }
+      : undefined,
+  };
+}
+
 function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
   return elements.map((element) => ({
     ...element,
@@ -260,10 +274,24 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
     style: { ...element.style },
     tableData: element.tableData
       ? {
-          columns: element.tableData.columns.map((column) => ({ ...column })),
+          ...element.tableData,
+          defaultCellStyle: element.tableData.defaultCellStyle
+            ? cloneCellStyle(element.tableData.defaultCellStyle)
+            : undefined,
+          headerCellStyle: element.tableData.headerCellStyle
+            ? cloneCellStyle(element.tableData.headerCellStyle)
+            : undefined,
+          columns: element.tableData.columns.map((column) => ({
+            ...column,
+            style: column.style ? cloneCellStyle(column.style) : undefined,
+          })),
           rows: element.tableData.rows.map((row) => ({
             ...row,
-            cells: row.cells.map((cell) => ({ ...cell })),
+            cells: row.cells.map((cell) => ({
+              ...cell,
+              style: cell.style ? cloneCellStyle(cell.style) : undefined,
+              mergedInto: cell.mergedInto ? { ...cell.mergedInto } : undefined,
+            })),
           })),
         }
       : undefined,

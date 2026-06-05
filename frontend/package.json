@@ -25,12 +25,14 @@
     "certify:writer-overlay-v2": "node scripts/certify-writer-overlay-v2.mjs",
     "certify:writer-overlay-v2-final": "node scripts/final-certify-writer-overlay-v2.mjs",
     "certify:generate-document": "node scripts/certify-generate-document.mjs",
+    "certify:writer-v2-docx": "node scripts/certify-writer-v2-docx.mjs",
+    "certify:writer-table-pro": "node scripts/certify-writer-table-pro.mjs",
     "certify:layout-engine": "vitest run src/core/macro/layout/LayoutEngine.test.ts",
     "certify:generation-recipes": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts",
     "certify:generation-template-library": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts src/core/macro/generateDocument/templateLibraryValidation.test.ts src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx",
     "check:static": "node scripts/static-contract-checks.mjs",
     "check:all": "npm run typecheck && npm run audit:no-mojibake && npm run test:ci && npm run check:static",
-    "check:release": "npm run typecheck && npm run audit:no-mojibake && npm run lint && npm run test:ci && npm run check:static && npm run build"
+    "check:release": "npm run typecheck && npm run audit:no-mojibake && npm run lint && npm run test:ci && npm run certify:writer-v2-docx && npm run certify:writer-table-pro && npm run check:static && npm run build"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
@@ -42,6 +44,7 @@
     "@lexical/rich-text": "0.44.0",
     "@lexical/selection": "0.44.0",
     "@lexical/table": "0.44.0",
+    "docx": "^9.7.1",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",

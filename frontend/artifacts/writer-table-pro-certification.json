@@ -1,0 +1,105 @@
+{
+  "certification": "writer-table-pro",
+  "status": "pass",
+  "startedAt": "2026-06-05T17:47:09.400Z",
+  "finishedAt": "2026-06-05T17:47:29.335Z",
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "assertions": {
+    "requiredFilesExist": "pass",
+    "cellStyleActions": "pass",
+    "structuralActions": "pass",
+    "commandBridge": "pass",
+    "geometryHitTesting": "pass",
+    "visualModel": "pass",
+    "docxXml": "pass",
+    "flattenedPdf": "pass",
+    "endToEnd": "pass"
+  },
+  "results": [
+    {
+      "name": "required-files",
+      "type": "static",
+      "status": "pass",
+      "details": {
+        "required": 9,
+        "missing": []
+      }
+    },
+    {
+      "name": "table-style-actions",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTableStyleActions.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTableStyleActions.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 8\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m9 passed\u001b[39m\u001b[22m\u001b[90m (9)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:10\n\u001b[2m   Duration \u001b[22m 1.10s\u001b[2m (transform 74ms, setup 109ms, import 52ms, tests 8ms, environment 749ms)\u001b[22m\n\n",
+      "stderrTail": "(node:33320) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:30696) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-structure-actions",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTableStructureActions.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTableStructureActions.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 6\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m7 passed\u001b[39m\u001b[22m\u001b[90m (7)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:12\n\u001b[2m   Duration \u001b[22m 1.03s\u001b[2m (transform 60ms, setup 87ms, import 48ms, tests 6ms, environment 739ms)\u001b[22m\n\n",
+      "stderrTail": "(node:32164) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:36712) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-command-bridge",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTableCommandBridge.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTableCommandBridge.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 7\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m11 passed\u001b[39m\u001b[22m\u001b[90m (11)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:14\n\u001b[2m   Duration \u001b[22m 1.09s\u001b[2m (transform 95ms, setup 90ms, import 87ms, tests 7ms, environment 750ms)\u001b[22m\n\n",
+      "stderrTail": "(node:37648) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:35024) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-geometry",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTableGeometry.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTableGeometry.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 5\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m7 passed\u001b[39m\u001b[22m\u001b[90m (7)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:17\n\u001b[2m   Duration \u001b[22m 1.00s\u001b[2m (transform 59ms, setup 83ms, import 46ms, tests 5ms, environment 711ms)\u001b[22m\n\n",
+      "stderrTail": "(node:23584) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:2244) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-visual-styles",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTableVisualStyles.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTableVisualStyles.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 7\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m3 passed\u001b[39m\u001b[22m\u001b[90m (3)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:19\n\u001b[2m   Duration \u001b[22m 972ms\u001b[2m (transform 74ms, setup 106ms, import 48ms, tests 7ms, environment 655ms)\u001b[22m\n\n",
+      "stderrTail": "(node:12548) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:34756) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-docx-xml",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/export/docx/renderTableBlock.pro.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/export/docx/renderTableBlock.pro.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 30\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:21\n\u001b[2m   Duration \u001b[22m 1.11s\u001b[2m (transform 91ms, setup 93ms, import 135ms, tests 30ms, environment 689ms)\u001b[22m\n\n",
+      "stderrTail": "(node:29000) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:22192) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-flattened-pdf",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/export/flattenedPdfExport.tablePro.test.ts src/core/writer-v2/export/flattenedPdfExport.tableProMerged.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/export/flattenedPdfExport.tableProMerged.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 32\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m src/core/writer-v2/export/flattenedPdfExport.tablePro.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 34\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:23\n\u001b[2m   Duration \u001b[22m 2.51s\u001b[2m (transform 111ms, setup 166ms, import 360ms, tests 66ms, environment 1.60s)\u001b[22m\n\n",
+      "stderrTail": "(node:38996) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:37724) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:28840) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "name": "table-pro-end-to-end",
+      "type": "command",
+      "command": "npx vitest run src/core/writer-v2/table-pro/writerTablePro.certification.test.ts --pool=forks --maxWorkers=1",
+      "status": "pass",
+      "exitCode": 0,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.4 \u001b[39m\u001b[90mC:/Code3/Pdf-Hub/frontend\u001b[39m\n\n \u001b[32m✓\u001b[39m src/core/writer-v2/table-pro/writerTablePro.certification.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 72\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m   Start at \u001b[22m 21:47:27\n\u001b[2m   Duration \u001b[22m 1.60s\u001b[2m (transform 287ms, setup 115ms, import 470ms, tests 72ms, environment 755ms)\u001b[22m\n\n",
+      "stderrTail": "(node:38140) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:40240) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    }
+  ]
+}

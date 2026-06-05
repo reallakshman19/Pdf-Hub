@@ -26,7 +26,8 @@ export function isLegacyWriterPlacementEnabled(): boolean {
     return false;
   }
 
-  return localStorage.getItem('writer-v2-enable-legacy-placement') === '1';
+  const storage = window.localStorage;
+  return storage.getItem('writer-v2-enable-legacy-placement') === '1';
 }
 
 export function normalizeWriterToolForRichAuthoring(

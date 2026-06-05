@@ -54,6 +54,7 @@ import { WriterRichBoxStyleControl } from './WriterRichBoxStyleControl';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { error as logError } from '@/core/logger/service';
 import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
 import { ensureRichTextEditing } from '@/core/writer-v2/ensureRichTextEditing';
 import {
@@ -108,9 +109,6 @@ export const WriterRibbon: React.FC = () => {
   const [fontSize, setFontSize] = React.useState(14);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const [_isSubscript, _setIsSubscript] = React.useState(false);
-  const [_isSuperscript, _setIsSuperscript] = React.useState(false);
-  const [_isCode, _setIsCode] = React.useState(false);
   const [isInTable, setIsInTable] = React.useState(false);
 
   const [lineHeight, setLineHeight] = React.useState('');
@@ -215,23 +213,18 @@ export const WriterRibbon: React.FC = () => {
         // Detect if cursor is inside a link node
         const sel = $getSelection();
         if ($isRangeSelection(sel)) {
-          // Formatting
-          _setIsSubscript(sel.hasFormat('subscript'));
-          _setIsSuperscript(sel.hasFormat('superscript'));
-          _setIsCode(sel.hasFormat('code'));
-
           const node = sel.anchor.getNode();
-        const parent = node.getParent();
-        
-        // Track if selection is inside a table
-        const inTable = $isTableCellNode(node) || $findMatchingParent(node, $isTableCellNode) !== null;
-        setIsInTable(inTable);
-        
-        const isLink = $isLinkNode(node) || $isLinkNode(parent);
-        setActiveLink(isLink);
-      } else {
-        setActiveLink(false);
-      }
+          const parent = node.getParent();
+          
+          // Track if selection is inside a table
+          const inTable = $isTableCellNode(node) || $findMatchingParent(node, $isTableCellNode) !== null;
+          setIsInTable(inTable);
+          
+          const isLink = $isLinkNode(node) || $isLinkNode(parent);
+          setActiveLink(isLink);
+        } else {
+          setActiveLink(false);
+        }
     });
 
       // Block-level reads (own their own editor-state read internally)
@@ -255,7 +248,7 @@ export const WriterRibbon: React.FC = () => {
     try {
       operation(editor);
     } catch (err) {
-      console.error('[WriterRibbon]', err);
+      logError('writer', 'Operation failed in runWithFocusedEditor', { error: String(err) });
     }
   }, [activeEditor]);
 

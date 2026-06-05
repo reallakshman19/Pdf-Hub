@@ -98,25 +98,126 @@ export interface WriterAssetRef {
   height?: number;
 }
 
+export type WriterTableHorizontalAlignment =
+  | 'left'
+  | 'center'
+  | 'right'
+  | 'justify';
+
+export type WriterTableVerticalAlignment =
+  | 'top'
+  | 'middle'
+  | 'bottom';
+
+export type WriterTableBorderStyle =
+  | 'none'
+  | 'single'
+  | 'dashed'
+  | 'dotted'
+  | 'double';
+
+export interface WriterTableBorder {
+  style?: WriterTableBorderStyle;
+  color?: string;
+
+  /**
+   * Border width in points. Kept intentionally renderer-neutral.
+   * PDF export and DOCX export may quantize differently.
+   */
+  width?: number;
+}
+
+export interface WriterTableCellStyle {
+  alignment?: WriterTableHorizontalAlignment;
+  verticalAlign?: WriterTableVerticalAlignment;
+
+  fontFamily?: string;
+  fontSize?: number;
+  textColor?: string;
+
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+
+  backgroundColor?: string;
+
+  /**
+   * Cell padding in points.
+   */
+  padding?: number;
+
+  borders?: {
+    top?: WriterTableBorder;
+    right?: WriterTableBorder;
+    bottom?: WriterTableBorder;
+    left?: WriterTableBorder;
+  };
+}
+
+export interface WriterTableColumn {
+  id: string;
+  label?: string;
+
+  /**
+   * Column width in PDF/Writer points.
+   * DOCX export converts this to table cell width hints.
+   */
+  width?: number;
+
+  /**
+   * Optional default style for cells in this column.
+   */
+  style?: WriterTableCellStyle;
+}
+
 export interface WriterTableCell {
   id: string;
   text: string;
   colSpan?: number;
   rowSpan?: number;
+  style?: WriterTableCellStyle;
+
+  /**
+   * Marks this cell as visually/structurally covered by a merged master cell.
+   * The master cell stores colSpan/rowSpan.
+   */
+  mergedInto?: {
+    rowIndex: number;
+    columnIndex: number;
+  };
 }
 
 export interface WriterTableRow {
   id: string;
   cells: WriterTableCell[];
+
+  /**
+   * Optional row height in Writer/PDF points.
+   * Used by overlay editing and can later be mapped to DOCX row height.
+   */
+  height?: number;
 }
 
 export interface WriterTableData {
-  columns: Array<{
-    id: string;
-    label?: string;
-    width?: number;
-  }>;
+  columns: WriterTableColumn[];
   rows: WriterTableRow[];
+
+  /**
+   * Default true for backward compatibility:
+   * column labels are exported as the first header row.
+   */
+  hasHeaderRow?: boolean;
+
+  /**
+   * Optional table-wide default cell style.
+   */
+  defaultCellStyle?: WriterTableCellStyle;
+
+  /**
+   * Optional header-cell style.
+   */
+  headerCellStyle?: WriterTableCellStyle;
 }
 
 export interface WriterElementV2 {

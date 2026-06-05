@@ -7,6 +7,8 @@ import { useSessionStore } from '@/core/session/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
 import { exportCurrentWriterProject } from '@/core/writer-v2/export/exportCurrentWriterProject';
 import { exportCurrentWriterRoundTripPdf } from '@/core/writer-v2/export/exportCurrentWriterRoundTripPdf';
+import { exportCurrentWriterDocx } from '@/core/writer-v2/export/exportCurrentWriterDocx';
+import { DOCX_MIME } from '@/core/writer-v2/export/docx';
 import {
   importProjectIntoWriterStore,
   importRoundTripPdfIntoWriterStore,
@@ -23,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
+import { WriterTablePropertiesDock } from './WriterTablePropertiesDock';
 
 import {
   runWriterRichToolbarAction,
@@ -150,6 +153,58 @@ export const WriterV2ToolbarControls: React.FC = () => {
       );
 
       completeSaveOperation('Editable Writer PDF exported.');
+    } catch (error) {
+      failSaveOperation(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const exportDocx = async () => {
+    if (!sourceBytes) {
+      failSaveOperation('No PDF is open for Writer DOCX export.');
+      return;
+    }
+
+    if (!documentKey) {
+      failSaveOperation('No document key is available for Writer DOCX export.');
+      return;
+    }
+
+    try {
+      beginExportOperation('Exporting Writer V2 DOCX...');
+
+      await autosaveCurrentWriterDraft(undefined, { force: true });
+
+      const result = await exportCurrentWriterDocx({
+        documentFingerprint: documentKey,
+        title: `${baseName} Writer V2`,
+      });
+
+      if (result.fatal) {
+        const firstError = result.diagnostics.find(
+          (diagnostic) => diagnostic.level === 'error',
+        );
+
+        failSaveOperation(
+          firstError?.message ?? 'Writer DOCX export failed.',
+        );
+        return;
+      }
+
+      downloadWriterBytes(
+        result.bytes,
+        `${baseName}.writer.docx`,
+        DOCX_MIME,
+      );
+
+      const warningCount = result.diagnostics.filter(
+        (diagnostic) => diagnostic.level === 'warning',
+      ).length;
+
+      completeSaveOperation(
+        warningCount > 0
+          ? `Writer DOCX exported with ${warningCount} warning(s).`
+          : 'Writer DOCX exported.',
+      );
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
@@ -363,6 +418,15 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Save as editable .pdf - flattened for viewing, re-openable for editing in PDF Hub"
       />
       <ResponsiveBtn
+        icon={FileText}
+        label="DOCX"
+        disabled={!sourceBytes}
+        onClick={() => {
+          void runWithWriterPreflight('Writer DOCX', exportDocx);
+        }}
+        title="Export Writer V2 authored layer as Word DOCX"
+      />
+      <ResponsiveBtn
         icon={FileDown}
         label="Flatten"
         disabled={!sourceBytes}
@@ -435,6 +499,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
           }}
         />
       ) : null}
+      <WriterTablePropertiesDock />
     </div>
   );
 };

@@ -13,6 +13,11 @@ import type {
   PdfPoint,
   PdfRect,
   WriterElementV2,
+  WriterTableBorder,
+  WriterTableCell,
+  WriterTableCellStyle,
+  WriterTableColumn,
+  WriterTableData,
 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import {
@@ -220,90 +225,117 @@ async function drawTableBox(
 
   const tableData = element.tableData;
 
-  if (!tableData || tableData.columns.length === 0) {
+  if (!isValidWriterTableData(tableData)) {
     return;
   }
 
-  const font = await getFontForStyle(context, {
-    fontFamily: element.style.fontFamily,
-    fontSize: element.style.fontSize,
-  });
-
-  const fontBold = await getFontForStyle(context, {
-    fontFamily: element.style.fontFamily,
-    fontSize: element.style.fontSize,
-    bold: true,
-  });
-
+  const hasHeaderRow = tableData.hasHeaderRow !== false;
   const columns = tableData.columns;
-  const headerHeight = 20;
-  const rowCount = Math.max(1, tableData.rows.length);
-  const rowHeight = Math.max(16, (rect.height - headerHeight) / rowCount);
-  const colWidth = rect.width / columns.length;
-  const textSize = element.style.fontSize ?? 9;
-  const border = parseCssColor(element.style.borderColor, {
-    r: 0.58,
-    g: 0.64,
-    b: 0.72,
-  });
-  const textColor = parseCssColor(element.style.textColor, {
-    r: 0.07,
-    g: 0.09,
-    b: 0.15,
+
+  const paddingFallback = element.style.padding ?? 4;
+  const headerHeight = hasHeaderRow ? Math.min(28, Math.max(18, rect.height * 0.18)) : 0;
+  const bodyHeight = Math.max(1, rect.height - headerHeight);
+
+  const columnWidths = normalizeWriterTableColumnWidths({
+    columns,
+    totalWidth: rect.width,
+    minColumnWidth: 8,
   });
 
-  for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
-    const column = columns[colIndex];
-    const x = rect.x + colIndex * colWidth;
+  const bodyRowHeights = normalizeWriterTableRowHeights({
+    tableData,
+    totalHeight: bodyHeight,
+    minRowHeight: 10,
+  });
+
+  if (hasHeaderRow) {
+    let x = rect.x;
     const y = rect.y + rect.height - headerHeight;
 
-    context.page.drawRectangle({
-      x,
-      y,
-      width: colWidth,
-      height: headerHeight,
-      color: rgb(0.95, 0.97, 0.99),
-      borderColor: rgb(border.r, border.g, border.b),
-      borderWidth: 0.5,
-    });
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      const column = columns[columnIndex];
+      const width = columnWidths[columnIndex] ?? rect.width / columns.length;
 
-    context.page.drawText(column.label ?? '', {
-      x: x + 4,
-      y: y + 6,
-      size: textSize,
-      font: fontBold,
-      color: rgb(textColor.r, textColor.g, textColor.b),
-      maxWidth: Math.max(1, colWidth - 8),
-    });
+      const style = resolveFlattenedHeaderCellStyle(
+        element,
+        tableData,
+        column,
+      );
+
+      await drawStyledTableCell(context, {
+        rect: {
+          x,
+          y,
+          width,
+          height: headerHeight,
+        },
+        text: column.label ?? column.id,
+        style,
+        fallbackPadding: paddingFallback,
+        fallbackFontSize: element.style.fontSize ?? 9,
+      });
+
+      x += width;
+    }
   }
+
+  const rowBottomY = buildFlattenedTableRowBottomPositions({
+    bodyTopY: rect.y + bodyHeight,
+    rowHeights: bodyRowHeights,
+  });
+
+  const columnX = buildFlattenedTableColumnPositions({
+    startX: rect.x,
+    columnWidths,
+  });
 
   for (let rowIndex = 0; rowIndex < tableData.rows.length; rowIndex += 1) {
     const row = tableData.rows[rowIndex];
-    const y = rect.y + rect.height - headerHeight - (rowIndex + 1) * rowHeight;
 
-    for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
-      const x = rect.x + colIndex * colWidth;
-      const cell = row.cells[colIndex];
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      const column = columns[columnIndex];
+      const cell = row.cells[columnIndex];
 
-      context.page.drawRectangle({
-        x,
-        y,
-        width: colWidth,
-        height: rowHeight,
-        borderColor: rgb(border.r, border.g, border.b),
-        borderWidth: 0.5,
-      });
-
-      if (cell?.text) {
-        context.page.drawText(cell.text, {
-          x: x + 4,
-          y: y + Math.max(4, rowHeight - textSize - 4),
-          size: textSize,
-          font,
-          color: rgb(textColor.r, textColor.g, textColor.b),
-          maxWidth: Math.max(1, colWidth - 8),
-        });
+      if (cell?.mergedInto) {
+        continue;
       }
+
+      const colSpan = clampFlattenedTableSpan(
+        cell?.colSpan,
+        columnIndex,
+        columns.length,
+      );
+
+      const rowSpan = clampFlattenedTableSpan(
+        cell?.rowSpan,
+        rowIndex,
+        tableData.rows.length,
+      );
+
+      const x = columnX[columnIndex] ?? rect.x;
+      const y = rowBottomY[rowIndex + rowSpan - 1] ?? rect.y;
+      const width = sumFlattenedTableSpan(columnWidths, columnIndex, colSpan);
+      const height = sumFlattenedTableSpan(bodyRowHeights, rowIndex, rowSpan);
+
+      const style = resolveFlattenedBodyCellStyle(
+        element,
+        tableData,
+        column,
+        cell,
+      );
+
+      await drawStyledTableCell(context, {
+        rect: {
+          x,
+          y,
+          width,
+          height,
+        },
+        text: cell?.text ?? '',
+        style,
+        fallbackPadding: paddingFallback,
+        fallbackFontSize: element.style.fontSize ?? 9,
+      });
     }
   }
 }
@@ -1029,4 +1061,633 @@ function registerLinkAnnotation(
   } catch {
     // Non-fatal — skip unregisterable annotations rather than failing the export.
   }
+}
+
+// TableBox Pro flattening helpers
+
+interface FlattenedTableCellDrawInput {
+  rect: PdfRect;
+  text: string;
+  style: WriterTableCellStyle;
+  fallbackPadding: number;
+  fallbackFontSize: number;
+}
+
+async function drawStyledTableCell(
+  context: DrawContext,
+  input: FlattenedTableCellDrawInput,
+): Promise<void> {
+  const cellRect = input.rect;
+  const style = input.style;
+  const padding = Math.max(0, style.padding ?? input.fallbackPadding);
+  const fontSize = Math.max(1, style.fontSize ?? input.fallbackFontSize);
+
+  const backgroundColor = style.backgroundColor
+    ? parseCssColor(style.backgroundColor, { r: 1, g: 1, b: 1 })
+    : null;
+
+  if (backgroundColor) {
+    context.page.drawRectangle({
+      x: cellRect.x,
+      y: cellRect.y,
+      width: cellRect.width,
+      height: cellRect.height,
+      color: rgb(backgroundColor.r, backgroundColor.g, backgroundColor.b),
+    });
+  }
+
+  drawFlattenedTableCellBorders(context.page, cellRect, style);
+
+  const font = await getFontForStyle(context, {
+    fontFamily: style.fontFamily,
+    fontSize,
+    bold: style.bold,
+    italic: style.italic,
+    underline: style.underline,
+    strikethrough: style.strikethrough,
+    color: style.textColor,
+  });
+
+  const textColor = parseCssColor(style.textColor, {
+    r: 0.07,
+    g: 0.09,
+    b: 0.15,
+  });
+
+  const maxTextWidth = Math.max(1, cellRect.width - padding * 2);
+  const lines = wrapPlainTextForPdf({
+    text: input.text,
+    font,
+    fontSize,
+    maxWidth: maxTextWidth,
+  });
+
+  const lineHeight = fontSize * 1.25;
+  const totalTextHeight = lines.length * lineHeight;
+
+  const startY = computeFlattenedTableTextStartY({
+    cellRect,
+    padding,
+    lineHeight,
+    totalTextHeight,
+    verticalAlign: style.verticalAlign,
+  });
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    const textWidth = font.widthOfTextAtSize(line, fontSize);
+
+    const x = computeFlattenedTableTextX({
+      cellRect,
+      padding,
+      textWidth,
+      alignment: style.alignment,
+    });
+
+    const y = startY - lineIndex * lineHeight;
+
+    if (y < cellRect.y + padding - fontSize) {
+      break;
+    }
+
+    context.page.drawText(line, {
+      x,
+      y,
+      size: fontSize,
+      font,
+      color: rgb(textColor.r, textColor.g, textColor.b),
+      maxWidth: maxTextWidth,
+    });
+
+    if (style.underline || style.strikethrough) {
+      drawFlattenedTableTextDecoration(context.page, {
+        x,
+        y,
+        width: Math.min(textWidth, maxTextWidth),
+        fontSize,
+        underline: style.underline,
+        strikethrough: style.strikethrough,
+        color: textColor,
+      });
+    }
+  }
+}
+
+function drawFlattenedTableCellBorders(
+  page: PDFPage,
+  rect: PdfRect,
+  style: WriterTableCellStyle,
+): void {
+  const borders = style.borders ?? defaultWriterTableBorders();
+
+  drawFlattenedTableBorderLine(page, {
+    border: borders.top,
+    x1: rect.x,
+    y1: rect.y + rect.height,
+    x2: rect.x + rect.width,
+    y2: rect.y + rect.height,
+  });
+
+  drawFlattenedTableBorderLine(page, {
+    border: borders.right,
+    x1: rect.x + rect.width,
+    y1: rect.y,
+    x2: rect.x + rect.width,
+    y2: rect.y + rect.height,
+  });
+
+  drawFlattenedTableBorderLine(page, {
+    border: borders.bottom,
+    x1: rect.x,
+    y1: rect.y,
+    x2: rect.x + rect.width,
+    y2: rect.y,
+  });
+
+  drawFlattenedTableBorderLine(page, {
+    border: borders.left,
+    x1: rect.x,
+    y1: rect.y,
+    x2: rect.x,
+    y2: rect.y + rect.height,
+  });
+}
+
+function drawFlattenedTableBorderLine(
+  page: PDFPage,
+  input: {
+    border: WriterTableBorder | undefined;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  },
+): void {
+  const border = input.border;
+
+  if (!border || border.style === 'none' || border.width === 0) {
+    return;
+  }
+
+  const color = parseCssColor(border.color, {
+    r: 0.8,
+    g: 0.84,
+    b: 0.89,
+  });
+
+  const width = Math.max(0.25, border.width ?? 0.5);
+
+  if (border.style === 'dashed' || border.style === 'dotted') {
+    drawDashedPdfLine(page, {
+      x1: input.x1,
+      y1: input.y1,
+      x2: input.x2,
+      y2: input.y2,
+      color,
+      width,
+      dashLength: border.style === 'dotted' ? width : 4,
+      gapLength: border.style === 'dotted' ? width * 2 : 3,
+    });
+    return;
+  }
+
+  if (border.style === 'double') {
+    drawDoublePdfLine(page, {
+      x1: input.x1,
+      y1: input.y1,
+      x2: input.x2,
+      y2: input.y2,
+      color,
+      width,
+    });
+    return;
+  }
+
+  page.drawLine({
+    start: {
+      x: input.x1,
+      y: input.y1,
+    },
+    end: {
+      x: input.x2,
+      y: input.y2,
+    },
+    thickness: width,
+    color: rgb(color.r, color.g, color.b),
+  });
+}
+
+function drawDashedPdfLine(
+  page: PDFPage,
+  input: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: { r: number; g: number; b: number };
+    width: number;
+    dashLength: number;
+    gapLength: number;
+  },
+): void {
+  const dx = input.x2 - input.x1;
+  const dy = input.y2 - input.y1;
+  const length = Math.sqrt(dx * dx + dy * dy);
+
+  if (length <= 0) return;
+
+  const unitX = dx / length;
+  const unitY = dy / length;
+  let cursor = 0;
+
+  while (cursor < length) {
+    const segmentEnd = Math.min(length, cursor + input.dashLength);
+
+    page.drawLine({
+      start: {
+        x: input.x1 + unitX * cursor,
+        y: input.y1 + unitY * cursor,
+      },
+      end: {
+        x: input.x1 + unitX * segmentEnd,
+        y: input.y1 + unitY * segmentEnd,
+      },
+      thickness: input.width,
+      color: rgb(input.color.r, input.color.g, input.color.b),
+    });
+
+    cursor += input.dashLength + input.gapLength;
+  }
+}
+
+function drawDoublePdfLine(
+  page: PDFPage,
+  input: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: { r: number; g: number; b: number };
+    width: number;
+  },
+): void {
+  const dx = input.x2 - input.x1;
+  const dy = input.y2 - input.y1;
+  const length = Math.sqrt(dx * dx + dy * dy);
+
+  if (length <= 0) return;
+
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const offset = Math.max(1, input.width * 1.5);
+
+  for (const direction of [-1, 1]) {
+    page.drawLine({
+      start: {
+        x: input.x1 + normalX * offset * direction,
+        y: input.y1 + normalY * offset * direction,
+      },
+      end: {
+        x: input.x2 + normalX * offset * direction,
+        y: input.y2 + normalY * offset * direction,
+      },
+      thickness: Math.max(0.25, input.width / 2),
+      color: rgb(input.color.r, input.color.g, input.color.b),
+    });
+  }
+}
+
+function drawFlattenedTableTextDecoration(
+  page: PDFPage,
+  input: {
+    x: number;
+    y: number;
+    width: number;
+    fontSize: number;
+    underline?: boolean;
+    strikethrough?: boolean;
+    color: { r: number; g: number; b: number };
+  },
+): void {
+  if (input.underline) {
+    page.drawLine({
+      start: {
+        x: input.x,
+        y: input.y - 1,
+      },
+      end: {
+        x: input.x + input.width,
+        y: input.y - 1,
+      },
+      thickness: Math.max(0.35, input.fontSize / 18),
+      color: rgb(input.color.r, input.color.g, input.color.b),
+    });
+  }
+
+  if (input.strikethrough) {
+    page.drawLine({
+      start: {
+        x: input.x,
+        y: input.y + input.fontSize * 0.35,
+      },
+      end: {
+        x: input.x + input.width,
+        y: input.y + input.fontSize * 0.35,
+      },
+      thickness: Math.max(0.35, input.fontSize / 18),
+      color: rgb(input.color.r, input.color.g, input.color.b),
+    });
+  }
+}
+
+function resolveFlattenedHeaderCellStyle(
+  element: WriterElementV2,
+  tableData: WriterTableData,
+  column: WriterTableColumn,
+): WriterTableCellStyle {
+  return mergeFlattenedTableCellStyles(
+    elementStyleToTableCellStyle(element),
+    tableData.defaultCellStyle,
+    column.style,
+    {
+      bold: true,
+      alignment: 'center',
+      verticalAlign: 'middle',
+      backgroundColor: '#F1F5F9',
+      padding: 6,
+      borders: defaultWriterTableBorders(),
+    },
+    tableData.headerCellStyle,
+  );
+}
+
+function resolveFlattenedBodyCellStyle(
+  element: WriterElementV2,
+  tableData: WriterTableData,
+  column: WriterTableColumn,
+  cell: WriterTableCell | undefined,
+): WriterTableCellStyle {
+  return mergeFlattenedTableCellStyles(
+    elementStyleToTableCellStyle(element),
+    {
+      alignment: 'left',
+      verticalAlign: 'top',
+      padding: 4,
+      borders: defaultWriterTableBorders(),
+    },
+    tableData.defaultCellStyle,
+    column.style,
+    cell?.style,
+  );
+}
+
+function elementStyleToTableCellStyle(
+  element: WriterElementV2,
+): WriterTableCellStyle {
+  return {
+    fontFamily: element.style.fontFamily,
+    fontSize: element.style.fontSize,
+    textColor: element.style.textColor,
+  };
+}
+
+function mergeFlattenedTableCellStyles(
+  ...styles: Array<WriterTableCellStyle | undefined>
+): WriterTableCellStyle {
+  const result: WriterTableCellStyle = {};
+
+  for (const style of styles) {
+    if (!style) continue;
+
+    result.alignment = style.alignment ?? result.alignment;
+    result.verticalAlign = style.verticalAlign ?? result.verticalAlign;
+    result.fontFamily = style.fontFamily ?? result.fontFamily;
+    result.fontSize = style.fontSize ?? result.fontSize;
+    result.textColor = style.textColor ?? result.textColor;
+    result.bold = style.bold ?? result.bold;
+    result.italic = style.italic ?? result.italic;
+    result.underline = style.underline ?? result.underline;
+    result.strikethrough = style.strikethrough ?? result.strikethrough;
+    result.backgroundColor = style.backgroundColor ?? result.backgroundColor;
+    result.padding = style.padding ?? result.padding;
+    result.borders = mergeFlattenedTableBorders(result.borders, style.borders);
+  }
+
+  return result;
+}
+
+function mergeFlattenedTableBorders(
+  base: WriterTableCellStyle['borders'],
+  next: WriterTableCellStyle['borders'],
+): WriterTableCellStyle['borders'] {
+  if (!base && !next) return undefined;
+
+  return {
+    top: next?.top ?? base?.top,
+    right: next?.right ?? base?.right,
+    bottom: next?.bottom ?? base?.bottom,
+    left: next?.left ?? base?.left,
+  };
+}
+
+function defaultWriterTableBorders(): NonNullable<WriterTableCellStyle['borders']> {
+  const border: WriterTableBorder = {
+    style: 'single',
+    color: '#CBD5E1',
+    width: 0.5,
+  };
+
+  return {
+    top: border,
+    right: border,
+    bottom: border,
+    left: border,
+  };
+}
+
+function normalizeWriterTableColumnWidths(input: {
+  columns: WriterTableColumn[];
+  totalWidth: number;
+  minColumnWidth: number;
+}): number[] {
+  const fallbackWidth = input.totalWidth / Math.max(1, input.columns.length);
+
+  const rawWidths = input.columns.map((column) =>
+    Math.max(input.minColumnWidth, column.width ?? fallbackWidth),
+  );
+
+  const rawTotal = rawWidths.reduce((sum, width) => sum + width, 0);
+
+  if (rawTotal <= 0) {
+    return input.columns.map(() => fallbackWidth);
+  }
+
+  const scale = input.totalWidth / rawTotal;
+
+  return rawWidths.map((width) =>
+    Math.max(input.minColumnWidth, width * scale),
+  );
+}
+
+function normalizeWriterTableRowHeights(input: {
+  tableData: WriterTableData;
+  totalHeight: number;
+  minRowHeight: number;
+}): number[] {
+  const fallbackHeight = input.totalHeight / Math.max(1, input.tableData.rows.length);
+
+  const rawHeights = input.tableData.rows.map((row) =>
+    Math.max(input.minRowHeight, row.height ?? fallbackHeight),
+  );
+
+  const rawTotal = rawHeights.reduce((sum, height) => sum + height, 0);
+
+  if (rawTotal <= 0) {
+    return input.tableData.rows.map(() => fallbackHeight);
+  }
+
+  const scale = input.totalHeight / rawTotal;
+
+  return rawHeights.map((height) =>
+    Math.max(input.minRowHeight, height * scale),
+  );
+}
+
+function isValidWriterTableData(
+  tableData: WriterTableData | undefined,
+): tableData is WriterTableData {
+  return !!tableData
+    && Array.isArray(tableData.columns)
+    && tableData.columns.length > 0
+    && Array.isArray(tableData.rows);
+}
+
+function wrapPlainTextForPdf(input: {
+  text: string;
+  font: PDFFont;
+  fontSize: number;
+  maxWidth: number;
+}): string[] {
+  const paragraphs = input.text.split(/\r?\n/);
+  const lines: string[] = [];
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/(\s+)/).filter((part) => part.length > 0);
+
+    let current = '';
+
+    for (const word of words) {
+      const candidate = current ? `${current}${word}` : word;
+      const candidateWidth = input.font.widthOfTextAtSize(candidate, input.fontSize);
+
+      if (candidateWidth <= input.maxWidth || current.length === 0) {
+        current = candidate;
+        continue;
+      }
+
+      lines.push(current.trimEnd());
+      current = word.trimStart();
+    }
+
+    lines.push(current);
+  }
+
+  return lines.length > 0 ? lines : [''];
+}
+
+function computeFlattenedTableTextX(input: {
+  cellRect: PdfRect;
+  padding: number;
+  textWidth: number;
+  alignment: WriterTableCellStyle['alignment'];
+}): number {
+  const left = input.cellRect.x + input.padding;
+  const right = input.cellRect.x + input.cellRect.width - input.padding;
+  const availableWidth = Math.max(1, right - left);
+
+  if (input.alignment === 'center') {
+    return left + Math.max(0, (availableWidth - input.textWidth) / 2);
+  }
+
+  if (input.alignment === 'right') {
+    return right - Math.min(input.textWidth, availableWidth);
+  }
+
+  return left;
+}
+
+function computeFlattenedTableTextStartY(input: {
+  cellRect: PdfRect;
+  padding: number;
+  lineHeight: number;
+  totalTextHeight: number;
+  verticalAlign: WriterTableCellStyle['verticalAlign'];
+}): number {
+  const topY = input.cellRect.y + input.cellRect.height - input.padding - input.lineHeight * 0.8;
+  const bottomY = input.cellRect.y + input.padding;
+
+  if (input.verticalAlign === 'middle') {
+    const centerY = input.cellRect.y + input.cellRect.height / 2;
+    return centerY + input.totalTextHeight / 2 - input.lineHeight * 0.8;
+  }
+
+  if (input.verticalAlign === 'bottom') {
+    return bottomY + input.totalTextHeight - input.lineHeight * 0.8;
+  }
+
+  return topY;
+}
+
+function buildFlattenedTableColumnPositions(input: {
+  startX: number;
+  columnWidths: number[];
+}): number[] {
+  const positions: number[] = [];
+  let x = input.startX;
+
+  for (const width of input.columnWidths) {
+    positions.push(x);
+    x += width;
+  }
+
+  return positions;
+}
+
+function buildFlattenedTableRowBottomPositions(input: {
+  bodyTopY: number;
+  rowHeights: number[];
+}): number[] {
+  const positions: number[] = [];
+  let topY = input.bodyTopY;
+
+  for (const height of input.rowHeights) {
+    const bottomY = topY - height;
+    positions.push(bottomY);
+    topY = bottomY;
+  }
+
+  return positions;
+}
+
+function clampFlattenedTableSpan(
+  span: number | undefined,
+  startIndex: number,
+  count: number,
+): number {
+  const raw = span && span > 1 ? Math.trunc(span) : 1;
+  return Math.max(1, Math.min(raw, count - startIndex));
+}
+
+function sumFlattenedTableSpan(
+  values: number[],
+  startIndex: number,
+  span: number,
+): number {
+  let total = 0;
+
+  for (let index = startIndex; index < startIndex + span; index += 1) {
+    total += values[index] ?? 0;
+  }
+
+  return total;
 }

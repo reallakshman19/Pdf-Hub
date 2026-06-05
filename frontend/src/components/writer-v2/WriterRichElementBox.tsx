@@ -5,6 +5,9 @@ import { WriterSelectionHandles, type ResizeHandle } from './WriterSelectionHand
 import { WriterInlineEditor } from './WriterInlineEditor';
 import type { WriterEditorSavePayload } from '@/core/writer-v2/editor/writerEditorState';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { WriterTableBoxContent } from './WriterTableBoxContent';
+import { WriterTableInteractionOverlay } from './WriterTableInteractionOverlay';
+import { useWriterTableSelectionState } from './useWriterTableSelectionState';
 
 export interface WriterRichElementBoxProps {
   element: WriterElementV2;
@@ -39,6 +42,8 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
       ? state.assetRecords.find((asset) => asset.id === element.imageAssetId)
       : undefined,
   );
+
+  const { selection: tableSelection, setSelection: onTableSelectionChange } = useWriterTableSelectionState();
 
   return (
     <div
@@ -76,7 +81,7 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
             ? `${element.style.borderWidth ?? 0}px solid ${element.style.borderColor ?? 'transparent'}`
             : `${element.style.borderWidth ?? 1}px solid ${element.style.borderColor ?? '#2563eb'}`,
         opacity: element.style.opacity ?? 1,
-        padding: element.style.padding ?? 8,
+        padding: element.type === 'tableBox' ? 0 : (element.style.padding ?? 8),
         overflow: 'hidden',
         color: element.style.textColor ?? '#111827',
         fontSize: element.style.fontSize ?? 13,
@@ -94,6 +99,9 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         imageAssetDataUrl: imageAsset?.dataUrl,
         onSave,
         onCancel,
+        viewportRect,
+        tableSelection,
+        onTableSelectionChange,
       })}
 
       {selected && !isEditing ? (
@@ -111,15 +119,53 @@ function renderElementContent({
   imageAssetDataUrl,
   onSave,
   onCancel,
+  viewportRect,
+  tableSelection,
+  onTableSelectionChange,
 }: {
   element: WriterElementV2;
   isEditing: boolean;
   imageAssetDataUrl?: string;
   onSave?: (payload: WriterEditorSavePayload) => void;
   onCancel?: () => void;
+  viewportRect: { x: number; y: number; width: number; height: number };
+  tableSelection: import('@/core/writer-v2/table-pro/writerTableSelection').WriterTableSelection | null;
+  onTableSelectionChange: (selection: import('@/core/writer-v2/table-pro/writerTableSelection').WriterTableSelection | null) => void;
 }): React.ReactNode {
   if (element.type === 'tableBox') {
-    return <WriterTablePreview element={element} />;
+    return (
+      <div
+        className="relative h-full w-full overflow-hidden"
+        data-writer-table-box-root="true"
+      >
+        <WriterTableBoxContent
+          element={element}
+          width={viewportRect.width}
+          height={viewportRect.height}
+          selection={tableSelection}
+        />
+
+        <WriterTableInteractionOverlay
+          element={element}
+          rect={{
+            x: 0,
+            y: 0,
+            width: viewportRect.width,
+            height: viewportRect.height,
+          }}
+          getLocalPoint={(event) => {
+            const bounds = event.currentTarget.getBoundingClientRect();
+
+            return {
+              x: event.clientX - bounds.left,
+              y: bounds.height - (event.clientY - bounds.top),
+            };
+          }}
+          selection={tableSelection}
+          onSelectionChange={onTableSelectionChange}
+        />
+      </div>
+    );
   }
 
   if (element.type === 'imageBox') {
@@ -193,84 +239,5 @@ function WriterImagePreview({ dataUrl }: { dataUrl?: string }) {
         userSelect: 'none',
       }}
     />
-  );
-}
-
-function WriterTablePreview({ element }: { element: WriterElementV2 }) {
-  const tableData = element.tableData;
-
-  if (!tableData) {
-    return (
-      <div
-        data-writer-v2-display-content="true"
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'grid',
-          placeItems: 'center',
-          color: '#94a3b8',
-          fontSize: 12,
-        }}
-      >
-        Empty table
-      </div>
-    );
-  }
-
-  return (
-    <table
-      data-writer-v2-display-content="true"
-      style={{
-        width: '100%',
-        height: '100%',
-        borderCollapse: 'collapse',
-        tableLayout: 'fixed',
-        pointerEvents: 'none',
-        fontSize: element.style.fontSize ?? 11,
-        color: element.style.textColor ?? '#111827',
-      }}
-    >
-      <thead>
-        <tr>
-          {tableData.columns.map((column) => (
-            <th
-              key={column.id}
-              style={{
-                border: '1px solid #cbd5e1',
-                background: '#f1f5f9',
-                padding: 4,
-                textAlign: 'left',
-                fontWeight: 700,
-              }}
-            >
-              {column.label ?? ''}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {tableData.rows.map((row) => (
-          <tr key={row.id}>
-            {tableData.columns.map((column, index) => {
-              const cell = row.cells[index];
-
-              return (
-                <td
-                  key={cell?.id ?? `${row.id}-${column.id}`}
-                  style={{
-                    border: '1px solid #cbd5e1',
-                    padding: 4,
-                    verticalAlign: 'top',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {cell?.text ?? ''}
-                </td>
-              );
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }

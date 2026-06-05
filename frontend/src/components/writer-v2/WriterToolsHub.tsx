@@ -9,46 +9,47 @@ type WriterToolsTab = 'objects' | 'templates' | 'search';
 
 const STORAGE_KEY = 'writer-v2-tools-hub';
 
+const loadInitialState = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+      return {
+        collapsed: false,
+        tab: 'objects' as WriterToolsTab,
+        position: null as { x: number; y: number } | null,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as {
+      collapsed?: boolean;
+      tab?: WriterToolsTab;
+      position?: { x: number; y: number } | null;
+    };
+
+    return {
+      collapsed: parsed.collapsed ?? false,
+      tab: parsed.tab ?? 'objects',
+      position: parsed.position ?? null,
+    };
+  } catch {
+    return {
+      collapsed: false,
+      tab: 'objects' as WriterToolsTab,
+      position: null,
+    };
+  }
+};
+
 export const WriterToolsHub: React.FC = () => {
   const beginExportOperation = useSessionStore((state) => state.beginExportOperation);
   const completeSaveOperation = useSessionStore((state) => state.completeSaveOperation);
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
 
-  const initial = React.useMemo(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-
-      if (!raw) {
-        return {
-          collapsed: false,
-          tab: 'objects' as WriterToolsTab,
-          position: null,
-        };
-      }
-
-      const parsed = JSON.parse(raw) as {
-        collapsed?: boolean;
-        tab?: WriterToolsTab;
-        position?: { x: number; y: number } | null;
-      };
-
-      return {
-        collapsed: parsed.collapsed ?? false,
-        tab: parsed.tab ?? 'objects',
-        position: parsed.position ?? null,
-      };
-    } catch {
-      return {
-        collapsed: false,
-        tab: 'objects' as WriterToolsTab,
-        position: null,
-      };
-    }
-  }, []);
-
-  const [collapsed, setCollapsed] = React.useState(initial.collapsed);
-  const [tab, setTab] = React.useState<WriterToolsTab>(initial.tab);
-  const [position, setPosition] = React.useState<{ x: number; y: number } | null>(initial.position);
+  const [initialState] = React.useState(loadInitialState);
+  const [collapsed, setCollapsed] = React.useState(initialState.collapsed);
+  const [tab, setTab] = React.useState<WriterToolsTab>(initialState.tab);
+  const [position, setPosition] = React.useState<{ x: number; y: number } | null>(initialState.position);
   const [isDragging, setIsDragging] = React.useState(false);
   const dragStartRef = React.useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
   const dragDistanceRef = React.useRef(0);
