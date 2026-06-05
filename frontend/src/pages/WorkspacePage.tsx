@@ -12,6 +12,11 @@ import { MacroBuilderDrawer } from '@/components/macro/MacroBuilderDrawer';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useEditorStore } from '@/core/editor/store';
 import { WriterRibbon } from '@/components/writer-v2/WriterRibbon';
+import { WriterLayersPanel } from '@/components/writer-v2/WriterLayersPanel';
+import { WriterAutosaveController } from '@/components/writer-v2/WriterAutosaveController';
+import { WriterRecoveryBanner } from '@/components/writer-v2/WriterRecoveryBanner';
+import { WriterQuickTemplatesPanel } from '@/components/writer-v2/WriterQuickTemplatesPanel';
+import { WriterObjectSearchPanel } from '@/components/writer-v2/WriterObjectSearchPanel';
 
 export const WorkspacePage: React.FC = () => {
   const capabilities = useCapabilities();
@@ -37,8 +42,45 @@ export const WorkspacePage: React.FC = () => {
         inspector={<InspectorPanel />}
         statusbar={<StatusBar />}
       />
+      {activeMode === 'write' && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 24,
+            top: 92,
+            zIndex: 181,
+          }}
+        >
+          <WriterObjectSearchPanel />
+        </div>
+      )}
+      {activeMode === 'write' && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 280,
+            top: 92,
+            zIndex: 180,
+          }}
+        >
+          <WriterLayersPanel />
+        </div>
+      )}
+      {activeMode === 'write' && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 576,
+            top: 92,
+            zIndex: 180,
+          }}
+        >
+          <WriterQuickTemplatesPanel />
+        </div>
+      )}
       {capabilities.hasMacroConsole && <MacroBuilderDrawer />}
+      <WriterAutosaveController />
+      <WriterRecoveryBanner />
     </>
   );
 };
-

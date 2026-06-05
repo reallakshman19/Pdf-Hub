@@ -3,18 +3,18 @@ import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
   deleteSelectedWriterElements,
   duplicateSelectedWriterElements,
+  nudgeSelectedWriterElements,
 } from '@/core/writer-v2/writerSelectionActions';
 
 /**
- * Mounts a document-level keydown listener for Writer V2 keyboard shortcuts.
- * Renders nothing — purely a side-effect component.
+ * Document-level Writer V2 keyboard shortcuts.
+ * This component renders nothing.
  */
 export const WriterKeyboardHandler: React.FC = () => {
   React.useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
 
-      // Do not intercept when focus is inside an input, textarea, or contenteditable
       if (
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
@@ -23,49 +23,56 @@ export const WriterKeyboardHandler: React.FC = () => {
         return;
       }
 
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
-      const ctrl = isMac ? event.metaKey : event.ctrlKey;
-
       const store = useWriterV2Store.getState();
 
-      // Do not intercept any key when the popup editor is open — the popup
-      // has its own capture-phase document listener that takes priority.
-      if (store.editingId !== null) return;
-      const hasSelection = store.selectedIds.length > 0;
+      if (store.editingId !== null) {
+        return;
+      }
 
-      // Delete / Backspace — delete selected elements
+      const hasSelection = store.selectedIds.length > 0;
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const ctrl = isMac ? event.metaKey : event.ctrlKey;
+      const step = event.shiftKey ? 10 : 1;
+
+      if (hasSelection && isArrowKey(event.key)) {
+        const delta = nudgeDelta(event.key, step);
+
+        if (delta) {
+          event.preventDefault();
+          nudgeSelectedWriterElements(delta.dx, delta.dy);
+          return;
+        }
+      }
+
       if ((event.key === 'Delete' || event.key === 'Backspace') && hasSelection) {
         event.preventDefault();
         deleteSelectedWriterElements();
         return;
       }
 
-      // Ctrl+D / Cmd+D — duplicate selected elements
-      if (ctrl && event.key === 'd' && hasSelection) {
+      if (ctrl && event.key.toLowerCase() === 'd' && hasSelection) {
         event.preventDefault();
         duplicateSelectedWriterElements();
         return;
       }
 
-      // Escape — clear selection
       if (event.key === 'Escape' && hasSelection) {
         event.preventDefault();
-        store.dispatchWriterCommand({ type: 'CLEAR_WRITER_SELECTION' });
+        store.dispatchWriterCommand({
+          type: 'CLEAR_WRITER_SELECTION',
+        });
         return;
       }
 
-      // Ctrl+Z / Cmd+Z — undo
-      if (ctrl && event.key === 'z' && !event.shiftKey) {
+      if (ctrl && event.key.toLowerCase() === 'z' && !event.shiftKey) {
         event.preventDefault();
         store.undoWriter();
         return;
       }
 
-      // Ctrl+Shift+Z / Cmd+Shift+Z — redo
-      if (ctrl && event.key === 'z' && event.shiftKey) {
+      if (ctrl && event.key.toLowerCase() === 'z' && event.shiftKey) {
         event.preventDefault();
         store.redoWriter();
-        return;
       }
     };
 
@@ -75,3 +82,35 @@ export const WriterKeyboardHandler: React.FC = () => {
 
   return null;
 };
+
+function isArrowKey(key: string): boolean {
+  return key === 'ArrowLeft' ||
+    key === 'ArrowRight' ||
+    key === 'ArrowUp' ||
+    key === 'ArrowDown';
+}
+
+/**
+ * Writer rects use PDF coordinates, origin bottom-left.
+ */
+function nudgeDelta(
+  key: string,
+  step: number,
+): { dx: number; dy: number } | null {
+  switch (key) {
+    case 'ArrowLeft':
+      return { dx: -step, dy: 0 };
+
+    case 'ArrowRight':
+      return { dx: step, dy: 0 };
+
+    case 'ArrowUp':
+      return { dx: 0, dy: step };
+
+    case 'ArrowDown':
+      return { dx: 0, dy: -step };
+
+    default:
+      return null;
+  }
+}

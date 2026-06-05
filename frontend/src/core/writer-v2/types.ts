@@ -7,6 +7,39 @@ export type WriterElementKind =
   | 'tableBox'
   | 'imageBox';
 
+export type WriterReviewStatus =
+  | 'open'
+  | 'inProgress'
+  | 'resolved'
+  | 'rejected';
+
+export type WriterReviewPriority =
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'critical';
+
+export type WriterReviewCategory =
+  | 'general'
+  | 'engineering'
+  | 'design'
+  | 'safety'
+  | 'client'
+  | 'construction'
+  | 'qa';
+
+export interface WriterReviewMetadata {
+  status: WriterReviewStatus;
+  priority: WriterReviewPriority;
+  category: WriterReviewCategory;
+  author?: string;
+  assignee?: string;
+  dueDate?: string;
+  commentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PdfPoint {
   /**
    * PDF page coordinate in points.
@@ -104,6 +137,7 @@ export interface WriterElementV2 {
   tableData?: WriterTableData;
   imageAssetId?: string;
   assetIds?: string[];
+  review?: WriterReviewMetadata;
 
   callout?: {
     anchorPoint?: PdfPoint;

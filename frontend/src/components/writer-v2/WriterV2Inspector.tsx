@@ -1,14 +1,41 @@
 import React from 'react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
+  alignSelectedWriterElements,
   bringSelectedWriterElementToFront,
   deleteSelectedWriterElements,
+  distributeSelectedWriterElements,
   duplicateSelectedWriterElements,
   hideSelectedWriterElements,
+  nudgeSelectedWriterElements,
   sendSelectedWriterElementToBack,
   showAllWriterElements,
   toggleLockSelectedWriterElements,
 } from '@/core/writer-v2/writerSelectionActions';
+import {
+  addActiveTableColumn,
+  addActiveTableRow,
+  removeActiveTableColumn,
+  removeActiveTableRow,
+  updateActiveTableCell,
+  updateActiveTableColumnLabel,
+} from '@/core/writer-v2/writerTableBoxActions';
+import {
+  clearActiveImageBoxAsset,
+  replaceActiveImageBoxAsset,
+} from '@/core/writer-v2/writerImageBoxActions';
+import {
+  clearActiveWriterReviewMetadata,
+  ensureActiveWriterReviewMetadata,
+  isReviewableWriterElement,
+  markActiveWriterReviewResolved,
+  updateActiveWriterReviewMetadata,
+} from '@/core/writer-v2/writerReviewActions';
+import type {
+  WriterReviewCategory,
+  WriterReviewPriority,
+  WriterReviewStatus,
+} from '@/core/writer-v2/types';
 import { ColorPickerPopover } from '@/components/ui/ColorPickerPopover';
 
 const FONT_FAMILIES = [
@@ -63,6 +90,7 @@ function NumberInput({ value, onChange, min, max, step = 1, style }: {
 }
 
 export const WriterV2Inspector: React.FC = () => {
+  const imageReplaceInputRef = React.useRef<HTMLInputElement | null>(null);
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
@@ -105,6 +133,9 @@ export const WriterV2Inspector: React.FC = () => {
   if (!selected) return null;
 
   const style = selected.style;
+  const isTableBox = selected.type === 'tableBox';
+  const isImageBox = selected.type === 'imageBox';
+  const isReviewable = isReviewableWriterElement(selected);
   const isText =
     selected.type === 'richTextBox' ||
     selected.type === 'textCallout' ||
@@ -315,6 +346,387 @@ export const WriterV2Inspector: React.FC = () => {
         </Section>
       )}
 
+      {isTableBox && selected.tableData ? (
+        <Section title="Table">
+          <Row>
+            <button
+              type="button"
+              onClick={() => addActiveTableRow()}
+              style={btnStyle}
+            >
+              + Row
+            </button>
+            <button
+              type="button"
+              onClick={() => removeActiveTableRow()}
+              style={btnStyle}
+            >
+              - Row
+            </button>
+            <button
+              type="button"
+              onClick={() => addActiveTableColumn()}
+              style={btnStyle}
+            >
+              + Col
+            </button>
+            <button
+              type="button"
+              onClick={() => removeActiveTableColumn()}
+              style={btnStyle}
+            >
+              - Col
+            </button>
+          </Row>
+
+          <div
+            style={{
+              display: 'grid',
+              gap: 6,
+              maxHeight: 240,
+              overflow: 'auto',
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              padding: 6,
+              background: '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${selected.tableData.columns.length}, minmax(70px, 1fr))`,
+                gap: 4,
+              }}
+            >
+              {selected.tableData.columns.map((column) => (
+                <input
+                  key={column.id}
+                  aria-label={`Column label ${column.label ?? column.id}`}
+                  value={column.label ?? ''}
+                  onChange={(event) =>
+                    updateActiveTableColumnLabel(column.id, event.currentTarget.value)
+                  }
+                  style={tableInputStyle}
+                />
+              ))}
+            </div>
+
+            {selected.tableData.rows.map((row, rowIndex) => (
+              <div
+                key={row.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${selected.tableData?.columns.length ?? 1}, minmax(70px, 1fr))`,
+                  gap: 4,
+                }}
+              >
+                {selected.tableData?.columns.map((column, columnIndex) => {
+                  const cell = row.cells[columnIndex];
+
+                  return (
+                    <input
+                      key={cell?.id ?? `${row.id}-${column.id}`}
+                      aria-label={`Table cell ${rowIndex + 1}-${columnIndex + 1}`}
+                      value={cell?.text ?? ''}
+                      onChange={(event) => {
+                        if (!cell) return;
+                        updateActiveTableCell(row.id, cell.id, event.currentTarget.value);
+                      }}
+                      style={tableInputStyle}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      {isImageBox ? (
+        <Section title="Image">
+          <Row>
+            <button
+              type="button"
+              onClick={() => imageReplaceInputRef.current?.click()}
+              style={btnStyle}
+            >
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={() => clearActiveImageBoxAsset()}
+              style={btnStyle}
+            >
+              Clear
+            </button>
+          </Row>
+
+          <Row>
+            <Label>Asset</Label>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 11,
+                color: selected.imageAssetId ? '#334155' : '#dc2626',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={selected.imageAssetId ?? 'Missing asset'}
+            >
+              {selected.imageAssetId ?? 'Missing asset'}
+            </span>
+          </Row>
+
+          <input
+            ref={imageReplaceInputRef}
+            aria-label="Replace selected Writer image"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+
+              if (file) {
+                void replaceActiveImageBoxAsset(file);
+              }
+
+              event.currentTarget.value = '';
+            }}
+          />
+        </Section>
+      ) : null}
+
+      {isReviewable ? (
+        <Section title="Review">
+          {!selected.review ? (
+            <Row>
+              <button
+                type="button"
+                onClick={() => ensureActiveWriterReviewMetadata()}
+                style={btnStyle}
+              >
+                Add Review Metadata
+              </button>
+            </Row>
+          ) : (
+            <>
+              <Row>
+                <Label>Status</Label>
+                <select
+                  value={selected.review.status}
+                  onChange={(event) =>
+                    updateActiveWriterReviewMetadata({
+                      status: event.currentTarget.value as WriterReviewStatus,
+                    })
+                  }
+                  style={selectStyle}
+                >
+                  <option value="open">Open</option>
+                  <option value="inProgress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </Row>
+
+              <Row>
+                <Label>Priority</Label>
+                <select
+                  value={selected.review.priority}
+                  onChange={(event) =>
+                    updateActiveWriterReviewMetadata({
+                      priority: event.currentTarget.value as WriterReviewPriority,
+                    })
+                  }
+                  style={selectStyle}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </Row>
+
+              <Row>
+                <Label>Category</Label>
+                <select
+                  value={selected.review.category}
+                  onChange={(event) =>
+                    updateActiveWriterReviewMetadata({
+                      category: event.currentTarget.value as WriterReviewCategory,
+                    })
+                  }
+                  style={selectStyle}
+                >
+                  <option value="general">General</option>
+                  <option value="engineering">Engineering</option>
+                  <option value="design">Design</option>
+                  <option value="safety">Safety</option>
+                  <option value="client">Client</option>
+                  <option value="construction">Construction</option>
+                  <option value="qa">QA</option>
+                </select>
+              </Row>
+
+              <Row>
+                <Label>Assignee</Label>
+                <input
+                  value={selected.review.assignee ?? ''}
+                  onChange={(event) =>
+                    updateActiveWriterReviewMetadata({
+                      assignee: event.currentTarget.value,
+                    })
+                  }
+                  style={inputStyle}
+                />
+              </Row>
+
+              <Row>
+                <Label>Due</Label>
+                <input
+                  type="date"
+                  value={selected.review.dueDate ?? ''}
+                  onChange={(event) =>
+                    updateActiveWriterReviewMetadata({
+                      dueDate: event.currentTarget.value,
+                    })
+                  }
+                  style={inputStyle}
+                />
+              </Row>
+
+              <Row>
+                <button
+                  type="button"
+                  onClick={() => markActiveWriterReviewResolved()}
+                  style={btnStyle}
+                >
+                  Mark Resolved
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearActiveWriterReviewMetadata()}
+                  style={btnStyle}
+                >
+                  Clear
+                </button>
+              </Row>
+            </>
+          )}
+        </Section>
+      ) : null}
+
+      {/* Precision */}
+      <Section title="Precision">
+        <Row>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('left')}
+            title="Align left"
+            style={btnStyle}
+          >
+            Align L
+          </button>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('center')}
+            title="Align center"
+            style={btnStyle}
+          >
+            Align C
+          </button>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('right')}
+            title="Align right"
+            style={btnStyle}
+          >
+            Align R
+          </button>
+        </Row>
+
+        <Row>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('top')}
+            title="Align top"
+            style={btnStyle}
+          >
+            Align T
+          </button>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('middle')}
+            title="Align middle"
+            style={btnStyle}
+          >
+            Align M
+          </button>
+          <button
+            type="button"
+            onClick={() => alignSelectedWriterElements('bottom')}
+            title="Align bottom"
+            style={btnStyle}
+          >
+            Align B
+          </button>
+        </Row>
+
+        <Row>
+          <button
+            type="button"
+            onClick={() => distributeSelectedWriterElements('horizontal')}
+            title="Distribute horizontally"
+            style={btnStyle}
+          >
+            Dist H
+          </button>
+          <button
+            type="button"
+            onClick={() => distributeSelectedWriterElements('vertical')}
+            title="Distribute vertically"
+            style={btnStyle}
+          >
+            Dist V
+          </button>
+        </Row>
+
+        <Row>
+          <button
+            type="button"
+            onClick={() => nudgeSelectedWriterElements(-1, 0)}
+            title="Nudge left"
+            style={btnStyle}
+          >
+            Left
+          </button>
+          <button
+            type="button"
+            onClick={() => nudgeSelectedWriterElements(0, 1)}
+            title="Nudge up"
+            style={btnStyle}
+          >
+            Up
+          </button>
+          <button
+            type="button"
+            onClick={() => nudgeSelectedWriterElements(0, -1)}
+            title="Nudge down"
+            style={btnStyle}
+          >
+            Down
+          </button>
+          <button
+            type="button"
+            onClick={() => nudgeSelectedWriterElements(1, 0)}
+            title="Nudge right"
+            style={btnStyle}
+          >
+            Right
+          </button>
+        </Row>
+      </Section>
+
       {/* Arrange */}
       <Section title="Arrange">
         <Row>
@@ -365,4 +777,33 @@ export const WriterV2Inspector: React.FC = () => {
 const btnStyle: React.CSSProperties = {
   flex: 1, height: 26, borderRadius: 6, border: '1px solid #e2e8f0',
   background: '#f8fafc', fontSize: 11, cursor: 'pointer', color: '#374151',
+};
+
+const tableInputStyle: React.CSSProperties = {
+  minWidth: 0,
+  height: 24,
+  border: '1px solid #cbd5e1',
+  borderRadius: 4,
+  padding: '0 5px',
+  fontSize: 11,
+  background: '#ffffff',
+};
+
+const selectStyle: React.CSSProperties = {
+  flex: 1,
+  height: 24,
+  borderRadius: 5,
+  border: '1px solid #e2e8f0',
+  fontSize: 11,
+  background: '#ffffff',
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  height: 24,
+  borderRadius: 5,
+  border: '1px solid #e2e8f0',
+  fontSize: 11,
+  padding: '0 6px',
+  background: '#ffffff',
 };

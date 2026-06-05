@@ -464,6 +464,56 @@ function applyCommand(
       };
     }
 
+    case 'BATCH_UPDATE_WRITER_ELEMENTS': {
+      const updateMap = new Map(command.updates.map((update) => [update.id, update.patch]));
+      const editableIds = new Set(
+        state.elements
+          .filter((element) => {
+            const patch = updateMap.get(element.id);
+            return patch ? canApplyWriterElementPatch(element, patch) : false;
+          })
+          .map((element) => element.id),
+      );
+
+      if (editableIds.size === 0) {
+        return {
+          state,
+          changed: false,
+          reason: 'No editable writer elements to batch-update.',
+        };
+      }
+
+      const existingIds = new Set(state.elements.map((element) => element.id));
+      const selectedIds = command.selectIds
+        ? uniqueIds(command.selectIds).filter((id) => existingIds.has(id))
+        : state.selectedIds;
+
+      const activeId = command.activeId === undefined
+        ? state.activeId
+        : command.activeId && existingIds.has(command.activeId)
+          ? command.activeId
+          : null;
+
+      return {
+        state: {
+          ...state,
+          elements: state.elements.map((element) => {
+            const patch = updateMap.get(element.id);
+
+            if (!patch || !editableIds.has(element.id)) {
+              return element;
+            }
+
+            return applyWriterElementPatch(element, patch, timestamp);
+          }),
+          selectedIds,
+          activeId,
+        },
+        changed: true,
+        reason: `Batch-updated ${editableIds.size} writer element(s).`,
+      };
+    }
+
     case 'BATCH_DELETE_WRITER_ELEMENTS': {
       const idsToDelete = new Set(command.ids);
       const elements = state.elements.filter((element) => !idsToDelete.has(element.id));
@@ -481,6 +531,88 @@ function applyCommand(
       };
     }
   }
+}
+
+function applyWriterElementPatch(
+  element: WriterElementV2,
+  patch: Partial<WriterElementV2>,
+  timestamp: string,
+): WriterElementV2 {
+  return {
+    ...element,
+    ...patch,
+    id: element.id,
+    documentFingerprint: element.documentFingerprint,
+    createdAt: element.createdAt,
+    updatedAt: timestamp,
+    rect: patch.rect
+      ? normalizePdfRectForCommand(patch.rect)
+      : element.rect,
+    style: {
+      ...element.style,
+      ...(patch.style ?? {}),
+      zIndex: normalizeZIndex(patch.style?.zIndex ?? element.style.zIndex),
+    },
+    assetIds: patch.assetIds
+      ? [...patch.assetIds]
+      : element.assetIds
+        ? [...element.assetIds]
+        : undefined,
+    review: Object.prototype.hasOwnProperty.call(patch, 'review')
+      ? patch.review
+        ? { ...patch.review }
+        : undefined
+      : element.review
+        ? { ...element.review }
+        : undefined,
+    tableData: patch.tableData
+      ? cloneTableData(patch.tableData)
+      : element.tableData
+        ? cloneTableData(element.tableData)
+        : undefined,
+    callout: patch.callout
+      ? {
+          ...patch.callout,
+          anchorPoint: patch.callout.anchorPoint
+            ? { ...patch.callout.anchorPoint }
+            : undefined,
+        }
+      : element.callout
+        ? {
+            ...element.callout,
+            anchorPoint: element.callout.anchorPoint
+              ? { ...element.callout.anchorPoint }
+              : undefined,
+          }
+        : undefined,
+  };
+}
+
+function canApplyWriterElementPatch(
+  element: WriterElementV2,
+  patch: Partial<WriterElementV2>,
+): boolean {
+  if (canEditWriterElement(element)) {
+    return true;
+  }
+
+  const allowedWhileLockedOrHidden = new Set(['locked', 'hidden']);
+  const patchKeys = Object.keys(patch);
+
+  return patchKeys.length > 0 &&
+    patchKeys.every((key) => allowedWhileLockedOrHidden.has(key));
+}
+
+function cloneTableData(
+  tableData: NonNullable<WriterElementV2['tableData']>,
+): NonNullable<WriterElementV2['tableData']> {
+  return {
+    columns: tableData.columns.map((column) => ({ ...column })),
+    rows: tableData.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => ({ ...cell })),
+    })),
+  };
 }
 
 function mapWritableElement(
@@ -679,6 +811,7 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
 function cloneElement(element: WriterElementV2): WriterElementV2 {
   return {
     ...element,
+    review: element.review ? { ...element.review } : undefined,
     assetIds: element.assetIds ? [...element.assetIds] : undefined,
     rect: { ...element.rect },
     tableData: element.tableData

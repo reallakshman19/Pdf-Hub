@@ -19,8 +19,21 @@ import { WriterKeyboardHandler } from './WriterKeyboardHandler';
 import {
   Type, MessageSquareDot, Stamp, Tag, NotebookPen, Scan,
   FileDown, FileText, FolderArchive, FolderOpen,
+  Table as TableIcon, Image as ImageIcon, ListChecks,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { createImageBoxElement } from '@/core/writer-v2/writerElementFactory';
+import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
+import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
+import {
+  runCurrentWriterExportPreflight,
+  type WriterExportPreflightResult,
+} from '@/core/writer-v2/export/writerExportPreflight';
+import { autosaveCurrentWriterDraft } from '@/core/writer-v2/persistence/writerAutosave';
+import {
+  downloadCurrentWriterCommentSummary,
+  type WriterCommentSummaryFormat,
+} from '@/core/writer-v2/export/writerCommentSummary';
 
 interface ResponsiveBtnProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -66,14 +79,24 @@ const ResponsiveBtn: React.FC<ResponsiveBtnProps> = ({
 
 export const WriterV2ToolbarControls: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const imageInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [pendingPreflight, setPendingPreflight] = React.useState<{
+    label: string;
+    result: WriterExportPreflightResult;
+    action: () => Promise<void>;
+  } | null>(null);
 
   const activeWriterTool = useWriterV2Store((state) => state.activeWriterTool);
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
+  const addWriterAssets = useWriterV2Store((state) => state.addWriterAssets);
+  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const elements = useWriterV2Store((state) => state.elements);
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const originalBytes = useSessionStore((state) => state.originalBytes);
   const fileName = useSessionStore((state) => state.fileName);
   const documentKey = useSessionStore((state) => state.documentKey);
+  const currentPage = useSessionStore((state) => state.viewState.currentPage);
   const openDocument = useSessionStore((state) => state.openDocument);
   const beginExportOperation = useSessionStore((state) => state.beginExportOperation);
   const completeSaveOperation = useSessionStore((state) => state.completeSaveOperation);
@@ -145,6 +168,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
 
     try {
       beginExportOperation('Exporting editable PDF Hub project…');
+      await autosaveCurrentWriterDraft(undefined, { force: true });
 
       const bytes = await exportCurrentWriterProject({
         originalPdfBytes: sourceBytes,
@@ -201,6 +225,121 @@ export const WriterV2ToolbarControls: React.FC = () => {
     }
   };
 
+  const importImageAsWriterObject = async (file: File) => {
+    if (!sourceBytes) {
+      failSaveOperation('Open a PDF before inserting an image.');
+      return;
+    }
+
+    if (!/^image\/(png|jpeg|webp)$/i.test(file.type)) {
+      failSaveOperation('Only PNG, JPG, and WEBP images are supported.');
+      return;
+    }
+
+    try {
+      beginExportOperation('Importing image as Writer object...');
+
+      const originalDataUrl = await readFileAsDataUrl(file);
+      const dataUrl = file.type.toLowerCase() === 'image/webp'
+        ? await renderImageDataUrlToPng(originalDataUrl)
+        : originalDataUrl;
+      const mimeType = file.type.toLowerCase() === 'image/webp'
+        ? 'image/png'
+        : file.type;
+      const imageSize = await measureImageDataUrl(dataUrl);
+      const pdf = await PDFDocument.load(sourceBytes);
+      const pageIndex = Math.max(0, Math.min(currentPage - 1, pdf.getPageCount() - 1));
+      const page = pdf.getPage(pageIndex);
+      const pageSize = page.getSize();
+
+      const maxWidth = Math.min(280, pageSize.width * 0.5);
+      const maxHeight = Math.min(180, pageSize.height * 0.35);
+      const scale = Math.min(
+        maxWidth / Math.max(1, imageSize.width),
+        maxHeight / Math.max(1, imageSize.height),
+        1,
+      );
+
+      const width = Math.max(40, imageSize.width * scale);
+      const height = Math.max(40, imageSize.height * scale);
+      const documentFingerprint = documentKey ?? fileName ?? 'writer-v2-unsaved-document';
+      const assetId = createWriterAssetId();
+      const now = new Date().toISOString();
+      const asset: WriterAssetRecordV2 = {
+        id: assetId,
+        documentFingerprint,
+        kind: 'image',
+        mimeType,
+        dataUrl,
+        width: imageSize.width,
+        height: imageSize.height,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const maxZIndex = elements.reduce(
+        (max, element) => Math.max(max, element.style.zIndex),
+        0,
+      );
+
+      const element = createImageBoxElement({
+        documentFingerprint,
+        pageIndex,
+        imageAssetId: assetId,
+        rect: {
+          x: pageSize.width / 2 - width / 2,
+          y: pageSize.height / 2 - height / 2,
+          width,
+          height,
+        },
+        text: file.name,
+        zIndex: maxZIndex + 1,
+      });
+
+      addWriterAssets([asset]);
+      dispatchWriterCommand({
+        type: 'ADD_WRITER_ELEMENT',
+        element,
+      });
+
+      completeSaveOperation('Image inserted as editable Writer object.');
+    } catch (error) {
+      failSaveOperation(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  const runWithWriterPreflight = async (
+    label: string,
+    action: () => Promise<void>,
+  ) => {
+    const result = await runCurrentWriterExportPreflight();
+
+    if (result.hasErrors || result.hasWarnings) {
+      setPendingPreflight({
+        label,
+        result,
+        action,
+      });
+      return;
+    }
+
+    await action();
+  };
+
+  const exportCommentSummary = (format: WriterCommentSummaryFormat) => {
+    const result = downloadCurrentWriterCommentSummary(format);
+
+    if (result.changed) {
+      completeSaveOperation(result.message);
+    } else {
+      failSaveOperation(result.message);
+    }
+  };
+
   return (
     <div
       className="flex items-center gap-1"
@@ -244,6 +383,20 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Rich Note - yellow notepad-style sticky"
       />
       <ResponsiveBtn
+        icon={TableIcon}
+        label="Table"
+        active={activeWriterTool === 'tableBox'}
+        onClick={() => toggleTool('tableBox')}
+        title="Insert Writer table object"
+      />
+      <ResponsiveBtn
+        icon={ImageIcon}
+        label="Image"
+        disabled={!sourceBytes}
+        onClick={() => imageInputRef.current?.click()}
+        title="Insert image as Writer object"
+      />
+      <ResponsiveBtn
         icon={Scan}
         label="Copy Region"
         active={activeWriterTool === 'selectBoxCopy'}
@@ -254,21 +407,45 @@ export const WriterV2ToolbarControls: React.FC = () => {
         icon={FileText}
         label="Editable PDF"
         disabled={!sourceBytes}
-        onClick={exportEditablePdf}
+        onClick={() => {
+          void runWithWriterPreflight('Editable PDF', exportEditablePdf);
+        }}
         title="Save as editable .pdf - flattened for viewing, re-openable for editing in PDF Hub"
       />
       <ResponsiveBtn
         icon={FileDown}
         label="Flatten"
         disabled={!sourceBytes}
-        onClick={exportFlattenedPdf}
+        onClick={() => {
+          void runWithWriterPreflight('Flattened PDF', exportFlattenedPdf);
+        }}
         title="Export flattened Writer PDF (view-only, smaller)"
+      />
+      <ResponsiveBtn
+        icon={ListChecks}
+        label="Comments CSV"
+        onClick={() => exportCommentSummary('csv')}
+        title="Export Writer comments/review objects as CSV"
+      />
+      <ResponsiveBtn
+        icon={ListChecks}
+        label="Comments MD"
+        onClick={() => exportCommentSummary('markdown')}
+        title="Export Writer comments/review objects as Markdown"
+      />
+      <ResponsiveBtn
+        icon={ListChecks}
+        label="Comments JSON"
+        onClick={() => exportCommentSummary('json')}
+        title="Export Writer comments/review objects as JSON"
       />
       <ResponsiveBtn
         icon={FolderArchive}
         label="Save Project"
         disabled={!sourceBytes}
-        onClick={exportProjectZip}
+        onClick={() => {
+          void runWithWriterPreflight('PDF Hub Project ZIP', exportProjectZip);
+        }}
         title="Export editable PDF Hub project (.pdfhub.zip)"
       />
       <ResponsiveBtn
@@ -292,6 +469,107 @@ export const WriterV2ToolbarControls: React.FC = () => {
           }
         }}
       />
+
+      <input
+        ref={imageInputRef}
+        aria-label="Import image as Writer object"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+
+          if (file) {
+            void importImageAsWriterObject(file);
+          }
+        }}
+      />
+
+      {pendingPreflight ? (
+        <WriterExportPreflightDialog
+          result={pendingPreflight.result}
+          exportLabel={pendingPreflight.label}
+          onCancel={() => setPendingPreflight(null)}
+          onContinue={() => {
+            const action = pendingPreflight.action;
+            setPendingPreflight(null);
+            void action();
+          }}
+        />
+      ) : null}
     </div>
   );
 };
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('Image import did not produce a data URL.'));
+        return;
+      }
+
+      resolve(reader.result);
+    };
+
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function measureImageDataUrl(
+  dataUrl: string,
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => {
+      resolve({
+        width: image.naturalWidth || image.width || 1,
+        height: image.naturalHeight || image.height || 1,
+      });
+    };
+
+    image.onerror = () => reject(new Error('Failed to measure imported image.'));
+    image.src = dataUrl;
+  });
+}
+
+async function renderImageDataUrlToPng(dataUrl: string): Promise<string> {
+  const imageSize = await measureImageDataUrl(dataUrl);
+  const image = await loadImageDataUrl(dataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = imageSize.width;
+  canvas.height = imageSize.height;
+
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Canvas is not available for WEBP image conversion.');
+  }
+
+  context.drawImage(image, 0, 0, imageSize.width, imageSize.height);
+  return canvas.toDataURL('image/png');
+}
+
+function loadImageDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Failed to load imported image.'));
+    image.src = dataUrl;
+  });
+}
+
+function createWriterAssetId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return `writer-asset-${globalThis.crypto.randomUUID()}`;
+  }
+
+  return `writer-asset-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}

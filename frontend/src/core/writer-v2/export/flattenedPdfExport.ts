@@ -111,6 +111,16 @@ async function drawWriterElement(
 ): Promise<void> {
   const rect = normalizeRect(element.rect);
 
+  if (element.type === 'imageBox') {
+    await drawImageBox(context, element, rect);
+    return;
+  }
+
+  if (element.type === 'tableBox') {
+    await drawTableBox(context, element, rect);
+    return;
+  }
+
   if (element.type === 'textCallout') {
     drawCalloutLeader(context.page, element, rect);
   }
@@ -157,6 +167,143 @@ async function drawWriterElement(
       context.embeddedAssetIds.add(asset.id);
     } catch {
       // ignore
+    }
+  }
+}
+
+async function drawImageBox(
+  context: DrawContext,
+  element: WriterElementV2,
+  rect: PdfRect,
+): Promise<void> {
+  drawBoxBackground(context.page, element, rect);
+
+  const assetId = element.imageAssetId ?? element.assetIds?.[0];
+
+  if (!assetId) return;
+
+  const asset = context.assetsById.get(assetId);
+
+  if (!asset || !asset.dataUrl.startsWith('data:image/')) {
+    return;
+  }
+
+  const imageBytes = dataUrlToBytes(asset.dataUrl);
+  const image = asset.mimeType.includes('png') || asset.dataUrl.startsWith('data:image/png')
+    ? await context.doc.embedPng(imageBytes)
+    : await context.doc.embedJpg(imageBytes);
+
+  const padding = element.style.padding ?? 0;
+  const maxWidth = Math.max(1, rect.width - padding * 2);
+  const maxHeight = Math.max(1, rect.height - padding * 2);
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  context.page.drawImage(image, {
+    x: rect.x + padding + (maxWidth - width) / 2,
+    y: rect.y + padding + (maxHeight - height) / 2,
+    width,
+    height,
+    opacity: clamp(element.style.opacity ?? 1, 0, 1),
+  });
+
+  context.embeddedAssetIds.add(asset.id);
+}
+
+async function drawTableBox(
+  context: DrawContext,
+  element: WriterElementV2,
+  rect: PdfRect,
+): Promise<void> {
+  drawBoxBackground(context.page, element, rect);
+
+  const tableData = element.tableData;
+
+  if (!tableData || tableData.columns.length === 0) {
+    return;
+  }
+
+  const font = await getFontForStyle(context, {
+    fontFamily: element.style.fontFamily,
+    fontSize: element.style.fontSize,
+  });
+
+  const fontBold = await getFontForStyle(context, {
+    fontFamily: element.style.fontFamily,
+    fontSize: element.style.fontSize,
+    bold: true,
+  });
+
+  const columns = tableData.columns;
+  const headerHeight = 20;
+  const rowCount = Math.max(1, tableData.rows.length);
+  const rowHeight = Math.max(16, (rect.height - headerHeight) / rowCount);
+  const colWidth = rect.width / columns.length;
+  const textSize = element.style.fontSize ?? 9;
+  const border = parseCssColor(element.style.borderColor, {
+    r: 0.58,
+    g: 0.64,
+    b: 0.72,
+  });
+  const textColor = parseCssColor(element.style.textColor, {
+    r: 0.07,
+    g: 0.09,
+    b: 0.15,
+  });
+
+  for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
+    const column = columns[colIndex];
+    const x = rect.x + colIndex * colWidth;
+    const y = rect.y + rect.height - headerHeight;
+
+    context.page.drawRectangle({
+      x,
+      y,
+      width: colWidth,
+      height: headerHeight,
+      color: rgb(0.95, 0.97, 0.99),
+      borderColor: rgb(border.r, border.g, border.b),
+      borderWidth: 0.5,
+    });
+
+    context.page.drawText(column.label ?? '', {
+      x: x + 4,
+      y: y + 6,
+      size: textSize,
+      font: fontBold,
+      color: rgb(textColor.r, textColor.g, textColor.b),
+      maxWidth: Math.max(1, colWidth - 8),
+    });
+  }
+
+  for (let rowIndex = 0; rowIndex < tableData.rows.length; rowIndex += 1) {
+    const row = tableData.rows[rowIndex];
+    const y = rect.y + rect.height - headerHeight - (rowIndex + 1) * rowHeight;
+
+    for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
+      const x = rect.x + colIndex * colWidth;
+      const cell = row.cells[colIndex];
+
+      context.page.drawRectangle({
+        x,
+        y,
+        width: colWidth,
+        height: rowHeight,
+        borderColor: rgb(border.r, border.g, border.b),
+        borderWidth: 0.5,
+      });
+
+      if (cell?.text) {
+        context.page.drawText(cell.text, {
+          x: x + 4,
+          y: y + Math.max(4, rowHeight - textSize - 4),
+          size: textSize,
+          font,
+          color: rgb(textColor.r, textColor.g, textColor.b),
+          maxWidth: Math.max(1, colWidth - 8),
+        });
+      }
     }
   }
 }

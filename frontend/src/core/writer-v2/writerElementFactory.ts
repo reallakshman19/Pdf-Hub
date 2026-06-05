@@ -14,6 +14,13 @@ export interface CalloutFactoryInput extends WriterFactoryInput {
   anchorPoint?: PdfPoint;
 }
 
+export interface ImageBoxFactoryInput extends WriterFactoryInput {
+  imageAssetId: string;
+  assetIds?: string[];
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
 export function createRichTextBoxElement(input: WriterFactoryInput): WriterElementV2 {
   const now = new Date().toISOString();
 
@@ -105,5 +112,89 @@ export function createRichNoteElement(input: WriterFactoryInput): WriterElementV
       borderWidth: 1,
       padding: 10,
     },
+  };
+}
+
+export function createTableBoxElement(input: WriterFactoryInput): WriterElementV2 {
+  const now = new Date().toISOString();
+
+  return {
+    id: uuidv4(),
+    documentFingerprint: input.documentFingerprint,
+    pageIndex: input.pageIndex,
+    type: 'tableBox',
+    rect: input.rect,
+    plainText: input.text ?? 'Table',
+    tableData: createDefaultTableData(),
+    style: {
+      backgroundColor: '#ffffff',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      padding: 0,
+      opacity: 1,
+      zIndex: input.zIndex ?? 100,
+      fontSize: 11,
+      fontFamily: 'Helvetica',
+      textColor: '#111827',
+    },
+    createdAt: now,
+    updatedAt: now,
+    locked: false,
+    hidden: false,
+  };
+}
+
+export function createImageBoxElement(input: ImageBoxFactoryInput): WriterElementV2 {
+  const now = new Date().toISOString();
+
+  return {
+    id: uuidv4(),
+    documentFingerprint: input.documentFingerprint,
+    pageIndex: input.pageIndex,
+    type: 'imageBox',
+    rect: input.rect,
+    plainText: input.text ?? 'Image',
+    imageAssetId: input.imageAssetId,
+    assetIds: input.assetIds ?? [input.imageAssetId],
+    style: {
+      backgroundColor: 'transparent',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      padding: 0,
+      opacity: 1,
+      zIndex: input.zIndex ?? 100,
+    },
+    createdAt: now,
+    updatedAt: now,
+    locked: false,
+    hidden: false,
+  };
+}
+
+function createDefaultTableData(): NonNullable<WriterElementV2['tableData']> {
+  return {
+    columns: [
+      { id: uuidv4(), label: 'Column 1', width: 1 },
+      { id: uuidv4(), label: 'Column 2', width: 1 },
+      { id: uuidv4(), label: 'Column 3', width: 1 },
+    ],
+    rows: [
+      {
+        id: uuidv4(),
+        cells: [
+          { id: uuidv4(), text: 'A1' },
+          { id: uuidv4(), text: 'B1' },
+          { id: uuidv4(), text: 'C1' },
+        ],
+      },
+      {
+        id: uuidv4(),
+        cells: [
+          { id: uuidv4(), text: 'A2' },
+          { id: uuidv4(), text: 'B2' },
+          { id: uuidv4(), text: 'C2' },
+        ],
+      },
+    ],
   };
 }

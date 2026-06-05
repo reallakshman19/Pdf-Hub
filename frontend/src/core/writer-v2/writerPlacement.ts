@@ -10,6 +10,7 @@ import {
   createReviewLabelElement,
   createTextStampElement,
   createRichNoteElement,
+  createTableBoxElement,
 } from './writerElementFactory';
 
 export interface WriterPlacementInput {
@@ -27,6 +28,8 @@ const STAMP_WIDTH = 180;
 const STAMP_HEIGHT = 50;
 const NOTE_WIDTH = 200;
 const NOTE_HEIGHT = 110;
+const TABLE_WIDTH = 320;
+const TABLE_HEIGHT = 150;
 const CALLOUT_OFFSET_X = 48;
 const CALLOUT_OFFSET_Y = 28;
 
@@ -107,6 +110,21 @@ export function createWriterElementFromPlacement(
         NOTE_HEIGHT,
       ),
       text: 'Note',
+      zIndex: input.zIndex,
+    });
+  }
+
+  if (input.tool === 'tableBox') {
+    return createTableBoxElement({
+      documentFingerprint: input.documentFingerprint,
+      pageIndex: input.pageIndex,
+      rect: placeRectAtTopLeft(
+        input.clickPoint,
+        input.pageBounds,
+        TABLE_WIDTH,
+        TABLE_HEIGHT,
+      ),
+      text: 'Table',
       zIndex: input.zIndex,
     });
   }

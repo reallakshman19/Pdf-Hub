@@ -9,6 +9,11 @@ export type WriterElementPatch = Partial<
   >
 >;
 
+export interface WriterElementBatchPatch {
+  id: string;
+  patch: WriterElementPatch;
+}
+
 export type WriterCommand =
   | {
       type: 'ADD_WRITER_ELEMENT';
@@ -92,6 +97,13 @@ export type WriterCommand =
       type: 'BATCH_ADD_WRITER_ELEMENTS';
       elements: WriterElementV2[];
       selectAll?: boolean;
+    }
+  | {
+      type: 'BATCH_UPDATE_WRITER_ELEMENTS';
+      updates: WriterElementBatchPatch[];
+      selectIds?: string[];
+      activeId?: string | null;
+      now?: string;
     }
   | {
       type: 'BATCH_DELETE_WRITER_ELEMENTS';
