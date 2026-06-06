@@ -11,7 +11,7 @@
 
 import type React from 'react';
 import type { OcrStore } from '../../core/ocr/store';
-import type { OcrBlock } from '../../core/ocr/types';
+import type { LegacyOcrBlock as OcrBlock } from '../../core/ocr/store';
 
 export interface OcrResultOverlayProps {
   ocrStore: OcrStore;

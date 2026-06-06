@@ -5,6 +5,11 @@ import type {
   WriterElementV2,
 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
+import type { OcrProjectPayloadV1 } from '../../ocr/ocrProjectCodec';
+import {
+  readOcrProjectPayloadFromZip,
+  writeOcrProjectPayloadToZip,
+} from '../../ocr/ocrProjectCodec';
 
 export interface PdfHubWriterProjectManifestV1 {
   schema: 'pdf-hub-project';
@@ -23,10 +28,15 @@ export interface PdfHubWriterProjectManifestV1 {
     writerAssets: 'writer-assets.json';
     writerDocumentMeta?: 'writer-document-meta.json';
     assetDirectory: 'assets/';
+    ocrManifest?: 'ocr/manifest.json';
   };
   counts: {
     writerElements: number;
     writerAssets: number;
+    ocrPages?: number;
+    ocrCorrections?: number;
+    ocrRegions?: number;
+    ocrWriterInsertionCandidates?: number;
   };
 }
 
@@ -36,6 +46,7 @@ export interface ExportPdfHubProjectInput {
   documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
   assets?: WriterAssetRecordV2[];
+  ocrProject?: OcrProjectPayloadV1 | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -45,6 +56,7 @@ export interface ExportPdfHubProjectResult {
   manifest: PdfHubWriterProjectManifestV1;
   elementCount: number;
   assetCount: number;
+  ocrProjectIncluded: boolean;
 }
 
 export interface ImportPdfHubProjectResult {
@@ -58,6 +70,7 @@ export interface ImportPdfHubProjectResult {
   documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
   assets: WriterAssetRecordV2[];
+  ocrProject: OcrProjectPayloadV1 | null;
 }
 
 interface StoredAssetMetadata {
@@ -111,13 +124,27 @@ export async function exportPdfHubWriterProject(
     source: {
       kind: documentMode,
       hasOriginalPdf,
+    files: {
+      originalPdf: 'original.pdf',
+      writerElements: 'writer-elements.json',
+      writerAssets: 'writer-assets.json',
+      assetDirectory: 'assets/',
+      ocrManifest: input.ocrProject ? 'ocr/manifest.json' : undefined,
     },
     files,
     counts: {
       writerElements: input.elements.length,
       writerAssets: assets.length,
+      ocrPages: input.ocrProject?.manifest.counts.pages,
+      ocrCorrections: input.ocrProject?.manifest.counts.corrections,
+      ocrRegions: input.ocrProject?.manifest.counts.regions,
+      ocrWriterInsertionCandidates: input.ocrProject?.manifest.counts.writerInsertionCandidates,
     },
   };
+
+  if (input.ocrProject) {
+    await writeOcrProjectPayloadToZip(zip, input.ocrProject);
+  }
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
@@ -191,6 +218,7 @@ export async function exportPdfHubWriterProject(
     manifest,
     elementCount: input.elements.length,
     assetCount: assets.length,
+    ocrProjectIncluded: Boolean(input.ocrProject),
   };
 }
 
@@ -242,6 +270,8 @@ export async function importPdfHubWriterProject(
     });
   }
 
+  const ocrProject = await readOcrProjectPayloadFromZip(zip);
+
   return {
     manifest,
     originalPdfBytes,
@@ -259,6 +289,7 @@ export async function importPdfHubWriterProject(
       style: { ...element.style },
     })),
     assets,
+    ocrProject,
   };
 }
 
