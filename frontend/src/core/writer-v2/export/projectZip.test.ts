@@ -6,6 +6,12 @@ import {
   exportPdfHubWriterProject,
   importPdfHubWriterProject,
 } from './projectZip';
+import {
+  createOcrProjectPayload,
+} from '../../ocr/ocrProjectCodec';
+import { mockOcrEngine } from '../../ocr/engines/mockOcrEngine';
+import { getOcrProfile } from '../../ocr/ocrProfiles';
+import { createOcrRegion } from '../../ocr/ocrRegionModel';
 
 async function blankPdfBytes(): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -175,5 +181,82 @@ describe('PDF Hub writer project ZIP', () => {
     const badZip = new Uint8Array([1, 2, 3, 4]);
 
     await expect(importPdfHubWriterProject(badZip)).rejects.toThrow();
+  });
+
+  it('exports and imports optional OCR project payload', async () => {
+    const ocrResult = await mockOcrEngine.recognize({
+      documentFingerprint: 'doc-project',
+      profile: getOcrProfile('clean-scan'),
+      pages: [
+        {
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        },
+      ],
+    });
+
+    const ocrProject = createOcrProjectPayload({
+      documentFingerprint: 'doc-project',
+      result: ocrResult,
+      regions: [
+        createOcrRegion({
+          id: 'region-1',
+          documentFingerprint: 'doc-project',
+          pageIndex: 0,
+          mode: 'text',
+          bbox: {
+            x: 60,
+            y: 620,
+            width: 420,
+            height: 180,
+          },
+          now: '2026-01-01T00:00:00.000Z',
+        }),
+      ],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes: new Uint8Array([37, 80, 68, 70]),
+      documentFingerprint: 'doc-project',
+      elements: [],
+      assets: [],
+      ocrProject,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    expect(exported.ocrProjectIncluded).toBe(true);
+    expect(exported.manifest.files.ocrManifest).toBe('ocr/manifest.json');
+    expect(exported.manifest.counts.ocrPages).toBe(1);
+    expect(exported.manifest.counts.ocrRegions).toBe(1);
+
+    const imported = await importPdfHubWriterProject(exported.bytes);
+
+    expect(imported.ocrProject).not.toBeNull();
+    expect(imported.ocrProject?.manifest.documentFingerprint).toBe('doc-project');
+    expect(imported.ocrProject?.result?.pages).toHaveLength(1);
+    expect(imported.ocrProject?.regions).toHaveLength(1);
+  });
+
+  it('imports project without OCR payload as backward-compatible null OCR project', async () => {
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes: new Uint8Array([37, 80, 68, 70]),
+      documentFingerprint: 'doc-no-ocr',
+      elements: [],
+      assets: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    expect(exported.ocrProjectIncluded).toBe(false);
+    expect(exported.manifest.files.ocrManifest).toBeUndefined();
+
+    const imported = await importPdfHubWriterProject(exported.bytes);
+
+    expect(imported.ocrProject).toBeNull();
   });
 });
