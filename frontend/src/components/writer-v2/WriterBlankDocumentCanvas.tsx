@@ -6,6 +6,7 @@ import {
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterBlankPageCanvas } from './WriterBlankPageCanvas';
 import { BlankDocumentPageSetupDialog } from './BlankDocumentPageSetupDialog';
+import { BlankDocumentRenameDialog } from './BlankDocumentRenameDialog';
 
 export interface WriterBlankDocumentCanvasProps {
   documentMeta?: WriterDocumentMetaV2 | null;
@@ -21,11 +22,13 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
   className,
 }) => {
   const [pageSetupOpen, setPageSetupOpen] = React.useState(false);
+  const [renameOpen, setRenameOpen] = React.useState(false);
   const storeDocumentMeta = useWriterV2Store((state) => state.documentMeta);
   const addBlankWriterPage = useWriterV2Store((state) => state.addBlankWriterPage);
   const duplicateBlankWriterPage = useWriterV2Store((state) => state.duplicateBlankWriterPage);
   const removeBlankWriterPage = useWriterV2Store((state) => state.deleteBlankWriterPage);
   const updateBlankWriterPageSetup = useWriterV2Store((state) => state.updateBlankWriterPageSetup);
+  const renameBlankWriterDocument = useWriterV2Store((state) => state.renameBlankWriterDocument);
   const documentMeta = documentMetaProp ?? storeDocumentMeta;
   const pages = React.useMemo(
     () => createWriterBlankDocumentPageDescriptors(documentMeta),
@@ -60,6 +63,31 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
         overflow: 'auto',
       }}
     >
+      <div
+        data-testid="writer-blank-document-title-row"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          color: '#0f172a',
+          fontSize: 14,
+          fontWeight: 600,
+          userSelect: 'none',
+        }}
+      >
+        <span data-testid="writer-blank-document-title">
+          {documentMeta.title ?? 'Untitled document'}
+        </span>
+        <button
+          type="button"
+          data-testid="writer-blank-document-rename-button"
+          onClick={() => setRenameOpen(true)}
+          style={pageActionButtonStyle}
+        >
+          Rename
+        </button>
+      </div>
+
       <div
         data-testid="writer-blank-document-top-controls"
         style={{
@@ -156,6 +184,16 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
           />
         </div>
       ))}
+
+      <BlankDocumentRenameDialog
+        open={renameOpen}
+        title={documentMeta.title ?? 'Untitled document'}
+        onCancel={() => setRenameOpen(false)}
+        onRename={(title) => {
+          renameBlankWriterDocument(title);
+          setRenameOpen(false);
+        }}
+      />
 
       <BlankDocumentPageSetupDialog
         open={pageSetupOpen}
