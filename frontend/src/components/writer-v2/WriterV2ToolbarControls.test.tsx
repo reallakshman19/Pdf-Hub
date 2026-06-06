@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { WriterV2ToolbarControls } from './WriterV2ToolbarControls';
 import { runWriterRichToolbarAction } from '@/core/writer-v2/writerRichToolbarActions';
+import { exportCurrentWriterDocx } from '@/core/writer-v2/export/exportCurrentWriterDocx';
+import { exportLiveBlankWriterDocx } from '@/core/writer-v2/export/exportLiveBlankWriterDocx';
 
 vi.mock('@/core/writer-v2/export/exportCurrentWriterPdf', () => ({
   exportCurrentWriterPdf: vi.fn(),
@@ -19,12 +21,49 @@ vi.mock('@/core/writer-v2/export/exportCurrentWriterRoundTripPdf', () => ({
 }));
 
 vi.mock('@/core/writer-v2/export/exportCurrentWriterDocx', () => ({
-  exportCurrentWriterDocx: vi.fn(),
+  exportCurrentWriterDocx: vi.fn(() => Promise.resolve({
+    bytes: new Uint8Array([1, 2, 3]),
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    diagnostics: [],
+    blockResult: {
+      blocks: [],
+      diagnostics: [],
+      exportedElementCount: 0,
+      skippedHiddenElementCount: 0,
+      fatal: false,
+    },
+    exportedElementCount: 0,
+    skippedHiddenElementCount: 0,
+    fatal: false,
+  })),
+}));
+
+vi.mock('@/core/writer-v2/export/exportLiveBlankWriterDocx', () => ({
+  exportLiveBlankWriterDocx: vi.fn(() => Promise.resolve({
+    bytes: new Uint8Array([4, 5, 6]),
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    diagnostics: [],
+    blockResult: {
+      blocks: [],
+      diagnostics: [],
+      exportedElementCount: 0,
+      skippedHiddenElementCount: 0,
+      fatal: false,
+    },
+    exportedElementCount: 0,
+    skippedHiddenElementCount: 0,
+    fatal: false,
+  })),
 }));
 
 vi.mock('@/core/writer-v2/export/projectImportController', () => ({
   importProjectIntoWriterStore: vi.fn(),
   importRoundTripPdfIntoWriterStore: vi.fn(),
+}));
+
+vi.mock('@/core/writer-v2/export/downloadWriterFile', () => ({
+  downloadWriterBytes: vi.fn(),
+  safeDownloadBaseName: vi.fn((name?: string | null) => name || 'writer-document'),
 }));
 
 vi.mock('@/core/writer-v2/writerRichToolbarActions', () => ({
@@ -190,6 +229,26 @@ describe('WriterV2ToolbarControls', () => {
     expect(screen.getByRole('button', { name: /docx/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /save project/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /flatten/i })).not.toBeDisabled();
+  });
+
+  it('routes blank DOCX toolbar export through live blank exporter', async () => {
+    useSessionStore.getState().clearDocument();
+    useWriterV2Store.getState().createBlankWriterDocument({
+      title: 'Blank Toolbar DOCX',
+      documentFingerprint: 'blank-doc-toolbar-docx',
+    });
+
+    render(<WriterV2ToolbarControls />);
+
+    fireEvent.click(screen.getByRole('button', { name: /docx/i }));
+
+    await waitFor(() => {
+      expect(exportLiveBlankWriterDocx).toHaveBeenCalledWith({
+        title: 'Blank Toolbar DOCX Writer V2',
+      });
+    });
+
+    expect(exportCurrentWriterDocx).not.toHaveBeenCalled();
   });
 
   it('renders import project file input', () => {
