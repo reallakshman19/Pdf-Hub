@@ -97,6 +97,36 @@ describe('WriterBlankPageCanvas', () => {
     expect(state.activeWriterTool).toBe('select');
   });
 
+  it('places a tableBox on pointer down when table placement is active', () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-table-doc',
+      pageSetup: WRITER_PAGE_PRESETS.A4,
+      pageCount: 1,
+    });
+    useWriterV2Store.getState().setActiveWriterTool('tableBox');
+    useEditorStore.setState({ activeMode: 'write' });
+
+    render(
+      <WriterBlankPageCanvas pageIndex={0} />,
+    );
+
+    fireEvent.pointerDown(screen.getByTestId('writer-blank-page-canvas'), {
+      clientX: 180,
+      clientY: 220,
+      pointerId: 1,
+    });
+
+    const state = useWriterV2Store.getState();
+
+    expect(state.elements).toHaveLength(1);
+    expect(state.elements[0].type).toBe('tableBox');
+    expect(state.elements[0].documentFingerprint).toBe('blank-table-doc');
+    expect(state.elements[0].tableData?.columns).toHaveLength(3);
+    expect(state.elements[0].tableData?.rows).toHaveLength(2);
+    expect(state.selectedIds).toEqual([state.elements[0].id]);
+    expect(state.activeWriterTool).toBe('select');
+  });
+
   it('clears selection on blank page pointer down when not placing', () => {
     useWriterV2Store.getState().createBlankWriterDocument({
       documentFingerprint: 'blank-clear-doc',
