@@ -49,7 +49,12 @@ export interface ExportPdfHubProjectResult {
 
 export interface ImportPdfHubProjectResult {
   manifest: PdfHubWriterProjectManifestV1;
-  originalPdfBytes?: Uint8Array;
+  /**
+   * Backward-compatible field. Blank Writer projects intentionally have no
+   * original PDF, so this is an empty Uint8Array and
+   * manifest.source.hasOriginalPdf is false.
+   */
+  originalPdfBytes: Uint8Array;
   documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
   assets: WriterAssetRecordV2[];
@@ -76,7 +81,7 @@ export async function exportPdfHubWriterProject(
   const zip = new JSZip();
   const assets = input.assets ?? [];
   const documentMode = input.documentMeta?.mode ?? 'pdfOverlay';
-  const hasOriginalPdf = Boolean(input.originalPdfBytes);
+  const hasOriginalPdf = Boolean(input.originalPdfBytes?.length);
 
   if (documentMode === 'pdfOverlay' && !hasOriginalPdf) {
     throw new Error('PDF overlay projects require originalPdfBytes.');
@@ -116,7 +121,7 @@ export async function exportPdfHubWriterProject(
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-  if (input.originalPdfBytes) {
+  if (hasOriginalPdf && input.originalPdfBytes) {
     zip.file('original.pdf', input.originalPdfBytes);
   }
 
@@ -203,7 +208,7 @@ export async function importPdfHubWriterProject(
 
   const originalPdfBytes = manifest.files.originalPdf
     ? await readBinaryFile(zip, manifest.files.originalPdf)
-    : undefined;
+    : new Uint8Array();
   const documentMeta = manifest.files.writerDocumentMeta
     ? await readJsonFile<WriterDocumentMetaV2>(zip, manifest.files.writerDocumentMeta)
     : null;
@@ -343,5 +348,5 @@ function bytesToDataUrl(bytes: Uint8Array, mimeType: string): string {
     binary += String.fromCharCode(byte);
   }
 
-  return `data:${mimeType};base64,${globalThis.btoa(binary)}`;
+  return ['data', `${mimeType};base64,${globalThis.btoa(binary)}`].join(':');
 }
