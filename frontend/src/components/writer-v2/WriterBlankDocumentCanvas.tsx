@@ -5,6 +5,7 @@ import {
 } from '@/core/writer-v2/writerBlankDocumentLayout';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterBlankPageCanvas } from './WriterBlankPageCanvas';
+import { BlankDocumentPageSetupDialog } from './BlankDocumentPageSetupDialog';
 
 export interface WriterBlankDocumentCanvasProps {
   documentMeta?: WriterDocumentMetaV2 | null;
@@ -19,10 +20,12 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
   showMarginGuides = true,
   className,
 }) => {
+  const [pageSetupOpen, setPageSetupOpen] = React.useState(false);
   const storeDocumentMeta = useWriterV2Store((state) => state.documentMeta);
   const addBlankWriterPage = useWriterV2Store((state) => state.addBlankWriterPage);
   const duplicateBlankWriterPage = useWriterV2Store((state) => state.duplicateBlankWriterPage);
   const removeBlankWriterPage = useWriterV2Store((state) => state.deleteBlankWriterPage);
+  const updateBlankWriterPageSetup = useWriterV2Store((state) => state.updateBlankWriterPageSetup);
   const documentMeta = documentMetaProp ?? storeDocumentMeta;
   const pages = React.useMemo(
     () => createWriterBlankDocumentPageDescriptors(documentMeta),
@@ -69,8 +72,16 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
         }}
       >
         <span>
-          {pageCount} {pageCount === 1 ? 'page' : 'pages'}
+          {pageCount} {pageCount === 1 ? 'page' : 'pages'} · {Math.round(documentMeta.pageSetup.width)} × {Math.round(documentMeta.pageSetup.height)} pt
         </span>
+        <button
+          type="button"
+          data-testid="writer-blank-document-page-setup-button"
+          onClick={() => setPageSetupOpen(true)}
+          style={pageActionButtonStyle}
+        >
+          Page setup
+        </button>
         <button
           type="button"
           data-testid="writer-blank-document-add-page-button"
@@ -145,6 +156,16 @@ export const WriterBlankDocumentCanvas: React.FC<WriterBlankDocumentCanvasProps>
           />
         </div>
       ))}
+
+      <BlankDocumentPageSetupDialog
+        open={pageSetupOpen}
+        pageSetup={documentMeta.pageSetup}
+        onCancel={() => setPageSetupOpen(false)}
+        onApply={(pageSetup) => {
+          updateBlankWriterPageSetup(pageSetup);
+          setPageSetupOpen(false);
+        }}
+      />
     </div>
   );
 };
