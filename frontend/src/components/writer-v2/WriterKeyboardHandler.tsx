@@ -5,6 +5,10 @@ import {
   duplicateSelectedWriterElements,
   nudgeSelectedWriterElements,
 } from '@/core/writer-v2/writerSelectionActions';
+import {
+  copySelectedWriterElementsToClipboard,
+  pasteWriterClipboardElements,
+} from '@/core/writer-v2/writerClipboardActions';
 
 /**
  * Document-level Writer V2 keyboard shortcuts.
@@ -33,6 +37,18 @@ export const WriterKeyboardHandler: React.FC = () => {
       const isMac = navigator.platform.toUpperCase().includes('MAC');
       const ctrl = isMac ? event.metaKey : event.ctrlKey;
       const step = event.shiftKey ? 10 : 1;
+
+      if (ctrl && event.key.toLowerCase() === 'c' && hasSelection) {
+        event.preventDefault();
+        copySelectedWriterElementsToClipboard();
+        return;
+      }
+
+      if (ctrl && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteWriterClipboardElements();
+        return;
+      }
 
       if (hasSelection && isArrowKey(event.key)) {
         const delta = nudgeDelta(event.key, step);
