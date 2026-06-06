@@ -100,7 +100,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
 
   setActiveWriterTool: (activeWriterTool) => {
     set({
-      activeWriterTool: normalizeWriterToolForRichAuthoring(activeWriterTool),
+      activeWriterTool: normalizeWriterToolForRichAuthoring(activeWriterTool, {
+        allowLegacyPlacement: get().documentMeta?.mode === 'blankDocument',
+      }),
     });
   },
 
