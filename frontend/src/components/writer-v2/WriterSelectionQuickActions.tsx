@@ -20,6 +20,7 @@ import {
   type WriterDistributeMode,
   type WriterSelectionActionResult,
 } from '@/core/writer-v2/writerSelectionActions';
+import { WriterGeometryQuickPanel } from './WriterGeometryQuickPanel';
 
 export const WriterSelectionQuickActions: React.FC = () => {
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
@@ -60,6 +61,7 @@ export const WriterSelectionQuickActions: React.FC = () => {
         {selectedCount} selected
       </span>
 
+      <WriterGeometryQuickPanel />
       <QuickAction label="Copy" title="Copy selected Writer elements" onClick={() => run(copySelectedWriterElementsToClipboard())} />
       <QuickAction label="Paste" title="Paste copied Writer elements" onClick={() => run(pasteWriterClipboardElements())} />
       <QuickAction label="Duplicate" title="Duplicate selected Writer elements" onClick={() => run(duplicateSelectedWriterElements())} />
