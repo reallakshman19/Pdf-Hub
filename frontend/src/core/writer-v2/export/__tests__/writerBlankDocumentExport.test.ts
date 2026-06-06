@@ -9,7 +9,10 @@ import {
 import type { WriterElementV2 } from '../../types';
 import { WRITER_PAGE_PRESETS } from '../../types';
 import { useWriterV2Store } from '../../writerV2Store';
-import { exportCurrentWriterPdf } from '../exportCurrentWriterPdf';
+import {
+  cssHexToPdfRgb,
+  exportCurrentWriterPdf,
+} from '../exportCurrentWriterPdf';
 import { exportLiveBlankWriterDocx } from '../exportLiveBlankWriterDocx';
 
 describe('blank Writer document exports', () => {
@@ -20,7 +23,10 @@ describe('blank Writer document exports', () => {
   it('exports blank Writer document to PDF with configured page count and size', async () => {
     useWriterV2Store.getState().createBlankWriterDocument({
       documentFingerprint: 'blank-export-pdf',
-      pageSetup: WRITER_PAGE_PRESETS.Letter,
+      pageSetup: {
+        ...WRITER_PAGE_PRESETS.Letter,
+        backgroundColor: '#f8fafc',
+      },
       pageCount: 2,
       now: '2026-01-01T00:00:00.000Z',
     });
@@ -36,6 +42,21 @@ describe('blank Writer document exports', () => {
     expect(pages).toHaveLength(2);
     expect(pages[0].getWidth()).toBe(612);
     expect(pages[0].getHeight()).toBe(792);
+    expect(bytes.length).toBeGreaterThan(0);
+  });
+
+  it('converts CSS hex background color to pdf-lib RGB', () => {
+    expect(cssHexToPdfRgb('#ffffff')).toMatchObject({
+      red: 1,
+      green: 1,
+      blue: 1,
+    });
+    expect(cssHexToPdfRgb('#000000')).toMatchObject({
+      red: 0,
+      green: 0,
+      blue: 0,
+    });
+    expect(cssHexToPdfRgb('not-a-color')).toBeNull();
   });
 
   it('exports blank Writer document to DOCX with page setup and expected text', async () => {
