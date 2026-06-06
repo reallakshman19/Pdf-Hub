@@ -6,12 +6,14 @@ import {
   Paragraph,
   Table,
 } from 'docx';
+import type { WriterPageSetupV2 } from '../../types';
 import type { PortableExportBlock, WriterDocxExportDiagnostic } from './types';
 import {
   DEFAULT_DOCX_FONT_FAMILY,
   DEFAULT_DOCX_FONT_SIZE_PT,
   inchToTwip,
   ptToHalfPoints,
+  ptToTwip,
 } from './docxUnits';
 import { renderHeadingBlock } from './renderHeadingBlock';
 import { renderImageBlock } from './renderImageBlock';
@@ -25,6 +27,7 @@ export interface BuildWriterDocxDocumentInput {
   blocks: PortableExportBlock[];
   assets: WriterDocxAssetResolver;
   title?: string;
+  pageSetup?: WriterPageSetupV2;
 }
 
 export interface BuildWriterDocxDocumentResult {
@@ -175,14 +178,7 @@ export async function buildWriterDocxDocument(
     sections: [
       {
         properties: {
-          page: {
-            margin: {
-              top: inchToTwip(1),
-              right: inchToTwip(1),
-              bottom: inchToTwip(1),
-              left: inchToTwip(1),
-            },
-          },
+          page: createDocxPageProperties(input.pageSetup),
         },
         children,
       },
@@ -195,5 +191,31 @@ export async function buildWriterDocxDocument(
   return {
     bytes,
     diagnostics,
+  };
+}
+
+function createDocxPageProperties(pageSetup: WriterPageSetupV2 | undefined) {
+  if (!pageSetup) {
+    return {
+      margin: {
+        top: inchToTwip(1),
+        right: inchToTwip(1),
+        bottom: inchToTwip(1),
+        left: inchToTwip(1),
+      },
+    };
+  }
+
+  return {
+    size: {
+      width: ptToTwip(pageSetup.width),
+      height: ptToTwip(pageSetup.height),
+    },
+    margin: {
+      top: ptToTwip(pageSetup.marginTop),
+      right: ptToTwip(pageSetup.marginRight),
+      bottom: ptToTwip(pageSetup.marginBottom),
+      left: ptToTwip(pageSetup.marginLeft),
+    },
   };
 }
