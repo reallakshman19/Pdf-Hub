@@ -41,8 +41,10 @@ export async function importRoundTripPdfIntoWriterStore(
 }
 
 function toSession(imported: ImportPdfHubProjectResult): ImportedProjectSession {
+  const hasOriginalPdf = imported.manifest.source?.hasOriginalPdf ?? imported.originalPdfBytes.length > 0;
+
   return {
-    originalPdfBytes: imported.originalPdfBytes,
+    originalPdfBytes: hasOriginalPdf ? imported.originalPdfBytes : undefined,
     documentFingerprint: imported.manifest.documentFingerprint,
     documentMeta: imported.documentMeta,
     elementCount: imported.elements.length,
