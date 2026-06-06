@@ -114,6 +114,10 @@ export async function exportPdfHubWriterProject(
     files.writerDocumentMeta = 'writer-document-meta.json';
   }
 
+  if (input.ocrProject) {
+    files.ocrManifest = 'ocr/manifest.json';
+  }
+
   const manifest: PdfHubWriterProjectManifestV1 = {
     schema: 'pdf-hub-project',
     schemaVersion: 1,
@@ -124,12 +128,6 @@ export async function exportPdfHubWriterProject(
     source: {
       kind: documentMode,
       hasOriginalPdf,
-    files: {
-      originalPdf: 'original.pdf',
-      writerElements: 'writer-elements.json',
-      writerAssets: 'writer-assets.json',
-      assetDirectory: 'assets/',
-      ocrManifest: input.ocrProject ? 'ocr/manifest.json' : undefined,
     },
     files,
     counts: {
@@ -138,7 +136,8 @@ export async function exportPdfHubWriterProject(
       ocrPages: input.ocrProject?.manifest.counts.pages,
       ocrCorrections: input.ocrProject?.manifest.counts.corrections,
       ocrRegions: input.ocrProject?.manifest.counts.regions,
-      ocrWriterInsertionCandidates: input.ocrProject?.manifest.counts.writerInsertionCandidates,
+      ocrWriterInsertionCandidates:
+        input.ocrProject?.manifest.counts.writerInsertionCandidates,
     },
   };
 
@@ -237,13 +236,19 @@ export async function importPdfHubWriterProject(
   const originalPdfBytes = manifest.files.originalPdf
     ? await readBinaryFile(zip, manifest.files.originalPdf)
     : new Uint8Array();
+
   const documentMeta = manifest.files.writerDocumentMeta
-    ? await readJsonFile<WriterDocumentMetaV2>(zip, manifest.files.writerDocumentMeta)
+    ? await readJsonFile<WriterDocumentMetaV2>(
+        zip,
+        manifest.files.writerDocumentMeta,
+      )
     : null;
+
   const elements = await readJsonFile<WriterElementV2[]>(
     zip,
     manifest.files.writerElements,
   );
+
   const storedAssets = await readJsonFile<StoredAssetMetadata[]>(
     zip,
     manifest.files.writerAssets,
@@ -299,7 +304,9 @@ function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
   }
 
   if (manifest.schemaVersion !== 1) {
-    throw new Error(`Unsupported project schemaVersion: ${manifest.schemaVersion}`);
+    throw new Error(
+      `Unsupported project schemaVersion: ${manifest.schemaVersion}`,
+    );
   }
 
   if (!manifest.documentFingerprint) {
@@ -307,8 +314,8 @@ function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
   }
 
   const isBlankDocument =
-    manifest.documentMode === 'blankDocument'
-    || manifest.source?.kind === 'blankDocument';
+    manifest.documentMode === 'blankDocument' ||
+    manifest.source?.kind === 'blankDocument';
 
   if (!isBlankDocument && !manifest.files.originalPdf) {
     throw new Error('PDF overlay project manifest is missing originalPdf.');
