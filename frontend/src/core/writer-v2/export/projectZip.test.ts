@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import type { WriterElementV2 } from '../types';
+import type { WriterDocumentMetaV2, WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import {
   exportPdfHubWriterProject,
@@ -57,6 +57,72 @@ function asset(id: string): WriterAssetRecordV2 {
 }
 
 describe('PDF Hub writer project ZIP', () => {
+  it('exports manifest with both source metadata and files map', async () => {
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assets: [asset('asset-1')],
+      createdAt: '2026-01-02T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    expect(exported.manifest.documentMode).toBe('pdfOverlay');
+    expect(exported.manifest.source).toEqual({
+      kind: 'pdfOverlay',
+      hasOriginalPdf: true,
+    });
+    expect(exported.manifest.files).toEqual({
+      originalPdf: 'original.pdf',
+      writerElements: 'writer-elements.json',
+      writerAssets: 'writer-assets.json',
+      assetDirectory: 'assets/',
+    });
+  });
+
+  it('exports blank manifest with source metadata and no original PDF file entry', async () => {
+    const documentMeta: WriterDocumentMetaV2 = {
+      documentFingerprint: 'blank-doc-1',
+      mode: 'blankDocument',
+      title: 'Blank Project',
+      pageSetup: {
+        preset: 'A4',
+        width: 595.28,
+        height: 841.89,
+        marginTop: 72,
+        marginRight: 72,
+        marginBottom: 72,
+        marginLeft: 72,
+        backgroundColor: '#ffffff',
+      },
+      pageCount: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes: null,
+      documentFingerprint: 'blank-doc-1',
+      documentMeta,
+      elements: [],
+      assets: [],
+      createdAt: '2026-01-02T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    expect(exported.manifest.documentMode).toBe('blankDocument');
+    expect(exported.manifest.source).toEqual({
+      kind: 'blankDocument',
+      hasOriginalPdf: false,
+    });
+    expect(exported.manifest.files).toEqual({
+      writerElements: 'writer-elements.json',
+      writerAssets: 'writer-assets.json',
+      writerDocumentMeta: 'writer-document-meta.json',
+      assetDirectory: 'assets/',
+    });
+  });
+
   it('exports and imports editable writer project data', async () => {
     const exported = await exportPdfHubWriterProject({
       originalPdfBytes: await blankPdfBytes(),
