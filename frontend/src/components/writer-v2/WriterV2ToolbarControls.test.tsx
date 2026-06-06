@@ -179,7 +179,7 @@ describe('WriterV2ToolbarControls', () => {
     expect(screen.getByRole('button', { name: /save project/i })).toBeDisabled();
   });
 
-  it('enables DOCX and project export for blank documents but keeps PDF-only exports disabled', () => {
+  it('enables DOCX, PDF, and project export for blank documents', () => {
     useSessionStore.getState().clearDocument();
     useWriterV2Store.getState().createBlankWriterDocument({
       documentFingerprint: 'blank-doc-toolbar',
@@ -189,7 +189,7 @@ describe('WriterV2ToolbarControls', () => {
 
     expect(screen.getByRole('button', { name: /docx/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /save project/i })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /flatten/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /flatten/i })).not.toBeDisabled();
   });
 
   it('renders import project file input', () => {
