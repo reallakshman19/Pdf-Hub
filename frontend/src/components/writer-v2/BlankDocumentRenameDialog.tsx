@@ -18,6 +18,8 @@ export const BlankDocumentRenameDialog: React.FC<BlankDocumentRenameDialogProps>
 
   React.useEffect(() => {
     if (open) {
+      // The draft input must reset to the latest persisted title every time the modal opens.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraftTitle(title);
     }
   }, [open, title]);
