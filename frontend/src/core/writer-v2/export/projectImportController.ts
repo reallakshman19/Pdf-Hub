@@ -1,3 +1,4 @@
+import type { WriterDocumentMetaV2 } from '../types';
 import { useWriterV2Store } from '../writerV2Store';
 import {
   importPdfHubWriterProject,
@@ -6,8 +7,9 @@ import {
 import { extractWriterProjectFromPdf } from './roundTripPdfImport';
 
 export interface ImportedProjectSession {
-  originalPdfBytes: Uint8Array;
+  originalPdfBytes?: Uint8Array;
   documentFingerprint: string;
+  documentMeta?: WriterDocumentMetaV2 | null;
   elementCount: number;
   assetCount: number;
 }
@@ -42,6 +44,7 @@ function toSession(imported: ImportPdfHubProjectResult): ImportedProjectSession 
   return {
     originalPdfBytes: imported.originalPdfBytes,
     documentFingerprint: imported.manifest.documentFingerprint,
+    documentMeta: imported.documentMeta,
     elementCount: imported.elements.length,
     assetCount: imported.assets.length,
   };
@@ -53,5 +56,6 @@ function hydrateImportedProject(imported: ImportPdfHubProjectResult): void {
     elements: imported.elements,
     assetRecords: imported.assets,
     persistedAt: imported.manifest.updatedAt,
+    documentMeta: imported.documentMeta,
   });
 }
