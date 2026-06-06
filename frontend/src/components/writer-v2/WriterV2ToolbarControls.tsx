@@ -143,13 +143,13 @@ export const WriterV2ToolbarControls: React.FC = () => {
   };
 
   const exportFlattenedPdf = async () => {
-    if (!sourceBytes) {
-      failSaveOperation('No PDF is open for flattened Writer V2 export.');
+    if (!sourceBytes && !isBlankDocument) {
+      failSaveOperation('No PDF or blank Writer document is open for Writer PDF export.');
       return;
     }
 
     try {
-      beginExportOperation('Exporting flattened Writer V2 PDF…');
+      beginExportOperation('Exporting Writer PDF…');
 
       const bytes = await exportCurrentWriterPdf({
         pdfBytes: sourceBytes,
@@ -161,7 +161,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
         'application/pdf',
       );
 
-      completeSaveOperation('Flattened Writer V2 PDF exported.');
+      completeSaveOperation('Writer PDF exported.');
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
@@ -470,11 +470,11 @@ export const WriterV2ToolbarControls: React.FC = () => {
       <ResponsiveBtn
         icon={FileDown}
         label="Flatten"
-        disabled={!sourceBytes}
+        disabled={!sourceBytes && !isBlankDocument}
         onClick={() => {
           void runWithWriterPreflight('Flattened PDF', exportFlattenedPdf);
         }}
-        title="Export flattened Writer PDF (view-only, smaller)"
+        title="Export Writer PDF (view-only, smaller)"
       />
       <ResponsiveBtn
         icon={ListChecks}
