@@ -87,6 +87,7 @@ export const WriterBlankPageCanvas: React.FC<WriterBlankPageCanvasProps> = ({
       clickPoint,
       pageBounds: layout.pageBounds,
       zIndex: maxZIndex + 1,
+      allowLegacyPlacement: true,
     });
 
     if (!element) {
