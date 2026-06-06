@@ -89,6 +89,68 @@ export interface WriterPageViewport {
   rotation: WriterRotation;
 }
 
+export type WriterDocumentMode = 'pdfOverlay' | 'blankDocument';
+
+export type WriterPagePreset = 'A4' | 'Letter' | 'Legal' | 'Custom';
+
+export interface WriterPageSetupV2 {
+  preset: WriterPagePreset;
+  width: number;
+  height: number;
+  unit: 'pt';
+  marginTop: number;
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
+  backgroundColor?: string;
+}
+
+export interface WriterDocumentMetaV2 {
+  documentFingerprint: string;
+  mode: WriterDocumentMode;
+  title?: string;
+  pageSetup: WriterPageSetupV2;
+  pageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const WRITER_PAGE_PRESETS: Record<Exclude<WriterPagePreset, 'Custom'>, WriterPageSetupV2> = {
+  A4: {
+    preset: 'A4',
+    width: 595.28,
+    height: 841.89,
+    unit: 'pt',
+    marginTop: 72,
+    marginRight: 72,
+    marginBottom: 72,
+    marginLeft: 72,
+    backgroundColor: '#ffffff',
+  },
+  Letter: {
+    preset: 'Letter',
+    width: 612,
+    height: 792,
+    unit: 'pt',
+    marginTop: 72,
+    marginRight: 72,
+    marginBottom: 72,
+    marginLeft: 72,
+    backgroundColor: '#ffffff',
+  },
+  Legal: {
+    preset: 'Legal',
+    width: 612,
+    height: 1008,
+    unit: 'pt',
+    marginTop: 72,
+    marginRight: 72,
+    marginBottom: 72,
+    marginLeft: 72,
+    backgroundColor: '#ffffff',
+  },
+};
+
 export interface WriterAssetRef {
   id: string;
   kind: 'image';
