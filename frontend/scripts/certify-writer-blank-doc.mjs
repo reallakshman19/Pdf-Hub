@@ -11,6 +11,7 @@ const requiredFiles = [
   'src/core/writer-v2/writerImageAsset.ts',
   'src/core/writer-v2/writerClipboardActions.ts',
   'src/core/writer-v2/writerSnapGuides.ts',
+  'src/core/writer-v2/writerGeometryActions.ts',
   'src/core/writer-v2/export/exportLiveBlankWriterDocx.ts',
   'src/components/writer-v2/WriterBlankDocumentCanvas.tsx',
   'src/components/writer-v2/WriterBlankPageCanvas.tsx',
@@ -20,6 +21,7 @@ const requiredFiles = [
   'src/components/writer-v2/WriterBlankImageInsertButton.tsx',
   'src/components/writer-v2/WriterSelectionQuickActions.tsx',
   'src/components/writer-v2/WriterSelectionHandles.tsx',
+  'src/components/writer-v2/WriterGeometryQuickPanel.tsx',
 ];
 
 const testGroups = [
@@ -33,6 +35,7 @@ const testGroups = [
       'imageAssetCreation',
       'internalClipboard',
       'snapGuideCore',
+      'geometryActions',
     ],
     files: [
       'src/core/writer-v2/__tests__/writerDocumentMode.test.ts',
@@ -40,6 +43,7 @@ const testGroups = [
       'src/core/writer-v2/__tests__/writerImageAsset.test.ts',
       'src/core/writer-v2/__tests__/writerClipboardActions.test.ts',
       'src/core/writer-v2/__tests__/writerSnapGuides.test.ts',
+      'src/core/writer-v2/__tests__/writerGeometryActions.test.ts',
       'src/core/writer-v2/__tests__/writerV2StoreBlankDocument.test.ts',
       'src/core/writer-v2/__tests__/writerBlankDocumentLayout.test.ts',
     ],
@@ -59,6 +63,7 @@ const testGroups = [
       'elementResize',
       'keyboardClipboard',
       'elementSnapDrag',
+      'geometryQuickPanel',
     ],
     files: [
       'src/components/writer-v2/__tests__/WriterBlankPageCanvas.test.tsx',
@@ -74,6 +79,7 @@ const testGroups = [
       'src/components/writer-v2/__tests__/WriterElementBoxResize.test.tsx',
       'src/components/writer-v2/__tests__/WriterElementBoxSnap.test.tsx',
       'src/components/writer-v2/__tests__/WriterKeyboardHandlerClipboard.test.tsx',
+      'src/components/writer-v2/__tests__/WriterGeometryQuickPanel.test.tsx',
       'src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
     ],
   },
