@@ -28,6 +28,7 @@ export const WriterSelectionHandles: React.FC<WriterSelectionHandlesProps> = ({
     <>
       <div
         data-writer-v2-selection-box="true"
+        data-testid="writer-v2-selection-box"
         style={{
           position: 'absolute',
           inset: -2,
@@ -39,7 +40,8 @@ export const WriterSelectionHandles: React.FC<WriterSelectionHandlesProps> = ({
         <div
           key={handle}
           data-writer-v2-resize-handle={handle}
-          aria-label="Resize writer element"
+          data-testid={`writer-v2-resize-handle-${handle}`}
+          aria-label={`Resize writer element ${handle}`}
           onPointerDown={(event) => onResizePointerDown(event, handle)}
           style={{
             position: 'absolute',
