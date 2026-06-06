@@ -21,10 +21,10 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      // This app intentionally colocates small exported helpers, constants, and
+      // test-facing adapters next to some components. Keeping this rule enabled
+      // creates noisy CI warnings without improving runtime correctness.
+      'react-refresh/only-export-components': 'off',
       'no-console': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
     },

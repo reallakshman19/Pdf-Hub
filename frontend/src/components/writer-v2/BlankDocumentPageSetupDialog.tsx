@@ -30,13 +30,22 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
   React.useEffect(() => {
     if (!open) return;
 
+    // The dialog owns a local draft that must reset from committed page setup on every open.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreset(pageSetup.preset);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWidth(pageSetup.width);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeight(pageSetup.height);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginTop(pageSetup.marginTop);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginRight(pageSetup.marginRight);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginBottom(pageSetup.marginBottom);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginLeft(pageSetup.marginLeft);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBackgroundColor(pageSetup.backgroundColor ?? '#ffffff');
   }, [open, pageSetup]);
 
