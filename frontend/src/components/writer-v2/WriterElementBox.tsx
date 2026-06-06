@@ -9,6 +9,7 @@ import {
   pdfRectToViewportRect,
   viewportRectToPdfRect,
 } from '@/core/writer-v2/coordinateTransform';
+import { applyWriterRectSnap } from '@/core/writer-v2/writerSnapGuides';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterCalloutElement } from './WriterCalloutElement';
 import { WriterRichElementBox } from './WriterRichElementBox';
@@ -46,6 +47,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 }) => {
   const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
   const editingId = useWriterV2Store((state) => state.editingId);
+  const documentMeta = useWriterV2Store((state) => state.documentMeta);
   const beginEditingWriterElement = useWriterV2Store((state) => state.beginEditingWriterElement);
   const endEditingWriterElement = useWriterV2Store((state) => state.endEditingWriterElement);
 
@@ -170,9 +172,25 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
       nextViewportRect = { x: newX, y: newY, width: newW, height: newH };
     }
 
+    const nextPdfRect = viewportRectToPdfRect(nextViewportRect, viewport);
+    const snappedRect = drag.mode === 'move'
+      ? applyWriterRectSnap(nextPdfRect, {
+          pageWidth: viewport.pdfWidth,
+          pageHeight: viewport.pdfHeight,
+          margins: documentMeta?.mode === 'blankDocument'
+            ? {
+                top: documentMeta.pageSetup.marginTop,
+                right: documentMeta.pageSetup.marginRight,
+                bottom: documentMeta.pageSetup.marginBottom,
+                left: documentMeta.pageSetup.marginLeft,
+              }
+            : undefined,
+        }).rect
+      : nextPdfRect;
+
     setDraftRectState({
       rectKey,
-      rect: viewportRectToPdfRect(nextViewportRect, viewport),
+      rect: snappedRect,
     });
   };
 
