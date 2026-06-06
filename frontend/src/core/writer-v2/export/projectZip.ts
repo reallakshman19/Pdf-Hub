@@ -1,5 +1,9 @@
 import JSZip from 'jszip';
-import type { WriterElementV2 } from '../types';
+import type {
+  WriterDocumentMetaV2,
+  WriterDocumentMode,
+  WriterElementV2,
+} from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import type { OcrProjectPayloadV1 } from '../../ocr/ocrProjectCodec';
 import {
@@ -13,10 +17,16 @@ export interface PdfHubWriterProjectManifestV1 {
   createdAt: string;
   updatedAt: string;
   documentFingerprint: string;
+  documentMode?: WriterDocumentMode;
+  source?: {
+    kind: WriterDocumentMode;
+    hasOriginalPdf: boolean;
+  };
   files: {
-    originalPdf: 'original.pdf';
+    originalPdf?: 'original.pdf';
     writerElements: 'writer-elements.json';
     writerAssets: 'writer-assets.json';
+    writerDocumentMeta?: 'writer-document-meta.json';
     assetDirectory: 'assets/';
     ocrManifest?: 'ocr/manifest.json';
   };
@@ -31,8 +41,9 @@ export interface PdfHubWriterProjectManifestV1 {
 }
 
 export interface ExportPdfHubProjectInput {
-  originalPdfBytes: Uint8Array;
+  originalPdfBytes?: Uint8Array | null;
   documentFingerprint: string;
+  documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
   assets?: WriterAssetRecordV2[];
   ocrProject?: OcrProjectPayloadV1 | null;
@@ -50,7 +61,13 @@ export interface ExportPdfHubProjectResult {
 
 export interface ImportPdfHubProjectResult {
   manifest: PdfHubWriterProjectManifestV1;
+  /**
+   * Backward-compatible field. Blank Writer projects intentionally have no
+   * original PDF, so this is an empty Uint8Array and
+   * manifest.source.hasOriginalPdf is false.
+   */
   originalPdfBytes: Uint8Array;
+  documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
   assets: WriterAssetRecordV2[];
   ocrProject: OcrProjectPayloadV1 | null;
@@ -72,10 +89,30 @@ export async function exportPdfHubWriterProject(
   input: ExportPdfHubProjectInput,
 ): Promise<ExportPdfHubProjectResult> {
   const now = new Date().toISOString();
-  const createdAt = input.createdAt ?? now;
-  const updatedAt = input.updatedAt ?? now;
+  const createdAt = input.createdAt ?? input.documentMeta?.createdAt ?? now;
+  const updatedAt = input.updatedAt ?? input.documentMeta?.updatedAt ?? now;
   const zip = new JSZip();
   const assets = input.assets ?? [];
+  const documentMode = input.documentMeta?.mode ?? 'pdfOverlay';
+  const hasOriginalPdf = Boolean(input.originalPdfBytes?.length);
+
+  if (documentMode === 'pdfOverlay' && !hasOriginalPdf) {
+    throw new Error('PDF overlay projects require originalPdfBytes.');
+  }
+
+  const files: PdfHubWriterProjectManifestV1['files'] = {
+    writerElements: 'writer-elements.json',
+    writerAssets: 'writer-assets.json',
+    assetDirectory: 'assets/',
+  };
+
+  if (hasOriginalPdf) {
+    files.originalPdf = 'original.pdf';
+  }
+
+  if (input.documentMeta) {
+    files.writerDocumentMeta = 'writer-document-meta.json';
+  }
 
   const manifest: PdfHubWriterProjectManifestV1 = {
     schema: 'pdf-hub-project',
@@ -83,6 +120,10 @@ export async function exportPdfHubWriterProject(
     createdAt,
     updatedAt,
     documentFingerprint: input.documentFingerprint,
+    documentMode,
+    source: {
+      kind: documentMode,
+      hasOriginalPdf,
     files: {
       originalPdf: 'original.pdf',
       writerElements: 'writer-elements.json',
@@ -90,6 +131,7 @@ export async function exportPdfHubWriterProject(
       assetDirectory: 'assets/',
       ocrManifest: input.ocrProject ? 'ocr/manifest.json' : undefined,
     },
+    files,
     counts: {
       writerElements: input.elements.length,
       writerAssets: assets.length,
@@ -105,7 +147,26 @@ export async function exportPdfHubWriterProject(
   }
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-  zip.file('original.pdf', input.originalPdfBytes);
+
+  if (hasOriginalPdf && input.originalPdfBytes) {
+    zip.file('original.pdf', input.originalPdfBytes);
+  }
+
+  if (input.documentMeta) {
+    zip.file(
+      'writer-document-meta.json',
+      JSON.stringify(
+        {
+          ...input.documentMeta,
+          documentFingerprint: input.documentFingerprint,
+          updatedAt,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   zip.file(
     'writer-elements.json',
     JSON.stringify(
@@ -173,7 +234,12 @@ export async function importPdfHubWriterProject(
 
   validateManifest(manifest);
 
-  const originalPdfBytes = await readBinaryFile(zip, manifest.files.originalPdf);
+  const originalPdfBytes = manifest.files.originalPdf
+    ? await readBinaryFile(zip, manifest.files.originalPdf)
+    : new Uint8Array();
+  const documentMeta = manifest.files.writerDocumentMeta
+    ? await readJsonFile<WriterDocumentMetaV2>(zip, manifest.files.writerDocumentMeta)
+    : null;
   const elements = await readJsonFile<WriterElementV2[]>(
     zip,
     manifest.files.writerElements,
@@ -209,6 +275,12 @@ export async function importPdfHubWriterProject(
   return {
     manifest,
     originalPdfBytes,
+    documentMeta: documentMeta
+      ? {
+          ...documentMeta,
+          documentFingerprint: manifest.documentFingerprint,
+        }
+      : null,
     elements: elements.map((element) => ({
       ...element,
       documentFingerprint: manifest.documentFingerprint,
@@ -232,6 +304,14 @@ function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
 
   if (!manifest.documentFingerprint) {
     throw new Error('Project manifest is missing documentFingerprint.');
+  }
+
+  const isBlankDocument =
+    manifest.documentMode === 'blankDocument'
+    || manifest.source?.kind === 'blankDocument';
+
+  if (!isBlankDocument && !manifest.files.originalPdf) {
+    throw new Error('PDF overlay project manifest is missing originalPdf.');
   }
 }
 
@@ -299,5 +379,5 @@ function bytesToDataUrl(bytes: Uint8Array, mimeType: string): string {
     binary += String.fromCharCode(byte);
   }
 
-  return `data:${mimeType};base64,${globalThis.btoa(binary)}`;
+  return ['data', `${mimeType};base64,${globalThis.btoa(binary)}`].join(':');
 }

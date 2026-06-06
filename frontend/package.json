@@ -27,6 +27,7 @@
     "certify:generate-document": "node scripts/certify-generate-document.mjs",
     "certify:writer-v2-docx": "node scripts/certify-writer-v2-docx.mjs",
     "certify:writer-table-pro": "node scripts/certify-writer-table-pro.mjs",
+    "certify:writer-blank-doc": "node scripts/certify-writer-blank-doc.mjs",
     "certify:ocr-phase1": "vitest run src/core/ocr/__tests__/ocrTypes.test.ts src/core/ocr/__tests__/mockOcrEngine.test.ts --pool=forks --maxWorkers=1",
     "certify:ocr-phase2": "vitest run src/core/ocr/__tests__/ocrPageClassifier.test.ts src/core/ocr/__tests__/ocrPreflight.test.ts --pool=forks --maxWorkers=1",
     "certify:ocr-phase3": "vitest run src/core/ocr/__tests__/ocrConfidence.test.ts src/core/ocr/__tests__/ocrSearchIndex.test.ts --pool=forks --maxWorkers=1",
@@ -69,8 +70,9 @@
     "certify:generation-recipes": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts",
     "certify:generation-template-library": "vitest run src/core/macro/generateDocument/generationRecipes.test.ts src/core/macro/generateDocument/templateLibraryValidation.test.ts src/core/macro/generateDocument/buildGenerationRecipe.test.ts src/components/sidebar/MacrosSidebar.generateDocument.test.tsx",
     "check:static": "node scripts/static-contract-checks.mjs",
+    "check:doc-hub": "npm run certify:writer-v2-docx && npm run certify:writer-table-pro && npm run certify:writer-blank-doc",
     "check:all": "npm run typecheck && npm run audit:no-mojibake && npm run test:ci && npm run check:static",
-    "check:release": "npm run typecheck && npm run audit:no-mojibake && npm run lint && npm run test:ci && npm run certify:writer-v2-docx && npm run certify:writer-table-pro && npm run check:static && npm run build"
+    "check:release": "npm run typecheck && npm run audit:no-mojibake && npm run lint && npm run test:ci && npm run check:doc-hub && npm run check:static && npm run build"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

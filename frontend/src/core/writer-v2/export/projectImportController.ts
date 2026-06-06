@@ -1,3 +1,4 @@
+import type { WriterDocumentMetaV2 } from '../types';
 import { useWriterV2Store } from '../writerV2Store';
 import {
   importPdfHubWriterProject,
@@ -8,6 +9,7 @@ import { extractWriterProjectFromPdf } from './roundTripPdfImport';
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
   documentFingerprint: string;
+  documentMeta?: WriterDocumentMetaV2 | null;
   elementCount: number;
   assetCount: number;
 }
@@ -22,11 +24,6 @@ export async function importProjectIntoWriterStore(
   return toSession(imported);
 }
 
-/**
- * Detect and restore an editable Writer project embedded inside a round-trip
- * `.pdf` (Option C). Returns `null` when the PDF has no PDF Hub editable layer,
- * so callers can fall back to opening it as a plain PDF.
- */
 export async function importRoundTripPdfIntoWriterStore(
   pdfBytes: Uint8Array,
 ): Promise<ImportedProjectSession | null> {
@@ -42,6 +39,7 @@ function toSession(imported: ImportPdfHubProjectResult): ImportedProjectSession 
   return {
     originalPdfBytes: imported.originalPdfBytes,
     documentFingerprint: imported.manifest.documentFingerprint,
+    documentMeta: imported.documentMeta,
     elementCount: imported.elements.length,
     assetCount: imported.assets.length,
   };
@@ -53,5 +51,6 @@ function hydrateImportedProject(imported: ImportPdfHubProjectResult): void {
     elements: imported.elements,
     assetRecords: imported.assets,
     persistedAt: imported.manifest.updatedAt,
+    documentMeta: imported.documentMeta,
   });
 }

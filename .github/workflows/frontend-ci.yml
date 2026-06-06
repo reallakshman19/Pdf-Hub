@@ -1,0 +1,54 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  push:
+    branches: ['main']
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-gate:
+    name: Release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run release gate
+        working-directory: frontend
+        run: npm run check:release
+
+      - name: Upload Doc Hub certification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-hub-certification
+          path: frontend/artifacts/*.json
+          if-no-files-found: warn
