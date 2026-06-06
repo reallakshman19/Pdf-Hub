@@ -6,11 +6,11 @@ WORKDIR /app
 RUN corepack enable
 
 # Copy workspace configuration
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json ./frontend/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN cd frontend && pnpm install --no-frozen-lockfile
 
 # Copy source
 COPY frontend/ ./frontend/
