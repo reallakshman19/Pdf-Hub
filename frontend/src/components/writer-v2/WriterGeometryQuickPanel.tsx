@@ -23,17 +23,21 @@ export const WriterGeometryQuickPanel: React.FC = () => {
 
   React.useEffect(() => {
     if (!selected) {
+      // The panel owns local input drafts and must clear them when selection disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft({ x: '', y: '', width: '', height: '' });
       return;
     }
 
+    // The panel owns local input drafts and must resync when active selection geometry changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft({
       x: formatNumber(selected.rect.x),
       y: formatNumber(selected.rect.y),
       width: formatNumber(selected.rect.width),
       height: formatNumber(selected.rect.height),
     });
-  }, [selected?.id, selected?.rect.x, selected?.rect.y, selected?.rect.width, selected?.rect.height]);
+  }, [selected]);
 
   if (!selected || selected.locked || selected.hidden) {
     return null;
