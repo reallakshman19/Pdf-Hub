@@ -288,7 +288,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
         return;
       }
 
-      if (imported.originalPdfBytes) {
+      if (imported.originalPdfBytes.length > 0) {
         const pdf = await PDFDocument.load(imported.originalPdfBytes);
 
         openDocument({
@@ -316,8 +316,6 @@ export const WriterV2ToolbarControls: React.FC = () => {
     }
   };
 
-
-
   const runRichToolbarAction = async (
     actionId: WriterRichToolbarActionId,
     label: string,
@@ -335,7 +333,6 @@ export const WriterV2ToolbarControls: React.FC = () => {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
-
 
   const runWithWriterPreflight = async (
     label: string,
