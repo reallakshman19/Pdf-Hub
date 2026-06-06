@@ -30,6 +30,7 @@ import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
 import { WriterTablePropertiesDock } from './WriterTablePropertiesDock';
 import { BlankDocumentCreateDialog } from './BlankDocumentCreateDialog';
 import { WriterBlankImageInsertButton } from './WriterBlankImageInsertButton';
+import { WriterSelectionQuickActions } from './WriterSelectionQuickActions';
 
 import {
   runWriterRichToolbarAction,
@@ -459,6 +460,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title={isBlankDocument ? 'Place a table on the blank page' : 'Open or create a blank Writer document to place tables'}
       />
       <WriterBlankImageInsertButton disabled={!isBlankDocument} />
+      <WriterSelectionQuickActions />
 
       <ResponsiveBtn
         icon={Scan}
