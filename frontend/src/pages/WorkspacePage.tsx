@@ -11,14 +11,20 @@ import { StatusBar } from '@/components/shell/StatusBar';
 import { MacroBuilderDrawer } from '@/components/macro/MacroBuilderDrawer';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useEditorStore } from '@/core/editor/store';
+import { useSessionStore } from '@/core/session/store';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterRibbon } from '@/components/writer-v2/WriterRibbon';
 import { WriterAutosaveController } from '@/components/writer-v2/WriterAutosaveController';
 import { WriterRecoveryBanner } from '@/components/writer-v2/WriterRecoveryBanner';
 import { WriterToolsHub } from '@/components/writer-v2/WriterToolsHub';
+import { WriterBlankDocumentCanvas } from '@/components/writer-v2/WriterBlankDocumentCanvas';
 
 export const WorkspacePage: React.FC = () => {
   const capabilities = useCapabilities();
   const activeMode = useEditorStore((state) => state.activeMode);
+  const viewState = useSessionStore((state) => state.viewState);
+  const documentMeta = useWriterV2Store((state) => state.documentMeta);
+  const isBlankDocument = documentMeta?.mode === 'blankDocument';
 
   return (
     <>
@@ -36,7 +42,16 @@ export const WorkspacePage: React.FC = () => {
         }
         leftRail={<LeftRail />}
         sidebar={<SidebarPanel />}
-        workspace={<DocumentWorkspace />}
+        workspace={
+          isBlankDocument ? (
+            <WriterBlankDocumentCanvas
+              documentMeta={documentMeta}
+              scale={viewState.zoom / 100}
+            />
+          ) : (
+            <DocumentWorkspace />
+          )
+        }
         inspector={<InspectorPanel />}
         statusbar={<StatusBar />}
       />
