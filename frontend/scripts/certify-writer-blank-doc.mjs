@@ -17,6 +17,7 @@ const requiredFiles = [
   'src/components/writer-v2/BlankDocumentRenameDialog.tsx',
   'src/components/writer-v2/WriterBlankImageInsertButton.tsx',
   'src/components/writer-v2/WriterSelectionQuickActions.tsx',
+  'src/components/writer-v2/WriterSelectionHandles.tsx',
 ];
 
 const testGroups = [
@@ -48,6 +49,8 @@ const testGroups = [
       'imageInsertButton',
       'imageElementRender',
       'selectionQuickActions',
+      'resizeHandles',
+      'elementResize',
     ],
     files: [
       'src/components/writer-v2/__tests__/WriterBlankPageCanvas.test.tsx',
@@ -59,6 +62,8 @@ const testGroups = [
       'src/components/writer-v2/__tests__/WriterBlankImageInsertButton.test.tsx',
       'src/components/writer-v2/__tests__/WriterRichElementBoxImage.test.tsx',
       'src/components/writer-v2/__tests__/WriterSelectionQuickActions.test.tsx',
+      'src/components/writer-v2/__tests__/WriterSelectionHandles.test.tsx',
+      'src/components/writer-v2/__tests__/WriterElementBoxResize.test.tsx',
       'src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
     ],
   },
