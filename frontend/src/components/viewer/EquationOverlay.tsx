@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { OcrStore } from '../../core/ocr/store';
-import type { OcrBlock } from '../../core/ocr/types';
+import type { LegacyOcrBlock as OcrBlock } from '../../core/ocr/store';
 import EquationEditor from '../ocr/EquationEditor';
 import { renderToSvg } from '../../adapters/equation/MathJaxAdapter';
 

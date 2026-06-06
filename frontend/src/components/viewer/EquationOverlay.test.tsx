@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import EquationOverlay from './EquationOverlay';
 import { OcrStore } from '../../core/ocr/store';
-import type { OcrResultsByPage } from '../../core/ocr/types';
+import type { OcrResultsByPage } from '../../core/ocr/store';
 
 // Mock the MathJaxAdapter renderToSvg function
 vi.mock('../../adapters/equation/MathJaxAdapter', () => ({
@@ -34,6 +34,7 @@ describe('EquationOverlay', () => {
           id: 'eq-1',
           type: 'equation',
           rect: { x: 10, y: 20, width: 100, height: 50 },
+          text: 'E = mc^2',
           latex: 'E = mc^2',
           confidence: 0.95,
           source: 'pix2tex',

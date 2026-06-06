@@ -1,0 +1,246 @@
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { useSessionStore } from '@/core/session/store';
+import { OcrPanelWriterConnected } from '../OcrPanelWriterConnected';
+
+vi.mock('pdfjs-dist', () => {
+  return {
+    GlobalWorkerOptions: {
+      workerSrc: '',
+    },
+    getDocument: vi.fn().mockImplementation(() => {
+      return {
+        promise: Promise.resolve({
+          numPages: 3,
+          async getPage(pageNumber: number) {
+            return {
+              pageNumber,
+              getViewport({ scale = 1 }: { scale?: number } = {}) {
+                return {
+                  width: 595 * scale,
+                  height: 842 * scale,
+                };
+              },
+              render() {
+                return {
+                  promise: Promise.resolve(),
+                  cancel: () => undefined,
+                };
+              },
+            };
+          },
+          async destroy() {},
+        }),
+      };
+    }),
+  };
+});
+
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = function (type: string) {
+    if (type === '2d') {
+      return {
+        drawImage: () => undefined,
+        fillRect: () => undefined,
+        clearRect: () => undefined,
+        getImageData: () => ({
+          data: new Uint8ClampedArray([0, 0, 0, 0]),
+          width: 1,
+          height: 1,
+        }),
+        putImageData: () => undefined,
+        scale: () => undefined,
+        translate: () => undefined,
+        rotate: () => undefined,
+      } as unknown as CanvasRenderingContext2D;
+    }
+    return null;
+  } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+
+  HTMLCanvasElement.prototype.toBlob = function (callback: BlobCallback) {
+    callback(new Blob());
+  };
+}
+
+describe('OcrPanelWriterConnected', () => {
+  beforeEach(() => {
+    useOcrStore.getState().clearOcr();
+    useWriterV2Store.getState().clearWriterV2();
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'writer-connected-doc',
+      elements: [],
+      assetRecords: [],
+      persistedAt: null,
+    });
+  });
+
+  it('renders connected OCR panel', () => {
+    render(
+      <OcrPanelWriterConnected
+        documentFingerprint="writer-connected-doc"
+        selectedPageIndexes={[0]}
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-panel-writer-connected')).toBeTruthy();
+    expect(screen.getByTestId('ocr-panel')).toBeTruthy();
+  });
+
+  it('inserts OCR region Writer element into Writer V2 store', async () => {
+    render(
+      <OcrPanelWriterConnected
+        documentFingerprint="writer-connected-doc"
+        selectedPageIndexes={[0]}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
+      target: {
+        value: 'text',
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('ocr-region-add'));
+    fireEvent.click(screen.getByTestId('ocr-region-run'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByTestId('ocr-region-output-mode'), {
+      target: {
+        value: 'richTextBox',
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('ocr-region-convert'));
+    fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
+
+    await waitFor(() => {
+      expect(useWriterV2Store.getState().elements).toHaveLength(1);
+    });
+
+    const writerState = useWriterV2Store.getState();
+
+    expect(writerState.elements[0].type).toBe('richTextBox');
+    expect(writerState.elements[0].documentFingerprint).toBe('writer-connected-doc');
+    expect(writerState.elements[0].plainText).toContain('This scan contains');
+    expect(writerState.selectedIds).toEqual([writerState.elements[0].id]);
+    expect(screen.getByTestId('ocr-writer-connected-summary')).toBeTruthy();
+    expect(screen.getByText(/Inserted 1 Writer element/)).toBeTruthy();
+  });
+
+  it('uses writer store current document fingerprint when prop is omitted', async () => {
+    render(
+      <OcrPanelWriterConnected selectedPageIndexes={[0]} />,
+    );
+
+    fireEvent.click(screen.getByTestId('ocr-region-add'));
+    fireEvent.click(screen.getByTestId('ocr-region-run'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('ocr-region-convert'));
+    fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
+
+    await waitFor(() => {
+      expect(useWriterV2Store.getState().elements).toHaveLength(1);
+    });
+
+    expect(useWriterV2Store.getState().elements[0].documentFingerprint).toBe('writer-connected-doc');
+  });
+
+  it('reads active working PDF bytes and selected pages from session store', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'session-doc',
+      fileName: 'session.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 4,
+    });
+
+    useSessionStore.getState().replaceWorkingCopy(
+      new Uint8Array([9, 9, 9, 9]),
+      4,
+    );
+
+    useSessionStore.getState().setSelectedPages([2, 4]);
+
+    render(
+      <OcrPanelWriterConnected />,
+    );
+
+    expect(screen.getByTestId('ocr-pdf-source-summary')).toBeTruthy();
+    expect(screen.getByText(/session.pdf/)).toBeTruthy();
+    expect(screen.getByText(/Bytes: working/)).toBeTruthy();
+    expect(screen.getByText(/Pages: 4 · selected 2/)).toBeTruthy();
+  });
+
+  it('passes session document fingerprint when no explicit prop is supplied', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'session-doc',
+      fileName: 'session.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 2,
+    });
+
+    render(
+      <OcrPanelWriterConnected />,
+    );
+
+    expect(screen.getByTestId('ocr-pdf-source-summary')).toBeTruthy();
+    expect(screen.getByText(/session.pdf/)).toBeTruthy();
+  });
+
+  it('shows warning when PDF bytes are missing', () => {
+    useSessionStore.getState().clearDocument();
+
+    render(
+      <OcrPanelWriterConnected />,
+    );
+
+    expect(screen.getByTestId('ocr-pdf-source-warning')).toBeTruthy();
+    expect(screen.getByText(/No active PDF document is loaded/)).toBeTruthy();
+  });
+
+  it('uses 0-based selected page indexes when running OCR fallback path', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'session-doc',
+      fileName: 'session.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 3,
+    });
+
+    useSessionStore.getState().setSelectedPages([2]);
+
+    render(
+      <OcrPanelWriterConnected />,
+    );
+
+    fireEvent.click(screen.getByTestId('run-ocr-button'));
+
+    await waitFor(() => {
+      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
+    });
+
+    const result = useOcrStore.getState().correctedResult;
+
+    expect(result?.documentFingerprint).toBe('session-doc');
+    expect(result?.pages).toHaveLength(1);
+    expect(result?.pages[0].pageIndex).toBe(1);
+  });
+});
