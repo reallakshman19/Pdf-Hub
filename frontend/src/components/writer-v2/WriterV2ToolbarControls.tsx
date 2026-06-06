@@ -2,8 +2,9 @@ import React from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { useEditorStore } from '@/core/editor/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
 import { exportCurrentWriterProject } from '@/core/writer-v2/export/exportCurrentWriterProject';
 import { exportCurrentWriterRoundTripPdf } from '@/core/writer-v2/export/exportCurrentWriterRoundTripPdf';
@@ -26,6 +27,7 @@ import {
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
 import { WriterTablePropertiesDock } from './WriterTablePropertiesDock';
+import { BlankDocumentCreateDialog } from './BlankDocumentCreateDialog';
 
 import {
   runWriterRichToolbarAction,
@@ -86,6 +88,7 @@ const ResponsiveBtn: React.FC<ResponsiveBtnProps> = ({
 
 export const WriterV2ToolbarControls: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [blankDialogOpen, setBlankDialogOpen] = React.useState(false);
   const [pendingPreflight, setPendingPreflight] = React.useState<{
     label: string;
     result: WriterExportPreflightResult;
@@ -94,6 +97,9 @@ export const WriterV2ToolbarControls: React.FC = () => {
 
   const activeWriterTool = useWriterV2Store((state) => state.activeWriterTool);
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
+  const createBlankWriterDocument = useWriterV2Store((state) => state.createBlankWriterDocument);
+  const documentMeta = useWriterV2Store((state) => state.documentMeta);
+  const setActiveMode = useEditorStore((state) => state.setActiveMode);
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const originalBytes = useSessionStore((state) => state.originalBytes);
@@ -105,7 +111,34 @@ export const WriterV2ToolbarControls: React.FC = () => {
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
 
   const sourceBytes = workingBytes ?? originalBytes;
-  const baseName = safeDownloadBaseName(fileName);
+  const isBlankDocument = documentMeta?.mode === 'blankDocument';
+  const hasWriterSurface = Boolean(sourceBytes) || isBlankDocument;
+  const baseName = safeDownloadBaseName(fileName ?? documentMeta?.title);
+
+  const activateBlankPlacementTool = (tool: WriterV2Tool) => {
+    setActiveMode('write');
+    setActiveWriterTool(tool);
+  };
+
+  const runWriterActionOrPlace = (
+    tool: WriterV2Tool,
+    actionId: WriterRichToolbarActionId,
+    label: string,
+  ) => {
+    if (isBlankDocument) {
+      activateBlankPlacementTool(tool);
+      return;
+    }
+
+    void runRichToolbarAction(actionId, label);
+  };
+
+  const createBlankDocument = (input: Parameters<typeof createBlankWriterDocument>[0]) => {
+    const meta = createBlankWriterDocument(input);
+    setActiveMode('write');
+    setBlankDialogOpen(false);
+    completeSaveOperation(`Blank Writer document created: ${meta.title ?? 'Untitled document'}.`);
+  };
 
   const exportFlattenedPdf = async () => {
     if (!sourceBytes) {
@@ -159,12 +192,9 @@ export const WriterV2ToolbarControls: React.FC = () => {
   };
 
   const exportDocx = async () => {
-    if (!sourceBytes) {
-      failSaveOperation('No PDF is open for Writer DOCX export.');
-      return;
-    }
+    const documentFingerprint = documentKey ?? documentMeta?.documentFingerprint;
 
-    if (!documentKey) {
+    if (!documentFingerprint) {
       failSaveOperation('No document key is available for Writer DOCX export.');
       return;
     }
@@ -175,7 +205,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
       await autosaveCurrentWriterDraft(undefined, { force: true });
 
       const result = await exportCurrentWriterDocx({
-        documentFingerprint: documentKey,
+        documentFingerprint,
         title: `${baseName} Writer V2`,
       });
 
@@ -356,54 +386,57 @@ export const WriterV2ToolbarControls: React.FC = () => {
     >
       <WriterKeyboardHandler />
       <ResponsiveBtn
+        icon={FileText}
+        label="Blank Doc"
+        active={isBlankDocument}
+        onClick={() => setBlankDialogOpen(true)}
+        title="Create a blank Writer document without a PDF background"
+      />
+      <ResponsiveBtn
         icon={Type}
         label="Writer Box"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runRichToolbarAction('mainRichBox', 'Opening Writer rich box');
-        }}
-        title="Create or open the main Writer rich authoring box"
+        disabled={!hasWriterSurface}
+        active={isBlankDocument && activeWriterTool === 'richTextBox'}
+        onClick={() => runWriterActionOrPlace('richTextBox', 'mainRichBox', 'Opening Writer rich box')}
+        title={isBlankDocument ? 'Place a rich text box on the blank page' : 'Create or open the main Writer rich authoring box'}
       />
       <ResponsiveBtn
         icon={MessageSquareDot}
         label="Callout"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runRichToolbarAction('calloutSnippet', 'Inserting Writer callout');
-        }}
-        title="Insert a callout snippet inside the active Writer rich box"
+        disabled={!hasWriterSurface}
+        active={isBlankDocument && activeWriterTool === 'textCallout'}
+        onClick={() => runWriterActionOrPlace('textCallout', 'calloutSnippet', 'Inserting Writer callout')}
+        title={isBlankDocument ? 'Place a callout on the blank page' : 'Insert a callout snippet inside the active Writer rich box'}
       />
       <ResponsiveBtn
         icon={Stamp}
         label="Stamp"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runRichToolbarAction('stampSnippet', 'Inserting Writer stamp');
-        }}
-        title="Insert a stamp snippet inside the active Writer rich box"
+        disabled={!hasWriterSurface}
+        active={isBlankDocument && activeWriterTool === 'textStamp'}
+        onClick={() => runWriterActionOrPlace('textStamp', 'stampSnippet', 'Inserting Writer stamp')}
+        title={isBlankDocument ? 'Place a stamp on the blank page' : 'Insert a stamp snippet inside the active Writer rich box'}
       />
       <ResponsiveBtn
         icon={Tag}
         label="Review"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runRichToolbarAction('reviewSnippet', 'Inserting Writer review');
-        }}
-        title="Insert a review snippet inside the active Writer rich box"
+        disabled={!hasWriterSurface}
+        active={isBlankDocument && activeWriterTool === 'reviewLabel'}
+        onClick={() => runWriterActionOrPlace('reviewLabel', 'reviewSnippet', 'Inserting Writer review')}
+        title={isBlankDocument ? 'Place a review label on the blank page' : 'Insert a review snippet inside the active Writer rich box'}
       />
       <ResponsiveBtn
         icon={NotebookPen}
         label="Note"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runRichToolbarAction('noteSnippet', 'Inserting Writer note');
-        }}
-        title="Insert a note snippet inside the active Writer rich box"
+        disabled={!hasWriterSurface}
+        active={isBlankDocument && activeWriterTool === 'richNote'}
+        onClick={() => runWriterActionOrPlace('richNote', 'noteSnippet', 'Inserting Writer note')}
+        title={isBlankDocument ? 'Place a rich note on the blank page' : 'Insert a note snippet inside the active Writer rich box'}
       />
 
       <ResponsiveBtn
         icon={Scan}
         label="Copy Region"
+        disabled={isBlankDocument}
         active={activeWriterTool === 'selectBoxCopy'}
         onClick={() => setActiveWriterTool(activeWriterTool === 'selectBoxCopy' ? 'select' : 'selectBoxCopy')}
         title="Select Box Copy: copy text, formatted text, tables, or image from a rectangle"
@@ -420,7 +453,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
       <ResponsiveBtn
         icon={FileText}
         label="DOCX"
-        disabled={!sourceBytes}
+        disabled={!hasWriterSurface}
         onClick={() => {
           void runWithWriterPreflight('Writer DOCX', exportDocx);
         }}
@@ -484,7 +517,11 @@ export const WriterV2ToolbarControls: React.FC = () => {
         }}
       />
 
-
+      <BlankDocumentCreateDialog
+        open={blankDialogOpen}
+        onCancel={() => setBlankDialogOpen(false)}
+        onCreate={createBlankDocument}
+      />
 
       {pendingPreflight ? (
         <WriterExportPreflightDialog
@@ -503,5 +540,3 @@ export const WriterV2ToolbarControls: React.FC = () => {
     </div>
   );
 };
-
-
