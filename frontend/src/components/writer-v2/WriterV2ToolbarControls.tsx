@@ -9,6 +9,7 @@ import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWri
 import { exportCurrentWriterProject } from '@/core/writer-v2/export/exportCurrentWriterProject';
 import { exportCurrentWriterRoundTripPdf } from '@/core/writer-v2/export/exportCurrentWriterRoundTripPdf';
 import { exportCurrentWriterDocx } from '@/core/writer-v2/export/exportCurrentWriterDocx';
+import { exportLiveBlankWriterDocx } from '@/core/writer-v2/export/exportLiveBlankWriterDocx';
 import { DOCX_MIME } from '@/core/writer-v2/export/docx';
 import {
   importProjectIntoWriterStore,
@@ -204,12 +205,11 @@ export const WriterV2ToolbarControls: React.FC = () => {
     try {
       beginExportOperation('Exporting Writer V2 DOCX...');
 
-      await autosaveCurrentWriterDraft(undefined, { force: true });
-
-      const result = await exportCurrentWriterDocx({
-        documentFingerprint,
-        title: `${baseName} Writer V2`,
-      });
+      const result = isBlankDocument
+        ? await exportLiveBlankWriterDocx({
+            title: `${baseName} Writer V2`,
+          })
+        : await exportPdfBackedDocx(documentFingerprint, `${baseName} Writer V2`);
 
       if (result.fatal) {
         const firstError = result.diagnostics.find(
@@ -240,6 +240,15 @@ export const WriterV2ToolbarControls: React.FC = () => {
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const exportPdfBackedDocx = async (documentFingerprint: string, title: string) => {
+    await autosaveCurrentWriterDraft(undefined, { force: true });
+
+    return await exportCurrentWriterDocx({
+      documentFingerprint,
+      title,
+    });
   };
 
   const exportProjectZip = async () => {
