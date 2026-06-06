@@ -156,6 +156,58 @@ describe('WriterBlankDocumentCanvas', () => {
     expect(screen.getByText('Page 2')).toBeTruthy();
     expect(screen.getByText('Page 3')).toBeTruthy();
   });
+
+  it('adds a new page from top controls', () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-add-doc',
+      pageSetup: WRITER_PAGE_PRESETS.A4,
+      pageCount: 1,
+    });
+
+    render(<WriterBlankDocumentCanvas />);
+
+    fireEvent.click(screen.getByTestId('writer-blank-document-add-page-button'));
+
+    expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(2);
+    expect(screen.getAllByTestId('writer-blank-document-page-frame')).toHaveLength(2);
+  });
+
+  it('inserts, duplicates, and removes pages from page toolbar', () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-page-toolbar-doc',
+      pageSetup: WRITER_PAGE_PRESETS.A4,
+      pageCount: 2,
+    });
+
+    render(<WriterBlankDocumentCanvas />);
+
+    fireEvent.click(screen.getAllByTestId('writer-blank-document-insert-page-after-button')[0]);
+    expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(3);
+
+    fireEvent.click(screen.getAllByTestId('writer-blank-document-duplicate-page-button')[0]);
+    expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(4);
+
+    fireEvent.click(screen.getAllByTestId('writer-blank-document-remove-page-button')[0]);
+    expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(3);
+  });
+
+  it('keeps the final page remove control disabled', () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-final-page-doc',
+      pageSetup: WRITER_PAGE_PRESETS.A4,
+      pageCount: 1,
+    });
+
+    render(<WriterBlankDocumentCanvas />);
+
+    const removeButton = screen.getByTestId('writer-blank-document-remove-page-button');
+
+    expect(removeButton).toBeDisabled();
+
+    fireEvent.click(removeButton);
+
+    expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(1);
+  });
 });
 
 function makeElement(id: string, pageIndex: number) {
