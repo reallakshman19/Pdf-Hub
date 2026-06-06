@@ -23,7 +23,7 @@ import { WriterKeyboardHandler } from './WriterKeyboardHandler';
 import {
   Type, MessageSquareDot, Stamp, Tag, NotebookPen, Scan,
   FileDown, FileText, FolderArchive, FolderOpen,
-  ListChecks,
+  ListChecks, Table as TableIcon,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
@@ -448,6 +448,14 @@ export const WriterV2ToolbarControls: React.FC = () => {
         active={isBlankDocument && activeWriterTool === 'richNote'}
         onClick={() => runWriterActionOrPlace('richNote', 'noteSnippet', 'Inserting Writer note')}
         title={isBlankDocument ? 'Place a rich note on the blank page' : 'Insert a note snippet inside the active Writer rich box'}
+      />
+      <ResponsiveBtn
+        icon={TableIcon}
+        label="Table"
+        disabled={!isBlankDocument}
+        active={isBlankDocument && activeWriterTool === 'tableBox'}
+        onClick={() => activateBlankPlacementTool('tableBox')}
+        title={isBlankDocument ? 'Place a table on the blank page' : 'Open or create a blank Writer document to place tables'}
       />
 
       <ResponsiveBtn
