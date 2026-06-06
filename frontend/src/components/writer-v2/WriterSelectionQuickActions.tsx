@@ -4,6 +4,10 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
+  copySelectedWriterElementsToClipboard,
+  pasteWriterClipboardElements,
+} from '@/core/writer-v2/writerClipboardActions';
+import {
   alignSelectedWriterElements,
   bringSelectedWriterElementToFront,
   deleteSelectedWriterElements,
@@ -56,6 +60,8 @@ export const WriterSelectionQuickActions: React.FC = () => {
         {selectedCount} selected
       </span>
 
+      <QuickAction label="Copy" title="Copy selected Writer elements" onClick={() => run(copySelectedWriterElementsToClipboard())} />
+      <QuickAction label="Paste" title="Paste copied Writer elements" onClick={() => run(pasteWriterClipboardElements())} />
       <QuickAction label="Duplicate" title="Duplicate selected Writer elements" onClick={() => run(duplicateSelectedWriterElements())} />
       <QuickAction label="Remove" title="Remove selected Writer elements" onClick={() => run(deleteSelectedWriterElements())} />
       <QuickAction label="Lock" title="Lock or unlock selected Writer elements" onClick={() => run(toggleLockSelectedWriterElements())} />
