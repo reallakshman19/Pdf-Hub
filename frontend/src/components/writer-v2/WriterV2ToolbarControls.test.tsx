@@ -189,6 +189,27 @@ describe('WriterV2ToolbarControls', () => {
     expect(useEditorStore.getState().activeMode).toBe('write');
   });
 
+  it('uses Table as placement tool in blank document mode', () => {
+    useSessionStore.getState().clearDocument();
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-doc-toolbar',
+    });
+
+    render(<WriterV2ToolbarControls />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Table$/i }));
+
+    expect(runWriterRichToolbarAction).not.toHaveBeenCalled();
+    expect(useWriterV2Store.getState().activeWriterTool).toBe('tableBox');
+    expect(useEditorStore.getState().activeMode).toBe('write');
+  });
+
+  it('keeps Table disabled outside blank document mode', () => {
+    render(<WriterV2ToolbarControls />);
+
+    expect(screen.getByRole('button', { name: /^Table$/i })).toBeDisabled();
+  });
+
   it('sets Select Box Copy tool', () => {
     render(<WriterV2ToolbarControls />);
 
@@ -229,6 +250,7 @@ describe('WriterV2ToolbarControls', () => {
     expect(screen.getByRole('button', { name: /docx/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /save project/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /flatten/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Table$/i })).not.toBeDisabled();
   });
 
   it('routes blank DOCX toolbar export through live blank exporter', async () => {
