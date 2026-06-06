@@ -25,6 +25,7 @@ import {
   duplicateWriterPage,
   updateWriterDocumentPageSetup,
 } from './writerDocumentMode';
+import { updateWriterDocumentTitle } from './writerDocumentTitle';
 
 export type WriterV2Tool =
   | 'select'
@@ -66,6 +67,7 @@ export interface WriterV2StoreState extends WriterV2State {
     documentFingerprint?: string;
     now?: string;
   }) => WriterDocumentMetaV2;
+  renameBlankWriterDocument: (title: string, now?: string) => void;
   updateBlankWriterPageSetup: (patch: Partial<WriterPageSetupV2>, now?: string) => void;
   addBlankWriterPage: (afterPageIndex?: number, now?: string) => void;
   deleteBlankWriterPage: (pageIndex: number, now?: string) => void;
@@ -189,6 +191,19 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     });
 
     return meta;
+  },
+
+  renameBlankWriterDocument: (title, now) => {
+    const current = get().documentMeta;
+
+    if (!current || current.mode !== 'blankDocument') {
+      return;
+    }
+
+    set({
+      documentMeta: updateWriterDocumentTitle(current, title, now),
+      dirty: true,
+    });
   },
 
   updateBlankWriterPageSetup: (patch, now) => {
