@@ -8,7 +8,10 @@
  * progress without requiring heavy dependencies or worker threads.
  */
 
-import type { OcrPageResult, OcrBlock } from '../../core/ocr/types';
+import type {
+  LegacyOcrBlock as OcrBlock,
+  LegacyOcrPageResult as OcrPageResult,
+} from '../../core/ocr/store';
 import { warn } from '@/core/logger/service';
 
 export interface RecognizePagesParams {
