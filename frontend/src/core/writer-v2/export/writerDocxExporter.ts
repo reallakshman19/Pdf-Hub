@@ -1,4 +1,7 @@
-import type { WriterElementV2 } from '../types';
+import type {
+  WriterDocumentMetaV2,
+  WriterElementV2,
+} from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { writerElementsToPortableBlocks } from './docx/writerElementsToPortableBlocks';
 import { buildWriterDocxDocument } from './docx/buildWriterDocxDocument';
@@ -13,6 +16,7 @@ export interface WriterDocxExporterInput {
   elements: WriterElementV2[];
   assets?: WriterAssetRecordV2[];
   title?: string;
+  documentMeta?: WriterDocumentMetaV2 | null;
 }
 
 export interface WriterDocxExporterResult {
@@ -34,6 +38,7 @@ export async function exportWriterDocx(
     blocks: blockResult.blocks,
     assets: createWriterDocxAssetResolver(input.assets),
     title: input.title,
+    pageSetup: input.documentMeta?.pageSetup,
   });
 
   const diagnostics = [
