@@ -106,6 +106,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
   const fileName = useSessionStore((state) => state.fileName);
   const documentKey = useSessionStore((state) => state.documentKey);
   const openDocument = useSessionStore((state) => state.openDocument);
+  const clearDocument = useSessionStore((state) => state.clearDocument);
   const beginExportOperation = useSessionStore((state) => state.beginExportOperation);
   const completeSaveOperation = useSessionStore((state) => state.completeSaveOperation);
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
@@ -135,6 +136,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
 
   const createBlankDocument = (input: Parameters<typeof createBlankWriterDocument>[0]) => {
     const meta = createBlankWriterDocument(input);
+    clearDocument();
     setActiveMode('write');
     setBlankDialogOpen(false);
     completeSaveOperation(`Blank Writer document created: ${meta.title ?? 'Untitled document'}.`);
@@ -241,8 +243,8 @@ export const WriterV2ToolbarControls: React.FC = () => {
   };
 
   const exportProjectZip = async () => {
-    if (!sourceBytes) {
-      failSaveOperation('No PDF is open for PDF Hub project export.');
+    if (!hasWriterSurface) {
+      failSaveOperation('No PDF or blank Writer document is open for project export.');
       return;
     }
 
@@ -252,7 +254,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
 
       const bytes = await exportCurrentWriterProject({
         originalPdfBytes: sourceBytes,
-        documentFingerprint: documentKey ?? undefined,
+        documentFingerprint: documentKey ?? documentMeta?.documentFingerprint,
       });
 
       downloadWriterBytes(
@@ -286,16 +288,25 @@ export const WriterV2ToolbarControls: React.FC = () => {
         return;
       }
 
-      const pdf = await PDFDocument.load(imported.originalPdfBytes);
+      if (imported.originalPdfBytes) {
+        const pdf = await PDFDocument.load(imported.originalPdfBytes);
 
-      openDocument({
-        documentKey: imported.documentFingerprint,
-        fileName: file.name.replace(/\.pdfhub\.zip$/i, '.pdf'),
-        bytes: imported.originalPdfBytes,
-        pageCount: pdf.getPageCount(),
-      });
+        openDocument({
+          documentKey: imported.documentFingerprint,
+          fileName: file.name.replace(/\.pdfhub\.zip$/i, '.pdf'),
+          bytes: imported.originalPdfBytes,
+          pageCount: pdf.getPageCount(),
+        });
+      } else {
+        clearDocument();
+        setActiveMode('write');
+      }
 
-      completeSaveOperation('Editable Writer project imported.');
+      completeSaveOperation(
+        imported.documentMeta?.mode === 'blankDocument'
+          ? 'Blank Writer project imported.'
+          : 'Editable Writer project imported.',
+      );
     } catch (error) {
       failSaveOperation(error instanceof Error ? error.message : String(error));
     } finally {
@@ -489,7 +500,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
       <ResponsiveBtn
         icon={FolderArchive}
         label="Save Project"
-        disabled={!sourceBytes}
+        disabled={!hasWriterSurface}
         onClick={() => {
           void runWithWriterPreflight('PDF Hub Project ZIP', exportProjectZip);
         }}
