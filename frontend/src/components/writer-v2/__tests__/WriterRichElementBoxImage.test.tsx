@@ -11,12 +11,10 @@ import {
   screen,
 } from '@testing-library/react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import type { WriterElementV2 } from '@/core/writer-v2/types';
+import type { WriterElementV2, WriterPageViewport } from '@/core/writer-v2/types';
 import { WriterRichElementBox } from '../WriterRichElementBox';
 
-const viewport = {
-  width: 612,
-  height: 792,
+const viewport: WriterPageViewport = {
   pdfWidth: 612,
   pdfHeight: 792,
   rotation: 0,
