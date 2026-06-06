@@ -24,6 +24,7 @@ export interface WriterPlacementInput {
   clickPoint: PdfPoint;
   pageBounds: PdfRect;
   zIndex?: number;
+  allowLegacyPlacement?: boolean;
 }
 
 const DEFAULT_BOX_WIDTH = 220;
@@ -44,6 +45,7 @@ export function createWriterElementFromPlacement(
 
   if (
     isLegacyWriterPlacementTool(input.tool) &&
+    !input.allowLegacyPlacement &&
     !isLegacyWriterPlacementEnabled()
   ) {
     return null;
