@@ -101,7 +101,9 @@ export const WriterBlankPageCanvas: React.FC<WriterBlankPageCanvasProps> = ({
     setActiveWriterTool('select');
   };
 
-  const isPlacementTool = shouldWriterOverlayCapturePlacement(activeWriterTool);
+  const isPlacementTool = shouldWriterOverlayCapturePlacement(activeWriterTool, {
+    allowLegacyPlacement: true,
+  });
   const canPlace = activeMode === 'write' && isPlacementTool;
 
   return (
