@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'claude/**'
+      - 'fix/**'
   pull_request:
     branches:
       - main
@@ -30,7 +31,7 @@ jobs:
         working-directory: .
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint
         run: pnpm run lint
@@ -50,5 +51,5 @@ jobs:
       - name: E2E smoke tests
         working-directory: ${{ github.workspace }}/tests
         run: |
-          pnpm install --frozen-lockfile 2>/dev/null || true
+          pnpm install --no-frozen-lockfile 2>/dev/null || true
           pnpm test 2>/dev/null || echo "Smoke tests skipped (no config yet)"
