@@ -11,6 +11,7 @@ import {
   screen,
 } from '@testing-library/react';
 import { useSessionStore } from '@/core/session/store';
+import { clearWriterElementClipboard } from '@/core/writer-v2/writerClipboardActions';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { WriterSelectionQuickActions } from '../WriterSelectionQuickActions';
@@ -19,12 +20,32 @@ describe('WriterSelectionQuickActions', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
     useSessionStore.getState().clearDocument();
+    clearWriterElementClipboard();
   });
 
   it('renders nothing without a selected Writer element', () => {
     render(<WriterSelectionQuickActions />);
 
     expect(screen.queryByTestId('writer-selection-quick-actions')).toBeNull();
+  });
+
+  it('copies and pastes selected Writer elements', () => {
+    hydrateSelection([
+      makeElement('box-1', { x: 10, y: 20, width: 100, height: 40 }),
+    ], ['box-1']);
+
+    render(<WriterSelectionQuickActions />);
+
+    fireEvent.click(screen.getByRole('button', { name: /copy selected writer elements/i }));
+    fireEvent.click(screen.getByRole('button', { name: /paste copied writer elements/i }));
+
+    const state = useWriterV2Store.getState();
+
+    expect(state.elements).toHaveLength(2);
+    expect(state.elements[1].id).not.toBe('box-1');
+    expect(state.elements[1].rect.x).toBe(26);
+    expect(state.elements[1].rect.y).toBe(4);
+    expect(state.selectedIds).toEqual([state.elements[1].id]);
   });
 
   it('duplicates selected Writer elements', () => {
