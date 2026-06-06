@@ -34,16 +34,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@10.23.0 --activate
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run release gate
         working-directory: frontend
-        run: npm run check:release
+        run: pnpm run check:release
 
       - name: Upload Doc Hub certification artifacts
         if: always()
