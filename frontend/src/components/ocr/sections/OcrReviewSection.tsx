@@ -34,18 +34,23 @@ export const OcrReviewSection: React.FC<OcrReviewSectionProps> = ({
 
   return (
     <OcrSectionShell
-      title="Review OCR"
-      description="Review recognized text, search results, corrections, selected regions, and table extraction."
+      title="Review result"
+      description="Check OCR quality, fix doubtful words, crop regions, and send clean content to Writer."
       icon={<Layers className="h-4 w-4 text-violet-600" />}
       testId="ocr-review-section"
     >
       {!hasContent ? (
         emptyState ?? (
           <div
-            className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+            className="rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
             data-testid="ocr-review-empty"
           >
-            Run OCR or load a demo fixture to review extracted content.
+            <p className="font-semibold text-slate-800 dark:text-slate-100">
+              Nothing to review yet.
+            </p>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
+              Click Start OCR above. When OCR finishes, this area will show the recognized text, search, corrections, region tools, and Writer insertion options.
+            </p>
           </div>
         )
       ) : null}
