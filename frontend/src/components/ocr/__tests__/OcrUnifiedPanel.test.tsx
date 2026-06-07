@@ -20,9 +20,10 @@ describe('OcrUnifiedPanel', () => {
     );
 
     expect(screen.getByTestId('ocr-unified-panel')).toBeTruthy();
-    expect(screen.getByText('OCR Workspace')).toBeTruthy();
-    expect(screen.getByText('Source')).toBeTruthy();
-    expect(screen.getByText('Run')).toBeTruthy();
+    expect(screen.getByText('OCR Assistant')).toBeTruthy();
+    expect(screen.getByTestId('ocr-quick-start-steps')).toBeTruthy();
+    expect(screen.getByText('PDF source')).toBeTruthy();
+    expect(screen.getByText('Run OCR')).toBeTruthy();
     expect(screen.getByText('Source content')).toBeTruthy();
     expect(screen.getByText('Run content')).toBeTruthy();
   });
@@ -107,4 +108,3 @@ describe('OcrUnifiedPanel', () => {
     expect(screen.getByText('Single OCR panel')).toBeTruthy();
   });
 });
-
