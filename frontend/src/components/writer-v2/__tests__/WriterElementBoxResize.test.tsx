@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   beforeEach,
   describe,
@@ -19,8 +18,6 @@ import type {
 import { WriterElementBox } from '../WriterElementBox';
 
 const viewport: WriterPageViewport = {
-  width: 200,
-  height: 200,
   pdfWidth: 200,
   pdfHeight: 200,
   rotation: 0,
