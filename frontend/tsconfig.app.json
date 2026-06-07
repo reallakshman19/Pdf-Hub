@@ -27,6 +27,9 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@lexical/utils": [
+        "./src/vendor/lexicalUtils.ts"
+      ],
       "@/*": [
         "./src/*"
       ]
