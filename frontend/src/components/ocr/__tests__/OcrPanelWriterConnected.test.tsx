@@ -233,8 +233,10 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected />,
     );
 
-    expect(screen.getByTestId('ocr-pdf-source-warning')).toBeTruthy();
-    expect(screen.getByText(/No active PDF document is loaded/)).toBeTruthy();
+    const warning = screen.getByTestId('ocr-pdf-source-warning');
+
+    expect(warning).toBeTruthy();
+    expect(within(warning).getByText(/No active PDF document is loaded/)).toBeTruthy();
   });
 
   it('uses 0-based selected page indexes when running OCR fallback path', async () => {
