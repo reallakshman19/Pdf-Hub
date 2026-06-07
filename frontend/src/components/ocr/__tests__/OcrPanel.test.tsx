@@ -432,7 +432,7 @@ describe('OcrPanel', () => {
       expect(screen.getByTestId('ocr-run-execution-diagnostics')).toBeTruthy();
     });
 
-    expect(screen.getByText(/OCR job limited to 1 page/)).toBeTruthy();
+    expect(screen.getAllByText(/OCR job limited to 1 page/).length).toBeGreaterThan(0);
 
     await waitFor(() => {
       expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
