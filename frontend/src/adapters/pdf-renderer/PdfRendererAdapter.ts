@@ -66,6 +66,10 @@ function isTransformItem(
   );
 }
 
+function isTransportDestroyedError(err: unknown): boolean {
+  return String(err).toLowerCase().includes('transport destroyed');
+}
+
 export class PdfRendererAdapter {
   private static workerConfigured = false;
 
@@ -97,9 +101,10 @@ export class PdfRendererAdapter {
       const task = getDocument({ data });
       const doc = await task.promise;
 
-      if (this.cachedDoc) {
-        await this.cachedDoc.doc.destroy().catch(() => {});
-      }
+      // Do not destroy the previous cached document here. Other app surfaces can
+      // still be rendering/searching against that proxy; destroying it invalidates
+      // the PDF.js worker transport and produces the user-visible
+      // "Transport destroyed" load failure.
       this.cachedDoc = { bytes: buffer, doc };
 
       return doc;
@@ -107,6 +112,10 @@ export class PdfRendererAdapter {
       error('pdf-renderer', 'Failed to load document', { error: String(err) });
       throw err;
     }
+  }
+
+  static isTransportDestroyedError(err: unknown): boolean {
+    return isTransportDestroyedError(err);
   }
 
   static renderPage(
