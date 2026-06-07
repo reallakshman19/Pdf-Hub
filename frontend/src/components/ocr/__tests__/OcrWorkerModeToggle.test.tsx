@@ -20,7 +20,8 @@ describe('OcrWorkerModeToggle', () => {
     );
 
     expect(screen.getByTestId('ocr-worker-mode-toggle')).toBeTruthy();
-    expect(screen.getByText('OCR Worker Mode')).toBeTruthy();
+    expect(screen.getByText(/OCR Worker Mode/)).toBeTruthy();
+    expect(screen.getByText(/Deprecated compatibility control/)).toBeTruthy();
     expect(screen.getByText(/Main-thread mode is active/)).toBeTruthy();
   });
 
