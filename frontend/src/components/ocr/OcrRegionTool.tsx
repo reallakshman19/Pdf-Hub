@@ -11,6 +11,8 @@ import {
   createOcrRegion,
   validateOcrRegion,
 } from '@/core/ocr/ocrRegionModel';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { OcrRegionListPanel } from './OcrRegionListPanel';
 
 export interface OcrRegionToolProps {
   documentFingerprint: string;
@@ -62,6 +64,8 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
   viewportHeight,
   onCreateRegion,
 }) => {
+  const hasExistingRegions = useOcrStore((state) => state.regions.length > 0);
+
   const [draft, setDraft] = React.useState<OcrRegionDraft>(() => ({
     mode: 'text',
     bbox: {
@@ -193,137 +197,143 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
   });
 
   return (
-    <div
-      className="rounded border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
-      data-testid="ocr-region-tool"
-    >
-      <div className="mb-2 flex items-center gap-2">
-        <Crop className="h-4 w-4 text-blue-600" />
-        <div>
-          <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-            OCR Region Tool
-          </h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Draw or enter a region to OCR later.
-          </p>
-        </div>
-      </div>
-
+    <>
       <div
-        className="relative mb-3 overflow-hidden rounded border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
-        style={{
-          width: viewportWidth,
-          height: viewportHeight,
-          maxWidth: '100%',
-        }}
-        data-testid="ocr-region-canvas"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        className="rounded border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+        data-testid="ocr-region-tool"
       >
-        <div className="absolute inset-0 flex items-center justify-center text-[11px] text-slate-400">
-          Page {pageIndex + 1} region preview
+        <div className="mb-2 flex items-center gap-2">
+          <Crop className="h-4 w-4 text-blue-600" />
+          <div>
+            <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+              OCR Region Tool
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Draw or enter a region to OCR later.
+            </p>
+          </div>
         </div>
 
         <div
-          className="absolute rounded border-2 border-blue-500 bg-blue-500/15"
-          data-testid="ocr-region-draft-box"
+          className="relative mb-3 overflow-hidden rounded border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
           style={{
-            left: draftViewportRect.left,
-            top: draftViewportRect.top,
-            width: Math.max(0, draftViewportRect.width),
-            height: Math.max(0, draftViewportRect.height),
+            width: viewportWidth,
+            height: viewportHeight,
+            maxWidth: '100%',
           }}
-        />
-      </div>
+          data-testid="ocr-region-canvas"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-slate-400">
+            Page {pageIndex + 1} region preview
+          </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs text-slate-600 dark:text-slate-300">
-          Mode
-          <select
-            className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-            value={draft.mode}
-            data-testid="ocr-region-mode"
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                mode: event.currentTarget.value as OcrRegionMode,
-              }))
-            }
+          <div
+            className="absolute rounded border-2 border-blue-500 bg-blue-500/15"
+            data-testid="ocr-region-draft-box"
+            style={{
+              left: draftViewportRect.left,
+              top: draftViewportRect.top,
+              width: Math.max(0, draftViewportRect.width),
+              height: Math.max(0, draftViewportRect.height),
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs text-slate-600 dark:text-slate-300">
+            Mode
+            <select
+              className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+              value={draft.mode}
+              data-testid="ocr-region-mode"
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  mode: event.currentTarget.value as OcrRegionMode,
+                }))
+              }
+            >
+              {OCR_REGION_MODES.map((mode) => (
+                <option
+                  key={mode.value}
+                  value={mode.value}
+                >
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <NumberInput
+            label="X"
+            value={draft.bbox.x}
+            testId="ocr-region-x"
+            onChange={(value) => updateBbox({ x: value })}
+          />
+
+          <NumberInput
+            label="Y"
+            value={draft.bbox.y}
+            testId="ocr-region-y"
+            onChange={(value) => updateBbox({ y: value })}
+          />
+
+          <NumberInput
+            label="Width"
+            value={draft.bbox.width}
+            testId="ocr-region-width"
+            onChange={(value) => updateBbox({ width: value })}
+          />
+
+          <NumberInput
+            label="Height"
+            value={draft.bbox.height}
+            testId="ocr-region-height"
+            onChange={(value) => updateBbox({ height: value })}
+          />
+        </div>
+
+        {error ? (
+          <p
+            className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300"
+            data-testid="ocr-region-error"
           >
-            {OCR_REGION_MODES.map((mode) => (
-              <option
-                key={mode.value}
-                value={mode.value}
-              >
-                {mode.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            {error}
+          </p>
+        ) : null}
 
-        <NumberInput
-          label="X"
-          value={draft.bbox.x}
-          testId="ocr-region-x"
-          onChange={(value) => updateBbox({ x: value })}
-        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={addRegion}
+            data-testid="ocr-region-add"
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Add region
+          </Button>
 
-        <NumberInput
-          label="Y"
-          value={draft.bbox.y}
-          testId="ocr-region-y"
-          onChange={(value) => updateBbox({ y: value })}
-        />
-
-        <NumberInput
-          label="Width"
-          value={draft.bbox.width}
-          testId="ocr-region-width"
-          onChange={(value) => updateBbox({ width: value })}
-        />
-
-        <NumberInput
-          label="Height"
-          value={draft.bbox.height}
-          testId="ocr-region-height"
-          onChange={(value) => updateBbox({ height: value })}
-        />
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={resetDraft}
+            data-testid="ocr-region-reset"
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+            Reset
+          </Button>
+        </div>
       </div>
 
-      {error ? (
-        <p
-          className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300"
-          data-testid="ocr-region-error"
-        >
-          {error}
-        </p>
+      {!hasExistingRegions ? (
+        <OcrRegionListPanel regions={[]} />
       ) : null}
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          onClick={addRegion}
-          data-testid="ocr-region-add"
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Add region
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={resetDraft}
-          data-testid="ocr-region-reset"
-        >
-          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-          Reset
-        </Button>
-      </div>
-    </div>
+    </>
   );
 };
 
