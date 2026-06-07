@@ -25,46 +25,28 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
   executionDiagnostics,
   errorMessage,
 }) => {
+  const hasAdvancedSettings = Boolean(
+    engineControls || pipelineMode || workerMode || executionSettings || executionDiagnostics || batchQueue,
+  );
+
   return (
     <OcrSectionShell
-      title="Run OCR"
-      description="Configure the engine, pipeline, performance policy, and batch execution."
+      title="Start OCR"
+      description="Use the default settings first. Open advanced settings only when you need control over engine, pages, or performance."
       icon={<PlayCircle className="h-4 w-4 text-emerald-600" />}
       testId="ocr-run-section"
     >
-      {engineControls ? (
-        <div data-testid="ocr-run-engine-controls">
-          {engineControls}
-        </div>
-      ) : null}
-
-      {pipelineMode ? (
-        <div data-testid="ocr-run-pipeline-mode">
-          {pipelineMode}
-        </div>
-      ) : null}
-
-      {workerMode ? (
-        <div data-testid="ocr-run-worker-mode">
-          {workerMode}
-        </div>
-      ) : null}
-
-      {executionSettings ? (
-        <div data-testid="ocr-run-execution-settings">
-          {executionSettings}
-        </div>
-      ) : null}
-
-      {executionDiagnostics ? (
-        <div data-testid="ocr-run-execution-diagnostics">
-          {executionDiagnostics}
-        </div>
-      ) : null}
-
-      {batchQueue ? (
-        <div data-testid="ocr-run-batch-queue">
-          {batchQueue}
+      {runControls ? (
+        <div
+          className="rounded border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30"
+          data-testid="ocr-run-controls"
+        >
+          <p className="mb-2 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+            Recommended path: click Start OCR, then review the extracted text below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {runControls}
+          </div>
         </div>
       ) : null}
 
@@ -77,13 +59,52 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
         </div>
       ) : null}
 
-      {runControls ? (
-        <div
-          className="flex flex-wrap gap-2"
-          data-testid="ocr-run-controls"
+      {hasAdvancedSettings ? (
+        <details
+          className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+          data-testid="ocr-run-advanced-settings"
         >
-          {runControls}
-        </div>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+            Advanced OCR settings
+          </summary>
+          <div className="space-y-3 border-t border-slate-100 p-3 dark:border-slate-800">
+            {engineControls ? (
+              <div data-testid="ocr-run-engine-controls">
+                {engineControls}
+              </div>
+            ) : null}
+
+            {pipelineMode ? (
+              <div data-testid="ocr-run-pipeline-mode">
+                {pipelineMode}
+              </div>
+            ) : null}
+
+            {workerMode ? (
+              <div data-testid="ocr-run-worker-mode">
+                {workerMode}
+              </div>
+            ) : null}
+
+            {executionSettings ? (
+              <div data-testid="ocr-run-execution-settings">
+                {executionSettings}
+              </div>
+            ) : null}
+
+            {executionDiagnostics ? (
+              <div data-testid="ocr-run-execution-diagnostics">
+                {executionDiagnostics}
+              </div>
+            ) : null}
+
+            {batchQueue ? (
+              <div data-testid="ocr-run-batch-queue">
+                {batchQueue}
+              </div>
+            ) : null}
+          </div>
+        </details>
       ) : null}
     </OcrSectionShell>
   );
