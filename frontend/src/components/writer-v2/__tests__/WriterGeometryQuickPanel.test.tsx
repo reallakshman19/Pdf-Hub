@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   beforeEach,
   describe,
@@ -99,6 +98,7 @@ function makeBlankMeta(): WriterDocumentMetaV2 {
       preset: 'Custom',
       width: 600,
       height: 800,
+      unit: 'pt',
       marginTop: 72,
       marginRight: 72,
       marginBottom: 72,
