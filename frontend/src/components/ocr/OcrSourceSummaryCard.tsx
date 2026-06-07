@@ -22,61 +22,49 @@ export const OcrSourceSummaryCard: React.FC<OcrSourceSummaryCardProps> = ({
 }) => {
   return (
     <div
-      className="rounded border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950"
       data-testid="ocr-source-summary-card"
     >
-      <div className="mb-2 flex items-center gap-2">
-        <FileText className="h-4 w-4 text-blue-600" />
-        <div>
-          <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-            Active OCR Source
-          </h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            PDF source used for rasterization and searchable PDF export.
-          </p>
+      <div className="flex items-start gap-2">
+        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold text-slate-900 dark:text-slate-50">
+            {fileName ?? documentFingerprint ?? 'No PDF loaded'}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <SummaryPill
+              label="PDF"
+              value={hasPdfBytes ? bytesSource ?? 'available' : 'missing'}
+              tone={hasPdfBytes ? 'success' : 'warning'}
+            />
+            <SummaryPill
+              label="Pages"
+              value={pageCount || 0}
+            />
+            <SummaryPill
+              label="Selected"
+              value={selectedPageCount || 'all'}
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <SummaryCell
-          label="Document"
-          value={fileName ?? documentFingerprint ?? 'none'}
-          wide
-        />
-        <SummaryCell
-          label="PDF bytes"
-          value={hasPdfBytes ? bytesSource ?? 'available' : 'missing'}
-          tone={hasPdfBytes ? 'success' : 'warning'}
-        />
-        <SummaryCell
-          label="Pages"
-          value={pageCount || 0}
-        />
-        <SummaryCell
-          label="Selected"
-          value={selectedPageCount || 'all'}
-        />
       </div>
     </div>
   );
 };
 
-function SummaryCell({
+function SummaryPill({
   label,
   value,
   tone = 'neutral',
-  wide,
 }: {
   label: string;
   value: string | number;
   tone?: 'neutral' | 'success' | 'warning';
-  wide?: boolean;
 }) {
   return (
-    <div
+    <span
       className={[
-        'rounded border px-2 py-2',
-        wide ? 'col-span-2' : '',
+        'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5',
         tone === 'success'
           ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
           : tone === 'warning'
@@ -84,12 +72,12 @@ function SummaryCell({
             : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200',
       ].join(' ')}
     >
-      <div className="text-[10px] uppercase tracking-wide opacity-70">
+      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
         {label}
-      </div>
-      <div className="mt-0.5 truncate text-xs font-semibold">
+      </span>
+      <span className="truncate font-semibold">
         {value}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
