@@ -23,7 +23,7 @@ describe('useCapabilities', () => {
   });
 
   describe('static mode', () => {
-    it('returns static capabilities without any fetch call', async () => {
+    it('returns static capabilities without any fetch call when explicitly static', async () => {
       vi.stubEnv('VITE_APP_MODE', 'static');
       const { detectCapabilities } = await loadCapabilitiesModule();
       
@@ -41,11 +41,23 @@ describe('useCapabilities', () => {
       expect(caps.latencyMs).toBeNull();
       expect(fetch).not.toHaveBeenCalled();
     });
+
+    it('defaults to static capabilities without probing a server', async () => {
+      vi.stubEnv('VITE_APP_MODE', '');
+      const { detectCapabilities } = await loadCapabilitiesModule();
+
+      const caps = await detectCapabilities();
+
+      expect(caps.mode).toBe('static');
+      expect(caps.serverAlive).toBe(false);
+      expect(caps.canProbeServer).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('preview mode (server unreachable)', () => {
     it('falls back to preview when fetch fails', async () => {
-      vi.stubEnv('VITE_APP_MODE', '');
+      vi.stubEnv('VITE_APP_MODE', 'preview');
       (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Network error'),
       );
@@ -63,7 +75,7 @@ describe('useCapabilities', () => {
 
   describe('server mode (server reachable)', () => {
     it('detects server when health check succeeds', async () => {
-      vi.stubEnv('VITE_APP_MODE', '');
+      vi.stubEnv('VITE_APP_MODE', 'server');
       (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
         new Response(JSON.stringify({ status: 'ok' }), { status: 200 }),
       );
