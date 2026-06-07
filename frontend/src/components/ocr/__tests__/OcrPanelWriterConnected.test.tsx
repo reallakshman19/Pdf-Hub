@@ -10,6 +10,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
@@ -184,10 +185,12 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected />,
     );
 
-    expect(screen.getByTestId('ocr-pdf-source-summary')).toBeTruthy();
-    expect(screen.getByText(/session.pdf/)).toBeTruthy();
-    expect(screen.getByText(/Bytes: working/)).toBeTruthy();
-    expect(screen.getByText(/Pages: 4 · selected 2/)).toBeTruthy();
+    const sourceSummary = screen.getByTestId('ocr-pdf-source-summary');
+
+    expect(sourceSummary).toBeTruthy();
+    expect(within(sourceSummary).getByText(/session.pdf/)).toBeTruthy();
+    expect(within(sourceSummary).getByText(/Bytes: working/)).toBeTruthy();
+    expect(within(sourceSummary).getByText(/Pages: 4 · selected 2/)).toBeTruthy();
   });
 
   it('passes session document fingerprint when no explicit prop is supplied', () => {
@@ -202,8 +205,10 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected />,
     );
 
-    expect(screen.getByTestId('ocr-pdf-source-summary')).toBeTruthy();
-    expect(screen.getByText(/session.pdf/)).toBeTruthy();
+    const sourceSummary = screen.getByTestId('ocr-pdf-source-summary');
+
+    expect(sourceSummary).toBeTruthy();
+    expect(within(sourceSummary).getByText(/session.pdf/)).toBeTruthy();
   });
 
   it('shows warning when PDF bytes are missing', () => {
