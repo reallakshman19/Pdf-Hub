@@ -109,6 +109,34 @@ describe('OcrPanelWriterConnected', () => {
     expect(screen.getByTestId('ocr-panel')).toBeTruthy();
   });
 
+  it('keeps the browser workflow compact and non-nested', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'browser-smoke-doc',
+      fileName: 'browser-smoke.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 3,
+    });
+    useSessionStore.getState().setSelectedPages([1]);
+
+    render(<OcrPanelWriterConnected />);
+
+    expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
+    expect(screen.getByRole('button', { name: /run ocr/i })).toBeTruthy();
+    expect(screen.getAllByTestId('ocr-run-section')).toHaveLength(1);
+    expect(screen.getAllByTestId('ocr-review-section')).toHaveLength(1);
+
+    const runSection = screen.getByTestId('ocr-run-section');
+    const sourceSection = screen.getByTestId('ocr-connected-source');
+
+    expect(
+      runSection.compareDocumentPosition(sourceSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const summary = screen.getByTestId('ocr-unified-summary');
+    expect(within(summary).getByText('browser-smoke.pdf')).toBeTruthy();
+    expect(within(summary).getByText('working')).toBeTruthy();
+  });
+
   it('inserts OCR region Writer element into Writer V2 store', async () => {
     render(
       <OcrPanelWriterConnected
