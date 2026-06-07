@@ -143,12 +143,12 @@ function hydrateSelection(elements: WriterElementV2[], selectedIds: string[]): v
     },
   });
   useWriterV2Store.getState().dispatchWriterCommand({
-    type: 'SET_WRITER_SELECTION',
-    ids: selectedIds,
-  });
-  useWriterV2Store.getState().dispatchWriterCommand({
     type: 'SET_ACTIVE_WRITER_ELEMENT',
     id: selectedIds.at(-1) ?? null,
+  });
+  useWriterV2Store.getState().dispatchWriterCommand({
+    type: 'SET_WRITER_SELECTION',
+    ids: selectedIds,
   });
 }
 
