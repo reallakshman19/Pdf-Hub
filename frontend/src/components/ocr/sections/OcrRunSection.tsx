@@ -33,28 +33,25 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
   return (
     <OcrSectionShell
       title="Start OCR"
-      description="One clear action starts OCR. Keep advanced settings closed unless the document is large, slow, or needs a specific engine."
+      description="Run OCR first. Fine-tune settings only when a document needs it."
       icon={<PlayCircle className="h-4 w-4 text-emerald-600" />}
       testId="ocr-run-section"
     >
       {runControls ? (
         <div
-          className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm dark:border-emerald-900 dark:from-emerald-950/40 dark:to-slate-950"
+          className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-3 dark:border-emerald-900 dark:bg-emerald-950/30"
           data-testid="ocr-run-controls"
         >
-          <div className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <div className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200">
-                Recommended
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                Recommended settings
               </div>
-              <h4 className="mt-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
-                Run OCR with safe defaults
-              </h4>
-              <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                Start here for most PDFs. The result, searchable text, low-confidence words, and Writer insertion tools appear in the review area after processing.
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                OCR will create searchable text and review tools.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 md:justify-end">
+            <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
               {runControls}
             </div>
           </div>
@@ -63,7 +60,7 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
 
       {errorMessage ? (
         <div
-          className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
           data-testid="ocr-run-error"
         >
           <span className="font-semibold">OCR could not continue. </span>
@@ -73,17 +70,18 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
 
       {hasAdvancedSettings ? (
         <details
-          className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
           data-testid="ocr-run-advanced-settings"
+          open={Boolean(executionDiagnostics)}
         >
-          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200">
+          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Settings2 className="h-3.5 w-3.5" />
             Advanced OCR settings
             <span className="font-normal text-slate-500 dark:text-slate-400">
               engine, pages, memory, timeout, pipeline
             </span>
           </summary>
-          <div className="space-y-4 border-t border-slate-100 p-4 dark:border-slate-800">
+          <div className="space-y-3 border-t border-slate-100 p-3 dark:border-slate-800">
             {engineControls ? (
               <div data-testid="ocr-run-engine-controls">
                 <PanelLabel title="Recognition" subtitle="Engine, scan profile, and forced OCR behavior." />
@@ -93,7 +91,7 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
 
             {pipelineMode ? (
               <div data-testid="ocr-run-pipeline-mode">
-                <PanelLabel title="Pipeline" subtitle="Choose main-thread or worker-backed execution when available." />
+                <PanelLabel title="Pipeline" subtitle="Main-thread or worker-backed execution." />
                 {pipelineMode}
               </div>
             ) : null}
@@ -106,7 +104,7 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
 
             {executionSettings ? (
               <div data-testid="ocr-run-execution-settings">
-                <PanelLabel title="Execution limits" subtitle="Control memory and batch size for large documents." />
+                <PanelLabel title="Execution limits" subtitle="Memory and batch size for large documents." />
                 {executionSettings}
               </div>
             ) : null}
