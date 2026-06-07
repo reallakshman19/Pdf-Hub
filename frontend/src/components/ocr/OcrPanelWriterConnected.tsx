@@ -155,7 +155,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
           },
         ]}
         source={
-          <div className="space-y-2">
+          <div className="space-y-3">
             <OcrSourceSummaryCard
               fileName={summary.fileName}
               documentFingerprint={summary.documentFingerprint}
@@ -167,7 +167,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
 
             {ocrPdfSource.diagnostics.some((diagnostic) => diagnostic.level !== 'info') ? (
               <div
-                className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
                 data-testid="ocr-pdf-source-warning"
               >
                 {ocrPdfSource.diagnostics
@@ -194,7 +194,6 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
           </div>
         }
         run={
-          /* OcrPanel is mounted once only. It owns run/review/export/project sections internally. */
           <OcrPanel
             documentFingerprint={effectiveDocumentFingerprint}
             selectedPageIndexes={effectiveSelectedPageIndexes}
@@ -206,6 +205,21 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
             projectPayload={demoProjectPayload}
           />
         }
+        review={
+          lastInsertSummary ? (
+            <div
+              className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+              data-testid="ocr-writer-connected-summary"
+            >
+              <div className="font-semibold">Writer updated</div>
+              <div className="mt-1 text-xs leading-5">{lastInsertSummary}</div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+              Inserted OCR content will be confirmed here after you send text, tables, or regions to Writer.
+            </div>
+          )
+        }
         diagnostics={
           <div className="space-y-2">
             {ocrPdfSource.diagnostics.map((diagnostic, index) => (
@@ -216,15 +230,6 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
                 {diagnostic.code}: {diagnostic.message}
               </div>
             ))}
-
-            {lastInsertSummary ? (
-              <div
-                className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-                data-testid="ocr-writer-connected-summary"
-              >
-                {lastInsertSummary}
-              </div>
-            ) : null}
           </div>
         }
       />
