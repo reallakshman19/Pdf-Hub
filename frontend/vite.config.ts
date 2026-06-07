@@ -8,7 +8,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@lexical/utils': path.resolve(__dirname, './src/vendor/lexicalUtils.ts'),
       '@': path.resolve(__dirname, './src'),
     },
   },
