@@ -19,6 +19,15 @@ describe('OcrPanel', () => {
     useOcrStore.getState().clearOcr();
   });
 
+  const renderPanelWithRegionTools = async (panel: Parameters<typeof render>[0]) => {
+    render(panel);
+    fireEvent.click(screen.getByTestId('run-ocr-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-region-tool')).toBeTruthy();
+    });
+  };
+
   it('renders OCR workspace shell', () => {
     render(
       <OcrPanel
@@ -28,8 +37,11 @@ describe('OcrPanel', () => {
     );
 
     expect(screen.getByTestId('ocr-panel')).toBeTruthy();
-    expect(screen.getByText('OCR Workspace')).toBeTruthy();
-    expect(screen.getByText(/Document: doc-panel/)).toBeTruthy();
+    expect(screen.getByTestId('ocr-run-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-export-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-project-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-diagnostics-section')).toBeTruthy();
     expect(screen.getByTestId('run-ocr-button')).toBeTruthy();
   });
 
@@ -123,7 +135,7 @@ describe('OcrPanel', () => {
 
     expect(useOcrStore.getState().result).toBeNull();
     expect(useOcrStore.getState().searchIndex).toBeNull();
-    expect(screen.getByTestId('ocr-summary-empty')).toBeTruthy();
+    expect(screen.getByTestId('ocr-review-empty')).toBeTruthy();
   });
 
   it('can run placeholder OCR without selected pages', async () => {
@@ -206,8 +218,8 @@ describe('OcrPanel', () => {
     expect(correctedMatches.length).toBeGreaterThan(0);
   });
 
-  it('adds and deletes OCR region from panel', () => {
-    render(
+  it('adds and deletes OCR region from panel', async () => {
+    await renderPanelWithRegionTools(
       <OcrPanel
         documentFingerprint="doc-region-panel"
         selectedPageIndexes={[0]}
@@ -237,7 +249,7 @@ describe('OcrPanel', () => {
   });
 
   it('runs selected OCR region and creates Writer element callback result', async () => {
-    render(
+    await renderPanelWithRegionTools(
       <OcrPanel
         documentFingerprint="doc-region-action-panel"
         selectedPageIndexes={[0]}
@@ -275,7 +287,7 @@ describe('OcrPanel', () => {
   it('reviews and accepts OCR table from region OCR result', async () => {
     useOcrStore.getState().setOcrProfileId('table-heavy');
 
-    render(
+    await renderPanelWithRegionTools(
       <OcrPanel
         documentFingerprint="doc-table-review-panel"
         selectedPageIndexes={[0]}
@@ -323,7 +335,7 @@ describe('OcrPanel', () => {
   it('queues OCR region Writer element and inserts through callback', async () => {
     const insertedElements: WriterElementV2[] = [];
 
-    render(
+    await renderPanelWithRegionTools(
       <OcrPanel
         documentFingerprint="doc-writer-insert-panel"
         selectedPageIndexes={[0]}
@@ -383,7 +395,7 @@ describe('OcrPanel', () => {
   });
 
   it('region OCR still works through fallback resolver when pdfBytes are not supplied', async () => {
-    render(
+    await renderPanelWithRegionTools(
       <OcrPanel
         documentFingerprint="doc-region-fallback-raster"
         selectedPageIndexes={[0]}
@@ -417,7 +429,7 @@ describe('OcrPanel', () => {
     fireEvent.click(screen.getByTestId('run-ocr-button'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('ocr-execution-diagnostics')).toBeTruthy();
+      expect(screen.getByTestId('ocr-run-execution-diagnostics')).toBeTruthy();
     });
 
     expect(screen.getByText(/OCR job limited to 1 page/)).toBeTruthy();
@@ -476,14 +488,13 @@ describe('OcrPanel', () => {
     fireEvent.click(screen.getByTestId('run-ocr-button'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('ocr-pipeline-messages')).toBeTruthy();
+      expect(screen.getByTestId('ocr-diagnostics-message-list')).toBeTruthy();
     });
 
-    expect(screen.getByTestId('ocr-pipeline-messages').textContent).toContain('OCR pipeline');
+    expect(screen.getByTestId('ocr-diagnostics-message-list').textContent).toContain('OCR pipeline');
 
     await waitFor(() => {
       expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
     });
   });
 });
-
