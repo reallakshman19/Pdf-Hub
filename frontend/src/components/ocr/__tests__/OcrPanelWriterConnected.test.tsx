@@ -79,6 +79,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
 describe('OcrPanelWriterConnected', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
+    useSessionStore.getState().clearDocument();
     useWriterV2Store.getState().clearWriterV2();
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'writer-connected-doc',
