@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   beforeEach,
   describe,
@@ -20,8 +19,6 @@ import type {
 import { WriterElementBox } from '../WriterElementBox';
 
 const viewport: WriterPageViewport = {
-  width: 600,
-  height: 800,
   pdfWidth: 600,
   pdfHeight: 800,
   rotation: 0,
@@ -95,6 +92,7 @@ function makeBlankMeta(): WriterDocumentMetaV2 {
       preset: 'Custom',
       width: 600,
       height: 800,
+      unit: 'pt',
       marginTop: 72,
       marginRight: 72,
       marginBottom: 72,
