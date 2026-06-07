@@ -128,9 +128,9 @@ describe('OcrPanelWriterConnected', () => {
     const runSection = screen.getByTestId('ocr-run-section');
     const sourceSection = screen.getByTestId('ocr-connected-source');
 
-    expect(
-      runSection.compareDocumentPosition(sourceSection) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(runSection.compareDocumentPosition(sourceSection)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
 
     const summary = screen.getByTestId('ocr-unified-summary');
     expect(within(summary).getByText('browser-smoke.pdf')).toBeTruthy();
