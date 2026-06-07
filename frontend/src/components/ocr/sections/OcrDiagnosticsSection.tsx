@@ -70,6 +70,7 @@ function DiagnosticRow({
   item: OcrDiagnosticsMessage;
 }) {
   const level = item.level ?? 'info';
+  const codeLabel = item.code ? formatDiagnosticCode(item.code) : null;
 
   const className =
     level === 'error'
@@ -83,12 +84,20 @@ function DiagnosticRow({
       className={`rounded border px-2 py-1 text-xs ${className}`}
       data-testid="ocr-diagnostics-message"
     >
-      {item.code ? (
+      {item.code && codeLabel ? (
         <span className="font-semibold">
-          {item.code}:{' '}
+          {codeLabel} ({item.code}):{' '}
         </span>
       ) : null}
       {item.message}
     </div>
   );
+}
+
+function formatDiagnosticCode(code: string): string {
+  return code
+    .toLowerCase()
+    .split('_')
+    .map((part, index) => (index === 0 ? part.toUpperCase() : part))
+    .join(' ');
 }
