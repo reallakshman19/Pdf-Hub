@@ -70,6 +70,22 @@ vi.mock('@/core/writer-v2/writerRichToolbarActions', () => ({
   runWriterRichToolbarAction: vi.fn(() => Promise.resolve({ changed: true, id: 'box-1', message: 'Action complete' })),
 }));
 
+vi.mock('@/core/writer-v2/export/writerExportPreflight', () => ({
+  runCurrentWriterExportPreflight: vi.fn(() => Promise.resolve({
+    hasErrors: false,
+    hasWarnings: false,
+    diagnostics: [],
+    fixableIssues: [],
+  })),
+}));
+
+vi.mock('@/core/writer-v2/export/writerPreflightFixes', () => ({
+  fixRichContentClipIssues: vi.fn(() => Promise.resolve({
+    changed: false,
+    message: 'No rich content clipping fixes required.',
+  })),
+}));
+
 
 describe('WriterV2ToolbarControls', () => {
   beforeEach(() => {
