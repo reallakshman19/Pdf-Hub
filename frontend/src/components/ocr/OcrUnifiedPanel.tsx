@@ -62,7 +62,7 @@ export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
   diagnostics,
   title = 'OCR Workspace',
   subtitle = 'Run OCR, review results, export searchable PDFs, and send OCR content to Writer.',
-  defaultOpenSections = ['source', 'run', 'review'],
+  defaultOpenSections = ['source', 'run', 'review', 'diagnostics'],
   sourceSummary = [],
   runSummary = [],
 }) => {
