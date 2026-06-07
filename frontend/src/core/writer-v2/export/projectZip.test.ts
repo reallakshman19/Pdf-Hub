@@ -95,6 +95,7 @@ describe('PDF Hub writer project ZIP', () => {
         preset: 'A4',
         width: 595.28,
         height: 841.89,
+        unit: 'pt',
         marginTop: 72,
         marginRight: 72,
         marginBottom: 72,
