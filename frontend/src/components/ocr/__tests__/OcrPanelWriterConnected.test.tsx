@@ -89,6 +89,14 @@ describe('OcrPanelWriterConnected', () => {
     });
   });
 
+  const revealConnectedRegionTools = async () => {
+    fireEvent.click(screen.getByTestId('run-ocr-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-region-add')).toBeTruthy();
+    });
+  };
+
   it('renders connected OCR panel', () => {
     render(
       <OcrPanelWriterConnected
@@ -108,6 +116,8 @@ describe('OcrPanelWriterConnected', () => {
         selectedPageIndexes={[0]}
       />,
     );
+
+    await revealConnectedRegionTools();
 
     fireEvent.change(screen.getByTestId('ocr-region-mode'), {
       target: {
@@ -150,6 +160,8 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected selectedPageIndexes={[0]} />,
     );
 
+    await revealConnectedRegionTools();
+
     fireEvent.click(screen.getByTestId('ocr-region-add'));
     fireEvent.click(screen.getByTestId('ocr-region-run'));
 
@@ -186,12 +198,13 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected />,
     );
 
-    const sourceSummary = screen.getByTestId('ocr-pdf-source-summary');
+    const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
-    expect(sourceSummary).toBeTruthy();
-    expect(within(sourceSummary).getByText(/session.pdf/)).toBeTruthy();
-    expect(within(sourceSummary).getByText(/Bytes: working/)).toBeTruthy();
-    expect(within(sourceSummary).getByText(/Pages: 4 · selected 2/)).toBeTruthy();
+    expect(unifiedSummary).toBeTruthy();
+    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('working')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('4')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('2')).toBeTruthy();
   });
 
   it('passes session document fingerprint when no explicit prop is supplied', () => {
@@ -206,10 +219,11 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected />,
     );
 
-    const sourceSummary = screen.getByTestId('ocr-pdf-source-summary');
+    const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
-    expect(sourceSummary).toBeTruthy();
-    expect(within(sourceSummary).getByText(/session.pdf/)).toBeTruthy();
+    expect(unifiedSummary).toBeTruthy();
+    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('working')).toBeTruthy();
   });
 
   it('shows warning when PDF bytes are missing', () => {
