@@ -53,6 +53,12 @@ interface OcrUnifiedSectionConfig {
   defaultOpen: boolean;
 }
 
+const OCR_QUICK_STEPS = [
+  'Confirm the PDF',
+  'Start OCR',
+  'Review & send to Writer',
+];
+
 export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
   source,
   run,
@@ -60,8 +66,8 @@ export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
   exportTools,
   project,
   diagnostics,
-  title = 'OCR Workspace',
-  subtitle = 'Run OCR, review results, export searchable PDFs, and send OCR content to Writer.',
+  title = 'OCR Assistant',
+  subtitle = 'Extract text from the PDF, review it, then export or insert it into Writer.',
   defaultOpenSections = ['source', 'run', 'review', 'diagnostics'],
   sourceSummary = [],
   runSummary = [],
@@ -69,24 +75,24 @@ export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
   const sections: OcrUnifiedSectionConfig[] = [
     {
       id: 'source',
-      title: 'Source',
-      description: 'Active PDF, selected pages, demo fixtures, and PDF byte status.',
+      title: 'PDF source',
+      description: 'Check the active file, page count, and selected pages before running OCR.',
       icon: <FileSearch className="h-4 w-4 text-blue-600" />,
       content: source,
       defaultOpen: defaultOpenSections.includes('source'),
     },
     {
       id: 'run',
-      title: 'Run',
-      description: 'OCR engine, profile, pipeline mode, execution policy, and batch queue.',
+      title: 'Run OCR',
+      description: 'Start with the recommended settings. Advanced options are available below.',
       icon: <PlayCircle className="h-4 w-4 text-emerald-600" />,
       content: run,
       defaultOpen: defaultOpenSections.includes('run'),
     },
     {
       id: 'review',
-      title: 'Review',
-      description: 'OCR result review, regions, corrections, table review, and Writer insertion.',
+      title: 'Review result',
+      description: 'Search recognized text, fix low-confidence words, crop regions, and prepare Writer output.',
       icon: <Layers className="h-4 w-4 text-violet-600" />,
       content: review,
       defaultOpen: defaultOpenSections.includes('review'),
@@ -94,23 +100,23 @@ export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
     {
       id: 'export',
       title: 'Export',
-      description: 'Searchable PDF, OCR project payload, and OCR-derived outputs.',
+      description: 'Create a searchable PDF or save OCR-derived outputs.',
       icon: <Download className="h-4 w-4 text-sky-600" />,
       content: exportTools,
       defaultOpen: defaultOpenSections.includes('export'),
     },
     {
       id: 'project',
-      title: 'Project',
-      description: 'Restore OCR state from project payload and hydrate OCR session data.',
+      title: 'Restore OCR project',
+      description: 'Reload saved OCR state from a project file.',
       icon: <Database className="h-4 w-4 text-orange-600" />,
       content: project,
       defaultOpen: defaultOpenSections.includes('project'),
     },
     {
       id: 'diagnostics',
-      title: 'Diagnostics',
-      description: 'Pipeline, source, worker, certification, and execution messages.',
+      title: 'Advanced details',
+      description: 'Technical source, worker, pipeline, and execution messages for troubleshooting.',
       icon: <Info className="h-4 w-4 text-slate-600" />,
       content: diagnostics,
       defaultOpen: defaultOpenSections.includes('diagnostics'),
@@ -133,6 +139,25 @@ export const OcrUnifiedPanel: React.FC<OcrUnifiedPanelProps> = ({
               {subtitle}
             </p>
           </div>
+        </div>
+
+        <div
+          className="mt-3 grid grid-cols-1 gap-1.5 text-[11px] sm:grid-cols-3"
+          data-testid="ocr-quick-start-steps"
+        >
+          {OCR_QUICK_STEPS.map((step, index) => (
+            <div
+              key={step}
+              className="flex items-center gap-2 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white">
+                {index + 1}
+              </span>
+              <span className="font-medium">
+                {step}
+              </span>
+            </div>
+          ))}
         </div>
 
         {(sourceSummary.length > 0 || runSummary.length > 0) ? (
@@ -180,8 +205,9 @@ function OcrUnifiedSection({
     >
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900"
         onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
         data-testid={`ocr-unified-section-toggle-${section.id}`}
       >
         <span className="flex items-start gap-2">
@@ -196,11 +222,14 @@ function OcrUnifiedSection({
           </span>
         </span>
 
-        {open ? (
-          <ChevronDown className="h-4 w-4 text-slate-500" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-slate-500" />
-        )}
+        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+          {open ? 'Hide' : 'Show'}
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-slate-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-slate-500" />
+          )}
+        </span>
       </button>
 
       {open ? (
