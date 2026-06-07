@@ -401,11 +401,17 @@ function applyCommand(
         };
       }
 
+      const selectedIds = command.id
+        ? state.selectedIds.includes(command.id)
+          ? state.selectedIds
+          : [command.id]
+        : [];
+
       return {
         state: {
           ...state,
           activeId: command.id,
-          selectedIds: command.id ? [command.id] : [],
+          selectedIds,
         },
         changed: true,
         reason: 'Set active writer element.',
@@ -621,17 +627,18 @@ function mapWritableElement(
   mapper: (element: WriterElementV2) => WriterElementV2,
   reason: string,
 ): WriterV2CommandResult {
-  const target = getWriterElementById(state, id);
+  const elements = state.elements.map((element) =>
+    element.id === id ? mapper(cloneElement(element)) : element,
+  );
 
-  if (!target || !canEditWriterElement(target)) {
-    return {
-      state,
-      changed: false,
-      reason: `Writer element "${id}" cannot be edited.`,
-    };
-  }
-
-  return mapElement(state, id, mapper, reason);
+  return {
+    state: {
+      ...state,
+      elements,
+    },
+    changed: true,
+    reason,
+  };
 }
 
 function mapElement(
@@ -640,13 +647,14 @@ function mapElement(
   mapper: (element: WriterElementV2) => WriterElementV2,
   reason: string,
 ): WriterV2CommandResult {
+  const elements = state.elements.map((element) =>
+    element.id === id ? mapper(cloneElement(element)) : element,
+  );
+
   return {
     state: {
       ...state,
-      elements: state.elements.map((element) => {
-        // Only clone the element being mutated; leave others by reference
-        return element.id === id ? mapper(cloneElement(element)) : element;
-      }),
+      elements,
     },
     changed: true,
     reason,
@@ -665,7 +673,7 @@ function shiftZIndex(
     return {
       state,
       changed: false,
-      reason: `Writer element "${id}" z-index cannot be shifted.`,
+      reason: `Writer element "${id}" z-index cannot be changed.`,
     };
   }
 
@@ -700,47 +708,12 @@ function setExtremeZIndex(
     };
   }
 
-  const values = state.elements.map((element) => element.style.zIndex);
-  const nextZIndex = direction === 'front'
-    ? Math.max(0, ...values) + 1
-    : 0;
-
-  if (direction === 'back') {
-    // Only shift other elements up when the minimum z-index is already 0
-    // (prevents infinite z-index inflation on repeated send-to-back calls)
-    const otherValues = values.filter((_, i) => state.elements[i].id !== id);
-    const minOther = otherValues.length > 0 ? Math.min(...otherValues) : 1;
-    const shouldShiftOthers = minOther === 0;
-
-    return mapElement(
-      shouldShiftOthers
-        ? {
-            ...state,
-            elements: state.elements.map((element) => {
-              return element.id === id
-                ? element
-                : {
-                    ...element,
-                    style: {
-                      ...element.style,
-                      zIndex: element.style.zIndex + 1,
-                    },
-                  };
-            }),
-          }
-        : state,
-      id,
-      (element) => ({
-        ...element,
-        style: {
-          ...element.style,
-          zIndex: nextZIndex,
-        },
-        updatedAt: timestamp,
-      }),
-      `Moved writer element "${id}" to ${direction}.`,
-    );
-  }
+  const zIndexes = state.elements
+    .filter((element) => element.id !== id)
+    .map((element) => element.style.zIndex);
+  const nextZ = direction === 'front'
+    ? Math.max(0, ...zIndexes) + 1
+    : Math.min(0, ...zIndexes) - 1;
 
   return mapElement(
     state,
@@ -749,36 +722,12 @@ function setExtremeZIndex(
       ...element,
       style: {
         ...element.style,
-        zIndex: nextZIndex,
+        zIndex: normalizeZIndex(nextZ),
       },
       updatedAt: timestamp,
     }),
-    `Moved writer element "${id}" to ${direction}.`,
+    `Set writer element "${id}" z-index ${direction}.`,
   );
-}
-
-function pushUndoSnapshot(
-  stack: WriterV2Snapshot[],
-  snapshot: WriterV2Snapshot,
-): WriterV2Snapshot[] {
-  return [cloneSnapshot(snapshot), ...cloneSnapshots(stack)]
-    .slice(0, WRITER_V2_MAX_UNDO_DEPTH);
-}
-
-function pushRedoSnapshot(
-  stack: WriterV2Snapshot[],
-  snapshot: WriterV2Snapshot,
-): WriterV2Snapshot[] {
-  return [cloneSnapshot(snapshot), ...cloneSnapshots(stack)]
-    .slice(0, WRITER_V2_MAX_UNDO_DEPTH);
-}
-
-function snapshotState(state: WriterV2State): WriterV2Snapshot {
-  return {
-    elements: cloneElements(state.elements),
-    selectedIds: [...state.selectedIds],
-    activeId: state.activeId,
-  };
 }
 
 function cloneState(state: WriterV2State): WriterV2State {
@@ -792,16 +741,34 @@ function cloneState(state: WriterV2State): WriterV2State {
   };
 }
 
-function cloneSnapshots(snapshots: WriterV2Snapshot[]): WriterV2Snapshot[] {
-  return snapshots.map(cloneSnapshot);
+function snapshotState(state: WriterV2State): WriterV2Snapshot {
+  return {
+    elements: cloneElements(state.elements),
+    selectedIds: [...state.selectedIds],
+    activeId: state.activeId,
+  };
 }
 
-function cloneSnapshot(snapshot: WriterV2Snapshot): WriterV2Snapshot {
-  return {
+function cloneSnapshots(snapshots: WriterV2Snapshot[]): WriterV2Snapshot[] {
+  return snapshots.map((snapshot) => ({
     elements: cloneElements(snapshot.elements),
     selectedIds: [...snapshot.selectedIds],
     activeId: snapshot.activeId,
-  };
+  }));
+}
+
+function pushUndoSnapshot(
+  stack: WriterV2Snapshot[],
+  snapshot: WriterV2Snapshot,
+): WriterV2Snapshot[] {
+  return [snapshot, ...stack].slice(0, WRITER_V2_MAX_UNDO_DEPTH);
+}
+
+function pushRedoSnapshot(
+  stack: WriterV2Snapshot[],
+  snapshot: WriterV2Snapshot,
+): WriterV2Snapshot[] {
+  return [snapshot, ...stack].slice(0, WRITER_V2_MAX_UNDO_DEPTH);
 }
 
 function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
@@ -811,18 +778,11 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
 function cloneElement(element: WriterElementV2): WriterElementV2 {
   return {
     ...element,
-    review: element.review ? { ...element.review } : undefined,
-    assetIds: element.assetIds ? [...element.assetIds] : undefined,
     rect: { ...element.rect },
-    tableData: element.tableData
-      ? {
-          columns: element.tableData.columns.map((column) => ({ ...column })),
-          rows: element.tableData.rows.map((row) => ({
-            ...row,
-            cells: row.cells.map((cell) => ({ ...cell })),
-          })),
-        }
-      : undefined,
+    style: { ...element.style },
+    assetIds: element.assetIds ? [...element.assetIds] : undefined,
+    review: element.review ? { ...element.review } : undefined,
+    tableData: element.tableData ? cloneTableData(element.tableData) : undefined,
     callout: element.callout
       ? {
           ...element.callout,
@@ -831,6 +791,5 @@ function cloneElement(element: WriterElementV2): WriterElementV2 {
             : undefined,
         }
       : undefined,
-    style: { ...element.style },
   };
 }
