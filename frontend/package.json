@@ -85,7 +85,6 @@
     "@lexical/rich-text": "0.44.0",
     "@lexical/selection": "0.44.0",
     "@lexical/table": "0.44.0",
-    "@lexical/utils": "0.44.0",
     "docx": "^9.7.1",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
