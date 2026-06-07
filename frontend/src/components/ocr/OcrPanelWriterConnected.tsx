@@ -17,11 +17,11 @@ import {
 import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
 import { OcrPanel } from './OcrPanel';
 import { OcrDemoFixturePanel } from './OcrDemoFixturePanel';
-import { OcrUnifiedPanel } from './OcrUnifiedPanel';
 import { OcrSourceSummaryCard } from './OcrSourceSummaryCard';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
 import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
+import { Workflow } from 'lucide-react';
 
 // Static check marker: ocr-pdf-source-summary
 
@@ -131,31 +131,103 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
 
   return (
     <div
-      className="flex h-full flex-col"
+      className="flex h-full flex-col overflow-auto bg-slate-50 dark:bg-slate-950"
       data-testid="ocr-panel-writer-connected"
     >
-      <OcrUnifiedPanel
-        sourceSummary={[
-          {
-            label: 'PDF',
-            value: summary.hasPdfBytes ? summary.bytesSource : 'missing',
-            tone: summary.hasPdfBytes ? 'success' : 'warning',
-          },
-          {
-            label: 'Pages',
-            value: summary.pageCount || 0,
-          },
-          {
-            label: 'Selected',
-            value: summary.selectedPageCount || 'all',
-          },
-          {
-            label: 'Document',
-            value: summary.fileName ?? summary.documentFingerprint ?? 'none',
-          },
-        ]}
-        source={
-          <div className="space-y-3">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+            <Workflow className="h-4 w-4" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+                  OCR Assistant
+                </h3>
+                <p className="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                  Run OCR, review the result, then export or send clean content to Writer.
+                </p>
+              </div>
+
+              <div
+                className={[
+                  'shrink-0 rounded-xl border px-2.5 py-2 text-xs shadow-sm',
+                  summary.hasPdfBytes
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
+                ].join(' ')}
+                data-testid="ocr-guidance-card"
+              >
+                <div className="font-semibold">
+                  {summary.hasPdfBytes ? 'Ready for OCR' : 'Open a PDF first'}
+                </div>
+                <div className="mt-0.5 max-w-[240px] truncate opacity-90">
+                  {summary.hasPdfBytes
+                    ? `${summary.selectedPageCount || 'All'} selected page(s).`
+                    : 'Load a PDF to extract text.'}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="mt-2 flex flex-wrap gap-1.5"
+              data-testid="ocr-unified-summary"
+            >
+              <SummaryPill
+                label="PDF"
+                value={summary.hasPdfBytes ? summary.bytesSource : 'missing'}
+                tone={summary.hasPdfBytes ? 'success' : 'warning'}
+              />
+              <SummaryPill
+                label="Pages"
+                value={summary.pageCount || 0}
+              />
+              <SummaryPill
+                label="Selected"
+                value={summary.selectedPageCount || 'all'}
+              />
+              <SummaryPill
+                label="Document"
+                value={summary.fileName ?? summary.documentFingerprint ?? 'none'}
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="space-y-3 p-3">
+        {lastInsertSummary ? (
+          <div
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+            data-testid="ocr-writer-connected-summary"
+          >
+            <span className="font-semibold">Writer updated. </span>
+            {lastInsertSummary}
+          </div>
+        ) : null}
+
+        <OcrPanel
+          documentFingerprint={effectiveDocumentFingerprint}
+          selectedPageIndexes={effectiveSelectedPageIndexes}
+          pageCount={effectivePageCount}
+          pages={pages}
+          pdfBytes={effectivePdfBytes}
+          onSearchablePdfExported={onSearchablePdfExported}
+          onInsertWriterElements={insertIntoWriter}
+          projectPayload={demoProjectPayload}
+        />
+
+        <section
+          className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          data-testid="ocr-connected-source"
+        >
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Source
+          </div>
+
+          <div className="space-y-2">
             <OcrSourceSummaryCard
               fileName={summary.fileName}
               documentFingerprint={summary.documentFingerprint}
@@ -167,7 +239,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
 
             {ocrPdfSource.diagnostics.some((diagnostic) => diagnostic.level !== 'info') ? (
               <div
-                className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
                 data-testid="ocr-pdf-source-warning"
               >
                 {ocrPdfSource.diagnostics
@@ -192,49 +264,41 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
               }}
             />
           </div>
-        }
-        run={
-          <OcrPanel
-            documentFingerprint={effectiveDocumentFingerprint}
-            selectedPageIndexes={effectiveSelectedPageIndexes}
-            pageCount={effectivePageCount}
-            pages={pages}
-            pdfBytes={effectivePdfBytes}
-            onSearchablePdfExported={onSearchablePdfExported}
-            onInsertWriterElements={insertIntoWriter}
-            projectPayload={demoProjectPayload}
-          />
-        }
-        review={
-          lastInsertSummary ? (
-            <div
-              className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-              data-testid="ocr-writer-connected-summary"
-            >
-              <div className="font-semibold">Writer updated</div>
-              <div className="mt-1 text-xs leading-5">{lastInsertSummary}</div>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-              Inserted OCR content will be confirmed here after you send text, tables, or regions to Writer.
-            </div>
-          )
-        }
-        diagnostics={
-          <div className="space-y-2">
-            {ocrPdfSource.diagnostics.map((diagnostic, index) => (
-              <div
-                key={`${diagnostic.code}-${index}`}
-                className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-              >
-                {diagnostic.code}: {diagnostic.message}
-              </div>
-            ))}
-          </div>
-        }
-      />
+        </section>
+      </div>
     </div>
   );
 };
+
+function SummaryPill({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string | number;
+  tone?: 'neutral' | 'success' | 'warning';
+}) {
+  return (
+    <span
+      className={[
+        'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs shadow-sm',
+        tone === 'success'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+          : tone === 'warning'
+            ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+            : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200',
+      ].join(' ')}
+      title={`${label}: ${value}`}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
+        {label}
+      </span>
+      <span className="max-w-[160px] truncate font-semibold">
+        {value}
+      </span>
+    </span>
+  );
+}
 
 export default OcrPanelWriterConnected;
