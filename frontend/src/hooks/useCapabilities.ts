@@ -36,13 +36,14 @@ const getServerHealthUrl = (): string => {
 
 /**
  * Determine initial mode from build-time env.
- * INV-5 EXCEPTION: This is the ONLY place import.meta.env gates mode.
+ * Static is the default because PDF Hub is deployed as a browser-only app.
+ * Server probing is opt-in to avoid noisy 404s on GitHub Pages/Vite static builds.
  */
 function getInitialMode(): AppMode {
   const envMode = import.meta.env.VITE_APP_MODE as string | undefined;
-  if (envMode === 'static') return 'static';
   if (envMode === 'server') return 'server';
-  return 'preview'; // default: probe server once
+  if (envMode === 'preview') return 'preview';
+  return 'static';
 }
 
 function buildCapabilities(
