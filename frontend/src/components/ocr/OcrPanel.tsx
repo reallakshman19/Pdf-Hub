@@ -210,7 +210,7 @@ function buildResultPanels({ store, review, effectiveDocumentFingerprint, pageSc
     panels.push({ title: 'Result summary', testId: 'ocr-review-result-summary', content: <><OcrResultSummary result={store.correctedResult} confidenceSummary={store.confidenceSummary} lowConfidenceCount={store.lowConfidenceWords.length} /><OcrConfidenceLegend compact /></> });
     if (store.searchIndex) panels.push({ title: 'Search OCR text', testId: 'ocr-review-search', content: <OcrSearchMiniPanel disabled={!store.searchIndex} onSearch={(text) => useOcrStore.getState().searchOcr({ text, limit: 8 })} /> });
     panels.push({ title: 'Low-confidence corrections', testId: 'ocr-review-corrections', content: <><OcrLowConfidencePanel words={store.lowConfidenceWords} selectedWordId={review.selectedLowConfidenceWordId} onSelectWord={(item) => review.setSelectedLowConfidenceWordId(item.word.id)} /><OcrCorrectionPanel word={review.selectedLowConfidenceWord} documentFingerprint={effectiveDocumentFingerprint} /></> });
-    panels.push({ title: 'Capture region', testId: 'ocr-review-region-tools', content: <RegionWorkspace store={store} review={review} effectiveDocumentFingerprint={effectiveDocumentFingerprint} pageScopeFirstIndex={pageScopeFirstIndex} pdfBytes={pdfBytes} /> });
+    panels.push({ title: 'Capture region', testId: 'ocr-review-region-tools', content: <RegionWorkspace store={store} review={review} effectiveDocumentFingerprint={effectiveDocumentFingerprint} pageScopeFirstIndex={pageScopeFirstIndex} /> });
   }
   if (review.lastRegionTableBlock) panels.push({ title: 'Review tables', testId: 'ocr-review-table', content: <><OcrTableReviewPanel tableBlock={review.lastRegionTableBlock} onAcceptTable={review.handleAcceptTable} />{review.lastAcceptedTableSummary ? <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700" data-testid="ocr-table-accepted-summary">OCR table accepted: {review.lastAcceptedTableSummary}</p> : null}</> });
   if (review.writerInsertionQueue.candidates.length > 0 || review.lastInsertedWriterCount !== null) panels.push({ title: 'Send to Writer', testId: 'ocr-review-writer-insertion', content: <><OcrWriterInsertPanel queue={review.writerInsertionQueue} onQueueChange={review.setWriterInsertionQueue} onInsertElements={review.handleInsertElements} />{review.lastInsertedWriterCount !== null ? <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700" data-testid="ocr-writer-inserted-summary">Inserted {review.lastInsertedWriterCount} OCR Writer element(s).</p> : null}</> });
@@ -218,7 +218,14 @@ function buildResultPanels({ store, review, effectiveDocumentFingerprint, pageSc
   return panels;
 }
 
-function RegionWorkspace({ store, review, effectiveDocumentFingerprint, pageScopeFirstIndex, pdfBytes }: ResultPanelArgs & { pageScopeFirstIndex: number }) {
+interface RegionWorkspaceProps {
+  store: ReturnType<typeof useOcrStore>;
+  review: ReturnType<typeof useOcrReviewCoordinator>;
+  effectiveDocumentFingerprint: string;
+  pageScopeFirstIndex: number;
+}
+
+function RegionWorkspace({ store, review, effectiveDocumentFingerprint, pageScopeFirstIndex }: RegionWorkspaceProps) {
   return <div className="space-y-2"><OcrRegionTool documentFingerprint={effectiveDocumentFingerprint} pageIndex={pageScopeFirstIndex} pageWidth={595} pageHeight={842} viewportWidth={240} viewportHeight={340} onCreateRegion={review.createRegion} />{store.regions.length > 0 ? <OcrRegionListPanel regions={store.regions} selectedRegionId={review.selectedRegionId} onSelectRegion={(region) => review.setSelectedRegionId(region.id)} onDeleteRegion={review.deleteRegion} /> : null}<OcrRegionActionPanel region={review.selectedRegion} pageInput={review.selectedRegionPageInput} resolvePageInput={review.selectedRegion ? review.resolveSelectedRegionPageInput : undefined} onRegionResult={review.handleRegionResult} onWriterElementCreated={review.handleWriterElementCreated} />{review.lastRegionWriterElementType ? <p className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700" data-testid="ocr-region-writer-created">Region created Writer element: {review.lastRegionWriterElementType}</p> : null}</div>;
 }
 
