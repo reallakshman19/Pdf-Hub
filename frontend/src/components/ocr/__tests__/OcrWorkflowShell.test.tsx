@@ -6,8 +6,10 @@ import {
   vi,
 } from 'vitest';
 import {
+  fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import { useOcrStore } from '@/core/ocr/ocrStore';
@@ -71,5 +73,37 @@ describe('OCR professional workflow shell', () => {
     expect(source.open).toBe(false);
     expect(advanced.open).toBe(false);
     expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
+  });
+
+  it('shows ready header when pdfBytes are supplied without a session document', () => {
+    render(
+      <OcrPanelWriterConnected
+        documentFingerprint="prop-doc"
+        pdfBytes={new Uint8Array([1, 2, 3])}
+        pageCount={2}
+        selectedPageIndexes={[0]}
+      />,
+    );
+
+    expect(screen.getByText(/Ready for OCR/i)).toBeTruthy();
+    expect(screen.getByText(/direct input/i)).toBeTruthy();
+    expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();
+  });
+
+  it('updates header and source warning state after loading a demo fixture', async () => {
+    render(<OcrPanelWriterConnected />);
+
+    expect(screen.getByTestId('ocr-pdf-source-warning')).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/Advanced OCR settings/i));
+    fireEvent.click(screen.getByTestId('ocr-demo-fixture-load'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ready for OCR/i)).toBeTruthy();
+    });
+
+    expect(screen.getByText(/demo fixture/i)).toBeTruthy();
+    expect(screen.queryByText(/No active PDF document is loaded/i)).toBeNull();
+    expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();
   });
 });
