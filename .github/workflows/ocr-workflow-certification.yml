@@ -52,7 +52,18 @@ jobs:
           if-no-files-found: ignore
 
       - name: Test CI
-        run: pnpm run test:ci
+        run: |
+          set -o pipefail
+          mkdir -p ../artifacts
+          pnpm run test:ci 2>&1 | tee ../artifacts/ocr-test-ci.log
+
+      - name: Upload OCR test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocr-test-ci-log
+          path: artifacts/ocr-test-ci.log
+          if-no-files-found: ignore
 
       - name: Check Doc Hub
         run: pnpm run check:doc-hub
