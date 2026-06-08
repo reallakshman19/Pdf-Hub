@@ -19,6 +19,17 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
   sourceDefaultOpen = false,
   advancedDefaultOpen = false,
 }) => {
+  const [sourceOpen, setSourceOpen] = React.useState(sourceDefaultOpen);
+  const [advancedOpen, setAdvancedOpen] = React.useState(advancedDefaultOpen);
+
+  React.useEffect(() => {
+    if (sourceDefaultOpen) setSourceOpen(true);
+  }, [sourceDefaultOpen]);
+
+  React.useEffect(() => {
+    if (advancedDefaultOpen) setAdvancedOpen(true);
+  }, [advancedDefaultOpen]);
+
   return (
     <section
       className="flex h-full flex-col overflow-auto bg-slate-50 dark:bg-slate-950"
@@ -46,7 +57,8 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
           <details
             className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             data-testid="ocr-source-panel"
-            open={sourceDefaultOpen}
+            open={sourceOpen}
+            onToggle={(event) => setSourceOpen(event.currentTarget.open)}
           >
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Source details
@@ -61,7 +73,8 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
           <details
             className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             data-testid="ocr-advanced-panel"
-            open={advancedDefaultOpen}
+            open={advancedOpen}
+            onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
           >
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Advanced OCR settings
