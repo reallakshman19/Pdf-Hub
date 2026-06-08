@@ -85,8 +85,10 @@ describe('OCR professional workflow shell', () => {
       />,
     );
 
+    const summary = screen.getByTestId('ocr-unified-summary');
+
     expect(screen.getByText(/Ready for OCR/i)).toBeTruthy();
-    expect(screen.getByText(/direct input/i)).toBeTruthy();
+    expect(within(summary).getByText('direct input')).toBeTruthy();
     expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();
   });
 
@@ -105,7 +107,9 @@ describe('OCR professional workflow shell', () => {
       expect(screen.getByText(/Ready for OCR/i)).toBeTruthy();
     });
 
-    expect(screen.getByText(/demo fixture/i)).toBeTruthy();
+    const summary = screen.getByTestId('ocr-unified-summary');
+
+    expect(within(summary).getByText('demo fixture')).toBeTruthy();
     expect(screen.queryByText(/No active PDF document is loaded/i)).toBeNull();
     expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();
   });
