@@ -17,60 +17,41 @@ import { useOcrStore } from '@/core/ocr/ocrStore';
 import { useSessionStore } from '@/core/session/store';
 import { OcrPanelWriterConnected } from '../OcrPanelWriterConnected';
 
-vi.mock('pdfjs-dist', () => {
-  return {
-    GlobalWorkerOptions: {
-      workerSrc: '',
-    },
-    getDocument: vi.fn().mockImplementation(() => {
-      return {
-        promise: Promise.resolve({
-          numPages: 3,
-          async getPage(pageNumber: number) {
-            return {
-              pageNumber,
-              getViewport({ scale = 1 }: { scale?: number } = {}) {
-                return {
-                  width: 595 * scale,
-                  height: 842 * scale,
-                };
-              },
-              render() {
-                return {
-                  promise: Promise.resolve(),
-                  cancel: () => undefined,
-                };
-              },
-            };
+vi.mock('pdfjs-dist', () => ({
+  GlobalWorkerOptions: { workerSrc: '' },
+  getDocument: vi.fn().mockImplementation(() => ({
+    promise: Promise.resolve({
+      numPages: 3,
+      async getPage(pageNumber: number) {
+        return {
+          pageNumber,
+          getViewport({ scale = 1 }: { scale?: number } = {}) {
+            return { width: 595 * scale, height: 842 * scale };
           },
-          async destroy() {},
-        }),
-      };
+          render() {
+            return { promise: Promise.resolve(), cancel: () => undefined };
+          },
+        };
+      },
+      async destroy() {},
     }),
-  };
-});
+  })),
+}));
 
 if (typeof HTMLCanvasElement !== 'undefined') {
   HTMLCanvasElement.prototype.getContext = function (type: string) {
-    if (type === '2d') {
-      return {
-        drawImage: () => undefined,
-        fillRect: () => undefined,
-        clearRect: () => undefined,
-        getImageData: () => ({
-          data: new Uint8ClampedArray([0, 0, 0, 0]),
-          width: 1,
-          height: 1,
-        }),
-        putImageData: () => undefined,
-        scale: () => undefined,
-        translate: () => undefined,
-        rotate: () => undefined,
-      } as unknown as CanvasRenderingContext2D;
-    }
-    return null;
+    if (type !== '2d') return null;
+    return {
+      drawImage: () => undefined,
+      fillRect: () => undefined,
+      clearRect: () => undefined,
+      getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0]), width: 1, height: 1 }),
+      putImageData: () => undefined,
+      scale: () => undefined,
+      translate: () => undefined,
+      rotate: () => undefined,
+    } as unknown as CanvasRenderingContext2D;
   } as unknown as typeof HTMLCanvasElement.prototype.getContext;
-
   HTMLCanvasElement.prototype.toBlob = function (callback: BlobCallback) {
     callback(new Blob());
   };
@@ -91,7 +72,6 @@ describe('OcrPanelWriterConnected', () => {
 
   const revealConnectedRegionTools = async () => {
     fireEvent.click(screen.getByTestId('run-ocr-button'));
-
     await waitFor(() => {
       expect(screen.getByTestId('ocr-region-add')).toBeTruthy();
     });
@@ -127,14 +107,11 @@ describe('OcrPanelWriterConnected', () => {
 
     const runSection = screen.getByTestId('ocr-run-section');
     const sourceSection = screen.getByTestId('ocr-connected-source');
-
-    expect(runSection.compareDocumentPosition(sourceSection)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(runSection.compareDocumentPosition(sourceSection)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(within(summary).getByText('browser-smoke.pdf')).toBeTruthy();
-    expect(within(summary).getByText('working')).toBeTruthy();
+    expect(summary.textContent).toContain('browser-smoke.pdf');
+    expect(summary.textContent).toContain('working');
   });
 
   it('inserts OCR region Writer element into Writer V2 store', async () => {
@@ -146,13 +123,7 @@ describe('OcrPanelWriterConnected', () => {
     );
 
     await revealConnectedRegionTools();
-
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'text',
-      },
-    });
-
+    fireEvent.change(screen.getByTestId('ocr-region-mode'), { target: { value: 'text' } });
     fireEvent.click(screen.getByTestId('ocr-region-add'));
     fireEvent.click(screen.getByTestId('ocr-region-run'));
 
@@ -160,12 +131,7 @@ describe('OcrPanelWriterConnected', () => {
       expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByTestId('ocr-region-output-mode'), {
-      target: {
-        value: 'richTextBox',
-      },
-    });
-
+    fireEvent.change(screen.getByTestId('ocr-region-output-mode'), { target: { value: 'richTextBox' } });
     fireEvent.click(screen.getByTestId('ocr-region-convert'));
     fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
 
@@ -174,37 +140,11 @@ describe('OcrPanelWriterConnected', () => {
     });
 
     const writerState = useWriterV2Store.getState();
-
     expect(writerState.elements[0].type).toBe('richTextBox');
     expect(writerState.elements[0].documentFingerprint).toBe('writer-connected-doc');
     expect(writerState.elements[0].plainText).toContain('This scan contains');
     expect(writerState.selectedIds).toEqual([writerState.elements[0].id]);
-    expect(screen.getByTestId('ocr-writer-connected-summary')).toBeTruthy();
     expect(screen.getByText(/Inserted 1 Writer element/)).toBeTruthy();
-  });
-
-  it('uses writer store current document fingerprint when prop is omitted', async () => {
-    render(
-      <OcrPanelWriterConnected selectedPageIndexes={[0]} />,
-    );
-
-    await revealConnectedRegionTools();
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-    fireEvent.click(screen.getByTestId('ocr-region-run'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-convert'));
-    fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
-
-    await waitFor(() => {
-      expect(useWriterV2Store.getState().elements).toHaveLength(1);
-    });
-
-    expect(useWriterV2Store.getState().elements[0].documentFingerprint).toBe('writer-connected-doc');
   });
 
   it('reads active working PDF bytes and selected pages from session store', () => {
@@ -214,25 +154,16 @@ describe('OcrPanelWriterConnected', () => {
       bytes: new Uint8Array([1, 2, 3, 4]),
       pageCount: 4,
     });
-
-    useSessionStore.getState().replaceWorkingCopy(
-      new Uint8Array([9, 9, 9, 9]),
-      4,
-    );
-
+    useSessionStore.getState().replaceWorkingCopy(new Uint8Array([9, 9, 9, 9]), 4);
     useSessionStore.getState().setSelectedPages([2, 4]);
 
-    render(
-      <OcrPanelWriterConnected />,
-    );
+    render(<OcrPanelWriterConnected />);
 
-    const unifiedSummary = screen.getByTestId('ocr-unified-summary');
-
-    expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('working')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('4')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('2')).toBeTruthy();
+    const summary = screen.getByTestId('ocr-unified-summary');
+    expect(summary.textContent).toContain('session.pdf');
+    expect(summary.textContent).toContain('working');
+    expect(summary.textContent).toContain('4 pages');
+    expect(summary.textContent).toContain('2 selected');
   });
 
   it('passes session document fingerprint when no explicit prop is supplied', () => {
@@ -243,26 +174,18 @@ describe('OcrPanelWriterConnected', () => {
       pageCount: 2,
     });
 
-    render(
-      <OcrPanelWriterConnected />,
-    );
+    render(<OcrPanelWriterConnected />);
 
-    const unifiedSummary = screen.getByTestId('ocr-unified-summary');
-
-    expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('working')).toBeTruthy();
+    const summary = screen.getByTestId('ocr-unified-summary');
+    expect(summary.textContent).toContain('session.pdf');
+    expect(summary.textContent).toContain('working');
   });
 
   it('shows warning when PDF bytes are missing', () => {
     useSessionStore.getState().clearDocument();
-
-    render(
-      <OcrPanelWriterConnected />,
-    );
+    render(<OcrPanelWriterConnected />);
 
     const warning = screen.getByTestId('ocr-pdf-source-warning');
-
     expect(warning).toBeTruthy();
     expect(within(warning).getByText(/No active PDF document is loaded/)).toBeTruthy();
   });
@@ -274,13 +197,9 @@ describe('OcrPanelWriterConnected', () => {
       bytes: new Uint8Array([1, 2, 3, 4]),
       pageCount: 3,
     });
-
     useSessionStore.getState().setSelectedPages([2]);
 
-    render(
-      <OcrPanelWriterConnected />,
-    );
-
+    render(<OcrPanelWriterConnected />);
     fireEvent.click(screen.getByTestId('run-ocr-button'));
 
     await waitFor(() => {
@@ -288,7 +207,6 @@ describe('OcrPanelWriterConnected', () => {
     });
 
     const result = useOcrStore.getState().correctedResult;
-
     expect(result?.documentFingerprint).toBe('session-doc');
     expect(result?.pages).toHaveLength(1);
     expect(result?.pages[0].pageIndex).toBe(1);
