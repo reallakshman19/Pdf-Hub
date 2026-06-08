@@ -46,10 +46,13 @@ describe('OcrUnifiedPanel', () => {
       />,
     );
 
-    expect(screen.getByTestId('ocr-unified-summary')).toBeTruthy();
-    expect(screen.getAllByTestId('ocr-unified-status-tile')).toHaveLength(2);
-    expect(screen.getByText('working')).toBeTruthy();
-    expect(screen.getByText('4')).toBeTruthy();
+    const summary = screen.getByTestId('ocr-unified-summary');
+    const tiles = screen.getAllByTestId('ocr-unified-status-tile');
+
+    expect(summary).toBeTruthy();
+    expect(tiles).toHaveLength(2);
+    expect(summary.textContent).toContain('working');
+    expect(summary.textContent).toContain('4');
   });
 
   it('collapses and expands sections', () => {
