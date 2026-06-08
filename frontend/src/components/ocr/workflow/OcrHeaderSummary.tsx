@@ -18,6 +18,16 @@ export const OcrHeaderSummary: React.FC<OcrHeaderSummaryProps> = ({ summary }) =
       tone: summary.workflowState === 'missing-source' ? 'warning' : 'success',
     },
     {
+      label: 'Pages',
+      value: summary.pageCount,
+      tone: 'neutral',
+    },
+    {
+      label: 'Selected',
+      value: summary.selectedPageCount || 'all',
+      tone: 'neutral',
+    },
+    {
       label: 'Scope',
       value: summary.scopeLabel,
       tone: 'info',
@@ -30,7 +40,6 @@ export const OcrHeaderSummary: React.FC<OcrHeaderSummaryProps> = ({ summary }) =
       value: `${Math.round(summary.averageConfidence ?? 0)}%`,
       tone: 'success',
     });
-
     pills.push({
       label: 'Review',
       value: summary.lowConfidenceCount ?? 0,
@@ -51,7 +60,7 @@ export const OcrHeaderSummary: React.FC<OcrHeaderSummaryProps> = ({ summary }) =
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
           <FileText className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" data-testid="ocr-unified-summary">
           <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
             OCR Assistant
           </div>
