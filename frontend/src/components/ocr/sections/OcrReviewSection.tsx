@@ -48,7 +48,7 @@ export const OcrReviewSection: React.FC<OcrReviewSectionProps> = ({
             <span className="font-semibold text-slate-900 dark:text-slate-50">
               Nothing to review yet.
             </span>{' '}
-            Run OCR to show confidence, search, corrections, regions, tables, and Writer insertion.
+            Run OCR or load a demo{' '}fixture to show confidence, search, corrections, regions, tables, and Writer insertion.
           </div>
         )
       ) : null}
