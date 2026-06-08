@@ -2,7 +2,7 @@ import React from 'react';
 import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
 import type { OcrProfileId } from '@/core/ocr/ocrProfiles';
 import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
-import { useOcrStore } from '@/core/ocr/ocrStore';
+import { useOcrStore, type OcrStoreState } from '@/core/ocr/ocrStore';
 import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
 import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
@@ -153,16 +153,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
       advanced={(
         <>
           <OcrAdvancedGroup title="Recognition" description="Engine, scan profile, and forced OCR behavior." testId="ocr-run-engine-controls">
-            <OcrPanelEngineControls
-              engineId={store.engineId}
-              profileId={store.profileId}
-              forceOcr={store.forceOcr}
-              engines={engines}
-              profiles={profiles}
-              onEngineChange={(engineId) => store.setOcrEngineId(engineId)}
-              onProfileChange={(profileId: OcrProfileId) => store.setOcrProfileId(profileId)}
-              onForceOcrChange={(forceOcr) => store.setForceOcr(forceOcr)}
-            />
+            <OcrPanelEngineControls engineId={store.engineId} profileId={store.profileId} forceOcr={store.forceOcr} engines={engines} profiles={profiles} onEngineChange={(engineId) => store.setOcrEngineId(engineId)} onProfileChange={(profileId: OcrProfileId) => store.setOcrProfileId(profileId)} onForceOcrChange={(forceOcr) => store.setForceOcr(forceOcr)} />
           </OcrAdvancedGroup>
           <OcrAdvancedGroup title="Pipeline" description="Main-thread or worker-backed execution." testId="ocr-run-pipeline-mode">
             <OcrPipelineModePanel mode={run.pipelineMode} disabled={run.isRunning} onChange={run.setPipelineMode} />
@@ -196,7 +187,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
 };
 
 interface ResultPanelArgs {
-  store: ReturnType<typeof useOcrStore>;
+  store: OcrStoreState;
   review: ReturnType<typeof useOcrReviewCoordinator>;
   effectiveDocumentFingerprint: string;
   pageScopeFirstIndex: number;
@@ -219,7 +210,7 @@ function buildResultPanels({ store, review, effectiveDocumentFingerprint, pageSc
 }
 
 interface RegionWorkspaceProps {
-  store: ReturnType<typeof useOcrStore>;
+  store: OcrStoreState;
   review: ReturnType<typeof useOcrReviewCoordinator>;
   effectiveDocumentFingerprint: string;
   pageScopeFirstIndex: number;
