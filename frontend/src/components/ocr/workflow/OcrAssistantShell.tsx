@@ -19,16 +19,10 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
   sourceDefaultOpen = false,
   advancedDefaultOpen = false,
 }) => {
-  const [sourceOpen, setSourceOpen] = React.useState(sourceDefaultOpen);
-  const [advancedOpen, setAdvancedOpen] = React.useState(advancedDefaultOpen);
-
-  React.useEffect(() => {
-    if (sourceDefaultOpen) setSourceOpen(true);
-  }, [sourceDefaultOpen]);
-
-  React.useEffect(() => {
-    if (advancedDefaultOpen) setAdvancedOpen(true);
-  }, [advancedDefaultOpen]);
+  const [sourceUserOpen, setSourceUserOpen] = React.useState(false);
+  const [advancedUserOpen, setAdvancedUserOpen] = React.useState(false);
+  const sourceOpen = sourceDefaultOpen || sourceUserOpen;
+  const advancedOpen = advancedDefaultOpen || advancedUserOpen;
 
   return (
     <section
@@ -58,7 +52,7 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
             className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             data-testid="ocr-source-panel"
             open={sourceOpen}
-            onToggle={(event) => setSourceOpen(event.currentTarget.open)}
+            onToggle={(event) => setSourceUserOpen(event.currentTarget.open)}
           >
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Source details
@@ -74,7 +68,7 @@ export const OcrAssistantShell: React.FC<OcrAssistantShellProps> = ({
             className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             data-testid="ocr-advanced-panel"
             open={advancedOpen}
-            onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+            onToggle={(event) => setAdvancedUserOpen(event.currentTarget.open)}
           >
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Advanced OCR settings
