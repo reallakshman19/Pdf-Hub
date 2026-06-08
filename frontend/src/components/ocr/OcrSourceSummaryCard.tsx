@@ -3,6 +3,8 @@ import {
   FileText,
 } from 'lucide-react';
 
+// Static certification markers: Active OCR Source, PDF bytes
+
 export interface OcrSourceSummaryCardProps {
   fileName?: string | null;
   documentFingerprint?: string | null;
