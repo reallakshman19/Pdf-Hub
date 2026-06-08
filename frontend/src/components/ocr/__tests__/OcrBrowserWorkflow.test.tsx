@@ -58,7 +58,7 @@ describe('OcrBrowserWorkflow', () => {
     expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
     expect(within(header).getByText(/workflow\.pdf/)).toBeTruthy();
     expect(within(header).getByText(/5 pages/)).toBeTruthy();
-    expect(within(header).getByText(/1 selected/)).toBeTruthy();
+    expect(header.textContent).toContain('1 selected');
     expect(screen.getAllByTestId('ocr-run-section')).toHaveLength(1);
     expect(screen.getByTestId('run-ocr-button')).toBeTruthy();
     expect(sourcePanel.open).toBe(false);
