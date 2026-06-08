@@ -1,21 +1,11 @@
 import React from 'react';
-import {
-  Loader2,
-  RotateCcw,
-  Search,
-} from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import type {
-  OcrJobRunnerPageInput,
-  OcrJobRunnerSnapshot,
-} from '@/core/ocr/ocrJobRunner';
+import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
 import type { OcrProfileId } from '@/core/ocr/ocrProfiles';
 import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
-import {
-  resolveOcrRegionPageInput,
-} from '@/core/ocr/ocrRegionRasterBridge';
+import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
+import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { OcrProgressPanel } from './OcrProgressPanel';
 import { OcrResultSummary } from './OcrResultSummary';
 import { OcrSearchMiniPanel } from './OcrSearchMiniPanel';
@@ -25,82 +15,38 @@ import { OcrCorrectionPanel } from './OcrCorrectionPanel';
 import { OcrRegionTool } from './OcrRegionTool';
 import { OcrRegionListPanel } from './OcrRegionListPanel';
 import { OcrRegionActionPanel } from './OcrRegionActionPanel';
-import type { OcrTableBlock } from '@/core/ocr/types';
 import { OcrTableReviewPanel } from './OcrTableReviewPanel';
-import type { WriterElementV2 } from '@/core/writer-v2/types';
-import {
-  createOcrWriterInsertionCandidate,
-  createOcrWriterInsertionQueue,
-  createReviewedOcrTableWriterElement,
-  upsertOcrWriterInsertionCandidate,
-  type OcrWriterInsertionQueueState,
-} from '@/core/ocr/ocrWriterInsertion';
 import { OcrWriterInsertPanel } from './OcrWriterInsertPanel';
 import { OcrSearchablePdfExportPanel } from './OcrSearchablePdfExportPanel';
 import { OcrProjectRestorePanel } from './OcrProjectRestorePanel';
-import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
-import {
-  createOcrAbortControllerWithTimeout,
-  createOcrExecutionPlan,
-  createOcrExecutionPolicy,
-  type OcrExecutionPolicy,
-} from '@/core/ocr/ocrExecutionPolicy';
 import { OcrExecutionSettingsPanel } from './OcrExecutionSettingsPanel';
-import {
-  createRetryTasksFromFailedBatches,
-  runOcrBatchScheduler,
-  type OcrBatchSchedulerSnapshot,
-} from '@/core/ocr/ocrBatchScheduler';
 import { OcrBatchQueuePanel } from './OcrBatchQueuePanel';
-
-import {
-  runFinalOcrIntegrationJob,
-} from '@/core/ocr/ocrFinalIntegration';
-import {
-  runOcrPipeline,
-  type OcrPipelineMode,
-} from '@/core/ocr/ocrPipelineMode';
 import { OcrPipelineModePanel } from './OcrPipelineModePanel';
+import { OcrDiagnosticsSection } from './sections';
+import { OcrPanelEngineControls } from './OcrPanelEngineControls';
+import { useOcrRunCoordinator } from './useOcrRunCoordinator';
+import { useOcrReviewCoordinator } from './useOcrReviewCoordinator';
 import {
-  OcrDiagnosticsSection,
-  OcrExportSection,
-  OcrProjectSection,
-  OcrReviewSection,
-  OcrRunSection,
-  type OcrDiagnosticsMessage,
-} from './sections';
+  OcrAdvancedGroup,
+  OcrAssistantShell,
+  type OcrWorkflowPanel,
+  type OcrWorkflowState,
+} from './workflow';
 
 export interface OcrPanelProps {
   documentFingerprint?: string | null;
   selectedPageIndexes?: number[];
   pageCount?: number;
-
-  /**
-   * Real raster inputs can be supplied later by PDF.js page rendering.
-   * For now, Phase 8 can run mock OCR with generated placeholder page inputs.
-   */
   pages?: OcrJobRunnerPageInput[];
-
-  /**
-   * Future Writer integration point.
-   * Caller can connect this to writerV2Store insertion actions.
-   */
   onInsertWriterElements?: (elements: WriterElementV2[]) => void;
-
-  /**
-   * Optional original PDF bytes for searchable PDF export.
-   */
   pdfBytes?: Uint8Array | null;
-
-  /**
-   * Caller can download/save the output.
-   */
   onSearchablePdfExported?: (bytes: Uint8Array) => void;
-
-  /**
-   * Optional project payload for restoration tab.
-   */
   projectPayload?: OcrProjectPayloadV1 | null;
+  fileName?: string | null;
+  sourceStateLabel?: string;
+  sourceDetails?: React.ReactNode;
+  sourceHasWarning?: boolean;
+  advancedFixtures?: React.ReactNode;
 }
 
 export const OcrPanel: React.FC<OcrPanelProps> = ({
@@ -112,689 +58,168 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   pdfBytes = null,
   onSearchablePdfExported,
   projectPayload = null,
+  fileName,
+  sourceStateLabel = pdfBytes ? 'Working copy' : 'Ready',
+  sourceDetails,
+  sourceHasWarning = false,
+  advancedFixtures,
 }) => {
   const store = useOcrStore();
-
-  const effectiveDocumentFingerprint =
-    documentFingerprint
+  const effectiveDocumentFingerprint = documentFingerprint
     ?? store.documentFingerprint
     ?? 'ocr-preview-document';
-
-  const [isRunning, setIsRunning] = React.useState(false);
-  const [pipelineMode, setPipelineMode] = React.useState<OcrPipelineMode>('main');
-  const [pipelineMessages, setPipelineMessages] = React.useState<string[]>([]);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const [selectedLowConfidenceWordId, setSelectedLowConfidenceWordId] = React.useState<string | null>(null);
-  const [selectedRegionId, setSelectedRegionId] = React.useState<string | null>(null);
-  const [lastRegionWriterElementType, setLastRegionWriterElementType] = React.useState<string | null>(null);
-  const [lastRegionTableBlock, setLastRegionTableBlock] = React.useState<OcrTableBlock | null>(null);
-  const [lastAcceptedTableSummary, setLastAcceptedTableSummary] = React.useState<string | null>(null);
-  const [writerInsertionQueue, setWriterInsertionQueue] = React.useState<OcrWriterInsertionQueueState>(() =>
-    createOcrWriterInsertionQueue(),
-  );
-  const [lastInsertedWriterCount, setLastInsertedWriterCount] = React.useState<number | null>(null);
-
-  const [executionPolicy, setExecutionPolicy] = React.useState<OcrExecutionPolicy>(() =>
-    createOcrExecutionPolicy(),
-  );
-  const [activeAbort, setActiveAbort] = React.useState<{
-    cancel: () => void;
-    clear: () => void;
-  } | null>(null);
-  const [executionDiagnostics, setExecutionDiagnostics] = React.useState<string[]>([]);
-  const [estimatedMemoryBytes, setEstimatedMemoryBytes] = React.useState(0);
-
-  const cancelActiveOcr = React.useCallback(() => {
-    activeAbort?.cancel();
-    setActiveAbort(null);
-    setIsRunning(false);
-    setErrorMessage('OCR job cancelled.');
-  }, [activeAbort]);
-
-  const [batchSnapshot, setBatchSnapshot] = React.useState<OcrBatchSchedulerSnapshot | null>(null);
-  const [lastBatchController, setLastBatchController] = React.useState<AbortController | null>(null);
-
-  const cancelBatchQueue = React.useCallback(() => {
-    lastBatchController?.abort();
-    setLastBatchController(null);
-  }, [lastBatchController]);
-
-  const retryFailedBatches = React.useCallback(async () => {
-    if (!batchSnapshot) return;
-
-    const retryTasks = createRetryTasksFromFailedBatches(batchSnapshot);
-
-    if (retryTasks.length === 0) return;
-
-    const controller = new AbortController();
-    setLastBatchController(controller);
-
-    await runOcrBatchScheduler({
-      tasks: retryTasks,
-      concurrency: 1,
-      signal: controller.signal,
-      runTask: async (task, signal) => {
-        const pipelineResult = await runOcrPipeline({
-          id: task.id,
-          documentFingerprint: effectiveDocumentFingerprint,
-          engineId: store.engineId,
-          requestedProfileId: store.profileId,
-          forceOcr: store.forceOcr,
-          mode: pipelineMode,
-          explicitPages: task.input,
-          pageIndexes: task.pageIndexes,
-          rasterScale: executionPolicy.rasterScale,
-          maxCanvasPixels: executionPolicy.maxCanvasPixels,
-          signal,
-          onRasterProgress: (message: string) => {
-            setPipelineMessages((current) => [...current.slice(-8), message]);
-          },
-          onProgress: (snapshot: OcrJobRunnerSnapshot) => {
-            useOcrStore.getState().applyOcrJobSnapshot(snapshot);
-          },
-        });
-
-        setPipelineMessages((current) => [
-          ...current.slice(-8),
-          `OCR pipeline completed through ${pipelineResult.mode.option.label}.`,
-        ]);
-
-        return task.pageIndexes;
-      },
-      onSnapshot: setBatchSnapshot,
-    });
-
-    setLastBatchController(null);
-  }, [
-    batchSnapshot,
-    effectiveDocumentFingerprint,
-    store.engineId,
-    store.forceOcr,
-    store.profileId,
-    pipelineMode,
-    executionPolicy,
-  ]);
-
-  const selectedRegion = React.useMemo(() => {
-    if (!selectedRegionId) return null;
-
-    return store.regions.find((region) => region.id === selectedRegionId) ?? null;
-  }, [
-    selectedRegionId,
-    store.regions,
-  ]);
-
-  const selectedRegionPageInput = React.useMemo(() => {
-    if (!selectedRegion) return null;
-
-    const existing = pages?.find((page) => page.pageIndex === selectedRegion.pageIndex);
-
-    if (existing) return existing;
-
-    return {
-      pageIndex: selectedRegion.pageIndex,
-      imageBytes: new Uint8Array([1, 2, 3]),
-      width: 595,
-      height: 842,
-      imageCount: 1,
-      region: selectedRegion.bbox,
-    };
-  }, [
-    pages,
-    selectedRegion,
-  ]);
-
-  const selectedLowConfidenceWord = React.useMemo(() => {
-    if (!selectedLowConfidenceWordId) {
-      return null;
-    }
-
-    return store.lowConfidenceWords.find(
-      (item) => item.word.id === selectedLowConfidenceWordId,
-    )?.word ?? null;
-  }, [
-    selectedLowConfidenceWordId,
-    store.lowConfidenceWords,
-  ]);
-
   const selectedPages = selectedPageIndexes.length > 0
     ? selectedPageIndexes
     : store.selectedPageIndexes;
 
-  const queueWriterElement = React.useCallback((element: WriterElementV2, source: 'ocrRegion' | 'ocrTableReview') => {
-    setWriterInsertionQueue((current) =>
-      upsertOcrWriterInsertionCandidate(
-        current,
-        createOcrWriterInsertionCandidate({
-          source,
-          element,
-        }),
-      ),
-    );
-  }, []);
+  const run = useOcrRunCoordinator({
+    effectiveDocumentFingerprint,
+    selectedPages,
+    pageCount,
+    pages,
+    pdfBytes,
+  });
+  const review = useOcrReviewCoordinator({
+    effectiveDocumentFingerprint,
+    selectedPages,
+    pages,
+    pdfBytes,
+    onInsertWriterElements,
+  });
 
   const profiles = React.useMemo(() => listOcrProfiles(), []);
+  const engines = React.useMemo(() => defaultOcrEngineRegistry.listEngines(), []);
+  const profileLabel = profiles.find((profile) => profile.id === store.profileId)?.label ?? store.profileId;
+  const workflowState: OcrWorkflowState = run.errorMessage
+    ? 'error'
+    : run.isRunning
+      ? 'running'
+      : store.correctedResult
+        ? 'complete'
+        : 'ready';
+  const averageConfidence = (store.confidenceSummary?.averageConfidence ?? 0) * 100;
+  const processedPages = store.correctedResult?.pages.length ?? 0;
+  const pageScopeLabel = selectedPages.length > 0 ? `${selectedPages.length} selected page(s)` : 'All pages';
 
-  const engines = React.useMemo(
-    () => defaultOcrEngineRegistry.listEngines(),
-    [],
-  );
-
-  const runSelectedOcr = async () => {
-    setIsRunning(true);
-    setErrorMessage(null);
-    setExecutionDiagnostics([]);
-    setPipelineMessages([]);
-
-    const requestedPageIndexes = selectedPages.length > 0
-      ? selectedPages
-      : Array.from(
-          { length: Math.max(1, pageCount) },
-          (_, index) => index,
-        );
-
-    const plan = createOcrExecutionPlan({
-      requestedPageIndexes,
-      totalPages: Math.max(1, pageCount),
-      policy: executionPolicy,
-    });
-
-    setEstimatedMemoryBytes(plan.estimatedRasterMemoryBytes);
-    setExecutionDiagnostics(plan.diagnostics.map((diagnostic) => diagnostic.message));
-
-    if (plan.diagnostics.some((diagnostic) => diagnostic.level === 'error')) {
-      setErrorMessage(plan.diagnostics.find((diagnostic) => diagnostic.level === 'error')?.message ?? 'OCR execution plan failed.');
-      setIsRunning(false);
-      return;
-    }
-
-    const abort = createOcrAbortControllerWithTimeout({
-      timeoutMs: executionPolicy.timeoutMs,
-      onTimeout: () => {
-        setErrorMessage('OCR timeout reached.');
-      },
-    });
-
-    setActiveAbort(abort);
-    setLastBatchController(abort.controller);
-
-    try {
-      const finalResult = await runFinalOcrIntegrationJob({
-        id: `ocr-job-${Date.now()}`,
-        documentFingerprint: effectiveDocumentFingerprint,
-        engineId: store.engineId,
-        requestedProfileId: store.profileId,
-        forceOcr: store.forceOcr,
-        mode: pipelineMode,
-        pdfBytes,
-        explicitPages: pages,
-        requestedPageIndexes,
-        totalPages: Math.max(1, pageCount),
-        policy: executionPolicy,
-        batchSize: Math.max(1, Math.min(5, executionPolicy.maxPagesPerJob)),
-        batchConcurrency: 1,
-        signal: abort.controller.signal,
-        onDiagnostic: (diagnostic) => {
-          setPipelineMessages((current) => [
-            ...current.slice(-8),
-            diagnostic.message,
-          ]);
-        },
-        onBatchSnapshot: setBatchSnapshot,
-        onProgress: (snapshot) => {
-          useOcrStore.getState().applyOcrJobSnapshot(snapshot);
-        },
-      });
-
-      useOcrStore.getState().setOcrResult(finalResult.result);
-
-      setPipelineMessages((current) => [
-        ...current.slice(-8),
-        `OCR completed through ${finalResult.mode}.`,
-      ]);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'OCR job failed.',
-      );
-    } finally {
-      abort.clear();
-      setActiveAbort(null);
-      setLastBatchController(null);
-      setIsRunning(false);
-    }
-  };
-
-  const clearOcr = () => {
-    store.clearOcr();
-    setErrorMessage(null);
-  };
-
-  const sourceDiagnostics: OcrDiagnosticsMessage[] = [];
-
-  const executionDiagnosticMessages: OcrDiagnosticsMessage[] = executionDiagnostics.map((message) => ({
-    level: 'info',
-    code: 'OCR_EXECUTION',
-    message,
-  }));
-
-  const pipelineDiagnosticMessages: OcrDiagnosticsMessage[] = pipelineMessages.map((message) => ({
-    level: 'info',
-    code: 'OCR_PIPELINE',
-    message,
-  }));
-
-  const allDiagnostics: OcrDiagnosticsMessage[] = [
-    ...sourceDiagnostics,
-    ...executionDiagnosticMessages,
-    ...pipelineDiagnosticMessages,
-  ];
-
-  const engineControlsNode = (
-    <div className="grid grid-cols-1 gap-2">
-      <label className="text-xs text-slate-600 dark:text-slate-300">
-        Engine
-        <select
-          className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-          value={store.engineId}
-          data-testid="ocr-engine-select"
-          onChange={(event) =>
-            store.setOcrEngineId(event.currentTarget.value || 'mock')
-          }
-        >
-          {engines.map((engine) => (
-            <option
-              key={engine.id}
-              value={engine.id}
-            >
-              {engine.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="text-xs text-slate-600 dark:text-slate-300">
-        Profile
-        <select
-          className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-          value={store.profileId}
-          onChange={(event) =>
-            store.setOcrProfileId(event.currentTarget.value as OcrProfileId)
-          }
-        >
-          {profiles.map((profile) => (
-            <option
-              key={profile.id}
-              value={profile.id}
-            >
-              {profile.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-        <input
-          type="checkbox"
-          checked={store.forceOcr}
-          onChange={(event) =>
-            store.setForceOcr(event.currentTarget.checked)
-          }
-        />
-        Force OCR even if embedded text exists
-      </label>
-    </div>
-  );
-
-  const runControlsNode = (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        type="button"
-        size="sm"
-        onClick={runSelectedOcr}
-        disabled={isRunning}
-        data-testid="run-ocr-button"
-      >
-        {isRunning ? (
-          <>
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            Running
-          </>
-        ) : (
-          <>
-            <Search className="mr-1 h-3.5 w-3.5" />
-            Run OCR
-          </>
-        )}
-      </Button>
-
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={clearOcr}
-        data-testid="clear-ocr-button"
-      >
-        <RotateCcw className="mr-1 h-3.5 w-3.5" />
-        Clear
-      </Button>
-    </div>
-  );
+  const resultPanels = buildResultPanels({
+    store,
+    review,
+    effectiveDocumentFingerprint,
+    pageScopeFirstIndex: selectedPages[0] ?? 0,
+    pdfBytes,
+    onSearchablePdfExported,
+  });
 
   return (
-    <div
-      className="space-y-3"
-      data-testid="ocr-panel"
-    >
-      <OcrRunSection
-        engineControls={engineControlsNode}
-        pipelineMode={
-          <OcrPipelineModePanel
-            mode={pipelineMode}
-            disabled={isRunning}
-            onChange={setPipelineMode}
-          />
-        }
-        executionSettings={
-          <OcrExecutionSettingsPanel
-            policy={executionPolicy}
-            estimatedMemoryBytes={estimatedMemoryBytes}
-            running={isRunning}
-            onChange={setExecutionPolicy}
-            onCancel={cancelActiveOcr}
-          />
-        }
-        executionDiagnostics={
-          executionDiagnostics.length > 0 ? (
-            <div className="space-y-2">
-              {executionDiagnostics.map((message, index) => (
-                <div key={`${message}-${index}`} className="text-xs text-slate-500">
-                  {message}
-                </div>
-              ))}
-            </div>
-          ) : null
-        }
-        batchQueue={
-          <OcrBatchQueuePanel
-            snapshot={batchSnapshot}
-            onCancel={cancelBatchQueue}
-            onRetryFailed={retryFailedBatches}
-          />
-        }
-        runControls={runControlsNode}
-        errorMessage={errorMessage}
-      />
-
-      <OcrReviewSection
-        resultSummary={
-          store.correctedResult ? (
-            <div className="space-y-2">
-              <OcrResultSummary
-                result={store.correctedResult}
-                confidenceSummary={store.confidenceSummary}
-                lowConfidenceCount={store.lowConfidenceWords.length}
-              />
-              <OcrConfidenceLegend compact />
-            </div>
-          ) : undefined
-        }
-        searchPanel={
-          store.searchIndex ? (
-            <OcrSearchMiniPanel
-              disabled={!store.searchIndex}
-              onSearch={(query) =>
-                useOcrStore.getState().searchOcr({
-                  text: query,
-                  limit: 8,
-                })
-              }
+    <OcrAssistantShell
+      state={workflowState}
+      pagesProcessed={processedPages}
+      averageConfidence={averageConfidence}
+      lowConfidenceCount={store.lowConfidenceWords.length}
+      errorMessage={run.errorMessage}
+      resultPanels={resultPanels}
+      sourceDetails={sourceDetails}
+      sourceHasWarning={sourceHasWarning}
+      diagnosticsOpen={Boolean(run.errorMessage)}
+      header={{
+        fileName: fileName ?? effectiveDocumentFingerprint,
+        pageCount: Math.max(1, pageCount),
+        selectedPageCount: selectedPages.length,
+        sourceState: sourceStateLabel,
+        scopeLabel: pageScopeLabel,
+        workflowState,
+        averageConfidence,
+        lowConfidenceCount: store.lowConfidenceWords.length,
+      }}
+      action={{
+        state: workflowState,
+        description: run.isRunning
+          ? 'Page OCR is running and can be cancelled.'
+          : store.correctedResult
+            ? 'Review the OCR result, then export or send content to Writer.'
+            : 'Extract searchable text from the selected pages.',
+        pageScopeLabel,
+        profileLabel,
+        progressLabel: run.isRunning ? 'cancellable' : null,
+        completedLabel: `OCR complete: ${processedPages} pages`,
+        errorMessage: run.errorMessage,
+        canRun: !run.isRunning,
+        canClear: Boolean(store.correctedResult || run.errorMessage),
+        canCancel: run.isRunning,
+        onRun: run.runSelectedOcr,
+        onClear: run.clearOcr,
+        onCancel: run.cancelActiveOcr,
+      }}
+      advanced={(
+        <>
+          <OcrAdvancedGroup title="Recognition" description="Engine, scan profile, and forced OCR behavior." testId="ocr-run-engine-controls">
+            <OcrPanelEngineControls
+              engineId={store.engineId}
+              profileId={store.profileId}
+              forceOcr={store.forceOcr}
+              engines={engines}
+              profiles={profiles}
+              onEngineChange={(engineId) => store.setOcrEngineId(engineId)}
+              onProfileChange={(profileId: OcrProfileId) => store.setOcrProfileId(profileId)}
+              onForceOcrChange={(forceOcr) => store.setForceOcr(forceOcr)}
             />
-          ) : undefined
-        }
-        correctionsPanel={
-          store.lowConfidenceWords.length > 0 || selectedLowConfidenceWord ? (
-            <div className="space-y-2">
-              <OcrLowConfidencePanel
-                words={store.lowConfidenceWords}
-                selectedWordId={selectedLowConfidenceWordId}
-                onSelectWord={(item) => {
-                  setSelectedLowConfidenceWordId(item.word.id);
-                }}
-              />
-              <OcrCorrectionPanel
-                word={selectedLowConfidenceWord}
-                documentFingerprint={effectiveDocumentFingerprint}
-              />
-            </div>
-          ) : undefined
-        }
-        regionTools={
-          store.regions.length > 0 || store.correctedResult ? (
-            <div className="space-y-2">
-              <OcrRegionTool
-                documentFingerprint={effectiveDocumentFingerprint}
-                pageIndex={selectedPages[0] ?? 0}
-                pageWidth={595}
-                pageHeight={842}
-                viewportWidth={240}
-                viewportHeight={340}
-                onCreateRegion={(region) => {
-                  useOcrStore.getState().upsertOcrRegion(region);
-                  setSelectedRegionId(region.id);
-                }}
-              />
-              {store.regions.length > 0 ? (
-                <OcrRegionListPanel
-                  regions={store.regions}
-                  selectedRegionId={selectedRegionId}
-                  onSelectRegion={(region) => {
-                    setSelectedRegionId(region.id);
-                  }}
-                  onDeleteRegion={(regionId) => {
-                    useOcrStore.getState().deleteOcrRegion(regionId);
-                    if (selectedRegionId === regionId) {
-                      setSelectedRegionId(null);
-                    }
-                  }}
-                />
-              ) : null}
-              <OcrRegionActionPanel
-                region={selectedRegion}
-                pageInput={selectedRegionPageInput}
-                resolvePageInput={
-                  selectedRegion
-                    ? async (region) => {
-                        const resolved = await resolveOcrRegionPageInput({
-                          region,
-                          pdfBytes,
-                          fallbackPageInput: selectedRegionPageInput,
-                          scale: 2,
-                          mimeType: 'image/png',
-                        });
-                        return {
-                          pageInput: resolved.pageInput,
-                          diagnostics: resolved.diagnostics,
-                        };
-                      }
-                    : undefined
-                }
-                onRegionResult={(result) => {
-                  const tableBlock = result.blocks.find(
-                    (block): block is OcrTableBlock => block.type === 'table',
-                  );
-                  setLastRegionTableBlock(tableBlock ?? null);
-                  setLastAcceptedTableSummary(null);
-                }}
-                onWriterElementCreated={(element) => {
-                  setLastRegionWriterElementType(element.type);
-                  queueWriterElement(element, 'ocrRegion');
-                }}
-              />
-              {lastRegionWriterElementType ? (
-                <p
-                  className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300"
-                  data-testid="ocr-region-writer-created"
-                >
-                  Region created Writer element: {lastRegionWriterElementType}
-                </p>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-        tableReview={
-          lastRegionTableBlock ? (
-            <div className="space-y-2">
-              <OcrTableReviewPanel
-                tableBlock={lastRegionTableBlock}
-                onAcceptTable={(tableData) => {
-                  setLastAcceptedTableSummary(
-                    `${tableData.rows.length} rows × ${tableData.columns.length} columns`,
-                  );
-                  if (selectedRegion) {
-                    const element = createReviewedOcrTableWriterElement({
-                      documentFingerprint: effectiveDocumentFingerprint,
-                      region: selectedRegion,
-                      tableData,
-                    });
-                    queueWriterElement(element, 'ocrTableReview');
-                  }
-                }}
-              />
-              {lastAcceptedTableSummary ? (
-                <p
-                  className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-                  data-testid="ocr-table-accepted-summary"
-                >
-                  OCR table accepted: {lastAcceptedTableSummary}
-                </p>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-        writerInsertion={
-          writerInsertionQueue.candidates.length > 0 || lastInsertedWriterCount !== null ? (
-            <div className="space-y-2">
-              <OcrWriterInsertPanel
-                queue={writerInsertionQueue}
-                onQueueChange={setWriterInsertionQueue}
-                onInsertElements={(elements) => {
-                  onInsertWriterElements?.(elements);
-                  setLastInsertedWriterCount(elements.length);
-                }}
-              />
-              {lastInsertedWriterCount !== null ? (
-                <p
-                  className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-                  data-testid="ocr-writer-inserted-summary"
-                >
-                  Inserted {lastInsertedWriterCount} OCR Writer element(s).
-                </p>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-      />
-
-      <OcrExportSection
-        searchablePdfExport={
-          pdfBytes || store.correctedResult ? (
-            <OcrSearchablePdfExportPanel
-              pdfBytes={pdfBytes}
-              ocrResult={store.correctedResult}
-              corrections={store.corrections}
-              onExported={(result) => {
-                onSearchablePdfExported?.(result.bytes);
-              }}
-            />
-          ) : undefined
-        }
-      />
-
-      <OcrProjectSection
-        restorePanel={
-          <OcrProjectRestorePanel
-            payload={projectPayload || null}
-            expectedDocumentFingerprint={effectiveDocumentFingerprint}
-            onWriterInsertionQueueRestored={setWriterInsertionQueue}
-          />
-        }
-      />
-
-      <OcrDiagnosticsSection
-        messages={allDiagnostics}
-      >
-        <OcrProgressPanel
-          jobs={store.jobs}
-          activeJobId={store.activeJobId}
-        />
-      </OcrDiagnosticsSection>
-    </div>
+          </OcrAdvancedGroup>
+          <OcrAdvancedGroup title="Pipeline" description="Main-thread or worker-backed execution." testId="ocr-run-pipeline-mode">
+            <OcrPipelineModePanel mode={run.pipelineMode} disabled={run.isRunning} onChange={run.setPipelineMode} />
+          </OcrAdvancedGroup>
+          <OcrAdvancedGroup title="Execution limits" description="Memory and batch size for large documents." testId="ocr-run-execution-settings">
+            <OcrExecutionSettingsPanel policy={run.executionPolicy} estimatedMemoryBytes={run.estimatedMemoryBytes} running={run.isRunning} onChange={run.setExecutionPolicy} onCancel={run.cancelActiveOcr} />
+            {run.executionDiagnostics.length > 0 ? (
+              <div className="mt-2 space-y-1" data-testid="ocr-run-execution-diagnostics">
+                {run.executionDiagnostics.map((message, index) => <div key={`${message}-${index}`} className="text-xs text-slate-500">{message}</div>)}
+              </div>
+            ) : null}
+          </OcrAdvancedGroup>
+          <OcrAdvancedGroup title="Batch queue" testId="ocr-run-batch-queue">
+            <OcrBatchQueuePanel snapshot={run.batchSnapshot} onCancel={run.cancelBatchQueue} onRetryFailed={run.retryFailedBatches} />
+          </OcrAdvancedGroup>
+          <OcrAdvancedGroup title="Project restore" testId="ocr-project-section">
+            <OcrProjectRestorePanel payload={projectPayload || null} expectedDocumentFingerprint={effectiveDocumentFingerprint} onWriterInsertionQueueRestored={review.setWriterInsertionQueue} />
+          </OcrAdvancedGroup>
+          {advancedFixtures ? (
+            <OcrAdvancedGroup title="Demo / QA fixtures" testId="ocr-demo-fixtures-advanced">
+              {advancedFixtures}
+            </OcrAdvancedGroup>
+          ) : null}
+          <OcrDiagnosticsSection messages={run.allDiagnostics}>
+            <OcrProgressPanel jobs={store.jobs} activeJobId={store.activeJobId} />
+          </OcrDiagnosticsSection>
+        </>
+      )}
+    />
   );
 };
 
+interface ResultPanelArgs {
+  store: ReturnType<typeof useOcrStore>;
+  review: ReturnType<typeof useOcrReviewCoordinator>;
+  effectiveDocumentFingerprint: string;
+  pageScopeFirstIndex: number;
+  pdfBytes: Uint8Array | null;
+  onSearchablePdfExported?: (bytes: Uint8Array) => void;
+}
+
+function buildResultPanels({ store, review, effectiveDocumentFingerprint, pageScopeFirstIndex, pdfBytes, onSearchablePdfExported }: ResultPanelArgs): OcrWorkflowPanel[] {
+  const panels: OcrWorkflowPanel[] = [];
+  if (store.correctedResult) {
+    panels.push({ title: 'Result summary', testId: 'ocr-review-result-summary', content: <><OcrResultSummary result={store.correctedResult} confidenceSummary={store.confidenceSummary} lowConfidenceCount={store.lowConfidenceWords.length} /><OcrConfidenceLegend compact /></> });
+    if (store.searchIndex) panels.push({ title: 'Search OCR text', testId: 'ocr-review-search', content: <OcrSearchMiniPanel disabled={!store.searchIndex} onSearch={(text) => useOcrStore.getState().searchOcr({ text, limit: 8 })} /> });
+    panels.push({ title: 'Low-confidence corrections', testId: 'ocr-review-corrections', content: <><OcrLowConfidencePanel words={store.lowConfidenceWords} selectedWordId={review.selectedLowConfidenceWordId} onSelectWord={(item) => review.setSelectedLowConfidenceWordId(item.word.id)} /><OcrCorrectionPanel word={review.selectedLowConfidenceWord} documentFingerprint={effectiveDocumentFingerprint} /></> });
+    panels.push({ title: 'Capture region', testId: 'ocr-review-region-tools', content: <RegionWorkspace store={store} review={review} effectiveDocumentFingerprint={effectiveDocumentFingerprint} pageScopeFirstIndex={pageScopeFirstIndex} pdfBytes={pdfBytes} /> });
+  }
+  if (review.lastRegionTableBlock) panels.push({ title: 'Review tables', testId: 'ocr-review-table', content: <><OcrTableReviewPanel tableBlock={review.lastRegionTableBlock} onAcceptTable={review.handleAcceptTable} />{review.lastAcceptedTableSummary ? <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700" data-testid="ocr-table-accepted-summary">OCR table accepted: {review.lastAcceptedTableSummary}</p> : null}</> });
+  if (review.writerInsertionQueue.candidates.length > 0 || review.lastInsertedWriterCount !== null) panels.push({ title: 'Send to Writer', testId: 'ocr-review-writer-insertion', content: <><OcrWriterInsertPanel queue={review.writerInsertionQueue} onQueueChange={review.setWriterInsertionQueue} onInsertElements={review.handleInsertElements} />{review.lastInsertedWriterCount !== null ? <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700" data-testid="ocr-writer-inserted-summary">Inserted {review.lastInsertedWriterCount} OCR Writer element(s).</p> : null}</> });
+  panels.push({ title: 'Export searchable PDF', testId: 'ocr-export-section', content: store.correctedResult ? <OcrSearchablePdfExportPanel pdfBytes={pdfBytes} ocrResult={store.correctedResult} corrections={store.corrections} onExported={(result) => onSearchablePdfExported?.(result.bytes)} /> : <p className="rounded border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">Run OCR first to export a searchable PDF.</p> });
+  return panels;
+}
+
+function RegionWorkspace({ store, review, effectiveDocumentFingerprint, pageScopeFirstIndex, pdfBytes }: ResultPanelArgs & { pageScopeFirstIndex: number }) {
+  return <div className="space-y-2"><OcrRegionTool documentFingerprint={effectiveDocumentFingerprint} pageIndex={pageScopeFirstIndex} pageWidth={595} pageHeight={842} viewportWidth={240} viewportHeight={340} onCreateRegion={review.createRegion} />{store.regions.length > 0 ? <OcrRegionListPanel regions={store.regions} selectedRegionId={review.selectedRegionId} onSelectRegion={(region) => review.setSelectedRegionId(region.id)} onDeleteRegion={review.deleteRegion} /> : null}<OcrRegionActionPanel region={review.selectedRegion} pageInput={review.selectedRegionPageInput} resolvePageInput={review.selectedRegion ? review.resolveSelectedRegionPageInput : undefined} onRegionResult={review.handleRegionResult} onWriterElementCreated={review.handleWriterElementCreated} />{review.lastRegionWriterElementType ? <p className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700" data-testid="ocr-region-writer-created">Region created Writer element: {review.lastRegionWriterElementType}</p> : null}</div>;
+}
+
 export default OcrPanel;
-
-/*
-// Legacy fallback helper retained until OCR-PHASE-31 cleanup.
-async function createOcrPageInputsForPanel(input: {
-  explicitPages?: OcrJobRunnerPageInput[];
-  pdfBytes?: Uint8Array | null;
-  selectedPageIndexes: number[];
-  pageCount: number;
-  rasterScale?: number;
-  maxCanvasPixels?: number;
-}): Promise<OcrJobRunnerPageInput[]> {
-  if (input.explicitPages && input.explicitPages.length > 0) {
-    return input.explicitPages;
-  }
-
-  const pageIndexes = input.selectedPageIndexes.length > 0
-    ? input.selectedPageIndexes
-    : Array.from(
-        { length: Math.max(1, input.pageCount) },
-        (_, index) => index,
-      );
-
-  if (input.pdfBytes) {
-    const rasterized = await rasterizePdfPagesForOcr({
-      pdfBytes: input.pdfBytes,
-      pageIndexes,
-      scale: input.rasterScale ?? 2,
-      maxCanvasPixels: input.maxCanvasPixels,
-      mimeType: 'image/png',
-    });
-
-    return rasterizedPdfPagesToOcrEnginePageInputs(rasterized.pages).map((page) => ({
-      ...page,
-      imageCount: 1,
-    }));
-  }
-
-  return createPlaceholderPages({
-    selectedPageIndexes: pageIndexes,
-    pageCount: input.pageCount,
-  });
-}
-
-function createPlaceholderPages(input: {
-  selectedPageIndexes: number[];
-  pageCount: number;
-}): OcrJobRunnerPageInput[] {
-  const pageIndexes = input.selectedPageIndexes.length > 0
-    ? input.selectedPageIndexes
-    : Array.from(
-        { length: Math.max(1, input.pageCount) },
-        (_, index) => index,
-      );
-
-  return pageIndexes.map((pageIndex) => ({
-    pageIndex,
-    imageBytes: new Uint8Array([1, 2, 3]),
-    width: 595,
-    height: 842,
-    imageCount: 1,
-  }));
-}
-*/
