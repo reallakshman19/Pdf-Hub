@@ -24,13 +24,13 @@ export const OcrHeaderSummary: React.FC<OcrHeaderSummaryProps> = ({
   const selectedLabel = selectedPageCount && selectedPageCount > 0
     ? `${selectedPageCount} selected`
     : 'all pages';
+  const selectedPillValue = selectedPageCount && selectedPageCount > 0
+    ? selectedPageCount
+    : 'all';
   const documentLabel = fileName ?? documentFingerprint ?? 'No PDF loaded';
 
   return (
-    <div
-      className="flex items-start gap-3"
-      data-testid="ocr-header-summary"
-    >
+    <div className="flex items-start gap-3" data-testid="ocr-header-summary">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
         <Workflow className="h-4 w-4" />
       </div>
@@ -62,7 +62,7 @@ export const OcrHeaderSummary: React.FC<OcrHeaderSummaryProps> = ({
         <div className="mt-2 flex flex-wrap gap-1.5" data-testid="ocr-unified-summary">
           <SummaryPill label="PDF" value={sourceLabel} tone={hasPdfBytes ? 'success' : 'warning'} />
           <SummaryPill label="Pages" value={pageCount || 0} />
-          <SummaryPill label="Scope" value={selectedLabel} />
+          <SummaryPill label="Selected" value={selectedPillValue} />
           <SummaryPill label="Document" value={documentLabel} />
         </div>
       </div>
