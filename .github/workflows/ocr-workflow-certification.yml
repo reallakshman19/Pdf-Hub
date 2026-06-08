@@ -38,7 +38,18 @@ jobs:
         run: pnpm run typecheck
 
       - name: Lint
-        run: pnpm run lint
+        run: |
+          set -o pipefail
+          mkdir -p ../artifacts
+          pnpm run lint 2>&1 | tee ../artifacts/ocr-lint.log
+
+      - name: Upload OCR lint log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocr-lint-log
+          path: artifacts/ocr-lint.log
+          if-no-files-found: ignore
 
       - name: Test CI
         run: pnpm run test:ci
