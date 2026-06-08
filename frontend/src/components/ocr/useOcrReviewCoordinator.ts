@@ -1,8 +1,8 @@
 import React from 'react';
 import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
-import type { OcrTableBlock } from '@/core/ocr/types';
+import type { OcrAnyBlock, OcrTableBlock } from '@/core/ocr/types';
 import type { OcrRegion } from '@/core/ocr/ocrRegionModel';
-import type { WriterElementV2 } from '@/core/writer-v2/types';
+import type { WriterElementV2, WriterTableData } from '@/core/writer-v2/types';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { resolveOcrRegionPageInput } from '@/core/ocr/ocrRegionRasterBridge';
 import {
@@ -98,7 +98,7 @@ export function useOcrReviewCoordinator({
     };
   }, [pdfBytes, selectedRegionPageInput]);
 
-  const handleRegionResult = React.useCallback((result: { blocks: Array<{ type: string }> }) => {
+  const handleRegionResult = React.useCallback((result: { blocks: OcrAnyBlock[] }) => {
     const tableBlock = result.blocks.find(
       (block): block is OcrTableBlock => block.type === 'table',
     );
@@ -111,7 +111,7 @@ export function useOcrReviewCoordinator({
     queueWriterElement(element, 'ocrRegion');
   }, [queueWriterElement]);
 
-  const handleAcceptTable = React.useCallback((tableData: Parameters<typeof createReviewedOcrTableWriterElement>[0]['tableData']) => {
+  const handleAcceptTable = React.useCallback((tableData: WriterTableData) => {
     setLastAcceptedTableSummary(`${tableData.rows.length} rows × ${tableData.columns.length} columns`);
     if (!selectedRegion) return;
     const element = createReviewedOcrTableWriterElement({
