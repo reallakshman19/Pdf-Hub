@@ -87,7 +87,7 @@ export function useOcrReviewCoordinator({
   const resolveSelectedRegionPageInput = React.useCallback(async (region: OcrRegion) => {
     const resolved = await resolveOcrRegionPageInput({
       region,
-      pdfBytes,
+      pdfBytes: pages ? null : pdfBytes,
       fallbackPageInput: selectedRegionPageInput,
       scale: 2,
       mimeType: 'image/png',
@@ -96,7 +96,7 @@ export function useOcrReviewCoordinator({
       pageInput: resolved.pageInput,
       diagnostics: resolved.diagnostics,
     };
-  }, [pdfBytes, selectedRegionPageInput]);
+  }, [pages, pdfBytes, selectedRegionPageInput]);
 
   const handleRegionResult = React.useCallback((result: { blocks: OcrAnyBlock[] }) => {
     const tableBlock = result.blocks.find(
