@@ -1,11 +1,11 @@
-import type React from 'react';
+import type { ReactNode } from 'react';
 
 export type OcrAssistantPanelState = 'idle' | 'ready' | 'running' | 'complete' | 'error';
 
 export interface OcrAssistantSection {
   id: string;
   title: string;
-  content: React.ReactNode;
+  content: ReactNode;
 }
 
 export interface OcrAssistantValueAddition {
