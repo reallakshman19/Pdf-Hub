@@ -16,6 +16,7 @@ import { OcrAssistantShell } from './workflow/OcrAssistantShell';
 import { OcrHeaderSummary } from './workflow/OcrHeaderSummary';
 
 // Static check markers: ocr-pdf-source-summary, ocr-assistant-shell, ocr-header-summary
+// OcrPanel is mounted once only.
 
 export interface OcrPanelWriterConnectedProps {
   documentFingerprint?: string | null;
