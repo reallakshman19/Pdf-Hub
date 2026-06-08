@@ -33,10 +33,10 @@ export const OcrResultWorkspace: React.FC<OcrResultWorkspaceProps> = ({
           </div>
         </div>
 
-        {!hasResult && panels.length === 0 ? (
+        {!hasResult ? (
           emptyHint ?? (
             <div
-              className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              className="mb-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
               data-testid="ocr-review-empty"
             >
               <span className="font-semibold text-slate-900 dark:text-slate-50">
