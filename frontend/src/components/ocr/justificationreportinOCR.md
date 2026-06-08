@@ -63,6 +63,14 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 2. A compact `OcrHeaderSummary` now makes the PDF identity, page count, selected scope, and source state visible at the top.
 3. Source details and Demo / QA fixtures are moved into secondary/collapsible workflow slots instead of appearing as normal primary OCR actions.
 
+## Phase 1 blocking-review fixes
+
+1. The OCR workflow CI now uses the repo-safe Corepack install path and targeted OCR gates instead of duplicating the full release workflow.
+2. The connected header/source model now uses the same effective PDF bytes, page count, selected pages, and document fingerprint that are passed into `OcrPanel`.
+3. Source and Advanced disclosure panels now own controlled open state and only auto-open when a real default-open condition becomes true.
+4. Unused placeholder architecture files were removed from Phase 1 instead of being carried as dead future code.
+5. Tests now cover direct `pdfBytes` input and demo-fixture-loaded source transitions.
+
 ## Logic to reorganize in later phases
 
 ### `OcrPanel.tsx`
