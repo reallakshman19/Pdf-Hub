@@ -33,24 +33,25 @@ describe('OcrBrowserWorkflow', () => {
     useSessionStore.getState().clearDocument();
     useWriterV2Store.getState().clearWriterV2();
     useWriterV2Store.getState().hydrateWriterSession({
-      documentFingerprint: 'workflow.pdf',
+      documentFingerprint: 'workflow-doc',
       elements: [],
       assetRecords: [],
       persistedAt: null,
     });
+    useSessionStore.getState().openDocument({
+      documentKey: 'workflow-doc',
+      fileName: 'workflow.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4, 5]),
+      pageCount: 5,
+    });
+    useSessionStore.getState().setSelectedPages([1]);
   });
 
   it('runs source to review to Writer and searchable export workflow', async () => {
-    render(
-      <OcrPanelWriterConnected
-        documentFingerprint="workflow.pdf"
-        selectedPageIndexes={[0]}
-        pageCount={5}
-        pages={explicitPages}
-      />,
-    );
+    render(<OcrPanelWriterConnected pages={explicitPages} />);
 
     const header = screen.getByTestId('ocr-header-summary');
+    const sourcePanel = screen.getByTestId('ocr-source-panel') as HTMLDetailsElement;
     const advancedPanel = screen.getByTestId('ocr-advanced-panel') as HTMLDetailsElement;
 
     expect(screen.getByTestId('ocr-assistant-shell')).toBeTruthy();
@@ -60,6 +61,7 @@ describe('OcrBrowserWorkflow', () => {
     expect(within(header).getByText(/1 selected/)).toBeTruthy();
     expect(screen.getAllByTestId('ocr-run-section')).toHaveLength(1);
     expect(screen.getByTestId('run-ocr-button')).toBeTruthy();
+    expect(sourcePanel.open).toBe(false);
     expect(advancedPanel.open).toBe(false);
     expect(screen.getByText(/Run OCR first to export a searchable PDF/i)).toBeTruthy();
     expect(screen.queryByTestId('ocr-searchable-pdf-export-panel')).toBeNull();
