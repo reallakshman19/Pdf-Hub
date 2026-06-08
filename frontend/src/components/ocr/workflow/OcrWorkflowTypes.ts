@@ -1,4 +1,4 @@
-import type React from 'react';
+import type { ReactNode } from 'react';
 
 export type OcrWorkflowState = 'missing-source' | 'ready' | 'running' | 'complete' | 'error';
 
@@ -41,6 +41,6 @@ export interface OcrWorkflowPanel {
   title: string;
   description?: string;
   testId: string;
-  content: React.ReactNode;
+  content: ReactNode;
   tone?: OcrPillTone;
 }
