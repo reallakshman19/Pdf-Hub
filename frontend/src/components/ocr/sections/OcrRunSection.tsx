@@ -29,13 +29,8 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
   const hasAdvancedSettings = Boolean(
     engineControls || pipelineMode || workerMode || executionSettings || executionDiagnostics || batchQueue,
   );
-  const [advancedOpen, setAdvancedOpen] = React.useState(Boolean(executionDiagnostics));
-
-  React.useEffect(() => {
-    if (executionDiagnostics) {
-      setAdvancedOpen(true);
-    }
-  }, [executionDiagnostics]);
+  const [manualAdvancedOpen, setManualAdvancedOpen] = React.useState(false);
+  const advancedOpen = Boolean(executionDiagnostics) || manualAdvancedOpen;
 
   return (
     <OcrSectionShell
@@ -81,7 +76,7 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
           data-testid="ocr-run-advanced-settings"
           open={advancedOpen}
           onToggle={(event) => {
-            setAdvancedOpen(event.currentTarget.open);
+            if (!executionDiagnostics) setManualAdvancedOpen(event.currentTarget.open);
           }}
         >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -150,9 +145,9 @@ function PanelLabel({
       <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">
         {title}
       </div>
-      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
         {subtitle}
-      </div>
+      </p>
     </div>
   );
 }
