@@ -95,7 +95,10 @@ describe('OCR professional workflow shell', () => {
 
     expect(screen.getByTestId('ocr-pdf-source-warning')).toBeTruthy();
 
-    fireEvent.click(screen.getByText(/Advanced OCR settings/i));
+    const advanced = screen.getByTestId('ocr-advanced-panel');
+    const shellAdvancedSummary = within(advanced).getByText(/Advanced OCR settings/i);
+
+    fireEvent.click(shellAdvancedSummary);
     fireEvent.click(screen.getByTestId('ocr-demo-fixture-load'));
 
     await waitFor(() => {
