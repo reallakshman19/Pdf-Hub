@@ -33,6 +33,7 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
 
   React.useEffect(() => {
     if (executionDiagnostics) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- diagnostics arriving after the run plan should reveal advanced execution notes immediately
       setAdvancedOpen(true);
     }
   }, [executionDiagnostics]);
