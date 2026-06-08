@@ -26,7 +26,14 @@ export interface OcrPanelWriterConnectedProps {
   onSearchablePdfExported?: (bytes: Uint8Array) => void;
 }
 
-type OcrConnectedSummary = ReturnType<typeof createOcrPdfSourceSummary>;
+interface OcrConnectedSummary {
+  fileName?: string | null;
+  documentFingerprint?: string | null;
+  hasPdfBytes: boolean;
+  bytesSource?: string | null;
+  pageCount: number;
+  selectedPageCount: number;
+}
 
 export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (props) => {
   const writerDocumentFingerprint = useWriterV2Store((state) => state.currentDocumentFingerprint);
