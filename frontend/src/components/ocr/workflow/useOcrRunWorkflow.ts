@@ -102,11 +102,13 @@ export function useOcrRunWorkflow({
     [pageCount, selectedPages],
   );
 
+  const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
+
   const state: OcrRunWorkflowState = isRunning
     ? 'running'
     : errorMessage
       ? 'error'
-      : store.correctedResult
+      : hasCurrentDocumentResult
         ? 'complete'
         : requestedPageIndexes.length > 0
           ? 'ready'
@@ -142,42 +144,50 @@ export function useOcrRunWorkflow({
     const controller = new AbortController();
     setLastBatchController(controller);
 
-    await runOcrBatchScheduler({
-      tasks: retryTasks,
-      concurrency: 1,
-      signal: controller.signal,
-      runTask: async (task, signal) => {
-        const pipelineResult = await runOcrPipeline({
-          id: task.id,
-          documentFingerprint: effectiveDocumentFingerprint,
-          engineId: store.engineId,
-          requestedProfileId: store.profileId,
-          forceOcr: store.forceOcr,
-          mode: pipelineMode,
-          explicitPages: task.input,
-          pageIndexes: task.pageIndexes,
-          rasterScale: executionPolicy.rasterScale,
-          maxCanvasPixels: executionPolicy.maxCanvasPixels,
-          signal,
-          onRasterProgress: (message: string) => {
-            setPipelineMessages((current) => [...current.slice(-8), message]);
-          },
-          onProgress: (snapshot: OcrJobRunnerSnapshot) => {
-            useOcrStore.getState().applyOcrJobSnapshot(snapshot);
-          },
-        });
+    try {
+      await runOcrBatchScheduler({
+        tasks: retryTasks,
+        concurrency: 1,
+        signal: controller.signal,
+        runTask: async (task, signal) => {
+          const pipelineResult = await runOcrPipeline({
+            id: task.id,
+            documentFingerprint: effectiveDocumentFingerprint,
+            engineId: store.engineId,
+            requestedProfileId: store.profileId,
+            forceOcr: store.forceOcr,
+            mode: pipelineMode,
+            explicitPages: task.input,
+            pageIndexes: task.pageIndexes,
+            rasterScale: executionPolicy.rasterScale,
+            maxCanvasPixels: executionPolicy.maxCanvasPixels,
+            signal,
+            onRasterProgress: (message: string) => {
+              setPipelineMessages((current) => [...current.slice(-8), message]);
+            },
+            onProgress: (snapshot: OcrJobRunnerSnapshot) => {
+              useOcrStore.getState().applyOcrJobSnapshot(snapshot);
+            },
+          });
 
-        setPipelineMessages((current) => [
-          ...current.slice(-8),
-          `OCR pipeline completed through ${pipelineResult.mode.option.label}.`,
-        ]);
+          setPipelineMessages((current) => [
+            ...current.slice(-8),
+            `OCR pipeline completed through ${pipelineResult.mode.option.label}.`,
+          ]);
 
-        return task.pageIndexes;
-      },
-      onSnapshot: setBatchSnapshot,
-    });
-
-    setLastBatchController(null);
+          return task.pageIndexes;
+        },
+        onSnapshot: setBatchSnapshot,
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'OCR retry failed.',
+      );
+    } finally {
+      setLastBatchController(null);
+    }
   }, [
     batchSnapshot,
     effectiveDocumentFingerprint,
