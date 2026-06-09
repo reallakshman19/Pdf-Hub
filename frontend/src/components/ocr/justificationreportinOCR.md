@@ -73,9 +73,15 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 
 ## Phase 2 value additions
 
-1. `OcrRunControls.tsx` extracts Engine, Profile, Force OCR, Run, and Clear UI from `OcrPanel.tsx` into render-only workflow controls.
-2. `OcrPanel.tsx` now keeps execution orchestration and store callbacks while delegating run-control presentation to workflow components.
+1. `OcrRunControls.tsx` extracts Engine, Profile, Force OCR, Run, and Clear UI from `OcrPanel.tsx` into run-control workflow components.
+2. `OcrPanel.tsx` keeps execution orchestration and store callbacks while delegating run-control presentation to workflow components.
 3. `OcrRunControls.test.tsx` verifies the extracted controls independently, and the OCR workflow certification job includes this Phase 2 test.
+
+## Phase 2.1 review cleanup
+
+1. `OcrRunControls.tsx` is now presentational: engine and profile options are supplied by the parent instead of being fetched from OCR registries inside the component.
+2. `OcrPanel.tsx` owns the engine/profile option model with `listOcrProfiles()` and `defaultOcrEngineRegistry.listEngines()`.
+3. `OcrRunActions` disables Clear while OCR is running, preventing a clear-while-async-run UX race.
 
 ## Logic to reorganize in later phases
 
@@ -83,11 +89,11 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 
 Change:
 
-`OcrPanel.tsx` should continue shrinking. The next safe seam is the review workspace: result summary, search, corrections, regions, table review, and Writer insertion should move into a dedicated render-only workflow component.
+`OcrPanel.tsx` should continue shrinking. The next high-value seam is execution-state modeling through `useOcrRunWorkflow()`, followed by the review workspace: result summary, search, corrections, regions, table review, and Writer insertion.
 
 Justification:
 
-The panel still coordinates execution controls, review, export, diagnostics, project restore, batch queue, and developer/QA controls. Phase 2 removes the first visible-control seam without changing execution semantics.
+The panel still coordinates execution controls, review, export, diagnostics, project restore, batch queue, and developer/QA controls. Phase 2 removes the first visible-control seam without changing execution semantics; Phase 3 should extract the execution model rather than only moving more JSX.
 
 ### Diagnostics
 
