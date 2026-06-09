@@ -71,17 +71,23 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 4. Unused placeholder architecture files were removed from Phase 1 instead of being carried as dead future code.
 5. Tests now cover direct `pdfBytes` input and demo-fixture-loaded source transitions.
 
+## Phase 2 value additions
+
+1. `OcrRunControls.tsx` extracts Engine, Profile, Force OCR, Run, and Clear UI from `OcrPanel.tsx` into render-only workflow controls.
+2. `OcrPanel.tsx` now keeps execution orchestration and store callbacks while delegating run-control presentation to workflow components.
+3. `OcrRunControls.test.tsx` verifies the extracted controls independently, and the OCR workflow certification job includes this Phase 2 test.
+
 ## Logic to reorganize in later phases
 
 ### `OcrPanel.tsx`
 
 Change:
 
-`OcrPanel.tsx` should stop acting as the full visible workflow. It may remain a state coordinator, but visual composition must move into smaller workflow components.
+`OcrPanel.tsx` should continue shrinking. The next safe seam is the review workspace: result summary, search, corrections, regions, table review, and Writer insertion should move into a dedicated render-only workflow component.
 
 Justification:
 
-It currently mixes execution controls, engine settings, review, export, diagnostics, project restore, batch queue, and developer/QA controls in one visible hierarchy.
+The panel still coordinates execution controls, review, export, diagnostics, project restore, batch queue, and developer/QA controls. Phase 2 removes the first visible-control seam without changing execution semantics.
 
 ### Diagnostics
 
