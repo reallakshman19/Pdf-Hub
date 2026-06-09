@@ -1,7 +1,6 @@
 import React from 'react';
 import type {
   OcrJobRunnerPageInput,
-  OcrJobRunnerSnapshot,
 } from '@/core/ocr/ocrJobRunner';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
@@ -32,26 +31,8 @@ import { OcrWriterInsertPanel } from './OcrWriterInsertPanel';
 import { OcrSearchablePdfExportPanel } from './OcrSearchablePdfExportPanel';
 import { OcrProjectRestorePanel } from './OcrProjectRestorePanel';
 import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
-import {
-  createOcrAbortControllerWithTimeout,
-  createOcrExecutionPlan,
-  createOcrExecutionPolicy,
-  type OcrExecutionPolicy,
-} from '@/core/ocr/ocrExecutionPolicy';
 import { OcrExecutionSettingsPanel } from './OcrExecutionSettingsPanel';
-import {
-  createRetryTasksFromFailedBatches,
-  runOcrBatchScheduler,
-  type OcrBatchSchedulerSnapshot,
-} from '@/core/ocr/ocrBatchScheduler';
 import { OcrBatchQueuePanel } from './OcrBatchQueuePanel';
-import {
-  runFinalOcrIntegrationJob,
-} from '@/core/ocr/ocrFinalIntegration';
-import {
-  runOcrPipeline,
-  type OcrPipelineMode,
-} from '@/core/ocr/ocrPipelineMode';
 import { OcrPipelineModePanel } from './OcrPipelineModePanel';
 import {
   OcrDiagnosticsSection,
@@ -65,6 +46,7 @@ import {
   OcrEngineControls,
   OcrRunActions,
 } from './workflow/OcrRunControls';
+import { useOcrRunWorkflow } from './workflow/useOcrRunWorkflow';
 
 export interface OcrPanelProps {
   documentFingerprint?: string | null;
@@ -110,16 +92,17 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   projectPayload = null,
 }) => {
   const store = useOcrStore();
+  const runWorkflow = useOcrRunWorkflow({
+    documentFingerprint,
+    selectedPageIndexes,
+    pageCount,
+    pages,
+    pdfBytes,
+  });
 
-  const effectiveDocumentFingerprint =
-    documentFingerprint
-    ?? store.documentFingerprint
-    ?? 'ocr-preview-document';
+  const effectiveDocumentFingerprint = runWorkflow.effectiveDocumentFingerprint;
+  const selectedPages = runWorkflow.selectedPages;
 
-  const [isRunning, setIsRunning] = React.useState(false);
-  const [pipelineMode, setPipelineMode] = React.useState<OcrPipelineMode>('main');
-  const [pipelineMessages, setPipelineMessages] = React.useState<string[]>([]);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [selectedLowConfidenceWordId, setSelectedLowConfidenceWordId] = React.useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = React.useState<string | null>(null);
   const [lastRegionWriterElementType, setLastRegionWriterElementType] = React.useState<string | null>(null);
@@ -129,87 +112,6 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     createOcrWriterInsertionQueue(),
   );
   const [lastInsertedWriterCount, setLastInsertedWriterCount] = React.useState<number | null>(null);
-
-  const [executionPolicy, setExecutionPolicy] = React.useState<OcrExecutionPolicy>(() =>
-    createOcrExecutionPolicy(),
-  );
-  const [activeAbort, setActiveAbort] = React.useState<{
-    cancel: () => void;
-    clear: () => void;
-  } | null>(null);
-  const [executionDiagnostics, setExecutionDiagnostics] = React.useState<string[]>([]);
-  const [estimatedMemoryBytes, setEstimatedMemoryBytes] = React.useState(0);
-
-  const cancelActiveOcr = React.useCallback(() => {
-    activeAbort?.cancel();
-    setActiveAbort(null);
-    setIsRunning(false);
-    setErrorMessage('OCR job cancelled.');
-  }, [activeAbort]);
-
-  const [batchSnapshot, setBatchSnapshot] = React.useState<OcrBatchSchedulerSnapshot | null>(null);
-  const [lastBatchController, setLastBatchController] = React.useState<AbortController | null>(null);
-
-  const cancelBatchQueue = React.useCallback(() => {
-    lastBatchController?.abort();
-    setLastBatchController(null);
-  }, [lastBatchController]);
-
-  const retryFailedBatches = React.useCallback(async () => {
-    if (!batchSnapshot) return;
-
-    const retryTasks = createRetryTasksFromFailedBatches(batchSnapshot);
-
-    if (retryTasks.length === 0) return;
-
-    const controller = new AbortController();
-    setLastBatchController(controller);
-
-    await runOcrBatchScheduler({
-      tasks: retryTasks,
-      concurrency: 1,
-      signal: controller.signal,
-      runTask: async (task, signal) => {
-        const pipelineResult = await runOcrPipeline({
-          id: task.id,
-          documentFingerprint: effectiveDocumentFingerprint,
-          engineId: store.engineId,
-          requestedProfileId: store.profileId,
-          forceOcr: store.forceOcr,
-          mode: pipelineMode,
-          explicitPages: task.input,
-          pageIndexes: task.pageIndexes,
-          rasterScale: executionPolicy.rasterScale,
-          maxCanvasPixels: executionPolicy.maxCanvasPixels,
-          signal,
-          onRasterProgress: (message: string) => {
-            setPipelineMessages((current) => [...current.slice(-8), message]);
-          },
-          onProgress: (snapshot: OcrJobRunnerSnapshot) => {
-            useOcrStore.getState().applyOcrJobSnapshot(snapshot);
-          },
-        });
-
-        setPipelineMessages((current) => [
-          ...current.slice(-8),
-          `OCR pipeline completed through ${pipelineResult.mode.option.label}.`,
-        ]);
-
-        return task.pageIndexes;
-      },
-      onSnapshot: setBatchSnapshot,
-    });
-
-    setLastBatchController(null);
-  }, [
-    batchSnapshot,
-    effectiveDocumentFingerprint,
-    store.engineId,
-    store.forceOcr,
-    store.profileId,
-    pipelineMode,
-    executionPolicy,
-  ]);
 
   const selectedRegion = React.useMemo(() => {
     if (!selectedRegionId) return null;
@@ -253,10 +155,6 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     store.lowConfidenceWords,
   ]);
 
-  const selectedPages = selectedPageIndexes.length > 0
-    ? selectedPageIndexes
-    : store.selectedPageIndexes;
-
   const profiles = React.useMemo(() => listOcrProfiles(), []);
   const engines = React.useMemo(
     () => defaultOcrEngineRegistry.listEngines(),
@@ -275,115 +173,17 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     );
   }, []);
 
-  const runSelectedOcr = async () => {
-    setIsRunning(true);
-    setErrorMessage(null);
-    setExecutionDiagnostics([]);
-    setPipelineMessages([]);
-
-    const requestedPageIndexes = selectedPages.length > 0
-      ? selectedPages
-      : Array.from(
-          { length: Math.max(1, pageCount) },
-          (_, index) => index,
-        );
-
-    const plan = createOcrExecutionPlan({
-      requestedPageIndexes,
-      totalPages: Math.max(1, pageCount),
-      policy: executionPolicy,
-    });
-
-    setEstimatedMemoryBytes(plan.estimatedRasterMemoryBytes);
-    setExecutionDiagnostics(plan.diagnostics.map((diagnostic) => diagnostic.message));
-
-    if (plan.diagnostics.some((diagnostic) => diagnostic.level === 'error')) {
-      setErrorMessage(plan.diagnostics.find((diagnostic) => diagnostic.level === 'error')?.message ?? 'OCR execution plan failed.');
-      setIsRunning(false);
-      return;
-    }
-
-    const abort = createOcrAbortControllerWithTimeout({
-      timeoutMs: executionPolicy.timeoutMs,
-      onTimeout: () => {
-        setErrorMessage('OCR timeout reached.');
-      },
-    });
-
-    setActiveAbort(abort);
-    setLastBatchController(abort.controller);
-
-    try {
-      const finalResult = await runFinalOcrIntegrationJob({
-        id: `ocr-job-${Date.now()}`,
-        documentFingerprint: effectiveDocumentFingerprint,
-        engineId: store.engineId,
-        requestedProfileId: store.profileId,
-        forceOcr: store.forceOcr,
-        mode: pipelineMode,
-        pdfBytes,
-        explicitPages: pages,
-        requestedPageIndexes,
-        totalPages: Math.max(1, pageCount),
-        policy: executionPolicy,
-        batchSize: Math.max(1, Math.min(5, executionPolicy.maxPagesPerJob)),
-        batchConcurrency: 1,
-        signal: abort.controller.signal,
-        onDiagnostic: (diagnostic) => {
-          setPipelineMessages((current) => [
-            ...current.slice(-8),
-            diagnostic.message,
-          ]);
-        },
-        onBatchSnapshot: setBatchSnapshot,
-        onProgress: (snapshot) => {
-          useOcrStore.getState().applyOcrJobSnapshot(snapshot);
-        },
-      });
-
-      useOcrStore.getState().setOcrResult(finalResult.result);
-
-      setPipelineMessages((current) => [
-        ...current.slice(-8),
-        `OCR completed through ${finalResult.mode}.`,
-      ]);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'OCR job failed.',
-      );
-    } finally {
-      abort.clear();
-      setActiveAbort(null);
-      setLastBatchController(null);
-      setIsRunning(false);
-    }
-  };
-
-  const clearOcr = () => {
-    store.clearOcr();
-    setErrorMessage(null);
-  };
-
-  const sourceDiagnostics: OcrDiagnosticsMessage[] = [];
-
-  const executionDiagnosticMessages: OcrDiagnosticsMessage[] = executionDiagnostics.map((message) => ({
-    level: 'info',
-    code: 'OCR_EXECUTION',
-    message,
-  }));
-
-  const pipelineDiagnosticMessages: OcrDiagnosticsMessage[] = pipelineMessages.map((message) => ({
-    level: 'info',
-    code: 'OCR_PIPELINE',
-    message,
-  }));
-
   const allDiagnostics: OcrDiagnosticsMessage[] = [
-    ...sourceDiagnostics,
-    ...executionDiagnosticMessages,
-    ...pipelineDiagnosticMessages,
+    ...runWorkflow.executionDiagnostics.map((message) => ({
+      level: 'info' as const,
+      code: 'OCR_EXECUTION',
+      message,
+    })),
+    ...runWorkflow.pipelineMessages.map((message) => ({
+      level: 'info' as const,
+      code: 'OCR_PIPELINE',
+      message,
+    })),
   ];
 
   const engineControlsNode = (
@@ -401,9 +201,10 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
 
   const runControlsNode = (
     <OcrRunActions
-      running={isRunning}
-      onRun={runSelectedOcr}
-      onClear={clearOcr}
+      running={runWorkflow.isRunning}
+      clearDisabled={!runWorkflow.canClear}
+      onRun={runWorkflow.runSelectedOcr}
+      onClear={runWorkflow.clearOcr}
     />
   );
 
@@ -416,24 +217,24 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
         engineControls={engineControlsNode}
         pipelineMode={
           <OcrPipelineModePanel
-            mode={pipelineMode}
-            disabled={isRunning}
-            onChange={setPipelineMode}
+            mode={runWorkflow.pipelineMode}
+            disabled={runWorkflow.isRunning}
+            onChange={runWorkflow.setPipelineMode}
           />
         }
         executionSettings={
           <OcrExecutionSettingsPanel
-            policy={executionPolicy}
-            estimatedMemoryBytes={estimatedMemoryBytes}
-            running={isRunning}
-            onChange={setExecutionPolicy}
-            onCancel={cancelActiveOcr}
+            policy={runWorkflow.executionPolicy}
+            estimatedMemoryBytes={runWorkflow.estimatedMemoryBytes}
+            running={runWorkflow.isRunning}
+            onChange={runWorkflow.setExecutionPolicy}
+            onCancel={runWorkflow.cancelActiveOcr}
           />
         }
         executionDiagnostics={
-          executionDiagnostics.length > 0 ? (
+          runWorkflow.executionDiagnostics.length > 0 ? (
             <div className="space-y-2">
-              {executionDiagnostics.map((message, index) => (
+              {runWorkflow.executionDiagnostics.map((message, index) => (
                 <div key={`${message}-${index}`} className="text-xs text-slate-500">
                   {message}
                 </div>
@@ -443,13 +244,13 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
         }
         batchQueue={
           <OcrBatchQueuePanel
-            snapshot={batchSnapshot}
-            onCancel={cancelBatchQueue}
-            onRetryFailed={retryFailedBatches}
+            snapshot={runWorkflow.batchSnapshot}
+            onCancel={runWorkflow.cancelBatchQueue}
+            onRetryFailed={runWorkflow.retryFailedBatches}
           />
         }
         runControls={runControlsNode}
-        errorMessage={errorMessage}
+        errorMessage={runWorkflow.errorMessage}
       />
 
       <OcrReviewSection
