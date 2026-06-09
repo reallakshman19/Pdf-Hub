@@ -32,6 +32,7 @@ const requiredFiles = [
   'src/components/ocr/OcrBatchQueuePanel.tsx',
   'src/components/ocr/OcrSearchablePdfExportPanel.tsx',
   'src/components/ocr/OcrProjectRestorePanel.tsx',
+  'src/components/ocr/workflow/useOcrRunWorkflow.ts',
   'src/core/ocr/fixtures/ocrDemoFixtures.ts',
   'src/components/ocr/OcrDemoFixturePanel.tsx',
   'src/components/ocr/OcrUnifiedPanel.tsx',
@@ -65,25 +66,18 @@ const requiredTestFiles = [
   'src/components/ocr/__tests__/OcrUnifiedPanel.test.tsx',
   'src/components/ocr/__tests__/OcrSourceSummaryCard.test.tsx',
   'src/components/ocr/__tests__/OcrSections.test.tsx',
+  'src/components/ocr/__tests__/useOcrRunWorkflow.test.tsx',
   'src/core/ocr/__tests__/ocrFinalIntegration.test.ts',
 ];
 
 const checks = [];
 
 function pass(code, message) {
-  checks.push({
-    ok: true,
-    code,
-    message,
-  });
+  checks.push({ ok: true, code, message });
 }
 
 function fail(code, message) {
-  checks.push({
-    ok: false,
-    code,
-    message,
-  });
+  checks.push({ ok: false, code, message });
 }
 
 function absolute(relativePath) {
@@ -194,32 +188,17 @@ function assertNoForbiddenAcrossSource() {
   const files = [
     ...listSourceFiles('src'),
     ...listSourceFiles('scripts'),
-  ].filter((file) => 
+  ].filter((file) =>
     file !== 'scripts/certify-writer-v2-ocr.mjs' &&
     file !== 'scripts/no-mojibake-audit.mjs'
   );
 
   const forbidden = [
-    {
-      pattern: '[object Object]',
-      code: 'OBJECT_OBJECT_LEAK',
-    },
-    {
-      pattern: '\uFFFD',
-      code: 'UNICODE_REPLACEMENT_CHAR',
-    },
-    {
-      pattern: 'â€™',
-      code: 'MOJIBAKE_APOSTROPHE',
-    },
-    {
-      pattern: 'â€œ',
-      code: 'MOJIBAKE_OPEN_QUOTE',
-    },
-    {
-      pattern: 'â€',
-      code: 'MOJIBAKE_GENERAL',
-    },
+    { pattern: '[object Object]', code: 'OBJECT_OBJECT_LEAK' },
+    { pattern: '\uFFFD', code: 'UNICODE_REPLACEMENT_CHAR' },
+    { pattern: '\u00E2\u20AC\u2122', code: 'MOJIBAKE_APOSTROPHE' },
+    { pattern: '\u00E2\u20AC\u0153', code: 'MOJIBAKE_OPEN_QUOTE' },
+    { pattern: '\u00E2\u20AC', code: 'MOJIBAKE_GENERAL' },
   ];
 
   const violations = [];
@@ -244,10 +223,7 @@ function assertNoForbiddenAcrossSource() {
     return;
   }
 
-  fail(
-    'SOURCE_CORRUPTION_FOUND',
-    violations.join('\n'),
-  );
+  fail('SOURCE_CORRUPTION_FOUND', violations.join('\n'));
 }
 
 function assertLegacyOcrRetired() {
@@ -415,41 +391,25 @@ function assertExportsReady() {
 function assertWorkerProtocolsReady() {
   assertContains(
     'src/core/ocr/workers/ocrWorkerTypes.ts',
-    [
-      'RECOGNIZE_PAGES',
-      'RECOGNIZE_RESULT',
-      'CANCEL_REQUEST',
-    ],
+    ['RECOGNIZE_PAGES', 'RECOGNIZE_RESULT', 'CANCEL_REQUEST'],
     'OCR_WORKER_TYPES_READY',
   );
 
   assertContains(
     'src/core/ocr/workers/ocrWorkerEntrypoint.ts',
-    [
-      'installOcrWorkerEntrypoint',
-      'recognizePagesWithProgress',
-      'REQUEST_CANCELLED',
-    ],
+    ['installOcrWorkerEntrypoint', 'recognizePagesWithProgress', 'REQUEST_CANCELLED'],
     'OCR_WORKER_ENTRYPOINT_READY',
   );
 
   assertContains(
     'src/core/ocr/workers/ocrRasterWorkerTypes.ts',
-    [
-      'RASTERIZE_PAGES',
-      'RASTERIZE_REGION',
-      'RASTERIZE_RESULT',
-    ],
+    ['RASTERIZE_PAGES', 'RASTERIZE_REGION', 'RASTERIZE_RESULT'],
     'RASTER_WORKER_TYPES_READY',
   );
 
   assertContains(
     'src/core/ocr/workers/ocrRasterWorkerEntrypoint.ts',
-    [
-      'installOcrRasterWorkerEntrypoint',
-      'handleRasterizePagesRequest',
-      'handleRasterizeRegionRequest',
-    ],
+    ['installOcrRasterWorkerEntrypoint', 'handleRasterizePagesRequest', 'handleRasterizeRegionRequest'],
     'RASTER_WORKER_ENTRYPOINT_READY',
   );
 }
@@ -463,18 +423,11 @@ function assertPackageScripts() {
   const json = JSON.parse(read('package.json'));
   const scripts = json.scripts ?? {};
 
-  const expected = [
-    'typecheck',
-    'test:ci',
-  ];
-
+  const expected = ['typecheck', 'test:ci'];
   const missing = expected.filter((script) => !scripts[script]);
 
   if (missing.length > 0) {
-    fail(
-      'PACKAGE_BASE_SCRIPTS_MISSING',
-      `Missing package scripts: ${missing.join(', ')}`,
-    );
+    fail('PACKAGE_BASE_SCRIPTS_MISSING', `Missing package scripts: ${missing.join(', ')}`);
     return;
   }
 
@@ -490,22 +443,13 @@ function assertPackageScripts() {
 function assertDemoFixturesReady() {
   assertContains(
     'src/core/ocr/fixtures/ocrDemoFixtures.ts',
-    [
-      'createOcrDemoFixture',
-      'createOcrDemoPdfBytes',
-      'createOcrDemoResult',
-      'simple-table',
-    ],
+    ['createOcrDemoFixture', 'createOcrDemoPdfBytes', 'createOcrDemoResult', 'simple-table'],
     'OCR_DEMO_FIXTURES_READY',
   );
 
   assertContains(
     'src/components/ocr/OcrDemoFixturePanel.tsx',
-    [
-      'ocr-demo-fixture-panel',
-      'onFixtureLoaded',
-      'Load demo fixture',
-    ],
+    ['ocr-demo-fixture-panel', 'onFixtureLoaded', 'Load demo fixture'],
     'OCR_DEMO_FIXTURE_PANEL_READY',
   );
 }
@@ -513,22 +457,13 @@ function assertDemoFixturesReady() {
 function assertUnifiedOcrUxReady() {
   assertContains(
     'src/components/ocr/OcrUnifiedPanel.tsx',
-    [
-      'ocr-unified-panel',
-      'ocr-unified-section-source',
-      'ocr-unified-section-run',
-      'ocr-unified-section-diagnostics',
-    ],
+    ['ocr-unified-panel', 'ocr-unified-section-source', 'ocr-unified-section-run', 'ocr-unified-section-diagnostics'],
     'OCR_UNIFIED_PANEL_READY',
   );
 
   assertContains(
     'src/components/ocr/OcrSourceSummaryCard.tsx',
-    [
-      'ocr-source-summary-card',
-      'Active OCR Source',
-      'PDF bytes',
-    ],
+    ['ocr-source-summary-card', 'Active OCR Source', 'PDF bytes'],
     'OCR_SOURCE_SUMMARY_CARD_READY',
   );
 }
@@ -536,53 +471,31 @@ function assertUnifiedOcrUxReady() {
 function assertOcrSectionsReady() {
   assertContains(
     'src/components/ocr/sections/OcrRunSection.tsx',
-    [
-      'ocr-run-section',
-      'engineControls',
-      'batchQueue',
-      'runControls',
-    ],
+    ['ocr-run-section', 'engineControls', 'batchQueue', 'runControls'],
     'OCR_RUN_SECTION_READY',
   );
 
   assertContains(
     'src/components/ocr/sections/OcrReviewSection.tsx',
-    [
-      'ocr-review-section',
-      'correctionsPanel',
-      'regionTools',
-      'writerInsertion',
-    ],
+    ['ocr-review-section', 'correctionsPanel', 'regionTools', 'writerInsertion'],
     'OCR_REVIEW_SECTION_READY',
   );
 
   assertContains(
     'src/components/ocr/sections/OcrExportSection.tsx',
-    [
-      'ocr-export-section',
-      'searchablePdfExport',
-      'projectExport',
-    ],
+    ['ocr-export-section', 'searchablePdfExport', 'projectExport'],
     'OCR_EXPORT_SECTION_READY',
   );
 
   assertContains(
     'src/components/ocr/sections/OcrProjectSection.tsx',
-    [
-      'ocr-project-section',
-      'restorePanel',
-      'projectActions',
-    ],
+    ['ocr-project-section', 'restorePanel', 'projectActions'],
     'OCR_PROJECT_SECTION_READY',
   );
 
   assertContains(
     'src/components/ocr/sections/OcrDiagnosticsSection.tsx',
-    [
-      'ocr-diagnostics-section',
-      'OcrDiagnosticsMessage',
-      'ocr-diagnostics-message',
-    ],
+    ['ocr-diagnostics-section', 'OcrDiagnosticsMessage', 'ocr-diagnostics-message'],
     'OCR_DIAGNOSTICS_SECTION_READY',
   );
 }
@@ -590,42 +503,31 @@ function assertOcrSectionsReady() {
 function assertFinalIntegrationReady() {
   assertContains(
     'src/core/ocr/ocrFinalIntegration.ts',
-    [
-      'runFinalOcrIntegrationJob',
-      'mergeOcrDocumentResults',
-      'createOcrExecutionPlan',
-      'createOcrPipelineBatchPlan',
-      'runOcrBatchScheduler',
-      'runOcrPipeline',
-    ],
+    ['runFinalOcrIntegrationJob', 'mergeOcrDocumentResults', 'createOcrExecutionPlan', 'createOcrPipelineBatchPlan', 'runOcrBatchScheduler', 'runOcrPipeline'],
     'OCR_FINAL_INTEGRATION_READY',
   );
 
   assertContains(
+    'src/components/ocr/workflow/useOcrRunWorkflow.ts',
+    ['runFinalOcrIntegrationJob', 'runOcrPipeline', 'createOcrExecutionPlan', 'runOcrBatchScheduler', 'createOcrAbortControllerWithTimeout'],
+    'OCR_RUN_WORKFLOW_USES_FINAL_INTEGRATION',
+  );
+
+  assertContains(
     'src/components/ocr/OcrPanel.tsx',
-    [
-      'runFinalOcrIntegrationJob',
-      'OcrPipelineModePanel',
-    ],
-    'OCR_PANEL_USES_FINAL_INTEGRATION',
+    ['useOcrRunWorkflow', 'OcrPipelineModePanel', 'runWorkflow.executionPolicy', 'runWorkflow.runSelectedOcr'],
+    'OCR_PANEL_USES_RUN_WORKFLOW',
   );
 
   assertNotContains(
     'src/components/ocr/OcrPanel.tsx',
-    [
-      'setUseWorkerOcr',
-      'presentationMode=',
-      'runWorkerOcrJob({',
-    ],
+    ['setUseWorkerOcr', 'presentationMode=', 'runWorkerOcrJob({'],
     'OCR_PANEL_NO_TRANSITIONAL_WORKER_TOGGLE',
   );
 
   assertContains(
     'src/components/ocr/OcrPanelWriterConnected.tsx',
-    [
-      'OcrPanel is mounted once only',
-      '<OcrPanel',
-    ],
+    ['OcrPanel is mounted once only', '<OcrPanel'],
     'OCR_WRITER_CONNECTED_SINGLE_PANEL',
   );
 }
@@ -657,9 +559,7 @@ function main() {
     `Passed:       ${checks.length - failed.length}`,
     `Failed:       ${failed.length}`,
     '',
-    ...checks.map((check) =>
-      `${check.ok ? 'PASS' : 'FAIL'} ${check.code}: ${check.message}`,
-    ),
+    ...checks.map((check) => `${check.ok ? 'PASS' : 'FAIL'} ${check.code}: ${check.message}`),
     '',
   ];
 
