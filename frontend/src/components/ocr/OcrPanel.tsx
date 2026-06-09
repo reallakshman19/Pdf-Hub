@@ -1,18 +1,9 @@
 import React from 'react';
-import {
-  Loader2,
-  RotateCcw,
-  Search,
-} from 'lucide-react';
-import { Button } from '@/components/ui/Button';
 import type {
   OcrJobRunnerPageInput,
   OcrJobRunnerSnapshot,
 } from '@/core/ocr/ocrJobRunner';
-import type { OcrProfileId } from '@/core/ocr/ocrProfiles';
-import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
 import {
   resolveOcrRegionPageInput,
 } from '@/core/ocr/ocrRegionRasterBridge';
@@ -52,7 +43,6 @@ import {
   type OcrBatchSchedulerSnapshot,
 } from '@/core/ocr/ocrBatchScheduler';
 import { OcrBatchQueuePanel } from './OcrBatchQueuePanel';
-
 import {
   runFinalOcrIntegrationJob,
 } from '@/core/ocr/ocrFinalIntegration';
@@ -69,6 +59,10 @@ import {
   OcrRunSection,
   type OcrDiagnosticsMessage,
 } from './sections';
+import {
+  OcrEngineControls,
+  OcrRunActions,
+} from './workflow/OcrRunControls';
 
 export interface OcrPanelProps {
   documentFingerprint?: string | null;
@@ -273,13 +267,6 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     );
   }, []);
 
-  const profiles = React.useMemo(() => listOcrProfiles(), []);
-
-  const engines = React.useMemo(
-    () => defaultOcrEngineRegistry.listEngines(),
-    [],
-  );
-
   const runSelectedOcr = async () => {
     setIsRunning(true);
     setErrorMessage(null);
@@ -392,94 +379,22 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   ];
 
   const engineControlsNode = (
-    <div className="grid grid-cols-1 gap-2">
-      <label className="text-xs text-slate-600 dark:text-slate-300">
-        Engine
-        <select
-          className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-          value={store.engineId}
-          data-testid="ocr-engine-select"
-          onChange={(event) =>
-            store.setOcrEngineId(event.currentTarget.value || 'mock')
-          }
-        >
-          {engines.map((engine) => (
-            <option
-              key={engine.id}
-              value={engine.id}
-            >
-              {engine.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="text-xs text-slate-600 dark:text-slate-300">
-        Profile
-        <select
-          className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-          value={store.profileId}
-          onChange={(event) =>
-            store.setOcrProfileId(event.currentTarget.value as OcrProfileId)
-          }
-        >
-          {profiles.map((profile) => (
-            <option
-              key={profile.id}
-              value={profile.id}
-            >
-              {profile.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-        <input
-          type="checkbox"
-          checked={store.forceOcr}
-          onChange={(event) =>
-            store.setForceOcr(event.currentTarget.checked)
-          }
-        />
-        Force OCR even if embedded text exists
-      </label>
-    </div>
+    <OcrEngineControls
+      engineId={store.engineId}
+      profileId={store.profileId}
+      forceOcr={store.forceOcr}
+      onEngineChange={(engineId) => store.setOcrEngineId(engineId || 'mock')}
+      onProfileChange={(profileId) => store.setOcrProfileId(profileId)}
+      onForceOcrChange={(forceOcr) => store.setForceOcr(forceOcr)}
+    />
   );
 
   const runControlsNode = (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        type="button"
-        size="sm"
-        onClick={runSelectedOcr}
-        disabled={isRunning}
-        data-testid="run-ocr-button"
-      >
-        {isRunning ? (
-          <>
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            Running
-          </>
-        ) : (
-          <>
-            <Search className="mr-1 h-3.5 w-3.5" />
-            Run OCR
-          </>
-        )}
-      </Button>
-
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={clearOcr}
-        data-testid="clear-ocr-button"
-      >
-        <RotateCcw className="mr-1 h-3.5 w-3.5" />
-        Clear
-      </Button>
-    </div>
+    <OcrRunActions
+      running={isRunning}
+      onRun={runSelectedOcr}
+      onClear={clearOcr}
+    />
   );
 
   return (
