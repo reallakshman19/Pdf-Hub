@@ -11,6 +11,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrDemoResult } from '@/core/ocr/fixtures/ocrDemoFixtures';
 import {
   useOcrRunWorkflow,
   type UseOcrRunWorkflowInput,
@@ -77,6 +78,22 @@ describe('useOcrRunWorkflow', () => {
 
     expect(screen.getByTestId('workflow-selected-pages').textContent).toBe('2');
     expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('2');
+  });
+
+  it('does not mark a stale OCR result from another document as complete', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'previous-document'),
+    );
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="current-document"
+        selectedPageIndexes={[0]}
+      />,
+    );
+
+    expect(useOcrStore.getState().correctedResult?.documentFingerprint).toBe('previous-document');
+    expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
   });
 
   it('runs mock OCR through the model and clears through the guarded command', async () => {
