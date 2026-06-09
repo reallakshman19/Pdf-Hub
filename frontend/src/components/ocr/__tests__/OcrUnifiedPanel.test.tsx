@@ -7,6 +7,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from '@testing-library/react';
 import { OcrUnifiedPanel } from '../OcrUnifiedPanel';
 
@@ -46,10 +47,12 @@ describe('OcrUnifiedPanel', () => {
       />,
     );
 
-    expect(screen.getByTestId('ocr-unified-summary')).toBeTruthy();
+    const summary = screen.getByTestId('ocr-unified-summary');
+
+    expect(summary).toBeTruthy();
     expect(screen.getAllByTestId('ocr-unified-status-tile')).toHaveLength(2);
-    expect(screen.getByText('working')).toBeTruthy();
-    expect(screen.getByText('4')).toBeTruthy();
+    expect(within(summary).getByText('working')).toBeTruthy();
+    expect(within(summary).getByText('4')).toBeTruthy();
   });
 
   it('collapses and expands sections', () => {
