@@ -6,10 +6,20 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { OcrProfileId } from '@/core/ocr/ocrProfiles';
-import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
-import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
+
+export interface OcrEngineOption {
+  id: string;
+  label: string;
+}
+
+export interface OcrProfileOption {
+  id: OcrProfileId;
+  label: string;
+}
 
 export interface OcrEngineControlsProps {
+  engines: OcrEngineOption[];
+  profiles: OcrProfileOption[];
   engineId: string;
   profileId: OcrProfileId;
   forceOcr: boolean;
@@ -19,6 +29,8 @@ export interface OcrEngineControlsProps {
 }
 
 export function OcrEngineControls({
+  engines,
+  profiles,
   engineId,
   profileId,
   forceOcr,
@@ -26,12 +38,6 @@ export function OcrEngineControls({
   onProfileChange,
   onForceOcrChange,
 }: OcrEngineControlsProps) {
-  const profiles = React.useMemo(() => listOcrProfiles(), []);
-  const engines = React.useMemo(
-    () => defaultOcrEngineRegistry.listEngines(),
-    [],
-  );
-
   return (
     <div className="grid grid-cols-1 gap-2" data-testid="ocr-engine-controls-workflow">
       <label className="text-xs text-slate-600 dark:text-slate-300">
@@ -81,12 +87,14 @@ export interface OcrRunActionsProps {
   running: boolean;
   onRun: () => void;
   onClear: () => void;
+  clearDisabled?: boolean;
 }
 
 export function OcrRunActions({
   running,
   onRun,
   onClear,
+  clearDisabled = false,
 }: OcrRunActionsProps) {
   return (
     <div className="flex flex-wrap gap-2" data-testid="ocr-run-actions-workflow">
@@ -115,6 +123,7 @@ export function OcrRunActions({
         size="sm"
         variant="ghost"
         onClick={onClear}
+        disabled={running || clearDisabled}
         data-testid="clear-ocr-button"
       >
         <RotateCcw className="mr-1 h-3.5 w-3.5" />
