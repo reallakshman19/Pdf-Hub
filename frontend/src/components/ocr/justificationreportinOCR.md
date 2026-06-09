@@ -83,17 +83,23 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 2. `OcrPanel.tsx` owns the engine/profile option model with `listOcrProfiles()` and `defaultOcrEngineRegistry.listEngines()`.
 3. `OcrRunActions` disables Clear while OCR is running, preventing a clear-while-async-run UX race.
 
+## Phase 3 value additions
+
+1. `useOcrRunWorkflow.ts` extracts the OCR execution model from `OcrPanel.tsx`, including state, can-run/can-clear/can-cancel flags, requested pages, execution policy, diagnostics, run, clear, cancel, and retry actions.
+2. `OcrPanel.tsx` now consumes `runWorkflow.*` instead of owning run-state and execution-policy state directly, while preserving review, export, project, and region behavior.
+3. `useOcrRunWorkflow.test.tsx` verifies explicit page derivation, store-selected page fallback, run-to-complete, clear, and cancel guard behavior; the OCR workflow certification job includes this test.
+
 ## Logic to reorganize in later phases
 
 ### `OcrPanel.tsx`
 
 Change:
 
-`OcrPanel.tsx` should continue shrinking. The next high-value seam is execution-state modeling through `useOcrRunWorkflow()`, followed by the review workspace: result summary, search, corrections, regions, table review, and Writer insertion.
+`OcrPanel.tsx` should continue shrinking. The next high-value seam is the review workspace: result summary, search, corrections, regions, table review, and Writer insertion should move into a dedicated render-only workflow component.
 
 Justification:
 
-The panel still coordinates execution controls, review, export, diagnostics, project restore, batch queue, and developer/QA controls. Phase 2 removes the first visible-control seam without changing execution semantics; Phase 3 should extract the execution model rather than only moving more JSX.
+The panel still coordinates review, export, diagnostics, project restore, region tools, table review, and Writer insertion. Phase 3 removes execution-state ownership without changing OCR execution semantics.
 
 ### Diagnostics
 
