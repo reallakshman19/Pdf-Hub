@@ -4,6 +4,8 @@ import type {
   OcrJobRunnerSnapshot,
 } from '@/core/ocr/ocrJobRunner';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
+import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
 import {
   resolveOcrRegionPageInput,
 } from '@/core/ocr/ocrRegionRasterBridge';
@@ -255,6 +257,12 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     ? selectedPageIndexes
     : store.selectedPageIndexes;
 
+  const profiles = React.useMemo(() => listOcrProfiles(), []);
+  const engines = React.useMemo(
+    () => defaultOcrEngineRegistry.listEngines(),
+    [],
+  );
+
   const queueWriterElement = React.useCallback((element: WriterElementV2, source: 'ocrRegion' | 'ocrTableReview') => {
     setWriterInsertionQueue((current) =>
       upsertOcrWriterInsertionCandidate(
@@ -380,6 +388,8 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
 
   const engineControlsNode = (
     <OcrEngineControls
+      engines={engines}
+      profiles={profiles}
       engineId={store.engineId}
       profileId={store.profileId}
       forceOcr={store.forceOcr}
