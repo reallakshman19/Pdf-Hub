@@ -117,13 +117,15 @@ export function useOcrRunWorkflow({
   const canCancel = isRunning || Boolean(activeAbort) || Boolean(lastBatchController);
 
   const cancelActiveOcr = React.useCallback(() => {
+    if (!isRunning && !activeAbort && !lastBatchController) return;
+
     activeAbort?.cancel();
     lastBatchController?.abort();
     setActiveAbort(null);
     setLastBatchController(null);
     setIsRunning(false);
     setErrorMessage('OCR job cancelled.');
-  }, [activeAbort, lastBatchController]);
+  }, [activeAbort, isRunning, lastBatchController]);
 
   const cancelBatchQueue = React.useCallback(() => {
     lastBatchController?.abort();
