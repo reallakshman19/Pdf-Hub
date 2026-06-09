@@ -89,6 +89,13 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 2. `OcrPanel.tsx` now consumes `runWorkflow.*` instead of owning run-state and execution-policy state directly, while preserving review, export, project, and region behavior.
 3. `useOcrRunWorkflow.test.tsx` verifies explicit page derivation, store-selected page fallback, run-to-complete, clear, and cancel guard behavior; the OCR workflow certification job includes this test.
 
+## Phase 3 review fixes
+
+1. Static OCR certification now recognizes `useOcrRunWorkflow.ts` as the owner of final integration calls instead of requiring `runFinalOcrIntegrationJob` inside `OcrPanel.tsx`.
+2. `retryFailedBatches()` now clears `lastBatchController` in `finally` and reports retry errors, preventing stale `canCancel` state after retry failure.
+3. Workflow completion state is document-aware: stale OCR results from another document no longer mark the current document as `complete`.
+4. `useOcrRunWorkflow.test.tsx` now includes a stale-document regression test.
+
 ## Logic to reorganize in later phases
 
 ### `OcrPanel.tsx`
