@@ -73,7 +73,9 @@ describe('OCR run workflow controls', () => {
       />,
     );
 
-    expect(screen.getByTestId('run-ocr-button')).toHaveAttribute('disabled');
+    const runButton = screen.getByTestId('run-ocr-button') as HTMLButtonElement;
+
+    expect(runButton.disabled).toBe(true);
     expect(screen.getByText('Running')).toBeTruthy();
   });
 });
