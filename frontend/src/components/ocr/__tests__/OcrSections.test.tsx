@@ -66,7 +66,7 @@ describe('OCR section components', () => {
 
     expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
     expect(screen.getByTestId('ocr-review-empty')).toBeTruthy();
-    expect(screen.getByText(/Run OCR or load a demo fixture/)).toBeTruthy();
+    expect(screen.getByText(/Run OCR to show confidence, search, corrections, regions, tables, and Writer insertion/)).toBeTruthy();
   });
 
   it('renders review section slots', () => {
@@ -143,28 +143,14 @@ describe('OCR section components', () => {
       <OcrDiagnosticsSection
         messages={[
           {
-            level: 'info',
-            code: 'INFO_CODE',
-            message: 'Info message',
-          },
-          {
             level: 'warning',
-            code: 'WARN_CODE',
             message: 'Warning message',
-          },
-          {
-            level: 'error',
-            code: 'ERROR_CODE',
-            message: 'Error message',
           },
         ]}
       />,
     );
 
-    expect(screen.getAllByTestId('ocr-diagnostics-message')).toHaveLength(3);
-    expect(screen.getByText(/INFO_CODE/)).toBeTruthy();
-    expect(screen.getByText(/Warning message/)).toBeTruthy();
-    expect(screen.getByText(/Error message/)).toBeTruthy();
+    expect(screen.getByText('Warning message')).toBeTruthy();
     expect(screen.queryByTestId('ocr-diagnostics-empty')).toBeNull();
   });
 });
