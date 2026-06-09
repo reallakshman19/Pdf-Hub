@@ -14,6 +14,28 @@ import {
   OcrRunActions,
 } from '../workflow/OcrRunControls';
 
+const engineOptions = [
+  {
+    id: 'mock',
+    label: 'Mock OCR',
+  },
+  {
+    id: 'tesseract-js',
+    label: 'Tesseract.js OCR',
+  },
+];
+
+const profileOptions = [
+  {
+    id: 'clean-scan' as const,
+    label: 'Clean scan',
+  },
+  {
+    id: 'table-heavy' as const,
+    label: 'Table-heavy document',
+  },
+];
+
 describe('OCR run workflow controls', () => {
   it('renders engine controls and emits profile/force changes', () => {
     const onEngineChange = vi.fn();
@@ -22,6 +44,8 @@ describe('OCR run workflow controls', () => {
 
     render(
       <OcrEngineControls
+        engines={engineOptions}
+        profiles={profileOptions}
         engineId="mock"
         profileId="clean-scan"
         forceOcr={false}
@@ -47,7 +71,7 @@ describe('OCR run workflow controls', () => {
     expect(onForceOcrChange).toHaveBeenCalledWith(true);
   });
 
-  it('renders run actions and respects running state', () => {
+  it('renders run actions and disables unsafe actions while running', () => {
     const onRun = vi.fn();
     const onClear = vi.fn();
 
@@ -74,8 +98,25 @@ describe('OCR run workflow controls', () => {
     );
 
     const runButton = screen.getByTestId('run-ocr-button') as HTMLButtonElement;
+    const clearButton = screen.getByTestId('clear-ocr-button') as HTMLButtonElement;
 
     expect(runButton.disabled).toBe(true);
+    expect(clearButton.disabled).toBe(true);
     expect(screen.getByText('Running')).toBeTruthy();
+  });
+
+  it('supports explicitly disabling clear when not running', () => {
+    render(
+      <OcrRunActions
+        running={false}
+        clearDisabled
+        onRun={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+
+    const clearButton = screen.getByTestId('clear-ocr-button') as HTMLButtonElement;
+
+    expect(clearButton.disabled).toBe(true);
   });
 });
