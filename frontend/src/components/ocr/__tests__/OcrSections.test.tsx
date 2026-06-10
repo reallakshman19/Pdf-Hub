@@ -4,6 +4,7 @@ import {
   it,
 } from 'vitest';
 import {
+  fireEvent,
   render,
   screen,
 } from '@testing-library/react';
@@ -132,7 +133,7 @@ describe('OCR section components', () => {
     expect(screen.queryByTestId('ocr-project-empty')).toBeNull();
   });
 
-  it('renders diagnostics empty state and messages', () => {
+  it('renders diagnostics empty state and collapsed non-error summary', () => {
     const { rerender } = render(
       <OcrDiagnosticsSection />,
     );
@@ -150,7 +151,29 @@ describe('OCR section components', () => {
       />,
     );
 
+    expect(screen.getByTestId('ocr-diagnostics-summary')).toBeTruthy();
+    expect(screen.getByTestId('ocr-diagnostics-badge-warning')).toHaveTextContent('Warnings: 1');
+    expect(screen.queryByText('Warning message')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('ocr-diagnostics-toggle'));
+
     expect(screen.getByText('Warning message')).toBeTruthy();
     expect(screen.queryByTestId('ocr-diagnostics-empty')).toBeNull();
+  });
+
+  it('auto-expands diagnostics when an error exists', () => {
+    render(
+      <OcrDiagnosticsSection
+        messages={[
+          {
+            level: 'error',
+            message: 'Error message',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-diagnostics-error-prominent')).toBeTruthy();
+    expect(screen.getByText('Error message')).toBeTruthy();
   });
 });
