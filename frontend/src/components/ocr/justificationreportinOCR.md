@@ -96,17 +96,24 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 3. Workflow completion state is document-aware: stale OCR results from another document no longer mark the current document as `complete`.
 4. `useOcrRunWorkflow.test.tsx` now includes a stale-document regression test.
 
+## Phase 4 value additions
+
+1. `OcrReviewWorkspace.tsx` extracts post-OCR review/use-result UX from `OcrPanel.tsx`: result summary, search, low-confidence corrections, region tools, table review, and Writer insertion.
+2. `OcrPanel.tsx` now composes `OcrRunSection`, `OcrReviewWorkspace`, export, project restore, and diagnostics as a coordinator instead of owning review workspace state directly.
+3. `OcrReviewWorkspace.test.tsx` covers empty state, result summary/search/region rendering, and restored Writer insertion queue insertion.
+4. `knowncodeoptimisation.md` records all known patches, shims, and workarounds used during this OCR workflow refactor.
+
 ## Logic to reorganize in later phases
 
-### `OcrPanel.tsx`
+### Review workspace sub-splitting
 
 Change:
 
-`OcrPanel.tsx` should continue shrinking. The next high-value seam is the review workspace: result summary, search, corrections, regions, table review, and Writer insertion should move into a dedicated render-only workflow component.
+`OcrReviewWorkspace.tsx` should be split if it keeps growing. The next seams are `OcrRegionWorkspace`, `OcrTableReviewWorkspace`, and `OcrWriterInsertionWorkspace`.
 
 Justification:
 
-The panel still coordinates review, export, diagnostics, project restore, region tools, table review, and Writer insertion. Phase 3 removes execution-state ownership without changing OCR execution semantics.
+Phase 4 moves review flow out of the panel. A future split should only happen if the workspace grows enough to justify smaller ownership units.
 
 ### Diagnostics
 
