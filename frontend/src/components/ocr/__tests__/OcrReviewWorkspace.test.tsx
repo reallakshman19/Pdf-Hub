@@ -9,6 +9,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from '@testing-library/react';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { createOcrDemoResult } from '@/core/ocr/fixtures/ocrDemoFixtures';
@@ -60,9 +61,26 @@ describe('OcrReviewWorkspace', () => {
     expect(screen.getByTestId('ocr-review-workspace-regions')).toBeTruthy();
   });
 
+  it('does not render stale OCR result from another document', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'old-doc'),
+    );
+
+    render(
+      <OcrReviewWorkspace
+        {...defaultProps}
+        documentFingerprint="new-doc"
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-review-workspace-empty')).toBeTruthy();
+    expect(screen.queryByTestId('ocr-result-summary')).toBeNull();
+    expect(screen.queryByTestId('ocr-review-workspace-summary')).toBeNull();
+  });
+
   it('renders restored Writer insertion queue and emits inserted elements', () => {
     const onInsertWriterElements = vi.fn();
-    const element = createWriterTextElement();
+    const element = createWriterTextElement('review-doc');
 
     const queue = createOcrWriterInsertionQueue([
       createOcrWriterInsertionCandidate({
@@ -87,12 +105,54 @@ describe('OcrReviewWorkspace', () => {
     expect(onInsertWriterElements).toHaveBeenCalledWith([element]);
     expect(defaultProps.onWriterInsertionQueueChange).toHaveBeenCalled();
   });
+
+  it('resets selected review state when document fingerprint changes', async () => {
+    const onInsertWriterElements = vi.fn();
+    const element = createWriterTextElement('doc-a');
+
+    const queue = createOcrWriterInsertionQueue([
+      createOcrWriterInsertionCandidate({
+        source: 'ocrRegion',
+        element,
+      }),
+    ]);
+
+    const { rerender } = render(
+      <OcrReviewWorkspace
+        documentFingerprint="doc-a"
+        selectedPages={[0]}
+        writerInsertionQueue={queue}
+        onWriterInsertionQueueChange={defaultProps.onWriterInsertionQueueChange}
+        onInsertWriterElements={onInsertWriterElements}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
+
+    expect(screen.getByTestId('ocr-writer-inserted-summary').textContent).toContain('Inserted 1');
+
+    rerender(
+      <OcrReviewWorkspace
+        documentFingerprint="doc-b"
+        selectedPages={[0]}
+        writerInsertionQueue={queue}
+        onWriterInsertionQueueChange={defaultProps.onWriterInsertionQueueChange}
+        onInsertWriterElements={onInsertWriterElements}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-review-workspace-empty')).toBeTruthy();
+      expect(screen.queryByTestId('ocr-writer-inserted-summary')).toBeNull();
+      expect(screen.queryByTestId('ocr-writer-insert-panel')).toBeNull();
+    });
+  });
 });
 
-function createWriterTextElement(): WriterElementV2 {
+function createWriterTextElement(documentFingerprint = 'review-doc'): WriterElementV2 {
   return {
-    id: 'writer-ocr-1',
-    documentFingerprint: 'review-doc',
+    id: `writer-ocr-${documentFingerprint}`,
+    documentFingerprint,
     pageIndex: 0,
     type: 'richTextBox',
     rect: {
