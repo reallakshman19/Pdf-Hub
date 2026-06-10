@@ -50,13 +50,53 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   const [lastAcceptedTableSummary, setLastAcceptedTableSummary] = React.useState<string | null>(null);
   const [lastInsertedWriterCount, setLastInsertedWriterCount] = React.useState<number | null>(null);
 
+  React.useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- document switches must reset document-scoped review state before stale selections remain actionable. */
+    setSelectedLowConfidenceWordId(null);
+    setSelectedRegionId(null);
+    setLastRegionWriterElementType(null);
+    setLastRegionTableBlock(null);
+    setLastAcceptedTableSummary(null);
+    setLastInsertedWriterCount(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [documentFingerprint]);
+
+  const currentResult = store.correctedResult?.documentFingerprint === documentFingerprint
+    ? store.correctedResult
+    : null;
+
+  const currentRegions = React.useMemo(
+    () => store.regions.filter(
+      (region) => region.documentFingerprint === documentFingerprint,
+    ),
+    [documentFingerprint, store.regions],
+  );
+
+  const currentLowConfidenceWords = currentResult
+    ? store.lowConfidenceWords
+    : [];
+
+  const currentSearchIndex = currentResult
+    ? store.searchIndex
+    : null;
+
+  const currentConfidenceSummary = currentResult
+    ? store.confidenceSummary
+    : null;
+
+  const currentWriterInsertionQueue = React.useMemo<OcrWriterInsertionQueueState>(() => ({
+    candidates: writerInsertionQueue.candidates.filter(
+      (candidate) => candidate.element.documentFingerprint === documentFingerprint,
+    ),
+  }), [documentFingerprint, writerInsertionQueue.candidates]);
+
   const selectedRegion = React.useMemo(() => {
     if (!selectedRegionId) return null;
 
-    return store.regions.find((region) => region.id === selectedRegionId) ?? null;
+    return currentRegions.find((region) => region.id === selectedRegionId) ?? null;
   }, [
+    currentRegions,
     selectedRegionId,
-    store.regions,
   ]);
 
   const selectedRegionPageInput = React.useMemo(() => {
@@ -84,12 +124,26 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
       return null;
     }
 
-    return store.lowConfidenceWords.find(
+    return currentLowConfidenceWords.find(
       (item) => item.word.id === selectedLowConfidenceWordId,
     )?.word ?? null;
   }, [
+    currentLowConfidenceWords,
     selectedLowConfidenceWordId,
-    store.lowConfidenceWords,
+  ]);
+
+  const handleCurrentWriterInsertionQueueChange = React.useCallback((nextQueue: OcrWriterInsertionQueueState) => {
+    onWriterInsertionQueueChange((current) => ({
+      candidates: [
+        ...current.candidates.filter(
+          (candidate) => candidate.element.documentFingerprint !== documentFingerprint,
+        ),
+        ...nextQueue.candidates,
+      ],
+    }));
+  }, [
+    documentFingerprint,
+    onWriterInsertionQueueChange,
   ]);
 
   const queueWriterElement = React.useCallback((element: WriterElementV2, source: 'ocrRegion' | 'ocrTableReview') => {
@@ -105,9 +159,9 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   }, [onWriterInsertionQueueChange]);
 
   const hasReviewContent =
-    Boolean(store.correctedResult)
-    || store.regions.length > 0
-    || writerInsertionQueue.candidates.length > 0
+    Boolean(currentResult)
+    || currentRegions.length > 0
+    || currentWriterInsertionQueue.candidates.length > 0
     || lastInsertedWriterCount !== null;
 
   if (!hasReviewContent) {
@@ -129,23 +183,23 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
       className="space-y-3"
       data-testid="ocr-review-workspace"
     >
-      {store.correctedResult ? (
+      {currentResult ? (
         <div
           className="space-y-2"
           data-testid="ocr-review-workspace-summary"
         >
           <OcrResultSummary
-            result={store.correctedResult}
-            confidenceSummary={store.confidenceSummary}
-            lowConfidenceCount={store.lowConfidenceWords.length}
+            result={currentResult}
+            confidenceSummary={currentConfidenceSummary}
+            lowConfidenceCount={currentLowConfidenceWords.length}
           />
           <OcrConfidenceLegend compact />
         </div>
       ) : null}
 
-      {store.searchIndex ? (
+      {currentSearchIndex ? (
         <OcrSearchMiniPanel
-          disabled={!store.searchIndex}
+          disabled={!currentSearchIndex}
           onSearch={(query) =>
             useOcrStore.getState().searchOcr({
               text: query,
@@ -155,13 +209,13 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
         />
       ) : null}
 
-      {store.lowConfidenceWords.length > 0 || selectedLowConfidenceWord ? (
+      {currentLowConfidenceWords.length > 0 || selectedLowConfidenceWord ? (
         <div
           className="space-y-2"
           data-testid="ocr-review-workspace-corrections"
         >
           <OcrLowConfidencePanel
-            words={store.lowConfidenceWords}
+            words={currentLowConfidenceWords}
             selectedWordId={selectedLowConfidenceWordId}
             onSelectWord={(item) => {
               setSelectedLowConfidenceWordId(item.word.id);
@@ -174,7 +228,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
         </div>
       ) : null}
 
-      {store.regions.length > 0 || store.correctedResult ? (
+      {currentRegions.length > 0 || currentResult ? (
         <div
           className="space-y-2"
           data-testid="ocr-review-workspace-regions"
@@ -191,9 +245,9 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
               setSelectedRegionId(region.id);
             }}
           />
-          {store.regions.length > 0 ? (
+          {currentRegions.length > 0 ? (
             <OcrRegionListPanel
-              regions={store.regions}
+              regions={currentRegions}
               selectedRegionId={selectedRegionId}
               onSelectRegion={(region) => {
                 setSelectedRegionId(region.id);
@@ -281,14 +335,14 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
         </div>
       ) : null}
 
-      {writerInsertionQueue.candidates.length > 0 || lastInsertedWriterCount !== null ? (
+      {currentWriterInsertionQueue.candidates.length > 0 || lastInsertedWriterCount !== null ? (
         <div
           className="space-y-2"
           data-testid="ocr-review-workspace-writer"
         >
           <OcrWriterInsertPanel
-            queue={writerInsertionQueue}
-            onQueueChange={onWriterInsertionQueueChange}
+            queue={currentWriterInsertionQueue}
+            onQueueChange={handleCurrentWriterInsertionQueueChange}
             onInsertElements={(elements) => {
               onInsertWriterElements?.(elements);
               setLastInsertedWriterCount(elements.length);
