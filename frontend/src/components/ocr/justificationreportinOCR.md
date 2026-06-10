@@ -103,6 +103,13 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 3. `OcrReviewWorkspace.test.tsx` covers empty state, result summary/search/region rendering, and restored Writer insertion queue insertion.
 4. `knowncodeoptimisation.md` records all known patches, shims, and workarounds used during this OCR workflow refactor.
 
+## Phase 5 value additions
+
+1. `OcrDiagnosticsSection.tsx` now renders a compact diagnostics summary with error, warning, and info badges.
+2. Diagnostics are collapsed by default for non-error messages and auto-expanded only when error diagnostics exist.
+3. Error diagnostics receive a prominent alert row, while progress/developer details remain secondary behind the diagnostics toggle.
+4. `OcrSections.test.tsx` verifies collapsed non-error diagnostics and automatic error expansion without relying on jest-dom custom matchers.
+
 ## Logic to reorganize in later phases
 
 ### Review workspace sub-splitting
@@ -114,16 +121,6 @@ Change:
 Justification:
 
 Phase 4 moves review flow out of the panel. A future split should only happen if the workspace grows enough to justify smaller ownership units.
-
-### Diagnostics
-
-Change:
-
-Diagnostics must be collapsed by default and only become prominent when there is an error.
-
-Justification:
-
-Diagnostics are valuable for support and QA, but they should not compete with the normal OCR task.
 
 ### Demo fixtures
 
