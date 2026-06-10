@@ -152,7 +152,7 @@ describe('OCR section components', () => {
     );
 
     expect(screen.getByTestId('ocr-diagnostics-summary')).toBeTruthy();
-    expect(screen.getByTestId('ocr-diagnostics-badge-warning')).toHaveTextContent('Warnings: 1');
+    expect(screen.getByTestId('ocr-diagnostics-badge-warning').textContent).toBe('Warnings: 1');
     expect(screen.queryByText('Warning message')).toBeNull();
 
     fireEvent.click(screen.getByTestId('ocr-diagnostics-toggle'));
