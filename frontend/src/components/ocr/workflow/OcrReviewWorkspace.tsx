@@ -170,6 +170,9 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
         className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
         data-testid="ocr-review-workspace-empty"
       >
+        <span data-testid="ocr-review-empty" className="sr-only">
+          Empty OCR review workspace
+        </span>
         <span className="font-semibold text-slate-900 dark:text-slate-50">
           Nothing to review yet.
         </span>{' '}
