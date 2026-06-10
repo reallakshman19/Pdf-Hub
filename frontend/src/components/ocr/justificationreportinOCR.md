@@ -103,6 +103,13 @@ The export panel already owns searchable PDF mechanics. The workflow repair shou
 3. `OcrReviewWorkspace.test.tsx` covers empty state, result summary/search/region rendering, and restored Writer insertion queue insertion.
 4. `knowncodeoptimisation.md` records all known patches, shims, and workarounds used during this OCR workflow refactor.
 
+## Phase 4 review fixes
+
+1. `OcrReviewWorkspace.tsx` now scopes OCR result, regions, search, low-confidence words, confidence summary, and Writer insertion queue candidates to the active `documentFingerprint`.
+2. Document-specific review-local state is reset when `documentFingerprint` changes, preventing stale selected words, regions, table review state, and Writer insertion summaries from leaking across documents.
+3. `OcrReviewWorkspace.test.tsx` now covers stale OCR result suppression and document-switch cleanup.
+4. `knowncodeoptimisation.md` was verified as committed at the repository root on the Phase 4 branch.
+
 ## Logic to reorganize in later phases
 
 ### Review workspace sub-splitting
