@@ -30,7 +30,6 @@ export const WriterGeometryQuickPanel: React.FC = () => {
     }
 
     // The panel owns local input drafts and must resync when active selection geometry changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft({
       x: formatNumber(selected.rect.x),
       y: formatNumber(selected.rect.y),
