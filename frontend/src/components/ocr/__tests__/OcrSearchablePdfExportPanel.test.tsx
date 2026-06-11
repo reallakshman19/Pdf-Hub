@@ -31,7 +31,7 @@ describe('OcrSearchablePdfExportPanel', () => {
     expect(screen.getByTestId('ocr-searchable-pdf-export-button')).toBeDisabled();
   });
 
-  it('exports searchable PDF when inputs exist', async () => {
+  it('exports searchable PDF when inputs exist and exposes visible output actions', async () => {
     const pdfBytes = await createBlankPdfBytes();
     const ocrResult = await createMockOcrResult();
     let exported: OcrSearchablePdfExportResult | null = null;
@@ -56,6 +56,8 @@ describe('OcrSearchablePdfExportPanel', () => {
     expect(result.embeddedTextItemCount).toBeGreaterThan(0);
     expect(screen.getByTestId('ocr-searchable-pdf-message')).toBeTruthy();
     expect(screen.getByText(/Searchable PDF created/)).toBeTruthy();
+    expect(screen.getByTestId('ocr-searchable-pdf-output-actions')).toBeTruthy();
+    expect(screen.getByTestId('ocr-searchable-pdf-download-button')).toBeTruthy();
   });
 
   it('supports line layer and confidence threshold settings', async () => {
