@@ -25,7 +25,8 @@ export const OcrDiagnosticsSection: React.FC<OcrDiagnosticsSectionProps> = ({
   const counts = summarizeDiagnostics(messages);
   const hasContent = messages.length > 0 || Boolean(children);
   const hasError = counts.error > 0;
-  const diagnosticsOpen = hasError || userOpen;
+  const hasLiveProgress = Boolean(children) && messages.length > 0;
+  const diagnosticsOpen = hasError || userOpen || hasLiveProgress;
 
   return (
     <OcrSectionShell
