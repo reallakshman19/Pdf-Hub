@@ -23,6 +23,8 @@ interface SearchablePdfExportArtifact {
   bytes: Uint8Array;
   fileName: string;
   objectUrl: string | null;
+  sourcePdfBytes: Uint8Array | null;
+  sourceOcrResult: OcrDocumentResult | null;
 }
 
 const SEARCHABLE_PDF_FILE_NAME = 'searchable-ocr.pdf';
@@ -42,6 +44,11 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
   const artifactUrlRef = React.useRef<string | null>(null);
 
   const canExport = Boolean(pdfBytes && ocrResult && !isExporting);
+  const activeArtifact = artifact
+    && artifact.sourcePdfBytes === pdfBytes
+    && artifact.sourceOcrResult === ocrResult
+    ? artifact
+    : null;
 
   const revokeCurrentArtifactUrl = React.useCallback(() => {
     if (
@@ -62,11 +69,14 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
   }, [revokeCurrentArtifactUrl]);
 
   React.useEffect(() => {
-    setArtifact(null);
     revokeCurrentArtifactUrl();
   }, [pdfBytes, ocrResult, revokeCurrentArtifactUrl]);
 
-  const publishExportArtifact = React.useCallback((bytes: Uint8Array) => {
+  const publishExportArtifact = React.useCallback((
+    bytes: Uint8Array,
+    sourcePdfBytes: Uint8Array | null,
+    sourceOcrResult: OcrDocumentResult | null,
+  ) => {
     revokeCurrentArtifactUrl();
 
     const objectUrl = createPdfObjectUrl(bytes);
@@ -76,15 +86,17 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
       bytes,
       fileName: SEARCHABLE_PDF_FILE_NAME,
       objectUrl,
+      sourcePdfBytes,
+      sourceOcrResult,
     });
   }, [revokeCurrentArtifactUrl]);
 
   const downloadSearchablePdf = React.useCallback(() => {
-    if (!artifact) {
+    if (!activeArtifact) {
       return;
     }
 
-    const objectUrl = artifact.objectUrl ?? createPdfObjectUrl(artifact.bytes);
+    const objectUrl = activeArtifact.objectUrl ?? createPdfObjectUrl(activeArtifact.bytes);
 
     if (!objectUrl) {
       setMessage('Searchable PDF created, but this browser cannot create a local download URL.');
@@ -93,24 +105,24 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
 
     const anchor = document.createElement('a');
     anchor.href = objectUrl;
-    anchor.download = artifact.fileName;
+    anchor.download = activeArtifact.fileName;
     anchor.rel = 'noopener noreferrer';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
 
-    if (!artifact.objectUrl) {
+    if (!activeArtifact.objectUrl) {
       revokeObjectUrl(objectUrl);
     }
-  }, [artifact]);
+  }, [activeArtifact]);
 
   const openSearchablePdf = React.useCallback(() => {
-    if (!artifact?.objectUrl) {
+    if (!activeArtifact?.objectUrl) {
       return;
     }
 
-    window.open(artifact.objectUrl, '_blank', 'noopener,noreferrer');
-  }, [artifact]);
+    window.open(activeArtifact.objectUrl, '_blank', 'noopener,noreferrer');
+  }, [activeArtifact]);
 
   const runExport = async () => {
     if (!pdfBytes || !ocrResult) {
@@ -133,7 +145,7 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
         invisibleOpacity: debugVisible ? 0.45 : 0,
       });
 
-      publishExportArtifact(result.bytes);
+      publishExportArtifact(result.bytes, pdfBytes, ocrResult);
       onExported?.(result);
 
       setMessage(
@@ -233,7 +245,7 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
           {isExporting ? 'Exporting' : 'Create searchable PDF'}
         </Button>
 
-        {artifact ? (
+        {activeArtifact ? (
           <div
             className="flex flex-wrap gap-2"
             data-testid="ocr-searchable-pdf-output-actions"
@@ -249,7 +261,7 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
               Download PDF
             </Button>
 
-            {artifact.objectUrl ? (
+            {activeArtifact.objectUrl ? (
               <Button
                 type="button"
                 size="sm"
