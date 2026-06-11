@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ExternalLink,
   FileDown,
   Layers,
 } from 'lucide-react';
@@ -18,6 +19,14 @@ export interface OcrSearchablePdfExportPanelProps {
   onExported?: (result: OcrSearchablePdfExportResult) => void;
 }
 
+interface SearchablePdfExportArtifact {
+  bytes: Uint8Array;
+  fileName: string;
+  objectUrl: string | null;
+}
+
+const SEARCHABLE_PDF_FILE_NAME = 'searchable-ocr.pdf';
+
 export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelProps> = ({
   pdfBytes,
   ocrResult,
@@ -29,8 +38,79 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
   const [debugVisible, setDebugVisible] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [isExporting, setIsExporting] = React.useState(false);
+  const [artifact, setArtifact] = React.useState<SearchablePdfExportArtifact | null>(null);
+  const artifactUrlRef = React.useRef<string | null>(null);
 
   const canExport = Boolean(pdfBytes && ocrResult && !isExporting);
+
+  const revokeCurrentArtifactUrl = React.useCallback(() => {
+    if (
+      artifactUrlRef.current
+      && typeof URL !== 'undefined'
+      && typeof URL.revokeObjectURL === 'function'
+    ) {
+      URL.revokeObjectURL(artifactUrlRef.current);
+    }
+
+    artifactUrlRef.current = null;
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      revokeCurrentArtifactUrl();
+    };
+  }, [revokeCurrentArtifactUrl]);
+
+  React.useEffect(() => {
+    setArtifact(null);
+    revokeCurrentArtifactUrl();
+  }, [pdfBytes, ocrResult, revokeCurrentArtifactUrl]);
+
+  const publishExportArtifact = React.useCallback((bytes: Uint8Array) => {
+    revokeCurrentArtifactUrl();
+
+    const objectUrl = createPdfObjectUrl(bytes);
+    artifactUrlRef.current = objectUrl;
+
+    setArtifact({
+      bytes,
+      fileName: SEARCHABLE_PDF_FILE_NAME,
+      objectUrl,
+    });
+  }, [revokeCurrentArtifactUrl]);
+
+  const downloadSearchablePdf = React.useCallback(() => {
+    if (!artifact) {
+      return;
+    }
+
+    const objectUrl = artifact.objectUrl ?? createPdfObjectUrl(artifact.bytes);
+
+    if (!objectUrl) {
+      setMessage('Searchable PDF created, but this browser cannot create a local download URL.');
+      return;
+    }
+
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = artifact.fileName;
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+
+    if (!artifact.objectUrl) {
+      revokeObjectUrl(objectUrl);
+    }
+  }, [artifact]);
+
+  const openSearchablePdf = React.useCallback(() => {
+    if (!artifact?.objectUrl) {
+      return;
+    }
+
+    window.open(artifact.objectUrl, '_blank', 'noopener,noreferrer');
+  }, [artifact]);
 
   const runExport = async () => {
     if (!pdfBytes || !ocrResult) {
@@ -53,10 +133,11 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
         invisibleOpacity: debugVisible ? 0.45 : 0,
       });
 
+      publishExportArtifact(result.bytes);
       onExported?.(result);
 
       setMessage(
-        `Searchable PDF created: ${result.embeddedTextItemCount} OCR text item(s), ${result.skippedTextItemCount} skipped.`,
+        `Searchable PDF created: ${result.embeddedTextItemCount} OCR text item(s), ${result.skippedTextItemCount} skipped. Use Download PDF or Open PDF below.`,
       );
     } catch (error) {
       setMessage(
@@ -140,7 +221,7 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
         </p>
       ) : null}
 
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
@@ -151,7 +232,61 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
           <FileDown className="mr-1 h-3.5 w-3.5" />
           {isExporting ? 'Exporting' : 'Create searchable PDF'}
         </Button>
+
+        {artifact ? (
+          <div
+            className="flex flex-wrap gap-2"
+            data-testid="ocr-searchable-pdf-output-actions"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={downloadSearchablePdf}
+              data-testid="ocr-searchable-pdf-download-button"
+            >
+              <FileDown className="mr-1 h-3.5 w-3.5" />
+              Download PDF
+            </Button>
+
+            {artifact.objectUrl ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={openSearchablePdf}
+                data-testid="ocr-searchable-pdf-open-button"
+              >
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                Open PDF
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
 };
+
+function createPdfObjectUrl(bytes: Uint8Array): string | null {
+  if (
+    typeof Blob === 'undefined'
+    || typeof URL === 'undefined'
+    || typeof URL.createObjectURL !== 'function'
+  ) {
+    return null;
+  }
+
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+
+  return URL.createObjectURL(new Blob([arrayBuffer], {
+    type: 'application/pdf',
+  }));
+}
+
+function revokeObjectUrl(objectUrl: string): void {
+  if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
