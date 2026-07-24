@@ -46,7 +46,8 @@ Comma, tab, semicolon, and pipe delimiters are detected automatically. ISONOTEs 
 7. Resolve stale or legacy marker diagnostics before adding another annotation.
 8. Use **Annotate PDF** to update the loaded PDF working copy.
 9. PDF Hub reopens the output, verifies its hash and page count, and reconciles every planned marker.
-10. Download the output-bound audit CSV and manifest, then save or export the PDF through the normal PDF Hub workflow.
+10. Use **Evidence ZIP** to download the bound PDF and complete checksummed audit evidence.
+11. Save or export the PDF through the normal PDF Hub workflow when a separate working document is also required.
 
 ## Immutable audit identity
 
@@ -64,6 +65,47 @@ Every preview or annotation audit contains a content-addressed identity:
 The visible and exportable audit artifact is bound to the active in-memory PDF bytes, mapping source, page scope, selected pages, and recipe settings. Opening another PDF or changing a relevant option invalidates the displayed report instead of leaving stale evidence visible.
 
 The manifest export contains the immutable identity, verification evidence, and high-level run counts. The CSV remains the PS-number-wise operational summary.
+
+## Audit evidence package
+
+The **Evidence ZIP** action creates a single-PDF, self-contained archive. Package creation fails when the active bound PDF does not match the report's input or output SHA-256, or when the exact mapping-source text does not match the mapping-source SHA-256 in the audit identity.
+
+The archive contains:
+
+```text
+README.txt
+run-manifest.json
+audit-report.json
+ps-summary.csv
+occurrence-audit.csv
+occurrence-audit.jsonl
+diagnostics.csv
+mapping-source.txt
+mapping-snapshot.csv
+input.pdf | annotated.pdf
+checksums.sha256
+```
+
+The files provide:
+
+- `run-manifest.json` — immutable run identity, phase, counts, and verification summary;
+- `audit-report.json` — the complete audit report, occurrence records, diagnostics, and verification evidence;
+- `ps-summary.csv` — one operational row per mapped PS number;
+- `occurrence-audit.csv` — occurrence-level geometry, matching, confidence, marker, status, and diagnostic evidence;
+- `occurrence-audit.jsonl` — one machine-readable occurrence record per line;
+- `diagnostics.csv` — all informational, warning, and error diagnostics with PS, page, and occurrence identifiers when available;
+- `mapping-source.txt` — the exact normalized-line-ending source text used for the run;
+- `mapping-snapshot.csv` — normalized PS mappings, source rows, and semantic mapping SHA-256 values;
+- `input.pdf` or `annotated.pdf` — the PDF bytes to which the report is bound; and
+- `checksums.sha256` — SHA-256 values for every other archive file.
+
+After extracting the archive, verify it from the package directory with:
+
+```bash
+sha256sum -c checksums.sha256
+```
+
+The checksum manifest intentionally excludes a checksum for itself. PDF bytes use ZIP store mode to avoid ineffective recompression; text evidence uses DEFLATE compression.
 
 ## Post-write verification
 
@@ -160,7 +202,7 @@ The audit report distinguishes informational, warning, and error conditions. Dia
 - output hash and page-count mismatches; and
 - missing or duplicate occurrence markers.
 
-Conflicting ISONOTEs are associated with the affected PS number and increment its `Errors` count. Verification diagnostics are also retained in the manifest with page and occurrence identifiers where applicable.
+Conflicting ISONOTEs are associated with the affected PS number and increment their `Errors` count. Verification diagnostics are also retained in the manifest with page and occurrence identifiers where applicable.
 
 ## Macro implementation
 
@@ -192,4 +234,4 @@ The parser accepts the `Name of the element` and `Support ISONOTE` column names 
 
 ## Current scope
 
-This implementation supports CSV/text mapping tables, PS-number-wise audit CSV and manifest export, immutable audit identity, versioned marker diagnostics, and post-write structural verification for the active PDF. Native `.xlsx` workbook ingestion, visual pixel-level callout verification, and multi-PDF batch packaging are not included in this slice.
+This implementation supports CSV/text mapping tables, PS-number-wise audit CSV and manifest export, immutable audit identity, versioned marker diagnostics, post-write structural verification, and a checksummed single-PDF evidence ZIP. Native `.xlsx` workbook ingestion, visual pixel-level callout verification, and multi-PDF batch packaging are not included in this slice.
