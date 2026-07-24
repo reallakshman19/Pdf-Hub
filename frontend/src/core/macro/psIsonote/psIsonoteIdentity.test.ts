@@ -36,7 +36,7 @@ describe('psIsonoteIdentity', () => {
     expect(changedNote).not.toBe(first);
   });
 
-  it('creates deterministic occurrence ids from input PDF and geometry', async () => {
+  it('creates deterministic occurrence ids from geometry across PDF revisions', async () => {
     const options = {
       inputSha256: INPUT_HASH,
       pageNumber: 3,
@@ -44,7 +44,10 @@ describe('psIsonoteIdentity', () => {
       rect: { x: 10.1234, y: 20.5678, width: 60, height: 10 },
     };
     const first = await computePsIsonoteOccurrenceId(options);
-    const second = await computePsIsonoteOccurrenceId(options);
+    const second = await computePsIsonoteOccurrenceId({
+      ...options,
+      inputSha256: `sha256:${'b'.repeat(64)}`,
+    });
     const moved = await computePsIsonoteOccurrenceId({
       ...options,
       rect: { ...options.rect, x: 12.1234 },
@@ -54,7 +57,7 @@ describe('psIsonoteIdentity', () => {
     expect(moved).not.toBe(first);
   });
 
-  it('round-trips v2 markers and still detects legacy markers', async () => {
+  it('round-trips v2 markers without embedding a searchable PS reference', async () => {
     const mappingHash = await computePsIsonoteMappingHash(mapping);
     const occurrenceId = await computePsIsonoteOccurrenceId({
       inputSha256: INPUT_HASH,
@@ -69,6 +72,8 @@ describe('psIsonoteIdentity', () => {
     });
     const splitMarker = marker.replaceAll('|', ' | ');
 
+    expect(marker).toContain('PDFHUBISONOTE[v2|1234.5|');
+    expect(marker).not.toContain('|PS-1234.5|');
     expect(parseVersionedPsIsonoteMarkers(splitMarker)).toEqual([{
       raw: marker.toUpperCase(),
       psNo: mapping.psNo,
