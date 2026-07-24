@@ -34,7 +34,7 @@ export async function raceWithAbort<T>(
   throwIfAborted(signal, operation);
   if (!signal) return operationPromise;
 
-  let removeAbortListener = () => undefined;
+  let removeAbortListener: () => void = () => undefined;
   const abortPromise = new Promise<never>((_resolve, reject) => {
     const handleAbort = () => {
       try {
