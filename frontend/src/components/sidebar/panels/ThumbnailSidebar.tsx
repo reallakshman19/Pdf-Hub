@@ -83,12 +83,18 @@ const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
   pageNumber,
   currentPage,
 }) => {
-  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
+  const requestKey = `${documentKey}:${pageNumber}`;
+  const [imageState, setImageState] = React.useState<{
+    requestKey: string;
+    imageUrl: string;
+  } | null>(null);
+  const imageUrl = imageState?.requestKey === requestKey
+    ? imageState.imageUrl
+    : null;
 
   React.useEffect(() => {
     const controller = new AbortController();
     let release: (() => void) | null = null;
-    setImageUrl(null);
 
     const distance = Math.abs(pageNumber - currentPage);
     const priority = distance <= 2
@@ -107,10 +113,10 @@ const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
         return;
       }
       release = lease.release;
-      setImageUrl(lease.value.imageUrl);
+      setImageState({ requestKey, imageUrl: lease.value.imageUrl });
     }).catch((thumbnailError) => {
       if (!controller.signal.aborted && !isOperationCancelledError(thumbnailError)) {
-        setImageUrl(null);
+        setImageState(null);
       }
     });
 
@@ -118,7 +124,7 @@ const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
       controller.abort('Thumbnail left the virtualized viewport');
       release?.();
     };
-  }, [doc, documentKey, pageNumber, currentPage]);
+  }, [doc, requestKey, pageNumber, currentPage]);
 
   if (!imageUrl) {
     return <div className="h-full w-full animate-pulse bg-slate-100 dark:bg-slate-900" />;
