@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
+  FileJson,
   FileSpreadsheet,
   Search,
   Upload,
@@ -11,18 +12,24 @@ import {
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/core/session/store';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
-import type { PageSelector } from '@/core/macro/types';
+import type { MacroRecipe, PageSelector } from '@/core/macro/types';
 import {
   buildPsIsonoteAnnotationRecipe,
   scanPsIsonoteReferences,
   type PsIsonotePlacement,
+  type PsIsonoteRecipeOptions,
   type PsIsonoteScanResult,
 } from '@/core/macro/psIsonote/psIsonoteRecipe';
 import {
   buildPsIsonoteAuditReport,
+  serializePsIsonoteAuditManifest,
   serializePsIsonoteSummaryCsv,
   type PsIsonoteAuditReport,
 } from '@/core/macro/psIsonote/psIsonoteAudit';
+import {
+  createPsIsonoteAuditIdentity,
+  type PsIsonoteScopeIdentity,
+} from '@/core/macro/psIsonote/psIsonoteIdentity';
 import {
   parsePsIsonoteTable,
   type PsIsonoteParseResult,
@@ -46,8 +53,17 @@ interface ScanArtifact {
 }
 
 interface AuditArtifact {
+  boundDocumentBytes: Uint8Array;
   sourceText: string;
   documentName: string;
+  scope: ScopeMode;
+  skipExisting: boolean;
+  currentPage: number;
+  selectedPagesKey: string;
+  placement: PsIsonotePlacement;
+  noteWidth: number;
+  fontSize: number;
+  includeFamily: boolean;
   report: PsIsonoteAuditReport;
 }
 
@@ -76,19 +92,16 @@ function delimiterLabel(delimiter: PsIsonoteParseResult['delimiter']): string {
   return 'comma';
 }
 
-function auditFileName(documentName: string): string {
-  const stem = documentName.replace(/\.pdf$/i, '').replace(/[^a-z0-9._-]+/gi, '_');
-  return `${stem || 'document'}-ps-isonote-audit.csv`;
+function artifactStem(documentName: string): string {
+  return documentName.replace(/\.pdf$/i, '').replace(/[^a-z0-9._-]+/gi, '_') || 'document';
 }
 
-function downloadAuditCsv(report: PsIsonoteAuditReport, documentName: string): void {
-  const blob = new Blob([serializePsIsonoteSummaryCsv(report)], {
-    type: 'text/csv;charset=utf-8',
-  });
+function downloadText(content: string, name: string, type: string): void {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = auditFileName(documentName);
+  anchor.download = name;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -99,8 +112,19 @@ function confidenceLabel(value: number | null): string {
   return value === null ? '—' : value.toFixed(1);
 }
 
+function shortHash(value: string | undefined): string {
+  return value ? value.replace(/^sha256:/, '').slice(0, 10) : '—';
+}
+
 export const PsIsonoteRecipeBuilder: React.FC = () => {
-  const { workingBytes, fileName, pageCount, selectedPages, viewState } = useSessionStore();
+  const {
+    workingBytes,
+    documentKey,
+    fileName,
+    pageCount,
+    selectedPages,
+    viewState,
+  } = useSessionStore();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [sourceText, setSourceText] = React.useState('');
   const [sourceName, setSourceName] = React.useState('');
@@ -119,6 +143,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
 
   const parsedState = React.useMemo(() => parseSource(sourceText), [sourceText]);
   const selectedPagesKey = selectedPages.join(',');
+  const recipeOptions = React.useMemo<PsIsonoteRecipeOptions>(() => ({
+    placement,
+    noteWidth,
+    fontSize,
+    includeFamily,
+  }), [fontSize, includeFamily, noteWidth, placement]);
   const scanResult = scanArtifact &&
     scanArtifact.documentBytes === workingBytes &&
     scanArtifact.sourceText === sourceText &&
@@ -128,14 +158,39 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     scanArtifact.selectedPagesKey === selectedPagesKey
     ? scanArtifact.result
     : null;
-  const auditReport = auditArtifact?.sourceText === sourceText
+  const auditReport = auditArtifact &&
+    auditArtifact.boundDocumentBytes === workingBytes &&
+    auditArtifact.sourceText === sourceText &&
+    auditArtifact.scope === scope &&
+    auditArtifact.skipExisting === skipExisting &&
+    auditArtifact.currentPage === viewState.currentPage &&
+    auditArtifact.selectedPagesKey === selectedPagesKey &&
+    auditArtifact.placement === placement &&
+    auditArtifact.noteWidth === noteWidth &&
+    auditArtifact.fontSize === fontSize &&
+    auditArtifact.includeFamily === includeFamily
     ? auditArtifact.report
     : null;
 
+  const clearRunArtifacts = React.useCallback(() => {
+    setScanArtifact(null);
+    setAuditArtifact(null);
+    setMessage(null);
+  }, []);
+
+  const buildScopeIdentity = React.useCallback((): PsIsonoteScopeIdentity => ({
+    selector: buildSelector(scope),
+    ...(scope === 'current' ? { currentPage: viewState.currentPage } : {}),
+    selectedPages: [...selectedPages],
+    skipExisting,
+    placement,
+    noteWidth,
+    fontSize,
+    includeFamily,
+  }), [fontSize, includeFamily, noteWidth, placement, scope, selectedPages, skipExisting, viewState.currentPage]);
+
   const runScan = React.useCallback(async (): Promise<PsIsonoteScanResult> => {
-    if (!workingBytes) {
-      throw new Error('Open a PDF before scanning for PS numbers.');
-    }
+    if (!workingBytes) throw new Error('Open a PDF before scanning for PS numbers.');
     if (!parsedState.result) {
       throw new Error(parsedState.error ?? 'Load or paste a PS No. versus ISONOTE table.');
     }
@@ -151,10 +206,9 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     });
   }, [parsedState, scope, selectedPages, skipExisting, viewState.currentPage, workingBytes]);
 
-  const recordScanResult = (result: PsIsonoteScanResult) => {
-    if (!workingBytes) return;
+  const recordScanResult = React.useCallback((result: PsIsonoteScanResult, bytes: Uint8Array) => {
     setScanArtifact({
-      documentBytes: workingBytes,
+      documentBytes: bytes,
       sourceText,
       scope,
       skipExisting,
@@ -162,36 +216,56 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       selectedPagesKey,
       result,
     });
-  };
+  }, [scope, selectedPagesKey, skipExisting, sourceText, viewState.currentPage]);
 
-  const recordAudit = (
-    result: PsIsonoteScanResult,
-    phase: PsIsonoteAuditReport['phase'],
-    failureMessage?: string,
-  ) => {
+  const recordAudit = React.useCallback(async (options: {
+    result: PsIsonoteScanResult;
+    phase: PsIsonoteAuditReport['phase'];
+    recipe: MacroRecipe;
+    inputDocumentKey: string | null;
+    outputDocumentKey?: string | null;
+    boundDocumentBytes: Uint8Array;
+    outputBytes?: Uint8Array;
+    failureMessage?: string;
+  }) => {
     if (!parsedState.result) return;
+    const identity = await createPsIsonoteAuditIdentity({
+      documentName: fileName || 'document.pdf',
+      inputDocumentKey: options.inputDocumentKey,
+      ...(options.outputDocumentKey !== undefined
+        ? { outputDocumentKey: options.outputDocumentKey }
+        : {}),
+      inputSha256: options.result.inputSha256,
+      ...(options.outputBytes ? { outputBytes: options.outputBytes } : {}),
+      sourceText,
+      recipe: options.recipe,
+      scope: buildScopeIdentity(),
+    });
     setAuditArtifact({
+      boundDocumentBytes: options.boundDocumentBytes,
       sourceText,
       documentName: fileName || 'document.pdf',
-      report: buildPsIsonoteAuditReport(parsedState.result.mappings, result, {
-        phase,
+      scope,
+      skipExisting,
+      currentPage: viewState.currentPage,
+      selectedPagesKey,
+      placement,
+      noteWidth,
+      fontSize,
+      includeFamily,
+      report: buildPsIsonoteAuditReport(parsedState.result.mappings, options.result, {
+        identity,
+        phase: options.phase,
         parseWarnings: parsedState.result.warnings,
-        failureMessage,
+        ...(options.failureMessage ? { failureMessage: options.failureMessage } : {}),
       }),
     });
-  };
-
-  const clearRunArtifacts = () => {
-    setScanArtifact(null);
-    setAuditArtifact(null);
-    setMessage(null);
-  };
+  }, [buildScopeIdentity, fileName, fontSize, includeFamily, noteWidth, parsedState.result, placement, scope, selectedPagesKey, skipExisting, sourceText, viewState.currentPage]);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const text = await file.text();
-      setSourceText(text);
+      setSourceText(await file.text());
       setSourceName(file.name);
       clearRunArtifacts();
       setError(null);
@@ -205,12 +279,18 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     setError(null);
     setMessage(null);
     try {
+      if (!workingBytes) throw new Error('Open a PDF before scanning for PS numbers.');
       const result = await runScan();
-      recordScanResult(result);
-      recordAudit(result, 'preview');
-      setMessage(
-        `Found ${result.references.length} annotation target(s) across ${result.scannedPages.length} page(s).`,
-      );
+      const { recipe } = buildPsIsonoteAnnotationRecipe(result, recipeOptions);
+      recordScanResult(result, workingBytes);
+      await recordAudit({
+        result,
+        phase: 'preview',
+        recipe,
+        inputDocumentKey: documentKey,
+        boundDocumentBytes: workingBytes,
+      });
+      setMessage(`Found ${result.references.length} annotation target(s) across ${result.scannedPages.length} page(s).`);
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : String(scanError));
     } finally {
@@ -223,35 +303,63 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     setError(null);
     setMessage(null);
     let scanned: PsIsonoteScanResult | null = null;
+    let recipe: MacroRecipe | null = null;
+    const inputBytes = workingBytes;
+    const inputDocumentKey = documentKey;
     try {
+      if (!inputBytes) throw new Error('Open a PDF before annotating PS numbers.');
       scanned = await runScan();
-      recordScanResult(scanned);
-      recordAudit(scanned, 'preview');
+      const built = buildPsIsonoteAnnotationRecipe(scanned, recipeOptions);
+      recipe = built.recipe;
+      recordScanResult(scanned, inputBytes);
+      await recordAudit({
+        result: scanned,
+        phase: 'preview',
+        recipe,
+        inputDocumentKey,
+        boundDocumentBytes: inputBytes,
+      });
+
       if (scanned.references.length === 0) {
+        if (scanned.staleExisting.length > 0 || scanned.legacyExisting.length > 0) {
+          throw new Error('Stale or legacy ISONOTE markers require review before another annotation is added.');
+        }
         if (scanned.skippedExisting.length > 0) {
-          throw new Error('All matched PS numbers are already annotated on the selected pages.');
+          throw new Error('All matched PS occurrences already have current versioned annotations.');
         }
         throw new Error('No mapped PS numbers were found in searchable PDF text.');
       }
 
-      const { recipe, callouts } = buildPsIsonoteAnnotationRecipe(scanned, {
-        placement,
-        noteWidth,
-        fontSize,
-        includeFamily,
-      });
       const execution = await runMacroRecipeAgainstSession(recipe, { saveOutputs: false });
-      if (execution.success === false) {
+      if (!execution.success) {
         throw new Error(execution.logs.at(-1) ?? 'PS ISONOTE annotation macro failed.');
       }
+      const outputSession = useSessionStore.getState();
+      const outputBytes = outputSession.workingBytes;
+      if (!outputBytes) throw new Error('Annotation completed without an output working copy.');
 
-      recordAudit(scanned, 'annotated');
-      setMessage(
-        `Annotated ${callouts.length} PS occurrence(s). The loaded PDF working copy has been updated.`,
-      );
+      await recordAudit({
+        result: scanned,
+        phase: 'annotated',
+        recipe,
+        inputDocumentKey,
+        outputDocumentKey: outputSession.documentKey,
+        boundDocumentBytes: outputBytes,
+        outputBytes,
+      });
+      setMessage(`Annotated ${built.callouts.length} PS occurrence(s). The audit is bound to the output PDF hash.`);
     } catch (runError) {
       const failureMessage = runError instanceof Error ? runError.message : String(runError);
-      if (scanned) recordAudit(scanned, 'failed', failureMessage);
+      if (scanned && recipe && inputBytes) {
+        await recordAudit({
+          result: scanned,
+          phase: 'failed',
+          recipe,
+          inputDocumentKey,
+          boundDocumentBytes: inputBytes,
+          failureMessage,
+        });
+      }
       setError(failureMessage);
     } finally {
       setIsRunning(false);
@@ -260,12 +368,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
 
   const parsed = parsedState.result;
   const disabled = !workingBytes || !parsed || isScanning || isRunning;
-  const auditWarningCount = auditReport?.diagnostics.filter(
-    (diagnostic) => diagnostic.severity === 'warning',
-  ).length ?? 0;
-  const auditErrorCount = auditReport?.diagnostics.filter(
-    (diagnostic) => diagnostic.severity === 'error',
-  ).length ?? 0;
+  const auditWarningCount = auditReport?.diagnostics.filter((item) => item.severity === 'warning').length ?? 0;
+  const auditErrorCount = auditReport?.diagnostics.filter((item) => item.severity === 'error').length ?? 0;
 
   return (
     <section
@@ -278,9 +382,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       </div>
 
       <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-        Load a CSV/TSV or paste a table containing PS No. and ISONOTE columns. The builder finds each
-        mapped PS number in the loaded PDF and runs a macro recipe that places the matching ISONOTE
-        beside it.
+        Load a CSV/TSV or paste a PS No. versus ISONOTE table. Versioned markers bind each annotation
+        to the source mapping and exact PDF occurrence.
       </p>
 
       <div className="flex gap-2">
@@ -304,11 +407,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         />
       </div>
 
-      {sourceName && (
-        <div className="truncate text-[11px] text-slate-500" title={sourceName}>
-          Source: {sourceName}
-        </div>
-      )}
+      {sourceName && <div className="truncate text-[11px] text-slate-500">Source: {sourceName}</div>}
 
       <textarea
         aria-label="PS No. versus ISONOTE table"
@@ -337,14 +436,14 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       )}
 
       {parsedState.error && (
-        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{parsedState.error}</span>
         </div>
       )}
 
       {parsed && parsed.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
           {parsed.warnings.slice(0, 3).map((warning) => <div key={warning}>{warning}</div>)}
           {parsed.warnings.length > 3 && <div>+{parsed.warnings.length - 3} more warning(s)</div>}
         </div>
@@ -366,20 +465,21 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             <option value="selected">Selected pages</option>
           </select>
         </label>
-
         <label className="text-[11px] text-slate-600 dark:text-slate-400">
           Placement
           <select
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
             value={placement}
-            onChange={(event) => setPlacement(event.target.value as PsIsonotePlacement)}
+            onChange={(event) => {
+              setPlacement(event.target.value as PsIsonotePlacement);
+              clearRunArtifacts();
+            }}
           >
             <option value="auto">Auto</option>
             <option value="right">Prefer right</option>
             <option value="left">Prefer left</option>
           </select>
         </label>
-
         <label className="text-[11px] text-slate-600 dark:text-slate-400">
           Note width
           <input
@@ -388,10 +488,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             max={480}
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
             value={noteWidth}
-            onChange={(event) => setNoteWidth(Number(event.target.value) || 220)}
+            onChange={(event) => {
+              setNoteWidth(Number(event.target.value) || 220);
+              clearRunArtifacts();
+            }}
           />
         </label>
-
         <label className="text-[11px] text-slate-600 dark:text-slate-400">
           Font size
           <input
@@ -400,7 +502,10 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             max={18}
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
             value={fontSize}
-            onChange={(event) => setFontSize(Number(event.target.value) || 10)}
+            onChange={(event) => {
+              setFontSize(Number(event.target.value) || 10);
+              clearRunArtifacts();
+            }}
           />
         </label>
       </div>
@@ -409,7 +514,10 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         <input
           type="checkbox"
           checked={includeFamily}
-          onChange={(event) => setIncludeFamily(event.target.checked)}
+          onChange={(event) => {
+            setIncludeFamily(event.target.checked);
+            clearRunArtifacts();
+          }}
         />
         Include support family when available
       </label>
@@ -422,28 +530,15 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             clearRunArtifacts();
           }}
         />
-        Skip PS numbers already annotated by this recipe
+        Skip current markers; hold stale and legacy markers for review
       </label>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => void handlePreview()}
-          disabled={disabled}
-          className="justify-center"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => void handlePreview()} disabled={disabled} className="justify-center">
           <Search className="mr-1.5 h-3.5 w-3.5" />
           {isScanning ? 'Scanning...' : 'Preview Matches'}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => void handleAnnotate()}
-          disabled={disabled}
-          className="justify-center bg-orange-600 text-white hover:bg-orange-700"
-        >
+        <Button type="button" size="sm" onClick={() => void handleAnnotate()} disabled={disabled} className="justify-center bg-orange-600 text-white hover:bg-orange-700">
           <WandSparkles className="mr-1.5 h-3.5 w-3.5" />
           {isRunning ? 'Annotating...' : 'Annotate PDF'}
         </Button>
@@ -452,62 +547,73 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       {scanResult && (
         <div className="rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           <div>{scanResult.references.length} target occurrence(s) found.</div>
+          <div>{scanResult.skippedExisting.length} current marker(s) skipped.</div>
+          <div>{scanResult.staleExisting.length} stale marker(s) held for review.</div>
+          <div>{scanResult.legacyExisting.length} legacy marker(s) held for review.</div>
           <div>{scanResult.missingPsNumbers.length} mapped PS number(s) not found in scope.</div>
-          <div>{scanResult.skippedExisting.length} existing page annotation(s) skipped.</div>
-          {scanResult.missingPsNumbers.length > 0 && (
-            <div className="mt-1 truncate" title={scanResult.missingPsNumbers.join(', ')}>
-              Missing: {scanResult.missingPsNumbers.slice(0, 8).join(', ')}
-              {scanResult.missingPsNumbers.length > 8 ? '…' : ''}
-            </div>
-          )}
         </div>
       )}
 
       {auditReport && auditArtifact && (
         <div className="space-y-2 rounded-md border border-slate-300 bg-white p-2 text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
               <div className="font-semibold uppercase tracking-wide">PS No.-wise audit</div>
               <div className="text-slate-500 dark:text-slate-400">
                 {auditReport.phase} · {auditWarningCount} warning(s) · {auditErrorCount} error(s)
               </div>
+              <div className="font-mono text-[9px] text-slate-400">
+                {auditReport.identity.runId} · input {shortHash(auditReport.identity.inputSha256)}
+                {auditReport.identity.outputSha256 ? ` · output ${shortHash(auditReport.identity.outputSha256)}` : ''}
+              </div>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-7 justify-center px-2 text-[10px]"
-              onClick={() => downloadAuditCsv(auditReport, auditArtifact.documentName)}
-            >
-              <Download className="mr-1 h-3 w-3" />
-              CSV
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 justify-center px-2 text-[10px]"
+                onClick={() => downloadText(
+                  serializePsIsonoteSummaryCsv(auditReport),
+                  `${artifactStem(auditArtifact.documentName)}-ps-isonote-audit.csv`,
+                  'text/csv;charset=utf-8',
+                )}
+              >
+                <Download className="mr-1 h-3 w-3" />CSV
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 justify-center px-2 text-[10px]"
+                onClick={() => downloadText(
+                  serializePsIsonoteAuditManifest(auditReport),
+                  `${artifactStem(auditArtifact.documentName)}-ps-isonote-manifest.json`,
+                  'application/json;charset=utf-8',
+                )}
+              >
+                <FileJson className="mr-1 h-3 w-3" />Manifest
+              </Button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-[620px] w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="py-1 pr-2">PS No.</th>
-                  <th className="py-1 pr-2">Found</th>
-                  <th className="py-1 pr-2">Occ.</th>
-                  <th className="py-1 pr-2">Annotated</th>
-                  <th className="py-1 pr-2">Review</th>
-                  <th className="py-1 pr-2">Missing</th>
-                  <th className="py-1 pr-2">Avg.</th>
-                  <th className="py-1 pr-2">Min.</th>
+                  <th className="py-1 pr-2">PS No.</th><th className="py-1 pr-2">Found</th>
+                  <th className="py-1 pr-2">Occ.</th><th className="py-1 pr-2">Annotated</th>
+                  <th className="py-1 pr-2">Review</th><th className="py-1 pr-2">Missing</th>
+                  <th className="py-1 pr-2">Avg.</th><th className="py-1 pr-2">Min.</th>
                   <th className="py-1">Errors</th>
                 </tr>
               </thead>
               <tbody>
                 {auditReport.summaryRows.slice(0, 8).map((row) => (
                   <tr key={row.psNo} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                    <td className="py-1 pr-2 font-medium">{row.psNo}</td>
-                    <td className="py-1 pr-2">{row.foundPs}</td>
-                    <td className="py-1 pr-2">{row.occurrences}</td>
-                    <td className="py-1 pr-2">{row.annotated}</td>
-                    <td className="py-1 pr-2">{row.review}</td>
-                    <td className="py-1 pr-2">{row.missing}</td>
+                    <td className="py-1 pr-2 font-medium">{row.psNo}</td><td className="py-1 pr-2">{row.foundPs}</td>
+                    <td className="py-1 pr-2">{row.occurrences}</td><td className="py-1 pr-2">{row.annotated}</td>
+                    <td className="py-1 pr-2">{row.review}</td><td className="py-1 pr-2">{row.missing}</td>
                     <td className="py-1 pr-2">{confidenceLabel(row.averageConfidence)}</td>
                     <td className="py-1 pr-2">{confidenceLabel(row.minimumConfidence)}</td>
                     <td className="py-1">{row.errors}</td>
@@ -517,30 +623,26 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             </table>
           </div>
           {auditReport.summaryRows.length > 8 && (
-            <div className="text-slate-500">
-              +{auditReport.summaryRows.length - 8} more PS number(s) in the CSV export.
-            </div>
+            <div className="text-slate-500">+{auditReport.summaryRows.length - 8} more PS number(s) in the CSV export.</div>
           )}
         </div>
       )}
 
       {message && (
-        <div className="flex gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{message}</span>
+        <div className="flex gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-800">
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{message}</span>
         </div>
       )}
-
       {error && (
-        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{error}</span>
+        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{error}</span>
         </div>
       )}
 
       <p className="text-[10px] leading-relaxed text-slate-400 dark:text-slate-500">
-        Confidence currently measures PDF text-match quality and geometry. OCR engine confidence requires
-        an OCR sidecar. Page count: {pageCount || 0}.
+        Audit visibility is bound to the active PDF bytes, mapping source, page scope, and recipe settings.
+        Confidence measures PDF text-match quality and geometry; OCR confidence requires an OCR sidecar.
+        Page count: {pageCount || 0}.
       </p>
     </section>
   );

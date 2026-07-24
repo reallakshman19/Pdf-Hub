@@ -42,9 +42,27 @@ Comma, tab, semicolon, and pipe delimiters are detected automatically. ISONOTEs 
 3. In **PS No. → ISONOTE Annotation**, load or paste the mapping table.
 4. Select the page scope and note placement options.
 5. Use **Preview Matches** to inspect mapped occurrences, missing PS numbers, confidence, and diagnostics.
-6. Download the **PS No.-wise audit CSV** when a traceable pre-run record is required.
-7. Use **Annotate PDF** to update the loaded PDF working copy.
-8. Download the updated audit CSV and save or export the PDF through the normal PDF Hub workflow.
+6. Download the **PS No.-wise audit CSV** and **audit manifest JSON** when a traceable pre-run record is required.
+7. Resolve stale or legacy marker diagnostics before adding another annotation.
+8. Use **Annotate PDF** to update the loaded PDF working copy.
+9. Download the output-bound audit CSV and manifest, then save or export the PDF through the normal PDF Hub workflow.
+
+## Immutable audit identity
+
+Every preview or annotation audit contains a content-addressed identity:
+
+- deterministic run ID;
+- input PDF SHA-256;
+- output PDF SHA-256 after annotation;
+- raw mapping-source SHA-256;
+- canonical recipe SHA-256;
+- page-scope and configuration SHA-256;
+- input and output document keys when available;
+- audit-schema and marker-schema versions.
+
+The visible/exportable audit artifact is also bound to the active in-memory PDF bytes, mapping source, page scope, selected pages, and recipe settings. Opening another PDF or changing any relevant option invalidates the displayed report rather than leaving stale evidence visible.
+
+The manifest export contains the immutable identity and high-level run counts. The CSV remains the PS-number-wise operational summary.
 
 ## PS No.-wise audit
 
@@ -61,10 +79,11 @@ The report is deliberately PS-number-wise rather than family-wise. It retains:
 - total detected occurrences;
 - occurrences annotated in the current successful run;
 - occurrences below the automatic confidence threshold and requiring review;
+- stale and legacy existing annotations requiring review;
 - missing mappings and mapping conflicts; and
 - average/minimum match confidence and error count.
 
-The occurrence evidence also records the page, PDF rectangle, raw matched text, matching method, source mapping row, and number of PDF text items used to reconstruct the PS number.
+Occurrence evidence records the page, PDF rectangle, raw matched text, matching method, source mapping row, mapping hash, deterministic occurrence ID, existing-marker state, and number of PDF text items used to reconstruct the PS number.
 
 ### Confidence basis
 
@@ -78,13 +97,38 @@ The current automatic-release threshold is `90`. Scores are engineering quality 
 
 A searchable PDF does not expose the original OCR word confidence through PDF.js. OCR engine confidence must therefore be supplied by an OCR result sidecar in a later batch integration. The UI explicitly reports that the current score is based on the PDF text layer.
 
+## Versioned annotation markers
+
+Each generated occurrence receives a hidden searchable marker with this structure:
+
+```text
+PDFHUBISONOTE[v2|1234.5|<mapping-sha256>|<occurrence-sha256>]
+```
+
+The marker stores the PS suffix rather than the literal `PS-1234.5` token. The parser reconstructs the canonical PS number. This prevents the hidden marker itself from being rediscovered as a false PS occurrence on the next scan.
+
+The semantic mapping hash covers normalized PS number, family, and ISONOTE. It deliberately excludes the table row number so moving an unchanged mapping within a source file does not make the annotation stale.
+
+The occurrence ID covers PS number, page number, and rounded PDF geometry. It deliberately excludes the whole-document hash so the ID remains stable after the annotation itself changes the PDF bytes. Input and output PDF hashes remain part of the audit identity.
+
+Existing-marker states are:
+
+- **current** — PS number, mapping hash, and occurrence ID all match; safely skipped when skip-existing is enabled;
+- **stale** — the same occurrence has a different mapping hash; held for review;
+- **legacy** — an old unversioned `PDFHUBISONOTE[...]` marker is present; held for review; and
+- **none** — no applicable existing marker; eligible for annotation.
+
+Changing an ISONOTE can no longer be silently accepted merely because the PS number already appears in a hidden marker.
+
 ## Diagnostics
 
 The audit report distinguishes informational, warning, and error conditions. Diagnostic codes cover:
 
 - missing PS numbers;
 - normalized or joined-text-item matches;
-- already annotated page/PS combinations;
+- current versioned annotations;
+- stale mapping markers;
+- legacy unversioned markers;
 - review-required occurrences;
 - conflicting mappings; and
 - failed annotation runs.
@@ -96,15 +140,16 @@ Conflicting ISONOTEs are associated with the affected PS number and increment it
 The builder uses PDF.js text coordinates to locate mapped PS-number occurrences. It then builds a `MacroRecipe` containing:
 
 - one `place_rich_textbox` step per matched occurrence; and
-- a small searchable marker per page/PS pair so subsequent runs can skip existing annotations.
+- one small versioned searchable marker per occurrence.
 
-The generated recipe runs through `runMacroRecipeAgainstSession`, so annotation changes use the same validation, transaction, and working-copy replacement path as other PDF Hub macros.
+The generated recipe runs through `runMacroRecipeAgainstSession`, so annotation changes use the same validation, atomic transaction, and working-copy replacement path as other PDF Hub macros.
 
 ## Search and placement behavior
 
 - PS numbers are normalized to the canonical form `PS-XXXX.Y`.
 - Matching tolerates whitespace and common Unicode dash variants in PDF text.
-- Every mapped occurrence in the selected scope is annotated.
+- Unicode-dash variants are classified as normalized rather than exact evidence.
+- Every eligible mapped occurrence in the selected scope is annotated.
 - Placement can prefer the right side, prefer the left side, or choose automatically.
 - Callout boxes are moved to reduce overlap with other generated ISONOTE boxes.
 - The optional family value is included in the callout when present.
@@ -120,4 +165,4 @@ The parser accepts the `Name of the element` and `Support ISONOTE` column names 
 
 ## Current scope
 
-This implementation supports CSV/text mapping tables and PS-number-wise audit CSV export for the active PDF. Native `.xlsx` workbook ingestion and multi-PDF batch packaging are not included; export the required worksheet to CSV or paste its relevant columns into the builder.
+This implementation supports CSV/text mapping tables, PS-number-wise audit CSV and manifest export, immutable audit identity, and versioned marker diagnostics for the active PDF. Native `.xlsx` workbook ingestion, post-write PDF reopening/marker verification, and multi-PDF batch packaging are not included in this slice.
