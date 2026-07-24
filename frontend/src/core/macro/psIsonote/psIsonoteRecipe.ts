@@ -219,113 +219,118 @@ export async function scanPsIsonoteReferences(
   mappings: PsIsonoteMapping[],
   options: PsIsonoteScanOptions,
 ): Promise<PsIsonoteScanResult> {
-  const [doc, inputSha256, mappingHashEntries] = await Promise.all([
-    PdfRendererAdapter.loadDocument(bytes),
-    FileAdapter.hashBytes(bytes),
-    Promise.all(
-      mappings.map(async (mapping) => [
-        mapping.psNo,
-        await computePsIsonoteMappingHash(mapping),
-      ] as const),
-    ),
-  ]);
-  const mappingHashes = new Map(mappingHashEntries);
-  const scannedPages = resolvePageNumbers(
-    options.selector,
-    doc.numPages,
-    options.currentPage,
-    options.selectedPages ?? [],
-  );
-  const references: PsIsonoteTextReference[] = [];
-  const detectedReferences: PsIsonoteTextReference[] = [];
-  const skippedExisting: PsIsonoteExistingAnnotation[] = [];
-  const staleExisting: PsIsonoteExistingAnnotation[] = [];
-  const legacyExisting: PsIsonoteExistingAnnotation[] = [];
-  const pageDimensions: Record<number, { width: number; height: number }> = {};
-  const foundPsNumbers = new Set<string>();
+  const lease = await PdfRendererAdapter.acquireDocument(bytes);
+  try {
+    const [inputSha256, mappingHashEntries] = await Promise.all([
+      FileAdapter.hashBytes(bytes),
+      Promise.all(
+        mappings.map(async (mapping) => [
+          mapping.psNo,
+          await computePsIsonoteMappingHash(mapping),
+        ] as const),
+      ),
+    ]);
+    const doc = lease.doc;
+    const mappingHashes = new Map(mappingHashEntries);
+    const scannedPages = resolvePageNumbers(
+      options.selector,
+      doc.numPages,
+      options.currentPage,
+      options.selectedPages ?? [],
+    );
+    const references: PsIsonoteTextReference[] = [];
+    const detectedReferences: PsIsonoteTextReference[] = [];
+    const skippedExisting: PsIsonoteExistingAnnotation[] = [];
+    const staleExisting: PsIsonoteExistingAnnotation[] = [];
+    const legacyExisting: PsIsonoteExistingAnnotation[] = [];
+    const pageDimensions: Record<number, { width: number; height: number }> = {};
+    const foundPsNumbers = new Set<string>();
 
-  for (const pageNumber of scannedPages) {
-    const page = await doc.getPage(pageNumber);
-    try {
-      const items = await PdfRendererAdapter.getPageTextItems(page, 1);
-      const pageText = items.map((item) => item.text).join(' ');
-      const pageMarkers = parseVersionedPsIsonoteMarkers(pageText);
-      pageDimensions[pageNumber] = PdfRendererAdapter.getPageDimensions(page);
-      const unresolvedReferences = findPsIsonoteReferencesInTextItems(
-        items,
-        mappings,
-        pageNumber,
-        mappingHashes,
-      );
-      const pageReferences = await Promise.all(
-        unresolvedReferences.map(async (reference) => ({
-          ...reference,
-          occurrenceId: await computePsIsonoteOccurrenceId({
-            inputSha256,
-            pageNumber,
-            psNo: reference.psNo,
-            rect: reference.rect,
-          }),
-        })),
-      );
-
-      for (const reference of pageReferences) {
-        const currentMarker = pageMarkers.find((marker) =>
-          marker.psNo === reference.psNo &&
-          marker.mappingHash === reference.mappingHash &&
-          marker.occurrenceId === reference.occurrenceId,
+    for (const pageNumber of scannedPages) {
+      const page = await doc.getPage(pageNumber);
+      try {
+        const items = await PdfRendererAdapter.getPageTextItems(page, 1);
+        const pageText = items.map((item) => item.text).join(' ');
+        const pageMarkers = parseVersionedPsIsonoteMarkers(pageText);
+        pageDimensions[pageNumber] = PdfRendererAdapter.getPageDimensions(page);
+        const unresolvedReferences = findPsIsonoteReferencesInTextItems(
+          items,
+          mappings,
+          pageNumber,
+          mappingHashes,
         );
-        const staleMarker = pageMarkers.find((marker) =>
-          marker.psNo === reference.psNo &&
-          marker.occurrenceId === reference.occurrenceId &&
-          marker.mappingHash !== reference.mappingHash,
+        const pageReferences = await Promise.all(
+          unresolvedReferences.map(async (reference) => ({
+            ...reference,
+            occurrenceId: await computePsIsonoteOccurrenceId({
+              inputSha256,
+              pageNumber,
+              psNo: reference.psNo,
+              rect: reference.rect,
+            }),
+          })),
         );
-        const markerState: PsIsonoteExistingMarkerState = currentMarker
-          ? 'current'
-          : staleMarker
-            ? 'stale'
-            : hasLegacyPsIsonoteMarker(pageText, reference.psNo)
-              ? 'legacy'
-              : 'none';
-        const resolvedReference: PsIsonoteTextReference = {
-          ...reference,
-          existingMarkerState: markerState,
-          ...(staleMarker ? { foundMappingHash: staleMarker.mappingHash } : {}),
-        };
 
-        detectedReferences.push(resolvedReference);
-        foundPsNumbers.add(reference.psNo);
+        for (const reference of pageReferences) {
+          const currentMarker = pageMarkers.find((marker) =>
+            marker.psNo === reference.psNo &&
+            marker.mappingHash === reference.mappingHash &&
+            marker.occurrenceId === reference.occurrenceId,
+          );
+          const staleMarker = pageMarkers.find((marker) =>
+            marker.psNo === reference.psNo &&
+            marker.occurrenceId === reference.occurrenceId &&
+            marker.mappingHash !== reference.mappingHash,
+          );
+          const markerState: PsIsonoteExistingMarkerState = currentMarker
+            ? 'current'
+            : staleMarker
+              ? 'stale'
+              : hasLegacyPsIsonoteMarker(pageText, reference.psNo)
+                ? 'legacy'
+                : 'none';
+          const resolvedReference: PsIsonoteTextReference = {
+            ...reference,
+            existingMarkerState: markerState,
+            ...(staleMarker ? { foundMappingHash: staleMarker.mappingHash } : {}),
+          };
 
-        if (options.skipExisting !== false && markerState !== 'none') {
-          const existing = existingAnnotation(resolvedReference);
-          if (markerState === 'current') skippedExisting.push(existing);
-          if (markerState === 'stale') staleExisting.push(existing);
-          if (markerState === 'legacy') legacyExisting.push(existing);
-          continue;
+          detectedReferences.push(resolvedReference);
+          foundPsNumbers.add(reference.psNo);
+
+          if (options.skipExisting !== false && markerState !== 'none') {
+            const existing = existingAnnotation(resolvedReference);
+            if (markerState === 'current') skippedExisting.push(existing);
+            if (markerState === 'stale') staleExisting.push(existing);
+            if (markerState === 'legacy') legacyExisting.push(existing);
+            continue;
+          }
+
+          references.push(resolvedReference);
         }
-
-        references.push(resolvedReference);
+      } finally {
+        page.cleanup();
       }
-    } finally {
-      page.cleanup();
     }
+
+    const missingPsNumbers = mappings
+      .map((mapping) => mapping.psNo)
+      .filter((psNo) => !foundPsNumbers.has(psNo));
+
+    return {
+      inputSha256,
+      references,
+      detectedReferences,
+      missingPsNumbers,
+      skippedExisting,
+      staleExisting,
+      legacyExisting,
+      scannedPages,
+      pageDimensions,
+    };
+  } finally {
+    await lease.release();
   }
-
-  const missingPsNumbers = mappings
-    .map((mapping) => mapping.psNo)
-    .filter((psNo) => !foundPsNumbers.has(psNo));
-
-  return {
-    inputSha256,
-    references,
-    detectedReferences,
-    missingPsNumbers,
-    skippedExisting,
-    staleExisting,
-    legacyExisting,
-    scannedPages,
-    pageDimensions,
-  };
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

@@ -5,7 +5,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { VList, type VListHandle } from 'virtua';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
-import { PdfRendererAdapter, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
@@ -143,12 +143,22 @@ export const DocumentWorkspace: React.FC = () => {
 
   React.useEffect(() => {
     let cancelled = false;
+    let loadFinished = false;
+    let lease: PdfDocumentLease | null = null;
+
+    const releaseLease = async () => {
+      if (!lease) return;
+      const currentLease = lease;
+      lease = null;
+      await currentLease.release();
+    };
 
     const load = async () => {
       if (!workingBytes) {
         setPdfDoc(null);
         setSharedPdfDoc(null);
         setLoadError(null);
+        loadFinished = true;
         return;
       }
 
@@ -156,37 +166,40 @@ export const DocumentWorkspace: React.FC = () => {
       setLoadError(null);
 
       try {
-        const doc = await PdfRendererAdapter.loadDocument(workingBytes);
-        if (cancelled) {
-          return;
-        }
+        lease = await PdfRendererAdapter.acquireDocument(workingBytes);
+        if (cancelled) return;
+        const doc = lease.doc;
 
         setPdfDoc(doc);
         setSharedPdfDoc(doc);
 
         if (documentKey && !SearchIndexer.getCache(documentKey)) {
-          // Cache text indexing for regex/word search
           const pagesText: Record<number, import('@/core/search/types').PageTextItem[]> = {};
           for (let i = 1; i <= doc.numPages; i++) {
             if (cancelled) break;
             const pageProxy = await doc.getPage(i);
-            const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
-            pagesText[i] = textItems.map(item => ({
-              str: item.text,
-              rect: { x: item.x, y: item.y, width: item.width, height: item.height }
-            }));
-            pageProxy.cleanup();
+            try {
+              const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
+              pagesText[i] = textItems.map(item => ({
+                str: item.text,
+                rect: { x: item.x, y: item.y, width: item.width, height: item.height },
+              }));
+            } finally {
+              pageProxy.cleanup();
+            }
           }
-          SearchIndexer.setCache(documentKey, pagesText);
+          if (!cancelled) SearchIndexer.setCache(documentKey, pagesText);
         }
-
       } catch (err) {
+        await releaseLease();
         if (!cancelled) {
           setLoadError(String(err));
           setPdfDoc(null);
           setSharedPdfDoc(null);
         }
       } finally {
+        loadFinished = true;
+        if (cancelled) await releaseLease();
         if (!cancelled) setLoading(false);
       }
     };
@@ -195,6 +208,7 @@ export const DocumentWorkspace: React.FC = () => {
 
     return () => {
       cancelled = true;
+      if (loadFinished) void releaseLease();
     };
   }, [workingBytes, documentKey, setSharedPdfDoc]);
 
