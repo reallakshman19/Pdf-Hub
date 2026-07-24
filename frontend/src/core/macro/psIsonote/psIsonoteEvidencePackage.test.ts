@@ -148,7 +148,8 @@ describe('psIsonoteEvidencePackage', () => {
       'ps-summary.csv',
       'run-manifest.json',
     ]);
-    expect(await zip.file('annotated.pdf')?.async('uint8array')).toEqual(documentBytes);
+    const archivedPdf = await zip.file('annotated.pdf')?.async('uint8array');
+    expect(Array.from(archivedPdf ?? [])).toEqual(Array.from(documentBytes));
     expect(await zip.file('mapping-source.txt')?.async('string')).toBe(sourceText);
 
     const occurrenceCsv = await zip.file('occurrence-audit.csv')?.async('string');
