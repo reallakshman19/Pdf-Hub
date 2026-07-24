@@ -25,12 +25,12 @@ const BookmarksSidebar: React.FC = () => {
         return;
       }
 
-      const doc = await PdfRendererAdapter.loadDocument(workingBytes);
+      const lease = await PdfRendererAdapter.acquireDocument(workingBytes);
       try {
-        const outline = await PdfRendererAdapter.getOutlineFlat(doc);
+        const outline = await PdfRendererAdapter.getOutlineFlat(lease.doc);
         if (!cancelled) setNativeBookmarks(outline);
       } finally {
-        await doc.destroy();
+        await lease.release();
       }
     };
 
