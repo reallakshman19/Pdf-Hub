@@ -106,18 +106,24 @@ export function normalizePsIsonoteMarkerText(value: string): string {
   return value.toUpperCase().replace(/\s+/g, '');
 }
 
+function psSuffix(psNo: string): string {
+  return psNo.replace(/^PS-/, '');
+}
+
 export function legacyMarkerForPs(psNo: string): string {
-  return `PDFHUBISONOTE[${psNo.replace(/^PS-/, '')}]`;
+  return `PDFHUBISONOTE[${psSuffix(psNo)}]`;
 }
 
 export function versionedMarkerForOccurrence(
   identity: PsIsonoteMarkerIdentity,
 ): string {
+  // Store only the suffix so the hidden marker cannot be rediscovered by the
+  // PDF PS-reference search pattern as a false occurrence on later runs.
   return [
     'PDFHUBISONOTE[',
     PS_ISONOTE_MARKER_SCHEMA_VERSION,
     '|',
-    identity.psNo,
+    psSuffix(identity.psNo),
     '|',
     identity.mappingHash,
     '|',
@@ -127,7 +133,7 @@ export function versionedMarkerForOccurrence(
 }
 
 const VERSIONED_MARKER_PATTERN =
-  /PDFHUBISONOTE\[V2\|(PS-[A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64})\|(SHA256:[A-F0-9]{64})\]/g;
+  /PDFHUBISONOTE\[V2\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64})\|(SHA256:[A-F0-9]{64})\]/g;
 
 export function parseVersionedPsIsonoteMarkers(
   pageText: string,
@@ -140,7 +146,7 @@ export function parseVersionedPsIsonoteMarkers(
   while ((match = VERSIONED_MARKER_PATTERN.exec(normalized)) !== null) {
     markers.push({
       raw: match[0],
-      psNo: match[1],
+      psNo: `PS-${match[1]}`,
       mappingHash: match[2].toLowerCase(),
       occurrenceId: match[3].toLowerCase(),
     });
