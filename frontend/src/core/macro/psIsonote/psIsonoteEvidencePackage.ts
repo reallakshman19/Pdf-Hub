@@ -325,7 +325,8 @@ export async function createPsIsonoteEvidencePackage(
       bytes: new Uint8Array(options.documentBytes),
       compression: 'STORE',
     },
-  ].sort((left, right) => left.name.localeCompare(right.name));
+  ];
+  payloads.sort((left, right) => left.name.localeCompare(right.name));
 
   const entries = await Promise.all(payloads.map(payloadEntry));
   const checksums = serializeChecksums(entries);
