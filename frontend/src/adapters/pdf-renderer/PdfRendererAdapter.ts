@@ -155,6 +155,7 @@ export class PdfRendererAdapter {
         }
         throw loadError;
       });
+    void entry.docPromise.catch(() => undefined);
     this.documentCache.set(key, entry);
     return entry;
   }
