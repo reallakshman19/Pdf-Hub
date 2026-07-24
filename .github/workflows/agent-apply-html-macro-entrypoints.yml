@@ -1,0 +1,75 @@
+name: agent-apply-html-macro-entrypoints
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'agent/html-sanitization-macro-budgets'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Apply protected UI entry points
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          rich_path = Path('frontend/src/components/writer/RichTextEditorPanel.tsx')
+          rich = rich_path.read_text(encoding='utf-8-sig')
+          replacements = [
+            (
+              "      editorRef.current.innerHTML = element.content || '<p><br/></p>';",
+              "      editorRef.current.innerHTML = sanitizeHtml(element.content || '<p><br/></p>');",
+            ),
+            (
+              "      updateElement(element.id, { content: editorRef.current.innerHTML });",
+              "      const safeContent = sanitizeHtml(editorRef.current.innerHTML);\n      editorRef.current.innerHTML = safeContent;\n      updateElement(element.id, { content: safeContent });",
+            ),
+            (
+              "    const fragment = range.createContextualFragment(html);",
+              "    const fragment = range.createContextualFragment(sanitizeHtml(html));",
+            ),
+          ]
+          for old, new in replacements:
+            if rich.count(old) != 1:
+              raise SystemExit(f'Unexpected RichTextEditorPanel marker count: {old}')
+            rich = rich.replace(old, new)
+          rich_path.write_text(rich, encoding='utf-8')
+
+          sidebar_path = Path('frontend/src/components/sidebar/MacrosSidebar.tsx')
+          sidebar = sidebar_path.read_text(encoding='utf-8-sig')
+          import_marker = "import { macroValidator } from '@/core/macro/validator';"
+          import_replacement = import_marker + "\nimport {\n  DEFAULT_MACRO_RESOURCE_LIMITS,\n  parseBoundedJson,\n  parseMacroRecipeJson,\n} from '@/core/macro/resourceBudget';"
+          if sidebar.count(import_marker) != 1:
+            raise SystemExit('Unexpected macro validator import count')
+          sidebar = sidebar.replace(import_marker, import_replacement)
+
+          preview_old = "    const parsed = JSON.parse(json) as { steps?: unknown };"
+          preview_new = "    const parsed = parseBoundedJson(json, {\n      maxBytes: DEFAULT_MACRO_RESOURCE_LIMITS.maxRecipeJsonBytes,\n      label: 'expert macro preview JSON',\n    }) as { steps?: unknown };"
+          if sidebar.count(preview_old) != 1:
+            raise SystemExit('Unexpected preview parser count')
+          sidebar = sidebar.replace(preview_old, preview_new)
+
+          expert_old = "    const parsed: unknown = JSON.parse(raw);"
+          expert_new = "    const parsed: unknown = parseMacroRecipeJson(raw);"
+          if sidebar.count(expert_old) != 1:
+            raise SystemExit('Unexpected expert parser count')
+          sidebar = sidebar.replace(expert_old, expert_new)
+          sidebar_path.write_text(sidebar, encoding='utf-8')
+
+          Path('.github/workflows/agent-apply-html-macro-entrypoints.yml').unlink()
+          PY
+      - name: Commit entrypoint migration
+        run: |
+          git config user.name 'pdf-hub-agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add frontend/src/components/writer/RichTextEditorPanel.tsx frontend/src/components/sidebar/MacrosSidebar.tsx .github/workflows/agent-apply-html-macro-entrypoints.yml
+          git commit -m 'Protect HTML and macro UI entry points'
+          git push origin HEAD:${{ github.head_ref }}
