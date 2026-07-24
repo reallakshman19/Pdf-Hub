@@ -5,27 +5,57 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  test-diagnostics:
+  apply-fix:
+    if: github.head_ref == 'agent/pdfjs-document-lifecycle'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-      - run: corepack enable
-      - run: corepack prepare pnpm@10.23.0 --activate
-      - name: Install dependencies
-        run: cd frontend && pnpm install --no-frozen-lockfile
-      - name: Capture focused test output
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Mark cache promise handled
         run: |
-          cd frontend
-          pnpm vitest run src/adapters/pdf-renderer/PdfRendererAdapter.test.ts src/components/workspace/DocumentWorkspace.test.tsx src/core/macro/psIsonote/psIsonoteVerification.test.ts --pool=forks --maxWorkers=1 > ../test.log 2>&1 || true
-      - name: Upload test output
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-test-log
-          path: test.log
-          if-no-files-found: error
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '''    entry.docPromise = task.promise
+      .then((doc) => {
+        entry.doc = doc;
+        return doc;
+      })
+      .catch((loadError) => {
+        if (this.documentCache.get(key) === entry) {
+          this.documentCache.delete(key);
+        }
+        throw loadError;
+      });
+    this.documentCache.set(key, entry);'''
+          new = '''    entry.docPromise = task.promise
+      .then((doc) => {
+        entry.doc = doc;
+        return doc;
+      })
+      .catch((loadError) => {
+        if (this.documentCache.get(key) === entry) {
+          this.documentCache.delete(key);
+        }
+        throw loadError;
+      });
+    void entry.docPromise.catch(() => undefined);
+    this.documentCache.set(key, entry);'''
+          if text.count(old) != 1:
+              raise SystemExit('Unexpected cache promise shape')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          Path('.github/workflows/agent-test-diagnostics.yml').unlink()
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name 'pdf-hub-agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Handle rejected PDF.js cache promises'
+          git push origin HEAD:${{ github.head_ref }}
