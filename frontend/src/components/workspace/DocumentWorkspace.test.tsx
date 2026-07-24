@@ -6,7 +6,6 @@ import { DocumentWorkspace } from './DocumentWorkspace';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 
-// Mock ResizeObserver
 class ResizeObserverMock {
   constructor(callback: ResizeObserverCallback) {
     void callback;
@@ -18,7 +17,6 @@ class ResizeObserverMock {
 (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
   ResizeObserverMock as unknown as typeof ResizeObserver;
 
-// Mock dependencies
 vi.mock('@/core/annotations/persistence', () => ({
   loadAnnotations: vi.fn().mockResolvedValue([]),
   saveAnnotations: vi.fn(),
@@ -31,17 +29,23 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
   }
 }));
 
+const workspacePdfDoc = {
+  numPages: 5,
+  destroy: vi.fn(),
+  getPage: vi.fn().mockResolvedValue({
+    getViewport: vi.fn().mockReturnValue({ width: 1000, height: 1500 }),
+    render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+    getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+    cleanup: vi.fn(),
+  }),
+};
+
 vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   PdfRendererAdapter: {
-    loadDocument: vi.fn().mockResolvedValue({
-      numPages: 5,
-      destroy: vi.fn(),
-      getPage: vi.fn().mockResolvedValue({
-        getViewport: vi.fn().mockReturnValue({ width: 1000, height: 1500 }),
-        render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
-        getTextContent: vi.fn().mockResolvedValue({ items: [] }),
-        cleanup: vi.fn(),
-      }),
+    acquireDocument: vi.fn().mockResolvedValue({
+      doc: workspacePdfDoc,
+      cacheKey: 'test-doc',
+      release: vi.fn().mockResolvedValue(undefined),
     }),
     renderPage: vi.fn(),
     getPageTextItems: vi.fn().mockResolvedValue([]),
@@ -49,7 +53,6 @@ vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   }
 }));
 
-// We need to mock the pdfjs-dist getDocument to return a dummy PDF object
 vi.mock('pdfjs-dist', () => ({
   getDocument: vi.fn(() => ({
     promise: Promise.resolve({
@@ -65,7 +68,6 @@ vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
 }));
 
-// Mock virtua VList since JSDOM might not trigger virtual list intersections properly
 vi.mock('virtua', () => ({
   VList: ({ children }: { children: ReactNode }) => <div data-testid="vlist">{children}</div>,
 }));
@@ -86,7 +88,6 @@ describe('DocumentWorkspace', () => {
     });
     useEditorStore.setState({ activeTool: 'select' });
 
-    // Mock Canvas context to prevent the "2D canvas context is not available" error
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
       save: vi.fn(),
       restore: vi.fn(),
@@ -108,7 +109,6 @@ describe('DocumentWorkspace', () => {
       render(<DocumentWorkspace />);
     });
 
-    // We mock VList to render its children directly
     const vlist = await screen.findByTestId('vlist');
     expect(vlist).toBeInTheDocument();
   });
@@ -209,11 +209,9 @@ describe('DocumentWorkspace', () => {
       } as unknown as PDFDocumentProxy,
     });
 
-    // Simulate window layout size to trigger the resize effect
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 1000 });
     Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, value: 800 });
 
-    // Mock ResizeObserver
     class MockResizeObserver {
       observe() {}
       unobserve() {}
@@ -221,13 +219,10 @@ describe('DocumentWorkspace', () => {
     }
     window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
-
     await act(async () => {
       render(<DocumentWorkspace />);
     });
 
-    // Simply manually trigger the setZoom that would happen internally
-    // to bypass the ResizeObserver/useRef complexity in this component test
     setZoom(120);
 
     await vi.waitFor(() => {
