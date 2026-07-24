@@ -85,7 +85,6 @@ export async function computePsIsonoteMappingHash(
 }
 
 export async function computePsIsonoteOccurrenceId(options: {
-  inputSha256: string;
   pageNumber: number;
   psNo: string;
   rect: { x: number; y: number; width: number; height: number };
@@ -95,7 +94,6 @@ export async function computePsIsonoteOccurrenceId(options: {
   );
 
   return hashCanonical({
-    inputSha256: options.inputSha256,
     pageNumber: options.pageNumber,
     psNo: options.psNo,
     rect: roundedRect,
