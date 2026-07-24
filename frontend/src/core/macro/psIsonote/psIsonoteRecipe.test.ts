@@ -9,6 +9,10 @@ import {
   type PsIsonoteTextReference,
 } from './psIsonoteRecipe';
 
+const HASH_A = `sha256:${'a'.repeat(64)}`;
+const HASH_B = `sha256:${'b'.repeat(64)}`;
+const INPUT_HASH = `sha256:${'c'.repeat(64)}`;
+
 const mapping: PsIsonoteMapping = {
   psNo: 'PS-1234.5',
   family: 'Guide',
@@ -24,15 +28,34 @@ function reference(
   psNo: string,
   y: number,
   mappingOverride: PsIsonoteMapping = mapping,
+  mappingHash = HASH_A,
+  occurrenceId = HASH_B,
 ): PsIsonoteTextReference {
   return {
     psNo,
     pageNumber: 1,
     rect: { x: 100, y, width: 60, height: 12 },
     mapping: mappingOverride,
+    mappingHash,
+    occurrenceId,
+    existingMarkerState: 'none',
     rawMatchedText: psNo,
     matchMethod: 'exact',
     textItemCount: 1,
+  };
+}
+
+function scan(references: PsIsonoteTextReference[]): PsIsonoteScanResult {
+  return {
+    inputSha256: INPUT_HASH,
+    references,
+    detectedReferences: references,
+    missingPsNumbers: [],
+    skippedExisting: [],
+    staleExisting: [],
+    legacyExisting: [],
+    scannedPages: [1],
+    pageDimensions: { 1: { width: 595, height: 842 } },
   };
 }
 
@@ -45,13 +68,19 @@ describe('psIsonoteRecipe', () => {
       textItem('d', '.5', 140, 200, 8),
     ];
 
-    const references = findPsIsonoteReferencesInTextItems(items, [mapping], 3);
+    const references = findPsIsonoteReferencesInTextItems(
+      items,
+      [mapping],
+      3,
+      new Map([[mapping.psNo, HASH_A]]),
+    );
 
     expect(references).toHaveLength(1);
     expect(references[0]).toMatchObject({
       psNo: 'PS-1234.5',
       pageNumber: 3,
       rect: { x: 100, y: 200, width: 48, height: 10 },
+      mappingHash: HASH_A,
       matchMethod: 'joined-text-items',
       textItemCount: 4,
     });
@@ -63,6 +92,7 @@ describe('psIsonoteRecipe', () => {
       [textItem('a', 'PS-1234.5', 20, 30, 60)],
       [mapping],
       1,
+      new Map([[mapping.psNo, HASH_A]]),
     );
 
     expect(references[0]).toMatchObject({
@@ -72,28 +102,32 @@ describe('psIsonoteRecipe', () => {
     });
   });
 
+  it('classifies a Unicode dash variant as normalized rather than exact', () => {
+    const references = findPsIsonoteReferencesInTextItems(
+      [textItem('a', 'PS–1234.5', 20, 30, 60)],
+      [mapping],
+      1,
+      new Map([[mapping.psNo, HASH_A]]),
+    );
+
+    expect(references[0].matchMethod).toBe('normalized');
+  });
+
   it('ignores PS numbers that are absent from the mapping table', () => {
     const items = [textItem('a', 'PS-9999.1', 20, 30, 60)];
     expect(findPsIsonoteReferencesInTextItems(items, [mapping], 1)).toEqual([]);
   });
 
-  it('plans a nearby callout and builds standard macro steps', () => {
+  it('plans a nearby callout and writes a versioned occurrence marker', () => {
     const detectedReference = reference(mapping.psNo, 180);
-    const scan: PsIsonoteScanResult = {
-      references: [detectedReference],
-      detectedReferences: [detectedReference],
-      missingPsNumbers: [],
-      skippedExisting: [],
-      scannedPages: [1],
-      pageDimensions: { 1: { width: 595, height: 842 } },
-    };
+    const result = scan([detectedReference]);
 
-    const planned = planPsIsonoteCallouts(scan, { noteWidth: 210, placement: 'right' });
+    const planned = planPsIsonoteCallouts(result, { noteWidth: 210, placement: 'right' });
     expect(planned).toHaveLength(1);
     expect(planned[0].box.x).toBeGreaterThan(160);
     expect(planned[0].box.width).toBe(210);
 
-    const { recipe, callouts } = buildPsIsonoteAnnotationRecipe(scan, {
+    const { recipe, callouts } = buildPsIsonoteAnnotationRecipe(result, {
       noteWidth: 210,
       includeFamily: true,
     });
@@ -104,28 +138,19 @@ describe('psIsonoteRecipe', () => {
       selector: { mode: 'list', pages: [1] },
       width: 210,
     });
-    expect(recipe.steps[0]).toHaveProperty('content');
     expect(JSON.stringify(recipe.steps[0])).toContain('REST(6kN)');
     expect(recipe.steps.at(-1)).toMatchObject({
       op: 'draw_text_on_pages',
-      text: 'PDFHUBISONOTE[1234.5]',
+      text: `PDFHUBISONOTE[v2|PS-1234.5|${HASH_A}|${HASH_B}]`,
     });
   });
 
   it('moves colliding callouts apart on the same page', () => {
     const first = reference(mapping.psNo, 180);
     const secondMapping = { ...mapping, psNo: 'PS-1234.6' };
-    const second = reference(secondMapping.psNo, 182, secondMapping);
-    const scan: PsIsonoteScanResult = {
-      references: [first, second],
-      detectedReferences: [first, second],
-      missingPsNumbers: [],
-      skippedExisting: [],
-      scannedPages: [1],
-      pageDimensions: { 1: { width: 595, height: 842 } },
-    };
+    const second = reference(secondMapping.psNo, 182, secondMapping, HASH_B, HASH_A);
 
-    const planned = planPsIsonoteCallouts(scan, { noteWidth: 210 });
+    const planned = planPsIsonoteCallouts(scan([first, second]), { noteWidth: 210 });
     expect(planned).toHaveLength(2);
     expect(planned[0].box.y).not.toBe(planned[1].box.y);
   });
