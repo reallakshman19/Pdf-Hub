@@ -6,6 +6,7 @@ import {
 } from '../../../core/macro/builder/recipeBuilderState';
 import type { MacroRecipe } from '../../../core/macro/types';
 import type { MacroOpCategory, MacroOpSchema } from '../../../core/macro/schema/opSchema';
+import { getMacroOpPresentation } from '../../../core/macro/schema/presentation';
 import { getChildParentPath } from './macroPathUtils';
 
 export interface MacroNestedBranchEditorProps {
@@ -155,7 +156,7 @@ function BranchPanel({
             <optgroup key={category} label={category}>
               {schemas.map((schema) => (
                 <option key={schema.op} value={schema.op}>
-                  {schema.label}
+                  {getMacroOpPresentation(schema).label}
                 </option>
               ))}
             </optgroup>
@@ -174,6 +175,7 @@ function BranchPanel({
               index,
             };
             const schema = getMacroStepSchemaAtPath(recipe, path);
+            const presentation = schema ? getMacroOpPresentation(schema) : null;
             const selected = isSamePath(selectedPath, path);
 
             return (
@@ -201,7 +203,7 @@ function BranchPanel({
                     }}
                   >
                     <strong>
-                      {index + 1}. {schema?.label ?? step.op}
+                      {index + 1}. {presentation?.label ?? step.op}
                     </strong>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>{step.op}</div>
                   </button>
