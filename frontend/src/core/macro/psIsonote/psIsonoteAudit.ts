@@ -1,8 +1,12 @@
 import type { PsIsonoteAuditIdentity } from './psIsonoteIdentity';
 import type { PsIsonoteScanResult, PsIsonoteTextReference } from './psIsonoteRecipe';
 import type { PsIsonoteMapping } from './psIsonoteTable';
+import type {
+  PsIsonoteVerificationDiagnosticCode,
+  PsIsonoteVerificationResult,
+} from './psIsonoteVerification';
 
-export type PsIsonoteAuditPhase = 'preview' | 'annotated' | 'failed';
+export type PsIsonoteAuditPhase = 'preview' | 'annotated' | 'verified' | 'failed';
 export type PsIsonoteDiagnosticSeverity = 'info' | 'warning' | 'error';
 
 export type PsIsonoteDiagnosticCode =
@@ -14,7 +18,9 @@ export type PsIsonoteDiagnosticCode =
   | 'PS_ISONOTE_MATCH_JOINED_TEXT_ITEMS'
   | 'PS_ISONOTE_REVIEW_REQUIRED'
   | 'PS_ISONOTE_CONFLICTING_MAPPING'
-  | 'PS_ISONOTE_ANNOTATION_FAILED';
+  | 'PS_ISONOTE_ANNOTATION_FAILED'
+  | 'PS_ISONOTE_VERIFICATION_FAILED'
+  | PsIsonoteVerificationDiagnosticCode;
 
 export interface PsIsonoteDiagnostic {
   code: PsIsonoteDiagnosticCode;
@@ -36,6 +42,8 @@ export type PsIsonoteOccurrenceStatus =
   | 'ready'
   | 'review'
   | 'annotated'
+  | 'verified'
+  | 'verification-failed'
   | 'skipped-existing'
   | 'stale-existing'
   | 'legacy-existing'
@@ -68,6 +76,7 @@ export interface PsIsonoteSummaryRow {
   foundPs: number;
   occurrences: number;
   annotated: number;
+  verified: number;
   review: number;
   missing: number;
   averageConfidence: number | null;
@@ -82,6 +91,7 @@ export interface PsIsonoteAuditReport {
   summaryRows: PsIsonoteSummaryRow[];
   occurrences: PsIsonoteOccurrenceAudit[];
   diagnostics: PsIsonoteDiagnostic[];
+  verification?: PsIsonoteVerificationResult;
 }
 
 export interface BuildPsIsonoteAuditOptions {
@@ -90,6 +100,7 @@ export interface BuildPsIsonoteAuditOptions {
   parseWarnings?: string[];
   failureMessage?: string;
   createdAt?: string;
+  verification?: PsIsonoteVerificationResult;
 }
 
 export const PS_ISONOTE_AUTO_RELEASE_THRESHOLD = 90;
@@ -168,11 +179,22 @@ function referenceDiagnostic(
   };
 }
 
+function verificationCodesForOccurrence(
+  verification: PsIsonoteVerificationResult | undefined,
+  occurrenceId: string,
+): PsIsonoteDiagnosticCode[] {
+  if (!verification) return [];
+  return verification.diagnostics
+    .filter((diagnostic) => diagnostic.occurrenceId === occurrenceId)
+    .map((diagnostic) => diagnostic.code);
+}
+
 function buildOccurrenceAudit(
   reference: PsIsonoteTextReference,
   occurrenceIndex: number,
   isAnnotationTarget: boolean,
   phase: PsIsonoteAuditPhase,
+  verification: PsIsonoteVerificationResult | undefined,
 ): { occurrence: PsIsonoteOccurrenceAudit; diagnostics: PsIsonoteDiagnostic[] } {
   const confidence = scorePsIsonoteReference(reference);
   const diagnostics: PsIsonoteDiagnostic[] = [];
@@ -226,7 +248,7 @@ function buildOccurrenceAudit(
       `${reference.psNo} match confidence is ${confidence.matchConfidence}; review is required.`,
     ));
   }
-  if (phase === 'failed' && isAnnotationTarget) {
+  if (phase === 'failed' && isAnnotationTarget && !verification) {
     diagnostics.push(referenceDiagnostic(
       reference,
       'PS_ISONOTE_ANNOTATION_FAILED',
@@ -235,24 +257,38 @@ function buildOccurrenceAudit(
     ));
   }
 
-  const status: PsIsonoteOccurrenceStatus = phase === 'failed' && isAnnotationTarget
-    ? 'failed'
-    : phase === 'annotated' && isAnnotationTarget
-      ? 'annotated'
-      : reference.existingMarkerState === 'current'
-        ? 'skipped-existing'
-        : reference.existingMarkerState === 'stale'
-          ? 'stale-existing'
-          : reference.existingMarkerState === 'legacy'
-            ? 'legacy-existing'
-            : confidence.matchConfidence < PS_ISONOTE_AUTO_RELEASE_THRESHOLD
-              ? 'review'
-              : 'ready';
+  const markerVerification = verification?.markerResults.find((marker) =>
+    marker.occurrenceId === reference.occurrenceId,
+  );
+  const status: PsIsonoteOccurrenceStatus = phase === 'verified' && isAnnotationTarget
+    ? markerVerification?.status === 'verified'
+      ? 'verified'
+      : 'verification-failed'
+    : phase === 'failed' && isAnnotationTarget
+      ? verification
+        ? 'verification-failed'
+        : 'failed'
+      : phase === 'annotated' && isAnnotationTarget
+        ? 'annotated'
+        : reference.existingMarkerState === 'current'
+          ? 'skipped-existing'
+          : reference.existingMarkerState === 'stale'
+            ? 'stale-existing'
+            : reference.existingMarkerState === 'legacy'
+              ? 'legacy-existing'
+              : confidence.matchConfidence < PS_ISONOTE_AUTO_RELEASE_THRESHOLD
+                ? 'review'
+                : 'ready';
+
+  const diagnosticCodes = Array.from(new Set<PsIsonoteDiagnosticCode>([
+    ...diagnostics.map((diagnostic) => diagnostic.code),
+    ...verificationCodesForOccurrence(verification, reference.occurrenceId),
+  ]));
 
   return {
     occurrence: {
       psNo: reference.psNo,
-      family: reference.mapping.family,
+      ...(reference.mapping.family ? { family: reference.mapping.family } : {}),
       isonote: reference.mapping.isonote,
       sourceRow: reference.mapping.sourceRow,
       mappingHash: reference.mappingHash,
@@ -267,7 +303,7 @@ function buildOccurrenceAudit(
       existingMarkerState: reference.existingMarkerState,
       status,
       confidence,
-      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      diagnosticCodes,
     },
     diagnostics,
   };
@@ -297,9 +333,14 @@ export function buildPsIsonoteAuditReport(
       occurrenceIndex,
       targetOccurrenceIds.has(reference.occurrenceId),
       phase,
+      options.verification,
     );
     occurrences.push(built.occurrence);
     diagnostics.push(...built.diagnostics);
+  }
+
+  if (options.verification) {
+    diagnostics.push(...options.verification.diagnostics);
   }
 
   for (const mapping of mappings) {
@@ -314,7 +355,9 @@ export function buildPsIsonoteAuditReport(
 
   if (phase === 'failed' && options.failureMessage) {
     diagnostics.push({
-      code: 'PS_ISONOTE_ANNOTATION_FAILED',
+      code: options.verification
+        ? 'PS_ISONOTE_VERIFICATION_FAILED'
+        : 'PS_ISONOTE_ANNOTATION_FAILED',
       severity: 'error',
       message: options.failureMessage,
     });
@@ -332,7 +375,10 @@ export function buildPsIsonoteAuditReport(
         mappings: 1,
         foundPs: psOccurrences.length > 0 ? 1 : 0,
         occurrences: psOccurrences.length,
-        annotated: psOccurrences.filter((occurrence) => occurrence.status === 'annotated').length,
+        annotated: psOccurrences.filter((occurrence) =>
+          occurrence.status === 'annotated' || occurrence.status === 'verified',
+        ).length,
+        verified: psOccurrences.filter((occurrence) => occurrence.status === 'verified').length,
         review: psOccurrences.filter(occurrenceRequiresReview).length,
         missing: psOccurrences.length === 0 ? 1 : 0,
         averageConfidence: confidences.length > 0
@@ -351,6 +397,7 @@ export function buildPsIsonoteAuditReport(
     summaryRows,
     occurrences,
     diagnostics,
+    ...(options.verification ? { verification: options.verification } : {}),
   };
 }
 
@@ -368,6 +415,7 @@ export function serializePsIsonoteSummaryCsv(report: PsIsonoteAuditReport): stri
     'Found PS',
     'Occurrences',
     'Annotated',
+    'Verified',
     'Review',
     'Missing',
     'Average Confidence',
@@ -381,6 +429,7 @@ export function serializePsIsonoteSummaryCsv(report: PsIsonoteAuditReport): stri
     row.foundPs,
     row.occurrences,
     row.annotated,
+    row.verified,
     row.review,
     row.missing,
     row.averageConfidence,
@@ -399,7 +448,10 @@ export function serializePsIsonoteAuditManifest(report: PsIsonoteAuditReport): s
     counts: {
       psNumbers: report.summaryRows.length,
       occurrences: report.occurrences.length,
+      annotated: report.summaryRows.reduce((sum, row) => sum + row.annotated, 0),
+      verified: report.summaryRows.reduce((sum, row) => sum + row.verified, 0),
       diagnostics: report.diagnostics.length,
     },
+    ...(report.verification ? { verification: report.verification } : {}),
   }, null, 2);
 }

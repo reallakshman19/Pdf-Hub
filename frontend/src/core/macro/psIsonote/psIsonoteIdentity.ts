@@ -2,7 +2,7 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import type { MacroRecipe, PageSelector } from '@/core/macro/types';
 import type { PsIsonoteMapping } from './psIsonoteTable';
 
-export const PS_ISONOTE_AUDIT_SCHEMA_VERSION = '2';
+export const PS_ISONOTE_AUDIT_SCHEMA_VERSION = '3';
 export const PS_ISONOTE_MARKER_SCHEMA_VERSION = 'v2';
 
 export interface PsIsonoteMarkerIdentity {
@@ -46,6 +46,7 @@ export interface CreatePsIsonoteAuditIdentityOptions {
   outputDocumentKey?: string | null;
   inputSha256: string;
   outputBytes?: Uint8Array;
+  outputSha256?: string;
   sourceText: string;
   recipe: MacroRecipe;
   scope: PsIsonoteScopeIdentity;
@@ -164,11 +165,15 @@ export function hasLegacyPsIsonoteMarker(pageText: string, psNo: string): boolea
 export async function createPsIsonoteAuditIdentity(
   options: CreatePsIsonoteAuditIdentityOptions,
 ): Promise<PsIsonoteAuditIdentity> {
-  const [mappingSha256, recipeSha256, scopeSha256, outputSha256] = await Promise.all([
+  const [mappingSha256, recipeSha256, scopeSha256, calculatedOutputSha256] = await Promise.all([
     hashText(options.sourceText),
     hashCanonical({ name: options.recipe.name, steps: options.recipe.steps }),
     hashCanonical(options.scope),
-    options.outputBytes ? FileAdapter.hashBytes(options.outputBytes) : Promise.resolve(undefined),
+    options.outputSha256
+      ? Promise.resolve(options.outputSha256)
+      : options.outputBytes
+        ? FileAdapter.hashBytes(options.outputBytes)
+        : Promise.resolve(undefined),
   ]);
   const runHash = await hashCanonical({
     inputSha256: options.inputSha256,
@@ -185,7 +190,7 @@ export async function createPsIsonoteAuditIdentity(
       ? { outputDocumentKey: options.outputDocumentKey }
       : {}),
     inputSha256: options.inputSha256,
-    ...(outputSha256 ? { outputSha256 } : {}),
+    ...(calculatedOutputSha256 ? { outputSha256: calculatedOutputSha256 } : {}),
     mappingSha256,
     recipeSha256,
     scopeSha256,

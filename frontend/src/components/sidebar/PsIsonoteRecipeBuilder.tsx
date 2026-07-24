@@ -31,6 +31,10 @@ import {
   type PsIsonoteScopeIdentity,
 } from '@/core/macro/psIsonote/psIsonoteIdentity';
 import {
+  verifyPsIsonoteOutput,
+  type PsIsonoteVerificationResult,
+} from '@/core/macro/psIsonote/psIsonoteVerification';
+import {
   parsePsIsonoteTable,
   type PsIsonoteParseResult,
 } from '@/core/macro/psIsonote/psIsonoteTable';
@@ -116,6 +120,13 @@ function shortHash(value: string | undefined): string {
   return value ? value.replace(/^sha256:/, '').slice(0, 10) : '—';
 }
 
+function verificationFailureMessage(verification: PsIsonoteVerificationResult): string {
+  const firstDiagnostic = verification.diagnostics[0]?.message;
+  return firstDiagnostic
+    ? `Output verification failed: ${firstDiagnostic}`
+    : 'Output verification failed.';
+}
+
 export const PsIsonoteRecipeBuilder: React.FC = () => {
   const {
     workingBytes,
@@ -149,6 +160,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     fontSize,
     includeFamily,
   }), [fontSize, includeFamily, noteWidth, placement]);
+
   const scanResult = scanArtifact &&
     scanArtifact.documentBytes === workingBytes &&
     scanArtifact.sourceText === sourceText &&
@@ -158,6 +170,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     scanArtifact.selectedPagesKey === selectedPagesKey
     ? scanArtifact.result
     : null;
+
   const auditReport = auditArtifact &&
     auditArtifact.boundDocumentBytes === workingBytes &&
     auditArtifact.sourceText === sourceText &&
@@ -226,6 +239,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     outputDocumentKey?: string | null;
     boundDocumentBytes: Uint8Array;
     outputBytes?: Uint8Array;
+    outputSha256?: string;
+    verification?: PsIsonoteVerificationResult;
     failureMessage?: string;
   }) => {
     if (!parsedState.result) return;
@@ -237,6 +252,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         : {}),
       inputSha256: options.result.inputSha256,
       ...(options.outputBytes ? { outputBytes: options.outputBytes } : {}),
+      ...(options.outputSha256 ? { outputSha256: options.outputSha256 } : {}),
       sourceText,
       recipe: options.recipe,
       scope: buildScopeIdentity(),
@@ -257,6 +273,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         identity,
         phase: options.phase,
         parseWarnings: parsedState.result.warnings,
+        ...(options.verification ? { verification: options.verification } : {}),
         ...(options.failureMessage ? { failureMessage: options.failureMessage } : {}),
       }),
     });
@@ -304,8 +321,13 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     setMessage(null);
     let scanned: PsIsonoteScanResult | null = null;
     let recipe: MacroRecipe | null = null;
+    let outputBytes: Uint8Array | null = null;
+    let outputDocumentKey: string | null | undefined;
+    let verification: PsIsonoteVerificationResult | undefined;
     const inputBytes = workingBytes;
     const inputDocumentKey = documentKey;
+    const inputPageCount = pageCount;
+
     try {
       if (!inputBytes) throw new Error('Open a PDF before annotating PS numbers.');
       scanned = await runScan();
@@ -331,32 +353,54 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       }
 
       const execution = await runMacroRecipeAgainstSession(recipe, { saveOutputs: false });
-      if (!execution.success) {
+      if (execution.success === false) {
         throw new Error(execution.logs.at(-1) ?? 'PS ISONOTE annotation macro failed.');
       }
+
       const outputSession = useSessionStore.getState();
-      const outputBytes = outputSession.workingBytes;
+      outputBytes = outputSession.workingBytes;
+      outputDocumentKey = outputSession.documentKey;
       if (!outputBytes) throw new Error('Annotation completed without an output working copy.');
+
+      verification = await verifyPsIsonoteOutput({
+        outputBytes,
+        outputDocumentKey: outputDocumentKey ?? null,
+        expectedPageCount: inputPageCount,
+        expectedMarkers: built.callouts,
+      });
+      if (!verification.verified) {
+        throw new Error(verificationFailureMessage(verification));
+      }
 
       await recordAudit({
         result: scanned,
-        phase: 'annotated',
+        phase: 'verified',
         recipe,
         inputDocumentKey,
-        outputDocumentKey: outputSession.documentKey,
+        outputDocumentKey,
         boundDocumentBytes: outputBytes,
-        outputBytes,
+        outputSha256: verification.outputSha256,
+        verification,
       });
-      setMessage(`Annotated ${built.callouts.length} PS occurrence(s). The audit is bound to the output PDF hash.`);
+      setMessage(
+        `Verified ${verification.verifiedMarkerCount} of ${verification.expectedMarkerCount} PS occurrence marker(s) in the reopened output PDF.`,
+      );
     } catch (runError) {
       const failureMessage = runError instanceof Error ? runError.message : String(runError);
       if (scanned && recipe && inputBytes) {
+        const boundDocumentBytes = outputBytes ?? inputBytes;
         await recordAudit({
           result: scanned,
           phase: 'failed',
           recipe,
           inputDocumentKey,
-          boundDocumentBytes: inputBytes,
+          ...(outputDocumentKey !== undefined ? { outputDocumentKey } : {}),
+          boundDocumentBytes,
+          ...(outputBytes && !verification ? { outputBytes } : {}),
+          ...(verification ? {
+            outputSha256: verification.outputSha256,
+            verification,
+          } : {}),
           failureMessage,
         });
       }
@@ -436,14 +480,14 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       )}
 
       {parsedState.error && (
-        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
+        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{parsedState.error}</span>
         </div>
       )}
 
       {parsed && parsed.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           {parsed.warnings.slice(0, 3).map((warning) => <div key={warning}>{warning}</div>)}
           {parsed.warnings.length > 3 && <div>+{parsed.warnings.length - 3} more warning(s)</div>}
         </div>
@@ -534,13 +578,26 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       </label>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={() => void handlePreview()} disabled={disabled} className="justify-center">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => void handlePreview()}
+          disabled={disabled}
+          className="justify-center"
+        >
           <Search className="mr-1.5 h-3.5 w-3.5" />
           {isScanning ? 'Scanning...' : 'Preview Matches'}
         </Button>
-        <Button type="button" size="sm" onClick={() => void handleAnnotate()} disabled={disabled} className="justify-center bg-orange-600 text-white hover:bg-orange-700">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void handleAnnotate()}
+          disabled={disabled}
+          className="justify-center bg-orange-600 text-white hover:bg-orange-700"
+        >
           <WandSparkles className="mr-1.5 h-3.5 w-3.5" />
-          {isRunning ? 'Annotating...' : 'Annotate PDF'}
+          {isRunning ? 'Annotating & verifying...' : 'Annotate PDF'}
         </Button>
       </div>
 
@@ -566,6 +623,13 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
                 {auditReport.identity.runId} · input {shortHash(auditReport.identity.inputSha256)}
                 {auditReport.identity.outputSha256 ? ` · output ${shortHash(auditReport.identity.outputSha256)}` : ''}
               </div>
+              {auditReport.verification && (
+                <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                  Markers {auditReport.verification.verifiedMarkerCount}/{auditReport.verification.expectedMarkerCount}
+                  {' · '}pages {auditReport.verification.actualPageCount ?? 'unreadable'}/{auditReport.verification.expectedPageCount}
+                  {' · '}document key {auditReport.verification.outputDocumentKeyMatchesHash ? 'matches hash' : 'mismatch'}
+                </div>
+              )}
             </div>
             <div className="flex gap-1">
               <Button
@@ -598,22 +662,31 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-[620px] w-full border-collapse text-left">
+            <table className="min-w-[700px] w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="py-1 pr-2">PS No.</th><th className="py-1 pr-2">Found</th>
-                  <th className="py-1 pr-2">Occ.</th><th className="py-1 pr-2">Annotated</th>
-                  <th className="py-1 pr-2">Review</th><th className="py-1 pr-2">Missing</th>
-                  <th className="py-1 pr-2">Avg.</th><th className="py-1 pr-2">Min.</th>
+                  <th className="py-1 pr-2">PS No.</th>
+                  <th className="py-1 pr-2">Found</th>
+                  <th className="py-1 pr-2">Occ.</th>
+                  <th className="py-1 pr-2">Annotated</th>
+                  <th className="py-1 pr-2">Verified</th>
+                  <th className="py-1 pr-2">Review</th>
+                  <th className="py-1 pr-2">Missing</th>
+                  <th className="py-1 pr-2">Avg.</th>
+                  <th className="py-1 pr-2">Min.</th>
                   <th className="py-1">Errors</th>
                 </tr>
               </thead>
               <tbody>
                 {auditReport.summaryRows.slice(0, 8).map((row) => (
                   <tr key={row.psNo} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                    <td className="py-1 pr-2 font-medium">{row.psNo}</td><td className="py-1 pr-2">{row.foundPs}</td>
-                    <td className="py-1 pr-2">{row.occurrences}</td><td className="py-1 pr-2">{row.annotated}</td>
-                    <td className="py-1 pr-2">{row.review}</td><td className="py-1 pr-2">{row.missing}</td>
+                    <td className="py-1 pr-2 font-medium">{row.psNo}</td>
+                    <td className="py-1 pr-2">{row.foundPs}</td>
+                    <td className="py-1 pr-2">{row.occurrences}</td>
+                    <td className="py-1 pr-2">{row.annotated}</td>
+                    <td className="py-1 pr-2">{row.verified}</td>
+                    <td className="py-1 pr-2">{row.review}</td>
+                    <td className="py-1 pr-2">{row.missing}</td>
                     <td className="py-1 pr-2">{confidenceLabel(row.averageConfidence)}</td>
                     <td className="py-1 pr-2">{confidenceLabel(row.minimumConfidence)}</td>
                     <td className="py-1">{row.errors}</td>
@@ -623,26 +696,31 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             </table>
           </div>
           {auditReport.summaryRows.length > 8 && (
-            <div className="text-slate-500">+{auditReport.summaryRows.length - 8} more PS number(s) in the CSV export.</div>
+            <div className="text-slate-500">
+              +{auditReport.summaryRows.length - 8} more PS number(s) in the CSV export.
+            </div>
           )}
         </div>
       )}
 
       {message && (
-        <div className="flex gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-800">
-          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{message}</span>
+        <div className="flex gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{message}</span>
         </div>
       )}
       {error && (
-        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{error}</span>
+        <div className="flex gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
       <p className="text-[10px] leading-relaxed text-slate-400 dark:text-slate-500">
         Audit visibility is bound to the active PDF bytes, mapping source, page scope, and recipe settings.
-        Confidence measures PDF text-match quality and geometry; OCR confidence requires an OCR sidecar.
-        Page count: {pageCount || 0}.
+        A run is promoted to verified only after the output PDF is reopened, hashed, page-count checked, and
+        every expected marker is reconciled exactly once. Confidence measures PDF text-match quality and geometry;
+        OCR confidence requires an OCR sidecar. Page count: {pageCount || 0}.
       </p>
     </section>
   );
