@@ -126,6 +126,23 @@ describe('psIsonoteAudit', () => {
     ]));
   });
 
+  it('keeps an annotated low-confidence occurrence in the review count', () => {
+    const joined = reference(guideMapping, {
+      rawMatchedText: 'PS - 1234 .5',
+      matchMethod: 'joined-text-items',
+      textItemCount: 4,
+    });
+    const report = buildPsIsonoteAuditReport(
+      [guideMapping],
+      { ...scan([joined]), missingPsNumbers: [] },
+      { identity, phase: 'annotated' },
+    );
+
+    expect(report.occurrences[0].status).toBe('annotated');
+    expect(report.summaryRows[0]).toMatchObject({ annotated: 1, review: 1 });
+    expect(report.occurrences[0].diagnosticCodes).toContain('PS_ISONOTE_REVIEW_REQUIRED');
+  });
+
   it('marks joined matches for review and records conflicts as errors', () => {
     const joined = reference(guideMapping, {
       rawMatchedText: 'PS - 1234 .5',
@@ -166,7 +183,7 @@ describe('psIsonoteAudit', () => {
       pageNumber: stale.pageNumber,
       occurrenceId: stale.occurrenceId,
       expectedMappingHash: stale.mappingHash,
-      foundMappingHash: stale.foundMappingHash,
+      foundMappingHash: HASH_A,
     }];
     result.legacyExisting = [{
       psNo: legacy.psNo,
