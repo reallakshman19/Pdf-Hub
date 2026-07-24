@@ -4,6 +4,7 @@ import type {
   MacroOpCategory,
   MacroOpSchema,
 } from '../../../core/macro/schema/opSchema';
+import { getMacroOpPresentation } from '../../../core/macro/schema/presentation';
 
 export interface MacroStepPaletteProps {
   groupedSchemas: Record<MacroOpCategory, MacroOpSchema[]>;
@@ -30,26 +31,30 @@ export function MacroStepPalette({
           </h3>
 
           <div style={{ display: 'grid', gap: 6 }}>
-            {schemas.map((schema) => (
-              <button
-                key={schema.op}
-                type="button"
-                aria-label={`Add ${schema.label}`}
-                onClick={() => onAddStep(schema.op)}
-                title={schema.description}
-                style={{
-                  textAlign: 'left',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  padding: '6px 8px',
-                  background: '#f9fafb',
-                  color: '#111827',
-                  cursor: 'pointer',
-                }}
-              >
-                {schema.label}
-              </button>
-            ))}
+            {schemas.map((schema) => {
+              const presentation = getMacroOpPresentation(schema);
+
+              return (
+                <button
+                  key={schema.op}
+                  type="button"
+                  aria-label={`Add ${presentation.label}`}
+                  onClick={() => onAddStep(schema.op)}
+                  title={presentation.description}
+                  style={{
+                    textAlign: 'left',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    background: '#f9fafb',
+                    color: '#111827',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {presentation.label}
+                </button>
+              );
+            })}
           </div>
         </section>
       ))}

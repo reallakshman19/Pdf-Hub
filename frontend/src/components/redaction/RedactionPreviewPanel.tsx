@@ -7,16 +7,16 @@ import {
   exportPlan,
 } from '../../core/redaction/store';
 import type { RedactionRegion } from '../../core/redaction/types';
+import { VISUAL_MASK_WARNING } from '../../core/redaction/capability';
 
 /**
- * Panel listing all redaction preview regions. Provides controls to remove
- * individual regions and export a JSON redaction plan. The exported plan
- * contains only page numbers and bounding boxes; the user must manually
- * merge it with the appropriate document key when sending to a server.
+ * Panel listing regions intended for visual masking. The exported plan contains
+ * page numbers and bounding boxes only; it is not evidence that PDF content was
+ * permanently removed.
  */
 export const RedactionPreviewPanel: React.FC = () => {
   const [regions, setRegions] = useState<RedactionRegion[]>(
-    getRedactionState().regions
+    getRedactionState().regions,
   );
 
   useEffect(() => {
@@ -32,14 +32,17 @@ export const RedactionPreviewPanel: React.FC = () => {
   const handleExport = () => {
     const plan = exportPlan();
     const json = JSON.stringify(plan, null, 2);
-    window.prompt('Redaction plan JSON', json);
+    window.prompt('Visual mask plan JSON', json);
   };
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h3>Redaction Preview</h3>
+      <h3>Visual Mask Plan</h3>
+      <p role="note" style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#92400e' }}>
+        {VISUAL_MASK_WARNING}
+      </p>
       {regions.length === 0 ? (
-        <p>No regions marked for redaction.</p>
+        <p>No regions marked for visual masking.</p>
       ) : (
         <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
           {regions.map((region) => (
@@ -75,11 +78,11 @@ export const RedactionPreviewPanel: React.FC = () => {
         disabled={regions.length === 0}
         style={{ marginTop: '1rem' }}
       >
-        Export JSON Plan
+        Export Visual Mask Plan
       </button>
       <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
-        Note: This plan contains only page numbers and rectangles. Final
-        redaction must be performed by a trusted server.
+        This plan contains only page numbers and rectangles. A separate verified
+        secure-redaction pipeline is required to permanently remove content.
       </p>
     </div>
   );

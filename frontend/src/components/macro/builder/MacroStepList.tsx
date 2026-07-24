@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MacroRecipe, MacroStep } from '../../../core/macro/types';
 import type { ValidationResult } from '../../../core/macro/validator';
+import { getMacroOpPresentation } from '../../../core/macro/schema/presentation';
 import {
   getMacroStepSchemaAtPath,
   rootStepPath,
@@ -122,6 +123,7 @@ export function MacroStepList({
           const path = rootStepPath(index);
           const selected = isSamePath(selectedPath, path);
           const schema = getMacroStepSchemaAtPath(recipe, path);
+          const presentation = schema ? getMacroOpPresentation(schema) : null;
           const errors = validation.errors.filter((error) =>
             error.field.startsWith(`steps.${index}`) ||
             error.stepIndex === index,
@@ -152,7 +154,7 @@ export function MacroStepList({
                   }}
                 >
                   <strong>
-                    {index + 1}. {schema?.label ?? step.op}
+                    {index + 1}. {presentation?.label ?? step.op}
                   </strong>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>{step.op}</div>
                   <StepSummary step={step} />

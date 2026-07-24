@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import type { DocumentCommand } from '@/core/commands/types';
+import { VISUAL_MASK_WARNING } from '@/core/redaction/capability';
 
 export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'watermark' | 'redaction';
 
@@ -17,7 +18,7 @@ const TITLES: Record<ThumbnailMacroKind, string> = {
   fileHeader: 'Add File Header',
   textStamp: 'Batch Text Stamp',
   watermark: 'Diagonal Watermark',
-  redaction: 'Redaction Box',
+  redaction: 'Visual Mask (Not Secure Redaction)',
 };
 
 const ALIGN_OPTIONS = ['left', 'center', 'right'] as const;
@@ -84,7 +85,7 @@ const DEFAULTS: Record<
     text: '',
     align: 'left',
     fontSize: 0,
-    color: '#ffffff',
+    color: '#000000',
     opacity: 1,
     marginY: 0,
     x: 36,
@@ -149,7 +150,10 @@ export const ThumbnailMacroConfigDialog: React.FC<
         pageIndices,
         options: { x, y, width, height, fillColor: color },
       };
-      onApply(command, 'Applied redaction box on selected pages.');
+      onApply(
+        command,
+        'Applied a visual mask. Underlying PDF content was not securely removed.',
+      );
       return;
     }
 
@@ -182,76 +186,89 @@ export const ThumbnailMacroConfigDialog: React.FC<
           Applies to {pageCount} selected page{pageCount === 1 ? '' : 's'}.
           {isHeaderFooter && ' Use {page}, {pages}, {file}, {date} as tokens.'}
           {isWatermark && ' Large diagonal text stamped across each page.'}
-          {isRedaction && ' Draws a filled rectangle to cover content.'}
+          {isRedaction && ' Draws an opaque rectangle over content.'}
         </p>
+
+        {isRedaction && (
+          <div
+            role="alert"
+            className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          >
+            {VISUAL_MASK_WARNING} Text may remain searchable, copyable, or extractable.
+          </div>
+        )}
 
         {!isRedaction && (
           <Field label="Text">
             <input
               type="text"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(event) => setText(event.target.value)}
               className={inputClass}
             />
           </Field>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Alignment">
-            <select
-              value={align}
-              onChange={(e) => setAlign(e.target.value as Align)}
-              className={inputClass}
-            >
-              {ALIGN_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Font size">
-            <input
-              type="number"
-              min={6}
-              max={96}
-              value={fontSize}
-              onChange={(e) => setFontSize(clampNumber(e.target.value, 6, 96, defaults.fontSize))}
-              className={inputClass}
-            />
-          </Field>
-        </div>
+        {!isRedaction && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Alignment">
+              <select
+                value={align}
+                onChange={(event) => setAlign(event.target.value as Align)}
+                className={inputClass}
+              >
+                {ALIGN_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Font size">
+              <input
+                type="number"
+                min={6}
+                max={96}
+                value={fontSize}
+                onChange={(event) => setFontSize(clampNumber(event.target.value, 6, 96, defaults.fontSize))}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Color">
+        <div className={isRedaction ? '' : 'grid grid-cols-2 gap-3'}>
+          <Field label={isRedaction ? 'Mask color' : 'Color'}>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={color}
-                onChange={(e) => setColor(e.target.value)}
+                onChange={(event) => setColor(event.target.value)}
                 className="h-8 w-10 rounded border border-slate-300 dark:border-slate-700 bg-transparent"
-                aria-label="Color"
+                aria-label={isRedaction ? 'Mask color' : 'Color'}
               />
               <input
                 type="text"
                 value={color}
-                onChange={(e) => setColor(e.target.value)}
+                onChange={(event) => setColor(event.target.value)}
                 className={inputClass}
               />
             </div>
           </Field>
-          <Field label={`Opacity (${opacity.toFixed(2)})`}>
-            <input
-              type="range"
-              min={0.1}
-              max={1}
-              step={0.05}
-              value={opacity}
-              onChange={(e) => setOpacity(Number(e.target.value))}
-              className="w-full"
-              aria-label="Opacity"
-            />
-          </Field>
+          {!isRedaction && (
+            <Field label={`Opacity (${opacity.toFixed(2)})`}>
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={opacity}
+                onChange={(event) => setOpacity(Number(event.target.value))}
+                className="w-full"
+                aria-label="Opacity"
+              />
+            </Field>
+          )}
         </div>
 
         {isHeaderFooter ? (
@@ -261,7 +278,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
               min={0}
               max={200}
               value={marginY}
-              onChange={(e) => setMarginY(clampNumber(e.target.value, 0, 200, defaults.marginY))}
+              onChange={(event) => setMarginY(clampNumber(event.target.value, 0, 200, defaults.marginY))}
               className={inputClass}
             />
           </Field>
@@ -271,7 +288,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
               <input
                 type="number"
                 value={x}
-                onChange={(e) => setX(clampNumber(e.target.value, 0, 2000, defaults.x))}
+                onChange={(event) => setX(clampNumber(event.target.value, 0, 2000, defaults.x))}
                 className={inputClass}
               />
             </Field>
@@ -279,7 +296,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
               <input
                 type="number"
                 value={y}
-                onChange={(e) => setY(clampNumber(e.target.value, 0, 2000, defaults.y))}
+                onChange={(event) => setY(clampNumber(event.target.value, 0, 2000, defaults.y))}
                 className={inputClass}
               />
             </Field>
@@ -293,7 +310,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
               min={0}
               max={360}
               value={rotation}
-              onChange={(e) => setRotation(clampNumber(e.target.value, 0, 360, 45))}
+              onChange={(event) => setRotation(clampNumber(event.target.value, 0, 360, 45))}
               className={inputClass}
             />
           </Field>
@@ -307,7 +324,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
                 min={1}
                 max={2000}
                 value={width}
-                onChange={(e) => setWidth(clampNumber(e.target.value, 1, 2000, 300))}
+                onChange={(event) => setWidth(clampNumber(event.target.value, 1, 2000, 300))}
                 className={inputClass}
               />
             </Field>
@@ -317,7 +334,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
                 min={1}
                 max={2000}
                 value={height}
-                onChange={(e) => setHeight(clampNumber(e.target.value, 1, 2000, 30))}
+                onChange={(event) => setHeight(clampNumber(event.target.value, 1, 2000, 30))}
                 className={inputClass}
               />
             </Field>
@@ -334,7 +351,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
             onClick={handleApply}
             disabled={!isRedaction && !text.trim()}
           >
-            Apply
+            {isRedaction ? 'Apply Visual Mask' : 'Apply'}
           </Button>
         </div>
       </div>

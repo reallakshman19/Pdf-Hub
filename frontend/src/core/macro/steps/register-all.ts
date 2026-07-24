@@ -5,6 +5,9 @@ import './conditional-ops';
 
 import { macroRegistry } from '../registry';
 import { info, warn } from '@/core/logger/service';
+import { registerLegacyVisualMaskCompatibility } from './visual-mask-compat';
+
+registerLegacyVisualMaskCompatibility();
 
 const ALL_OPS = [
   'rotate_pages', 'extract_pages', 'split_pages', 'duplicate_pages',

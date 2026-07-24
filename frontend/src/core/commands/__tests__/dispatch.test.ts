@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchCommand } from '../dispatch';
+import { useAnnotationStore } from '../../annotations/store';
+import type { PdfAnnotation } from '../../annotations/types';
 import { useHistoryStore } from '../../document-history/store';
 import { useSessionStore } from '../../session/store';
 
+const persistenceMocks = vi.hoisted(() => ({
+  saveAnnotations: vi.fn(),
+}));
+
 vi.mock('@/core/annotations/persistence', () => ({
-  saveAnnotations: vi.fn().mockResolvedValue(undefined),
+  saveAnnotations: persistenceMocks.saveAnnotations,
 }));
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
@@ -26,6 +32,7 @@ const pdfMocks = vi.hoisted(() => ({
   merge: vi.fn(),
   addHeaderFooterText: vi.fn(),
   drawTextOnPages: vi.fn(),
+  drawRedactionBoxes: vi.fn(),
   countPages: vi.fn(),
   getPageSize: vi.fn(),
 }));
@@ -44,15 +51,28 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     merge: pdfMocks.merge,
     addHeaderFooterText: pdfMocks.addHeaderFooterText,
     drawTextOnPages: pdfMocks.drawTextOnPages,
+    drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
     countPages: pdfMocks.countPages,
     getPageSize: pdfMocks.getPageSize,
   },
 }));
 
+const TEST_ANNOTATION: PdfAnnotation = {
+  id: 'annotation-1',
+  type: 'highlight',
+  pageNumber: 1,
+  rect: { x: 10, y: 20, width: 30, height: 12 },
+  data: {},
+  createdAt: 1,
+  updatedAt: 1,
+};
+
 describe('dispatchCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
+    useAnnotationStore.getState().setAnnotations([]);
     useSessionStore.getState().openDocument({
       documentKey: 'test-doc',
       fileName: 'test.pdf',
@@ -76,6 +96,26 @@ describe('dispatchCommand', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
     expect(useHistoryStore.getState().undoStack[0].source).toBe('toolbar');
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2, 2, 2]));
+    expect(useSessionStore.getState().documentKey).toBe('mock-hash-3');
+  });
+
+  it('does not mutate any store when annotation persistence fails', async () => {
+    useAnnotationStore.getState().setAnnotations([TEST_ANNOTATION]);
+    pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
+    persistenceMocks.saveAnnotations.mockRejectedValueOnce(new Error('IndexedDB quota exceeded'));
+
+    const result = await dispatchCommand({
+      source: 'toolbar',
+      command: { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.mutated).toBe(false);
+    expect(result.error?.details).toBe('transaction-stage=persistence');
+    expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
+    expect(useSessionStore.getState().documentKey).toBe('test-doc');
+    expect(useAnnotationStore.getState().annotations).toEqual([TEST_ANNOTATION]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
   it('returns artifact and does not mutate for EXTRACT_PAGES', async () => {
@@ -239,6 +279,30 @@ describe('dispatchCommand', () => {
 
     expect(result.success).toBe(true);
     expect(pdfMocks.drawTextOnPages).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels legacy redaction commands as visual masks', async () => {
+    pdfMocks.drawRedactionBoxes.mockResolvedValue(new Uint8Array([4, 4, 4]));
+
+    const result = await dispatchCommand({
+      source: 'toolbar',
+      command: {
+        type: 'DRAW_REDACTION_BOX',
+        pageIndices: [0],
+        options: {
+          x: 20,
+          y: 30,
+          width: 120,
+          height: 24,
+          fillColor: '#000000',
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/visual mask/i);
+    expect(result.message).toMatch(/not securely removed/i);
+    expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Draw visual mask');
   });
 
   it('returns validation error for empty header/footer target', async () => {

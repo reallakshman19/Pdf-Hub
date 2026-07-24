@@ -1,28 +1,36 @@
 import type { JSX } from 'react';
+import {
+  REDACTION_CAPABILITY,
+  VISUAL_MASK_WARNING,
+  supportsSecureRedaction,
+} from '@/core/redaction/capability';
 
 /**
- * Placeholder component for the Redaction tool. In the preview
- * implementation of DocCraft there is no ability to perform true
- * redaction—removing PDF content requires a server‑side pipeline. This
- * component communicates that limitation to the user and provides a simple
- * affordance for enabling redaction preview mode when integrated with the
- * viewer (not implemented here).
+ * Browser-only masking guardrail. This surface deliberately avoids any action
+ * that could be mistaken for permanent PDF redaction.
  */
 export const RedactionTool = (): JSX.Element => {
+  const secureRedactionAvailable = supportsSecureRedaction();
+
   return (
     <div
+      role="note"
+      data-redaction-capability={REDACTION_CAPABILITY}
       style={{
         padding: '1rem',
-        border: '1px solid #ccc',
+        border: '1px solid #f59e0b',
         borderRadius: '4px',
         backgroundColor: '#fff8e1',
       }}
     >
-      <strong>Redaction (Preview Only)</strong>
+      <strong>Visual Mask (Not Secure Redaction)</strong>
       <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', color: '#555' }}>
-        Marking regions for redaction is available in preview mode. Final
-        redaction (permanently removing PDF content) requires a server‑side
-        implementation and is not yet available.
+        {VISUAL_MASK_WARNING}
+      </p>
+      <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#7c2d12' }}>
+        {secureRedactionAvailable
+          ? 'Secure redaction is available in this build.'
+          : 'Secure redaction is unavailable. Exported masks may leave text searchable or extractable.'}
       </p>
     </div>
   );
