@@ -29,7 +29,11 @@ import {
 export type MacroExecutionStatus = 'success' | 'failed' | 'cancelled' | 'timed-out';
 
 export interface MacroExecutionResult {
-  status: MacroExecutionStatus;
+  /**
+   * Real executor results always include status. It remains optional only for
+   * compatibility with older integrations and tests that supplied success alone.
+   */
+  status?: MacroExecutionStatus;
   success: boolean;
   outputFiles: { name: string; bytes: Uint8Array }[];
   stepResults: StepResult[];
