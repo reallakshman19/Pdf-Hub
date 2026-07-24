@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DocumentCommand } from '../../commands/types';
 import type { Transaction } from '../types';
 import {
   retainedBytesForTransactions,
@@ -6,7 +7,7 @@ import {
   type HistoryRetentionPolicy,
 } from '../historyBudget';
 
-const command = { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 } as const;
+const command: DocumentCommand = { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 };
 
 function transaction(
   id: string,
