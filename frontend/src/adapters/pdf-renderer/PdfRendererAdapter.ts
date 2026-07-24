@@ -96,8 +96,8 @@ function clonePdfBytes(buffer: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer
     : new Uint8Array(buffer.slice(0));
 }
 
-function digestHex(bytes: Uint8Array): Promise<string> {
-  const digestInput = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+function digestHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  const digestInput = Uint8Array.from(bytes).buffer;
   return crypto.subtle.digest('SHA-256', digestInput).then((digest) =>
     Array.from(new Uint8Array(digest))
       .map((value) => value.toString(16).padStart(2, '0'))
