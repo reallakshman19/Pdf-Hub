@@ -1,0 +1,31 @@
+name: agent-test-diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-diagnostics:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - name: Install dependencies
+        run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Capture test output
+        run: |
+          cd frontend
+          pnpm test:ci > ../test.log 2>&1 || true
+      - name: Upload test output
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-log
+          path: test.log
+          if-no-files-found: error
