@@ -1,0 +1,54 @@
+name: agent-render-scheduling-integration
+
+on:
+  push:
+    branches:
+      - agent/render-scheduling-memory-budgets
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/render-scheduling-memory-budgets
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply render scheduling integration
+        run: python scripts/agent_apply_render_scheduling.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - name: Install dependencies
+        run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Strict TypeScript
+        run: cd frontend && pnpm run typecheck
+      - name: Render scheduling regressions
+        run: >-
+          cd frontend && pnpm exec vitest run
+          src/core/renderer/renderScheduler.test.ts
+          src/core/renderer/renderResourceCache.test.ts
+          src/adapters/pdf-renderer/PdfRendererAdapter.test.ts
+          --pool=forks --maxWorkers=1
+      - name: Complete Vitest suite
+        run: cd frontend && pnpm exec vitest run --pool=forks
+      - name: Commit validated integration
+        run: |
+          if git diff --quiet; then
+            echo "No integration changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts frontend/src/components/sidebar/panels/ThumbnailSidebar.tsx
+          git commit -m "Integrate scheduled thumbnail rendering"
+          git push origin HEAD:agent/render-scheduling-memory-budgets
