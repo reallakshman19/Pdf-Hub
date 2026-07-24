@@ -332,10 +332,14 @@ export async function createPsIsonoteEvidencePackage(
   const checksums = serializeChecksums(entries);
   const zip = new JSZip();
   const date = packageDate(options.report.createdAt);
+  const decoder = new TextDecoder();
 
   for (const payload of payloads) {
-    zip.file(payload.name, payload.bytes, {
-      binary: true,
+    const data = payload.compression === 'DEFLATE'
+      ? decoder.decode(payload.bytes)
+      : payload.bytes;
+    zip.file(payload.name, data, {
+      binary: payload.compression === 'STORE',
       date,
       compression: payload.compression,
       compressionOptions: payload.compression === 'DEFLATE' ? { level: 6 } : undefined,
