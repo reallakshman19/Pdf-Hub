@@ -93,7 +93,9 @@ describe('PdfRendererAdapter document lifecycle', () => {
     const doc = mockDocument('retry');
     vi.mocked(pdfjsLib.getDocument)
       .mockReturnValueOnce({
-        promise: Promise.reject(new Error('malformed PDF')),
+        promise: Promise.resolve().then(() => {
+          throw new Error('malformed PDF');
+        }),
       } as ReturnType<typeof pdfjsLib.getDocument>)
       .mockReturnValueOnce({
         promise: Promise.resolve(doc),
