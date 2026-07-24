@@ -38,46 +38,47 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import re
-
           target = Path('frontend/src/core/ocr/engines/tesseractJsEngine.ts')
           text = target.read_text(encoding='utf-8')
           pattern = re.compile(r"      const workerPromise = workerFactory\(language\);.*?      \} finally \{\n        await terminateOnce\(\);\n      \}", re.S)
-          replacement = '''      let activeWorker: TesseractWorkerLike | null = null;
-      let terminationPromise: Promise<void> | null = null;
-      const terminateOnce = (workerOverride?: TesseractWorkerLike) => {
-        const targetWorker = workerOverride ?? activeWorker;
-        if (!targetWorker) return Promise.resolve();
-        terminationPromise ??= targetWorker.terminate().catch(() => undefined);
-        return terminationPromise;
-      };
-
-      const workerPromise = workerFactory(language).then((createdWorker) => {
-        activeWorker = createdWorker;
-        return createdWorker;
-      });
-      const worker = await raceWithAbort(
-        workerPromise,
-        signal,
-        'start Tesseract worker',
-        () => {
-          void workerPromise
-            .then((lateWorker) => terminateOnce(lateWorker))
-            .catch(() => undefined);
-        },
-      );
-
-      try {
-        const recognitionPromise = worker.recognize(image);
-        const result = await raceWithAbort(
-          recognitionPromise,
-          signal,
-          'run Tesseract recognition',
-          () => { void terminateOnce(); },
-        );
-        return result.data;
-      } finally {
-        await terminateOnce();
-      }'''
+          replacement = '\n'.join([
+              '      let activeWorker: TesseractWorkerLike | null = null;',
+              '      let terminationPromise: Promise<void> | null = null;',
+              '      const terminateOnce = (workerOverride?: TesseractWorkerLike) => {',
+              '        const targetWorker = workerOverride ?? activeWorker;',
+              '        if (!targetWorker) return Promise.resolve();',
+              '        terminationPromise ??= targetWorker.terminate().catch(() => undefined);',
+              '        return terminationPromise;',
+              '      };',
+              '',
+              '      const workerPromise = workerFactory(language).then((createdWorker) => {',
+              '        activeWorker = createdWorker;',
+              '        return createdWorker;',
+              '      });',
+              '      const worker = await raceWithAbort(',
+              '        workerPromise,',
+              '        signal,',
+              "        'start Tesseract worker',",
+              '        () => {',
+              '          void workerPromise',
+              '            .then((lateWorker) => terminateOnce(lateWorker))',
+              '            .catch(() => undefined);',
+              '        },',
+              '      );',
+              '',
+              '      try {',
+              '        const recognitionPromise = worker.recognize(image);',
+              '        const result = await raceWithAbort(',
+              '          recognitionPromise,',
+              '          signal,',
+              "          'run Tesseract recognition',",
+              '          () => { void terminateOnce(); },',
+              '        );',
+              '        return result.data;',
+              '      } finally {',
+              '        await terminateOnce();',
+              '      }',
+          ])
           updated, count = pattern.subn(lambda _match: replacement, text, count=1)
           if count != 1:
               raise SystemExit(f'Tesseract termination block matches: {count}')
