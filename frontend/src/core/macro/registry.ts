@@ -1,4 +1,6 @@
 import type { MacroStep, MacroExecutionContext } from './types';
+import { OperationCancelledError } from '@/core/cancellation/operationCancellation';
+import { MacroResourceLimitError } from './resourceBudget';
 
 export type SideEffect =
   | { type: 'bytes_updated'; bytes: Uint8Array }
@@ -22,9 +24,6 @@ export interface MacroMutableState {
   outputFiles: { name: string; bytes: Uint8Array }[];
 }
 
-/**
- * Supports both synchronous steps and real async adapter-backed PDF steps.
- */
 export type StepExecutor<T extends MacroStep = MacroStep> = (
   step: T,
   ctx: MacroExecutionContext,
@@ -78,6 +77,9 @@ export class MacroStepRegistry {
     try {
       return await executor(step, ctx, state);
     } catch (err) {
+      if (err instanceof OperationCancelledError || err instanceof MacroResourceLimitError) {
+        throw err;
+      }
       return {
         status: 'error',
         message: err instanceof Error ? err.message : String(err),

@@ -1,17 +1,35 @@
 import type { MacroRecipe } from './types';
-import { executeMacroRecipe } from './executor';
+import type { MacroResourceLimits } from './resourceBudget';
+import { executeMacroRecipe, type MacroExecutionResult } from './executor';
 import { useSessionStore } from '@/core/session/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { throwIfAborted } from '@/core/cancellation/operationCancellation';
+
+export interface SessionMacroRunOptions {
+  donorFiles?: Record<string, Uint8Array>;
+  saveOutputs?: boolean;
+  dryRun?: boolean;
+  abortSignal?: AbortSignal;
+  resourceLimits?: Partial<MacroResourceLimits>;
+}
 
 let runPromise: Promise<unknown> = Promise.resolve();
 
+function cancelledBeforeCommit(result: MacroExecutionResult): MacroExecutionResult {
+  return {
+    ...result,
+    status: 'cancelled',
+    success: false,
+    cancelled: true,
+    rolledBack: true,
+    outputFiles: [],
+    logs: [...result.logs, '[cancelled] Macro was cancelled before session commit.'],
+  };
+}
+
 async function runMacroRecipeAgainstSessionNow(
   recipe: MacroRecipe,
-  options?: {
-    donorFiles?: Record<string, Uint8Array>;
-    saveOutputs?: boolean;
-    dryRun?: boolean;
-  },
+  options?: SessionMacroRunOptions,
 ) {
   const session = useSessionStore.getState();
 
@@ -37,20 +55,27 @@ async function runMacroRecipeAgainstSessionNow(
       fileName: session.fileName,
       donorFiles,
       now: new Date(),
+      options: {
+        abortSignal: options?.abortSignal,
+        resourceLimits: options?.resourceLimits,
+      },
     },
   );
 
-  /**
-   * Compatibility with both:
-   * - new executor result: success: boolean
-   * - older tests/mocks: success omitted but result represents success
-   *
-   * Only explicit success === false is treated as failed.
-   */
-  const executionSucceeded = result.success !== false;
+  const executionSucceeded = result.status === undefined
+    ? result.success !== false
+    : result.status === 'success';
 
   if (!options?.dryRun && executionSucceeded) {
+    if (options?.abortSignal?.aborted) {
+      return cancelledBeforeCommit(result);
+    }
+    throwIfAborted(options?.abortSignal, 'macro session commit');
+
     const { dispatchCommand } = await import('@/core/commands/dispatch');
+    if (options?.abortSignal?.aborted) {
+      return cancelledBeforeCommit(result);
+    }
 
     await dispatchCommand({
       source: 'macro-runner',
@@ -71,6 +96,7 @@ async function runMacroRecipeAgainstSessionNow(
 
   if (options?.saveOutputs && executionSucceeded) {
     for (const output of result.outputFiles) {
+      throwIfAborted(options.abortSignal, `saving macro output ${output.name}`);
       await FileAdapter.savePdfBytes(output.bytes, output.name, null);
     }
   }
@@ -80,11 +106,7 @@ async function runMacroRecipeAgainstSessionNow(
 
 export async function runMacroRecipeAgainstSession(
   recipe: MacroRecipe,
-  options?: {
-    donorFiles?: Record<string, Uint8Array>;
-    saveOutputs?: boolean;
-    dryRun?: boolean;
-  },
+  options?: SessionMacroRunOptions,
 ) {
   const run = runPromise.then(() => runMacroRecipeAgainstSessionNow(recipe, options));
   runPromise = run.catch(() => undefined);

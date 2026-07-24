@@ -3,6 +3,7 @@ import type { PDFPage } from 'pdf-lib';
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { readFillColor, readStrokeColor, readStrokeWidth } from '@/core/annotations/readers';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
+import { raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
 
 type HeaderFooterOptions = {
   pages: number[];
@@ -19,6 +20,7 @@ type HeaderFooterOptions = {
   enablePageNumberToken: boolean;
   enableFileNameToken: boolean;
   enableDateToken: boolean;
+  signal?: AbortSignal;
 };
 
 type DrawTextOptions = {
@@ -36,7 +38,24 @@ type DrawTextOptions = {
   enablePageNumberToken: boolean;
   enableFileNameToken: boolean;
   enableDateToken: boolean;
+  signal?: AbortSignal;
 };
+
+export interface PdfEditOperationOptions {
+  signal?: AbortSignal;
+}
+
+async function awaitPdfOperation<T>(
+  operationPromise: Promise<T>,
+  signal: AbortSignal | undefined,
+  operation: string,
+): Promise<T> {
+  return raceWithAbort(operationPromise, signal, operation);
+}
+
+function pdfCheckpoint(signal: AbortSignal | undefined, operation: string): void {
+  throwIfAborted(signal, operation);
+}
 
 function normalizePageIndices(pageIndices: number[]): number[] {
   return Array.from(new Set(pageIndices)).sort((a, b) => a - b);
@@ -202,54 +221,112 @@ function drawLineCap(
 }
 
 export class PdfEditAdapter {
-  static async countPages(bytes: Uint8Array): Promise<number> {
-    const pdfDoc = await PDFDocument.load(bytes);
+  static async countPages(
+    bytes: Uint8Array,
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<number> {
+    const pdfDoc = await awaitPdfOperation(
+      PDFDocument.load(bytes),
+      operationOptions.signal,
+      'count PDF pages: load',
+    );
+    pdfCheckpoint(operationOptions.signal, 'count PDF pages');
     return pdfDoc.getPageCount();
   }
 
   static async getPageSize(
     bytes: Uint8Array,
     pageIndex: number,
+    operationOptions: PdfEditOperationOptions = {},
   ): Promise<{ width: number; height: number }> {
-    const pdfDoc = await PDFDocument.load(bytes);
+    const pdfDoc = await awaitPdfOperation(
+      PDFDocument.load(bytes),
+      operationOptions.signal,
+      'read PDF page size: load',
+    );
+    pdfCheckpoint(operationOptions.signal, 'read PDF page size');
     const page = pdfDoc.getPage(pageIndex);
     return { width: page.getWidth(), height: page.getHeight() };
   }
 
-  static async merge(baseBytes: Uint8Array, appendDocs: Uint8Array[]): Promise<Uint8Array> {
-    const out = await PDFDocument.load(baseBytes);
+  static async merge(
+    baseBytes: Uint8Array,
+    appendDocs: Uint8Array[],
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const out = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'merge PDFs: load base',
+    );
 
     for (const docBytes of appendDocs) {
-      const src = await PDFDocument.load(docBytes);
-      const copied = await out.copyPages(src, src.getPageIndices());
-      copied.forEach((page) => out.addPage(page));
+      pdfCheckpoint(operationOptions.signal, 'merge PDFs');
+      const src = await awaitPdfOperation(
+        PDFDocument.load(docBytes),
+        operationOptions.signal,
+        'merge PDFs: load donor',
+      );
+      const copied = await awaitPdfOperation(
+        out.copyPages(src, src.getPageIndices()),
+        operationOptions.signal,
+        'merge PDFs: copy pages',
+      );
+      for (const page of copied) {
+        pdfCheckpoint(operationOptions.signal, 'merge PDFs: add page');
+        out.addPage(page);
+      }
     }
 
-    return await out.save();
+    return await awaitPdfOperation(out.save(), operationOptions.signal, 'merge PDFs: save');
   }
 
-  static async insertAt(baseBytes: Uint8Array, insertBytes: Uint8Array, atIndex: number): Promise<Uint8Array> {
-    const baseDoc = await PDFDocument.load(baseBytes);
-    const insertDoc = await PDFDocument.load(insertBytes);
-    const copied = await baseDoc.copyPages(insertDoc, insertDoc.getPageIndices());
+  static async insertAt(
+    baseBytes: Uint8Array,
+    insertBytes: Uint8Array,
+    atIndex: number,
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const baseDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'insert PDF: load base',
+    );
+    const insertDoc = await awaitPdfOperation(
+      PDFDocument.load(insertBytes),
+      operationOptions.signal,
+      'insert PDF: load donor',
+    );
+    const copied = await awaitPdfOperation(
+      baseDoc.copyPages(insertDoc, insertDoc.getPageIndices()),
+      operationOptions.signal,
+      'insert PDF: copy pages',
+    );
 
     let targetIndex = Math.max(0, Math.min(atIndex, baseDoc.getPageCount()));
-    copied.forEach((page) => {
+    for (const page of copied) {
+      pdfCheckpoint(operationOptions.signal, 'insert PDF: add page');
       baseDoc.insertPage(targetIndex, page);
       targetIndex += 1;
-    });
+    }
 
-    return await baseDoc.save();
+    return await awaitPdfOperation(baseDoc.save(), operationOptions.signal, 'insert PDF: save');
   }
 
   static async insertBlankPage(
     baseBytes: Uint8Array,
     atIndex: number,
     size: { width: number; height: number },
+    operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
+    const pdfDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'insert blank page: load',
+    );
+    pdfCheckpoint(operationOptions.signal, 'insert blank page');
     pdfDoc.insertPage(Math.max(0, Math.min(atIndex, pdfDoc.getPageCount())), [size.width, size.height]);
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), operationOptions.signal, 'insert blank page: save');
   }
 
   static async replacePage(
@@ -257,37 +334,86 @@ export class PdfEditAdapter {
     targetIndex: number,
     donorBytes: Uint8Array,
     donorPageIndex: number,
+    operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
-    const baseDoc = await PDFDocument.load(baseBytes);
-    const donorDoc = await PDFDocument.load(donorBytes);
-    const outDoc = await PDFDocument.create();
+    const baseDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'replace page: load base',
+    );
+    const donorDoc = await awaitPdfOperation(
+      PDFDocument.load(donorBytes),
+      operationOptions.signal,
+      'replace page: load donor',
+    );
+    const outDoc = await awaitPdfOperation(
+      PDFDocument.create(),
+      operationOptions.signal,
+      'replace page: create output',
+    );
 
-    const donorCopied = await outDoc.copyPages(donorDoc, [donorPageIndex]);
+    const donorCopied = await awaitPdfOperation(
+      outDoc.copyPages(donorDoc, [donorPageIndex]),
+      operationOptions.signal,
+      'replace page: copy donor',
+    );
     const replacement = donorCopied[0];
 
     for (const index of baseDoc.getPageIndices()) {
+      pdfCheckpoint(operationOptions.signal, 'replace page: rebuild output');
       if (index === targetIndex) {
         outDoc.addPage(replacement);
       } else {
-        const [copied] = await outDoc.copyPages(baseDoc, [index]);
+        const [copied] = await awaitPdfOperation(
+          outDoc.copyPages(baseDoc, [index]),
+          operationOptions.signal,
+          'replace page: copy source page',
+        );
         outDoc.addPage(copied);
       }
     }
 
-    return await outDoc.save();
+    return await awaitPdfOperation(outDoc.save(), operationOptions.signal, 'replace page: save');
   }
 
-  static async extractPages(baseBytes: Uint8Array, pageIndices: number[]): Promise<Uint8Array> {
-    const srcDoc = await PDFDocument.load(baseBytes);
-    const outDoc = await PDFDocument.create();
+  static async extractPages(
+    baseBytes: Uint8Array,
+    pageIndices: number[],
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const srcDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'extract pages: load',
+    );
+    const outDoc = await awaitPdfOperation(
+      PDFDocument.create(),
+      operationOptions.signal,
+      'extract pages: create output',
+    );
     const normalized = normalizePageIndices(pageIndices);
-    const copied = await outDoc.copyPages(srcDoc, normalized);
-    copied.forEach((page) => outDoc.addPage(page));
-    return await outDoc.save();
+    const copied = await awaitPdfOperation(
+      outDoc.copyPages(srcDoc, normalized),
+      operationOptions.signal,
+      'extract pages: copy',
+    );
+    for (const page of copied) {
+      pdfCheckpoint(operationOptions.signal, 'extract pages: add page');
+      outDoc.addPage(page);
+    }
+    return await awaitPdfOperation(outDoc.save(), operationOptions.signal, 'extract pages: save');
   }
 
-  static async removePages(baseBytes: Uint8Array, pageIndices: number[]): Promise<Uint8Array> {
-    const srcDoc = await PDFDocument.load(baseBytes);
+  static async removePages(
+    baseBytes: Uint8Array,
+    pageIndices: number[],
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const srcDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'remove pages: load',
+    );
     const toRemove = new Set(normalizePageIndices(pageIndices));
     const keepIndices = srcDoc.getPageIndices().filter((index) => !toRemove.has(index));
 
@@ -295,47 +421,80 @@ export class PdfEditAdapter {
       throw new Error('Cannot remove all pages from the document');
     }
 
-    const outDoc = await PDFDocument.create();
-    const copied = await outDoc.copyPages(srcDoc, keepIndices);
-    copied.forEach((page) => outDoc.addPage(page));
-    return await outDoc.save();
+    const outDoc = await awaitPdfOperation(
+      PDFDocument.create(),
+      operationOptions.signal,
+      'remove pages: create output',
+    );
+    const copied = await awaitPdfOperation(
+      outDoc.copyPages(srcDoc, keepIndices),
+      operationOptions.signal,
+      'remove pages: copy',
+    );
+    for (const page of copied) {
+      pdfCheckpoint(operationOptions.signal, 'remove pages: add page');
+      outDoc.addPage(page);
+    }
+    return await awaitPdfOperation(outDoc.save(), operationOptions.signal, 'remove pages: save');
   }
 
-  static async duplicatePages(baseBytes: Uint8Array, pageIndices: number[]): Promise<Uint8Array> {
-    const srcDoc = await PDFDocument.load(baseBytes);
+  static async duplicatePages(
+    baseBytes: Uint8Array,
+    pageIndices: number[],
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const srcDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'duplicate pages: load',
+    );
     const selected = new Set(normalizePageIndices(pageIndices));
 
     const order: number[] = [];
-    srcDoc.getPageIndices().forEach((index) => {
+    for (const index of srcDoc.getPageIndices()) {
+      pdfCheckpoint(operationOptions.signal, 'duplicate pages: build order');
       order.push(index);
-      if (selected.has(index)) {
-        order.push(index);
-      }
-    });
+      if (selected.has(index)) order.push(index);
+    }
 
-    const outDoc = await PDFDocument.create();
-    const copied = await outDoc.copyPages(srcDoc, order);
-    copied.forEach((page) => outDoc.addPage(page));
-    return await outDoc.save();
+    const outDoc = await awaitPdfOperation(
+      PDFDocument.create(),
+      operationOptions.signal,
+      'duplicate pages: create output',
+    );
+    const copied = await awaitPdfOperation(
+      outDoc.copyPages(srcDoc, order),
+      operationOptions.signal,
+      'duplicate pages: copy',
+    );
+    for (const page of copied) {
+      pdfCheckpoint(operationOptions.signal, 'duplicate pages: add page');
+      outDoc.addPage(page);
+    }
+    return await awaitPdfOperation(outDoc.save(), operationOptions.signal, 'duplicate pages: save');
   }
 
   static async rotatePages(
     baseBytes: Uint8Array,
     pageIndices: number[],
     deltaDegrees: number,
+    operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
+    const pdfDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'rotate pages: load',
+    );
     const selected = new Set(normalizePageIndices(pageIndices));
 
-    pdfDoc.getPages().forEach((page, index) => {
-      if (!selected.has(index)) {
-        return;
-      }
+    for (const [index, page] of pdfDoc.getPages().entries()) {
+      pdfCheckpoint(operationOptions.signal, 'rotate pages');
+      if (!selected.has(index)) continue;
       const nextRotation = (page.getRotation().angle + deltaDegrees + 360) % 360;
       page.setRotation(degrees(nextRotation));
-    });
+    }
 
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), operationOptions.signal, 'rotate pages: save');
   }
 
   static async movePage(baseBytes: Uint8Array, fromIndex: number, toIndex: number): Promise<Uint8Array> {
@@ -378,8 +537,16 @@ export class PdfEditAdapter {
     return await out.save();
   }
 
-  static async reorderPages(baseBytes: Uint8Array, order: number[]): Promise<Uint8Array> {
-    const srcDoc = await PDFDocument.load(baseBytes);
+  static async reorderPages(
+    baseBytes: Uint8Array,
+    order: number[],
+    operationOptions: PdfEditOperationOptions = {},
+  ): Promise<Uint8Array> {
+    const srcDoc = await awaitPdfOperation(
+      PDFDocument.load(baseBytes),
+      operationOptions.signal,
+      'reorder pages: load',
+    );
     const pageCount = srcDoc.getPageCount();
 
     if (order.length !== pageCount) {
@@ -388,26 +555,39 @@ export class PdfEditAdapter {
 
     const sorted = [...order].sort((a, b) => a - b);
     for (let index = 0; index < pageCount; index += 1) {
+      pdfCheckpoint(operationOptions.signal, 'reorder pages: validate');
       if (sorted[index] !== index) {
         throw new Error('Reorder list is not a valid page permutation');
       }
     }
 
-    const out = await PDFDocument.create();
-    const copied = await out.copyPages(srcDoc, order);
-    copied.forEach((page) => out.addPage(page));
-    return await out.save();
+    const out = await awaitPdfOperation(
+      PDFDocument.create(),
+      operationOptions.signal,
+      'reorder pages: create output',
+    );
+    const copied = await awaitPdfOperation(
+      out.copyPages(srcDoc, order),
+      operationOptions.signal,
+      'reorder pages: copy',
+    );
+    for (const page of copied) {
+      pdfCheckpoint(operationOptions.signal, 'reorder pages: add page');
+      out.addPage(page);
+    }
+    return await awaitPdfOperation(out.save(), operationOptions.signal, 'reorder pages: save');
   }
 
   static async addHeaderFooterText(
     baseBytes: Uint8Array,
     options: HeaderFooterOptions,
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'header/footer: load');
+    const font = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'header/footer: embed font');
     const totalPages = pdfDoc.getPageCount();
 
     for (const pageIndex of options.pages) {
+      pdfCheckpoint(options.signal, 'header/footer: draw page');
       const page = pdfDoc.getPage(pageIndex);
       const width = page.getWidth();
       const height = page.getHeight();
@@ -444,18 +624,19 @@ export class PdfEditAdapter {
       });
     }
 
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'header/footer: save');
   }
 
   static async drawTextOnPages(
     baseBytes: Uint8Array,
     options: DrawTextOptions,
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'draw text: load');
+    const font = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'draw text: embed font');
     const totalPages = pdfDoc.getPageCount();
 
     for (const pageIndex of options.pages) {
+      pdfCheckpoint(options.signal, 'draw text: draw page');
       const page = pdfDoc.getPage(pageIndex);
       const width = page.getWidth();
 
@@ -488,7 +669,7 @@ export class PdfEditAdapter {
       });
     }
 
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'draw text: save');
   }
 
   static async insertImage(
@@ -506,12 +687,13 @@ export class PdfEditAdapter {
       borderWidth?: number;
       borderColor?: string;
       rotation?: number;
+      signal?: AbortSignal;
     }
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
+    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'insert image: load');
     const image = options.mimeType === 'image/jpeg'
-      ? await pdfDoc.embedJpg(options.imageBytes)
-      : await pdfDoc.embedPng(options.imageBytes);
+      ? await awaitPdfOperation(pdfDoc.embedJpg(options.imageBytes), options.signal, 'insert image: embed JPEG')
+      : await awaitPdfOperation(pdfDoc.embedPng(options.imageBytes), options.signal, 'insert image: embed PNG');
 
     let drawWidth = image.width;
     let drawHeight = image.height;
@@ -525,13 +707,14 @@ export class PdfEditAdapter {
     }
 
     for (const pageIndex of options.pages) {
+      pdfCheckpoint(options.signal, 'insert image: draw page');
       const page = pdfDoc.getPage(pageIndex);
       const pageHeight = page.getHeight();
       const drawY = pageHeight - options.y - drawHeight;
       page.drawImage(image, { x: options.x, y: drawY, width: drawWidth, height: drawHeight });
     }
 
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'insert image: save');
   }
 
   static async drawRedactionBoxes(
@@ -543,12 +726,14 @@ export class PdfEditAdapter {
       width: number;
       height: number;
       fillColor: string;
+      signal?: AbortSignal;
     },
   ): Promise<Uint8Array> {
-    const pdfDoc = await PDFDocument.load(baseBytes);
+    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'redaction boxes: load');
     const fill = hexToRgb(options.fillColor);
 
     for (const pageIndex of options.pages) {
+      pdfCheckpoint(options.signal, 'redaction boxes: draw page');
       const page = pdfDoc.getPage(pageIndex);
       const pageHeight = page.getHeight();
       const drawY = pageHeight - options.y - options.height;
@@ -563,7 +748,7 @@ export class PdfEditAdapter {
       });
     }
 
-    return await pdfDoc.save();
+    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'redaction boxes: save');
   }
 
   static async rotatePage(baseBytes: Uint8Array, pageIndex: number, deltaDegrees: number): Promise<Uint8Array> {

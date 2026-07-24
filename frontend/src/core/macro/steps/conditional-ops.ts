@@ -23,6 +23,8 @@ async function executeConditional(
     const result = budget
       ? await budget.run(operation, subStep.op)
       : await operation;
+    budget?.checkpoint(`${subStep.op} result`);
+    budget?.afterStep(state, result.sideEffects);
     subResults.push(result);
     mergedSideEffects.push(...result.sideEffects);
 
@@ -30,7 +32,6 @@ async function executeConditional(
       if (effect.type === 'bytes_updated') state.workingBytes = effect.bytes;
       if (effect.type === 'page_count_changed') state.pageCount = effect.newCount;
     }
-    budget?.afterStep(state, result.sideEffects);
 
     if (result.status === 'error') break;
   }

@@ -1,5 +1,6 @@
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
+import type { MacroResourceLimits } from './resourceBudget';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { macroValidator } from './validator';
 import {
@@ -8,23 +9,24 @@ import {
   parseMacroRecipeJson,
 } from './resourceBudget';
 
-/**
- * Executes a macro directly from a raw JSON payload representing the DSL,
- * entirely bypassing the UI and Session stores. This enables other apps
- * to pass code-based page creation instructions.
- */
+export interface HeadlessMacroOptions {
+  abortSignal?: AbortSignal;
+  resourceLimits?: Partial<MacroResourceLimits>;
+}
+
 export async function executeHeadlessMacro(
   basePdfBytes: Uint8Array,
   recipeDsl: string | MacroRecipe,
   fileName: string = 'headless.pdf',
   donorFiles: Record<string, Uint8Array> = {},
+  options: HeadlessMacroOptions = {},
 ): Promise<Uint8Array> {
   const recipe = typeof recipeDsl === 'string'
-    ? parseMacroRecipeJson(recipeDsl)
+    ? parseMacroRecipeJson(recipeDsl, options.resourceLimits)
     : recipeDsl;
 
-  inspectMacroRecipeBudget(recipe);
-  assertMacroInputResources(basePdfBytes, donorFiles);
+  inspectMacroRecipeBudget(recipe, options.resourceLimits);
+  assertMacroInputResources(basePdfBytes, donorFiles, options.resourceLimits);
 
   const validation = macroValidator.validate(recipe);
   if (!validation.valid) {
@@ -34,7 +36,9 @@ export async function executeHeadlessMacro(
     throw new Error(`Invalid Headless Macro DSL: ${details}`);
   }
 
-  const pageCount = await PdfEditAdapter.countPages(basePdfBytes);
+  const pageCount = await PdfEditAdapter.countPages(basePdfBytes, {
+    signal: options.abortSignal,
+  });
 
   const result = await executeMacroRecipe(
     recipe,
@@ -46,11 +50,16 @@ export async function executeHeadlessMacro(
       fileName,
       donorFiles,
       now: new Date(),
+      options: {
+        abortSignal: options.abortSignal,
+        resourceLimits: options.resourceLimits,
+      },
     },
   );
 
   if (!result.success) {
-    throw new Error(result.logs.join('\n') || 'Headless macro execution failed.');
+    throw new Error(result.logs.join('
+') || `Headless macro execution ${result.status}.`);
   }
 
   return result.finalBytes;

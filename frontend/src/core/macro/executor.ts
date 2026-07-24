@@ -21,8 +21,15 @@ import {
   MacroExecutionBudget,
   MacroResourceLimitError,
 } from './resourceBudget';
+import {
+  isOperationCancelledError,
+  OperationCancelledError,
+} from '@/core/cancellation/operationCancellation';
+
+export type MacroExecutionStatus = 'success' | 'failed' | 'cancelled' | 'timed-out';
 
 export interface MacroExecutionResult {
+  status: MacroExecutionStatus;
   success: boolean;
   outputFiles: { name: string; bytes: Uint8Array }[];
   stepResults: StepResult[];
@@ -31,6 +38,8 @@ export interface MacroExecutionResult {
   logs: string[];
   selectedPages: number[];
   rolledBack?: boolean;
+  cancelled?: boolean;
+  timedOut?: boolean;
   dryRunDiff?: MacroDryRunDiff;
 }
 
@@ -40,17 +49,37 @@ export interface ExecutionProgress {
   currentOp: string;
 }
 
-function resourceFailureResult(
+function failedBeforeExecution(
   ctx: MacroExecutionContext,
   error: MacroResourceLimitError,
 ): MacroExecutionResult {
+  const timedOut = error.code === 'MACRO_EXECUTION_TIMEOUT';
   return {
+    status: timedOut ? 'timed-out' : 'failed',
     success: false,
     outputFiles: [],
     stepResults: [{ status: 'error', message: error.message, sideEffects: [] }],
     finalBytes: ctx.workingBytes,
     logs: [`[resource-limit:${error.code}] ${error.message}`],
     selectedPages: ctx.selectedPages,
+    timedOut,
+  };
+}
+
+function cancelledBeforeExecution(
+  ctx: MacroExecutionContext,
+  error: OperationCancelledError,
+): MacroExecutionResult {
+  return {
+    status: 'cancelled',
+    success: false,
+    outputFiles: [],
+    stepResults: [{ status: 'error', message: error.message, sideEffects: [] }],
+    finalBytes: ctx.workingBytes,
+    logs: [`[cancelled] ${error.message}`],
+    selectedPages: ctx.selectedPages,
+    cancelled: true,
+    rolledBack: true,
   };
 }
 
@@ -66,10 +95,10 @@ export async function executeMacroRecipe(
     inspectMacroRecipeBudget(recipe, resourceLimits);
     assertMacroInputResources(ctx.workingBytes, ctx.donorFiles ?? {}, resourceLimits);
     budget = new MacroExecutionBudget(resourceLimits, ctx.options?.abortSignal);
+    budget.checkpoint('macro start');
   } catch (error) {
-    if (error instanceof MacroResourceLimitError) {
-      return resourceFailureResult(ctx, error);
-    }
+    if (isOperationCancelledError(error)) return cancelledBeforeExecution(ctx, error);
+    if (error instanceof MacroResourceLimitError) return failedBeforeExecution(ctx, error);
     throw error;
   }
 
@@ -77,6 +106,7 @@ export async function executeMacroRecipe(
 
   if (!validation.valid) {
     return {
+      status: 'failed',
       success: false,
       outputFiles: [],
       stepResults: [],
@@ -108,8 +138,10 @@ export async function executeMacroRecipe(
         }),
         'dry run',
       );
+      budget.checkpoint('dry run result');
 
       return {
+        status: dryRunReport.valid ? 'success' : 'failed',
         success: dryRunReport.valid,
         outputFiles: [],
         stepResults: [],
@@ -119,9 +151,8 @@ export async function executeMacroRecipe(
         dryRunDiff: dryRunReport.diff,
       };
     } catch (error) {
-      if (error instanceof MacroResourceLimitError) {
-        return resourceFailureResult(ctx, error);
-      }
+      if (isOperationCancelledError(error)) return cancelledBeforeExecution(ctx, error);
+      if (error instanceof MacroResourceLimitError) return failedBeforeExecution(ctx, error);
       throw error;
     }
   }
@@ -143,7 +174,7 @@ export async function executeMacroRecipe(
 
   const stepResults: StepResult[] = [];
   const snapshot = beginMacroTransaction(state);
-  let executionFailed = false;
+  let status: MacroExecutionStatus = 'success';
   let rolledBack = false;
 
   try {
@@ -162,50 +193,63 @@ export async function executeMacroRecipe(
         macroRegistry.execute(step, runtimeContext, state),
         step.op,
       );
+      budget.checkpoint(`${step.op} result`);
       stepResults.push(result);
 
+      budget.afterStep(state, result.sideEffects);
       applyMacroSideEffects(result.sideEffects, state);
-      budget.afterStep(state);
 
       if (result.message) {
         state.logs.push(`[step ${index + 1}/${recipe.steps.length}] ${step.op}: ${result.message}`);
       }
 
       if (result.status === 'error') {
-        executionFailed = true;
+        status = 'failed';
         if (ctx.options?.abortOnError !== false) {
           state.logs.push(buildMacroRollbackMessage(ctx, index, step.op, result.message));
           break;
         }
       }
     }
-  } catch (unexpectedErr) {
-    executionFailed = true;
+  } catch (unexpectedError) {
     rollbackMacroTransaction(state, snapshot);
     rolledBack = true;
 
-    if (unexpectedErr instanceof MacroResourceLimitError) {
-      stepResults.push({ status: 'error', message: unexpectedErr.message, sideEffects: [] });
-      state.logs.push(`[resource-limit:${unexpectedErr.code}] ${unexpectedErr.message}`);
+    if (isOperationCancelledError(unexpectedError)) {
+      status = 'cancelled';
+      stepResults.push({ status: 'error', message: unexpectedError.message, sideEffects: [] });
+      state.logs.push(`[cancelled] ${unexpectedError.message}`);
+    } else if (unexpectedError instanceof MacroResourceLimitError) {
+      status = unexpectedError.code === 'MACRO_EXECUTION_TIMEOUT' ? 'timed-out' : 'failed';
+      stepResults.push({ status: 'error', message: unexpectedError.message, sideEffects: [] });
+      state.logs.push(`[resource-limit:${unexpectedError.code}] ${unexpectedError.message}`);
     } else {
       state.logs.push('[fatal] Unexpected error — document rolled back to pre-macro state');
-      throw unexpectedErr;
+      throw unexpectedError;
     }
   }
 
-  if (executionFailed && ctx.options?.rollbackOnError !== false && !rolledBack) {
+  if (status === 'failed' && ctx.options?.rollbackOnError !== false && !rolledBack) {
     rollbackMacroTransaction(state, snapshot);
     rolledBack = true;
     state.logs.push('[rollback] Macro failed — document restored to pre-run state');
   }
 
+  if ((status === 'cancelled' || status === 'timed-out') && !rolledBack) {
+    rollbackMacroTransaction(state, snapshot);
+    rolledBack = true;
+  }
+
   return {
-    success: !executionFailed && stepResults.every((result) => result.status !== 'error'),
+    status,
+    success: status === 'success',
     outputFiles: state.outputFiles,
     stepResults,
     finalBytes: state.workingBytes,
     logs: state.logs,
     selectedPages: state.selectedPages,
     rolledBack,
+    cancelled: status === 'cancelled',
+    timedOut: status === 'timed-out',
   };
 }

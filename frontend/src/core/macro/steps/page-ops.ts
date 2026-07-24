@@ -209,6 +209,7 @@ function resolveBlankPageSize(
   currentBytes: Uint8Array,
   state: MacroMutableState,
   position: InsertPosition,
+  signal?: AbortSignal,
 ): Promise<{ width: number; height: number }> | { width: number; height: number } {
   if (typeof size === 'object') {
     return {
@@ -236,7 +237,7 @@ function resolveBlankPageSize(
       ? Math.max(0, Math.min(position.page - 1, state.pageCount - 1))
       : 0;
 
-  return PdfEditAdapter.getPageSize(currentBytes, referencePage);
+  return PdfEditAdapter.getPageSize(currentBytes, referencePage, { signal });
 }
 
 type SelectPagesStep = Extract<MacroStep, { op: 'select_pages' }>;
@@ -280,6 +281,7 @@ async function executeRotatePages(
       state.workingBytes,
       toZeroBasedPageIndices(pages),
       step.degrees,
+      { signal: ctx.options?.abortSignal },
     );
 
     return success(
@@ -313,6 +315,7 @@ async function executeExtractPages(
     const outputBytes = await PdfEditAdapter.extractPages(
       state.workingBytes,
       toZeroBasedPageIndices(pages),
+      { signal: ctx.options?.abortSignal },
     );
 
     return success(
@@ -348,14 +351,16 @@ async function executeSplitPages(
     const extractedBytes = await PdfEditAdapter.extractPages(
       state.workingBytes,
       zeroBasedPages,
+      { signal: ctx.options?.abortSignal },
     );
 
     const updatedBytes = await PdfEditAdapter.removePages(
       state.workingBytes,
       zeroBasedPages,
+      { signal: ctx.options?.abortSignal },
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
 
     return success(
       `Split ${pages.length} page(s) to ${outputName}`,
@@ -390,9 +395,10 @@ async function executeDuplicatePages(
     const updatedBytes = await PdfEditAdapter.duplicatePages(
       state.workingBytes,
       toZeroBasedPageIndices(pages),
+      { signal: ctx.options?.abortSignal },
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
 
     return success(
       `Duplicated ${pages.length} page(s)`,
@@ -425,9 +431,10 @@ async function executeRemovePages(
     const updatedBytes = await PdfEditAdapter.removePages(
       state.workingBytes,
       toZeroBasedPageIndices(pages),
+      { signal: ctx.options?.abortSignal },
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
     const selectedPages = state.selectedPages.filter(
       (page) => !pages.includes(page) && page <= newPageCount,
     );
@@ -451,7 +458,7 @@ type InsertBlankPageStep = Extract<MacroStep, { op: 'insert_blank_page' }>;
 
 async function executeInsertBlankPage(
   step: InsertBlankPageStep,
-  _ctx: MacroExecutionContext,
+  ctx: MacroExecutionContext,
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
@@ -464,6 +471,7 @@ async function executeInsertBlankPage(
       currentBytes,
       state,
       step.position,
+      ctx.options?.abortSignal,
     );
 
     for (let index = 0; index < count; index += 1) {
@@ -472,11 +480,12 @@ async function executeInsertBlankPage(
         currentBytes,
         insertIndex,
         size,
+        { signal: ctx.options?.abortSignal },
       );
       currentPageCount += 1;
     }
 
-    const newPageCount = await PdfEditAdapter.countPages(currentBytes);
+    const newPageCount = await PdfEditAdapter.countPages(currentBytes, { signal: ctx.options?.abortSignal });
 
     return success(
       `Inserted ${count} blank page(s)`,
@@ -515,6 +524,7 @@ async function executeReplacePage(
       step.targetPage - 1,
       donorBytes,
       step.donorPage - 1,
+      { signal: ctx.options?.abortSignal },
     );
 
     return success(
@@ -534,7 +544,7 @@ type ReorderPagesStep = Extract<MacroStep, { op: 'reorder_pages' }>;
 
 async function executeReorderPages(
   step: ReorderPagesStep,
-  _ctx: MacroExecutionContext,
+  ctx: MacroExecutionContext,
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
@@ -552,6 +562,7 @@ async function executeReorderPages(
     const updatedBytes = await PdfEditAdapter.reorderPages(
       state.workingBytes,
       zeroBasedOrder,
+      { signal: ctx.options?.abortSignal },
     );
 
     const selectedPages = sanitizeOneBasedPages(
