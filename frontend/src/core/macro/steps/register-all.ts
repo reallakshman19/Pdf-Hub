@@ -1,6 +1,7 @@
 import './page-ops';
 import './document-ops';
 import './content-ops';
+import './visual-mask-compat';
 import './conditional-ops';
 
 import { macroRegistry } from '../registry';
