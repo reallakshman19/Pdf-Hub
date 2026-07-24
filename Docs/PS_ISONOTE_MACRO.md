@@ -102,8 +102,10 @@ A searchable PDF does not expose the original OCR word confidence through PDF.js
 Each generated occurrence receives a hidden searchable marker with this structure:
 
 ```text
-PDFHUBISONOTE[v2|PS-1234.5|<mapping-sha256>|<occurrence-sha256>]
+PDFHUBISONOTE[v2|1234.5|<mapping-sha256>|<occurrence-sha256>]
 ```
+
+The marker stores the PS suffix rather than the literal `PS-1234.5` token. The parser reconstructs the canonical PS number. This prevents the hidden marker itself from being rediscovered as a false PS occurrence on the next scan.
 
 The semantic mapping hash covers normalized PS number, family, and ISONOTE. It deliberately excludes the table row number so moving an unchanged mapping within a source file does not make the annotation stale.
 
