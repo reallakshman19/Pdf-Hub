@@ -94,6 +94,12 @@ export interface BuildPsIsonoteAuditOptions {
 
 export const PS_ISONOTE_AUTO_RELEASE_THRESHOLD = 90;
 
+const REVIEW_DIAGNOSTIC_CODES = new Set<PsIsonoteDiagnosticCode>([
+  'PS_ISONOTE_STALE_EXISTING',
+  'PS_ISONOTE_LEGACY_EXISTING',
+  'PS_ISONOTE_REVIEW_REQUIRED',
+]);
+
 function roundScore(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -267,6 +273,10 @@ function buildOccurrenceAudit(
   };
 }
 
+function occurrenceRequiresReview(occurrence: PsIsonoteOccurrenceAudit): boolean {
+  return occurrence.diagnosticCodes.some((code) => REVIEW_DIAGNOSTIC_CODES.has(code));
+}
+
 export function buildPsIsonoteAuditReport(
   mappings: PsIsonoteMapping[],
   scan: PsIsonoteScanResult,
@@ -315,11 +325,6 @@ export function buildPsIsonoteAuditReport(
       const psOccurrences = occurrences.filter((occurrence) => occurrence.psNo === mapping.psNo);
       const confidences = psOccurrences.map((occurrence) => occurrence.confidence.matchConfidence);
       const psDiagnostics = diagnostics.filter((diagnostic) => diagnostic.psNo === mapping.psNo);
-      const reviewStatuses = new Set<PsIsonoteOccurrenceStatus>([
-        'review',
-        'stale-existing',
-        'legacy-existing',
-      ]);
 
       return {
         psNo: mapping.psNo,
@@ -328,7 +333,7 @@ export function buildPsIsonoteAuditReport(
         foundPs: psOccurrences.length > 0 ? 1 : 0,
         occurrences: psOccurrences.length,
         annotated: psOccurrences.filter((occurrence) => occurrence.status === 'annotated').length,
-        review: psOccurrences.filter((occurrence) => reviewStatuses.has(occurrence.status)).length,
+        review: psOccurrences.filter(occurrenceRequiresReview).length,
         missing: psOccurrences.length === 0 ? 1 : 0,
         averageConfidence: confidences.length > 0
           ? roundScore(confidences.reduce((sum, confidence) => sum + confidence, 0) / confidences.length)
