@@ -11,6 +11,7 @@ import {
 import type { PsIsonoteMapping } from './psIsonoteTable';
 
 const INPUT_HASH = `sha256:${'a'.repeat(64)}`;
+const OUTPUT_HASH = `sha256:${'b'.repeat(64)}`;
 
 const mapping: PsIsonoteMapping = {
   psNo: 'PS-1234.5',
@@ -46,7 +47,7 @@ describe('psIsonoteIdentity', () => {
     const first = await computePsIsonoteOccurrenceId(options);
     const second = await computePsIsonoteOccurrenceId({
       ...options,
-      inputSha256: `sha256:${'b'.repeat(64)}`,
+      inputSha256: OUTPUT_HASH,
     });
     const moved = await computePsIsonoteOccurrenceId({
       ...options,
@@ -83,11 +84,13 @@ describe('psIsonoteIdentity', () => {
     expect(hasLegacyPsIsonoteMarker('PDFHUBISONOTE[1234.5]', mapping.psNo)).toBe(true);
   });
 
-  it('builds a stable run id from input, mapping, recipe, and scope hashes', async () => {
+  it('builds a stable run id and accepts a preverified output hash', async () => {
     const options = {
       documentName: 'drawing.pdf',
       inputDocumentKey: INPUT_HASH,
+      outputDocumentKey: OUTPUT_HASH,
       inputSha256: INPUT_HASH,
+      outputSha256: OUTPUT_HASH,
       sourceText: 'PS No.,ISONOTE\nPS-1234.5,REST (6kN)',
       recipe,
       scope: {
@@ -110,7 +113,8 @@ describe('psIsonoteIdentity', () => {
     expect(second.runId).toBe(first.runId);
     expect(second.recipeSha256).toBe(first.recipeSha256);
     expect(changedScope.runId).not.toBe(first.runId);
-    expect(first.auditSchemaVersion).toBe('2');
+    expect(first.outputSha256).toBe(OUTPUT_HASH);
+    expect(first.auditSchemaVersion).toBe('3');
     expect(first.markerSchemaVersion).toBe('v2');
   });
 });
