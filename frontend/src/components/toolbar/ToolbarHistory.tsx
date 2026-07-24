@@ -2,14 +2,32 @@ import React from 'react';
 import { Button } from '@/components/ui/Button';
 import { Undo, Redo } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { HISTORY_POLICY } from '@/core/document-history/historyPolicy';
 import { useHistoryStore } from '@/core/document-history/store';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 
-export const ToolbarHistory: React.FC = () => {
-  const { canUndo, canRedo, peekUndo, peekRedo } = useHistoryStore();
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+}
 
-  const undoTooltip = canUndo() ? `Undo: ${peekUndo()?.label}` : 'Undo';
-  const redoTooltip = canRedo() ? `Redo: ${peekRedo()?.label}` : 'Redo';
+export const ToolbarHistory: React.FC = () => {
+  const {
+    canUndo,
+    canRedo,
+    peekUndo,
+    peekRedo,
+    retainedBytes,
+    droppedTransactions,
+    overBudget,
+  } = useHistoryStore();
+  const memoryStatus = [
+    `History ${formatBytes(retainedBytes)} / ${formatBytes(HISTORY_POLICY.maxRetainedBytes)}`,
+    droppedTransactions > 0 ? `${droppedTransactions} older step(s) trimmed` : null,
+    overBudget ? 'latest step exceeds budget' : null,
+  ].filter(Boolean).join(' · ');
+  const undoTooltip = canUndo() ? `Undo: ${peekUndo()?.label} · ${memoryStatus}` : `Undo · ${memoryStatus}`;
+  const redoTooltip = canRedo() ? `Redo: ${peekRedo()?.label} · ${memoryStatus}` : `Redo · ${memoryStatus}`;
 
   return (
     <div className="flex items-center space-x-1">
