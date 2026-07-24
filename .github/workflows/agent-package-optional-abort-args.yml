@@ -1,0 +1,30 @@
+name: agent-package-optional-abort-args
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: github.head_ref == 'agent/pdf-operation-cancellation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply tested compatibility patch
+        run: python scripts/agent_fix_optional_abort_args.py
+      - name: Package exact tested files
+        run: |
+          tar -czf optional-abort-args-source.tar.gz \
+            frontend/src/core/macro/steps/page-ops.ts \
+            frontend/src/core/macro/steps/document-ops.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-optional-abort-args-source
+          path: optional-abort-args-source.tar.gz
