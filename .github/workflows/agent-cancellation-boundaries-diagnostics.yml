@@ -43,13 +43,11 @@ jobs:
       - name: Install dependencies
         run: cd frontend && pnpm install --no-frozen-lockfile
       - name: Strict TypeScript
-        continue-on-error: true
         run: |
           set -o pipefail
           cd frontend
           pnpm exec tsc --noEmit 2>&1 | tee ../boundary-typecheck.log
       - name: Focused cancellation tests
-        continue-on-error: true
         run: |
           set -o pipefail
           cd frontend
@@ -62,13 +60,28 @@ jobs:
             src/core/macro/sessionRunner.test.ts \
             src/adapters/pdf-edit/PdfEditAdapter.test.ts \
             --pool=forks 2>&1 | tee ../boundary-tests.log
-      - name: Upload diagnostics
-        if: always()
+      - name: Package tested source
+        run: |
+          cat > boundary-files.txt <<'EOF'
+          docs/PDF_OPERATION_CANCELLATION.md
+          frontend/src/adapters/pdf-renderer/PdfRendererAdapter.test.ts
+          frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts
+          frontend/src/components/sidebar/MacrosSidebar.tsx
+          frontend/src/components/sidebar/SearchPanel.tsx
+          frontend/src/components/sidebar/panels/ThumbnailSidebar.tsx
+          frontend/src/core/ocr/__tests__/tesseractJsEngine.test.ts
+          frontend/src/core/ocr/engines/ocrEngineContract.ts
+          frontend/src/core/ocr/engines/tesseractJsEngine.ts
+          frontend/src/core/renderer/usePageRenderer.ts
+          EOF
+          tar -czf cancellation-boundaries-source.tar.gz -T boundary-files.txt
+      - name: Upload tested source and diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: agent-cancellation-boundaries-diagnostics
+          name: agent-cancellation-boundaries-tested-source
           path: |
             boundary-patch.log
             boundary-typecheck.log
             boundary-tests.log
-          if-no-files-found: ignore
+            boundary-files.txt
+            cancellation-boundaries-source.tar.gz
