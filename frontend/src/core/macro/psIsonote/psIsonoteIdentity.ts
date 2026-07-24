@@ -85,6 +85,8 @@ export async function computePsIsonoteMappingHash(
 }
 
 export async function computePsIsonoteOccurrenceId(options: {
+  /** Retained for caller compatibility; document hashes belong to run identity, not marker identity. */
+  inputSha256?: string;
   pageNumber: number;
   psNo: string;
   rect: { x: number; y: number; width: number; height: number };
