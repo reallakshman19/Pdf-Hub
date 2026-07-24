@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   AlertCircle,
+  Archive,
   CheckCircle2,
   Download,
   FileJson,
@@ -26,6 +27,7 @@ import {
   serializePsIsonoteSummaryCsv,
   type PsIsonoteAuditReport,
 } from '@/core/macro/psIsonote/psIsonoteAudit';
+import { createPsIsonoteEvidencePackage } from '@/core/macro/psIsonote/psIsonoteEvidencePackage';
 import {
   createPsIsonoteAuditIdentity,
   type PsIsonoteScopeIdentity,
@@ -100,8 +102,7 @@ function artifactStem(documentName: string): string {
   return documentName.replace(/\.pdf$/i, '').replace(/[^a-z0-9._-]+/gi, '_') || 'document';
 }
 
-function downloadText(content: string, name: string, type: string): void {
-  const blob = new Blob([content], { type });
+function downloadBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -110,6 +111,15 @@ function downloadText(content: string, name: string, type: string): void {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadText(content: string, name: string, type: string): void {
+  downloadBlob(new Blob([content], { type }), name);
+}
+
+function downloadBytes(bytes: Uint8Array, name: string, type: string): void {
+  const copied = new Uint8Array(bytes);
+  downloadBlob(new Blob([copied.buffer], { type }), name);
 }
 
 function confidenceLabel(value: number | null): string {
@@ -149,6 +159,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [auditArtifact, setAuditArtifact] = React.useState<AuditArtifact | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
   const [isRunning, setIsRunning] = React.useState(false);
+  const [isPackaging, setIsPackaging] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -410,8 +421,31 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     }
   };
 
+  const handleEvidencePackage = async () => {
+    if (!auditReport || !auditArtifact || !parsedState.result) return;
+    setIsPackaging(true);
+    setError(null);
+    try {
+      const evidencePackage = await createPsIsonoteEvidencePackage({
+        report: auditReport,
+        mappings: parsedState.result.mappings,
+        sourceText: auditArtifact.sourceText,
+        documentBytes: auditArtifact.boundDocumentBytes,
+        documentName: auditArtifact.documentName,
+      });
+      downloadBytes(evidencePackage.bytes, evidencePackage.fileName, 'application/zip');
+      setMessage(
+        `Created checksummed evidence package with ${evidencePackage.entries.length} bound artifact(s).`,
+      );
+    } catch (packageError) {
+      setError(packageError instanceof Error ? packageError.message : String(packageError));
+    } finally {
+      setIsPackaging(false);
+    }
+  };
+
   const parsed = parsedState.result;
-  const disabled = !workingBytes || !parsed || isScanning || isRunning;
+  const disabled = !workingBytes || !parsed || isScanning || isRunning || isPackaging;
   const auditWarningCount = auditReport?.diagnostics.filter((item) => item.severity === 'warning').length ?? 0;
   const auditErrorCount = auditReport?.diagnostics.filter((item) => item.severity === 'error').length ?? 0;
 
@@ -437,7 +471,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           size="sm"
           className="flex-1 justify-center"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isScanning || isRunning}
+          disabled={isScanning || isRunning || isPackaging}
         >
           <Upload className="mr-1.5 h-3.5 w-3.5" />
           Load CSV / Table
@@ -631,7 +665,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap justify-end gap-1">
               <Button
                 type="button"
                 variant="secondary"
@@ -642,6 +676,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-audit.csv`,
                   'text/csv;charset=utf-8',
                 )}
+                disabled={isPackaging}
               >
                 <Download className="mr-1 h-3 w-3" />CSV
               </Button>
@@ -655,8 +690,20 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-manifest.json`,
                   'application/json;charset=utf-8',
                 )}
+                disabled={isPackaging}
               >
                 <FileJson className="mr-1 h-3 w-3" />Manifest
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 justify-center px-2 text-[10px]"
+                onClick={() => void handleEvidencePackage()}
+                disabled={isPackaging}
+              >
+                <Archive className="mr-1 h-3 w-3" />
+                {isPackaging ? 'Building...' : 'Evidence ZIP'}
               </Button>
             </div>
           </div>
@@ -719,8 +766,9 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       <p className="text-[10px] leading-relaxed text-slate-400 dark:text-slate-500">
         Audit visibility is bound to the active PDF bytes, mapping source, page scope, and recipe settings.
         A run is promoted to verified only after the output PDF is reopened, hashed, page-count checked, and
-        every expected marker is reconciled exactly once. Confidence measures PDF text-match quality and geometry;
-        OCR confidence requires an OCR sidecar. Page count: {pageCount || 0}.
+        every expected marker is reconciled exactly once. The evidence ZIP includes the bound PDF, complete
+        occurrence and diagnostic evidence, mapping snapshots, and SHA-256 checksums. Confidence measures PDF
+        text-match quality and geometry; OCR confidence requires an OCR sidecar. Page count: {pageCount || 0}.
       </p>
     </section>
   );
