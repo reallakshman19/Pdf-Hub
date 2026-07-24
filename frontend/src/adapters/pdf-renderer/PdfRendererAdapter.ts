@@ -1,4 +1,4 @@
-﻿import {
+import {
   getDocument,
   GlobalWorkerOptions,
   type PageViewport,
@@ -9,7 +9,6 @@
 
 import { error } from '@/core/logger/service';
 import type { RenderToken } from './types';
-
 
 export interface RenderedPage {
   width: number;
@@ -53,6 +52,27 @@ export interface OutlineItem {
   depth: number;
 }
 
+export interface PdfDocumentLease {
+  readonly doc: PDFDocumentProxy;
+  readonly cacheKey: string;
+  release: () => Promise<void>;
+}
+
+export interface PdfDocumentCacheDiagnostics {
+  entries: number;
+  activeLeases: number;
+  idleEntries: number;
+  maxEntries: number;
+}
+
+interface PdfDocumentCacheEntry {
+  key: string;
+  docPromise: Promise<PDFDocumentProxy>;
+  doc: PDFDocumentProxy | null;
+  refCount: number;
+  lastUsed: number;
+}
+
 function isTransformItem(
   value: unknown,
 ): value is { str: string; transform: number[]; width: number } {
@@ -70,8 +90,27 @@ function isTransportDestroyedError(err: unknown): boolean {
   return String(err).toLowerCase().includes('transport destroyed');
 }
 
+function clonePdfBytes(buffer: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {
+  return buffer instanceof Uint8Array
+    ? Uint8Array.from(buffer)
+    : new Uint8Array(buffer.slice(0));
+}
+
+function digestHex(bytes: Uint8Array): Promise<string> {
+  const digestInput = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return crypto.subtle.digest('SHA-256', digestInput).then((digest) =>
+    Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join(''),
+  );
+}
+
 export class PdfRendererAdapter {
   private static workerConfigured = false;
+  private static readonly MAX_CACHED_DOCUMENTS = 2;
+  private static documentCache = new Map<string, PdfDocumentCacheEntry>();
+  private static sourceKeyCache = new WeakMap<object, Promise<string>>();
+  private static accessCounter = 0;
 
   static configureWorker(options: {
     workerSrc: string;
@@ -83,34 +122,123 @@ export class PdfRendererAdapter {
     PdfRendererAdapter.workerConfigured = true;
   }
 
-  private static cachedDoc: { bytes: Uint8Array | ArrayBuffer; doc: PDFDocumentProxy } | null = null;
+  private static keyForBuffer(buffer: Uint8Array | ArrayBuffer): Promise<string> {
+    const source = buffer as object;
+    const cached = this.sourceKeyCache.get(source);
+    if (cached) return cached;
 
-  static async loadDocument(buffer: Uint8Array | ArrayBuffer): Promise<PDFDocumentProxy> {
-    if (this.cachedDoc && this.cachedDoc.bytes === buffer) {
-      return this.cachedDoc.doc;
-    }
+    const keyPromise = digestHex(clonePdfBytes(buffer)).then((hex) => `sha256:${hex}`);
+    this.sourceKeyCache.set(source, keyPromise);
+    return keyPromise;
+  }
+
+  private static createCacheEntry(
+    key: string,
+    buffer: Uint8Array | ArrayBuffer,
+  ): PdfDocumentCacheEntry {
+    const entry: PdfDocumentCacheEntry = {
+      key,
+      docPromise: Promise.resolve(null as unknown as PDFDocumentProxy),
+      doc: null,
+      refCount: 0,
+      lastUsed: ++this.accessCounter,
+    };
+    const task = getDocument({ data: clonePdfBytes(buffer) });
+    entry.docPromise = task.promise
+      .then((doc) => {
+        entry.doc = doc;
+        return doc;
+      })
+      .catch((loadError) => {
+        if (this.documentCache.get(key) === entry) {
+          this.documentCache.delete(key);
+        }
+        throw loadError;
+      });
+    this.documentCache.set(key, entry);
+    return entry;
+  }
+
+  private static async destroyEntry(entry: PdfDocumentCacheEntry): Promise<void> {
+    const doc = entry.doc ?? await entry.docPromise.catch(() => null);
+    if (!doc) return;
 
     try {
-      // PDF.js may transfer typed-array buffers to the worker, which detaches them.
-      // Clone input bytes so shared session state remains readable across reloads.
-      const data =
-        buffer instanceof Uint8Array
-          ? new Uint8Array(buffer)
-          : buffer.slice(0);
+      await doc.destroy();
+    } catch (destroyError) {
+      error('pdf-renderer', 'Failed to destroy cached PDF document', {
+        cacheKey: entry.key,
+        error: String(destroyError),
+      });
+    }
+  }
 
-      const task = getDocument({ data });
-      const doc = await task.promise;
+  private static async evictIdleDocuments(): Promise<void> {
+    while (this.documentCache.size > this.MAX_CACHED_DOCUMENTS) {
+      const candidate = Array.from(this.documentCache.values())
+        .filter((entry) => entry.refCount === 0 && entry.doc !== null)
+        .sort((left, right) => left.lastUsed - right.lastUsed)[0];
+      if (!candidate) return;
 
-      // Do not destroy the previous cached document here. Other app surfaces can
-      // still be rendering/searching against that proxy; destroying it invalidates
-      // the PDF.js worker transport and produces the user-visible
-      // "Transport destroyed" load failure.
-      this.cachedDoc = { bytes: buffer, doc };
+      this.documentCache.delete(candidate.key);
+      await this.destroyEntry(candidate);
+    }
+  }
 
-      return doc;
-    } catch (err) {
-      error('pdf-renderer', 'Failed to load document', { error: String(err) });
-      throw err;
+  static async acquireDocument(
+    buffer: Uint8Array | ArrayBuffer,
+  ): Promise<PdfDocumentLease> {
+    const key = await this.keyForBuffer(buffer);
+    const entry = this.documentCache.get(key) ?? this.createCacheEntry(key, buffer);
+    entry.refCount += 1;
+    entry.lastUsed = ++this.accessCounter;
+
+    try {
+      const doc = await entry.docPromise;
+      await this.evictIdleDocuments();
+      let released = false;
+
+      return {
+        doc,
+        cacheKey: key,
+        release: async () => {
+          if (released) return;
+          released = true;
+
+          if (this.documentCache.get(key) !== entry) return;
+          entry.refCount = Math.max(0, entry.refCount - 1);
+          entry.lastUsed = ++this.accessCounter;
+          await this.evictIdleDocuments();
+        },
+      };
+    } catch (loadError) {
+      entry.refCount = Math.max(0, entry.refCount - 1);
+      if (this.documentCache.get(key) === entry) {
+        this.documentCache.delete(key);
+      }
+      error('pdf-renderer', 'Failed to load document', { error: String(loadError) });
+      throw loadError;
+    }
+  }
+
+  static getDocumentCacheDiagnostics(): PdfDocumentCacheDiagnostics {
+    const entries = Array.from(this.documentCache.values());
+    return {
+      entries: entries.length,
+      activeLeases: entries.reduce((sum, entry) => sum + entry.refCount, 0),
+      idleEntries: entries.filter((entry) => entry.refCount === 0).length,
+      maxEntries: this.MAX_CACHED_DOCUMENTS,
+    };
+  }
+
+  static async clearDocumentCache(options: { force?: boolean } = {}): Promise<void> {
+    const targets = Array.from(this.documentCache.values())
+      .filter((entry) => options.force === true || entry.refCount === 0);
+
+    for (const entry of targets) {
+      if (this.documentCache.get(entry.key) !== entry) continue;
+      this.documentCache.delete(entry.key);
+      await this.destroyEntry(entry);
     }
   }
 
@@ -128,7 +256,7 @@ export class PdfRendererAdapter {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('[PdfRendererAdapter] Could not get 2d context from canvas');
 
-    canvas.width  = Math.floor(viewport.width);
+    canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
 
     const renderTask = page.render({
@@ -183,12 +311,7 @@ export class PdfRendererAdapter {
         const tx = Util.transform(viewport.transform, item.transform);
         const fontSize = Math.hypot(tx[2], tx[3]);
         const width = Math.max(4, item.width * scale);
-        // em-square height from PDF.js transform
         const emHeight = Math.max(8, fontSize);
-        // In PDF, tx[5] is the text BASELINE in CSS pixels from page top.
-        // Add a small descender allowance (≈20% of em) so the span fully
-        // covers glyph descenders (g, p, y…) and the selection rect aligns
-        // with the PDF-rendered canvas text.
         const descender = emHeight * 0.2;
         const height = emHeight + descender;
 
@@ -197,7 +320,6 @@ export class PdfRendererAdapter {
             id: `page-${page.pageNumber}-text-${index}`,
             text: item.str,
             x: tx[4],
-            // top = baseline - ascent (≈ em height), so descender space is below
             y: tx[5] - emHeight,
             width,
             height,
@@ -267,7 +389,8 @@ export class PdfRendererAdapter {
       return [];
     }
 
-    const doc = await this.loadDocument(bytes);
+    const lease = await this.acquireDocument(bytes);
+    const doc = lease.doc;
     try {
       const hits: TextSearchHit[] = [];
 
@@ -320,7 +443,7 @@ export class PdfRendererAdapter {
 
       return hits;
     } finally {
-      // Keep shared cached document alive; its lifecycle is controlled by close points in the adapter.
+      await lease.release();
     }
   }
 
