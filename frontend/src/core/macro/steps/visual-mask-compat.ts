@@ -49,5 +49,7 @@ async function executeLegacyVisualMask(
   };
 }
 
-// Preserve the imported operation id while replacing unsafe product semantics.
-macroRegistry.register('draw_redaction_box', executeLegacyVisualMask, { override: true });
+/** Preserve the imported operation id while replacing unsafe product semantics. */
+export function registerLegacyVisualMaskCompatibility(): void {
+  macroRegistry.register('draw_redaction_box', executeLegacyVisualMask, { override: true });
+}
