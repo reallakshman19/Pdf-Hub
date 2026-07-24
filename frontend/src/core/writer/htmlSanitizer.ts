@@ -256,7 +256,7 @@ function sanitizeHref(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const compactPrefix = trimmed.slice(0, 64).replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+  const compactPrefix = stripAsciiControlsAndWhitespace(trimmed.slice(0, 64)).toLowerCase();
   if (
     compactPrefix.startsWith('javascript:') ||
     compactPrefix.startsWith('vbscript:') ||
@@ -336,7 +336,7 @@ function isSafeStyleValue(property: string, value: string): boolean {
 }
 
 function isSafeScalarAttribute(name: string, value: string): boolean {
-  if (value.length > 1_024 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) {
+  if (value.length > 1_024 || containsDisallowedControlCharacter(value)) {
     return false;
   }
 
@@ -348,6 +348,25 @@ function isSafeScalarAttribute(name: string, value: string): boolean {
   if (name === 'dir') return /^(ltr|rtl|auto)$/i.test(value);
   if (name === 'type') return /^(1|a|A|i|I)$/.test(value);
   return true;
+}
+
+function stripAsciiControlsAndWhitespace(value: string): string {
+  let result = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code > 32 && code != 127) result += character;
+  }
+  return result;
+}
+
+function containsDisallowedControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function escapeHtml(value: string): string {
