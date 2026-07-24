@@ -1,6 +1,12 @@
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { macroValidator } from './validator';
+import {
+  assertMacroInputResources,
+  inspectMacroRecipeBudget,
+  parseMacroRecipeJson,
+} from './resourceBudget';
 
 /**
  * Executes a macro directly from a raw JSON payload representing the DSL,
@@ -11,17 +17,23 @@ export async function executeHeadlessMacro(
   basePdfBytes: Uint8Array,
   recipeDsl: string | MacroRecipe,
   fileName: string = 'headless.pdf',
-  donorFiles: Record<string, Uint8Array> = {}
+  donorFiles: Record<string, Uint8Array> = {},
 ): Promise<Uint8Array> {
-  const recipe: MacroRecipe = typeof recipeDsl === 'string' ? JSON.parse(recipeDsl) : recipeDsl;
+  const recipe = typeof recipeDsl === 'string'
+    ? parseMacroRecipeJson(recipeDsl)
+    : recipeDsl;
 
-  // Validate essential DSL fields
-  if (!recipe.id || !recipe.steps || !Array.isArray(recipe.steps)) {
-    throw new Error('Invalid Headless Macro DSL: Missing id or steps array.');
+  inspectMacroRecipeBudget(recipe);
+  assertMacroInputResources(basePdfBytes, donorFiles);
+
+  const validation = macroValidator.validate(recipe);
+  if (!validation.valid) {
+    const details = validation.errors
+      .map((error) => `${error.field}: ${error.message}`)
+      .join('; ');
+    throw new Error(`Invalid Headless Macro DSL: ${details}`);
   }
 
-  // Determine starting context. If creating a page from scratch, the caller
-  // might pass a minimal 1-page blank PDF, or we use the passed document.
   const pageCount = await PdfEditAdapter.countPages(basePdfBytes);
 
   const result = await executeMacroRecipe(
@@ -29,18 +41,21 @@ export async function executeHeadlessMacro(
     {
       workingBytes: basePdfBytes,
       pageCount,
-      selectedPages: [], // Headless runs apply purely sequentially or explicitly via selectors
+      selectedPages: [],
       currentPage: 1,
       fileName,
       donorFiles,
       now: new Date(),
-    }
+    },
   );
+
+  if (!result.success) {
+    throw new Error(result.logs.join('\n') || 'Headless macro execution failed.');
+  }
 
   return result.finalBytes;
 }
 
-// Global registration so external apps can invoke via `window.PDFHubHeadless.execute(...)`
 declare global {
   interface Window {
     PDFHubHeadless?: {

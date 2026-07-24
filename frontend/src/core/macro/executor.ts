@@ -15,6 +15,12 @@ import {
   buildMacroRollbackMessage,
   rollbackMacroTransaction,
 } from './transaction';
+import {
+  assertMacroInputResources,
+  inspectMacroRecipeBudget,
+  MacroExecutionBudget,
+  MacroResourceLimitError,
+} from './resourceBudget';
 
 export interface MacroExecutionResult {
   success: boolean;
@@ -34,11 +40,39 @@ export interface ExecutionProgress {
   currentOp: string;
 }
 
+function resourceFailureResult(
+  ctx: MacroExecutionContext,
+  error: MacroResourceLimitError,
+): MacroExecutionResult {
+  return {
+    success: false,
+    outputFiles: [],
+    stepResults: [{ status: 'error', message: error.message, sideEffects: [] }],
+    finalBytes: ctx.workingBytes,
+    logs: [`[resource-limit:${error.code}] ${error.message}`],
+    selectedPages: ctx.selectedPages,
+  };
+}
+
 export async function executeMacroRecipe(
   recipe: MacroRecipe,
   ctx: MacroExecutionContext,
   onProgress?: (progress: ExecutionProgress) => void,
 ): Promise<MacroExecutionResult> {
+  const resourceLimits = ctx.options?.resourceLimits;
+  let budget: MacroExecutionBudget;
+
+  try {
+    inspectMacroRecipeBudget(recipe, resourceLimits);
+    assertMacroInputResources(ctx.workingBytes, ctx.donorFiles ?? {}, resourceLimits);
+    budget = new MacroExecutionBudget(resourceLimits, ctx.options?.abortSignal);
+  } catch (error) {
+    if (error instanceof MacroResourceLimitError) {
+      return resourceFailureResult(ctx, error);
+    }
+    throw error;
+  }
+
   const validation = macroValidator.validate(recipe);
 
   if (!validation.valid) {
@@ -55,23 +89,41 @@ export async function executeMacroRecipe(
     };
   }
 
-  if (recipe.dryRun === true) {
-    const dryRunReport = await simulateMacroDryRun(recipe, {
-      workingBytes: ctx.workingBytes,
-      pageCount: ctx.pageCount,
-      selectedPages: ctx.selectedPages,
-      fileName: ctx.fileName,
-    });
+  const runtimeContext: MacroExecutionContext = {
+    ...ctx,
+    options: {
+      ...ctx.options,
+      __runtimeBudget: budget,
+    },
+  };
 
-    return {
-      success: dryRunReport.valid,
-      outputFiles: [],
-      stepResults: [],
-      finalBytes: ctx.workingBytes,
-      logs: dryRunReport.diff.logs,
-      selectedPages: ctx.selectedPages,
-      dryRunDiff: dryRunReport.diff,
-    };
+  if (recipe.dryRun === true) {
+    try {
+      const dryRunReport = await budget.run(
+        simulateMacroDryRun(recipe, {
+          workingBytes: ctx.workingBytes,
+          pageCount: ctx.pageCount,
+          selectedPages: ctx.selectedPages,
+          fileName: ctx.fileName,
+        }),
+        'dry run',
+      );
+
+      return {
+        success: dryRunReport.valid,
+        outputFiles: [],
+        stepResults: [],
+        finalBytes: ctx.workingBytes,
+        logs: dryRunReport.diff.logs,
+        selectedPages: ctx.selectedPages,
+        dryRunDiff: dryRunReport.diff,
+      };
+    } catch (error) {
+      if (error instanceof MacroResourceLimitError) {
+        return resourceFailureResult(ctx, error);
+      }
+      throw error;
+    }
   }
 
   const defaultVars = templateVarEngine.buildDefaultVars({
@@ -98,6 +150,7 @@ export async function executeMacroRecipe(
     for (let index = 0; index < recipe.steps.length; index += 1) {
       const rawStep = recipe.steps[index];
       const step = templateVarEngine.expandStep(rawStep, state.templateVars);
+      budget.beforeStep(step);
 
       onProgress?.({
         current: index + 1,
@@ -105,10 +158,14 @@ export async function executeMacroRecipe(
         currentOp: step.op,
       });
 
-      const result = await macroRegistry.execute(step, ctx, state);
+      const result = await budget.run(
+        macroRegistry.execute(step, runtimeContext, state),
+        step.op,
+      );
       stepResults.push(result);
 
       applyMacroSideEffects(result.sideEffects, state);
+      budget.afterStep(state);
 
       if (result.message) {
         state.logs.push(`[step ${index + 1}/${recipe.steps.length}] ${step.op}: ${result.message}`);
@@ -126,8 +183,14 @@ export async function executeMacroRecipe(
     executionFailed = true;
     rollbackMacroTransaction(state, snapshot);
     rolledBack = true;
-    state.logs.push('[fatal] Unexpected error — document rolled back to pre-macro state');
-    throw unexpectedErr;
+
+    if (unexpectedErr instanceof MacroResourceLimitError) {
+      stepResults.push({ status: 'error', message: unexpectedErr.message, sideEffects: [] });
+      state.logs.push(`[resource-limit:${unexpectedErr.code}] ${unexpectedErr.message}`);
+    } else {
+      state.logs.push('[fatal] Unexpected error — document rolled back to pre-macro state');
+      throw unexpectedErr;
+    }
   }
 
   if (executionFailed && ctx.options?.rollbackOnError !== false && !rolledBack) {
@@ -135,7 +198,6 @@ export async function executeMacroRecipe(
     rolledBack = true;
     state.logs.push('[rollback] Macro failed — document restored to pre-run state');
   }
-
 
   return {
     success: !executionFailed && stepResults.every((result) => result.status !== 'error'),

@@ -14,6 +14,7 @@ export type InsertPosition =
   | { mode: 'end' };
 
 import type { ContentBlock } from './layout/LayoutEngine';
+import type { MacroExecutionBudget, MacroResourceLimits } from './resourceBudget';
 
 export type MacroStep =
   | {
@@ -127,7 +128,7 @@ export type MacroStep =
       y: number;
       width: number;
       height?: number;
-      content: string; // HTML string
+      content: string;
       styles: import('../writer/types').WriterStyles;
     }
   | {
@@ -165,8 +166,8 @@ export type MacroStep =
   | { op: 'apply_template_vars'; vars: Record<string, string> };
 
 export type MacroCondition =
-  | { type: 'page_count_gt';     value: number }
-  | { type: 'page_count_lt';     value: number }
+  | { type: 'page_count_gt'; value: number }
+  | { type: 'page_count_lt'; value: number }
   | { type: 'filename_contains'; value: string }
   | { type: 'custom_var_equals'; key: string; value: string };
 
@@ -189,6 +190,10 @@ export interface MacroExecutionContext {
   options?: {
     abortOnError?: boolean;
     rollbackOnError?: boolean;
+    resourceLimits?: Partial<MacroResourceLimits>;
+    abortSignal?: AbortSignal;
+    /** Internal shared counter/deadline used by nested conditional steps. */
+    __runtimeBudget?: MacroExecutionBudget;
   };
 }
 
