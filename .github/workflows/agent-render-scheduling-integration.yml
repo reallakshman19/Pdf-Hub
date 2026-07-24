@@ -22,10 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply render scheduling integration
-        run: |
-          python scripts/agent_apply_render_scheduling.py
-          python scripts/agent_fix_render_typecheck.py
+      - name: Limit thumbnail metadata concurrency
+        run: python scripts/agent_finalize_render_source.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -34,24 +32,7 @@ jobs:
       - name: Install dependencies
         run: cd frontend && pnpm install --no-frozen-lockfile
       - name: Strict TypeScript
-        id: typecheck
-        continue-on-error: true
-        run: |
-          set +e
-          cd frontend
-          pnpm run typecheck > ../render-typecheck.log 2>&1
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit $status
-      - name: Upload TypeScript diagnostics
-        if: steps.typecheck.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: render-typecheck-diagnostics
-          path: render-typecheck.log
-      - name: Stop after TypeScript failure
-        if: steps.typecheck.outcome == 'failure'
-        run: exit 1
+        run: cd frontend && pnpm run typecheck
       - name: Render scheduling regressions
         run: >-
           cd frontend && pnpm exec vitest run
@@ -61,19 +42,14 @@ jobs:
           --pool=forks --maxWorkers=1
       - name: Complete Vitest suite
         run: cd frontend && pnpm exec vitest run --pool=forks
-      - name: Commit validated integration
+      - name: Commit validated metadata batching
         run: |
           if git diff --quiet; then
-            echo "No integration changes to commit."
+            echo "No final source changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts \
-            frontend/src/components/sidebar/panels/ThumbnailSidebar.tsx \
-            frontend/src/core/renderer/renderScheduler.ts \
-            frontend/src/core/renderer/renderScheduler.test.ts \
-            frontend/src/core/renderer/renderResourceCache.ts
-          git commit -m "Integrate scheduled thumbnail rendering"
+          git add frontend/src/components/sidebar/panels/ThumbnailSidebar.tsx
+          git commit -m "Bound thumbnail metadata loading concurrency"
           git push origin HEAD:agent/render-scheduling-memory-budgets
