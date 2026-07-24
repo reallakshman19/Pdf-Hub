@@ -49,8 +49,9 @@ jobs:
           pnpm exec tsc --noEmit 2>&1 | tee ../boundary-typecheck.log
       - name: Focused cancellation tests
         run: |
-          set -o pipefail
+          set +e
           cd frontend
+          set -o pipefail
           pnpm exec vitest run \
             src/adapters/pdf-renderer/PdfRendererAdapter.test.ts \
             src/core/ocr/__tests__/tesseractJsEngine.test.ts \
@@ -60,8 +61,13 @@ jobs:
             src/core/macro/sessionRunner.test.ts \
             src/adapters/pdf-edit/PdfEditAdapter.test.ts \
             --pool=forks 2>&1 | tee ../boundary-tests.log
+          status=${PIPESTATUS[0]}
+          cd ..
+          if [ "$status" -ne 0 ]; then touch boundary-tests.failed; fi
+          exit 0
       - name: Package tested source
         run: |
+          test ! -f boundary-tests.failed
           cat > boundary-files.txt <<'EOF'
           docs/PDF_OPERATION_CANCELLATION.md
           frontend/src/adapters/pdf-renderer/PdfRendererAdapter.test.ts
@@ -76,6 +82,7 @@ jobs:
           EOF
           tar -czf cancellation-boundaries-source.tar.gz -T boundary-files.txt
       - name: Upload tested source and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agent-cancellation-boundaries-tested-source
@@ -83,5 +90,7 @@ jobs:
             boundary-patch.log
             boundary-typecheck.log
             boundary-tests.log
+            boundary-tests.failed
             boundary-files.txt
             cancellation-boundaries-source.tar.gz
+          if-no-files-found: ignore
