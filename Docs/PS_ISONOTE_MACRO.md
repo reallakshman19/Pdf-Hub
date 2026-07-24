@@ -45,7 +45,8 @@ Comma, tab, semicolon, and pipe delimiters are detected automatically. ISONOTEs 
 6. Download the **PS No.-wise audit CSV** and **audit manifest JSON** when a traceable pre-run record is required.
 7. Resolve stale or legacy marker diagnostics before adding another annotation.
 8. Use **Annotate PDF** to update the loaded PDF working copy.
-9. Download the output-bound audit CSV and manifest, then save or export the PDF through the normal PDF Hub workflow.
+9. PDF Hub reopens the output, verifies its hash and page count, and reconciles every planned marker.
+10. Download the output-bound audit CSV and manifest, then save or export the PDF through the normal PDF Hub workflow.
 
 ## Immutable audit identity
 
@@ -60,16 +61,38 @@ Every preview or annotation audit contains a content-addressed identity:
 - input and output document keys when available;
 - audit-schema and marker-schema versions.
 
-The visible/exportable audit artifact is also bound to the active in-memory PDF bytes, mapping source, page scope, selected pages, and recipe settings. Opening another PDF or changing any relevant option invalidates the displayed report rather than leaving stale evidence visible.
+The visible and exportable audit artifact is bound to the active in-memory PDF bytes, mapping source, page scope, selected pages, and recipe settings. Opening another PDF or changing a relevant option invalidates the displayed report instead of leaving stale evidence visible.
 
-The manifest export contains the immutable identity and high-level run counts. The CSV remains the PS-number-wise operational summary.
+The manifest export contains the immutable identity, verification evidence, and high-level run counts. The CSV remains the PS-number-wise operational summary.
+
+## Post-write verification
+
+A successful macro execution is not, by itself, treated as verified annotation. After the working copy is replaced, PDF Hub performs a fail-closed verification pass:
+
+1. Compute the output PDF SHA-256.
+2. Confirm that the active output document key matches that hash.
+3. Reopen the output through PDF.js.
+4. Confirm that the output page count equals the pre-run page count.
+5. Read the pages containing planned occurrences.
+6. Reconcile each expected v2 marker by page, PS number, mapping hash, and occurrence ID.
+7. Require exactly one matching marker for every planned occurrence.
+
+The audit phase is promoted to `verified` only when all checks pass. Verification fails when:
+
+- the output PDF cannot be reopened;
+- the active document key does not match the output hash;
+- the page count changes unexpectedly;
+- an expected marker is missing; or
+- an expected marker appears more than once.
+
+A verification-failure report is bound to the mutated output PDF, so its evidence remains visible for diagnosis. The current verifier establishes structural output identity and marker integrity; it does not perform rendered-pixel comparison of the visible ISONOTE box.
 
 ## PS No.-wise audit
 
-Preview and annotation runs create one summary row for every mapped PS number. The CSV columns are:
+Preview, annotation, and verification runs create one summary row for every mapped PS number. The CSV columns are:
 
 ```csv
-PS No.,Family,Mappings,Found PS,Occurrences,Annotated,Review,Missing,Average Confidence,Minimum Confidence,Errors
+PS No.,Family,Mappings,Found PS,Occurrences,Annotated,Verified,Review,Missing,Average Confidence,Minimum Confidence,Errors
 ```
 
 The report is deliberately PS-number-wise rather than family-wise. It retains:
@@ -77,13 +100,14 @@ The report is deliberately PS-number-wise rather than family-wise. It retains:
 - the exact PS number and source family;
 - whether the PS number was found in the selected pages;
 - total detected occurrences;
-- occurrences annotated in the current successful run;
+- occurrences written in the current successful run;
+- occurrences independently verified in the reopened output;
 - occurrences below the automatic confidence threshold and requiring review;
 - stale and legacy existing annotations requiring review;
 - missing mappings and mapping conflicts; and
 - average/minimum match confidence and error count.
 
-Occurrence evidence records the page, PDF rectangle, raw matched text, matching method, source mapping row, mapping hash, deterministic occurrence ID, existing-marker state, and number of PDF text items used to reconstruct the PS number.
+Occurrence evidence records the page, PDF rectangle, raw matched text, matching method, source mapping row, mapping hash, deterministic occurrence ID, existing-marker state, verification status, and number of PDF text items used to reconstruct the PS number.
 
 ### Confidence basis
 
@@ -130,10 +154,13 @@ The audit report distinguishes informational, warning, and error conditions. Dia
 - stale mapping markers;
 - legacy unversioned markers;
 - review-required occurrences;
-- conflicting mappings; and
-- failed annotation runs.
+- conflicting mappings;
+- failed annotation runs;
+- unreadable output PDFs;
+- output hash and page-count mismatches; and
+- missing or duplicate occurrence markers.
 
-Conflicting ISONOTEs are associated with the affected PS number and increment its `Errors` count.
+Conflicting ISONOTEs are associated with the affected PS number and increment its `Errors` count. Verification diagnostics are also retained in the manifest with page and occurrence identifiers where applicable.
 
 ## Macro implementation
 
@@ -142,7 +169,7 @@ The builder uses PDF.js text coordinates to locate mapped PS-number occurrences.
 - one `place_rich_textbox` step per matched occurrence; and
 - one small versioned searchable marker per occurrence.
 
-The generated recipe runs through `runMacroRecipeAgainstSession`, so annotation changes use the same validation, atomic transaction, and working-copy replacement path as other PDF Hub macros.
+The generated recipe runs through `runMacroRecipeAgainstSession`, so annotation changes use the same validation, atomic transaction, and working-copy replacement path as other PDF Hub macros. The separate post-write verifier then inspects the committed output bytes.
 
 ## Search and placement behavior
 
@@ -157,7 +184,7 @@ The generated recipe runs through `runMacroRecipeAgainstSession`, so annotation 
 
 ## OCR requirement
 
-The PDF must contain searchable text. For scanned or image-only drawings, run PDF Hub OCR and create/use a searchable PDF before running this macro.
+The PDF must contain searchable text. For scanned or image-only drawings, run PDF Hub OCR and create or use a searchable PDF before running this macro.
 
 ## Compatibility with XML Compare Utilities
 
@@ -165,4 +192,4 @@ The parser accepts the `Name of the element` and `Support ISONOTE` column names 
 
 ## Current scope
 
-This implementation supports CSV/text mapping tables, PS-number-wise audit CSV and manifest export, immutable audit identity, and versioned marker diagnostics for the active PDF. Native `.xlsx` workbook ingestion, post-write PDF reopening/marker verification, and multi-PDF batch packaging are not included in this slice.
+This implementation supports CSV/text mapping tables, PS-number-wise audit CSV and manifest export, immutable audit identity, versioned marker diagnostics, and post-write structural verification for the active PDF. Native `.xlsx` workbook ingestion, visual pixel-level callout verification, and multi-PDF batch packaging are not included in this slice.
