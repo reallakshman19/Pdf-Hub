@@ -8,6 +8,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useSearchStore } from '@/core/search/store';
 import { dispatchCommand } from '@/core/commands/dispatch';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { ThumbnailActionStrip } from '@/components/sidebar/thumbnails/ThumbnailActionStrip';
 import { ThumbnailContextMenu } from '@/components/sidebar/thumbnails/ThumbnailContextMenu';
 
@@ -145,7 +146,7 @@ const ThumbnailSidebar: React.FC = () => {
   }, [viewState.currentPage, selectedPages, setSelectedPages]);
 
   React.useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const loadThumbnails = async () => {
       if (!workingBytes || !pdfDoc) {
@@ -158,50 +159,44 @@ const ThumbnailSidebar: React.FC = () => {
         const batchSize = 5;
 
         for (let i = 1; i <= pdfDoc.numPages; i += batchSize) {
-          if (cancelled) break;
-
-          const batch = [];
-          for (let j = 0; j < batchSize && i + j <= pdfDoc.numPages; j++) {
+          if (controller.signal.aborted) break;
+          const batch: number[] = [];
+          for (let j = 0; j < batchSize && i + j <= pdfDoc.numPages; j += 1) {
             batch.push(i + j);
           }
 
-          const batchResults = await Promise.all(
-            batch.map(async (pageNumber) => {
-              const cacheKey = `${documentKey || 'default'}-${pageNumber}`;
-              let imageUrl = thumbnailCache.get(cacheKey);
-
-              const page = await pdfDoc.getPage(pageNumber);
+          const batchResults = await Promise.all(batch.map(async (pageNumber) => {
+            const cacheKey = `${documentKey || 'default'}-${pageNumber}`;
+            let imageUrl = thumbnailCache.get(cacheKey);
+            const page = await pdfDoc.getPage(pageNumber);
+            try {
               const viewport = page.getViewport({ scale: 1.0 });
-
               if (!imageUrl) {
-                imageUrl = await PdfRendererAdapter.getThumbnail(page);
+                imageUrl = await PdfRendererAdapter.getThumbnail(page, controller.signal);
                 thumbnailCache.set(cacheKey, imageUrl);
               }
-
-              page.cleanup();
               return {
                 pageNumber,
                 imageUrl,
                 pageWidth: viewport.width,
                 pageHeight: viewport.height,
               };
-            })
-          );
-
+            } finally {
+              page.cleanup();
+            }
+          }));
           result.push(...batchResults);
         }
-        if (!cancelled) setThumbs(result);
-      } catch {
-        if (!cancelled) setThumbs([]);
+        if (!controller.signal.aborted) setThumbs(result);
+      } catch (thumbnailError) {
+        if (!controller.signal.aborted && !isOperationCancelledError(thumbnailError)) setThumbs([]);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     void loadThumbnails();
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort('Thumbnail generation changed or unmounted');
   }, [workingBytes, pdfDoc, documentKey]);
 
   const applySelection = (

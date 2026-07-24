@@ -386,6 +386,7 @@ async function executeDrawTextOnPages(
       enablePageNumberToken: step.pageNumberToken ?? true,
       enableFileNameToken: step.fileNameToken ?? false,
       enableDateToken: step.dateToken ?? false,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -429,6 +430,7 @@ async function executeInjectRichText(
       enablePageNumberToken: step.pageNumberToken ?? true,
       enableFileNameToken: step.fileNameToken ?? false,
       enableDateToken: step.dateToken ?? false,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -478,6 +480,7 @@ async function executeHeaderFooterText(
       enablePageNumberToken: step.pageNumberToken ?? true,
       enableFileNameToken: step.fileNameToken ?? false,
       enableDateToken: step.dateToken ?? false,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -522,6 +525,7 @@ async function executeInsertImage(
       scale: step.scale,
       imageBytes: image.bytes,
       mimeType: image.mimeType,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -569,6 +573,7 @@ async function executePlaceRichTextbox(
       opacity: step.styles.opacity ?? 1,
       borderWidth: step.styles.borderWidth,
       borderColor: step.styles.borderColor,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -611,6 +616,7 @@ async function executePlaceTable(
       height: tableImage.height,
       imageBytes: tableImage.bytes,
       mimeType: 'image/png',
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -658,6 +664,7 @@ async function executeAdjustImage(
       borderWidth: step.borderWidth,
       borderColor: step.borderColor,
       rotation: step.rotation,
+      signal: ctx.options?.abortSignal,
     });
 
     return success(
@@ -694,6 +701,7 @@ async function executeDrawRedactionBox(
       width: step.width,
       height: step.height,
       fillColor: step.fillColor ?? '#ffffff',
+      signal: ctx.options?.abortSignal,
     });
 
     return success(

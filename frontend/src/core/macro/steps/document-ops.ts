@@ -1,4 +1,5 @@
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
+import type { PdfEditOperationOptions } from '../../../adapters/pdf-edit/PdfEditAdapter';
 import { macroRegistry } from '../registry';
 import type {
   MacroMutableState,
@@ -13,6 +14,12 @@ import {
   buildContentPagePdf,
   buildImageHeaderPagePdf,
 } from '../layout/LayoutEngine';
+
+function operationArgs(
+  signal: AbortSignal | undefined,
+): [] | [PdfEditOperationOptions] {
+  return signal ? [{ signal }] : [];
+}
 
 function success(
   message: string,
@@ -100,8 +107,8 @@ async function executeMergeFiles(
       return ctx.donorFiles?.[donorFileId] as Uint8Array;
     });
 
-    const updatedBytes = await PdfEditAdapter.merge(state.workingBytes, donorBytes);
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const updatedBytes = await PdfEditAdapter.merge(state.workingBytes, donorBytes, ...operationArgs(ctx.options?.abortSignal));
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Merged ${donorBytes.length} donor file(s).`,
@@ -139,9 +146,10 @@ async function executeInsertPdf(
       state.workingBytes,
       donorBytes,
       step.atIndex,
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Inserted PDF at index ${step.atIndex} from donor file "${step.donorFileId}".`,
@@ -161,7 +169,7 @@ type AddContentPageStep = Extract<MacroStep, { op: 'add_content_page' }>;
 
 async function executeAddContentPage(
   step: AddContentPageStep,
-  _ctx: MacroExecutionContext,
+  ctx: MacroExecutionContext,
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
@@ -176,9 +184,10 @@ async function executeAddContentPage(
       state.workingBytes,
       pagePdf,
       insertIndex,
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Added content page at index ${insertIndex}.`,
@@ -198,7 +207,7 @@ type AddImageHeaderPageStep = Extract<MacroStep, { op: 'add_image_header_page' }
 
 async function executeAddImageHeaderPage(
   step: AddImageHeaderPageStep,
-  _ctx: MacroExecutionContext,
+  ctx: MacroExecutionContext,
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
@@ -216,9 +225,10 @@ async function executeAddImageHeaderPage(
       state.workingBytes,
       pagePdf,
       insertIndex,
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes);
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Added image header page at index ${insertIndex}.`,

@@ -8,6 +8,7 @@ import type { SearchOptions } from '@/core/search/types';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 
 export const SearchPanel: React.FC = () => {
   const { documentKey, workingBytes, setPage } = useSessionStore();
@@ -27,6 +28,7 @@ export const SearchPanel: React.FC = () => {
     setError,
   } = useSearchStore();
   const addToast = useToastStore((state) => state.addToast);
+  const searchAbortControllerRef = React.useRef<AbortController | null>(null);
 
   const [localQuery, setLocalQuery] = useState(query);
   const [searchOptions, setSearchOptions] = useState<SearchOptions>({
@@ -41,41 +43,52 @@ export const SearchPanel: React.FC = () => {
     setLocalQuery(query);
   }
 
-  const executeSearch = useCallback(async (searchQuery: string, options: SearchOptions = searchOptions) => {
+  const executeSearch = useCallback(async (
+    searchQuery: string,
+    options: SearchOptions = searchOptions,
+  ) => {
     if (!workingBytes || !documentKey) return;
     if (!searchQuery.trim()) {
+      searchAbortControllerRef.current?.abort('Search cleared');
       clearSearch();
       return;
     }
 
+    searchAbortControllerRef.current?.abort('Superseded by a newer search');
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
     setIsSearching(true);
     try {
       const cache = SearchIndexer.getCache(documentKey);
       if (cache) {
+        if (controller.signal.aborted) return;
         const results = SearchIndexer.search(cache, searchQuery, options);
-        // Map BBoxHit to SearchHit
-        setHits(results.map((r, i) => ({
-          id: `hit-${i}`,
-          pageNumber: r.pageNumber,
-          snippet: r.text,
-          rects: [r.rect],
+        if (controller.signal.aborted) return;
+        setHits(results.map((result, index) => ({
+          id: `hit-${index}`,
+          pageNumber: result.pageNumber,
+          snippet: result.text,
+          rects: [result.rect],
         })));
       } else {
-        // Fallback or handle initial load
-        const results = await PdfRendererAdapter.searchDocumentText(workingBytes, searchQuery);
-        setHits(results);
+        const results = await PdfRendererAdapter.searchDocumentText(
+          workingBytes,
+          searchQuery,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) setHits(results);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    } catch (searchError) {
+      if (isOperationCancelledError(searchError) || controller.signal.aborted) return;
+      const message = searchError instanceof Error ? searchError.message : String(searchError);
       setError(message);
       logError('pdf-renderer', 'Search failed in sidebar panel', { error: message });
-      addToast({
-        type: 'error',
-        title: 'Search Failed',
-        message,
-      });
+      addToast({ type: 'error', title: 'Search Failed', message });
     } finally {
-      setIsSearching(false);
+      if (searchAbortControllerRef.current === controller) {
+        searchAbortControllerRef.current = null;
+        setIsSearching(false);
+      }
     }
   }, [workingBytes, documentKey, searchOptions, clearSearch, setIsSearching, setHits, setError, addToast]);
 
@@ -100,9 +113,15 @@ export const SearchPanel: React.FC = () => {
   };
 
   const handleClear = () => {
+    searchAbortControllerRef.current?.abort('Search cleared');
+    searchAbortControllerRef.current = null;
     setLocalQuery('');
     clearSearch();
   };
+
+  React.useEffect(() => () => {
+    searchAbortControllerRef.current?.abort('Search panel unmounted');
+  }, []);
 
   React.useEffect(() => {
     if (query && documentKey) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { PdfRendererAdapter } from './PdfRendererAdapter';
 import * as pdfjsLib from 'pdfjs-dist';
 
@@ -87,6 +87,32 @@ describe('PdfRendererAdapter document lifecycle', () => {
     });
 
     await third.release();
+  });
+
+  it('cancels an active PDF.js render task when its signal aborts', async () => {
+    const controller = new AbortController();
+    const cancel = vi.fn();
+    const page = {
+      pageNumber: 3,
+      render: vi.fn(() => ({
+        promise: new Promise<void>(() => undefined),
+        cancel,
+      })),
+    } as unknown as PDFPageProxy;
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({})),
+    } as unknown as HTMLCanvasElement;
+    const viewport = { width: 100, height: 200 } as PageViewport;
+
+    const token = PdfRendererAdapter.renderPage(page, canvas, viewport, {
+      signal: controller.signal,
+    });
+    controller.abort('test cancellation');
+
+    await expect(token.completed).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it('removes a failed load so a later acquisition can retry', async () => {

@@ -13,6 +13,7 @@ import {
   FileCode2,
   Rows3,
   Code2,
+  Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
@@ -258,6 +259,13 @@ export const MacrosSidebar: React.FC = () => {
   const [isExpertDryRunning, setIsExpertDryRunning] = React.useState(false);
   const [isExpertRunning, setIsExpertRunning] = React.useState(false);
   const [recipeViewMode, setRecipeViewMode] = React.useState<'table' | 'json'>('table');
+  const runAbortControllerRef = React.useRef<AbortController | null>(null);
+  const expertAbortControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => () => {
+    runAbortControllerRef.current?.abort('Macro panel unmounted');
+    expertAbortControllerRef.current?.abort('Macro panel unmounted');
+  }, []);
   const overrides = React.useMemo(
     () =>
       selectedRecipe
@@ -339,18 +347,14 @@ export const MacrosSidebar: React.FC = () => {
   };
 
   const runSelectedMacro = async () => {
-    if (!workingBytes || !selectedRecipe || !fileName) {
-      return;
-    }
+    if (!workingBytes || !selectedRecipe || !fileName) return;
 
-    // Always validate before run
     const runtimeRecipe = applyOverridesToRecipe(
       selectedRecipe,
       overrides,
       viewState.currentPage,
       Math.max(1, pageCount),
     );
-
     const report = await validateRecipeBeforeRun(runtimeRecipe, {
       pageCount: Math.max(1, pageCount),
       selectedPages: useSessionStore.getState().selectedPages,
@@ -359,12 +363,14 @@ export const MacrosSidebar: React.FC = () => {
       donorFiles: {},
       now: new Date(),
     });
-
     if (!report.isValid) {
       setPreflightReport(report);
       return;
     }
 
+    runAbortControllerRef.current?.abort('Superseded by a new macro run');
+    const controller = new AbortController();
+    runAbortControllerRef.current = controller;
     setPreflightReport(null);
     setIsRunning(true);
     setRunError(null);
@@ -372,19 +378,27 @@ export const MacrosSidebar: React.FC = () => {
     try {
       const result = await runMacroRecipeAgainstSession(runtimeRecipe, {
         saveOutputs: false,
+        abortSignal: controller.signal,
       });
-
       setRunLogs(result.logs);
+
+      if (result.status === 'cancelled') return;
+      if (result.status === 'timed-out') {
+        setRunError('Macro timed out. The document was restored and late results were discarded.');
+        return;
+      }
+      if (result.status === 'failed') {
+        setRunError(result.logs.at(-1) ?? 'Macro execution failed.');
+        return;
+      }
       if (result.outputFiles.length > 0) {
         setOutputQueue((current) => [
           ...current,
-          ...result.outputFiles.map((output) => ({
-            id: uuidv4(),
-            ...output,
-          })),
+          ...result.outputFiles.map((output) => ({ id: uuidv4(), ...output })),
         ]);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       const message = String(err);
       setRunError(message);
       logError('macro', 'Macro execution failed in sidebar', {
@@ -392,8 +406,13 @@ export const MacrosSidebar: React.FC = () => {
         error: message,
       });
     } finally {
+      if (runAbortControllerRef.current === controller) runAbortControllerRef.current = null;
       setIsRunning(false);
     }
+  };
+
+  const cancelSelectedMacro = () => {
+    runAbortControllerRef.current?.abort('Cancelled by user');
   };
 
   const resetPanel = () => {
@@ -529,10 +548,11 @@ export const MacrosSidebar: React.FC = () => {
   };
 
   const runExpertRecipe = async () => {
-    if (!workingBytes) {
-      return;
-    }
+    if (!workingBytes) return;
 
+    expertAbortControllerRef.current?.abort('Superseded by a new expert macro run');
+    const controller = new AbortController();
+    expertAbortControllerRef.current = controller;
     setExpertRunError(null);
     setExpertPreflightReport(null);
     setExpertLogs([]);
@@ -542,7 +562,6 @@ export const MacrosSidebar: React.FC = () => {
       const parsed = parseExpertRecipe();
       const report = await validateRecipeBeforeRun(parsed, buildValidationContext());
       setExpertPreflightReport(report);
-
       if (!report.isValid) {
         setExpertRunError('Preflight failed. Fix recipe errors before running.');
         return;
@@ -550,24 +569,37 @@ export const MacrosSidebar: React.FC = () => {
 
       const result = await runMacroRecipeAgainstSession(parsed, {
         saveOutputs: false,
+        abortSignal: controller.signal,
       });
       setExpertLogs(result.logs);
+      if (result.status === 'cancelled') return;
+      if (result.status === 'timed-out') {
+        setExpertRunError('Expert macro timed out. The document was restored and late results were discarded.');
+        return;
+      }
+      if (result.status === 'failed') {
+        setExpertRunError(result.logs.at(-1) ?? 'Expert macro execution failed.');
+        return;
+      }
       if (result.outputFiles.length > 0) {
         setOutputQueue((current) => [
           ...current,
-          ...result.outputFiles.map((output) => ({
-            id: uuidv4(),
-            ...output,
-          })),
+          ...result.outputFiles.map((output) => ({ id: uuidv4(), ...output })),
         ]);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       const message = String(err);
       setExpertRunError(message);
       logError('macro', 'Expert macro execution failed', { error: message });
     } finally {
+      if (expertAbortControllerRef.current === controller) expertAbortControllerRef.current = null;
       setIsExpertRunning(false);
     }
+  };
+
+  const cancelExpertRecipe = () => {
+    expertAbortControllerRef.current?.abort('Cancelled by user');
   };
 
   const saveExpertPreset = () => {
@@ -1219,14 +1251,17 @@ export const MacrosSidebar: React.FC = () => {
           )}
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => void runSelectedMacro()} disabled={isRunning || !selectedRecipe || (preflightReport ? !preflightReport.isValid : false)}>
-              {isRunning ? (
-                <RotateCw className="w-4 h-4 mr-1 animate-spin" />
-              ) : (
+            {isRunning ? (
+              <Button variant="secondary" size="sm" onClick={cancelSelectedMacro} className="text-red-600">
+                <Square className="w-4 h-4 mr-1" />
+                Cancel
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => void runSelectedMacro()} disabled={!selectedRecipe || (preflightReport ? !preflightReport.isValid : false)}>
                 <Play className="w-4 h-4 mr-1" />
-              )}
-              {isRunning ? 'Running' : 'Run Macro'}
-            </Button>
+                Run Macro
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={resetPanel}>
               Reset
             </Button>
@@ -1371,18 +1406,21 @@ export const MacrosSidebar: React.FC = () => {
             )}
             Validate + Dry Run
           </Button>
-          <Button
-            size="sm"
-            onClick={() => void runExpertRecipe()}
-            disabled={isExpertRunning || isExpertDryRunning || isRunning}
-          >
-            {isExpertRunning ? (
-              <RotateCw className="w-3.5 h-3.5 mr-1 animate-spin" />
-            ) : (
+          {isExpertRunning ? (
+            <Button variant="secondary" size="sm" onClick={cancelExpertRecipe} className="text-red-600">
+              <Square className="w-3.5 h-3.5 mr-1" />
+              Cancel Expert
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => void runExpertRecipe()}
+              disabled={isExpertDryRunning || isRunning}
+            >
               <Play className="w-3.5 h-3.5 mr-1" />
-            )}
-            Run Expert
-          </Button>
+              Run Expert
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

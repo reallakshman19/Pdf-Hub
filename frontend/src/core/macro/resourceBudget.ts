@@ -1,5 +1,6 @@
 import type { MacroMutableState, SideEffect } from './registry';
 import type { MacroExecutionContext, MacroRecipe, MacroStep } from './types';
+import { raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
 
 export interface MacroResourceLimits {
   maxRecipeJsonBytes: number;
@@ -386,8 +387,13 @@ export class MacroExecutionBudget {
     this.startedAt = Date.now();
   }
 
+  checkpoint(operation: string): void {
+    throwIfAborted(this.abortSignal, operation);
+    this.remainingMs();
+  }
+
   beforeStep(step: Pick<MacroStep, 'op'> | string): void {
-    this.assertActive(typeof step === 'string' ? step : step.op);
+    this.checkpoint(typeof step === 'string' ? step : step.op);
     this.executedSteps += 1;
     if (this.executedSteps > this.limits.maxExecutedSteps) {
       throw new MacroResourceLimitError(
@@ -398,30 +404,41 @@ export class MacroExecutionBudget {
     }
   }
 
-  async run<T>(operation: Promise<T>, op: string): Promise<T> {
-    this.assertActive(op);
+  async run<T>(
+    operationPromise: Promise<T>,
+    operation: string,
+    onInterrupt?: () => void,
+  ): Promise<T> {
+    this.checkpoint(operation);
     const remainingMs = this.remainingMs();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(() => {
+        onInterrupt?.();
         reject(new MacroResourceLimitError(
           'MACRO_EXECUTION_TIMEOUT',
-          `Macro execution exceeded ${this.limits.maxExecutionMs} ms while running ${op}.`,
+          `Macro execution exceeded ${this.limits.maxExecutionMs} ms while running ${operation}.`,
           { actual: Date.now() - this.startedAt, limit: this.limits.maxExecutionMs },
         ));
       }, remainingMs);
     });
 
-    void operation.catch(() => undefined);
+    const abortableOperation = raceWithAbort(
+      operationPromise,
+      this.abortSignal,
+      operation,
+      onInterrupt,
+    );
+    void abortableOperation.catch(() => undefined);
     try {
-      return await Promise.race([operation, timeout]);
+      return await Promise.race([abortableOperation, timeout]);
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }
 
   afterStep(state: MacroMutableState, pendingSideEffects: readonly SideEffect[] = []): void {
-    this.assertActive('post-step resource check');
+    this.checkpoint('post-step resource check');
 
     let workingPdfBytes = state.workingBytes.byteLength;
     let outputFiles = state.outputFiles.length;
@@ -468,16 +485,6 @@ export class MacroExecutionBudget {
       );
     }
     return Math.max(1, this.limits.maxExecutionMs - elapsed);
-  }
-
-  private assertActive(op: string): void {
-    if (this.abortSignal?.aborted) {
-      throw new MacroResourceLimitError(
-        'MACRO_EXECUTION_ABORTED',
-        `Macro execution was aborted while running ${op}.`,
-      );
-    }
-    this.remainingMs();
   }
 }
 
