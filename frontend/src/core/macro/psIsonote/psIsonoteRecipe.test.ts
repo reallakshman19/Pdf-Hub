@@ -118,7 +118,7 @@ describe('psIsonoteRecipe', () => {
     expect(findPsIsonoteReferencesInTextItems(items, [mapping], 1)).toEqual([]);
   });
 
-  it('plans a nearby callout and writes a versioned occurrence marker', () => {
+  it('plans a nearby callout and writes a versioned occurrence marker without a searchable PS prefix', () => {
     const detectedReference = reference(mapping.psNo, 180);
     const result = scan([detectedReference]);
 
@@ -141,8 +141,9 @@ describe('psIsonoteRecipe', () => {
     expect(JSON.stringify(recipe.steps[0])).toContain('REST(6kN)');
     expect(recipe.steps.at(-1)).toMatchObject({
       op: 'draw_text_on_pages',
-      text: `PDFHUBISONOTE[v2|PS-1234.5|${HASH_A}|${HASH_B}]`,
+      text: `PDFHUBISONOTE[v2|1234.5|${HASH_A}|${HASH_B}]`,
     });
+    expect(JSON.stringify(recipe.steps.at(-1))).not.toContain('|PS-1234.5|');
   });
 
   it('moves colliding callouts apart on the same page', () => {
