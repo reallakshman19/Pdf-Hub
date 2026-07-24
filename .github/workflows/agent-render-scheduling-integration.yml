@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/render-scheduling-memory-budgets
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
