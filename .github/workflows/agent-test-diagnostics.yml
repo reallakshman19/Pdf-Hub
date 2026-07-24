@@ -19,10 +19,10 @@ jobs:
       - run: corepack prepare pnpm@10.23.0 --activate
       - name: Install dependencies
         run: cd frontend && pnpm install --no-frozen-lockfile
-      - name: Capture test output
+      - name: Capture focused test output
         run: |
           cd frontend
-          pnpm test:ci > ../test.log 2>&1 || true
+          pnpm vitest run src/adapters/pdf-renderer/PdfRendererAdapter.test.ts src/components/workspace/DocumentWorkspace.test.tsx src/core/macro/psIsonote/psIsonoteVerification.test.ts --pool=forks --maxWorkers=1 > ../test.log 2>&1 || true
       - name: Upload test output
         uses: actions/upload-artifact@v4
         with:
