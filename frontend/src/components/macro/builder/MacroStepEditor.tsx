@@ -2,6 +2,7 @@ import React from 'react';
 import type { MacroRecipe, MacroStep } from '../../../core/macro/types';
 import type { ValidationResult } from '../../../core/macro/validator';
 import type { MacroOpCategory, MacroOpSchema } from '../../../core/macro/schema/opSchema';
+import { getMacroOpPresentation } from '../../../core/macro/schema/presentation';
 import {
   getMacroStepAtPath,
   getMacroStepSchemaAtPath,
@@ -77,6 +78,7 @@ export function MacroStepEditor({
   );
 
   const editableFields = schema.fields.filter((field) => field.kind !== 'macro-steps');
+  const presentation = getMacroOpPresentation(schema);
 
   return (
     <section aria-label="Macro step editor">
@@ -91,14 +93,14 @@ export function MacroStepEditor({
           background: '#ffffff',
         }}
       >
-        <strong>{schema.label}</strong>
+        <strong>{presentation.label}</strong>
         <div
           aria-label="Selected step operation"
           style={{ fontSize: 12, color: '#6b7280' }}
         >
           Operation: {step.op}
         </div>
-        <p style={{ fontSize: 12, color: '#374151' }}>{schema.description}</p>
+        <p style={{ fontSize: 12, color: '#374151' }}>{presentation.description}</p>
       </div>
 
       {editableFields.map((field) => (
