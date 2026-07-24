@@ -1,8 +1,5 @@
 import { documentBus } from '../events/bus';
-import { v4 as uuidv4 } from 'uuid';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { useHistoryStore } from '@/core/document-history/store';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import {
@@ -13,7 +10,10 @@ import {
   remapAfterRotate,
 } from '@/core/annotations/pageRemapper';
 import type { PdfAnnotation } from '@/core/annotations/types';
-import { saveAnnotations } from '@/core/annotations/persistence';
+import {
+  commitDocumentMutation,
+  isDocumentMutationTransactionError,
+} from './transaction/documentTransaction';
 import type {
   CommandArtifact,
   CommandErrorCode,
@@ -116,7 +116,7 @@ function commandLabel(command: DocumentCommand): string {
     case 'DRAW_TEXT_ON_PAGES':
       return 'Draw text on pages';
     case 'DRAW_REDACTION_BOX':
-      return 'Draw redaction box';
+      return 'Draw visual mask';
     case 'REPLACE_WORKING_COPY':
       return command.reason ?? 'Apply macro output';
   }
@@ -143,30 +143,14 @@ async function applyMutation(
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
-  const [beforePageCount, afterPageCount] = await Promise.all([
-    PdfEditAdapter.countPages(beforeBytes),
-    PdfEditAdapter.countPages(afterBytes),
-  ]);
-
-  useHistoryStore.getState().push({
-    id: uuidv4(),
+  return commitDocumentMutation({
     command,
     source,
     label: commandLabel(command),
-    timestamp: Date.now(),
-    before: { bytes: new Uint8Array(beforeBytes), pageCount: beforePageCount },
-    after: { bytes: new Uint8Array(afterBytes), pageCount: afterPageCount },
+    beforeBytes,
+    afterBytes,
+    nextAnnotations,
   });
-
-  useSessionStore.getState().replaceWorkingCopy(afterBytes, afterPageCount);
-  if (nextAnnotations) {
-    useAnnotationStore.getState().applyPageRemap(nextAnnotations);
-  }
-  const nextDocumentKey = await FileAdapter.hashBytes(afterBytes);
-  const annotations = useAnnotationStore.getState().annotations;
-  await saveAnnotations(nextDocumentKey, annotations);
-  useSessionStore.getState().setDocumentKey(nextDocumentKey);
-  return { nextBytes: afterBytes, nextPageCount: afterPageCount };
 }
 
 export async function dispatchCommand(payload: CommandPayload): Promise<CommandResult> {
@@ -385,7 +369,7 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       case 'DRAW_REDACTION_BOX': {
         const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for redaction');
+          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for visual masking');
         }
         const nextBytes = await PdfEditAdapter.drawRedactionBoxes(context.workingBytes, {
           pages: pageIndices,
@@ -396,7 +380,14 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
           fillColor: command.options.fillColor ?? '#ffffff',
         });
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        return commandSuccess(command.type, source, true, 'Redaction applied to pages', result.nextBytes, result.nextPageCount);
+        return commandSuccess(
+          command.type,
+          source,
+          true,
+          'Visual mask applied. Underlying PDF content was not securely removed.',
+          result.nextBytes,
+          result.nextPageCount,
+        );
       }
 
       case 'REPLACE_WORKING_COPY': {
@@ -418,6 +409,9 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
-    return commandError(command.type, source, 'EXECUTION_FAILED', message);
+    const details = isDocumentMutationTransactionError(error)
+      ? `transaction-stage=${error.stage}`
+      : undefined;
+    return commandError(command.type, source, 'EXECUTION_FAILED', message, details);
   }
 }
