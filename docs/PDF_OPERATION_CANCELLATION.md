@@ -26,6 +26,10 @@ PDF-lib does not currently expose interruption for parsing or serialization alre
 - Tesseract OCR propagates cancellation rather than converting it to a failed page, revokes temporary image sources, and terminates workers exactly once.
 - The macro panel exposes Cancel controls and adds outputs only for successful runs.
 
+## Certification boundaries
+
+Cancellation regressions are covered across macro transactions, session commit suppression, PDF-lib editing, PDF.js render-task cancellation, Tesseract worker termination, and resource-budget timeout behavior. The normal release matrix additionally exercises lint, strict TypeScript, the complete Vitest suite, static architecture checks, production builds, E2E smoke tests, writer certification, and the OCR workflow certification.
+
 ## Maintenance rules
 
 - New macro entry points must accept and propagate `AbortSignal`.
