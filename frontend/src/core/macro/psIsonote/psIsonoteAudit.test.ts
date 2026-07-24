@@ -8,6 +8,7 @@ import {
 } from './psIsonoteAudit';
 import type { PsIsonoteScanResult, PsIsonoteTextReference } from './psIsonoteRecipe';
 import type { PsIsonoteMapping } from './psIsonoteTable';
+import type { PsIsonoteVerificationResult } from './psIsonoteVerification';
 
 const HASH_A = `sha256:${'a'.repeat(64)}`;
 const HASH_B = `sha256:${'b'.repeat(64)}`;
@@ -17,11 +18,13 @@ const identity: PsIsonoteAuditIdentity = {
   runId: 'psiso-test-run',
   documentName: 'drawing.pdf',
   inputDocumentKey: HASH_A,
+  outputDocumentKey: HASH_C,
   inputSha256: HASH_A,
+  outputSha256: HASH_C,
   mappingSha256: HASH_B,
   recipeSha256: HASH_C,
   scopeSha256: HASH_A,
-  auditSchemaVersion: '2',
+  auditSchemaVersion: '3',
   markerSchemaVersion: 'v2',
 };
 
@@ -72,6 +75,29 @@ function scan(references: PsIsonoteTextReference[]): PsIsonoteScanResult {
   };
 }
 
+function verification(overrides: Partial<PsIsonoteVerificationResult> = {}): PsIsonoteVerificationResult {
+  return {
+    verified: true,
+    outputSha256: HASH_C,
+    outputDocumentKey: HASH_C,
+    outputDocumentKeyMatchesHash: true,
+    expectedPageCount: 1,
+    actualPageCount: 1,
+    expectedMarkerCount: 1,
+    verifiedMarkerCount: 1,
+    markerResults: [{
+      psNo: guideMapping.psNo,
+      pageNumber: 1,
+      mappingHash: HASH_B,
+      occurrenceId: HASH_C,
+      foundCount: 1,
+      status: 'verified',
+    }],
+    diagnostics: [],
+    ...overrides,
+  };
+}
+
 describe('psIsonoteAudit', () => {
   it('scores exact matches above joined text-item matches', () => {
     const exact = reference(guideMapping);
@@ -101,6 +127,7 @@ describe('psIsonoteAudit', () => {
         foundPs: 1,
         occurrences: 1,
         annotated: 1,
+        verified: 0,
         review: 0,
         missing: 0,
         averageConfidence: 100,
@@ -114,6 +141,7 @@ describe('psIsonoteAudit', () => {
         foundPs: 0,
         occurrences: 0,
         annotated: 0,
+        verified: 0,
         review: 0,
         missing: 1,
         averageConfidence: null,
@@ -123,6 +151,59 @@ describe('psIsonoteAudit', () => {
     ]);
     expect(report.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'PS_ISONOTE_NOT_FOUND', psNo: 'PS-5678.1' }),
+    ]));
+  });
+
+  it('promotes successfully reconciled occurrences to verified', () => {
+    const result = scan([reference(guideMapping)]);
+    result.missingPsNumbers = [];
+    const report = buildPsIsonoteAuditReport([guideMapping], result, {
+      identity,
+      phase: 'verified',
+      verification: verification(),
+    });
+
+    expect(report.phase).toBe('verified');
+    expect(report.occurrences[0].status).toBe('verified');
+    expect(report.summaryRows[0]).toMatchObject({ annotated: 1, verified: 1, errors: 0 });
+    expect(report.verification?.verified).toBe(true);
+  });
+
+  it('fails the occurrence audit when post-write marker verification fails', () => {
+    const result = scan([reference(guideMapping)]);
+    result.missingPsNumbers = [];
+    const failedVerification = verification({
+      verified: false,
+      verifiedMarkerCount: 0,
+      markerResults: [{
+        psNo: guideMapping.psNo,
+        pageNumber: 1,
+        mappingHash: HASH_B,
+        occurrenceId: HASH_C,
+        foundCount: 0,
+        status: 'missing',
+      }],
+      diagnostics: [{
+        code: 'PS_ISONOTE_MARKER_MISSING',
+        severity: 'error',
+        psNo: guideMapping.psNo,
+        pageNumber: 1,
+        occurrenceId: HASH_C,
+        message: 'marker missing',
+      }],
+    });
+    const report = buildPsIsonoteAuditReport([guideMapping], result, {
+      identity,
+      phase: 'failed',
+      verification: failedVerification,
+      failureMessage: 'Output verification failed.',
+    });
+
+    expect(report.occurrences[0].status).toBe('verification-failed');
+    expect(report.summaryRows[0]).toMatchObject({ annotated: 0, verified: 0, errors: 1 });
+    expect(report.occurrences[0].diagnosticCodes).toContain('PS_ISONOTE_MARKER_MISSING');
+    expect(report.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'PS_ISONOTE_VERIFICATION_FAILED' }),
     ]));
   });
 
@@ -139,7 +220,7 @@ describe('psIsonoteAudit', () => {
     );
 
     expect(report.occurrences[0].status).toBe('annotated');
-    expect(report.summaryRows[0]).toMatchObject({ annotated: 1, review: 1 });
+    expect(report.summaryRows[0]).toMatchObject({ annotated: 1, verified: 0, review: 1 });
     expect(report.occurrences[0].diagnosticCodes).toContain('PS_ISONOTE_REVIEW_REQUIRED');
   });
 
@@ -205,23 +286,27 @@ describe('psIsonoteAudit', () => {
     ]));
   });
 
-  it('serializes the requested PS-wise CSV columns and an identity manifest', () => {
-    const report = buildPsIsonoteAuditReport(
-      [guideMapping, restMapping],
-      scan([reference(guideMapping)]),
-      { identity },
-    );
+  it('serializes verified CSV columns and the verification manifest', () => {
+    const result = scan([reference(guideMapping)]);
+    result.missingPsNumbers = [];
+    const report = buildPsIsonoteAuditReport([guideMapping], result, {
+      identity,
+      phase: 'verified',
+      verification: verification(),
+    });
     const csv = serializePsIsonoteSummaryCsv(report);
     const manifest = JSON.parse(serializePsIsonoteAuditManifest(report)) as {
       identity: PsIsonoteAuditIdentity;
+      verification: PsIsonoteVerificationResult;
+      counts: { verified: number };
     };
 
     expect(csv.split('\n')[0]).toBe(
-      'PS No.,Family,Mappings,Found PS,Occurrences,Annotated,Review,Missing,Average Confidence,Minimum Confidence,Errors',
+      'PS No.,Family,Mappings,Found PS,Occurrences,Annotated,Verified,Review,Missing,Average Confidence,Minimum Confidence,Errors',
     );
-    expect(csv).toContain('PS-1234.5,Guide,1,1,1,0,0,0,100,100,0');
-    expect(csv).toContain('PS-5678.1,Rest,1,0,0,0,0,1,,,0');
+    expect(csv).toContain('PS-1234.5,Guide,1,1,1,1,1,0,0,100,100,0');
     expect(manifest.identity.runId).toBe(identity.runId);
-    expect(manifest.identity.mappingSha256).toBe(identity.mappingSha256);
+    expect(manifest.verification.verified).toBe(true);
+    expect(manifest.counts.verified).toBe(1);
   });
 });
