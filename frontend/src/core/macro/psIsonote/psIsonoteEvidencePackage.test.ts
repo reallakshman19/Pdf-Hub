@@ -115,7 +115,7 @@ async function verifiedReport(): Promise<PsIsonoteAuditReport> {
 
 function checksumMap(value: string): Map<string, string> {
   return new Map(value.split('\n').filter(Boolean).map((line) => {
-    const match = /^([a-f0-9]{64})  (.+)$/.exec(line);
+    const match = /^([a-f0-9]{64}) {2}(.+)$/.exec(line);
     if (!match) throw new Error(`Invalid checksum line: ${line}`);
     return [match[2], match[1]];
   }));
