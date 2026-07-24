@@ -1,6 +1,7 @@
 import React, { useState, Suspense } from 'react';
 import { useEditorStore } from '@/core/editor/store';
 import { MacrosSidebar } from '@/components/sidebar/MacrosSidebar';
+import { PsIsonoteRecipeBuilder } from '@/components/sidebar/PsIsonoteRecipeBuilder';
 import OcrPanelWriterConnected from '@/components/ocr/OcrPanelWriterConnected';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -89,7 +90,12 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'comments' && <CommentsSidebar />}
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
-        {sidebarTab === 'macros' && <MacrosSidebar />}
+        {sidebarTab === 'macros' && (
+          <>
+            <PsIsonoteRecipeBuilder />
+            <MacrosSidebar />
+          </>
+        )}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
       </div>
     </div>
