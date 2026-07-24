@@ -1,5 +1,11 @@
 import type { MacroRecipe } from '../types';
 import { macroValidator } from '../validator';
+import {
+  assertJsonTextWithinBudget,
+  DEFAULT_MACRO_RESOURCE_LIMITS,
+  parseBoundedJson,
+  parseMacroRecipeJson,
+} from '../resourceBudget';
 
 export const CUSTOM_MACRO_RECIPE_STORAGE_KEY = 'pdfhub.macro.customRecipes.v1';
 export const CUSTOM_MACRO_RECIPES_CHANGED_EVENT = 'pdfhub:macro-custom-recipes-changed';
@@ -32,12 +38,14 @@ export function saveCustomMacroRecipes(recipes: MacroRecipe[]): void {
     recipe,
     updatedAt: new Date().toISOString(),
   }));
-
-  storage.setItem(
-    CUSTOM_MACRO_RECIPE_STORAGE_KEY,
-    JSON.stringify(records, null, 2),
+  const serialized = JSON.stringify(records, null, 2);
+  assertJsonTextWithinBudget(
+    serialized,
+    DEFAULT_MACRO_RESOURCE_LIMITS.maxStoredRecipeJsonBytes,
+    'Stored macro recipe collection',
   );
 
+  storage.setItem(CUSTOM_MACRO_RECIPE_STORAGE_KEY, serialized);
   dispatchCustomRecipeStorageChanged(records.map((record) => record.recipe));
 }
 
@@ -84,25 +92,18 @@ export function updateCustomMacroRecipe(
 
 export function exportMacroRecipeJson(recipe: MacroRecipe): string {
   assertValidRecipe(recipe);
-  return JSON.stringify(recipe, null, 2);
+  const serialized = JSON.stringify(recipe, null, 2);
+  assertJsonTextWithinBudget(
+    serialized,
+    DEFAULT_MACRO_RESOURCE_LIMITS.maxRecipeJsonBytes,
+    'Macro recipe JSON',
+  );
+  return serialized;
 }
 
 export function importMacroRecipeJson(jsonText: string): MacroRecipe {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(jsonText);
-  } catch (err) {
-    throw new Error(`Invalid macro recipe JSON: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Invalid macro recipe JSON: root value must be an object.');
-  }
-
-  const recipe = parsed as MacroRecipe;
+  const recipe = parseMacroRecipeJson(jsonText);
   assertValidRecipe(recipe);
-
   return cloneRecipe(recipe);
 }
 
@@ -155,7 +156,10 @@ function parseStoredRecords(raw: string): StoredMacroRecipeRecord[] {
   let parsed: unknown;
 
   try {
-    parsed = JSON.parse(raw);
+    parsed = parseBoundedJson(raw, {
+      maxBytes: DEFAULT_MACRO_RESOURCE_LIMITS.maxStoredRecipeJsonBytes,
+      label: 'stored macro recipe JSON',
+    });
   } catch {
     return [];
   }
@@ -174,18 +178,25 @@ function parseStoredRecords(raw: string): StoredMacroRecipeRecord[] {
 
     if (!validation.valid) continue;
 
-    records.push({
-      recipe: cloneRecipe(candidate.recipe),
-      updatedAt: typeof candidate.updatedAt === 'string'
-        ? candidate.updatedAt
-        : new Date(0).toISOString(),
-    });
+    try {
+      const recipeJson = JSON.stringify(candidate.recipe);
+      const boundedRecipe = parseMacroRecipeJson(recipeJson);
+      records.push({
+        recipe: cloneRecipe(boundedRecipe),
+        updatedAt: typeof candidate.updatedAt === 'string'
+          ? candidate.updatedAt
+          : new Date(0).toISOString(),
+      });
+    } catch {
+      continue;
+    }
   }
 
   return records;
 }
 
 function assertValidRecipe(recipe: MacroRecipe): void {
+  parseMacroRecipeJson(JSON.stringify(recipe));
   const result = macroValidator.validate(recipe);
 
   if (!result.valid) {
