@@ -29,6 +29,16 @@ interface ParsedState {
 
 type ScopeMode = 'all' | 'current' | 'selected';
 
+interface ScanArtifact {
+  documentBytes: Uint8Array;
+  sourceText: string;
+  scope: ScopeMode;
+  skipExisting: boolean;
+  currentPage: number;
+  selectedPagesKey: string;
+  result: PsIsonoteScanResult;
+}
+
 function parseSource(sourceText: string): ParsedState {
   if (!sourceText.trim()) return { result: null, error: null };
   try {
@@ -65,18 +75,23 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [fontSize, setFontSize] = React.useState(10);
   const [includeFamily, setIncludeFamily] = React.useState(true);
   const [skipExisting, setSkipExisting] = React.useState(true);
-  const [scanResult, setScanResult] = React.useState<PsIsonoteScanResult | null>(null);
+  const [scanArtifact, setScanArtifact] = React.useState<ScanArtifact | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
   const [isRunning, setIsRunning] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const parsedState = React.useMemo(() => parseSource(sourceText), [sourceText]);
-
-  React.useEffect(() => {
-    setScanResult(null);
-    setMessage(null);
-  }, [sourceText, scope, skipExisting, workingBytes]);
+  const selectedPagesKey = selectedPages.join(',');
+  const scanResult = scanArtifact &&
+    scanArtifact.documentBytes === workingBytes &&
+    scanArtifact.sourceText === sourceText &&
+    scanArtifact.scope === scope &&
+    scanArtifact.skipExisting === skipExisting &&
+    scanArtifact.currentPage === viewState.currentPage &&
+    scanArtifact.selectedPagesKey === selectedPagesKey
+    ? scanArtifact.result
+    : null;
 
   const runScan = React.useCallback(async (): Promise<PsIsonoteScanResult> => {
     if (!workingBytes) {
@@ -97,12 +112,27 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     });
   }, [parsedState, scope, selectedPages, skipExisting, viewState.currentPage, workingBytes]);
 
+  const recordScanResult = (result: PsIsonoteScanResult) => {
+    if (!workingBytes) return;
+    setScanArtifact({
+      documentBytes: workingBytes,
+      sourceText,
+      scope,
+      skipExisting,
+      currentPage: viewState.currentPage,
+      selectedPagesKey,
+      result,
+    });
+  };
+
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
       const text = await file.text();
       setSourceText(text);
       setSourceName(file.name);
+      setScanArtifact(null);
+      setMessage(null);
       setError(null);
     } catch (fileError) {
       setError(fileError instanceof Error ? fileError.message : String(fileError));
@@ -115,7 +145,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     setMessage(null);
     try {
       const result = await runScan();
-      setScanResult(result);
+      recordScanResult(result);
       setMessage(
         `Found ${result.references.length} annotation target(s) across ${result.scannedPages.length} page(s).`,
       );
@@ -132,7 +162,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     setMessage(null);
     try {
       const result = await runScan();
-      setScanResult(result);
+      recordScanResult(result);
       if (result.references.length === 0) {
         if (result.skippedExisting.length > 0) {
           throw new Error('All matched PS numbers are already annotated on the selected pages.');
@@ -215,6 +245,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         onChange={(event) => {
           setSourceText(event.target.value);
           setSourceName('');
+          setScanArtifact(null);
+          setMessage(null);
           setError(null);
         }}
       />
@@ -252,7 +284,11 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           <select
             className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
             value={scope}
-            onChange={(event) => setScope(event.target.value as ScopeMode)}
+            onChange={(event) => {
+              setScope(event.target.value as ScopeMode);
+              setScanArtifact(null);
+              setMessage(null);
+            }}
           >
             <option value="all">All pages</option>
             <option value="current">Current page</option>
@@ -310,7 +346,11 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         <input
           type="checkbox"
           checked={skipExisting}
-          onChange={(event) => setSkipExisting(event.target.checked)}
+          onChange={(event) => {
+            setSkipExisting(event.target.checked);
+            setScanArtifact(null);
+            setMessage(null);
+          }}
         />
         Skip PS numbers already annotated by this recipe
       </label>
