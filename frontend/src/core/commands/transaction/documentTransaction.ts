@@ -99,7 +99,20 @@ export async function commitDocumentMutation(
   const historySnapshot = {
     undoStack: [...historyState.undoStack],
     redoStack: [...historyState.redoStack],
+    retainedBytes: historyState.retainedBytes,
+    droppedTransactions: historyState.droppedTransactions,
+    lastTrimReason: historyState.lastTrimReason,
+    overBudget: historyState.overBudget,
   };
+  const previousAfter = historyState.undoStack.at(-1)?.after;
+  const canSharePreviousSnapshot = Boolean(
+    sessionSnapshot.documentKey &&
+    previousAfter?.documentKey === sessionSnapshot.documentKey &&
+    previousAfter.pageCount === beforePageCount,
+  );
+  const beforeHistoryBytes = canSharePreviousSnapshot && previousAfter
+    ? previousAfter.bytes
+    : new Uint8Array(input.beforeBytes);
 
   try {
     useHistoryStore.getState().push({
@@ -109,12 +122,14 @@ export async function commitDocumentMutation(
       label: input.label,
       timestamp: Date.now(),
       before: {
-        bytes: new Uint8Array(input.beforeBytes),
+        bytes: beforeHistoryBytes,
         pageCount: beforePageCount,
+        documentKey: sessionSnapshot.documentKey,
       },
       after: {
         bytes: new Uint8Array(input.afterBytes),
         pageCount: afterPageCount,
+        documentKey: nextDocumentKey,
       },
     });
 
