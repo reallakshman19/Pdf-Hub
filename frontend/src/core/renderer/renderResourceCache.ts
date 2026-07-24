@@ -4,9 +4,15 @@ export interface RenderResourceCacheDiagnostics {
   maxBytes: number;
 }
 
+export interface RenderResourceLease<T> {
+  readonly value: T;
+  release: () => void;
+}
+
 interface RenderResourceCacheEntry<T> {
   value: T;
   bytes: number;
+  refCount: number;
   dispose?: (value: T) => void;
 }
 
@@ -21,12 +27,25 @@ export class ByteBoundedLruCache<K, T> {
   }
 
   get(key: K): T | undefined {
-    const entry = this.entries.get(key);
-    if (!entry) return undefined;
+    const entry = this.touch(key);
+    return entry?.value;
+  }
 
-    this.entries.delete(key);
-    this.entries.set(key, entry);
-    return entry.value;
+  acquire(key: K): RenderResourceLease<T> | null {
+    const entry = this.touch(key);
+    if (!entry) return null;
+
+    entry.refCount += 1;
+    let released = false;
+    return {
+      value: entry.value,
+      release: () => {
+        if (released) return;
+        released = true;
+        entry.refCount = Math.max(0, entry.refCount - 1);
+        this.evictToBudget();
+      },
+    };
   }
 
   set(
@@ -38,6 +57,10 @@ export class ByteBoundedLruCache<K, T> {
     const normalizedBytes = Math.max(0, Math.floor(bytes));
     const existing = this.entries.get(key);
     if (existing) {
+      if (existing.refCount > 0) {
+        dispose?.(value);
+        return false;
+      }
       this.entries.delete(key);
       this.totalBytes = Math.max(0, this.totalBytes - existing.bytes);
       this.disposeEntry(existing);
@@ -48,15 +71,20 @@ export class ByteBoundedLruCache<K, T> {
       return false;
     }
 
-    this.entries.set(key, { value, bytes: normalizedBytes, dispose });
+    this.entries.set(key, {
+      value,
+      bytes: normalizedBytes,
+      refCount: 0,
+      dispose,
+    });
     this.totalBytes += normalizedBytes;
     this.evictToBudget();
     return true;
   }
 
-  delete(key: K): boolean {
+  delete(key: K, options: { force?: boolean } = {}): boolean {
     const entry = this.entries.get(key);
-    if (!entry) return false;
+    if (!entry || (entry.refCount > 0 && options.force !== true)) return false;
 
     this.entries.delete(key);
     this.totalBytes = Math.max(0, this.totalBytes - entry.bytes);
@@ -66,18 +94,18 @@ export class ByteBoundedLruCache<K, T> {
 
   deleteWhere(predicate: (key: K, value: T) => boolean): number {
     const keys = Array.from(this.entries.entries())
-      .filter(([key, entry]) => predicate(key, entry.value))
+      .filter(([key, entry]) => entry.refCount === 0 && predicate(key, entry.value))
       .map(([key]) => key);
 
     for (const key of keys) this.delete(key);
     return keys.length;
   }
 
-  clear(): void {
-    const entries = Array.from(this.entries.values());
-    this.entries.clear();
-    this.totalBytes = 0;
-    for (const entry of entries) this.disposeEntry(entry);
+  clear(options: { force?: boolean } = {}): void {
+    const keys = Array.from(this.entries.entries())
+      .filter(([, entry]) => options.force === true || entry.refCount === 0)
+      .map(([key]) => key);
+    for (const key of keys) this.delete(key, options);
   }
 
   getDiagnostics(): RenderResourceCacheDiagnostics {
@@ -88,11 +116,19 @@ export class ByteBoundedLruCache<K, T> {
     };
   }
 
+  private touch(key: K): RenderResourceCacheEntry<T> | undefined {
+    const entry = this.entries.get(key);
+    if (!entry) return undefined;
+
+    this.entries.delete(key);
+    this.entries.set(key, entry);
+    return entry;
+  }
+
   private evictToBudget(): void {
     while (this.totalBytes > this.maxBytes) {
-      const oldest = this.entries.entries().next().value as
-        | [K, RenderResourceCacheEntry<T>]
-        | undefined;
+      const oldest = Array.from(this.entries.entries())
+        .find(([, entry]) => entry.refCount === 0);
       if (!oldest) return;
       this.delete(oldest[0]);
     }
