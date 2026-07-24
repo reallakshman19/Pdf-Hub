@@ -56,11 +56,13 @@ export class RenderScheduler {
   private readonly queue: RenderJob<unknown>[] = [];
   private activeJobs = 0;
   private sequence = 0;
+  private readonly maxConcurrent: number;
 
-  constructor(private readonly maxConcurrent = 3) {
+  constructor(maxConcurrent = 3) {
     if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1) {
       throw new Error('RenderScheduler maxConcurrent must be a positive integer.');
     }
+    this.maxConcurrent = maxConcurrent;
   }
 
   schedule<T>(request: RenderScheduleRequest<T>): Promise<T> {

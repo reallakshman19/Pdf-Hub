@@ -138,10 +138,10 @@ describe('RenderScheduler', () => {
     const scheduler = createScheduler(1);
     const firstController = new AbortController();
     const secondController = new AbortController();
-    let taskSignal: AbortSignal | null = null;
+    const taskSignal: { current?: AbortSignal } = {};
 
     const run = vi.fn(async (signal: AbortSignal) => {
-      taskSignal = signal;
+      taskSignal.current = signal;
       await new Promise<void>(() => undefined);
     });
 
@@ -161,10 +161,11 @@ describe('RenderScheduler', () => {
     await Promise.resolve();
     firstController.abort('first view left');
     await expect(first).rejects.toSatisfy(isOperationCancelledError);
-    expect(taskSignal?.aborted).toBe(false);
+    expect(taskSignal.current).toBeDefined();
+    expect(taskSignal.current?.aborted).toBe(false);
 
     secondController.abort('second view left');
     await expect(second).rejects.toSatisfy(isOperationCancelledError);
-    expect(taskSignal?.aborted).toBe(true);
+    expect(taskSignal.current?.aborted).toBe(true);
   });
 });

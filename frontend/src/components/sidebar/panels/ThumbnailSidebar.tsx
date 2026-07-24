@@ -1,4 +1,5 @@
 import React from 'react';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Layers, GripVertical, ZoomIn, ZoomOut } from 'lucide-react';
 import { VList, type VListHandle } from 'virtua';
 import { useSessionStore } from '@/core/session/store';
@@ -7,14 +8,14 @@ import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSearchStore } from '@/core/search/store';
 import { dispatchCommand } from '@/core/commands/dispatch';
-import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
-import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
+import { isOperationCancelledError, raceWithAbort } from '@/core/cancellation/operationCancellation';
 import { ThumbnailActionStrip } from '@/components/sidebar/thumbnails/ThumbnailActionStrip';
 import { ThumbnailContextMenu } from '@/components/sidebar/thumbnails/ThumbnailContextMenu';
+import { acquireScheduledThumbnail } from '@/core/renderer/thumbnailRenderService';
+import { RENDER_PRIORITIES } from '@/core/renderer/renderScheduler';
 
 interface ThumbItem {
   pageNumber: number;
-  imageUrl: string;
   pageWidth: number;   // PDF page width in CSS-pixel units at scale=1
   pageHeight: number;  // PDF page height in CSS-pixel units at scale=1
 }
@@ -68,8 +69,69 @@ function buildReorderOrder(
   ];
 }
 
-// Global cache for thumbnail image URLs to prevent flickering and regeneration on active editing passes
-const thumbnailCache = new Map<string, string>(); // key: `${documentKey}-${pageNumber}`
+
+interface ThumbnailImageProps {
+  doc: PDFDocumentProxy;
+  documentKey: string;
+  pageNumber: number;
+  currentPage: number;
+}
+
+const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
+  doc,
+  documentKey,
+  pageNumber,
+  currentPage,
+}) => {
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    let release: (() => void) | null = null;
+    setImageUrl(null);
+
+    const distance = Math.abs(pageNumber - currentPage);
+    const priority = distance <= 2
+      ? RENDER_PRIORITIES.nearbyThumbnail
+      : RENDER_PRIORITIES.backgroundThumbnail;
+
+    void acquireScheduledThumbnail({
+      doc,
+      documentKey,
+      pageNumber,
+      priority,
+      signal: controller.signal,
+    }).then((lease) => {
+      if (controller.signal.aborted) {
+        lease.release();
+        return;
+      }
+      release = lease.release;
+      setImageUrl(lease.value.imageUrl);
+    }).catch((thumbnailError) => {
+      if (!controller.signal.aborted && !isOperationCancelledError(thumbnailError)) {
+        setImageUrl(null);
+      }
+    });
+
+    return () => {
+      controller.abort('Thumbnail left the virtualized viewport');
+      release?.();
+    };
+  }, [doc, documentKey, pageNumber, currentPage]);
+
+  if (!imageUrl) {
+    return <div className="h-full w-full animate-pulse bg-slate-100 dark:bg-slate-900" />;
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={`Thumbnail for page ${pageNumber}`}
+      style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top center' }}
+    />
+  );
+};
 
 const ThumbnailSidebar: React.FC = () => {
   const {
@@ -148,45 +210,40 @@ const ThumbnailSidebar: React.FC = () => {
   React.useEffect(() => {
     const controller = new AbortController();
 
-    const loadThumbnails = async () => {
+    const loadPageMetadata = async () => {
       if (!workingBytes || !pdfDoc) {
         setThumbs([]);
         return;
       }
       setLoading(true);
       try {
-        const result: ThumbItem[] = [];
-        const batchSize = 5;
-
-        for (let i = 1; i <= pdfDoc.numPages; i += batchSize) {
-          if (controller.signal.aborted) break;
-          const batch: number[] = [];
-          for (let j = 0; j < batchSize && i + j <= pdfDoc.numPages; j += 1) {
-            batch.push(i + j);
+        const pageNumbers = Array.from(
+          { length: pdfDoc.numPages },
+          (_, index) => index + 1,
+        );
+        const result = await Promise.all(pageNumbers.map(async (pageNumber) => {
+          const pagePromise = pdfDoc.getPage(pageNumber);
+          const page = await raceWithAbort(
+            pagePromise,
+            controller.signal,
+            `load PDF page ${pageNumber} metadata for thumbnail sidebar`,
+            () => {
+              void pagePromise
+                .then((latePage) => latePage.cleanup())
+                .catch(() => undefined);
+            },
+          );
+          try {
+            const viewport = page.getViewport({ scale: 1 });
+            return {
+              pageNumber,
+              pageWidth: viewport.width,
+              pageHeight: viewport.height,
+            };
+          } finally {
+            page.cleanup();
           }
-
-          const batchResults = await Promise.all(batch.map(async (pageNumber) => {
-            const cacheKey = `${documentKey || 'default'}-${pageNumber}`;
-            let imageUrl = thumbnailCache.get(cacheKey);
-            const page = await pdfDoc.getPage(pageNumber);
-            try {
-              const viewport = page.getViewport({ scale: 1.0 });
-              if (!imageUrl) {
-                imageUrl = await PdfRendererAdapter.getThumbnail(page, controller.signal);
-                thumbnailCache.set(cacheKey, imageUrl);
-              }
-              return {
-                pageNumber,
-                imageUrl,
-                pageWidth: viewport.width,
-                pageHeight: viewport.height,
-              };
-            } finally {
-              page.cleanup();
-            }
-          }));
-          result.push(...batchResults);
-        }
+        }));
         if (!controller.signal.aborted) setThumbs(result);
       } catch (thumbnailError) {
         if (!controller.signal.aborted && !isOperationCancelledError(thumbnailError)) setThumbs([]);
@@ -195,8 +252,8 @@ const ThumbnailSidebar: React.FC = () => {
       }
     };
 
-    void loadThumbnails();
-    return () => controller.abort('Thumbnail generation changed or unmounted');
+    void loadPageMetadata();
+    return () => controller.abort('Thumbnail metadata changed or unmounted');
   }, [workingBytes, pdfDoc, documentKey]);
 
   const applySelection = (
@@ -482,12 +539,14 @@ const ThumbnailSidebar: React.FC = () => {
                   }`}
                   style={{ height: thumbHeight, width: calculatedWidth }}
                 >
-                  <img
-                    src={thumb.imageUrl}
-                    alt={`Thumbnail for page ${thumb.pageNumber}`}
-                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top center' }}
-                    loading="lazy"
-                  />
+                  {pdfDoc && (
+                    <ThumbnailImage
+                      doc={pdfDoc}
+                      documentKey={documentKey || 'default'}
+                      pageNumber={thumb.pageNumber}
+                      currentPage={viewState.currentPage}
+                    />
+                  )}
                   {/* Annotation shapes overlaid on thumbnail using page-space coordinates */}
                   {thumb.pageWidth > 0 && annotations.some(a => a.pageNumber === thumb.pageNumber) && (
                     <svg

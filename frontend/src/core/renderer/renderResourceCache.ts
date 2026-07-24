@@ -19,11 +19,13 @@ interface RenderResourceCacheEntry<T> {
 export class ByteBoundedLruCache<K, T> {
   private readonly entries = new Map<K, RenderResourceCacheEntry<T>>();
   private totalBytes = 0;
+  private readonly maxBytes: number;
 
-  constructor(private readonly maxBytes: number) {
+  constructor(maxBytes: number) {
     if (!Number.isFinite(maxBytes) || maxBytes < 0) {
       throw new Error('ByteBoundedLruCache maxBytes must be non-negative.');
     }
+    this.maxBytes = maxBytes;
   }
 
   get(key: K): T | undefined {
