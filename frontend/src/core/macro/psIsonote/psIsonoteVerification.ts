@@ -95,18 +95,19 @@ export async function verifyPsIsonoteOutput(
 
   try {
     const doc = await PdfRendererAdapter.loadDocument(options.outputBytes);
-    actualPageCount = doc.numPages;
+    const reopenedPageCount = doc.numPages;
+    actualPageCount = reopenedPageCount;
 
-    if (actualPageCount !== options.expectedPageCount) {
+    if (reopenedPageCount !== options.expectedPageCount) {
       diagnostics.push({
         code: 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH',
         severity: 'error',
-        message: `Output page count is ${actualPageCount}; expected ${options.expectedPageCount}.`,
+        message: `Output page count is ${reopenedPageCount}; expected ${options.expectedPageCount}.`,
       });
     }
 
     const pagesToRead = Array.from(new Set(options.expectedMarkers.map((marker) => marker.pageNumber)))
-      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= actualPageCount)
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= reopenedPageCount)
       .sort((left, right) => left - right);
 
     for (const pageNumber of pagesToRead) {
