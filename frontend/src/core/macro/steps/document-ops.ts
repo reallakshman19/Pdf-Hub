@@ -1,4 +1,5 @@
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
+import type { PdfEditOperationOptions } from '../../../adapters/pdf-edit/PdfEditAdapter';
 import { macroRegistry } from '../registry';
 import type {
   MacroMutableState,
@@ -13,6 +14,12 @@ import {
   buildContentPagePdf,
   buildImageHeaderPagePdf,
 } from '../layout/LayoutEngine';
+
+function operationArgs(
+  signal: AbortSignal | undefined,
+): [] | [PdfEditOperationOptions] {
+  return signal ? [{ signal }] : [];
+}
 
 function success(
   message: string,
@@ -100,8 +107,8 @@ async function executeMergeFiles(
       return ctx.donorFiles?.[donorFileId] as Uint8Array;
     });
 
-    const updatedBytes = await PdfEditAdapter.merge(state.workingBytes, donorBytes, { signal: ctx.options?.abortSignal });
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
+    const updatedBytes = await PdfEditAdapter.merge(state.workingBytes, donorBytes, ...operationArgs(ctx.options?.abortSignal));
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Merged ${donorBytes.length} donor file(s).`,
@@ -139,10 +146,10 @@ async function executeInsertPdf(
       state.workingBytes,
       donorBytes,
       step.atIndex,
-      { signal: ctx.options?.abortSignal },
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Inserted PDF at index ${step.atIndex} from donor file "${step.donorFileId}".`,
@@ -177,10 +184,10 @@ async function executeAddContentPage(
       state.workingBytes,
       pagePdf,
       insertIndex,
-      { signal: ctx.options?.abortSignal },
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Added content page at index ${insertIndex}.`,
@@ -218,10 +225,10 @@ async function executeAddImageHeaderPage(
       state.workingBytes,
       pagePdf,
       insertIndex,
-      { signal: ctx.options?.abortSignal },
+      ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, { signal: ctx.options?.abortSignal });
+    const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
 
     return success(
       `Added image header page at index ${insertIndex}.`,
