@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -12,28 +15,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: agent/render-scheduling-memory-budgets
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply thumbnail state fix
+        run: python scripts/agent_fix_render_lint.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: corepack enable
       - run: corepack prepare pnpm@10.23.0 --activate
       - run: cd frontend && pnpm install --no-frozen-lockfile
-      - name: Capture lint output
-        id: lint
-        continue-on-error: true
+      - name: Lint
+        run: cd frontend && pnpm run lint
+      - name: Strict TypeScript
+        run: cd frontend && pnpm run typecheck
+      - name: Render scheduling regressions
+        run: >-
+          cd frontend && pnpm exec vitest run
+          src/core/renderer/renderScheduler.test.ts
+          src/core/renderer/renderResourceCache.test.ts
+          src/adapters/pdf-renderer/PdfRendererAdapter.test.ts
+          --pool=forks --maxWorkers=1
+      - name: Complete Vitest suite
+        run: cd frontend && pnpm exec vitest run --pool=forks
+      - name: Commit validated lint fix
         run: |
-          set +e
-          cd frontend
-          pnpm run lint > ../render-lint.log 2>&1
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit $status
-      - name: Upload lint diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: render-lint-diagnostics
-          path: render-lint.log
-      - name: Preserve lint failure
-        if: steps.lint.outcome == 'failure'
-        run: exit 1
+          if git diff --quiet; then
+            echo "No lint fix to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/components/sidebar/panels/ThumbnailSidebar.tsx
+          git commit -m "Avoid synchronous thumbnail state updates in effects"
+          git push origin HEAD:agent/render-scheduling-memory-budgets
