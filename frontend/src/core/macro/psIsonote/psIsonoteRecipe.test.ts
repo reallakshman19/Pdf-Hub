@@ -6,6 +6,7 @@ import {
   findPsIsonoteReferencesInTextItems,
   planPsIsonoteCallouts,
   type PsIsonoteScanResult,
+  type PsIsonoteTextReference,
 } from './psIsonoteRecipe';
 
 const mapping: PsIsonoteMapping = {
@@ -19,8 +20,24 @@ function textItem(id: string, text: string, x: number, y: number, width: number)
   return { id, text, x, y, width, height: 10, fontSize: 9 };
 }
 
+function reference(
+  psNo: string,
+  y: number,
+  mappingOverride: PsIsonoteMapping = mapping,
+): PsIsonoteTextReference {
+  return {
+    psNo,
+    pageNumber: 1,
+    rect: { x: 100, y, width: 60, height: 12 },
+    mapping: mappingOverride,
+    rawMatchedText: psNo,
+    matchMethod: 'exact',
+    textItemCount: 1,
+  };
+}
+
 describe('psIsonoteRecipe', () => {
-  it('finds a PS number split across PDF text items', () => {
+  it('finds a PS number split across PDF text items and retains evidence', () => {
     const items = [
       textItem('a', 'PS', 100, 200, 12),
       textItem('b', '-', 112, 200, 4),
@@ -35,6 +52,23 @@ describe('psIsonoteRecipe', () => {
       psNo: 'PS-1234.5',
       pageNumber: 3,
       rect: { x: 100, y: 200, width: 48, height: 10 },
+      matchMethod: 'joined-text-items',
+      textItemCount: 4,
+    });
+    expect(references[0].rawMatchedText).toContain('1234');
+  });
+
+  it('classifies a canonical single-item PS number as exact', () => {
+    const references = findPsIsonoteReferencesInTextItems(
+      [textItem('a', 'PS-1234.5', 20, 30, 60)],
+      [mapping],
+      1,
+    );
+
+    expect(references[0]).toMatchObject({
+      rawMatchedText: 'PS-1234.5',
+      matchMethod: 'exact',
+      textItemCount: 1,
     });
   });
 
@@ -44,15 +78,10 @@ describe('psIsonoteRecipe', () => {
   });
 
   it('plans a nearby callout and builds standard macro steps', () => {
+    const detectedReference = reference(mapping.psNo, 180);
     const scan: PsIsonoteScanResult = {
-      references: [
-        {
-          psNo: mapping.psNo,
-          pageNumber: 1,
-          rect: { x: 100, y: 180, width: 60, height: 12 },
-          mapping,
-        },
-      ],
+      references: [detectedReference],
+      detectedReferences: [detectedReference],
       missingPsNumbers: [],
       skippedExisting: [],
       scannedPages: [1],
@@ -84,11 +113,12 @@ describe('psIsonoteRecipe', () => {
   });
 
   it('moves colliding callouts apart on the same page', () => {
+    const first = reference(mapping.psNo, 180);
+    const secondMapping = { ...mapping, psNo: 'PS-1234.6' };
+    const second = reference(secondMapping.psNo, 182, secondMapping);
     const scan: PsIsonoteScanResult = {
-      references: [
-        { psNo: mapping.psNo, pageNumber: 1, rect: { x: 100, y: 180, width: 60, height: 12 }, mapping },
-        { psNo: 'PS-1234.6', pageNumber: 1, rect: { x: 100, y: 182, width: 60, height: 12 }, mapping: { ...mapping, psNo: 'PS-1234.6' } },
-      ],
+      references: [first, second],
+      detectedReferences: [first, second],
       missingPsNumbers: [],
       skippedExisting: [],
       scannedPages: [1],
