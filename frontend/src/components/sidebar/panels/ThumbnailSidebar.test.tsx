@@ -43,7 +43,7 @@ vi.mock('@/core/commands/dispatch', () => ({
 
 vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   PdfRendererAdapter: {
-    loadDocument: vi.fn(),
+    acquireDocument: vi.fn(),
     getThumbnail: vi.fn(),
   },
 }));
@@ -93,9 +93,14 @@ describe('ThumbnailSidebar', () => {
       getPage: ReturnType<typeof vi.fn>;
       destroy: ReturnType<typeof vi.fn>;
     };
-    let mockDocDeferredResolve: (value: MockDoc) => void = () => {};
-    const mockDocPromise = new Promise<MockDoc>((resolve) => {
-      mockDocDeferredResolve = resolve;
+    type MockLease = {
+      doc: MockDoc;
+      cacheKey: string;
+      release: ReturnType<typeof vi.fn>;
+    };
+    let mockLeaseDeferredResolve: (value: MockLease) => void = () => {};
+    const mockLeasePromise = new Promise<MockLease>((resolve) => {
+      mockLeaseDeferredResolve = resolve;
     });
 
     const mockDoc = {
@@ -105,13 +110,18 @@ describe('ThumbnailSidebar', () => {
       }),
       destroy: vi.fn(),
     };
-    const mockedLoadDocument = PdfRendererAdapter.loadDocument as unknown as {
+    const mockLease: MockLease = {
+      doc: mockDoc,
+      cacheKey: 'thumbnail-doc',
+      release: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockedAcquireDocument = PdfRendererAdapter.acquireDocument as unknown as {
       mockReturnValue: (value: unknown) => void;
     };
     const mockedGetThumbnail = PdfRendererAdapter.getThumbnail as unknown as {
       mockResolvedValue: (value: string) => void;
     };
-    mockedLoadDocument.mockReturnValue(mockDocPromise);
+    mockedAcquireDocument.mockReturnValue(mockLeasePromise);
     mockedGetThumbnail.mockResolvedValue('mock-url');
 
     await act(async () => {
@@ -119,7 +129,7 @@ describe('ThumbnailSidebar', () => {
     });
 
     await act(async () => {
-      mockDocDeferredResolve(mockDoc);
+      mockLeaseDeferredResolve(mockLease);
     });
 
     await vi.waitFor(() => {

@@ -15,7 +15,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 
 vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   PdfRendererAdapter: {
-    loadDocument: vi.fn(),
+    acquireDocument: vi.fn(),
     getPageTextItems: vi.fn(),
   },
 }));
@@ -38,12 +38,17 @@ function pageWithText(text: string) {
   };
 }
 
-function installDocument(pageTexts: string[], pageCount = pageTexts.length): void {
+function installDocument(pageTexts: string[], pageCount = pageTexts.length): ReturnType<typeof vi.fn> {
   const pages = pageTexts.map(pageWithText);
-  vi.mocked(PdfRendererAdapter.loadDocument).mockResolvedValue({
-    numPages: pageCount,
-    getPage: vi.fn(async (pageNumber: number) => pages[pageNumber - 1]),
-  } as never);
+  const release = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(PdfRendererAdapter.acquireDocument).mockResolvedValue({
+    doc: {
+      numPages: pageCount,
+      getPage: vi.fn(async (pageNumber: number) => pages[pageNumber - 1]),
+    } as never,
+    cacheKey: HASH_A,
+    release,
+  });
   vi.mocked(PdfRendererAdapter.getPageTextItems).mockImplementation(async (page: unknown) => [{
     id: 'marker',
     text: (page as { text: string }).text,
@@ -53,6 +58,7 @@ function installDocument(pageTexts: string[], pageCount = pageTexts.length): voi
     height: 1,
     fontSize: 1,
   }]);
+  return release;
 }
 
 beforeEach(() => {
@@ -62,7 +68,7 @@ beforeEach(() => {
 
 describe('verifyPsIsonoteOutput', () => {
   it('verifies an output with matching hash, page count, and exactly one marker', async () => {
-    installDocument([versionedMarkerForOccurrence(expectedMarker)]);
+    const release = installDocument([versionedMarkerForOccurrence(expectedMarker)]);
 
     const result = await verifyPsIsonoteOutput({
       outputBytes: new Uint8Array([1, 2, 3]),
@@ -75,6 +81,7 @@ describe('verifyPsIsonoteOutput', () => {
     expect(result.verifiedMarkerCount).toBe(1);
     expect(result.markerResults[0]).toMatchObject({ status: 'verified', foundCount: 1 });
     expect(result.diagnostics).toEqual([]);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed when an expected marker is missing', async () => {
@@ -125,7 +132,7 @@ describe('verifyPsIsonoteOutput', () => {
       expect.objectContaining({ code: 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH' }),
     ]));
 
-    vi.mocked(PdfRendererAdapter.loadDocument).mockRejectedValueOnce(new Error('bad PDF'));
+    vi.mocked(PdfRendererAdapter.acquireDocument).mockRejectedValueOnce(new Error('bad PDF'));
     const unreadable = await verifyPsIsonoteOutput({
       outputBytes: new Uint8Array([2]),
       outputDocumentKey: HASH_A,

@@ -9,10 +9,11 @@ export async function renderSelectBoxImageSnapshot(input: {
   viewport: WriterPageViewport;
   viewportRect: SelectBoxViewportRect;
 }): Promise<string> {
-  const doc = await PdfRendererAdapter.loadDocument(input.pdfBytes);
-  const page = await doc.getPage(input.pageNumber);
+  const lease = await PdfRendererAdapter.acquireDocument(input.pdfBytes);
+  let page: Awaited<ReturnType<typeof lease.doc.getPage>> | null = null;
 
   try {
+    page = await lease.doc.getPage(input.pageNumber);
     const viewport = page.getViewport({
       scale: input.viewport.scale,
       rotation: input.viewport.rotation,
@@ -59,6 +60,7 @@ export async function renderSelectBoxImageSnapshot(input: {
 
     return cropCanvas.toDataURL('image/png');
   } finally {
-    page.cleanup();
+    page?.cleanup();
+    await lease.release();
   }
 }

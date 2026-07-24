@@ -24,10 +24,11 @@ export async function extractSelectBoxCopyFromPdf(
   input: ExtractSelectBoxCopyInput,
 ): Promise<SelectBoxCopyResult> {
   const normalized = normalizeViewportRect(input.viewportRect);
-  const doc = await PdfRendererAdapter.loadDocument(input.pdfBytes);
-  const page = await doc.getPage(input.pageNumber);
+  const lease = await PdfRendererAdapter.acquireDocument(input.pdfBytes);
+  let page: Awaited<ReturnType<typeof lease.doc.getPage>> | null = null;
 
   try {
+    page = await lease.doc.getPage(input.pageNumber);
     const textItems = await PdfRendererAdapter.getPageTextItems(
       page,
       input.viewport.scale,
@@ -40,7 +41,8 @@ export async function extractSelectBoxCopyFromPdf(
       textItems,
     });
   } finally {
-    page.cleanup();
+    page?.cleanup();
+    await lease.release();
   }
 }
 
