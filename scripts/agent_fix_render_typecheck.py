@@ -32,8 +32,14 @@ test_path = Path("frontend/src/core/renderer/renderScheduler.test.ts")
 test = test_path.read_text()
 test = replace_once(
     test,
+    """    let taskSignal: AbortSignal | null = null;\n\n    const run = vi.fn(async (signal: AbortSignal) => {\n      taskSignal = signal;\n""",
+    """    const taskSignal: { current?: AbortSignal } = {};\n\n    const run = vi.fn(async (signal: AbortSignal) => {\n      taskSignal.current = signal;\n""",
+    "scheduler test signal holder",
+)
+test = replace_once(
+    test,
     """    expect(taskSignal?.aborted).toBe(false);\n\n    secondController.abort('second view left');\n    await expect(second).rejects.toSatisfy(isOperationCancelledError);\n    expect(taskSignal?.aborted).toBe(true);\n""",
-    """    expect(taskSignal).not.toBeNull();\n    expect((taskSignal as AbortSignal).aborted).toBe(false);\n\n    secondController.abort('second view left');\n    await expect(second).rejects.toSatisfy(isOperationCancelledError);\n    expect((taskSignal as AbortSignal).aborted).toBe(true);\n""",
+    """    expect(taskSignal.current).toBeDefined();\n    expect(taskSignal.current?.aborted).toBe(false);\n\n    secondController.abort('second view left');\n    await expect(second).rejects.toSatisfy(isOperationCancelledError);\n    expect(taskSignal.current?.aborted).toBe(true);\n""",
     "scheduler test signal assertions",
 )
 test_path.write_text(test)
