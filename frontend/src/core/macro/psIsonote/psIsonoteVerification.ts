@@ -94,36 +94,41 @@ export async function verifyPsIsonoteOutput(
   const markersByPage = new Map<number, Map<string, number>>();
 
   try {
-    const doc = await PdfRendererAdapter.loadDocument(options.outputBytes);
-    const reopenedPageCount = doc.numPages;
-    actualPageCount = reopenedPageCount;
+    const lease = await PdfRendererAdapter.acquireDocument(options.outputBytes);
+    try {
+      const doc = lease.doc;
+      const reopenedPageCount = doc.numPages;
+      actualPageCount = reopenedPageCount;
 
-    if (reopenedPageCount !== options.expectedPageCount) {
-      diagnostics.push({
-        code: 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH',
-        severity: 'error',
-        message: `Output page count is ${reopenedPageCount}; expected ${options.expectedPageCount}.`,
-      });
-    }
-
-    const pagesToRead = Array.from(new Set(options.expectedMarkers.map((marker) => marker.pageNumber)))
-      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= reopenedPageCount)
-      .sort((left, right) => left - right);
-
-    for (const pageNumber of pagesToRead) {
-      const page = await doc.getPage(pageNumber);
-      try {
-        const items = await PdfRendererAdapter.getPageTextItems(page, 1);
-        const pageText = items.map((item) => item.text).join(' ');
-        const counts = new Map<string, number>();
-        for (const marker of parseVersionedPsIsonoteMarkers(pageText)) {
-          const key = markerKey(marker);
-          counts.set(key, (counts.get(key) ?? 0) + 1);
-        }
-        markersByPage.set(pageNumber, counts);
-      } finally {
-        page.cleanup();
+      if (reopenedPageCount !== options.expectedPageCount) {
+        diagnostics.push({
+          code: 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH',
+          severity: 'error',
+          message: `Output page count is ${reopenedPageCount}; expected ${options.expectedPageCount}.`,
+        });
       }
+
+      const pagesToRead = Array.from(new Set(options.expectedMarkers.map((marker) => marker.pageNumber)))
+        .filter((pageNumber) => pageNumber >= 1 && pageNumber <= reopenedPageCount)
+        .sort((left, right) => left - right);
+
+      for (const pageNumber of pagesToRead) {
+        const page = await doc.getPage(pageNumber);
+        try {
+          const items = await PdfRendererAdapter.getPageTextItems(page, 1);
+          const pageText = items.map((item) => item.text).join(' ');
+          const counts = new Map<string, number>();
+          for (const marker of parseVersionedPsIsonoteMarkers(pageText)) {
+            const key = markerKey(marker);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          markersByPage.set(pageNumber, counts);
+        } finally {
+          page.cleanup();
+        }
+      }
+    } finally {
+      await lease.release();
     }
   } catch (error) {
     diagnostics.push({
