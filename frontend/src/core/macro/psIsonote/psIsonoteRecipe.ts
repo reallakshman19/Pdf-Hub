@@ -137,7 +137,7 @@ export function findPsIsonoteReferencesInTextItems(
   let match: RegExpExecArray | null;
 
   while ((match = PS_REFERENCE_PATTERN.exec(fullText)) !== null) {
-    const psNo = normalizePsNumber(match[0]);
+    const psNo = normalizePsNumber(normalizeReferenceText(match[0]));
     if (!psNo) continue;
     const mapping = mappingByPs.get(psNo);
     if (!mapping) continue;
