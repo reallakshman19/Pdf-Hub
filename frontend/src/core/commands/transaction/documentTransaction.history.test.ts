@@ -3,6 +3,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
+import type { DocumentCommand } from '../types';
 import { commitDocumentMutation } from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({
@@ -25,7 +26,7 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   },
 }));
 
-const command = { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 } as const;
+const command: DocumentCommand = { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 };
 
 describe('document transaction history memory', () => {
   beforeEach(() => {
