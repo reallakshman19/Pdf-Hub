@@ -65,7 +65,7 @@ function normalizeDash(value: string): string {
 export function normalizePsNumber(value: string): string | null {
   const normalized = normalizeDash(value)
     .toUpperCase()
-    .replace(/\b(?:PS|SUPPORT)\s*(?:NO\.?|NUMBER|NUM|ID)?\s*[:#]?\s*/g, 'PS-')
+    .replace(/\b(?:PS|SUPPORT)\s*(?:NO\.?|NUMBER|NUM|ID)?\s*[-:#]?\s*/g, 'PS-')
     .trim();
 
   const prefixed = /\bPS\s*-?\s*([A-Z0-9]{2,12}(?:\s*\.\s*[A-Z0-9]{1,6})?)\b/.exec(normalized);
