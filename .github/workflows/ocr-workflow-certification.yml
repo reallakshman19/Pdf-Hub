@@ -5,6 +5,8 @@ on:
     paths:
       - "frontend/src/components/ocr/**"
       - "frontend/src/core/ocr/**"
+      - "frontend/src/adapters/pdf-renderer/**"
+      - "frontend/src/core/renderer/**"
       - "frontend/scripts/certify-writer-v2-ocr.mjs"
       - ".github/workflows/ocr-workflow-certification.yml"
   workflow_dispatch:
