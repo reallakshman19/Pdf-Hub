@@ -29,29 +29,31 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
   }
 }));
 
-const workspacePdfDoc = {
-  numPages: 5,
-  destroy: vi.fn(),
-  getPage: vi.fn().mockResolvedValue({
-    getViewport: vi.fn().mockReturnValue({ width: 1000, height: 1500 }),
-    render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
-    getTextContent: vi.fn().mockResolvedValue({ items: [] }),
-    cleanup: vi.fn(),
-  }),
-};
-
-vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
-  PdfRendererAdapter: {
-    acquireDocument: vi.fn().mockResolvedValue({
-      doc: workspacePdfDoc,
-      cacheKey: 'test-doc',
-      release: vi.fn().mockResolvedValue(undefined),
+vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => {
+  const doc = {
+    numPages: 5,
+    destroy: vi.fn(),
+    getPage: vi.fn().mockResolvedValue({
+      getViewport: vi.fn().mockReturnValue({ width: 1000, height: 1500 }),
+      render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+      cleanup: vi.fn(),
     }),
-    renderPage: vi.fn(),
-    getPageTextItems: vi.fn().mockResolvedValue([]),
-    getThumbnail: vi.fn(),
-  }
-}));
+  };
+
+  return {
+    PdfRendererAdapter: {
+      acquireDocument: vi.fn().mockResolvedValue({
+        doc,
+        cacheKey: 'test-doc',
+        release: vi.fn().mockResolvedValue(undefined),
+      }),
+      renderPage: vi.fn(),
+      getPageTextItems: vi.fn().mockResolvedValue([]),
+      getThumbnail: vi.fn(),
+    },
+  };
+});
 
 vi.mock('pdfjs-dist', () => ({
   getDocument: vi.fn(() => ({
