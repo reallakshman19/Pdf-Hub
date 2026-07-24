@@ -17,6 +17,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Correct literal regex replacement helper
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          target = Path('scripts/agent_apply_cancellation_boundaries.py')
+          text = target.read_text(encoding='utf-8')
+          old = "updated, count = re.subn(pattern, replacement, content, count=1, flags=re.S)"
+          new = "updated, count = re.subn(pattern, lambda _match: replacement, content, count=1, flags=re.S)"
+          if old not in text:
+              raise SystemExit('replacement helper anchor not found')
+          target.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Apply remaining cancellation boundaries
         run: |
           set -o pipefail
