@@ -12,6 +12,7 @@ The sanitizer:
 - drops active or inert unsafe subtrees such as scripts, styles, frames, objects, forms, SVG, MathML, and templates;
 - recursively sanitizes descendants of unknown wrappers before unwrapping them;
 - removes event handlers and unapproved attributes;
+- normalizes leading ASCII controls and whitespace before URL-scheme checks, preventing encoded or split `javascript:` and `vbscript:` prefixes;
 - restricts links to HTTP, HTTPS, mail, telephone, fragment, and relative destinations;
 - restricts images to bounded raster data URLs and same-session blob URLs, preventing remote tracking loads and SVG script content;
 - preserves only allowlisted inline style properties and rejects CSS URLs, expressions, imports, behaviors, and structural tokens;
