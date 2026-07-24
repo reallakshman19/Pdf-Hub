@@ -51,7 +51,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== element.content) {
       // Only update innerHTML if it's strictly different to avoid losing caret position
-      editorRef.current.innerHTML = element.content || '<p><br/></p>';
+      editorRef.current.innerHTML = sanitizeHtml(element.content || '<p><br/></p>');
     }
   }, [element.content]);
 
@@ -87,7 +87,9 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
 
   const saveContent = useCallback(() => {
     if (editorRef.current) {
-      updateElement(element.id, { content: editorRef.current.innerHTML });
+      const safeContent = sanitizeHtml(editorRef.current.innerHTML);
+      editorRef.current.innerHTML = safeContent;
+      updateElement(element.id, { content: safeContent });
     }
   }, [element.id, updateElement]);
 
@@ -218,7 +220,7 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
       range.collapse(false);
     }
 
-    const fragment = range.createContextualFragment(html);
+    const fragment = range.createContextualFragment(sanitizeHtml(html));
     const lastNode = fragment.lastChild;
     range.deleteContents();
     range.insertNode(fragment);

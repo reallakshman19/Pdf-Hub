@@ -22,6 +22,11 @@ import { BUILTIN_MACROS } from '@/core/macro/builtins';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { validateRecipeBeforeRun, type PreflightReport } from '@/core/macro/validation/validator';
 import { macroValidator } from '@/core/macro/validator';
+import {
+  DEFAULT_MACRO_RESOURCE_LIMITS,
+  parseBoundedJson,
+  parseMacroRecipeJson,
+} from '@/core/macro/resourceBudget';
 import { usePresetsStore } from '@/core/macro/store/presets';
 import { ImageIcon } from 'lucide-react';
 import type {
@@ -129,7 +134,10 @@ function RecipeStepTable({ json }: { json: string }) {
   let parseError: string | null = null;
 
   try {
-    const parsed = JSON.parse(json) as { steps?: unknown };
+    const parsed = parseBoundedJson(json, {
+      maxBytes: DEFAULT_MACRO_RESOURCE_LIMITS.maxRecipeJsonBytes,
+      label: 'expert macro preview JSON',
+    }) as { steps?: unknown };
     if (Array.isArray(parsed.steps)) {
       steps = parsed.steps as Array<Record<string, unknown>>;
     } else {
@@ -464,7 +472,7 @@ export const MacrosSidebar: React.FC = () => {
       throw new Error('Expert recipe JSON is empty.');
     }
 
-    const parsed: unknown = JSON.parse(raw);
+    const parsed: unknown = parseMacroRecipeJson(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Recipe JSON must be an object.');
     }
