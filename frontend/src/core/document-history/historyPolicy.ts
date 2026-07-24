@@ -1,27 +1,31 @@
 /**
  * Document history policy constants.
- * All undo/redo behaviour is governed by this file.
+ * All undo/redo retention behaviour is governed by this file.
  * Do not hardcode these values elsewhere.
  */
+const MEBIBYTE = 1024 * 1024;
+
 export const HISTORY_POLICY = {
-  /**
-   * Maximum number of undo steps retained in memory.
-   * Each step stores before + after full PDF bytes.
-   * At 25 MB per PDF: 15 steps × 2 × 25 MB = 750 MB worst case.
-   * For larger PDFs, consider IndexedDB offloading in a future phase.
-   */
+  /** Maximum number of contiguous undo transactions retained. */
   maxUndoDepth: 15,
 
   /**
-   * Documents above this size (bytes) are candidates for off-heap history.
-   * Currently informational — used for telemetry only.
+   * Maximum unique PDF snapshot bytes retained across undo and redo history.
+   * Adjacent transactions may share their boundary snapshot, which is counted
+   * once. A single newest transaction is retained even when it exceeds this
+   * budget so the most recent action remains undoable.
    */
-  largeDocumentThresholdBytes: 25 * 1024 * 1024,
+  maxRetainedBytes: 256 * MEBIBYTE,
 
-  /**
-   * History storage strategy.
-   * 'full-snapshot-capped' = full before/after bytes, capped at maxUndoDepth.
-   * Future: 'diff' = store binary diffs, unlimited depth.
-   */
-  strategy: 'full-snapshot-capped' as const,
+  /** Always retain at least the newest transaction. */
+  minimumRetainedTransactions: 1,
+
+  /** Documents above this size should normally retain fewer than 15 steps. */
+  largeDocumentThresholdBytes: 25 * MEBIBYTE,
+
+  /** Documents above this size will normally retain only one or two steps. */
+  veryLargeDocumentThresholdBytes: 64 * MEBIBYTE,
+
+  /** Full snapshots with contiguous suffix trimming by depth and unique bytes. */
+  strategy: 'full-snapshot-byte-budgeted' as const,
 } as const;
