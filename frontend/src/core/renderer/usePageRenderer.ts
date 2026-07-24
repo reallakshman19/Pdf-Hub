@@ -1,8 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { RenderToken } from '../../adapters/pdf-renderer/types';
 import { PdfRendererAdapter } from '../../adapters/pdf-renderer/PdfRendererAdapter';
-import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
+import { isOperationCancelledError, raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
+import {
+  getRenderObjectId,
+  pdfRenderScheduler,
+  RENDER_PRIORITIES,
+} from '@/core/renderer/renderScheduler';
 
 interface UsePageRendererOptions {
   doc: PDFDocumentProxy | null;
@@ -24,38 +29,64 @@ export function usePageRenderer({
   const [isRendering, setIsRendering] = useState(false);
 
   useLayoutEffect(() => {
-    if (!doc || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    if (!doc || !canvas) return;
 
     const controller = new AbortController();
-    let page: PDFPageProxy | null = null;
+    const devicePixelRatio = globalThis.devicePixelRatio ?? 1;
+    const renderKey = [
+      'page',
+      getRenderObjectId(doc, 'document'),
+      pageNumber,
+      scale.toFixed(4),
+      devicePixelRatio.toFixed(2),
+      getRenderObjectId(canvas, 'canvas'),
+    ].join(':');
 
     const render = async () => {
-      if (tokenRef.current) {
-        await tokenRef.current.cancel();
-        tokenRef.current = null;
-      }
-      if (controller.signal.aborted) return;
       setIsRendering(true);
 
       try {
-        page = await doc.getPage(pageNumber);
-        if (controller.signal.aborted) return;
-        const viewport = page.getViewport({ scale });
-        setSize({ width: viewport.width, height: viewport.height });
-        if (!canvasRef.current || controller.signal.aborted) return;
+        await pdfRenderScheduler.schedule({
+          key: renderKey,
+          priority: RENDER_PRIORITIES.currentPage,
+          signal: controller.signal,
+          run: async (signal) => {
+            const page = await raceWithAbort(
+              doc.getPage(pageNumber),
+              signal,
+              `load PDF page ${pageNumber} for rendering`,
+            );
 
-        tokenRef.current = PdfRendererAdapter.renderPage(
-          page,
-          canvasRef.current,
-          viewport,
-          { signal: controller.signal },
-        );
-        await tokenRef.current.completed;
+            try {
+              throwIfAborted(signal, `prepare PDF page ${pageNumber} for rendering`);
+              const viewport = page.getViewport({ scale });
+              if (!signal.aborted) {
+                setSize({ width: viewport.width, height: viewport.height });
+              }
+              throwIfAborted(signal, `render PDF page ${pageNumber}`);
+
+              const token = PdfRendererAdapter.renderPage(
+                page,
+                canvas,
+                viewport,
+                { signal },
+              );
+              tokenRef.current = token;
+              try {
+                await token.completed;
+              } finally {
+                if (tokenRef.current === token) tokenRef.current = null;
+              }
+            } finally {
+              page.cleanup();
+            }
+          },
+        });
       } catch (err) {
         if (isOperationCancelledError(err)) return;
         if (err instanceof Error && err.message.includes('Rendering cancelled')) return;
       } finally {
-        page?.cleanup();
         if (!controller.signal.aborted) setIsRendering(false);
       }
     };
