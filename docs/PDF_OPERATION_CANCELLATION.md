@@ -19,6 +19,13 @@ Cancellation and timeout always suppress pending side effects and restore the pr
 
 PDF-lib does not currently expose interruption for parsing or serialization already executing. PDF Hub therefore races those promises against the abort signal, checks the signal between page operations, rejects late results, and never commits their bytes.
 
+## Additional boundaries
+
+- PDF.js page rendering, thumbnail rendering, text extraction, document search, and outline traversal accept abort signals. Render tasks call `cancel()` when aborted.
+- Thumbnail and search components abort obsolete work on dependency changes and unmount. Page proxies and document leases remain protected by `finally`.
+- Tesseract OCR propagates cancellation rather than converting it to a failed page, revokes temporary image sources, and terminates workers exactly once.
+- The macro panel exposes Cancel controls and adds outputs only for successful runs.
+
 ## Maintenance rules
 
 - New macro entry points must accept and propagate `AbortSignal`.

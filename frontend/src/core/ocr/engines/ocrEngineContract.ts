@@ -19,6 +19,7 @@ export interface OcrEngineInput {
   documentFingerprint: string;
   pages: OcrEnginePageInput[];
   profile: OcrProfile;
+  abortSignal?: AbortSignal;
 }
 
 export interface OcrEngine {

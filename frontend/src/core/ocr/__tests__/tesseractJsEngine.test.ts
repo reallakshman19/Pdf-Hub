@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getOcrProfile } from '../ocrProfiles';
 import {
   createDefaultTesseractImageSource,
+  createDefaultTesseractRecognizer,
   createTesseractJsEngine,
   normalizeTesseractConfidence,
   resolveTesseractLanguage,
@@ -326,6 +327,57 @@ describe('tesseractJsEngine', () => {
     });
 
     expect(disposed).toBe(true);
+  });
+
+  it('rethrows cancellation and still disposes the OCR image source', async () => {
+    const controller = new AbortController();
+    const dispose = vi.fn();
+    const engine = createTesseractJsEngine({
+      imageSourceFactory: async () => ({ source: 'fake://cancel', dispose }),
+      recognizer: {
+        recognize: () => new Promise(() => undefined),
+      },
+    });
+
+    const pending = engine.recognize({
+      documentFingerprint: 'doc-cancel',
+      profile: getOcrProfile('clean-scan'),
+      abortSignal: controller.signal,
+      pages: [{
+        pageIndex: 0,
+        imageBytes: new Uint8Array([1, 2, 3]),
+        width: 595,
+        height: 842,
+      }],
+    });
+    await Promise.resolve();
+    controller.abort('cancel OCR');
+
+    await expect(pending).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('terminates the default Tesseract worker exactly once on cancellation', async () => {
+    const controller = new AbortController();
+    const terminate = vi.fn().mockResolvedValue(undefined);
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        recognize: () => new Promise(() => undefined),
+        terminate,
+      }),
+    });
+
+    const pending = recognizer.recognize({
+      image: new Uint8Array([1]),
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 10, height: 10 },
+      signal: controller.signal,
+    });
+    await Promise.resolve();
+    controller.abort('cancel worker');
+
+    await expect(pending).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+    expect(terminate).toHaveBeenCalledTimes(1);
   });
 
   it('default image source returns bytes in non-browser test runtime when Blob/URL unavailable', async () => {

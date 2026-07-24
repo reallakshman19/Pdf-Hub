@@ -8,6 +8,11 @@ import {
 } from 'pdfjs-dist';
 
 import { error } from '@/core/logger/service';
+import {
+  isOperationCancelledError,
+  raceWithAbort,
+  throwIfAborted,
+} from '@/core/cancellation/operationCancellation';
 import type { RenderToken } from './types';
 
 export interface RenderedPage {
@@ -251,7 +256,7 @@ export class PdfRendererAdapter {
     page: PDFPageProxy,
     canvas: HTMLCanvasElement,
     viewport: PageViewport,
-    options: { annotationMode?: number } = {},
+    options: { annotationMode?: number; signal?: AbortSignal } = {},
   ): RenderToken {
     type RenderOptions = Parameters<PDFPageProxy['render']>[0];
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -276,38 +281,48 @@ export class PdfRendererAdapter {
     });
 
     let cancelled = false;
-    let resolveCancel!: () => void;
-    const cancelPromise = new Promise<void>(res => { resolveCancel = res; });
-
-    const completedPromise = renderTask.promise
-      .then(() => { resolveCancel(); })
-      .catch(err => {
-        resolveCancel();
-        if (!cancelled) throw err;
-      });
+    const renderPromise = renderTask.promise.catch((renderError) => {
+      if (cancelled) return;
+      throw renderError;
+    });
+    const completed = raceWithAbort(
+      renderPromise,
+      options.signal,
+      `render PDF page ${page.pageNumber}`,
+      () => {
+        cancelled = true;
+        renderTask.cancel();
+      },
+    );
 
     return {
       cancel: async () => {
+        if (cancelled) return;
         cancelled = true;
         renderTask.cancel();
-        await cancelPromise;
+        await renderPromise;
       },
-      completed: completedPromise,
+      completed,
     };
   }
 
   static async getPageTextItems(
     page: PDFPageProxy,
     scale: number,
+    signal?: AbortSignal,
   ): Promise<TextLayerItem[]> {
     try {
+      throwIfAborted(signal, `read text from PDF page ${page.pageNumber}`);
       const viewport = page.getViewport({ scale });
-      const textContent = await page.getTextContent();
+      const textContent = await raceWithAbort(
+        page.getTextContent(),
+        signal,
+        `read text from PDF page ${page.pageNumber}`,
+      );
+      throwIfAborted(signal, `build text layer for PDF page ${page.pageNumber}`);
 
       return textContent.items.flatMap((item, index) => {
-        if (!isTransformItem(item)) {
-          return [];
-        }
+        if (!isTransformItem(item)) return [];
 
         const tx = Util.transform(viewport.transform, item.transform);
         const fontSize = Math.hypot(tx[2], tx[3]);
@@ -316,19 +331,18 @@ export class PdfRendererAdapter {
         const descender = emHeight * 0.2;
         const height = emHeight + descender;
 
-        return [
-          {
-            id: `page-${page.pageNumber}-text-${index}`,
-            text: item.str,
-            x: tx[4],
-            y: tx[5] - emHeight,
-            width,
-            height,
-            fontSize,
-          },
-        ];
+        return [{
+          id: `page-${page.pageNumber}-text-${index}`,
+          text: item.str,
+          x: tx[4],
+          y: tx[5] - emHeight,
+          width,
+          height,
+          fontSize,
+        }];
       });
     } catch (err) {
+      if (isOperationCancelledError(err)) throw err;
       error('pdf-renderer', 'Failed to build text layer', {
         pageNumber: page.pageNumber,
         error: String(err),
@@ -342,7 +356,11 @@ export class PdfRendererAdapter {
     return { width: viewport.width, height: viewport.height };
   }
 
-  static async getThumbnail(page: PDFPageProxy): Promise<string> {
+  static async getThumbnail(
+    page: PDFPageProxy,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    throwIfAborted(signal, `render thumbnail for PDF page ${page.pageNumber}`);
     const viewport = page.getViewport({ scale: 1.0 });
     const scale = 150 / viewport.width;
     const scaledViewport = page.getViewport({ scale });
@@ -352,30 +370,42 @@ export class PdfRendererAdapter {
     canvas.height = Math.floor(scaledViewport.height);
 
     const context = canvas.getContext('2d');
-    if (!context) {
-      throw new Error('2D canvas context is not available for thumbnail');
-    }
+    if (!context) throw new Error('2D canvas context is not available for thumbnail');
 
-    await page.render({
+    const renderTask = page.render({
       canvas,
       canvasContext: context,
       viewport: scaledViewport,
-    }).promise;
-
+    });
+    await raceWithAbort(
+      renderTask.promise,
+      signal,
+      `render thumbnail for PDF page ${page.pageNumber}`,
+      () => renderTask.cancel(),
+    );
+    throwIfAborted(signal, `encode thumbnail for PDF page ${page.pageNumber}`);
     return canvas.toDataURL('image/jpeg', 0.8);
   }
 
-  static async getPagePlainText(page: PDFPageProxy): Promise<string> {
+  static async getPagePlainText(
+    page: PDFPageProxy,
+    signal?: AbortSignal,
+  ): Promise<string> {
     try {
-      const textContent = await page.getTextContent();
+      throwIfAborted(signal, `read plain text from PDF page ${page.pageNumber}`);
+      const textContent = await raceWithAbort(
+        page.getTextContent(),
+        signal,
+        `read plain text from PDF page ${page.pageNumber}`,
+      );
+      throwIfAborted(signal, `normalize text from PDF page ${page.pageNumber}`);
       const chunks = textContent.items.map((item) => {
-        if ('str' in item && typeof item.str === 'string') {
-          return item.str;
-        }
+        if ('str' in item && typeof item.str === 'string') return item.str;
         return '';
       });
       return chunks.join(' ').replace(/\s+/g, ' ').trim();
     } catch (err) {
+      if (isOperationCancelledError(err)) throw err;
       error('pdf-renderer', 'Failed to read page text', {
         pageNumber: page.pageNumber,
         error: String(err),
@@ -384,42 +414,61 @@ export class PdfRendererAdapter {
     }
   }
 
-  static async searchDocumentText(bytes: Uint8Array, query: string): Promise<TextSearchHit[]> {
+  static async searchDocumentText(
+    bytes: Uint8Array,
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<TextSearchHit[]> {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return [];
-    }
+    if (!normalizedQuery) return [];
 
-    const lease = await this.acquireDocument(bytes);
+    throwIfAborted(signal, 'start PDF text search');
+    const leasePromise = this.acquireDocument(bytes);
+    const lease = await raceWithAbort(
+      leasePromise,
+      signal,
+      'load PDF for text search',
+      () => {
+        void leasePromise.then((lateLease) => lateLease.release()).catch(() => undefined);
+      },
+    );
     const doc = lease.doc;
+
     try {
       const hits: TextSearchHit[] = [];
-
       for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
-        const page = await doc.getPage(pageNumber);
+        throwIfAborted(signal, `search PDF page ${pageNumber}`);
+        const pagePromise = doc.getPage(pageNumber);
+        const page = await raceWithAbort(
+          pagePromise,
+          signal,
+          `load PDF page ${pageNumber} for search`,
+          () => {
+            void pagePromise.then((latePage) => latePage.cleanup()).catch(() => undefined);
+          },
+        );
         try {
-          const textItems = await this.getPageTextItems(page, 1.0);
-
+          const textItems = await this.getPageTextItems(page, 1.0, signal);
           let fullText = '';
           const itemMap: { start: number; end: number; item: TextLayerItem }[] = [];
 
           for (const item of textItems) {
+            throwIfAborted(signal, `index PDF page ${pageNumber}`);
             const start = fullText.length;
             fullText += `${item.text} `;
             itemMap.push({ start, end: fullText.length - 1, item });
           }
 
-          let idx = fullText.toLowerCase().indexOf(normalizedQuery);
+          const lowerText = fullText.toLowerCase();
+          let idx = lowerText.indexOf(normalizedQuery);
           let hitCount = 0;
-
           while (idx !== -1) {
+            throwIfAborted(signal, `collect search hits on PDF page ${pageNumber}`);
             const matchEnd = idx + normalizedQuery.length;
             const hitItems = itemMap.filter((entry) => entry.start < matchEnd && entry.end > idx);
-
             const startSnippetIdx = Math.max(0, idx - 20);
             const endSnippetIdx = Math.min(fullText.length, matchEnd + 20);
             let snippet = fullText.substring(startSnippetIdx, endSnippetIdx);
-
             if (startSnippetIdx > 0) snippet = `...${snippet}`;
             if (endSnippetIdx < fullText.length) snippet = `${snippet}...`;
 
@@ -435,51 +484,58 @@ export class PdfRendererAdapter {
               })),
             });
             hitCount += 1;
-            idx = fullText.toLowerCase().indexOf(normalizedQuery, idx + 1);
+            idx = lowerText.indexOf(normalizedQuery, idx + 1);
           }
         } finally {
           page.cleanup();
         }
       }
-
       return hits;
     } finally {
       await lease.release();
     }
   }
 
-  static async getOutlineFlat(doc: PDFDocumentProxy): Promise<OutlineItem[]> {
+  static async getOutlineFlat(
+    doc: PDFDocumentProxy,
+    signal?: AbortSignal,
+  ): Promise<OutlineItem[]> {
     try {
-      const outline = await doc.getOutline();
-      if (!outline) {
-        return [];
-      }
+      throwIfAborted(signal, 'load PDF outline');
+      const outline = await raceWithAbort(doc.getOutline(), signal, 'load PDF outline');
+      if (!outline) return [];
 
       const flat: OutlineItem[] = [];
       let counter = 0;
-
       const walk = async (
         nodes: NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>,
         depth: number,
       ): Promise<void> => {
         for (const node of nodes) {
+          throwIfAborted(signal, 'walk PDF outline');
           let pageNumber: number | null = null;
           try {
             let destinationRef: unknown = null;
             if (Array.isArray(node.dest)) {
               destinationRef = node.dest[0];
             } else if (typeof node.dest === 'string') {
-              const destination = await doc.getDestination(node.dest);
-              if (Array.isArray(destination)) {
-                destinationRef = destination[0];
-              }
+              const destination = await raceWithAbort(
+                doc.getDestination(node.dest),
+                signal,
+                'resolve PDF outline destination',
+              );
+              if (Array.isArray(destination)) destinationRef = destination[0];
             }
-
             if (destinationRef) {
-              const pageIndex = await doc.getPageIndex(destinationRef as never);
+              const pageIndex = await raceWithAbort(
+                doc.getPageIndex(destinationRef as never),
+                signal,
+                'resolve PDF outline page',
+              );
               pageNumber = pageIndex + 1;
             }
-          } catch {
+          } catch (outlineError) {
+            if (isOperationCancelledError(outlineError)) throw outlineError;
             pageNumber = null;
           }
 
@@ -490,18 +546,17 @@ export class PdfRendererAdapter {
             depth,
           });
           counter += 1;
-
-          if (node.items && node.items.length > 0) {
-            await walk(node.items, depth + 1);
-          }
+          if (node.items && node.items.length > 0) await walk(node.items, depth + 1);
         }
       };
 
       await walk(outline, 0);
       return flat;
     } catch (err) {
+      if (isOperationCancelledError(err)) throw err;
       error('pdf-renderer', 'Failed to load document outline', { error: String(err) });
       return [];
     }
   }
 }
+

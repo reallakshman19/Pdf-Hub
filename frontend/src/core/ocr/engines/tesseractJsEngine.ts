@@ -11,6 +11,11 @@ import {
   normalizeOcrText,
   validateOcrDocumentResult,
 } from '../types';
+import {
+  isOperationCancelledError,
+  raceWithAbort,
+  throwIfAborted,
+} from '@/core/cancellation/operationCancellation';
 import type {
   OcrEngine,
   OcrEngineInput,
@@ -38,6 +43,7 @@ export interface TesseractRecognizer {
     image: TesseractImageSource;
     language: string;
     page: OcrEnginePageInput;
+    signal?: AbortSignal;
   }): Promise<TesseractRecognizeData>;
 }
 
@@ -100,37 +106,40 @@ export function createTesseractJsEngine(
       const pages: OcrPageResult[] = [];
 
       for (const page of input.pages) {
-        const imageSource = await imageSourceFactory(page);
+        throwIfAborted(input.abortSignal, `OCR page ${page.pageIndex + 1}`);
+        const imageSource = await raceWithAbort(
+          imageSourceFactory(page),
+          input.abortSignal,
+          `prepare OCR image for page ${page.pageIndex + 1}`,
+        );
 
         try {
-          const data = await recognizer.recognize({
+          const recognitionPromise = recognizer.recognize({
             image: imageSource.source,
             language,
             page,
+            signal: input.abortSignal,
           });
-
-          pages.push(
-            tesseractDataToOcrPageResult({
-              data,
-              page,
-              language,
-            }),
+          const data = await raceWithAbort(
+            recognitionPromise,
+            input.abortSignal,
+            `recognize OCR page ${page.pageIndex + 1}`,
           );
+          throwIfAborted(input.abortSignal, `store OCR page ${page.pageIndex + 1}`);
+          pages.push(tesseractDataToOcrPageResult({ data, page, language }));
         } catch (error) {
-          pages.push(
-            createFailedTesseractPageResult({
-              page,
-              language,
-              message: error instanceof Error
-                ? error.message
-                : 'Tesseract.js OCR failed.',
-            }),
-          );
+          if (isOperationCancelledError(error)) throw error;
+          pages.push(createFailedTesseractPageResult({
+            page,
+            language,
+            message: error instanceof Error ? error.message : 'Tesseract.js OCR failed.',
+          }));
         } finally {
           imageSource.dispose?.();
         }
       }
 
+      throwIfAborted(input.abortSignal, 'finalize OCR document');
       const result: OcrDocumentResult = {
         documentFingerprint: input.documentFingerprint,
         createdAt: now(),
@@ -139,15 +148,10 @@ export function createTesseractJsEngine(
         pages,
         diagnostics: [],
       };
-
       const validation = validateOcrDocumentResult(result);
-
       return {
         ...result,
-        diagnostics: [
-          ...result.diagnostics,
-          ...validation.diagnostics,
-        ],
+        diagnostics: [...result.diagnostics, ...validation.diagnostics],
       };
     },
   };
@@ -265,15 +269,43 @@ export function createDefaultTesseractRecognizer(input: {
   workerFactory?: TesseractWorkerFactory;
 } = {}): TesseractRecognizer {
   return {
-    async recognize({ image, language }) {
+    async recognize({ image, language, signal }) {
       const workerFactory = input.workerFactory ?? createDefaultTesseractWorker;
-      const worker = await workerFactory(language);
+      let activeWorker: TesseractWorkerLike | null = null;
+      let terminationPromise: Promise<void> | null = null;
+      const terminateOnce = (workerOverride?: TesseractWorkerLike) => {
+        const targetWorker = workerOverride ?? activeWorker;
+        if (!targetWorker) return Promise.resolve();
+        terminationPromise ??= targetWorker.terminate().catch(() => undefined);
+        return terminationPromise;
+      };
+
+      const workerPromise = workerFactory(language).then((createdWorker) => {
+        activeWorker = createdWorker;
+        return createdWorker;
+      });
+      const worker = await raceWithAbort(
+        workerPromise,
+        signal,
+        'start Tesseract worker',
+        () => {
+          void workerPromise
+            .then((lateWorker) => terminateOnce(lateWorker))
+            .catch(() => undefined);
+        },
+      );
 
       try {
-        const result = await worker.recognize(image);
+        const recognitionPromise = worker.recognize(image);
+        const result = await raceWithAbort(
+          recognitionPromise,
+          signal,
+          'run Tesseract recognition',
+          () => { void terminateOnce(); },
+        );
         return result.data;
       } finally {
-        await worker.terminate();
+        await terminateOnce();
       }
     },
   };
