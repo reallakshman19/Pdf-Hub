@@ -58,8 +58,7 @@ export async function executeHeadlessMacro(
   );
 
   if (!result.success) {
-    throw new Error(result.logs.join('
-') || `Headless macro execution ${result.status}.`);
+    throw new Error(result.logs.join('\n') || `Headless macro execution ${result.status}.`);
   }
 
   return result.finalBytes;
