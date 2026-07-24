@@ -19,6 +19,8 @@ Cancellation and timeout always suppress pending side effects and restore the pr
 
 PDF-lib does not currently expose interruption for parsing or serialization already executing. PDF Hub therefore races those promises against the abort signal, checks the signal between page operations, rejects late results, and never commits their bytes.
 
+When no abort signal is supplied, macro steps preserve the established adapter call shape and omit the optional operation-options argument entirely. This keeps existing integrations and tests compatible without weakening cancellation when a signal is present.
+
 ## Additional boundaries
 
 - PDF.js page rendering, thumbnail rendering, text extraction, document search, and outline traversal accept abort signals. Render tasks call `cancel()` when aborted.
