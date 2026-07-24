@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MacroRecipe, MacroStep } from '../../../core/macro/types';
 import type { ValidationResult } from '../../../core/macro/validator';
+import { getMacroOpPresentation } from '../../../core/macro/schema/presentation';
 import { getMacroStepSchemaAtPath, rootStepPath, type MacroStepPath } from '../../../core/macro/builder/recipeBuilderState';
 
 interface MacroStepsTableProps {
@@ -69,6 +70,7 @@ export function MacroStepsTable({
           {recipe.steps.map((step, index) => {
             const path = rootStepPath(index);
             const schema = getMacroStepSchemaAtPath(recipe, path);
+            const presentation = schema ? getMacroOpPresentation(schema) : null;
             const errors = validation.errors.filter(
               (e) => e.field.startsWith(`steps.${index}`) || e.stepIndex === index,
             );
@@ -89,7 +91,7 @@ export function MacroStepsTable({
               >
                 <td className="py-2 px-2 text-slate-400 dark:text-slate-500 font-mono">{index + 1}</td>
                 <td className="py-2 px-2">
-                  <div className="font-medium text-slate-800 dark:text-slate-200">{schema?.label ?? step.op}</div>
+                  <div className="font-medium text-slate-800 dark:text-slate-200">{presentation?.label ?? step.op}</div>
                   <div className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{step.op}</div>
                 </td>
                 <td className="py-2 px-2 text-slate-600 dark:text-slate-300 font-mono">{summarizeStep(step)}</td>
