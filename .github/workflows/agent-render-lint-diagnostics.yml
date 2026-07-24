@@ -1,0 +1,39 @@
+name: agent-render-lint-diagnostics
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/render-scheduling-memory-budgets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Capture lint output
+        id: lint
+        continue-on-error: true
+        run: |
+          set +e
+          cd frontend
+          pnpm run lint > ../render-lint.log 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit $status
+      - name: Upload lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-lint-diagnostics
+          path: render-lint.log
+      - name: Preserve lint failure
+        if: steps.lint.outcome == 'failure'
+        run: exit 1
