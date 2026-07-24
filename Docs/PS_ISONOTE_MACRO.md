@@ -41,9 +41,55 @@ Comma, tab, semicolon, and pipe delimiters are detected automatically. ISONOTEs 
 2. Open the **Macros** sidebar.
 3. In **PS No. → ISONOTE Annotation**, load or paste the mapping table.
 4. Select the page scope and note placement options.
-5. Use **Preview Matches** to inspect mapped occurrences, missing PS numbers, and previously annotated pages.
-6. Use **Annotate PDF** to update the loaded PDF working copy.
-7. Save or export the PDF through the normal PDF Hub workflow.
+5. Use **Preview Matches** to inspect mapped occurrences, missing PS numbers, confidence, and diagnostics.
+6. Download the **PS No.-wise audit CSV** when a traceable pre-run record is required.
+7. Use **Annotate PDF** to update the loaded PDF working copy.
+8. Download the updated audit CSV and save or export the PDF through the normal PDF Hub workflow.
+
+## PS No.-wise audit
+
+Preview and annotation runs create one summary row for every mapped PS number. The CSV columns are:
+
+```csv
+PS No.,Family,Mappings,Found PS,Occurrences,Annotated,Review,Missing,Average Confidence,Minimum Confidence,Errors
+```
+
+The report is deliberately PS-number-wise rather than family-wise. It retains:
+
+- the exact PS number and source family;
+- whether the PS number was found in the selected pages;
+- total detected occurrences;
+- occurrences annotated in the current successful run;
+- occurrences below the automatic confidence threshold and requiring review;
+- missing mappings and mapping conflicts; and
+- average/minimum match confidence and error count.
+
+The occurrence evidence also records the page, PDF rectangle, raw matched text, matching method, source mapping row, and number of PDF text items used to reconstruct the PS number.
+
+### Confidence basis
+
+Current confidence measures deterministic PDF text matching and geometry:
+
+- canonical single-text-item matches receive the highest score;
+- dash or whitespace-normalized matches receive a small identity penalty; and
+- PS numbers reconstructed from several PDF text items receive a larger identity and geometry penalty and may enter the review queue.
+
+The current automatic-release threshold is `90`. Scores are engineering quality scores, not statistical probabilities.
+
+A searchable PDF does not expose the original OCR word confidence through PDF.js. OCR engine confidence must therefore be supplied by an OCR result sidecar in a later batch integration. The UI explicitly reports that the current score is based on the PDF text layer.
+
+## Diagnostics
+
+The audit report distinguishes informational, warning, and error conditions. Diagnostic codes cover:
+
+- missing PS numbers;
+- normalized or joined-text-item matches;
+- already annotated page/PS combinations;
+- review-required occurrences;
+- conflicting mappings; and
+- failed annotation runs.
+
+Conflicting ISONOTEs are associated with the affected PS number and increment its `Errors` count.
 
 ## Macro implementation
 
@@ -74,4 +120,4 @@ The parser accepts the `Name of the element` and `Support ISONOTE` column names 
 
 ## Current scope
 
-This initial implementation supports CSV/text tables. Native `.xlsx` workbook ingestion is not included; export the required worksheet to CSV or paste its relevant columns into the builder.
+This implementation supports CSV/text mapping tables and PS-number-wise audit CSV export for the active PDF. Native `.xlsx` workbook ingestion and multi-PDF batch packaging are not included; export the required worksheet to CSV or paste its relevant columns into the builder.

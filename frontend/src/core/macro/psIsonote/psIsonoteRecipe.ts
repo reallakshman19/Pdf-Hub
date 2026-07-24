@@ -4,6 +4,7 @@ import type { PsIsonoteMapping } from './psIsonoteTable';
 import { normalizePsNumber } from './psIsonoteTable';
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
+export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items';
 
 export interface PsIsonoteTextReference {
   psNo: string;
@@ -15,10 +16,14 @@ export interface PsIsonoteTextReference {
     height: number;
   };
   mapping: PsIsonoteMapping;
+  rawMatchedText: string;
+  matchMethod: PsIsonoteMatchMethod;
+  textItemCount: number;
 }
 
 export interface PsIsonoteScanResult {
   references: PsIsonoteTextReference[];
+  detectedReferences: PsIsonoteTextReference[];
   missingPsNumbers: string[];
   skippedExisting: Array<{ psNo: string; pageNumber: number }>;
   scannedPages: number[];
@@ -61,6 +66,22 @@ function markerForPs(psNo: string): string {
 
 function normalizeMarkerText(text: string): string {
   return text.toUpperCase().replace(/\s+/g, '');
+}
+
+function normalizeReferenceText(text: string): string {
+  return text
+    .toUpperCase()
+    .replace(/[‐‑‒–—−]/g, '-')
+    .replace(/\s+/g, '');
+}
+
+function classifyMatch(
+  rawMatchedText: string,
+  psNo: string,
+  textItemCount: number,
+): PsIsonoteMatchMethod {
+  if (textItemCount > 1) return 'joined-text-items';
+  return normalizeReferenceText(rawMatchedText) === psNo ? 'exact' : 'normalized';
 }
 
 function unionRects(items: TextLayerItem[]): PsIsonoteTextReference['rect'] | null {
@@ -112,7 +133,16 @@ export function findPsIsonoteReferencesInTextItems(
     const rect = unionRects(matchedItems);
     if (!rect) continue;
 
-    references.push({ psNo, pageNumber, rect, mapping });
+    const rawMatchedText = match[0];
+    references.push({
+      psNo,
+      pageNumber,
+      rect,
+      mapping,
+      rawMatchedText,
+      matchMethod: classifyMatch(rawMatchedText, psNo, matchedItems.length),
+      textItemCount: matchedItems.length,
+    });
   }
 
   return references;
@@ -159,6 +189,7 @@ export async function scanPsIsonoteReferences(
     options.selectedPages ?? [],
   );
   const references: PsIsonoteTextReference[] = [];
+  const detectedReferences: PsIsonoteTextReference[] = [];
   const skippedExisting: Array<{ psNo: string; pageNumber: number }> = [];
   const pageDimensions: Record<number, { width: number; height: number }> = {};
   const foundPsNumbers = new Set<string>();
@@ -170,6 +201,7 @@ export async function scanPsIsonoteReferences(
       pageDimensions[pageNumber] = PdfRendererAdapter.getPageDimensions(page);
       const normalizedPageText = normalizeMarkerText(items.map((item) => item.text).join(' '));
       const pageReferences = findPsIsonoteReferencesInTextItems(items, mappings, pageNumber);
+      detectedReferences.push(...pageReferences);
 
       for (const reference of pageReferences) {
         const marker = normalizeMarkerText(markerForPs(reference.psNo));
@@ -194,6 +226,7 @@ export async function scanPsIsonoteReferences(
 
   return {
     references,
+    detectedReferences,
     missingPsNumbers,
     skippedExisting,
     scannedPages,
