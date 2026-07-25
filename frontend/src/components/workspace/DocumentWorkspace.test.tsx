@@ -24,6 +24,8 @@ vi.mock('@/core/annotations/persistence', () => ({
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
   FileAdapter: {
+    MAX_PDF_SIZE_BYTES: 100 * 1024 * 1024,
+    pickPdfFileSources: vi.fn(),
     pickPdfFiles: vi.fn(),
     hashBytes: vi.fn(),
   }
