@@ -1185,10 +1185,11 @@ function displayName(entry: Pick<MutableEntry, 'decodedFilename' | 'ordinal'>): 
 }
 
 function displayUnsafeName(value: string): string {
-  return value.replace(/[\u0000-\u001f\u007f]/g, (character) => {
+  return Array.from(value, (character) => {
     const code = character.codePointAt(0) ?? 0;
+    if (code !== 0 && code >= 0x20 && code !== 0x7f) return character;
     return `<U+${code.toString(16).toUpperCase().padStart(4, '0')}>`;
-  });
+  }).join('');
 }
 
 function formatOrdinals(ordinals: readonly number[]): string {
