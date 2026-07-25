@@ -12,15 +12,16 @@ describe('standalone Writer project source route', () => {
       source.indexOf('const importProjectFile'),
       source.indexOf('const runRichToolbarAction'),
     );
+    const standaloneRoute = route.slice(route.indexOf('const previous'));
 
-    expect(route).toContain('stageStandaloneWriterProject');
-    expect(route).toContain('commitStagedWriterProjectImport');
-    expect(route).toContain('AbortController');
-    expect(route).toContain('isCurrent');
-    expect(route).toContain('isMounted');
-    expect(route).not.toContain('importProjectIntoWriterStore');
-    expect(route).not.toContain('hydrateWriterSession');
-    expect(route).not.toContain('PDFDocument.load');
+    expect(standaloneRoute).toContain('stageStandaloneWriterProject');
+    expect(standaloneRoute).toContain('commitStagedWriterProjectImport');
+    expect(standaloneRoute).toContain('AbortController');
+    expect(standaloneRoute).toContain('isCurrent');
+    expect(standaloneRoute).toContain('isMounted');
+    expect(standaloneRoute).not.toContain('importProjectIntoWriterStore');
+    expect(standaloneRoute).not.toContain('hydrateWriterSession');
+    expect(standaloneRoute).not.toContain('PDFDocument.load');
     expect(route).toContain('importRoundTripPdfIntoWriterStore');
     expect(route.indexOf('importRoundTripPdfIntoWriterStore')).toBeLessThan(
       route.indexOf('stageStandaloneWriterProject'),
