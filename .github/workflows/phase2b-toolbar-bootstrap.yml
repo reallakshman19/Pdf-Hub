@@ -1,0 +1,170 @@
+name: Phase 2B toolbar bootstrap
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/batch-pdf-admission-phase2b'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/batch-pdf-admission-phase2b
+          fetch-depth: 0
+      - name: Apply toolbar source-based batch migration
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/components/toolbar/ToolbarOrganize.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_exact(old: str, new: str) -> None:
+              global text
+              if old not in text:
+                  raise SystemExit(f'Expected toolbar snippet not found: {old[:180]}')
+              text = text.replace(old, new, 1)
+
+          replace_exact(
+              """  const donorOperationRef = useRef<{
+              controller: AbortController;
+              documentKey: string;
+            } | null>(null);
+          """,
+              """  const donorOperationRef = useRef<{
+              controller: AbortController;
+              documentKey: string;
+            } | null>(null);
+            const batchOperationRef = useRef<AbortController | null>(null);
+          """,
+          )
+
+          replace_exact(
+              """  useEffect(() => () => {
+              donorOperationRef.current?.controller.abort('toolbar unmounted');
+              donorOperationRef.current = null;
+            }, []);
+          """,
+              """  useEffect(() => () => {
+              donorOperationRef.current?.controller.abort('toolbar unmounted');
+              donorOperationRef.current = null;
+              batchOperationRef.current?.abort('toolbar unmounted');
+              batchOperationRef.current = null;
+            }, []);
+          """,
+          )
+
+          replace_exact(
+              """  const confirmBatchRun = async (recipeId: string) => {
+              const files = await FileAdapter.pickPdfFiles(true);
+              if (files.length === 0) return;
+          
+              const recipe = BUILTIN_MACROS[recipeId];
+              if (!recipe) {
+                addToast({
+                  type: 'error',
+                  title: 'Batch Run Failed',
+                  message: `Recipe "${recipeId}" was not found.`,
+                });
+                return;
+              }
+          
+              const report = await runMacroBatch({
+                files,
+                recipe,
+                continueOnError: true,
+              });
+          
+              const reportJson = JSON.stringify(report, null, 2);
+              const reportBytes = new TextEncoder().encode(reportJson);
+              const blob = new Blob([reportBytes], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const element = document.createElement('a');
+              element.href = url;
+              element.download = `batch-report-${Date.now()}.json`;
+              element.click();
+              URL.revokeObjectURL(url);
+          
+              addToast({
+                type: 'success',
+                title: 'Batch Run Complete',
+                message: `Success: ${report.successes.length}, Failures: ${report.failures.length}.`,
+              });
+            };
+          """,
+              """  const confirmBatchRun = async (recipeId: string) => {
+              const recipe = BUILTIN_MACROS[recipeId];
+              if (!recipe) {
+                addToast({
+                  type: 'error',
+                  title: 'Batch Run Failed',
+                  message: `Recipe "${recipeId}" was not found.`,
+                });
+                return;
+              }
+          
+              batchOperationRef.current?.abort('superseded by a newer batch operation');
+              const controller = new AbortController();
+              batchOperationRef.current = controller;
+          
+              try {
+                const sources = await FileAdapter.pickPdfFileSources(true);
+                if (sources.length === 0 || controller.signal.aborted) return;
+          
+                const report = await runMacroBatch({
+                  sources,
+                  recipe,
+                  continueOnError: true,
+                  abortSignal: controller.signal,
+                });
+                if (controller.signal.aborted) return;
+          
+                const reportJson = JSON.stringify(report, null, 2);
+                const reportBytes = new TextEncoder().encode(reportJson);
+                const blob = new Blob([reportBytes], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const element = document.createElement('a');
+                element.href = url;
+                element.download = `batch-report-${Date.now()}.json`;
+                element.click();
+                URL.revokeObjectURL(url);
+          
+                addToast({
+                  type: 'success',
+                  title: 'Batch Run Complete',
+                  message: `Success: ${report.summary.succeeded}, Failures: ${report.summary.failed}.`,
+                });
+              } catch (error) {
+                if (!isOperationCancelledError(error) && !controller.signal.aborted) {
+                  addToast({
+                    type: 'error',
+                    title: 'Batch Run Failed',
+                    message: error instanceof Error ? error.message : String(error),
+                  });
+                }
+              } finally {
+                if (batchOperationRef.current === controller) {
+                  batchOperationRef.current = null;
+                }
+              }
+            };
+          """,
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit toolbar migration and remove bootstrap workflow
+        shell: bash
+        run: |
+          git config user.name "OpenAI Implementation Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/phase2b-toolbar-bootstrap.yml
+          git add frontend/src/components/toolbar/ToolbarOrganize.tsx
+          git commit -m "Route batch execution through file sources"
+          git push origin HEAD:agent/batch-pdf-admission-phase2b
