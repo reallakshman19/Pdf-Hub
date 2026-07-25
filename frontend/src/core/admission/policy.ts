@@ -76,7 +76,7 @@ export function requireAdmissionLimit(
       severity: 'error',
       code: 'POLICY_LIMIT_UNCONFIGURED',
       phase: 'VALIDATION',
-      message: `Admission profile ${policy.profileId} does not configure ${metric}.`,
+      message: `Admission profile ${policy.profileId} does not configure ${metric} in ${unit}.`,
     };
   }
   return limit;
