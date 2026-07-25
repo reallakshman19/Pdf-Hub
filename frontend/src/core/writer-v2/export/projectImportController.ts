@@ -11,6 +11,7 @@ import {
 } from './projectZip';
 import { extractWriterProjectFromPdf } from './roundTripPdfImport';
 import {
+  isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
@@ -323,7 +324,17 @@ async function reconcileImportedProject(
     });
   }
 
-  const mode = inferredMode(imported);
+  const declaredModes = [
+    imported.documentMeta?.mode,
+    manifest.documentMode,
+    manifest.source?.kind,
+  ].filter((value): value is 'pdfOverlay' | 'blankDocument' =>
+    value === 'pdfOverlay' || value === 'blankDocument',
+  );
+  if (new Set(declaredModes).size > 1) {
+    throw new Error('Writer project contains contradictory document mode declarations.');
+  }
+  const mode = declaredModes[0] ?? 'pdfOverlay';
   const hasOriginalPdf = imported.originalPdfBytes.byteLength > 0;
   if (mode === 'pdfOverlay') {
     if (!manifest.files.originalPdf || manifest.source?.hasOriginalPdf === false || !hasOriginalPdf) {
@@ -344,13 +355,18 @@ async function reconcileImportedProject(
       throw new Error('Writer project original PDF signature is missing.');
     }
     assertOperationCurrent(operation, 'Writer project before original PDF validation');
-    const pdf = await raceWithAbort(
-      PDFDocument.load(imported.originalPdfBytes),
-      operation.signal,
-      'Writer project original PDF validation',
-    );
-    assertOperationCurrent(operation, 'Writer project after original PDF validation');
-    pageCount = pdf.getPageCount();
+    try {
+      const pdf = await raceWithAbort(
+        PDFDocument.load(imported.originalPdfBytes),
+        operation.signal,
+        'Writer project original PDF validation',
+      );
+      assertOperationCurrent(operation, 'Writer project after original PDF validation');
+      pageCount = pdf.getPageCount();
+    } catch (error) {
+      if (isOperationCancelledError(error)) throw error;
+      throw new Error('Writer project original PDF could not be parsed.');
+    }
     if (!Number.isInteger(pageCount) || pageCount < 1) {
       throw new Error('Writer project original PDF has an invalid page count.');
     }
@@ -383,6 +399,7 @@ function assertUsableStage(
   if (registered.consumed) throw new Error('Writer project staged capability was already consumed.');
   if (registered.revoked) throw new Error('Writer project staged capability was revoked.');
   if (
+    registered.operation !== operation ||
     registered.operationId !== operation.operationId ||
     registered.generation !== operation.generation ||
     stage.operationId !== operation.operationId ||
@@ -422,7 +439,10 @@ function validateAssetReferences(
 ): void {
   const assetIds = new Set(assets.map((asset) => asset.id));
   for (const element of elements) {
-    if (!element.assetIds) continue;
+    if (element.assetIds === undefined) continue;
+    if (!Array.isArray(element.assetIds)) {
+      throw new Error(`Writer element ${element.id} contains malformed asset references.`);
+    }
     const seen = new Set<string>();
     for (const assetId of element.assetIds) {
       if (typeof assetId !== 'string' || !assetId.trim()) {
