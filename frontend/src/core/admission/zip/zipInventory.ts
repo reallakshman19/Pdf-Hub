@@ -1176,7 +1176,7 @@ function equalBytes(left: Uint8Array, right: readonly number[]): boolean {
   return true;
 }
 
-function rawFilenameKey(bytes: readonly number[]): string {
+function rawFilenameKey(bytes: ArrayLike<number>): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
