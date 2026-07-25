@@ -79,13 +79,10 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
 vi.mock('@/components/ui/Button', () => ({
   Button: ({
     children,
-    variant: _variant,
-    size: _size,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: string;
-    size?: string;
-  }) => <button {...props}>{children}</button>,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
 vi.mock('@/components/ui/Tooltip', () => ({

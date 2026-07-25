@@ -225,7 +225,7 @@ describe('donor PDF admission', () => {
     const first = createSource(pdfBytes('first'), { name: 'first.pdf' });
     const second = createSource(pdfBytes('second'), { name: 'second.pdf' });
     const firstCount = createDeferred<number>();
-    vi.spyOn(PdfEditAdapter, 'countPages')
+    const countPages = vi.spyOn(PdfEditAdapter, 'countPages')
       .mockImplementationOnce(() => firstCount.promise)
       .mockResolvedValueOnce(2);
 
@@ -235,6 +235,9 @@ describe('donor PDF admission', () => {
       'INSERT_PAGES',
       { ownerDocumentKey: 'doc-1' },
     );
+    await vi.waitFor(() => {
+      expect(countPages).toHaveBeenCalledTimes(1);
+    });
     const secondResult = await admitDonorPdfFiles(
       [second],
       'TOOLBAR_ORGANIZE',
