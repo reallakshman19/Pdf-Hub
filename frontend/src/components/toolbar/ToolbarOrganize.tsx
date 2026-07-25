@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Layers,
   PlusSquare,
@@ -16,6 +16,14 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import {
+  admitDonorPdfFiles,
+  assertAdmittedDonorSetDispatchAllowed,
+  firstDonorAdmissionErrorMessage,
+  type AdmittedDonorSet,
+  type DonorCommandTarget,
+} from '@/core/admission/donorPdf';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { dispatchCommand } from '@/core/commands/dispatch';
 import type { DocumentCommand } from '@/core/commands/types';
@@ -33,11 +41,15 @@ export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
   const [isReplacePageDialogOpen, setIsReplacePageDialogOpen] = useState(false);
   const [isBatchRunDialogOpen, setIsBatchRunDialogOpen] = useState(false);
-  const [replaceDonorBytes, setReplaceDonorBytes] = useState<Uint8Array | null>(null);
-  const [replaceDonorCount, setReplaceDonorCount] = useState<number>(1);
+  const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
+  const donorOperationRef = useRef<{
+    controller: AbortController;
+    documentKey: string;
+  } | null>(null);
 
   const {
     workingBytes,
+    documentKey,
     pageCount,
     selectedPages,
     viewState,
@@ -50,10 +62,108 @@ export const ToolbarOrganize: React.FC = () => {
   const activePages = selectedPages.length > 0 ? selectedPages : [viewState.currentPage];
   const activeIndices = activePages.map((page) => page - 1);
 
+  const beginDonorOperation = (expectedDocumentKey: string) => {
+    donorOperationRef.current?.controller.abort('superseded by a newer donor operation');
+    setIsReplacePageDialogOpen(false);
+    setReplaceDonorSet(null);
+    const operation = {
+      controller: new AbortController(),
+      documentKey: expectedDocumentKey,
+    };
+    donorOperationRef.current = operation;
+    return operation;
+  };
+
+  const finishDonorOperation = (operation: { controller: AbortController; documentKey: string }) => {
+    if (donorOperationRef.current === operation) {
+      donorOperationRef.current = null;
+    }
+  };
+
+  const closeReplaceDonor = () => {
+    donorOperationRef.current?.controller.abort('replacement dialog closed');
+    donorOperationRef.current = null;
+    setIsReplacePageDialogOpen(false);
+    setReplaceDonorSet(null);
+  };
+
+  useEffect(() => {
+    const operation = donorOperationRef.current;
+    if (operation && operation.documentKey !== documentKey) {
+      operation.controller.abort('active document changed');
+      donorOperationRef.current = null;
+      setIsReplacePageDialogOpen(false);
+      setReplaceDonorSet(null);
+    }
+  }, [documentKey]);
+
+  useEffect(() => () => {
+    donorOperationRef.current?.controller.abort('toolbar unmounted');
+    donorOperationRef.current = null;
+  }, []);
+
+  const admitDonorSelection = async (
+    multiple: boolean,
+    commandTarget: DonorCommandTarget,
+  ): Promise<{
+    admitted: AdmittedDonorSet;
+    operation: { controller: AbortController; documentKey: string };
+  } | null> => {
+    if (!workingBytes || !documentKey) return null;
+    const expectedDocumentKey = documentKey;
+    const operation = beginDonorOperation(expectedDocumentKey);
+
+    try {
+      const sources = await FileAdapter.pickPdfFileSources(multiple);
+      if (sources.length === 0) {
+        finishDonorOperation(operation);
+        return null;
+      }
+      const result = await admitDonorPdfFiles(
+        sources,
+        'TOOLBAR_ORGANIZE',
+        commandTarget,
+        {
+          signal: operation.controller.signal,
+          ownerDocumentKey: expectedDocumentKey,
+          isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+        },
+      );
+      if (result.outcome !== 'ACCEPTED') {
+        if (result.outcome !== 'CANCELLED') {
+          addToast({
+            type: 'error',
+            title: 'Donor PDF Rejected',
+            message: firstDonorAdmissionErrorMessage(result) ?? 'The donor PDF could not be admitted.',
+          });
+        }
+        finishDonorOperation(operation);
+        return null;
+      }
+      assertAdmittedDonorSetDispatchAllowed(result.value, {
+        signal: operation.controller.signal,
+        ownerDocumentKey: expectedDocumentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+      });
+      return { admitted: result.value, operation };
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !operation.controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Donor PDF Admission Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      finishDonorOperation(operation);
+      return null;
+    }
+  };
+
   const runMutation = async (
     command: DocumentCommand,
     successMessage: string,
     nextPage: number | null,
+    options?: { signal?: AbortSignal; documentKey?: string },
   ) => {
     if (!workingBytes) return null;
 
@@ -65,10 +175,13 @@ export const ToolbarOrganize: React.FC = () => {
         currentPage: viewState.currentPage,
         selectedPages,
         fileName: useSessionStore.getState().fileName ?? 'document.pdf',
+        ...(options?.documentKey ? { documentKey: options.documentKey } : {}),
       },
+      ...(options?.signal ? { signal: options.signal } : {}),
     });
 
     if (!result.success) {
+      if (result.error?.code === 'CANCELLED') return null;
       addToast({
         type: 'error',
         title: 'Organize Action Failed',
@@ -93,15 +206,21 @@ export const ToolbarOrganize: React.FC = () => {
   };
 
   const handleMerge = async () => {
-    if (!workingBytes) return;
-    const files = await FileAdapter.pickPdfFiles(true);
-    if (files.length === 0) return;
-
-    await runMutation(
-      { type: 'MERGE_PDF', additionalBytes: files.map((file) => file.bytes) },
-      `Merged ${files.length} file(s).`,
-      viewState.currentPage,
-    );
+    const admitted = await admitDonorSelection(true, 'MERGE_PDF');
+    if (!admitted) return;
+    try {
+      await runMutation(
+        { type: 'MERGE_PDF', donors: admitted.admitted.donors },
+        `Merged ${admitted.admitted.donors.length} file(s).`,
+        viewState.currentPage,
+        {
+          signal: admitted.operation.controller.signal,
+          documentKey: admitted.operation.documentKey,
+        },
+      );
+    } finally {
+      finishDonorOperation(admitted.operation);
+    }
   };
 
   const handleExtract = async () => {
@@ -125,19 +244,26 @@ export const ToolbarOrganize: React.FC = () => {
   };
 
   const handleInsertFromPdf = async () => {
-    if (!workingBytes) return;
-    const [picked] = await FileAdapter.pickPdfFiles(false);
-    if (!picked) return;
-
-    await runMutation(
-      {
-        type: 'INSERT_PAGES',
-        atIndex: viewState.currentPage - 1,
-        newBytes: picked.bytes,
-      },
-      `Inserted pages from ${picked.name}.`,
-      viewState.currentPage,
-    );
+    const admitted = await admitDonorSelection(false, 'INSERT_PAGES');
+    if (!admitted) return;
+    const donor = admitted.admitted.donors[0];
+    try {
+      await runMutation(
+        {
+          type: 'INSERT_PAGES',
+          atIndex: viewState.currentPage - 1,
+          donor,
+        },
+        `Inserted pages from ${donor.fileName}.`,
+        viewState.currentPage,
+        {
+          signal: admitted.operation.controller.signal,
+          documentKey: admitted.operation.documentKey,
+        },
+      );
+    } finally {
+      finishDonorOperation(admitted.operation);
+    }
   };
 
   const handleDeletePages = async () => {
@@ -230,29 +356,53 @@ export const ToolbarOrganize: React.FC = () => {
   };
 
   const handleReplacePage = async () => {
-    if (!workingBytes) return;
-    const [donor] = await FileAdapter.pickPdfFiles(false);
-    if (!donor) return;
-    const donorCount = await PdfEditAdapter.countPages(donor.bytes);
-    setReplaceDonorBytes(donor.bytes);
-    setReplaceDonorCount(donorCount);
+    const admitted = await admitDonorSelection(false, 'REPLACE_PAGE');
+    if (!admitted) return;
+    if (donorOperationRef.current !== admitted.operation) return;
+    setReplaceDonorSet(admitted.admitted);
     setIsReplacePageDialogOpen(true);
   };
 
   const confirmReplacePage = async (donorPage: number) => {
-    if (!workingBytes || !replaceDonorBytes) return;
-    const safeDonorPage = Math.max(1, Math.min(replaceDonorCount, donorPage));
-    await runMutation(
-      {
-        type: 'REPLACE_PAGE',
-        atIndex: viewState.currentPage - 1,
-        donorBytes: replaceDonorBytes,
-        donorPageIndex: safeDonorPage - 1,
-      },
-      `Replaced current page from donor page ${safeDonorPage}.`,
-      viewState.currentPage,
-    );
-    setReplaceDonorBytes(null);
+    const operation = donorOperationRef.current;
+    const staged = replaceDonorSet;
+    const donor = staged?.donors[0];
+    if (!workingBytes || !operation || !staged || !donor) return;
+    const safeDonorPage = Math.max(1, Math.min(donor.pageCount, donorPage));
+    try {
+      assertAdmittedDonorSetDispatchAllowed(staged, {
+        signal: operation.controller.signal,
+        ownerDocumentKey: operation.documentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === operation.documentKey,
+      });
+      await runMutation(
+        {
+          type: 'REPLACE_PAGE',
+          atIndex: viewState.currentPage - 1,
+          donor,
+          donorPageIndex: safeDonorPage - 1,
+        },
+        `Replaced current page from donor page ${safeDonorPage}.`,
+        viewState.currentPage,
+        {
+          signal: operation.controller.signal,
+          documentKey: operation.documentKey,
+        },
+      );
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !operation.controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Replacement Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      operation.controller.abort('replacement operation completed');
+      finishDonorOperation(operation);
+      setReplaceDonorSet(null);
+      setIsReplacePageDialogOpen(false);
+    }
   };
 
   const handleBatchRun = () => {
@@ -305,12 +455,9 @@ export const ToolbarOrganize: React.FC = () => {
       />
       <ReplacePageDialog
         isOpen={isReplacePageDialogOpen}
-        onClose={() => {
-          setIsReplacePageDialogOpen(false);
-          setReplaceDonorBytes(null);
-        }}
+        onClose={closeReplaceDonor}
         onConfirm={confirmReplacePage}
-        maxPages={replaceDonorCount}
+        maxPages={replaceDonorSet?.donors[0]?.pageCount ?? 1}
       />
       <BatchRunDialog
         isOpen={isBatchRunDialogOpen}
