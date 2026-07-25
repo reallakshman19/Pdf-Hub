@@ -1,5 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import {
+  admitDonorPdfFiles,
+  assertAdmittedDonorSetDispatchAllowed,
+  firstDonorAdmissionErrorMessage,
+} from '@/core/admission/donorPdf';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { dispatchCommand } from '@/core/commands/dispatch';
 import type { DocumentCommand } from '@/core/commands/types';
 import { useSessionStore } from '@/core/session/store';
@@ -27,7 +33,8 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
   onOpenMacros,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
-  const { workingBytes, fileName, viewState } = useSessionStore();
+  const donorOperationRef = useRef<AbortController | null>(null);
+  const { workingBytes, documentKey, fileName, viewState } = useSessionStore();
   const addToast = useToastStore((state) => state.addToast);
   const targetPages = selectedPages.includes(page) ? selectedPages : [page];
   const pageIndices = targetPages.map((value) => value - 1);
@@ -59,7 +66,16 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     };
   }, [onClose, configKind]);
 
-  const handleCommand = async (command: DocumentCommand, successMessage: string) => {
+  useEffect(() => () => {
+    donorOperationRef.current?.abort('thumbnail context menu unmounted');
+    donorOperationRef.current = null;
+  }, []);
+
+  const handleCommand = async (
+    command: DocumentCommand,
+    successMessage: string,
+    options?: { signal?: AbortSignal; documentKey?: string },
+  ) => {
     if (!workingBytes) return;
     const result = await dispatchCommand({
       source: 'thumbnail-menu',
@@ -69,9 +85,12 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
         currentPage: viewState.currentPage,
         selectedPages,
         fileName: fileName ?? 'document.pdf',
+        ...(options?.documentKey ? { documentKey: options.documentKey } : {}),
       },
+      ...(options?.signal ? { signal: options.signal } : {}),
     });
     if (!result.success) {
+      if (result.error?.code === 'CANCELLED') return;
       addToast({
         type: 'error',
         title: 'Context Action Failed',
@@ -96,18 +115,67 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
   };
 
   const handleReplaceCurrentPage = async () => {
-    if (!workingBytes) return;
-    const [donor] = await FileAdapter.pickPdfFiles(false);
-    if (!donor) return;
-    await handleCommand(
-      {
-        type: 'REPLACE_PAGE',
-        atIndex: page - 1,
-        donorBytes: donor.bytes,
-        donorPageIndex: 0,
-      },
-      `Replaced page ${page} using the first donor page from ${donor.name}.`,
-    );
+    if (!workingBytes || !documentKey) return;
+    donorOperationRef.current?.abort('superseded by a newer thumbnail donor operation');
+    const controller = new AbortController();
+    donorOperationRef.current = controller;
+    const expectedDocumentKey = documentKey;
+
+    try {
+      const sources = await FileAdapter.pickPdfFileSources(false);
+      if (sources.length === 0) return;
+      const result = await admitDonorPdfFiles(
+        sources,
+        'THUMBNAIL_CONTEXT_MENU',
+        'REPLACE_PAGE',
+        {
+          signal: controller.signal,
+          ownerDocumentKey: expectedDocumentKey,
+          isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+        },
+      );
+      if (result.outcome !== 'ACCEPTED') {
+        if (result.outcome !== 'CANCELLED') {
+          addToast({
+            type: 'error',
+            title: 'Donor PDF Rejected',
+            message: firstDonorAdmissionErrorMessage(result) ?? 'The donor PDF could not be admitted.',
+          });
+        }
+        return;
+      }
+      assertAdmittedDonorSetDispatchAllowed(result.value, {
+        signal: controller.signal,
+        ownerDocumentKey: expectedDocumentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+      });
+      const donor = result.value.donors[0];
+      await handleCommand(
+        {
+          type: 'REPLACE_PAGE',
+          atIndex: page - 1,
+          donor,
+          donorPageIndex: 0,
+        },
+        `Replaced page ${page} using the first donor page from ${donor.fileName}.`,
+        {
+          signal: controller.signal,
+          documentKey: expectedDocumentKey,
+        },
+      );
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Donor PDF Admission Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (donorOperationRef.current === controller) {
+        donorOperationRef.current = null;
+      }
+    }
   };
 
   if (configKind) {

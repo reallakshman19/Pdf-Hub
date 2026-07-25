@@ -1,6 +1,7 @@
 // ── Architecture-level command system (Agent 00 contract) ───────────────────
 
 import type { AnnotationType } from '@/core/annotations/annotationTypes';
+import type { AdmittedDonorPdf } from '@/core/admission/donorPdf';
 
 
 export type PdfCommandSource = 'user' | 'macro' | 'ai' | 'system';
@@ -137,11 +138,11 @@ export type DocumentCommand =
   | { type: 'EXTRACT_PAGES'; pageIndices: number[]; outputName?: string }
   | { type: 'SPLIT_PAGES'; pageIndices: number[]; outputName?: string }
   | { type: 'DELETE_PAGES'; pageIndices: number[] }
-  | { type: 'INSERT_PAGES'; atIndex: number; newBytes: Uint8Array }
+  | { type: 'INSERT_PAGES'; atIndex: number; donor: AdmittedDonorPdf }
   | { type: 'INSERT_BLANK_PAGE'; atIndex: number; size: { width: number; height: number } }
-  | { type: 'REPLACE_PAGE'; atIndex: number; donorBytes: Uint8Array; donorPageIndex: number }
+  | { type: 'REPLACE_PAGE'; atIndex: number; donor: AdmittedDonorPdf; donorPageIndex: number }
   | { type: 'DUPLICATE_PAGES'; pageIndices: number[] }
-  | { type: 'MERGE_PDF'; additionalBytes: Uint8Array[] }
+  | { type: 'MERGE_PDF'; donors: readonly AdmittedDonorPdf[] }
   | { type: 'ADD_HEADER_FOOTER_TEXT'; pageIndices: number[]; options: HeaderFooterCommandOptions }
   | { type: 'DRAW_TEXT_ON_PAGES'; pageIndices: number[]; options: DrawTextCommandOptions }
   | { type: 'DRAW_REDACTION_BOX'; pageIndices: number[]; options: RedactionBoxCommandOptions }
@@ -151,6 +152,7 @@ export interface CommandContext {
   currentPage: number;
   selectedPages: number[];
   fileName: string;
+  documentKey: string;
 }
 
 export interface CommandPayload {
@@ -158,6 +160,7 @@ export interface CommandPayload {
   source: CommandSource;
   workingBytes?: Uint8Array;
   context?: Partial<CommandContext>;
+  signal?: AbortSignal;
 }
 
 export interface CommandArtifact {
@@ -169,6 +172,8 @@ export interface CommandArtifact {
 export type CommandErrorCode =
   | 'NO_WORKING_DOCUMENT'
   | 'VALIDATION_FAILED'
+  | 'ADMISSION_REJECTED'
+  | 'CANCELLED'
   | 'EXECUTION_FAILED'
   | 'UNKNOWN_COMMAND';
 

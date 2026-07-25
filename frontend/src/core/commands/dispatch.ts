@@ -1,5 +1,15 @@
 import { documentBus } from '../events/bus';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import {
+  consumeAdmittedDonorPdfs,
+  inspectAdmittedDonorPdfs,
+  isDonorAdmissionBoundaryError,
+  DonorAdmissionBoundaryError,
+} from '@/core/admission/donorPdf';
+import {
+  isOperationCancelledError,
+  throwIfAborted,
+} from '@/core/cancellation/operationCancellation';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import {
@@ -28,6 +38,7 @@ type ResolvedCommandContext = {
   currentPage: number;
   selectedPages: number[];
   fileName: string;
+  documentKey: string | null;
 };
 
 function commandError(
@@ -84,6 +95,7 @@ function resolveContext(payload: CommandPayload): ResolvedCommandContext | null 
     currentPage: payload.context?.currentPage ?? session.viewState.currentPage,
     selectedPages: payload.context?.selectedPages ?? session.selectedPages,
     fileName: payload.context?.fileName ?? session.fileName ?? 'document.pdf',
+    documentKey: payload.context?.documentKey ?? session.documentKey,
   };
 }
 
@@ -110,7 +122,7 @@ function commandLabel(command: DocumentCommand): string {
     case 'DUPLICATE_PAGES':
       return `Duplicate ${command.pageIndices.length} page(s)`;
     case 'MERGE_PDF':
-      return `Merge ${command.additionalBytes.length} file(s)`;
+      return `Merge ${command.donors.length} file(s)`;
     case 'ADD_HEADER_FOOTER_TEXT':
       return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
@@ -134,6 +146,24 @@ function outputName(prefix: string, pageIndices: number[], fallback?: string): s
   }
   const humanPages = pageIndices.map((index) => index + 1).join('-');
   return `${prefix}-${humanPages}.pdf`;
+}
+
+function assertDonorCommandCurrent(
+  context: ResolvedCommandContext,
+  payload: CommandPayload,
+  operation: string,
+): void {
+  throwIfAborted(payload.signal, operation);
+  if (!context.documentKey) {
+    throw new DonorAdmissionBoundaryError(
+      'Donor commands require an active document identity.',
+    );
+  }
+  if (useSessionStore.getState().documentKey !== context.documentKey) {
+    throw new DonorAdmissionBoundaryError(
+      'The active document changed before the donor command could commit.',
+    );
+  }
 }
 
 async function applyMutation(
@@ -250,14 +280,24 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'INSERT_PAGES': {
-        // Count donor pages before mutation so we can emit the correct count
-        const donorPageCount = await PdfEditAdapter.countPages(command.newBytes);
-        const nextAnnotations = remapAfterInsert(useAnnotationStore.getState().annotations, command.atIndex, donorPageCount);
+        assertDonorCommandCurrent(context, payload, 'insert donor pages: before mutation');
+        inspectAdmittedDonorPdfs('INSERT_PAGES', [command.donor], context.documentKey);
+        const [donor] = consumeAdmittedDonorPdfs(
+          'INSERT_PAGES',
+          [command.donor],
+          context.documentKey,
+        );
+        const nextAnnotations = remapAfterInsert(
+          useAnnotationStore.getState().annotations,
+          command.atIndex,
+          donor.pageCount,
+        );
         const nextBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
-          command.newBytes,
+          donor.bytes,
           command.atIndex,
         );
+        assertDonorCommandCurrent(context, payload, 'insert donor pages: before commit');
         const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
         return commandSuccess(command.type, source, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
       }
@@ -274,6 +314,29 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'REPLACE_PAGE': {
+        assertDonorCommandCurrent(context, payload, 'replace page: before mutation');
+        const [inspectedDonor] = inspectAdmittedDonorPdfs(
+          'REPLACE_PAGE',
+          [command.donor],
+          context.documentKey,
+        );
+        if (
+          !Number.isInteger(command.donorPageIndex)
+          || command.donorPageIndex < 0
+          || command.donorPageIndex >= inspectedDonor.pageCount
+        ) {
+          return commandError(
+            command.type,
+            source,
+            'VALIDATION_FAILED',
+            'The selected donor page is outside the admitted donor page range',
+          );
+        }
+        const [donor] = consumeAdmittedDonorPdfs(
+          'REPLACE_PAGE',
+          [command.donor],
+          context.documentKey,
+        );
         // Treat as delete-then-insert: annotations on replaced page are cleared.
         const nextAnnotations = remapAfterInsert(
           remapAfterDelete(useAnnotationStore.getState().annotations, [command.atIndex]),
@@ -283,9 +346,10 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
           command.atIndex,
-          command.donorBytes,
+          donor.bytes,
           command.donorPageIndex,
         );
+        assertDonorCommandCurrent(context, payload, 'replace page: before commit');
         const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
         return commandSuccess(command.type, source, true, 'Page replaced', result.nextBytes, result.nextPageCount);
       }
@@ -302,10 +366,21 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
       }
 
       case 'MERGE_PDF': {
-        if (command.additionalBytes.length === 0) {
+        if (command.donors.length === 0) {
           return commandError(command.type, source, 'VALIDATION_FAILED', 'No donor files provided for merge');
         }
-        const nextBytes = await PdfEditAdapter.merge(context.workingBytes, command.additionalBytes);
+        assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before mutation');
+        inspectAdmittedDonorPdfs('MERGE_PDF', command.donors, context.documentKey);
+        const donors = consumeAdmittedDonorPdfs(
+          'MERGE_PDF',
+          command.donors,
+          context.documentKey,
+        );
+        const nextBytes = await PdfEditAdapter.merge(
+          context.workingBytes,
+          donors.map((donor) => donor.bytes),
+        );
+        assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before commit');
         const result = await applyMutation(command, source, context.workingBytes, nextBytes);
         return commandSuccess(command.type, source, true, 'Files merged', result.nextBytes, result.nextPageCount);
       }
@@ -409,6 +484,12 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
+    if (isOperationCancelledError(error)) {
+      return commandError(command.type, source, 'CANCELLED', message);
+    }
+    if (isDonorAdmissionBoundaryError(error)) {
+      return commandError(command.type, source, 'ADMISSION_REJECTED', message);
+    }
     const details = isDocumentMutationTransactionError(error)
       ? `transaction-stage=${error.stage}`
       : undefined;
