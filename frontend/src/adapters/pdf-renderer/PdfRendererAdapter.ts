@@ -21,6 +21,14 @@ export interface RenderedPage {
   scale: number;
 }
 
+export interface ThumbnailRenderResource {
+  imageUrl: string;
+  width: number;
+  height: number;
+  estimatedDecodedBytes: number;
+  dispose: () => void;
+}
+
 export interface TextLayerItem {
   id: string;
   text: string;
@@ -108,6 +116,14 @@ function digestHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
       .map((value) => value.toString(16).padStart(2, '0'))
       .join(''),
   );
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
 export class PdfRendererAdapter {
@@ -354,6 +370,80 @@ export class PdfRendererAdapter {
   static getPageDimensions(page: PDFPageProxy): PageDimensions {
     const viewport = page.getViewport({ scale: 1 });
     return { width: viewport.width, height: viewport.height };
+  }
+
+  static async renderThumbnailResource(
+    page: PDFPageProxy,
+    signal?: AbortSignal,
+    targetWidth = 150,
+  ): Promise<ThumbnailRenderResource> {
+    throwIfAborted(signal, `render thumbnail resource for PDF page ${page.pageNumber}`);
+    const sourceViewport = page.getViewport({ scale: 1 });
+    const widthScale = Math.max(1, targetWidth) / Math.max(1, sourceViewport.width);
+    const heightScale = 300 / Math.max(1, sourceViewport.height);
+    const scaledViewport = page.getViewport({ scale: Math.min(widthScale, heightScale) });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.floor(scaledViewport.width));
+    canvas.height = Math.max(1, Math.floor(scaledViewport.height));
+    const renderedWidth = canvas.width;
+    const renderedHeight = canvas.height;
+
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('2D canvas context is not available for thumbnail');
+
+    let objectUrl: string | null = null;
+    try {
+      const renderTask = page.render({
+        canvas,
+        canvasContext: context,
+        viewport: scaledViewport,
+      });
+      await raceWithAbort(
+        renderTask.promise,
+        signal,
+        `render thumbnail resource for PDF page ${page.pageNumber}`,
+        () => renderTask.cancel(),
+      );
+      throwIfAborted(signal, `encode thumbnail resource for PDF page ${page.pageNumber}`);
+
+      const blob = typeof canvas.toBlob === 'function'
+        ? await raceWithAbort(
+            canvasToBlob(canvas, 'image/jpeg', 0.8),
+            signal,
+            `encode thumbnail blob for PDF page ${page.pageNumber}`,
+          )
+        : null;
+      throwIfAborted(signal, `publish thumbnail resource for PDF page ${page.pageNumber}`);
+
+      const imageUrl = blob && typeof URL.createObjectURL === 'function'
+        ? (objectUrl = URL.createObjectURL(blob))
+        : canvas.toDataURL('image/jpeg', 0.8);
+      let disposed = false;
+
+      return {
+        imageUrl,
+        width: renderedWidth,
+        height: renderedHeight,
+        estimatedDecodedBytes: renderedWidth * renderedHeight * 4,
+        dispose: () => {
+          if (disposed) return;
+          disposed = true;
+          if (objectUrl && typeof URL.revokeObjectURL === 'function') {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+          }
+        },
+      };
+    } catch (thumbnailError) {
+      if (objectUrl && typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(objectUrl);
+      }
+      throw thumbnailError;
+    } finally {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   }
 
   static async getThumbnail(
