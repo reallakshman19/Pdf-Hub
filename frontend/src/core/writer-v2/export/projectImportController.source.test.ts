@@ -38,6 +38,11 @@ describe('standalone Writer project source route', () => {
       source.indexOf('export function revokeStagedWriterProjectImport'),
     );
 
+    expect(stageBoundary).toContain('inspectZipArchive');
+    expect(stageBoundary).toContain('admitZipArchive');
+    expect(stageBoundary.indexOf('admitZipArchive')).toBeLessThan(
+      stageBoundary.indexOf('importPdfHubWriterProject'),
+    );
     expect(stageBoundary).not.toContain('useWriterV2Store.setState');
     expect(stageBoundary).not.toContain('hydrateWriterSession');
     expect(stageBoundary).not.toContain('useSessionStore.setState');
