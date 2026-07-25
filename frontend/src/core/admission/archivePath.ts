@@ -22,6 +22,11 @@ export interface ArchivePathReconciliationResult {
   readonly diagnostics: readonly AdmissionDiagnostic[];
 }
 
+/**
+ * Reconciles raw archive entry names before a map-based ZIP API can collapse
+ * duplicates or hide path distinctions. Callers must supply every raw central-
+ * directory record in original order; JSZip's final files map is not sufficient.
+ */
 export function reconcileArchivePaths(
   inputs: readonly ArchivePathInput[],
   policy: ArchivePathPolicy,
@@ -66,7 +71,7 @@ export function canonicalizeArchivePath(
     ));
   }
 
-  if (rawPath.startsWith('/') || rawPath.startsWith('\\\\')) {
+  if (rawPath.startsWith('/') || rawPath.startsWith('\\')) {
     diagnostics.push(pathDiagnostic(
       input,
       'ARCHIVE_PATH_ABSOLUTE',
