@@ -17,6 +17,7 @@ describe('archive path reconciliation', () => {
     expect(result.diagnostics.map((item) => item.code)).toEqual([
       'ARCHIVE_PATH_TRAVERSAL',
       'ARCHIVE_PATH_ABSOLUTE',
+      'ARCHIVE_PATH_EMPTY_SEGMENT',
       'ARCHIVE_PATH_DRIVE_QUALIFIED',
     ]);
     expect(result.entries).toEqual([]);
@@ -70,6 +71,6 @@ describe('archive path reconciliation', () => {
       { rawPath: 'a//file', inputIndex: 1 },
     ], sensitivePolicy);
 
-    expect(result.diagnostics.map((item) => item.inputIndex)).toEqual([0, 1, 2]);
+    expect(result.diagnostics.map((item) => item.inputIndex)).toEqual([0, 0, 1, 2]);
   });
 });
