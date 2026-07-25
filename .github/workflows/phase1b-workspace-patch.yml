@@ -1,0 +1,59 @@
+name: Phase 1B workspace migration
+
+on:
+  push:
+    branches:
+      - agent/binary-admission-phase1-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-workspace:
+    if: github.event.head_commit.message == 'Apply workspace admission migration'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/binary-admission-phase1-foundation
+          fetch-depth: 0
+
+      - name: Migrate workspace PDF opening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('frontend/src/components/workspace/DocumentWorkspace.tsx')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  "import { FileAdapter } from '@/adapters/file/FileAdapter';\nimport { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';",
+                  "import { FileAdapter } from '@/adapters/file/FileAdapter';\nimport { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admission/openPdf';",
+              ),
+              (
+                  "    setPage,\n    setZoom,\n    openDocument,\n  } = useSessionStore();",
+                  "    setPage,\n    setZoom,\n  } = useSessionStore();",
+              ),
+              (
+                  "  const handleBrowse = async () => {\n    try {\n      const [picked] = await FileAdapter.pickPdfFiles(false);\n      if (!picked) return;\n\n      const safeBytes = new Uint8Array(picked.bytes);\n      const pageCount = await PdfEditAdapter.countPages(safeBytes);\n      const nextDocumentKey = await FileAdapter.hashBytes(safeBytes);\n\n      openDocument({\n        documentKey: nextDocumentKey,\n        fileName: picked.name,\n        bytes: safeBytes,\n        pageCount,\n      });\n    } catch (err) {\n      if (err instanceof DOMException && err.name === 'AbortError') {\n        return;\n      }\n      setLoadError(String(err));\n    }\n  };",
+                  "  const handleBrowse = async () => {\n    try {\n      const [picked] = await FileAdapter.pickPdfFileSources(false);\n      if (!picked) return;\n\n      const result = await admitAndOpenPdfFile(picked.file, 'WORKSPACE_PICKER', {\n        saveHandle: picked.handle ?? null,\n      });\n      if (result.outcome !== 'ACCEPTED') {\n        setLoadError(firstAdmissionErrorMessage(result) ?? 'PDF opening was cancelled.');\n      }\n    } catch (err) {\n      if (err instanceof DOMException && err.name === 'AbortError') {\n        return;\n      }\n      setLoadError(String(err));\n    }\n  };",
+              ),
+              ('Supports PDF up to 500 MB.', 'Supports PDF up to 100 MB.'),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'Expected one exact replacement target, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit migration and remove temporary workflow
+        run: |
+          git config user.name "pdf-hub-admission-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/phase1b-workspace-patch.yml
+          git add frontend/src/components/workspace/DocumentWorkspace.tsx
+          git commit -m "Migrate workspace PDF opens through admission"
+          git push origin HEAD:agent/binary-admission-phase1-foundation
