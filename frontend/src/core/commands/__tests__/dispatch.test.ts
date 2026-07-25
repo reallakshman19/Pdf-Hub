@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchCommand } from '../dispatch';
+import {
+  admitDonorPdfFiles,
+  type AdmittedDonorPdf,
+  type DonorCommandTarget,
+} from '../../admission/donorPdf';
 import { useAnnotationStore } from '../../annotations/store';
 import type { PdfAnnotation } from '../../annotations/types';
 import { useHistoryStore } from '../../document-history/store';
@@ -15,6 +20,7 @@ vi.mock('@/core/annotations/persistence', () => ({
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
   FileAdapter: {
+    MAX_PDF_SIZE_BYTES: 100 * 1024 * 1024,
     hashBytes: vi.fn().mockImplementation(async (bytes) => 'mock-hash-' + bytes.length),
   },
 }));
@@ -56,6 +62,29 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     getPageSize: pdfMocks.getPageSize,
   },
 }));
+
+async function admitDonor(
+  commandTarget: DonorCommandTarget,
+  name = 'donor.pdf',
+): Promise<AdmittedDonorPdf> {
+  const bytes = new TextEncoder().encode('%PDF-1.7\nfixture');
+  const file = {
+    name,
+    type: 'application/pdf',
+    size: bytes.byteLength,
+    arrayBuffer: vi.fn(async () => bytes.slice().buffer),
+  } as unknown as File;
+  const result = await admitDonorPdfFiles(
+    [{ file }],
+    'COMMAND_CALLER',
+    commandTarget,
+    { ownerDocumentKey: 'test-doc' },
+  );
+  if (result.outcome !== 'ACCEPTED') {
+    throw new Error(`Donor admission failed: ${result.outcome}`);
+  }
+  return result.value.donors[0];
+}
 
 const TEST_ANNOTATION: PdfAnnotation = {
   id: 'annotation-1',
@@ -207,7 +236,8 @@ describe('dispatchCommand', () => {
     expect(pdfMocks.reorderPages).toHaveBeenCalledWith(new Uint8Array([1, 1, 1]), [2, 1, 0]);
   });
 
-  it('inserts pages from another pdf', async () => {
+  it('inserts pages from an admitted donor and commits through history', async () => {
+    const donor = await admitDonor('INSERT_PAGES');
     pdfMocks.insertAt.mockResolvedValue(new Uint8Array([1, 9, 1]));
 
     const result = await dispatchCommand({
@@ -215,12 +245,105 @@ describe('dispatchCommand', () => {
       command: {
         type: 'INSERT_PAGES',
         atIndex: 1,
-        newBytes: new Uint8Array([9]),
+        donor,
       },
     });
 
     expect(result.success).toBe(true);
     expect(pdfMocks.insertAt).toHaveBeenCalledTimes(1);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+  });
+
+  it('rejects a fabricated donor before PDF mutation or transaction commit', async () => {
+    const fabricated = {
+      inputIndex: 0,
+      fileName: 'malformed.pdf',
+      sourceBytes: 4,
+      pageCount: 1,
+      ownerDocumentKey: 'test-doc',
+      commandTarget: 'INSERT_PAGES',
+      handle: null,
+    } as AdmittedDonorPdf;
+
+    const result = await dispatchCommand({
+      source: 'toolbar',
+      command: {
+        type: 'INSERT_PAGES',
+        atIndex: 1,
+        donor: fabricated,
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('ADMISSION_REJECTED');
+    expect(pdfMocks.insertAt).not.toHaveBeenCalled();
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('preserves admitted merge order and dispatches the mutation once', async () => {
+    const firstBytes = new TextEncoder().encode('%PDF-1.7\nfirst');
+    const secondBytes = new TextEncoder().encode('%PDF-1.7\nsecond');
+    const admitted = await admitDonorPdfFiles(
+      [
+        {
+          file: {
+            name: 'first.pdf',
+            type: 'application/pdf',
+            size: firstBytes.byteLength,
+            arrayBuffer: vi.fn(async () => firstBytes.slice().buffer),
+          } as unknown as File,
+        },
+        {
+          file: {
+            name: 'second.pdf',
+            type: 'application/pdf',
+            size: secondBytes.byteLength,
+            arrayBuffer: vi.fn(async () => secondBytes.slice().buffer),
+          } as unknown as File,
+        },
+      ],
+      'COMMAND_CALLER',
+      'MERGE_PDF',
+      { ownerDocumentKey: 'test-doc' },
+    );
+    expect(admitted.outcome).toBe('ACCEPTED');
+    if (admitted.outcome !== 'ACCEPTED') return;
+    pdfMocks.merge.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+
+    const result = await dispatchCommand({
+      source: 'toolbar',
+      command: {
+        type: 'MERGE_PDF',
+        donors: admitted.value.donors,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(admitted.value.donors.map((donor) => donor.fileName)).toEqual([
+      'first.pdf',
+      'second.pdf',
+    ]);
+    expect(pdfMocks.merge).toHaveBeenCalledTimes(1);
+    expect(pdfMocks.merge.mock.calls[0]?.[1]).toHaveLength(2);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+  });
+
+  it('replaces a page from an admitted donor exactly once', async () => {
+    const donor = await admitDonor('REPLACE_PAGE');
+    pdfMocks.replacePage.mockResolvedValue(new Uint8Array([4, 4, 4]));
+
+    const result = await dispatchCommand({
+      source: 'thumbnail-menu',
+      command: {
+        type: 'REPLACE_PAGE',
+        atIndex: 0,
+        donor,
+        donorPageIndex: 0,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(pdfMocks.replacePage).toHaveBeenCalledTimes(1);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 

@@ -114,6 +114,8 @@ export interface AdmissionMeasuredValue {
   readonly actual: number;
   readonly limit?: number;
   readonly unit: 'bytes' | 'count' | 'pixels' | 'ratio' | 'points' | 'nodes';
+  readonly inputIndex?: number;
+  readonly fileName?: string;
 }
 
 export interface AdmissionDiagnostic {
