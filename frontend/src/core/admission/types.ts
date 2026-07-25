@@ -4,6 +4,7 @@ export type AdmissionOutcomeCode =
   | 'REJECTED_INVALID_FORMAT'
   | 'REJECTED_ARCHIVE_STRUCTURE'
   | 'REJECTED_UNSUPPORTED_FEATURE'
+  | 'AUTHORITY_REQUIRED'
   | 'CANCELLED'
   | 'TIMED_OUT'
   | 'FAILED_INTERNAL'
@@ -20,6 +21,7 @@ export type AdmissionProfileId =
   | 'OCR_PDF'
   | 'PROJECT_ORIGINAL_PDF'
   | 'PROJECT_ASSET'
+  | 'STRUCTURED_TEXT'
   | 'OUTPUT_SERIALIZATION';
 
 export type AdmissionPhase =
@@ -59,8 +61,25 @@ export type AdmissionMetric =
   | 'OCR_CORRECTION_COUNT'
   | 'OCR_REGION_COUNT'
   | 'OCR_CANDIDATE_COUNT'
+  | 'TEXT_ROW_COUNT'
+  | 'TEXT_COLUMN_COUNT'
+  | 'TEXT_CELL_BYTES'
   | 'PROJECTED_OUTPUT_BYTES'
   | 'PEAK_RESIDENT_BYTES';
+
+export type AdmissionPolicyAuthority =
+  | {
+      readonly kind: 'EXISTING_SOURCE_POLICY';
+      readonly sourceId: string;
+    }
+  | {
+      readonly kind: 'OWNER_APPROVED_GLOBAL_POLICY';
+      readonly authorityId: string;
+    }
+  | {
+      readonly kind: 'UNRESOLVED_POLICY';
+      readonly reason: string;
+    };
 
 export type AdmissionDiagnosticSeverity = 'info' | 'warning' | 'error';
 
@@ -68,6 +87,7 @@ export type AdmissionDiagnosticCode =
   | 'POLICY_LIMIT_UNCONFIGURED'
   | 'POLICY_LIMIT_INVALID'
   | 'POLICY_LIMIT_EXCEEDED'
+  | 'POLICY_AUTHORITY_INVALID'
   | 'ADMISSION_MEASUREMENT_INVALID'
   | 'ARCHIVE_PATH_EMPTY'
   | 'ARCHIVE_PATH_CONTROL_CHARACTER'
@@ -78,11 +98,7 @@ export type AdmissionDiagnosticCode =
   | 'ARCHIVE_PATH_TRAVERSAL'
   | 'ARCHIVE_PATH_DUPLICATE'
   | 'ARCHIVE_PATH_COLLISION'
-  | 'ARCHIVE_FILE_DIRECTORY_COLLISION'
-  | 'ADMISSION_OPERATION_STALE'
-  | 'ADMISSION_OPERATION_NOT_VALIDATED'
-  | 'ADMISSION_OPERATION_ALREADY_COMMITTED'
-  | 'ADMISSION_OPERATION_TERMINAL';
+  | 'ARCHIVE_FILE_DIRECTORY_COLLISION';
 
 export interface AdmissionMeasuredValue {
   readonly metric: AdmissionMetric;
@@ -104,6 +120,7 @@ export interface AdmissionDiagnostic {
 export interface AdmissionPolicy {
   readonly profileId: AdmissionProfileId;
   readonly policyVersion: string;
+  readonly authority: AdmissionPolicyAuthority;
   readonly limits: Readonly<Partial<Record<AdmissionMetric, number>>>;
   readonly archivePath: ArchivePathPolicy;
 }
@@ -116,6 +133,7 @@ export interface ArchivePathPolicy {
 export interface AdmissionEvidence {
   readonly profileId: AdmissionProfileId;
   readonly policyVersion: string;
+  readonly authority: AdmissionPolicyAuthority;
   readonly measurements: readonly AdmissionMeasuredValue[];
   readonly diagnostics: readonly AdmissionDiagnostic[];
 }
@@ -134,8 +152,3 @@ export interface RejectedAdmissionResult {
 export type AdmissionResult<T> =
   | AcceptedAdmissionResult<T>
   | RejectedAdmissionResult;
-
-export interface AdmissionOperationIdentity {
-  readonly operationId: string;
-  readonly generation: number;
-}
