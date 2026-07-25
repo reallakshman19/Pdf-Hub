@@ -404,16 +404,21 @@ Required fixtures include:
 
 PR #133 remains draft and must not merge in its initial form.
 
-Required rework before the next certification attempt:
+Completed source-alignment corrections:
 
-1. remove the parallel `AdmissionOperationGate` and its tests;
-2. add policy provenance and existing-source-policy classification;
-3. retain archive path reconciliation as an import-side primitive;
-4. narrow profile and metric types to the first implemented vertical slice plus clearly marked reserved profiles;
-5. implement the primary PDF open coordinator;
-6. migrate LandingPage, ToolbarFile, and DocumentWorkspace browse paths;
-7. add source-level regression tests;
-8. refresh from PR #132 merge only when that merge is explicitly authorized and completed.
+1. replaced the parallel admission transaction state machine with a final checkpoint that delegates to shared cancellation;
+2. added policy provenance and existing-source-policy classification;
+3. retained archive path reconciliation as an import-side primitive;
+4. documented the complete source-level ingress and retention map.
+
+Remaining before the next production integration review:
+
+1. narrow profiles and metrics to the first implemented vertical slice plus clearly marked reserved profiles;
+2. implement the primary PDF open coordinator;
+3. migrate LandingPage, ToolbarFile, and DocumentWorkspace browse paths;
+4. add source-level regression tests;
+5. run the complete certification matrix;
+6. refresh from PR #132 merge only when that merge is explicitly authorized and completed.
 
 ## First coding target
 
