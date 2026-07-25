@@ -36,6 +36,12 @@ function pdfBytes(payloadSize = 8): Uint8Array {
   return bytes;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function successResult(outputSize = 16, logs: string[] = []): MacroExecutionResult {
   return {
     status: 'success',
@@ -69,7 +75,7 @@ function createSource(
     readonly read?: () => Promise<ArrayBuffer>;
   } = {},
 ): PickedPdfFileSource {
-  const file = new File([bytes], name, { type: options.type ?? 'application/pdf' });
+  const file = new File([toArrayBuffer(bytes)], name, { type: options.type ?? 'application/pdf' });
   if (options.size !== undefined) {
     Object.defineProperty(file, 'size', { configurable: true, value: options.size });
   }
@@ -195,7 +201,7 @@ describe('runMacroBatch', () => {
         activeReads += 1;
         maxActiveReads = Math.max(maxActiveReads, activeReads);
         activeReads -= 1;
-        return pdfBytes().buffer;
+        return toArrayBuffer(pdfBytes());
       },
     });
     macroMocks.executeMacroRecipe
@@ -216,7 +222,7 @@ describe('runMacroBatch', () => {
     await vi.waitFor(() => expect(events).toEqual(['read:first']));
     expect(second.file.arrayBuffer).not.toHaveBeenCalled();
 
-    firstRead.resolve(pdfBytes().buffer);
+    firstRead.resolve(toArrayBuffer(pdfBytes()));
     await vi.waitFor(() => expect(events).toEqual(['read:first', 'macro:first']));
     expect(second.file.arrayBuffer).not.toHaveBeenCalled();
 
@@ -342,7 +348,7 @@ describe('runMacroBatch', () => {
     });
     await vi.waitFor(() => expect(first.file.arrayBuffer).toHaveBeenCalledTimes(1));
     controller.abort('cancel read');
-    read.resolve(pdfBytes().buffer);
+    read.resolve(toArrayBuffer(pdfBytes()));
     const report = await run;
 
     expect(report.outcome).toBe('cancelled');

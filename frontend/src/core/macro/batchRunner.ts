@@ -449,5 +449,5 @@ function freezeRecord<T extends BatchFileResultRecord>(record: T): T {
   return Object.freeze({
     ...record,
     logs: Object.freeze([...record.logs]),
-  }) as T;
+  }) as unknown as T;
 }
