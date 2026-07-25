@@ -51,6 +51,20 @@ describe('primary PDF admission coordinator', () => {
     expect(commit).not.toHaveBeenCalled();
   });
 
+  it('rejects incompatible metadata before reading file bytes', async () => {
+    const file = createFile(pdfHeaderBytes(), {
+      name: 'sample.txt',
+      type: 'text/plain',
+    });
+    const commit = vi.fn();
+
+    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP', { commit });
+
+    expect(result.outcome).toBe('REJECTED_INVALID_FORMAT');
+    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('rejects a missing PDF signature before page parsing and hashing', async () => {
     const file = createFile(new TextEncoder().encode('not a PDF'));
     const countPages = vi.spyOn(PdfEditAdapter, 'countPages');
@@ -132,7 +146,7 @@ describe('primary PDF admission coordinator', () => {
   it('suppresses a late result after a newer open operation starts', async () => {
     const firstFile = createFile(pdfHeaderBytes(), { name: 'first.pdf' });
     const secondFile = createFile(pdfHeaderBytes(), { name: 'second.pdf' });
-    let resolveFirstCount: ((value: number) => void) | undefined;
+    let resolveFirstCount: ((value: number) => void) | null = null;
     const firstCount = new Promise<number>((resolve) => {
       resolveFirstCount = resolve;
     });
@@ -151,7 +165,10 @@ describe('primary PDF admission coordinator', () => {
     const secondResult = await admitAndOpenPdfFile(secondFile, 'TOOLBAR_PICKER', {
       commit: secondCommit,
     });
-    resolveFirstCount?.(1);
+    if (!resolveFirstCount) {
+      throw new Error('First page-count resolver was not initialized.');
+    }
+    resolveFirstCount(1);
     const firstResult = await firstResultPromise;
 
     expect(secondResult.outcome).toBe('ACCEPTED');
