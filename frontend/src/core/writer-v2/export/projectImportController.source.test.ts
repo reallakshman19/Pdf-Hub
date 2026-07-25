@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+describe('standalone Writer project source route', () => {
+  it('uses staged import and keeps round-trip PDF separate', () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/writer-v2/WriterV2ToolbarControls.tsx'),
+      'utf8',
+    );
+    const route = source.slice(
+      source.indexOf('const importProjectFile'),
+      source.indexOf('const runRichToolbarAction'),
+    );
+    expect(route).toContain('stageStandaloneWriterProject');
+    expect(route).toContain('commitStagedWriterProjectImport');
+    expect(route).not.toContain('importProjectIntoWriterStore');
+    expect(route).toContain('importRoundTripPdfIntoWriterStore');
+    expect(route.indexOf('importRoundTripPdfIntoWriterStore')).toBeLessThan(
+      route.indexOf('stageStandaloneWriterProject'),
+    );
+  });
+
+  it('does not borrow PDF or macro numeric policies', () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/core/writer-v2/export/projectImportController.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('MAX_PDF_SIZE_BYTES');
+    expect(source).not.toContain('DEFAULT_MACRO_RESOURCE_LIMITS');
+    expect(source).toContain('UNRESOLVED_POLICY');
+  });
+});

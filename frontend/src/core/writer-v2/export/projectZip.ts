@@ -71,6 +71,7 @@ export interface ImportPdfHubProjectResult {
   elements: WriterElementV2[];
   assets: WriterAssetRecordV2[];
   ocrProject: OcrProjectPayloadV1 | null;
+  compatibilityWarnings?: readonly string[];
 }
 
 interface StoredAssetMetadata {
@@ -276,6 +277,20 @@ export async function importPdfHubWriterProject(
   }
 
   const ocrProject = await readOcrProjectPayloadFromZip(zip);
+  const compatibilityWarnings: string[] = [];
+  if (documentMeta && documentMeta.documentFingerprint !== manifest.documentFingerprint) {
+    compatibilityWarnings.push('Writer document metadata fingerprint was normalized to the manifest fingerprint.');
+  }
+  for (const element of elements) {
+    if (element.documentFingerprint !== manifest.documentFingerprint) {
+      compatibilityWarnings.push(`Writer element ${element.id || '(unnamed)'} fingerprint was normalized to the manifest fingerprint.`);
+    }
+  }
+  for (const asset of storedAssets) {
+    if (asset.documentFingerprint !== manifest.documentFingerprint) {
+      compatibilityWarnings.push(`Writer asset ${asset.id || '(unnamed)'} fingerprint was normalized to the manifest fingerprint.`);
+    }
+  }
 
   return {
     manifest,
@@ -295,6 +310,7 @@ export async function importPdfHubWriterProject(
     })),
     assets,
     ocrProject,
+    compatibilityWarnings: Object.freeze([...compatibilityWarnings]),
   };
 }
 
