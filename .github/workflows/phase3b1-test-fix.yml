@@ -1,0 +1,49 @@
+name: Phase 3B.1 fixture corrections
+on:
+  push:
+    branches:
+      - agent/raw-zip-structural-admission-phase3b1
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/raw-zip-structural-admission-phase3b1
+          fetch-depth: 0
+      - name: Correct raw fixture assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          test_path = Path('frontend/src/core/admission/zip/zipInventory.test.ts')
+          test = test_path.read_text()
+          bad = "    expect(codes(invalidSignature.inventory?.bytes ?? new Uint8Array())).toBeDefined();\n"
+          if bad not in test:
+              raise SystemExit('invalid-signature assertion target not found')
+          test_path.write_text(test.replace(bad, '', 1))
+
+          builder_path = Path('frontend/src/core/admission/zip/__tests__/zipFixtureBuilder.ts')
+          builder = builder_path.read_text()
+          old = """  const zip64Locator = options.includeZip64Locator
+            ? uint32Record(ZIP64_LOCATOR_SIGNATURE, [0, 0, 0, 0])
+            : new Uint8Array();
+          """
+          new = """  const zip64Locator = options.includeZip64Locator
+            ? uint32Record(ZIP64_LOCATOR_SIGNATURE, new Array<number>(16).fill(0))
+            : new Uint8Array();
+          """
+          if old not in builder:
+              raise SystemExit('ZIP64 locator target not found')
+          builder_path.write_text(builder.replace(old, new, 1))
+          PY
+          rm .github/workflows/phase3b1-test-fix.yml
+      - name: Commit fixture corrections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Correct Phase 3B.1 raw ZIP fixtures"
+          git push origin HEAD:agent/raw-zip-structural-admission-phase3b1
