@@ -3,7 +3,10 @@ import { Button } from '@/components/ui/Button';
 import { FolderOpen, Save, Download, FileOutput } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { admitAndOpenPdfFile } from '@/core/admission/openPdf';
+import {
+  admitAndOpenPdfFile,
+  firstAdmissionErrorMessage,
+} from '@/core/admission/openPdf';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { saveAnnotations } from '@/core/annotations/persistence';
@@ -63,14 +66,26 @@ export const ToolbarFile: React.FC = () => {
         return;
       }
 
-      await admitAndOpenPdfFile(picked.file, 'TOOLBAR_PICKER', {
+      const result = await admitAndOpenPdfFile(picked.file, 'TOOLBAR_PICKER', {
         saveHandle: picked.handle ?? null,
       });
+      if (result.outcome !== 'ACCEPTED' && result.outcome !== 'CANCELLED') {
+        addToast({
+          type: 'error',
+          title: 'Unable to Open PDF',
+          message: firstAdmissionErrorMessage(result) ?? 'The selected file was not accepted.',
+        });
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
       logError('session', 'Failed to select PDF from toolbar', { error: String(err) });
+      addToast({
+        type: 'error',
+        title: 'Unable to Open PDF',
+        message: 'The file picker could not open the selected PDF.',
+      });
     }
   };
 
