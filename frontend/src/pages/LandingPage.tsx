@@ -7,35 +7,19 @@ import {
   MessageSquareText,
   WandSparkles,
 } from 'lucide-react';
-import { useSessionStore } from '@/core/session/store';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { admitAndOpenPdfFile } from '@/core/admission/openPdf';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { openDocument } = useSessionStore();
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file) return;
 
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const pageCount = await PdfEditAdapter.countPages(bytes);
-      const documentKey = await FileAdapter.hashBytes(bytes);
-
-      openDocument({
-        documentKey,
-        fileName: file.name,
-        bytes,
-        pageCount,
-        saveHandle: null,
-      });
+    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP');
+    if (result.outcome === 'ACCEPTED') {
       navigate('/workspace');
-    } catch {
-      // Ignore file drop errors gracefully
     }
   };
 
