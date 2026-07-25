@@ -115,6 +115,13 @@ success records or start later work.
 
 Phase 2B does not reinterpret or modify any macro numeric policy.
 
+## Certification criteria
+
+The final exact PR head must pass Frontend Certify, Frontend CI, and Writer
+Overlay V2. Certification includes lint, strict TypeScript, the complete Vitest
+suite, static audit, production builds, release gating, and E2E smoke coverage.
+Temporary diagnostic or bootstrap workflows are not part of the final diff.
+
 ## Deferred
 
 The following remain outside Phase 2B:
