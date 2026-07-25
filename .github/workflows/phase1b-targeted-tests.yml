@@ -1,0 +1,55 @@
+name: Phase 1B targeted tests
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+
+      - run: corepack prepare pnpm@10.23.0 --activate
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run admission tests
+        id: admission_tests
+        working-directory: frontend
+        shell: bash
+        run: |
+          set +e
+          pnpm vitest run \
+            src/core/admission/openPdf.test.ts \
+            src/core/admission/openPdfEntrypoints.test.ts \
+            --pool=forks --maxWorkers=1 --reporter=verbose \
+            > phase1b-targeted-tests.log 2>&1
+          status=$?
+          cat phase1b-targeted-tests.log
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload admission test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1b-targeted-tests
+          path: frontend/phase1b-targeted-tests.log
+          if-no-files-found: error
+
+      - name: Propagate admission test result
+        if: steps.admission_tests.outputs.exit_code != '0'
+        run: exit 1
