@@ -19,6 +19,17 @@ function createFile(
   } as unknown as File & { arrayBuffer: ReturnType<typeof vi.fn> };
 }
 
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 function pdfHeaderBytes(): Uint8Array {
   return new TextEncoder().encode('%PDF-1.7\nfixture');
 }
@@ -146,12 +157,9 @@ describe('primary PDF admission coordinator', () => {
   it('suppresses a late result after a newer open operation starts', async () => {
     const firstFile = createFile(pdfHeaderBytes(), { name: 'first.pdf' });
     const secondFile = createFile(pdfHeaderBytes(), { name: 'second.pdf' });
-    let resolveFirstCount: ((value: number) => void) | null = null;
-    const firstCount = new Promise<number>((resolve) => {
-      resolveFirstCount = resolve;
-    });
+    const firstCount = createDeferred<number>();
     vi.spyOn(PdfEditAdapter, 'countPages')
-      .mockImplementationOnce(() => firstCount)
+      .mockImplementationOnce(() => firstCount.promise)
       .mockResolvedValueOnce(2);
     vi.spyOn(FileAdapter, 'hashBytes')
       .mockResolvedValueOnce('sha256:second')
@@ -165,10 +173,7 @@ describe('primary PDF admission coordinator', () => {
     const secondResult = await admitAndOpenPdfFile(secondFile, 'TOOLBAR_PICKER', {
       commit: secondCommit,
     });
-    if (!resolveFirstCount) {
-      throw new Error('First page-count resolver was not initialized.');
-    }
-    resolveFirstCount(1);
+    firstCount.resolve(1);
     const firstResult = await firstResultPromise;
 
     expect(secondResult.outcome).toBe('ACCEPTED');
