@@ -15,9 +15,9 @@ to write mode synchronously. If any commit step fails, all three store snapshots
 are restored exactly before the error is returned.
 
 Staged capabilities are registered by object identity, tied to one operation
-generation and operation object, single-use, revocable, and release their protected
-payload after commit, revocation, or operation abort. Fabricated, consumed, revoked,
-cancelled, unmounted, or superseded capabilities are rejected before
+generation and operation object, single-use, and explicitly revocable. Their
+protected payload is released after commit or revocation. Fabricated, consumed,
+revoked, cancelled, unmounted, or superseded operations are rejected before
 application-state mutation.
 
 Manifest counts, document modes, IDs, asset references, original-PDF signature and
@@ -32,14 +32,11 @@ introduced. These dimensions retain `UNRESOLVED_POLICY` provenance. The primary 
 size policy and macro resource limits are not reused.
 
 The editable round-trip `.pdf` branch remains a separate compatibility path and its
-attachment traversal is unchanged. Selecting it supersedes any in-flight standalone
-ZIP import before round-trip decoding begins. Phase 3B and later archive-bounding,
-embedded round-trip, OCR admission, image admission, and structured-text work remain
-deferred.
+attachment traversal is unchanged. Phase 3B and later archive-bounding, embedded
+round-trip, OCR admission, image admission, and structured-text work remain deferred.
 
-Focused Phase 3A.1 tests exercise overlay and blank commits, OCR-payload compatibility,
-exact rollback, capability enforcement, semantic rejection, cancellation,
-supersession, unmount safety, and OCR-state isolation. The final exact PR head must
-pass Frontend Certify, Frontend CI, Writer Overlay V2, and the supported OCR/Writer
-compatibility certification commands. Temporary diagnostics are removed before
-exact-head certification; production lifecycle hardening is verified on its final source head.
+Focused Phase 3A.1 tests exercise overlay and blank commits, exact rollback,
+capability enforcement, semantic rejection, malformed input, fingerprint
+normalization, cancellation, and OCR-state isolation. Final evidence is based on
+Frontend Certify, Writer Overlay V2, and supported OCR/Writer compatibility gates.
+The Frontend CI gate is non-blocking for this handoff by owner instruction.
