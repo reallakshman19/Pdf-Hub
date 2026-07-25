@@ -25,7 +25,7 @@ positive page count are reconciled before staging. Contradictory mode declaratio
 and malformed project members are rejected deterministically. Stale nested
 fingerprints remain compatible and are normalized to the canonical manifest
 fingerprint with ordered warnings. Existing OCR payload decoding is carried through
-staging but OCR store state is not mutated.
+staging, but no OCR store action is invoked by standalone Writer import.
 
 No numeric ZIP source, entry-count, JSON, element, asset, or expansion policy is
 introduced. These dimensions retain `UNRESOLVED_POLICY` provenance. The primary PDF
