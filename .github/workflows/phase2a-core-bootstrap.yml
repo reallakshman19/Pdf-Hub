@@ -1,0 +1,605 @@
+name: Phase 2A core bootstrap
+
+on:
+  push:
+    branches:
+      - agent/donor-pdf-admission-phase2a
+    paths:
+      - .github/workflows/phase2a-core-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Bootstrap Phase 2A core enforcement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/donor-pdf-admission-phase2a
+          fetch-depth: 0
+
+      - name: Apply command-boundary changes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected snippet not found in {path}: {old[:160]}')
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_exact(
+              'frontend/src/core/admission/types.ts',
+              """export interface AdmissionMeasuredValue {
+            readonly metric: AdmissionMetric;
+            readonly actual: number;
+            readonly limit?: number;
+            readonly unit: 'bytes' | 'count' | 'pixels' | 'ratio' | 'points' | 'nodes';
+          }
+          """,
+              """export interface AdmissionMeasuredValue {
+            readonly metric: AdmissionMetric;
+            readonly actual: number;
+            readonly limit?: number;
+            readonly unit: 'bytes' | 'count' | 'pixels' | 'ratio' | 'points' | 'nodes';
+            readonly inputIndex?: number;
+            readonly fileName?: string;
+          }
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/core/commands/types.ts',
+              """import type { AnnotationType } from '@/core/annotations/annotationTypes';
+          
+          
+          """,
+              """import type { AnnotationType } from '@/core/annotations/annotationTypes';
+          import type { AdmittedDonorPdf } from '@/core/admission/donorPdf';
+          
+          
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/types.ts',
+              """  | { type: 'INSERT_PAGES'; atIndex: number; newBytes: Uint8Array }
+            | { type: 'INSERT_BLANK_PAGE'; atIndex: number; size: { width: number; height: number } }
+            | { type: 'REPLACE_PAGE'; atIndex: number; donorBytes: Uint8Array; donorPageIndex: number }
+            | { type: 'DUPLICATE_PAGES'; pageIndices: number[] }
+            | { type: 'MERGE_PDF'; additionalBytes: Uint8Array[] }
+          """,
+              """  | { type: 'INSERT_PAGES'; atIndex: number; donor: AdmittedDonorPdf }
+            | { type: 'INSERT_BLANK_PAGE'; atIndex: number; size: { width: number; height: number } }
+            | { type: 'REPLACE_PAGE'; atIndex: number; donor: AdmittedDonorPdf; donorPageIndex: number }
+            | { type: 'DUPLICATE_PAGES'; pageIndices: number[] }
+            | { type: 'MERGE_PDF'; donors: readonly AdmittedDonorPdf[] }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/types.ts',
+              """export interface CommandContext {
+            currentPage: number;
+            selectedPages: number[];
+            fileName: string;
+          }
+          """,
+              """export interface CommandContext {
+            currentPage: number;
+            selectedPages: number[];
+            fileName: string;
+            documentKey: string;
+          }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/types.ts',
+              """export interface CommandPayload {
+            command: DocumentCommand;
+            source: CommandSource;
+            workingBytes?: Uint8Array;
+            context?: Partial<CommandContext>;
+          }
+          """,
+              """export interface CommandPayload {
+            command: DocumentCommand;
+            source: CommandSource;
+            workingBytes?: Uint8Array;
+            context?: Partial<CommandContext>;
+            signal?: AbortSignal;
+          }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/types.ts',
+              """export type CommandErrorCode =
+            | 'NO_WORKING_DOCUMENT'
+            | 'VALIDATION_FAILED'
+            | 'EXECUTION_FAILED'
+            | 'UNKNOWN_COMMAND';
+          """,
+              """export type CommandErrorCode =
+            | 'NO_WORKING_DOCUMENT'
+            | 'VALIDATION_FAILED'
+            | 'ADMISSION_REJECTED'
+            | 'CANCELLED'
+            | 'EXECUTION_FAILED'
+            | 'UNKNOWN_COMMAND';
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+          import { useSessionStore } from '@/core/session/store';
+          """,
+              """import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+          import {
+            consumeAdmittedDonorPdfs,
+            inspectAdmittedDonorPdfs,
+            isDonorAdmissionBoundaryError,
+            DonorAdmissionBoundaryError,
+          } from '@/core/admission/donorPdf';
+          import {
+            isOperationCancelledError,
+            throwIfAborted,
+          } from '@/core/cancellation/operationCancellation';
+          import { useSessionStore } from '@/core/session/store';
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """type ResolvedCommandContext = {
+            workingBytes: Uint8Array;
+            currentPage: number;
+            selectedPages: number[];
+            fileName: string;
+          };
+          """,
+              """type ResolvedCommandContext = {
+            workingBytes: Uint8Array;
+            currentPage: number;
+            selectedPages: number[];
+            fileName: string;
+            documentKey: string | null;
+          };
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """    fileName: payload.context?.fileName ?? session.fileName ?? 'document.pdf',
+            };
+          }
+          """,
+              """    fileName: payload.context?.fileName ?? session.fileName ?? 'document.pdf',
+              documentKey: payload.context?.documentKey ?? session.documentKey,
+            };
+          }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """    case 'MERGE_PDF':
+                return `Merge ${command.additionalBytes.length} file(s)`;
+          """,
+              """    case 'MERGE_PDF':
+                return `Merge ${command.donors.length} file(s)`;
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """function outputName(prefix: string, pageIndices: number[], fallback?: string): string {
+            if (fallback && fallback.trim().length > 0) {
+              return fallback;
+            }
+            const humanPages = pageIndices.map((index) => index + 1).join('-');
+            return `${prefix}-${humanPages}.pdf`;
+          }
+          
+          async function applyMutation(
+          """,
+              """function outputName(prefix: string, pageIndices: number[], fallback?: string): string {
+            if (fallback && fallback.trim().length > 0) {
+              return fallback;
+            }
+            const humanPages = pageIndices.map((index) => index + 1).join('-');
+            return `${prefix}-${humanPages}.pdf`;
+          }
+          
+          function assertDonorCommandCurrent(
+            context: ResolvedCommandContext,
+            payload: CommandPayload,
+            operation: string,
+          ): void {
+            throwIfAborted(payload.signal, operation);
+            if (!context.documentKey) {
+              throw new DonorAdmissionBoundaryError(
+                'Donor commands require an active document identity.',
+              );
+            }
+            if (useSessionStore.getState().documentKey !== context.documentKey) {
+              throw new DonorAdmissionBoundaryError(
+                'The active document changed before the donor command could commit.',
+              );
+            }
+          }
+          
+          async function applyMutation(
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """      case 'INSERT_PAGES': {
+                  // Count donor pages before mutation so we can emit the correct count
+                  const donorPageCount = await PdfEditAdapter.countPages(command.newBytes);
+                  const nextAnnotations = remapAfterInsert(useAnnotationStore.getState().annotations, command.atIndex, donorPageCount);
+                  const nextBytes = await PdfEditAdapter.insertAt(
+                    context.workingBytes,
+                    command.newBytes,
+                    command.atIndex,
+                  );
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
+                  return commandSuccess(command.type, source, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
+                }
+          """,
+              """      case 'INSERT_PAGES': {
+                  assertDonorCommandCurrent(context, payload, 'insert donor pages: before mutation');
+                  inspectAdmittedDonorPdfs('INSERT_PAGES', [command.donor], context.documentKey);
+                  const [donor] = consumeAdmittedDonorPdfs(
+                    'INSERT_PAGES',
+                    [command.donor],
+                    context.documentKey,
+                  );
+                  const nextAnnotations = remapAfterInsert(
+                    useAnnotationStore.getState().annotations,
+                    command.atIndex,
+                    donor.pageCount,
+                  );
+                  const nextBytes = await PdfEditAdapter.insertAt(
+                    context.workingBytes,
+                    donor.bytes,
+                    command.atIndex,
+                  );
+                  assertDonorCommandCurrent(context, payload, 'insert donor pages: before commit');
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
+                  return commandSuccess(command.type, source, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
+                }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """      case 'REPLACE_PAGE': {
+                  // Treat as delete-then-insert: annotations on replaced page are cleared.
+                  const nextAnnotations = remapAfterInsert(
+                    remapAfterDelete(useAnnotationStore.getState().annotations, [command.atIndex]),
+                    command.atIndex,
+                    1,
+                  );
+                  const nextBytes = await PdfEditAdapter.replacePage(
+                    context.workingBytes,
+                    command.atIndex,
+                    command.donorBytes,
+                    command.donorPageIndex,
+                  );
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
+                  return commandSuccess(command.type, source, true, 'Page replaced', result.nextBytes, result.nextPageCount);
+                }
+          """,
+              """      case 'REPLACE_PAGE': {
+                  assertDonorCommandCurrent(context, payload, 'replace page: before mutation');
+                  const [inspectedDonor] = inspectAdmittedDonorPdfs(
+                    'REPLACE_PAGE',
+                    [command.donor],
+                    context.documentKey,
+                  );
+                  if (
+                    !Number.isInteger(command.donorPageIndex)
+                    || command.donorPageIndex < 0
+                    || command.donorPageIndex >= inspectedDonor.pageCount
+                  ) {
+                    return commandError(
+                      command.type,
+                      source,
+                      'VALIDATION_FAILED',
+                      'The selected donor page is outside the admitted donor page range',
+                    );
+                  }
+                  const [donor] = consumeAdmittedDonorPdfs(
+                    'REPLACE_PAGE',
+                    [command.donor],
+                    context.documentKey,
+                  );
+                  // Treat as delete-then-insert: annotations on replaced page are cleared.
+                  const nextAnnotations = remapAfterInsert(
+                    remapAfterDelete(useAnnotationStore.getState().annotations, [command.atIndex]),
+                    command.atIndex,
+                    1,
+                  );
+                  const nextBytes = await PdfEditAdapter.replacePage(
+                    context.workingBytes,
+                    command.atIndex,
+                    donor.bytes,
+                    command.donorPageIndex,
+                  );
+                  assertDonorCommandCurrent(context, payload, 'replace page: before commit');
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
+                  return commandSuccess(command.type, source, true, 'Page replaced', result.nextBytes, result.nextPageCount);
+                }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """      case 'MERGE_PDF': {
+                  if (command.additionalBytes.length === 0) {
+                    return commandError(command.type, source, 'VALIDATION_FAILED', 'No donor files provided for merge');
+                  }
+                  const nextBytes = await PdfEditAdapter.merge(context.workingBytes, command.additionalBytes);
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes);
+                  return commandSuccess(command.type, source, true, 'Files merged', result.nextBytes, result.nextPageCount);
+                }
+          """,
+              """      case 'MERGE_PDF': {
+                  if (command.donors.length === 0) {
+                    return commandError(command.type, source, 'VALIDATION_FAILED', 'No donor files provided for merge');
+                  }
+                  assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before mutation');
+                  inspectAdmittedDonorPdfs('MERGE_PDF', command.donors, context.documentKey);
+                  const donors = consumeAdmittedDonorPdfs(
+                    'MERGE_PDF',
+                    command.donors,
+                    context.documentKey,
+                  );
+                  const nextBytes = await PdfEditAdapter.merge(
+                    context.workingBytes,
+                    donors.map((donor) => donor.bytes),
+                  );
+                  assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before commit');
+                  const result = await applyMutation(command, source, context.workingBytes, nextBytes);
+                  return commandSuccess(command.type, source, true, 'Files merged', result.nextBytes, result.nextPageCount);
+                }
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/dispatch.ts',
+              """  } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Command execution failed';
+              const details = isDocumentMutationTransactionError(error)
+                ? `transaction-stage=${error.stage}`
+                : undefined;
+              return commandError(command.type, source, 'EXECUTION_FAILED', message, details);
+            }
+          }
+          """,
+              """  } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Command execution failed';
+              if (isOperationCancelledError(error)) {
+                return commandError(command.type, source, 'CANCELLED', message);
+              }
+              if (isDonorAdmissionBoundaryError(error)) {
+                return commandError(command.type, source, 'ADMISSION_REJECTED', message);
+              }
+              const details = isDocumentMutationTransactionError(error)
+                ? `transaction-stage=${error.stage}`
+                : undefined;
+              return commandError(command.type, source, 'EXECUTION_FAILED', message, details);
+            }
+          }
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/core/commands/__tests__/dispatch.test.ts',
+              """import { dispatchCommand } from '../dispatch';
+          """,
+              """import { dispatchCommand } from '../dispatch';
+          import {
+            admitDonorPdfFiles,
+            type AdmittedDonorPdf,
+            type DonorCommandTarget,
+          } from '../../admission/donorPdf';
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/__tests__/dispatch.test.ts',
+              """  FileAdapter: {
+              hashBytes: vi.fn().mockImplementation(async (bytes) => 'mock-hash-' + bytes.length),
+            },
+          """,
+              """  FileAdapter: {
+              MAX_PDF_SIZE_BYTES: 100 * 1024 * 1024,
+              hashBytes: vi.fn().mockImplementation(async (bytes) => 'mock-hash-' + bytes.length),
+            },
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/__tests__/dispatch.test.ts',
+              """const TEST_ANNOTATION: PdfAnnotation = {
+          """,
+              """async function admitDonor(
+            commandTarget: DonorCommandTarget,
+            name = 'donor.pdf',
+          ): Promise<AdmittedDonorPdf> {
+            const bytes = new TextEncoder().encode('%PDF-1.7\\nfixture');
+            const file = {
+              name,
+              type: 'application/pdf',
+              size: bytes.byteLength,
+              arrayBuffer: vi.fn(async () => bytes.slice().buffer),
+            } as unknown as File;
+            const result = await admitDonorPdfFiles(
+              [{ file }],
+              'COMMAND_CALLER',
+              commandTarget,
+              { ownerDocumentKey: 'test-doc' },
+            );
+            if (result.outcome !== 'ACCEPTED') {
+              throw new Error(`Donor admission failed: ${result.outcome}`);
+            }
+            return result.value.donors[0];
+          }
+          
+          const TEST_ANNOTATION: PdfAnnotation = {
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/commands/__tests__/dispatch.test.ts',
+              """  it('inserts pages from another pdf', async () => {
+              pdfMocks.insertAt.mockResolvedValue(new Uint8Array([1, 9, 1]));
+          
+              const result = await dispatchCommand({
+                source: 'toolbar',
+                command: {
+                  type: 'INSERT_PAGES',
+                  atIndex: 1,
+                  newBytes: new Uint8Array([9]),
+                },
+              });
+          
+              expect(result.success).toBe(true);
+              expect(pdfMocks.insertAt).toHaveBeenCalledTimes(1);
+              expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+            });
+          """,
+              """  it('inserts pages from an admitted donor and commits through history', async () => {
+              const donor = await admitDonor('INSERT_PAGES');
+              pdfMocks.insertAt.mockResolvedValue(new Uint8Array([1, 9, 1]));
+          
+              const result = await dispatchCommand({
+                source: 'toolbar',
+                command: {
+                  type: 'INSERT_PAGES',
+                  atIndex: 1,
+                  donor,
+                },
+              });
+          
+              expect(result.success).toBe(true);
+              expect(pdfMocks.insertAt).toHaveBeenCalledTimes(1);
+              expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+            });
+          
+            it('rejects a fabricated donor before PDF mutation or transaction commit', async () => {
+              const fabricated = {
+                inputIndex: 0,
+                fileName: 'malformed.pdf',
+                sourceBytes: 4,
+                pageCount: 1,
+                ownerDocumentKey: 'test-doc',
+                commandTarget: 'INSERT_PAGES',
+                handle: null,
+              } as AdmittedDonorPdf;
+          
+              const result = await dispatchCommand({
+                source: 'toolbar',
+                command: {
+                  type: 'INSERT_PAGES',
+                  atIndex: 1,
+                  donor: fabricated,
+                },
+              });
+          
+              expect(result.success).toBe(false);
+              expect(result.error?.code).toBe('ADMISSION_REJECTED');
+              expect(pdfMocks.insertAt).not.toHaveBeenCalled();
+              expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+            });
+          
+            it('preserves admitted merge order and dispatches the mutation once', async () => {
+              const firstBytes = new TextEncoder().encode('%PDF-1.7\\nfirst');
+              const secondBytes = new TextEncoder().encode('%PDF-1.7\\nsecond');
+              const admitted = await admitDonorPdfFiles(
+                [
+                  {
+                    file: {
+                      name: 'first.pdf',
+                      type: 'application/pdf',
+                      size: firstBytes.byteLength,
+                      arrayBuffer: vi.fn(async () => firstBytes.slice().buffer),
+                    } as unknown as File,
+                  },
+                  {
+                    file: {
+                      name: 'second.pdf',
+                      type: 'application/pdf',
+                      size: secondBytes.byteLength,
+                      arrayBuffer: vi.fn(async () => secondBytes.slice().buffer),
+                    } as unknown as File,
+                  },
+                ],
+                'COMMAND_CALLER',
+                'MERGE_PDF',
+                { ownerDocumentKey: 'test-doc' },
+              );
+              expect(admitted.outcome).toBe('ACCEPTED');
+              if (admitted.outcome !== 'ACCEPTED') return;
+              pdfMocks.merge.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+          
+              const result = await dispatchCommand({
+                source: 'toolbar',
+                command: {
+                  type: 'MERGE_PDF',
+                  donors: admitted.value.donors,
+                },
+              });
+          
+              expect(result.success).toBe(true);
+              expect(admitted.value.donors.map((donor) => donor.fileName)).toEqual([
+                'first.pdf',
+                'second.pdf',
+              ]);
+              expect(pdfMocks.merge).toHaveBeenCalledTimes(1);
+              expect(pdfMocks.merge.mock.calls[0]?.[1]).toHaveLength(2);
+              expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+            });
+          
+            it('replaces a page from an admitted donor exactly once', async () => {
+              const donor = await admitDonor('REPLACE_PAGE');
+              pdfMocks.replacePage.mockResolvedValue(new Uint8Array([4, 4, 4]));
+          
+              const result = await dispatchCommand({
+                source: 'thumbnail-menu',
+                command: {
+                  type: 'REPLACE_PAGE',
+                  atIndex: 0,
+                  donor,
+                  donorPageIndex: 0,
+                },
+              });
+          
+              expect(result.success).toBe(true);
+              expect(pdfMocks.replacePage).toHaveBeenCalledTimes(1);
+              expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+            });
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/components/workspace/DocumentWorkspace.test.tsx',
+              """  FileAdapter: {
+              pickPdfFiles: vi.fn(),
+              hashBytes: vi.fn(),
+            }
+          """,
+              """  FileAdapter: {
+              MAX_PDF_SIZE_BYTES: 100 * 1024 * 1024,
+              pickPdfFiles: vi.fn(),
+              pickPdfFileSources: vi.fn(),
+              hashBytes: vi.fn(),
+            }
+          """,
+          )
+          PY
+
+      - name: Commit core enforcement and remove bootstrap
+        shell: bash
+        run: |
+          git config user.name "OpenAI Implementation Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/phase2a-core-bootstrap.yml
+          git add frontend
+          git commit -m "Enforce admitted donors at command boundary"
+          git push origin HEAD:agent/donor-pdf-admission-phase2a
