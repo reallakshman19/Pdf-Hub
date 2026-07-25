@@ -1,0 +1,56 @@
+name: Phase 2B diagnostics
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    if: github.event.pull_request.head.ref == 'agent/batch-pdf-admission-phase2b'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+      - name: Capture typecheck and focused tests
+        id: diagnostics
+        working-directory: frontend
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== TYPECHECK ==='
+            pnpm run typecheck
+            type_status=$?
+            echo '=== FOCUSED TESTS ==='
+            pnpm exec vitest run src/core/macro/batchRunner.test.ts src/core/admission/batchEntrypoints.test.ts
+            test_status=$?
+            echo "TYPE_STATUS=$type_status"
+            echo "TEST_STATUS=$test_status"
+          } > phase2b-diagnostics.log 2>&1
+          cat phase2b-diagnostics.log
+          if [ "$type_status" -ne 0 ] || [ "$test_status" -ne 0 ]; then
+            echo 'failed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'failed=false' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase2b-diagnostics
+          path: frontend/phase2b-diagnostics.log
+          if-no-files-found: error
+      - name: Propagate failure
+        if: steps.diagnostics.outputs.failed == 'true'
+        run: exit 1
