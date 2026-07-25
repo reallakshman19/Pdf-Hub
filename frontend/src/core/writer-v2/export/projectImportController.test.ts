@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
 import type { WriterElementV2 } from '../types';
-import { createBlankWriterDocumentMeta } from '../writerDocumentMode';
+import {
+  createBlankWriterDocumentMeta,
+  createPdfOverlayWriterDocumentMeta,
+} from '../writerDocumentMode';
 import { useWriterV2Store } from '../writerV2Store';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useSessionStore } from '@/core/session/store';
@@ -24,11 +27,6 @@ import {
 async function onePagePdfBytes(): Promise<Uint8Array> {
   const document = await PDFDocument.create();
   document.addPage([612, 792]);
-  return document.save();
-}
-
-async function zeroPagePdfBytes(): Promise<Uint8Array> {
-  const document = await PDFDocument.create();
   return document.save();
 }
 
@@ -145,6 +143,11 @@ function seedExistingState(): void {
     documentFingerprint: 'old-doc',
     elements: [],
     persistedAt: '2026-01-01T00:00:00.000Z',
+    documentMeta: createPdfOverlayWriterDocumentMeta({
+      documentFingerprint: 'old-doc',
+      pageCount: 3,
+      now: '2026-01-01T00:00:00.000Z',
+    }),
   });
   useEditorStore.getState().setActiveMode('annotate');
   useOcrStore.getState().hydrateOcrSession({
@@ -360,13 +363,6 @@ describe('atomic standalone Writer project import', () => {
       elements: [],
       assets: [],
     });
-    const zeroPagePdf = await projectFile({
-      originalPdfBytes: await zeroPagePdfBytes(),
-      documentFingerprint: 'doc-1',
-      elements: [],
-      assets: [],
-    });
-
     await expect(stageStandaloneWriterProject(countMismatch, operation())).rejects.toThrow(
       'count',
     );
@@ -385,9 +381,12 @@ describe('atomic standalone Writer project import', () => {
     await expect(stageStandaloneWriterProject(invalidPdf, operation())).rejects.toThrow(
       'could not be parsed',
     );
-    await expect(stageStandaloneWriterProject(zeroPagePdf, operation())).rejects.toThrow(
-      'invalid page count',
-    );
+    vi.spyOn(PDFDocument, 'load').mockResolvedValueOnce({
+      getPageCount: () => 0,
+    } as unknown as PDFDocument);
+    await expect(
+      stageStandaloneWriterProject(await overlayFile(), operation()),
+    ).rejects.toThrow('invalid page count');
 
     expect(stateSnapshot()).toEqual(before);
   });
