@@ -1,0 +1,34 @@
+name: Phase 3A.1 focused diagnostics
+on:
+  push:
+    branches:
+      - agent/atomic-writer-project-import-phase3a1
+permissions:
+  contents: write
+jobs:
+  diagnostics:
+    if: ${{ !contains(github.event.head_commit.message, 'Capture Phase 3A.1 focused diagnostics') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/atomic-writer-project-import-phase3a1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Capture focused Phase 3A.1 tests
+        run: |
+          set +e
+          cd frontend
+          pnpm exec vitest run src/core/writer-v2/export/projectImportController.test.ts src/core/writer-v2/export/projectImportController.source.test.ts --pool=forks --maxWorkers=1 > ../phase3a1-focused.log 2>&1
+          exit 0
+      - name: Commit focused log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add phase3a1-focused.log
+          git commit -m "Capture Phase 3A.1 focused diagnostics"
+          git push origin HEAD:agent/atomic-writer-project-import-phase3a1
