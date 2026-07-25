@@ -56,7 +56,6 @@ export function buildRawZipFixture(
   let localCursor = prepend.byteLength;
 
   for (const entry of entries) {
-    const centralName = encodeName(entry.name);
     const localName = encodeName(entry.localName ?? entry.name);
     const data = Uint8Array.from(entry.data ?? []);
     const localExtra = Uint8Array.from(entry.localExtra ?? []);
@@ -84,8 +83,6 @@ export function buildRawZipFixture(
     localHeaderOffsets.push(localCursor);
     localParts.push(localHeader, data);
     localCursor += localHeader.byteLength + data.byteLength;
-
-    void centralName;
   }
 
   const centralDirectoryOffset = localCursor;
@@ -117,7 +114,11 @@ export function buildRawZipFixture(
     view.setUint16(32, comment.byteLength, true);
     view.setUint16(34, entry.diskStart ?? 0, true);
     view.setUint16(36, 0, true);
-    view.setUint32(38, entry.externalAttributes ?? (name.at(-1) === 0x2f ? 0x10 : 0), true);
+    view.setUint32(
+      38,
+      entry.externalAttributes ?? (name[name.byteLength - 1] === 0x2f ? 0x10 : 0),
+      true,
+    );
     view.setUint32(
       42,
       entry.localHeaderOffsetOverride ?? localHeaderOffsets[ordinal] ?? 0,
@@ -131,7 +132,7 @@ export function buildRawZipFixture(
   });
 
   const zip64Locator = options.includeZip64Locator
-    ? uint32Record(ZIP64_LOCATOR_SIGNATURE, [0, 0, 0, 0])
+    ? uint32Record(ZIP64_LOCATOR_SIGNATURE, new Array<number>(16).fill(0))
     : new Uint8Array();
   const archiveComment = Uint8Array.from(options.archiveComment ?? []);
   const eocdOffset = centralDirectoryOffset + centralDirectoryBytes + zip64Locator.byteLength;
