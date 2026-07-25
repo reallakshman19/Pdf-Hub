@@ -30,6 +30,9 @@ jobs:
           start = workflow.index(start_marker) + len(start_marker)
           end = workflow.index(end_marker, start)
           script = textwrap.dedent(workflow[start:end])
+          obsolete = "replace_exact(\n    'frontend/src/components/workspace/DocumentWorkspace.test.tsx',"
+          if obsolete in script:
+              script = script[:script.index(obsolete)]
           Path('/tmp/phase2a-core-patch.py').write_text(script, encoding='utf-8')
           PY
 
