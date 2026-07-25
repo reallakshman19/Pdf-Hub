@@ -102,9 +102,17 @@ interface StagedDonorPdf {
   readonly handle: FileSystemFileHandle | null;
 }
 
+interface DonorSetLifecycle {
+  readonly donorCount: number;
+  consumedCount: number;
+  revoked: boolean;
+  signal?: AbortSignal;
+  abortHandler?: () => void;
+}
+
 interface RegisteredDonorPdf extends ResolvedAdmittedDonorPdf {
   readonly generation: number;
-  consumed: boolean;
+  readonly lifecycle: DonorSetLifecycle;
 }
 
 class StaleDonorAdmissionError extends Error {
@@ -125,6 +133,8 @@ export class DonorAdmissionBoundaryError extends Error {
 }
 
 const admittedDonorRegistry = new WeakMap<AdmittedDonorPdf, RegisteredDonorPdf>();
+const consumedDonorRegistry = new WeakSet<AdmittedDonorPdf>();
+const revokedDonorRegistry = new WeakSet<AdmittedDonorPdf>();
 let latestDonorAdmissionGeneration = 0;
 
 export const DONOR_AGGREGATE_POLICY_AUTHORITY: AdmissionPolicyAuthority = Object.freeze({
@@ -249,6 +259,7 @@ export async function admitDonorPdfFiles(
 
   const staged: StagedDonorPdf[] = [];
   let currentInputIndex: number | undefined;
+  let registeredSet: AdmittedDonorSet | null = null;
 
   try {
     for (let inputIndex = 0; inputIndex < sources.length; inputIndex += 1) {
@@ -352,8 +363,19 @@ export async function admitDonorPdfFiles(
 
     currentInputIndex = undefined;
     checkpoint(generation, options, 'donor set: before staging', undefined);
+    const lifecycle: DonorSetLifecycle = {
+      donorCount: staged.length,
+      consumedCount: 0,
+      revoked: false,
+    };
     const donors = staged.map((item) =>
-      registerAdmittedDonor(item, generation, options.ownerDocumentKey, commandTarget),
+      registerAdmittedDonor(
+        item,
+        generation,
+        options.ownerDocumentKey,
+        commandTarget,
+        lifecycle,
+      ),
     );
     const value: AdmittedDonorSet = Object.freeze({
       source,
@@ -363,6 +385,9 @@ export async function admitDonorPdfFiles(
       donors: Object.freeze(donors),
       aggregateSourceBytes,
     });
+    registeredSet = value;
+    bindDonorSetAbort(value, lifecycle, options.signal);
+    checkpoint(generation, options, 'donor set: after staging', undefined);
     const evidence = createDonorEvidence(
       'ACCEPTED',
       commandTarget,
@@ -387,6 +412,7 @@ export async function admitDonorPdfFiles(
       evidence,
     });
   } catch (error) {
+    if (registeredSet) revokeAdmittedDonorSet(registeredSet);
     if (isOperationCancelledError(error)) {
       diagnostics.push({
         severity: 'info',
@@ -493,15 +519,25 @@ export function inspectAdmittedDonorPdfs(
   }
 
   return donors.map((donor) => {
+    if (revokedDonorRegistry.has(donor)) {
+      throw new DonorAdmissionBoundaryError(
+        `Donor PDF ${donor.fileName} was revoked because its owning operation was abandoned.`,
+      );
+    }
+    if (consumedDonorRegistry.has(donor)) {
+      throw new DonorAdmissionBoundaryError(
+        `Donor PDF ${donor.fileName} has already been consumed by a command.`,
+      );
+    }
     const registered = admittedDonorRegistry.get(donor);
     if (!registered) {
       throw new DonorAdmissionBoundaryError(
         'Donor PDF bytes were not produced by the shared admission boundary.',
       );
     }
-    if (registered.consumed) {
+    if (registered.lifecycle.revoked) {
       throw new DonorAdmissionBoundaryError(
-        `Donor PDF ${registered.fileName} has already been consumed by a command.`,
+        `Donor PDF ${registered.fileName} was revoked because its owning operation was abandoned.`,
       );
     }
     if (registered.commandTarget !== commandTarget) {
@@ -529,11 +565,39 @@ export function consumeAdmittedDonorPdfs(
   ownerDocumentKey: string | null,
 ): readonly ResolvedAdmittedDonorPdf[] {
   const resolved = inspectAdmittedDonorPdfs(commandTarget, donors, ownerDocumentKey);
-  resolved.forEach((_donor, index) => {
-    const registered = admittedDonorRegistry.get(donors[index]);
-    if (registered) registered.consumed = true;
+  const lifecycles = new Set<DonorSetLifecycle>();
+  donors.forEach((donor) => {
+    const registered = admittedDonorRegistry.get(donor);
+    if (!registered) return;
+    registered.lifecycle.consumedCount += 1;
+    lifecycles.add(registered.lifecycle);
+    consumedDonorRegistry.add(donor);
+    admittedDonorRegistry.delete(donor);
+  });
+  lifecycles.forEach((lifecycle) => {
+    if (lifecycle.consumedCount >= lifecycle.donorCount) {
+      detachDonorSetAbort(lifecycle);
+    }
   });
   return resolved;
+}
+
+export function revokeAdmittedDonorSet(admittedSet: AdmittedDonorSet): void {
+  const lifecycle = findDonorSetLifecycle(admittedSet.donors);
+  if (!lifecycle || lifecycle.revoked) return;
+  lifecycle.revoked = true;
+  detachDonorSetAbort(lifecycle);
+  admittedSet.donors.forEach((donor) => {
+    if (consumedDonorRegistry.has(donor)) return;
+    revokedDonorRegistry.add(donor);
+    admittedDonorRegistry.delete(donor);
+  });
+  log('session', 'Admitted donor set revoked', {
+    source: admittedSet.source,
+    commandTarget: admittedSet.commandTarget,
+    donorCount: admittedSet.donors.length,
+    ownerDocumentKey: admittedSet.ownerDocumentKey,
+  });
 }
 
 export function isDonorAdmissionBoundaryError(
@@ -554,6 +618,7 @@ function registerAdmittedDonor(
   generation: number,
   ownerDocumentKey: string,
   commandTarget: DonorCommandTarget,
+  lifecycle: DonorSetLifecycle,
 ): AdmittedDonorPdf {
   const publicValue: AdmittedDonorPdf = Object.freeze({
     inputIndex: staged.inputIndex,
@@ -566,11 +631,42 @@ function registerAdmittedDonor(
   });
   admittedDonorRegistry.set(publicValue, {
     ...publicValue,
-    bytes: Uint8Array.from(staged.bytes),
+    bytes: staged.bytes,
     generation,
-    consumed: false,
+    lifecycle,
   });
   return publicValue;
+}
+
+function bindDonorSetAbort(
+  admittedSet: AdmittedDonorSet,
+  lifecycle: DonorSetLifecycle,
+  signal: AbortSignal | undefined,
+): void {
+  if (!signal) return;
+  const abortHandler = () => revokeAdmittedDonorSet(admittedSet);
+  lifecycle.signal = signal;
+  lifecycle.abortHandler = abortHandler;
+  signal.addEventListener('abort', abortHandler, { once: true });
+  if (signal.aborted) abortHandler();
+}
+
+function detachDonorSetAbort(lifecycle: DonorSetLifecycle): void {
+  if (lifecycle.signal && lifecycle.abortHandler) {
+    lifecycle.signal.removeEventListener('abort', lifecycle.abortHandler);
+  }
+  lifecycle.signal = undefined;
+  lifecycle.abortHandler = undefined;
+}
+
+function findDonorSetLifecycle(
+  donors: readonly AdmittedDonorPdf[],
+): DonorSetLifecycle | null {
+  for (const donor of donors) {
+    const registered = admittedDonorRegistry.get(donor);
+    if (registered) return registered.lifecycle;
+  }
+  return null;
 }
 
 function checkpoint(
