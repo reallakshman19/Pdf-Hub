@@ -15,15 +15,17 @@ to write mode synchronously. If any commit step fails, all three store snapshots
 are restored exactly before the error is returned.
 
 Staged capabilities are registered by object identity, tied to one operation
-generation, single-use, revocable, and release their protected payload after
-commit or revocation. Fabricated, consumed, revoked, cancelled, unmounted, or
-superseded capabilities are rejected before application-state mutation.
+generation and operation object, single-use, revocable, and release their protected
+payload after commit or revocation. Fabricated, consumed, revoked, cancelled,
+unmounted, or superseded capabilities are rejected before application-state
+mutation.
 
 Manifest counts, document modes, IDs, asset references, original-PDF signature and
-positive page count are reconciled before staging. Stale nested fingerprints remain
-compatible and are normalized to the canonical manifest fingerprint with ordered
-warnings. Existing OCR payload decoding is carried through staging but OCR store
-state is not mutated.
+positive page count are reconciled before staging. Contradictory mode declarations
+and malformed project members are rejected deterministically. Stale nested
+fingerprints remain compatible and are normalized to the canonical manifest
+fingerprint with ordered warnings. Existing OCR payload decoding is carried through
+staging but OCR store state is not mutated.
 
 No numeric ZIP source, entry-count, JSON, element, asset, or expansion policy is
 introduced. These dimensions retain `UNRESOLVED_POLICY` provenance. The primary PDF
