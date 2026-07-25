@@ -12,8 +12,12 @@ import { exportCurrentWriterDocx } from '@/core/writer-v2/export/exportCurrentWr
 import { exportLiveBlankWriterDocx } from '@/core/writer-v2/export/exportLiveBlankWriterDocx';
 import { DOCX_MIME } from '@/core/writer-v2/export/docx';
 import {
-  importProjectIntoWriterStore,
+  commitStagedWriterProjectImport,
   importRoundTripPdfIntoWriterStore,
+  revokeStagedWriterProjectImport,
+  stageStandaloneWriterProject,
+  type StandaloneWriterProjectOperation,
+  type StagedWriterProjectImport,
 } from '@/core/writer-v2/export/projectImportController';
 import {
   downloadWriterBytes,
@@ -91,6 +95,13 @@ const ResponsiveBtn: React.FC<ResponsiveBtnProps> = ({
 
 export const WriterV2ToolbarControls: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const mountedRef = React.useRef(true);
+  const standaloneImportRef = React.useRef<{
+    generation: number;
+    controller: AbortController;
+    staged: StagedWriterProjectImport | null;
+  } | null>(null);
+  const standaloneImportGenerationRef = React.useRef(0);
   const [blankDialogOpen, setBlankDialogOpen] = React.useState(false);
   const [pendingPreflight, setPendingPreflight] = React.useState<{
     label: string;
@@ -280,50 +291,94 @@ export const WriterV2ToolbarControls: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const active = standaloneImportRef.current;
+      active?.controller.abort('Writer toolbar unmounted.');
+      if (active?.staged) revokeStagedWriterProjectImport(active.staged);
+      standaloneImportRef.current = null;
+    };
+  }, []);
+
   const importProjectFile = async (file: File) => {
-    try {
-      beginExportOperation('Opening editable Writer project…');
+    beginExportOperation('Opening editable Writer project…');
+    const isPdf = /\.pdf$/i.test(file.name);
 
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const isPdf = /\.pdf$/i.test(file.name);
-
-      // Editable round-trip PDF (Option C) carries the project as an attachment.
-      const imported = isPdf
-        ? await importRoundTripPdfIntoWriterStore(bytes)
-        : await importProjectIntoWriterStore(bytes);
-
-      if (!imported) {
-        failSaveOperation(
-          'This PDF has no editable Writer layer. Open it normally to view the flattened content.',
-        );
-        return;
-      }
-
-      if (imported.originalPdfBytes.length > 0) {
+    if (isPdf) {
+      try {
+        // Editable round-trip PDF (Option C) remains a separate compatibility path.
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const imported = await importRoundTripPdfIntoWriterStore(bytes);
+        if (!imported) {
+          failSaveOperation(
+            'This PDF has no editable Writer layer. Open it normally to view the flattened content.',
+          );
+          return;
+        }
         const pdf = await PDFDocument.load(imported.originalPdfBytes);
-
         openDocument({
           documentKey: imported.documentFingerprint,
-          fileName: file.name.replace(/\.pdfhub\.zip$/i, '.pdf'),
+          fileName: file.name,
           bytes: imported.originalPdfBytes,
           pageCount: pdf.getPageCount(),
         });
-      } else {
-        clearDocument();
-        setActiveMode('write');
+        completeSaveOperation('Editable Writer project imported.');
+      } catch (error) {
+        failSaveOperation(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
+      return;
+    }
 
+    const previous = standaloneImportRef.current;
+    previous?.controller.abort('Superseded by a newer standalone Writer project import.');
+    if (previous?.staged) revokeStagedWriterProjectImport(previous.staged);
+
+    const generation = standaloneImportGenerationRef.current + 1;
+    standaloneImportGenerationRef.current = generation;
+    const controller = new AbortController();
+    standaloneImportRef.current = { generation, controller, staged: null };
+
+    const operation: StandaloneWriterProjectOperation = {
+      operationId: `writer-project-${generation}`,
+      generation,
+      signal: controller.signal,
+      isMounted: () => mountedRef.current,
+      isCurrent: () =>
+        mountedRef.current &&
+        standaloneImportRef.current?.generation === generation &&
+        !controller.signal.aborted,
+    };
+
+    try {
+      const staged = await stageStandaloneWriterProject(file, operation);
+      if (!operation.isCurrent()) {
+        revokeStagedWriterProjectImport(staged);
+        return;
+      }
+      if (standaloneImportRef.current?.generation === generation) {
+        standaloneImportRef.current.staged = staged;
+      }
+      const imported = await commitStagedWriterProjectImport(staged, operation);
+      if (!operation.isCurrent()) return;
       completeSaveOperation(
         imported.documentMeta?.mode === 'blankDocument'
           ? 'Blank Writer project imported.'
           : 'Editable Writer project imported.',
       );
     } catch (error) {
-      failSaveOperation(error instanceof Error ? error.message : String(error));
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (operation.isCurrent()) {
+        failSaveOperation(error instanceof Error ? error.message : String(error));
       }
+    } finally {
+      if (standaloneImportRef.current?.generation === generation) {
+        standaloneImportRef.current = null;
+      }
+      controller.abort('Standalone Writer project import completed.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
