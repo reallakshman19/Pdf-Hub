@@ -71,11 +71,15 @@ describe('raw ZIP structural inventory', () => {
     const zip64Extra = buildRawZipFixture([
       { name: 'manifest.json', centralExtra: [1, 0, 0, 0] },
     ]);
+    const zip64Locator = buildRawZipFixture([{ name: 'manifest.json' }], {
+      includeZip64Locator: true,
+    });
 
     expect(inspectZipArchive(multiDisk.bytes).outcome).toBe('REJECTED_UNSUPPORTED');
     expect(inspectZipArchive(splitCounts.bytes).outcome).toBe('REJECTED_UNSUPPORTED');
     expect(codes(zip64Sentinel.bytes)).toContain('ZIP64_UNSUPPORTED');
     expect(codes(zip64Extra.bytes)).toContain('ZIP64_ENTRY_UNSUPPORTED');
+    expect(codes(zip64Locator.bytes)).toContain('ZIP64_UNSUPPORTED');
   });
 
   it('preserves every duplicate raw record and all collision ordinals before rejection', () => {
@@ -169,7 +173,6 @@ describe('raw ZIP structural inventory', () => {
       ]).bytes,
     );
 
-    expect(codes(invalidSignature.inventory?.bytes ?? new Uint8Array())).toBeDefined();
     expect(invalidSignature.diagnostics.map((item) => item.code)).toContain('ZIP_LOCAL_HEADER_SIGNATURE_INVALID');
     expect(filenameMismatch.diagnostics.map((item) => item.code)).toContain('ZIP_LOCAL_CENTRAL_FILENAME_MISMATCH');
     expect(methodMismatch.diagnostics.map((item) => item.code)).toContain('ZIP_LOCAL_CENTRAL_METHOD_MISMATCH');
