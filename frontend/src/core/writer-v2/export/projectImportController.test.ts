@@ -74,7 +74,7 @@ async function overlayFile(): Promise<File> {
     assets: [asset()],
     updatedAt: '2026-01-02T00:00:00.000Z',
   });
-  return new File([project.bytes], 'project.pdfhub.zip', { type: 'application/zip' });
+  return new File([Uint8Array.from(project.bytes).buffer], 'project.pdfhub.zip', { type: 'application/zip' });
 }
 
 describe('atomic standalone Writer project import', () => {

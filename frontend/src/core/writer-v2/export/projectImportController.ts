@@ -521,6 +521,7 @@ function cloneAsset(asset: WriterAssetRecordV2): WriterAssetRecordV2 {
 }
 
 function deepFreeze<T>(value: T): T {
+  if (ArrayBuffer.isView(value)) return value;
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value);
     for (const nested of Object.values(value as Record<string, unknown>)) {
