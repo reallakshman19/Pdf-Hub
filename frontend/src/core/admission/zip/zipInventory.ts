@@ -895,7 +895,10 @@ function collectCollisionGroups(
   for (const [key, group] of groups) {
     if (!key || group.length < 2) continue;
     const ordinals = group.map((entry) => entry.ordinal);
-    const message = collisionMessage(kind, key);
+    const displayKey = kind === 'EXACT_RAW_NAME'
+      ? group[0]?.decodedFilename ?? key
+      : key;
+    const message = collisionMessage(kind, displayKey);
     addCollision(state, kind, key, ordinals, message);
   }
 }

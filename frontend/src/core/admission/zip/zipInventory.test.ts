@@ -213,15 +213,15 @@ describe('raw ZIP structural inventory', () => {
         data: [0],
         compressedSize: 1,
         localCompressedSize: 1,
-        uncompressedSize: 0xffffffff,
-        localUncompressedSize: 0xffffffff,
+        uncompressedSize: 0xfffffffe,
+        localUncompressedSize: 0xfffffffe,
       },
     ]);
 
     const inventory = inspectZipArchive(fixture.bytes);
 
     expect(inventory.outcome).toBe('ADMITTED');
-    expect(inventory.measurements.MAX_DECLARED_COMPRESSION_RATIO).toBe(0xffffffff);
+    expect(inventory.measurements.MAX_DECLARED_COMPRESSION_RATIO).toBe(0xfffffffe);
     expect(inventory.unresolvedPolicy.authority).toBe('UNRESOLVED_POLICY');
     expect(inventory.unresolvedPolicy.dimensions).toContain('MAX_DECLARED_COMPRESSION_RATIO');
   });
