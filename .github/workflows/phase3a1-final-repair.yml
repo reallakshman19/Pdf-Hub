@@ -24,59 +24,34 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(path: str, old: str, new: str, label: str) -> None:
+          def replace(path: str, old: str, new: str, label: str) -> None:
               file = Path(path)
               text = file.read_text()
               if old not in text:
                   raise SystemExit(f'{label} target not found')
               file.write_text(text.replace(old, new, 1))
 
-          controller = 'frontend/src/core/writer-v2/export/projectImportController.ts'
-          toolbar = 'frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx'
-          toolbar_test = 'frontend/src/components/writer-v2/WriterV2ToolbarControls.test.tsx'
-          source_test = 'frontend/src/core/writer-v2/export/projectImportController.source.test.ts'
-          controller_test = 'frontend/src/core/writer-v2/export/projectImportController.test.ts'
-
-          replace_once(
-              toolbar_test,
-              """vi.mock('@/core/writer-v2/export/projectImportController', () => ({
-            importProjectIntoWriterStore: vi.fn(),
-            importRoundTripPdfIntoWriterStore: vi.fn(),
-          }));""",
-              """vi.mock('@/core/writer-v2/export/projectImportController', () => ({
-            stageStandaloneWriterProject: vi.fn(),
-            commitStagedWriterProjectImport: vi.fn(),
-            revokeStagedWriterProjectImport: vi.fn(),
-            importRoundTripPdfIntoWriterStore: vi.fn(),
-          }));""",
-              'toolbar controller mock',
+          controller = Path('frontend/src/core/writer-v2/export/projectImportController.ts')
+          text = controller.read_text()
+          text = text.replace(
+              '  revoked: boolean;\n}',
+              '  revoked: boolean;\n  detachAbort: (() => void) | null;\n}',
+              1,
           )
-
-          replace_once(
-              controller,
-              """  consumed: boolean;
-            revoked: boolean;
-          }""",
-              """  consumed: boolean;
-            revoked: boolean;
-            detachAbort: (() => void) | null;
-          }""",
-              'registered stage abort field',
+          pattern = re.compile(
+              r"  stagedRegistry\.set\(capability, \{\n"
+              r"    project: reconciled,\n"
+              r"    operationId: operation\.operationId,\n"
+              r"    generation: operation\.generation,\n"
+              r"    operation,\n"
+              r"    consumed: false,\n"
+              r"    revoked: false,\n"
+              r"  \}\);\n"
+              r"  return capability;"
           )
-
-          replace_once(
-              controller,
-              """  stagedRegistry.set(capability, {
-            project: reconciled,
-            operationId: operation.operationId,
-            generation: operation.generation,
-            operation,
-            consumed: false,
-            revoked: false,
-          });
-          return capability;""",
-              """  const registered: RegisteredStage = {
+          replacement = '''  const registered: RegisteredStage = {
             project: reconciled,
             operationId: operation.operationId,
             generation: operation.generation,
@@ -93,41 +68,22 @@ jobs:
             releaseRegisteredStage(registered);
             throw error;
           }
-          return capability;""",
-              'staging registration',
+          return capability;'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('staging registration target not found')
+          text = text.replace(
+              '  registered.revoked = true;\n  registered.project = null;',
+              '  releaseRegisteredStage(registered);',
+              1,
           )
-
-          replace_once(
-              controller,
-              """  registered.revoked = true;
-            registered.project = null;""",
-              """  releaseRegisteredStage(registered);""",
-              'explicit revocation',
+          text = text.replace(
+              '  } finally {\n    registered.revoked = true;\n    registered.project = null;\n  }\n}',
+              '  } finally {\n    releaseRegisteredStage(registered);\n  }\n}',
+              1,
           )
-
-          replace_once(
-              controller,
-              """  } finally {
-            registered.revoked = true;
-            registered.project = null;
-          }
-          }
-
-          /**""",
-              """  } finally {
-            releaseRegisteredStage(registered);
-          }
-          }
-
-          /**""",
-              'commit release',
-          )
-
-          replace_once(
-              controller,
-              """function assertUsableStage(
-            stage: StagedWriterProjectImport,""",
-              """function bindStageAbort(registered: RegisteredStage): void {
+          marker = 'function assertUsableStage(\n'
+          helpers = '''function bindStageAbort(registered: RegisteredStage): void {
             const signal = registered.operation.signal;
             if (!signal) return;
             const revoke = () => releaseRegisteredStage(registered);
@@ -146,166 +102,23 @@ jobs:
             registered.project = null;
           }
 
-          function assertUsableStage(
-            stage: StagedWriterProjectImport,""",
-              'stage release helpers',
-          )
+          '''
+          if marker not in text:
+              raise SystemExit('stage helper marker not found')
+          text = text.replace(marker, helpers + marker, 1)
+          controller.write_text(text)
 
-          replace_once(
-              toolbar,
-              """    if (isPdf) {
-              try {
-                // Editable round-trip PDF (Option C) remains a separate compatibility path.""",
-              """    if (isPdf) {
-              const previous = standaloneImportRef.current;
-              previous?.controller.abort('Superseded by an editable PDF project import.');
-              if (previous?.staged) revokeStagedWriterProjectImport(previous.staged);
-              standaloneImportRef.current = null;
-              try {
-                // Editable round-trip PDF (Option C) remains a separate compatibility path.""",
+          replace(
+              'frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx',
+              "    if (isPdf) {\n      try {",
+              "    if (isPdf) {\n      const previous = standaloneImportRef.current;\n      previous?.controller.abort('Superseded by an editable PDF project import.');\n      if (previous?.staged) revokeStagedWriterProjectImport(previous.staged);\n      standaloneImportRef.current = null;\n      try {",
               'round-trip supersession',
           )
-
-          replace_once(
-              source_test,
-              """    const standaloneRoute = route.slice(route.indexOf('const previous'));
-
-            expect(standaloneRoute).toContain('stageStandaloneWriterProject');""",
-              """    const pdfRoute = route.slice(
-              route.indexOf('if (isPdf)'),
-              route.indexOf('const generation ='),
-            );
-            const standaloneRoute = route.slice(route.indexOf('const generation ='));
-
-            expect(pdfRoute).toContain('controller.abort');
-            expect(pdfRoute).toContain('revokeStagedWriterProjectImport');
-            expect(pdfRoute.indexOf('controller.abort')).toBeLessThan(
-              pdfRoute.indexOf('importRoundTripPdfIntoWriterStore'),
-            );
-            expect(standaloneRoute).toContain('stageStandaloneWriterProject');""",
-              'source route supersession assertion',
-          )
-
-          replace_once(
-              controller_test,
-              """import { useOcrStore } from '@/core/ocr/ocrStore';
-          import {""",
-              """import { useOcrStore } from '@/core/ocr/ocrStore';
-          import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
-          import {""",
-              'OCR fixture import',
-          )
-
-          replace_once(
-              controller_test,
-              """async function blankProjectFile(): Promise<File> {""",
-              """async function overlayFileWithOcr(): Promise<File> {
-            return projectFile({
-              originalPdfBytes: await onePagePdfBytes(),
-              documentFingerprint: 'doc-1',
-              elements: [element('writer-1')],
-              assets: [asset()],
-              ocrProject: createOcrProjectPayload({ documentFingerprint: 'doc-1' }),
-              updatedAt: '2026-01-02T00:00:00.000Z',
-            });
-          }
-
-          async function blankProjectFile(): Promise<File> {""",
-              'OCR project fixture',
-          )
-
-          replace_once(
-              controller_test,
-              """  it('commits a blank Writer project by clearing the previous PDF atomically', async () => {""",
-              """  it('carries a supported OCR payload without hydrating the OCR store', async () => {
-            seedExistingState();
-            const beforeOcr = useOcrStore.getState();
-            const activeOperation = operation();
-            const staged = await stageStandaloneWriterProject(
-              await overlayFileWithOcr(),
-              activeOperation,
-            );
-
-            await commitStagedWriterProjectImport(staged, activeOperation);
-
-            expect(useSessionStore.getState().documentKey).toBe('doc-1');
-            expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('doc-1');
-            expect(useOcrStore.getState()).toEqual(beforeOcr);
-          });
-
-          it('commits a blank Writer project by clearing the previous PDF atomically', async () => {""",
-              'OCR payload test',
-          )
-
-          replace_once(
-              controller_test,
-              """    await expect(
-              commitStagedWriterProjectImport(identityStage, equivalentOperation),
-            ).rejects.toThrow('identity');
-
-            expect(stateSnapshot()).toEqual(before);
-          });
-
-          it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
-              """    await expect(
-              commitStagedWriterProjectImport(identityStage, equivalentOperation),
-            ).rejects.toThrow('identity');
-
-            expect(stateSnapshot()).toEqual(before);
-          });
-
-          it('revokes a staged capability when its operation aborts after staging', async () => {
-            seedExistingState();
-            const before = stateSnapshot();
-            const controller = new AbortController();
-            const activeOperation = operation(1, true, controller.signal);
-            const staged = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
-
-            controller.abort('abandon staged project');
-
-            await expect(commitStagedWriterProjectImport(staged, activeOperation)).rejects.toThrow(
-              'revoked',
-            );
-            expect(stateSnapshot()).toEqual(before);
-          });
-
-          it('rejects superseded and unmounted capabilities before mutation', async () => {
-            seedExistingState();
-            const before = stateSnapshot();
-            let current = true;
-            let mounted = true;
-            const activeOperation: StandaloneWriterProjectOperation = {
-              operationId: 'dynamic-operation',
-              generation: 9,
-              isCurrent: () => current,
-              isMounted: () => mounted,
-            };
-            const superseded = await stageStandaloneWriterProject(
-              await overlayFile(),
-              activeOperation,
-            );
-            current = false;
-            await expect(
-              commitStagedWriterProjectImport(superseded, activeOperation),
-            ).rejects.toThrow('superseded');
-            revokeStagedWriterProjectImport(superseded);
-
-            current = true;
-            const unmounted = await stageStandaloneWriterProject(
-              await overlayFile(),
-              activeOperation,
-            );
-            mounted = false;
-            await expect(
-              commitStagedWriterProjectImport(unmounted, activeOperation),
-            ).rejects.toThrow('no longer mounted');
-            revokeStagedWriterProjectImport(unmounted);
-
-            expect(stateSnapshot()).toEqual(before);
-          });
-
-          it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
-              'lifecycle tests',
+          replace(
+              'frontend/src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
+              "  importProjectIntoWriterStore: vi.fn(),\n  importRoundTripPdfIntoWriterStore: vi.fn(),",
+              "  stageStandaloneWriterProject: vi.fn(),\n  commitStagedWriterProjectImport: vi.fn(),\n  revokeStagedWriterProjectImport: vi.fn(),\n  importRoundTripPdfIntoWriterStore: vi.fn(),",
+              'toolbar controller mock',
           )
           PY
       - name: Verify lifecycle repair
