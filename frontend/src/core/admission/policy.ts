@@ -2,6 +2,7 @@ import type {
   AdmissionDiagnostic,
   AdmissionMetric,
   AdmissionPolicy,
+  AdmissionPolicyAuthority,
   AdmissionProfileId,
   ArchivePathPolicy,
 } from './types';
@@ -9,6 +10,7 @@ import type {
 export interface CreateAdmissionPolicyInput {
   readonly profileId: AdmissionProfileId;
   readonly policyVersion: string;
+  readonly authority: AdmissionPolicyAuthority;
   readonly limits?: Readonly<Partial<Record<AdmissionMetric, number>>>;
   readonly archivePath: ArchivePathPolicy;
 }
@@ -19,6 +21,7 @@ export function createAdmissionPolicy(
   const policy: AdmissionPolicy = {
     profileId: input.profileId,
     policyVersion: input.policyVersion.trim(),
+    authority: { ...input.authority },
     limits: { ...(input.limits ?? {}) },
     archivePath: { ...input.archivePath },
   };
@@ -31,6 +34,7 @@ export function createAdmissionPolicy(
 
   return Object.freeze({
     ...policy,
+    authority: Object.freeze({ ...policy.authority }),
     limits: Object.freeze({ ...policy.limits }),
     archivePath: Object.freeze({ ...policy.archivePath }),
   });
@@ -49,6 +53,9 @@ export function validateAdmissionPolicy(
       message: `Admission profile ${policy.profileId} has no policy version.`,
     });
   }
+
+  const authorityError = validatePolicyAuthority(policy.authority);
+  if (authorityError) diagnostics.push(authorityError);
 
   for (const [metric, limit] of Object.entries(policy.limits)
     .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
@@ -117,5 +124,24 @@ export function evaluateAdmissionMetric(
       limit: configured,
       unit,
     },
+  };
+}
+
+function validatePolicyAuthority(
+  authority: AdmissionPolicyAuthority,
+): AdmissionDiagnostic | null {
+  const value = authority.kind === 'EXISTING_SOURCE_POLICY'
+    ? authority.sourceId
+    : authority.kind === 'OWNER_APPROVED_GLOBAL_POLICY'
+      ? authority.authorityId
+      : authority.reason;
+
+  if (value.trim().length > 0) return null;
+
+  return {
+    severity: 'error',
+    code: 'POLICY_AUTHORITY_INVALID',
+    phase: 'VALIDATION',
+    message: `Admission policy authority ${authority.kind} requires a non-empty reference.`,
   };
 }
