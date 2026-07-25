@@ -8,6 +8,7 @@ import {
   DONOR_AGGREGATE_POLICY_AUTHORITY,
   getDonorPdfAdmissionPolicy,
   inspectAdmittedDonorPdfs,
+  revokeAdmittedDonorSet,
 } from './donorPdf';
 
 function createSource(
@@ -19,6 +20,20 @@ function createSource(
     name: overrides.name ?? 'donor.pdf',
     type: overrides.type ?? 'application/pdf',
     size: overrides.size ?? bytes.byteLength,
+    arrayBuffer,
+  } as unknown as File & { arrayBuffer: ReturnType<typeof vi.fn> };
+  return { file };
+}
+
+function createBufferSource(
+  buffer: ArrayBuffer,
+  name = 'owned.pdf',
+): PickedPdfFileSource & { file: File & { arrayBuffer: ReturnType<typeof vi.fn> } } {
+  const arrayBuffer = vi.fn(async () => buffer);
+  const file = {
+    name,
+    type: 'application/pdf',
+    size: buffer.byteLength,
     arrayBuffer,
   } as unknown as File & { arrayBuffer: ReturnType<typeof vi.fn> };
   return { file };
@@ -170,6 +185,70 @@ describe('donor PDF admission', () => {
       result.value.donors,
       'doc-1',
     ).map((donor) => donor.fileName)).toEqual(['first.pdf', 'second.pdf']);
+  });
+
+  it('transfers the bounded read buffer without cloning the full donor payload', async () => {
+    const original = pdfBytes('owned');
+    const buffer = original.buffer.slice(
+      original.byteOffset,
+      original.byteOffset + original.byteLength,
+    ) as ArrayBuffer;
+    const source = createBufferSource(buffer);
+    vi.spyOn(PdfEditAdapter, 'countPages').mockResolvedValue(1);
+
+    const result = await admitDonorPdfFiles(
+      [source],
+      'TOOLBAR_ORGANIZE',
+      'INSERT_PAGES',
+      { ownerDocumentKey: 'doc-1' },
+    );
+
+    expect(result.outcome).toBe('ACCEPTED');
+    if (result.outcome !== 'ACCEPTED') return;
+    const [resolved] = inspectAdmittedDonorPdfs(
+      'INSERT_PAGES',
+      result.value.donors,
+      'doc-1',
+    );
+    expect(resolved.bytes.buffer).toBe(buffer);
+  });
+
+  it('revokes an abandoned donor capability on abort and by explicit release', async () => {
+    const controller = new AbortController();
+    const source = createSource(pdfBytes('revoked'));
+    vi.spyOn(PdfEditAdapter, 'countPages').mockResolvedValue(1);
+
+    const result = await admitDonorPdfFiles(
+      [source],
+      'TOOLBAR_ORGANIZE',
+      'REPLACE_PAGE',
+      {
+        ownerDocumentKey: 'doc-1',
+        signal: controller.signal,
+      },
+    );
+
+    expect(result.outcome).toBe('ACCEPTED');
+    if (result.outcome !== 'ACCEPTED') return;
+    controller.abort('dialog closed');
+    expect(() => inspectAdmittedDonorPdfs(
+      'REPLACE_PAGE',
+      result.value.donors,
+      'doc-1',
+    )).toThrow(/revoked|abandoned/i);
+
+    const second = await admitDonorPdfFiles(
+      [createSource(pdfBytes('explicit'))],
+      'TOOLBAR_ORGANIZE',
+      'REPLACE_PAGE',
+      { ownerDocumentKey: 'doc-1' },
+    );
+    expect(second.outcome).toBe('ACCEPTED');
+    if (second.outcome !== 'ACCEPTED') return;
+    revokeAdmittedDonorSet(second.value);
+    expect(() => assertAdmittedDonorSetDispatchAllowed(second.value, {
+      ownerDocumentKey: 'doc-1',
+    })).toThrow(/revoked|abandoned/i);
   });
 
   it('returns deterministic diagnostics in input order when a later donor fails', async () => {
