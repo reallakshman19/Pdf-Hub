@@ -8,7 +8,11 @@ import {
 function policy() {
   return createAdmissionPolicy({
     profileId: 'OPEN_PDF',
-    policyVersion: 'owner-approved-test-v1',
+    policyVersion: 'file-adapter-compat-v1',
+    authority: {
+      kind: 'EXISTING_SOURCE_POLICY',
+      sourceId: 'frontend/src/adapters/file/FileAdapter.ts#MAX_SIZE_MB',
+    },
     limits: {
       SOURCE_BYTES: 100,
     },
@@ -20,6 +24,13 @@ function policy() {
 }
 
 describe('admission policy', () => {
+  it('preserves the authority classification', () => {
+    expect(policy().authority).toEqual({
+      kind: 'EXISTING_SOURCE_POLICY',
+      sourceId: 'frontend/src/adapters/file/FileAdapter.ts#MAX_SIZE_MB',
+    });
+  });
+
   it('does not invent a missing limit', () => {
     const result = requireAdmissionLimit(policy(), 'PDF_PAGE_COUNT', 'count');
 
@@ -68,6 +79,10 @@ describe('admission policy', () => {
     expect(() => createAdmissionPolicy({
       profileId: 'OPEN_PDF',
       policyVersion: 'invalid',
+      authority: {
+        kind: 'OWNER_APPROVED_GLOBAL_POLICY',
+        authorityId: 'test-owner',
+      },
       limits: {
         SOURCE_BYTES: Number.NaN,
       },
@@ -76,5 +91,20 @@ describe('admission policy', () => {
         unicodeMode: 'preserve',
       },
     })).toThrow('must be a finite non-negative number');
+  });
+
+  it('rejects an empty authority reference', () => {
+    expect(() => createAdmissionPolicy({
+      profileId: 'OPEN_PDF',
+      policyVersion: 'invalid-authority',
+      authority: {
+        kind: 'UNRESOLVED_POLICY',
+        reason: ' ',
+      },
+      archivePath: {
+        caseMode: 'sensitive',
+        unicodeMode: 'preserve',
+      },
+    })).toThrow('requires a non-empty reference');
   });
 });
