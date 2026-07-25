@@ -14,11 +14,15 @@ describe('donor PDF admission source boundaries', () => {
     const donorSection = source.slice(0, source.indexOf('const confirmBatchRun'));
 
     expect(donorSection).toContain('admitDonorPdfFiles');
-    expect(donorSection).toContain('FileAdapter.pickPdfFileSources(true)');
-    expect(donorSection).toContain('FileAdapter.pickPdfFileSources(false)');
+    expect(donorSection).toContain('FileAdapter.pickPdfFileSources(multiple)');
+    expect(donorSection).toContain("admitDonorSelection(true, 'MERGE_PDF')");
+    expect(donorSection).toContain("admitDonorSelection(false, 'INSERT_PAGES')");
+    expect(donorSection).toContain("admitDonorSelection(false, 'REPLACE_PAGE')");
     expect(donorSection).not.toContain('FileAdapter.pickPdfFiles');
     expect(donorSection).not.toContain('PdfEditAdapter.countPages(donor');
     expect(donorSection).not.toMatch(/\.arrayBuffer\s*\(/);
+    expect(donorSection).toContain('setReplaceDonorSet(null)');
+    expect(donorSection).toContain('operation.documentKey !== documentKey');
   });
 
   it('routes thumbnail replacement through the same admission boundary', () => {
