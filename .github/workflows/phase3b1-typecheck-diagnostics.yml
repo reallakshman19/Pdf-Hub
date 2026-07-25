@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - agent/raw-zip-structural-admission-phase3b1
+  pull_request:
+    branches:
+      - main
 permissions:
   contents: read
 jobs:
