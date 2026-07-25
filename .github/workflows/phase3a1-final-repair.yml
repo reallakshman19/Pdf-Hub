@@ -1,4 +1,4 @@
-name: Phase 3A.1 final repair
+name: Phase 3A.1 final lifecycle repair
 on:
   push:
     branches:
@@ -7,28 +7,29 @@ permissions:
   contents: write
 jobs:
   repair:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ !contains(github.event.head_commit.message, 'Complete Phase 3A.1 lifecycle repair') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/atomic-writer-project-import-phase3a1
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: corepack enable
       - run: corepack prepare pnpm@10.23.0 --activate
       - run: cd frontend && pnpm install --no-frozen-lockfile
-      - name: Apply final Phase 3A.1 repairs
+      - name: Apply lifecycle repair
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
+          def replace_once(path: str, old: str, new: str, label: str) -> None:
               file = Path(path)
               text = file.read_text()
               if old not in text:
-                  raise SystemExit(f"Expected block not found in {path}: {old[:100]!r}")
+                  raise SystemExit(f'{label} target not found')
               file.write_text(text.replace(old, new, 1))
 
           controller = 'frontend/src/core/writer-v2/export/projectImportController.ts'
@@ -49,6 +50,7 @@ jobs:
             revokeStagedWriterProjectImport: vi.fn(),
             importRoundTripPdfIntoWriterStore: vi.fn(),
           }));""",
+              'toolbar controller mock',
           )
 
           replace_once(
@@ -60,6 +62,7 @@ jobs:
             revoked: boolean;
             detachAbort: (() => void) | null;
           }""",
+              'registered stage abort field',
           )
 
           replace_once(
@@ -91,6 +94,7 @@ jobs:
             throw error;
           }
           return capability;""",
+              'staging registration',
           )
 
           replace_once(
@@ -98,6 +102,7 @@ jobs:
               """  registered.revoked = true;
             registered.project = null;""",
               """  releaseRegisteredStage(registered);""",
+              'explicit revocation',
           )
 
           replace_once(
@@ -115,6 +120,7 @@ jobs:
           }
 
           /**""",
+              'commit release',
           )
 
           replace_once(
@@ -142,6 +148,7 @@ jobs:
 
           function assertUsableStage(
             stage: StagedWriterProjectImport,""",
+              'stage release helpers',
           )
 
           replace_once(
@@ -156,6 +163,7 @@ jobs:
               standaloneImportRef.current = null;
               try {
                 // Editable round-trip PDF (Option C) remains a separate compatibility path.""",
+              'round-trip supersession',
           )
 
           replace_once(
@@ -175,6 +183,7 @@ jobs:
               pdfRoute.indexOf('importRoundTripPdfIntoWriterStore'),
             );
             expect(standaloneRoute).toContain('stageStandaloneWriterProject');""",
+              'source route supersession assertion',
           )
 
           replace_once(
@@ -184,17 +193,7 @@ jobs:
               """import { useOcrStore } from '@/core/ocr/ocrStore';
           import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
           import {""",
-          )
-
-          replace_once(
-              controller_test,
-              """async function zeroPagePdfBytes(): Promise<Uint8Array> {
-            const document = await PDFDocument.create();
-            return document.save();
-          }
-
-          """,
-              """""",
+              'OCR fixture import',
           )
 
           replace_once(
@@ -212,6 +211,7 @@ jobs:
           }
 
           async function blankProjectFile(): Promise<File> {""",
+              'OCR project fixture',
           )
 
           replace_once(
@@ -234,108 +234,81 @@ jobs:
           });
 
           it('commits a blank Writer project by clearing the previous PDF atomically', async () => {""",
+              'OCR payload test',
           )
 
           replace_once(
               controller_test,
-              """    seedExistingState();
-            const staged = await stageStandaloneWriterProject(await overlayFile(), operation(3));""",
-              """    expect(stateSnapshot()).toEqual(before);
+              """    await expect(
+              commitStagedWriterProjectImport(identityStage, equivalentOperation),
+            ).rejects.toThrow('identity');
 
+            expect(stateSnapshot()).toEqual(before);
+          });
+
+          it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
+              """    await expect(
+              commitStagedWriterProjectImport(identityStage, equivalentOperation),
+            ).rejects.toThrow('identity');
+
+            expect(stateSnapshot()).toEqual(before);
+          });
+
+          it('revokes a staged capability when its operation aborts after staging', async () => {
             seedExistingState();
-            const beforeIdentityChecks = stateSnapshot();
-            const staged = await stageStandaloneWriterProject(await overlayFile(), operation(3));""",
-          )
+            const before = stateSnapshot();
+            const controller = new AbortController();
+            const activeOperation = operation(1, true, controller.signal);
+            const staged = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
 
-          replace_once(
-              controller_test,
-              """    expect(stateSnapshot()).toEqual(before);
-            });
+            controller.abort('abandon staged project');
 
-            it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
-              """    expect(stateSnapshot()).toEqual(beforeIdentityChecks);
-            });
+            await expect(commitStagedWriterProjectImport(staged, activeOperation)).rejects.toThrow(
+              'revoked',
+            );
+            expect(stateSnapshot()).toEqual(before);
+          });
 
-            it('revokes a staged capability when its operation aborts after staging', async () => {
-              seedExistingState();
-              const before = stateSnapshot();
-              const controller = new AbortController();
-              const activeOperation = operation(1, true, controller.signal);
-              const staged = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
-
-              controller.abort('abandon staged project');
-
-              await expect(commitStagedWriterProjectImport(staged, activeOperation)).rejects.toThrow(
-                'revoked',
-              );
-              expect(stateSnapshot()).toEqual(before);
-            });
-
-            it('rejects superseded and unmounted capabilities before mutation', async () => {
-              seedExistingState();
-              const before = stateSnapshot();
-              let current = true;
-              let mounted = true;
-              const activeOperation: StandaloneWriterProjectOperation = {
-                operationId: 'dynamic-operation',
-                generation: 9,
-                isCurrent: () => current,
-                isMounted: () => mounted,
-              };
-              const superseded = await stageStandaloneWriterProject(
-                await overlayFile(),
-                activeOperation,
-              );
-              current = false;
-              await expect(
-                commitStagedWriterProjectImport(superseded, activeOperation),
-              ).rejects.toThrow('superseded');
-              revokeStagedWriterProjectImport(superseded);
-
-              current = true;
-              const unmounted = await stageStandaloneWriterProject(
-                await overlayFile(),
-                activeOperation,
-              );
-              mounted = false;
-              await expect(
-                commitStagedWriterProjectImport(unmounted, activeOperation),
-              ).rejects.toThrow('no longer mounted');
-              revokeStagedWriterProjectImport(unmounted);
-
-              expect(stateSnapshot()).toEqual(before);
-            });
-
-            it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
-          )
-
-          replace_once(
-              controller_test,
-              """    const zeroPagePdf = await projectFile({
-              originalPdfBytes: await zeroPagePdfBytes(),
-              documentFingerprint: 'doc-1',
-              elements: [],
-              assets: [],
-            });
-
-          """,
-              """""",
-          )
-
-          replace_once(
-              controller_test,
-              """    await expect(stageStandaloneWriterProject(zeroPagePdf, operation())).rejects.toThrow(
-              'invalid page count',
-            );""",
-              """    const parsedWithoutPages = await PDFDocument.create();
-            vi.spyOn(parsedWithoutPages, 'getPageCount').mockReturnValue(0);
-            vi.spyOn(PDFDocument, 'load').mockResolvedValueOnce(parsedWithoutPages);
+          it('rejects superseded and unmounted capabilities before mutation', async () => {
+            seedExistingState();
+            const before = stateSnapshot();
+            let current = true;
+            let mounted = true;
+            const activeOperation: StandaloneWriterProjectOperation = {
+              operationId: 'dynamic-operation',
+              generation: 9,
+              isCurrent: () => current,
+              isMounted: () => mounted,
+            };
+            const superseded = await stageStandaloneWriterProject(
+              await overlayFile(),
+              activeOperation,
+            );
+            current = false;
             await expect(
-              stageStandaloneWriterProject(await overlayFile(), operation()),
-            ).rejects.toThrow('invalid page count');""",
+              commitStagedWriterProjectImport(superseded, activeOperation),
+            ).rejects.toThrow('superseded');
+            revokeStagedWriterProjectImport(superseded);
+
+            current = true;
+            const unmounted = await stageStandaloneWriterProject(
+              await overlayFile(),
+              activeOperation,
+            );
+            mounted = false;
+            await expect(
+              commitStagedWriterProjectImport(unmounted, activeOperation),
+            ).rejects.toThrow('no longer mounted');
+            revokeStagedWriterProjectImport(unmounted);
+
+            expect(stateSnapshot()).toEqual(before);
+          });
+
+          it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation'""",
+              'lifecycle tests',
           )
           PY
-      - name: Verify final Phase 3A.1 repair
+      - name: Verify lifecycle repair
         run: |
           cd frontend
           pnpm run typecheck
@@ -344,20 +317,17 @@ jobs:
             src/core/writer-v2/export/projectImportController.test.ts \
             src/core/writer-v2/export/projectImportController.source.test.ts \
             src/components/writer-v2/WriterV2ToolbarControls.test.tsx \
+            src/core/ocr/__tests__/ocrProjectCodec.test.ts \
+            src/core/writer-v2/export/projectZip.test.ts \
             --pool=forks --maxWorkers=1
           pnpm run test:ci
-      - name: Commit final repair and remove temporary files
+      - name: Commit and remove temporary files
         run: |
           rm -f .github/workflows/phase3a1-final-repair.yml
           rm -f .github/workflows/phase3a1-focused-diagnostics.yml
           rm -f .github/phase3a1-focused.txt
-          rm -f .github/phase3a1-fix-trigger
-          rm -f .github/workflows/phase3a1-bootstrap.yml
-          rm -f .github/workflows/phase3a1-fix.yml
-          rm -f .github/workflows/phase3a1-typecheck-diagnostics.yml
-          rm -f phase3a1-focused.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Complete Phase 3A.1 import lifecycle tests"
+          git commit -m "Complete Phase 3A.1 lifecycle repair"
           git push origin HEAD:agent/atomic-writer-project-import-phase3a1
