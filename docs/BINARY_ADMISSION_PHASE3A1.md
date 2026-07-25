@@ -42,4 +42,4 @@ exact rollback, capability enforcement, semantic rejection, cancellation,
 supersession, unmount safety, and OCR-state isolation. The final exact PR head must
 pass Frontend Certify, Frontend CI, Writer Overlay V2, and the supported OCR/Writer
 compatibility certification commands. Temporary diagnostics are removed before
-exact-head certification, and the final lifecycle source patch is verified on its own head.
+exact-head certification; production lifecycle hardening is verified on its final source head.
