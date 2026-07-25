@@ -1,0 +1,283 @@
+name: Apply Phase 3A.1 lifecycle patch
+on:
+  push:
+    branches:
+      - agent/atomic-writer-project-import-phase3a1
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/atomic-writer-project-import-phase3a1
+          fetch-depth: 0
+      - name: Patch source and tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def patch(path, transform):
+              file = Path(path)
+              text = file.read_text()
+              updated = transform(text)
+              if updated == text:
+                  raise SystemExit(f'No change applied to {path}')
+              file.write_text(updated)
+
+          def replace(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'{label} target missing')
+              return text.replace(old, new, 1)
+
+          def controller_patch(text):
+              text = replace(
+                  text,
+                  '  consumed: boolean;\n  revoked: boolean;\n}',
+                  '  consumed: boolean;\n  revoked: boolean;\n  detachAbort: (() => void) | null;\n}',
+                  'registered stage',
+              )
+              text = replace(
+                  text,
+                  '''  stagedRegistry.set(capability, {
+    project: reconciled,
+    operationId: operation.operationId,
+    generation: operation.generation,
+    operation,
+    consumed: false,
+    revoked: false,
+  });
+  return capability;''',
+                  '''  const registered: RegisteredStage = {
+    project: reconciled,
+    operationId: operation.operationId,
+    generation: operation.generation,
+    operation,
+    consumed: false,
+    revoked: false,
+    detachAbort: null,
+  };
+  stagedRegistry.set(capability, registered);
+  bindStageAbort(registered);
+  try {
+    assertOperationCurrent(operation, 'standalone Writer project after staging registration');
+  } catch (error) {
+    releaseRegisteredStage(registered);
+    throw error;
+  }
+  return capability;''',
+                  'stage registration',
+              )
+              text = replace(
+                  text,
+                  '  registered.revoked = true;\n  registered.project = null;',
+                  '  releaseRegisteredStage(registered);',
+                  'explicit release',
+              )
+              text = replace(
+                  text,
+                  '''  } finally {
+    registered.revoked = true;
+    registered.project = null;
+  }
+}''',
+                  '''  } finally {
+    releaseRegisteredStage(registered);
+  }
+}''',
+                  'commit release',
+              )
+              marker = 'function assertUsableStage(\n'
+              helpers = '''function bindStageAbort(registered: RegisteredStage): void {
+  const signal = registered.operation.signal;
+  if (!signal) return;
+  const revoke = () => releaseRegisteredStage(registered);
+  if (signal.aborted) {
+    revoke();
+    return;
+  }
+  signal.addEventListener('abort', revoke, { once: true });
+  registered.detachAbort = () => signal.removeEventListener('abort', revoke);
+}
+
+function releaseRegisteredStage(registered: RegisteredStage): void {
+  registered.detachAbort?.();
+  registered.detachAbort = null;
+  registered.revoked = true;
+  registered.project = null;
+}
+
+'''
+              return replace(text, marker, helpers + marker, 'release helpers')
+
+          patch('frontend/src/core/writer-v2/export/projectImportController.ts', controller_patch)
+
+          patch(
+              'frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx',
+              lambda text: replace(
+                  text,
+                  '''    if (isPdf) {
+      try {
+        // Editable round-trip PDF (Option C) remains a separate compatibility path.''',
+                  '''    if (isPdf) {
+      const previous = standaloneImportRef.current;
+      previous?.controller.abort('Superseded by an editable PDF project import.');
+      if (previous?.staged) revokeStagedWriterProjectImport(previous.staged);
+      standaloneImportRef.current = null;
+      try {
+        // Editable round-trip PDF (Option C) remains a separate compatibility path.''',
+                  'round-trip supersession',
+              ),
+          )
+
+          patch(
+              'frontend/src/components/writer-v2/WriterV2ToolbarControls.test.tsx',
+              lambda text: replace(
+                  text,
+                  '''vi.mock('@/core/writer-v2/export/projectImportController', () => ({
+  importProjectIntoWriterStore: vi.fn(),
+  importRoundTripPdfIntoWriterStore: vi.fn(),
+}));''',
+                  '''vi.mock('@/core/writer-v2/export/projectImportController', () => ({
+  stageStandaloneWriterProject: vi.fn(),
+  commitStagedWriterProjectImport: vi.fn(),
+  revokeStagedWriterProjectImport: vi.fn(),
+  importRoundTripPdfIntoWriterStore: vi.fn(),
+}));''',
+                  'toolbar mock',
+              ),
+          )
+
+          patch(
+              'frontend/src/core/writer-v2/export/projectImportController.source.test.ts',
+              lambda text: replace(
+                  text,
+                  "    const standaloneRoute = route.slice(route.indexOf('const previous'));",
+                  """    const pdfRoute = route.slice(
+      route.indexOf('if (isPdf)'),
+      route.indexOf('const generation ='),
+    );
+    const standaloneRoute = route.slice(route.indexOf('const generation ='));""",
+                  'source boundary',
+              ).replace(
+                  "    expect(standaloneRoute).toContain('stageStandaloneWriterProject');",
+                  """    expect(pdfRoute).toContain('controller.abort');
+    expect(pdfRoute).toContain('revokeStagedWriterProjectImport');
+    expect(pdfRoute.indexOf('controller.abort')).toBeLessThan(
+      pdfRoute.indexOf('importRoundTripPdfIntoWriterStore'),
+    );
+    expect(standaloneRoute).toContain('stageStandaloneWriterProject');""",
+                  1,
+              ),
+          )
+
+          test_path = Path('frontend/src/core/writer-v2/export/projectImportController.test.ts')
+          test = test_path.read_text()
+          test = replace(
+              test,
+              "import { useOcrStore } from '@/core/ocr/ocrStore';\n",
+              "import { useOcrStore } from '@/core/ocr/ocrStore';\nimport { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';\n",
+              'OCR import',
+          )
+          test = replace(
+              test,
+              'async function blankProjectFile(): Promise<File> {',
+              '''async function overlayFileWithOcr(): Promise<File> {
+  return projectFile({
+    originalPdfBytes: await onePagePdfBytes(),
+    documentFingerprint: 'doc-1',
+    elements: [element('writer-1')],
+    assets: [asset()],
+    ocrProject: createOcrProjectPayload({ documentFingerprint: 'doc-1' }),
+    updatedAt: '2026-01-02T00:00:00.000Z',
+  });
+}
+
+async function blankProjectFile(): Promise<File> {''',
+              'OCR fixture',
+          )
+          test = replace(
+              test,
+              "  it('commits a blank Writer project by clearing the previous PDF atomically', async () => {",
+              '''  it('carries a supported OCR payload without hydrating the OCR store', async () => {
+    seedExistingState();
+    const beforeOcr = useOcrStore.getState();
+    const activeOperation = operation();
+    const staged = await stageStandaloneWriterProject(
+      await overlayFileWithOcr(),
+      activeOperation,
+    );
+
+    await commitStagedWriterProjectImport(staged, activeOperation);
+
+    expect(useSessionStore.getState().documentKey).toBe('doc-1');
+    expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('doc-1');
+    expect(useOcrStore.getState()).toEqual(beforeOcr);
+  });
+
+  it('commits a blank Writer project by clearing the previous PDF atomically', async () => {''',
+              'OCR test',
+          )
+          lifecycle = '''  it('revokes a staged capability when its operation aborts after staging', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const controller = new AbortController();
+    const activeOperation = operation(1, true, controller.signal);
+    const staged = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
+
+    controller.abort('abandon staged project');
+
+    await expect(commitStagedWriterProjectImport(staged, activeOperation)).rejects.toThrow(
+      'revoked',
+    );
+    expect(stateSnapshot()).toEqual(before);
+  });
+
+  it('rejects superseded and unmounted capabilities before mutation', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    let current = true;
+    let mounted = true;
+    const activeOperation: StandaloneWriterProjectOperation = {
+      operationId: 'dynamic-operation',
+      generation: 9,
+      isCurrent: () => current,
+      isMounted: () => mounted,
+    };
+    const superseded = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
+    current = false;
+    await expect(commitStagedWriterProjectImport(superseded, activeOperation)).rejects.toThrow(
+      'superseded',
+    );
+    revokeStagedWriterProjectImport(superseded);
+
+    current = true;
+    const unmounted = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
+    mounted = false;
+    await expect(commitStagedWriterProjectImport(unmounted, activeOperation)).rejects.toThrow(
+      'no longer mounted',
+    );
+    revokeStagedWriterProjectImport(unmounted);
+
+    expect(stateSnapshot()).toEqual(before);
+  });
+
+'''
+          test = replace(
+              test,
+              "  it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation', async () => {",
+              lifecycle + "  it('rejects invalid metadata, signatures, and malformed ZIPs without state mutation', async () => {",
+              'lifecycle tests',
+          )
+          test_path.write_text(test)
+          PY
+      - name: Commit patch and remove workflow
+        run: |
+          rm .github/workflows/phase3a1-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Complete Phase 3A.1 lifecycle hardening"
+          git push origin HEAD:agent/atomic-writer-project-import-phase3a1
