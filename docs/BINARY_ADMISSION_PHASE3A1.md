@@ -16,9 +16,9 @@ are restored exactly before the error is returned.
 
 Staged capabilities are registered by object identity, tied to one operation
 generation and operation object, single-use, revocable, and release their protected
-payload after commit or revocation. Fabricated, consumed, revoked, cancelled,
-unmounted, or superseded capabilities are rejected before application-state
-mutation.
+payload after commit, revocation, or operation abort. Fabricated, consumed, revoked,
+cancelled, unmounted, or superseded capabilities are rejected before
+application-state mutation.
 
 Manifest counts, document modes, IDs, asset references, original-PDF signature and
 positive page count are reconciled before staging. Contradictory mode declarations
@@ -32,8 +32,9 @@ introduced. These dimensions retain `UNRESOLVED_POLICY` provenance. The primary 
 size policy and macro resource limits are not reused.
 
 The editable round-trip `.pdf` branch remains a separate compatibility path and its
-attachment traversal is unchanged. Phase 3B and later archive-bounding, embedded
-round-trip, OCR admission, image admission, and structured-text work remain
+attachment traversal is unchanged. Selecting it supersedes any in-flight standalone
+ZIP import before round-trip decoding begins. Phase 3B and later archive-bounding,
+embedded round-trip, OCR admission, image admission, and structured-text work remain
 deferred.
 
 Focused Phase 3A.1 tests exercise overlay and blank commits, OCR-payload compatibility,
