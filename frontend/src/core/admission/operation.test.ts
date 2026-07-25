@@ -1,69 +1,31 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { OperationCancelledError } from '@/core/cancellation/operationCancellation';
-import { AdmissionOperationGate } from './operation';
+import { assertAdmissionCommitAllowed } from './operation';
 
-function gate(signal?: AbortSignal) {
-  return new AdmissionOperationGate({
-    operationId: 'import-1',
-    generation: 4,
-    signal,
-  });
-}
-
-describe('AdmissionOperationGate', () => {
-  it('blocks commit before validation', () => {
-    expect(() => gate().commit(4, () => 'committed'))
-      .toThrow('must be validated before commit');
+describe('admission commit checkpoint', () => {
+  it('allows delegation when no signal is supplied', () => {
+    expect(() => assertAdmissionCommitAllowed(
+      undefined,
+      'open admitted PDF',
+    )).not.toThrow();
   });
 
-  it('blocks a stale generation before mutation', () => {
-    const operation = gate();
-    const mutation = vi.fn(() => 'committed');
-    operation.markValidated();
-
-    expect(() => operation.commit(5, mutation))
-      .toThrowError(OperationCancelledError);
-    expect(mutation).not.toHaveBeenCalled();
-  });
-
-  it('blocks an aborted operation before mutation', () => {
+  it('allows delegation while the operation remains active', () => {
     const controller = new AbortController();
-    const operation = gate(controller.signal);
-    const mutation = vi.fn(() => 'committed');
-    operation.markValidated();
-    controller.abort('user cancelled import');
 
-    expect(() => operation.commit(4, mutation))
-      .toThrowError(OperationCancelledError);
-    expect(mutation).not.toHaveBeenCalled();
+    expect(() => assertAdmissionCommitAllowed(
+      controller.signal,
+      'open admitted PDF',
+    )).not.toThrow();
   });
 
-  it('runs staged cleanups once in reverse registration order', async () => {
-    const operation = gate();
-    const order: string[] = [];
-    operation.registerCleanup(() => {
-      order.push('first');
-    });
-    operation.registerCleanup(async () => {
-      await Promise.resolve();
-      order.push('second');
-    });
+  it('blocks delegation through the shared cancellation contract', () => {
+    const controller = new AbortController();
+    controller.abort('superseded');
 
-    await Promise.all([
-      operation.cancel('cancelled'),
-      operation.cancel('cancelled again'),
-    ]);
-
-    expect(order).toEqual(['second', 'first']);
-    expect(operation.getState()).toBe('TERMINAL');
-  });
-
-  it('commits exactly once after validation', () => {
-    const operation = gate();
-    operation.markValidated();
-
-    expect(operation.commit(4, () => 'committed')).toBe('committed');
-    expect(operation.getState()).toBe('COMMITTED');
-    expect(() => operation.commit(4, () => 'again')).toThrow();
+    expect(() => assertAdmissionCommitAllowed(
+      controller.signal,
+      'open admitted PDF',
+    )).toThrowError(OperationCancelledError);
   });
 });
