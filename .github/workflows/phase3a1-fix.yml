@@ -1,4 +1,4 @@
-name: Phase 3A.1 fix
+name: Phase 3A.1 final cleanup
 on:
   push:
     branches:
@@ -7,215 +7,42 @@ permissions:
   contents: write
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/atomic-writer-project-import-phase3a1
           fetch-depth: 0
-      - name: Apply typed fixes and transactional tests
+      - name: Apply strict fixes and remove temporary files
         run: |
           python - <<'PY'
           from pathlib import Path
-          controller = Path('frontend/src/core/writer-v2/export/projectImportController.ts')
-          text = controller.read_text()
-          old = """function deepFreeze<T>(value: T): T {\n  if (value && typeof value === 'object' && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const nested of Object.values(value as Record<string, unknown>)) {\n      deepFreeze(nested);\n    }\n  }\n  return value;\n}\n"""
-          new = """function deepFreeze<T>(value: T): T {\n  if (ArrayBuffer.isView(value)) return value;\n  if (value && typeof value === 'object' && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const nested of Object.values(value as Record<string, unknown>)) {\n      deepFreeze(nested);\n    }\n  }\n  return value;\n}\n"""
-          if old not in text:
+
+          test_path = Path('frontend/src/core/writer-v2/export/projectImportController.test.ts')
+          test_text = test_path.read_text()
+          old_file = "return new File([project.bytes], 'project.pdfhub.zip', { type: 'application/zip' });"
+          new_file = "return new File([Uint8Array.from(project.bytes).buffer], 'project.pdfhub.zip', { type: 'application/zip' });"
+          if old_file not in test_text:
+              raise SystemExit('BlobPart test target not found')
+          test_path.write_text(test_text.replace(old_file, new_file))
+
+          controller_path = Path('frontend/src/core/writer-v2/export/projectImportController.ts')
+          controller_text = controller_path.read_text()
+          old_freeze = """function deepFreeze<T>(value: T): T {\n  if (value && typeof value === 'object' && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const nested of Object.values(value as Record<string, unknown>)) {\n      deepFreeze(nested);\n    }\n  }\n  return value;\n}\n"""
+          new_freeze = """function deepFreeze<T>(value: T): T {\n  if (ArrayBuffer.isView(value)) return value;\n  if (value && typeof value === 'object' && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const nested of Object.values(value as Record<string, unknown>)) {\n      deepFreeze(nested);\n    }\n  }\n  return value;\n}\n"""
+          if old_freeze not in controller_text:
               raise SystemExit('deepFreeze target not found')
-          controller.write_text(text.replace(old, new))
-
-          test = r'''import { beforeEach, describe, expect, it } from 'vitest';
-import { PDFDocument } from 'pdf-lib';
-import type { WriterElementV2 } from '../types';
-import { useWriterV2Store } from '../writerV2Store';
-import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
-import { useSessionStore } from '@/core/session/store';
-import { useEditorStore } from '@/core/editor/store';
-import { exportPdfHubWriterProject } from './projectZip';
-import {
-  commitStagedWriterProjectImport,
-  revokeStagedWriterProjectImport,
-  stageStandaloneWriterProject,
-  type StandaloneWriterProjectOperation,
-  type StagedWriterProjectImport,
-} from './projectImportController';
-
-async function blankPdfBytes(): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  doc.addPage([612, 792]);
-  return doc.save();
-}
-
-function operation(generation = 1, current = true): StandaloneWriterProjectOperation {
-  return {
-    operationId: `operation-${generation}`,
-    generation,
-    isCurrent: () => current,
-    isMounted: () => true,
-  };
-}
-
-function element(id: string): WriterElementV2 {
-  return {
-    id,
-    documentFingerprint: 'doc-1',
-    pageIndex: 0,
-    type: 'richTextBox',
-    rect: { x: 10, y: 20, width: 140, height: 70 },
-    editorStateJson: '{"root":{"children":[]}}',
-    plainText: 'Restored editable text',
-    assetIds: ['asset-1'],
-    style: {
-      zIndex: 1,
-      backgroundColor: '#ffffff',
-      borderColor: '#111827',
-      borderWidth: 1,
-      padding: 8,
-      opacity: 1,
-    },
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    locked: false,
-    hidden: false,
-  };
-}
-
-function asset(): WriterAssetRecordV2 {
-  return {
-    id: 'asset-1',
-    documentFingerprint: 'doc-1',
-    kind: 'image',
-    mimeType: 'image/png',
-    dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  };
-}
-
-async function overlayFile(): Promise<File> {
-  const project = await exportPdfHubWriterProject({
-    originalPdfBytes: await blankPdfBytes(),
-    documentFingerprint: 'doc-1',
-    elements: [element('writer-1')],
-    assets: [asset()],
-    updatedAt: '2026-01-02T00:00:00.000Z',
-  });
-  return new File([project.bytes], 'project.pdfhub.zip', { type: 'application/zip' });
-}
-
-describe('atomic standalone Writer project import', () => {
-  beforeEach(() => {
-    useSessionStore.getState().clearDocument();
-    useWriterV2Store.getState().clearWriterV2();
-    useEditorStore.getState().setActiveMode('annotate');
-  });
-
-  it('stages without mutation and commits session and Writer state together', async () => {
-    const existingPdf = await blankPdfBytes();
-    useSessionStore.getState().openDocument({
-      documentKey: 'old-doc',
-      fileName: 'old.pdf',
-      bytes: existingPdf,
-      pageCount: 1,
-    });
-    useWriterV2Store.getState().hydrateWriterSession({
-      documentFingerprint: 'old-doc',
-      elements: [],
-    });
-
-    const op = operation();
-    const staged = await stageStandaloneWriterProject(await overlayFile(), op);
-    expect(useSessionStore.getState().documentKey).toBe('old-doc');
-    expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('old-doc');
-
-    const result = await commitStagedWriterProjectImport(staged, op);
-    expect(result.documentFingerprint).toBe('doc-1');
-    expect(useSessionStore.getState().documentKey).toBe('doc-1');
-    expect(useSessionStore.getState().pageCount).toBe(1);
-    expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('doc-1');
-    expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
-    expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');
-    expect(useEditorStore.getState().activeMode).toBe('write');
-  });
-
-  it('rolls back session, Writer, and editor state after an injected commit failure', async () => {
-    const existingPdf = await blankPdfBytes();
-    useSessionStore.getState().openDocument({
-      documentKey: 'old-doc',
-      fileName: 'old.pdf',
-      bytes: existingPdf,
-      pageCount: 1,
-    });
-    useWriterV2Store.getState().hydrateWriterSession({
-      documentFingerprint: 'old-doc',
-      elements: [],
-      persistedAt: '2026-01-01T00:00:00.000Z',
-    });
-    useEditorStore.getState().setActiveMode('annotate');
-    const beforeSession = useSessionStore.getState();
-    const beforeWriter = useWriterV2Store.getState();
-    const beforeEditor = useEditorStore.getState();
-
-    const op = operation();
-    const staged = await stageStandaloneWriterProject(await overlayFile(), op);
-    await expect(commitStagedWriterProjectImport(staged, op, {
-      afterSessionMutation: () => { throw new Error('injected commit failure'); },
-    })).rejects.toThrow('injected commit failure');
-
-    expect(useSessionStore.getState()).toEqual(beforeSession);
-    expect(useWriterV2Store.getState()).toEqual(beforeWriter);
-    expect(useEditorStore.getState()).toEqual(beforeEditor);
-  });
-
-  it('rejects fabricated, revoked, consumed, and stale capabilities before mutation', async () => {
-    const op = operation();
-    const fabricated = Object.freeze({
-      operationId: op.operationId,
-      generation: op.generation,
-      documentFingerprint: 'fake',
-      documentMode: 'pdfOverlay' as const,
-      evidence: Object.freeze({}) as StagedWriterProjectImport['evidence'],
-    });
-    await expect(commitStagedWriterProjectImport(fabricated, op)).rejects.toThrow('invalid');
-
-    const revoked = await stageStandaloneWriterProject(await overlayFile(), op);
-    revokeStagedWriterProjectImport(revoked);
-    await expect(commitStagedWriterProjectImport(revoked, op)).rejects.toThrow('revoked');
-
-    const consumed = await stageStandaloneWriterProject(await overlayFile(), op);
-    await commitStagedWriterProjectImport(consumed, op);
-    await expect(commitStagedWriterProjectImport(consumed, op)).rejects.toThrow('consumed');
-
-    const staleOperation = operation(2, false);
-    const staged = await stageStandaloneWriterProject(await overlayFile(), operation(3));
-    await expect(commitStagedWriterProjectImport(staged, staleOperation)).rejects.toThrow();
-  });
-
-  it('rejects invalid source metadata and ZIP signatures without state mutation', async () => {
-    const beforeSession = useSessionStore.getState();
-    const beforeWriter = useWriterV2Store.getState();
-    await expect(stageStandaloneWriterProject(
-      new File(['not a zip'], 'project.txt', { type: 'text/plain' }),
-      operation(),
-    )).rejects.toThrow('not identified');
-    await expect(stageStandaloneWriterProject(
-      new File(['not a zip'], 'project.zip', { type: 'application/zip' }),
-      operation(),
-    )).rejects.toThrow('signature');
-    expect(useSessionStore.getState()).toEqual(beforeSession);
-    expect(useWriterV2Store.getState()).toEqual(beforeWriter);
-  });
-});
-'''
-          Path('frontend/src/core/writer-v2/export/projectImportController.test.ts').write_text(test)
+          controller_path.write_text(controller_text.replace(old_freeze, new_freeze))
           PY
-          rm -f .github/workflows/phase3a1-typecheck-diagnostics.yml .github/workflows/phase3a1-fix.yml
-      - name: Commit fixes and remove temporary workflows
+          rm -f \
+            .github/phase3a1-fix-trigger \
+            .github/workflows/phase3a1-bootstrap.yml \
+            .github/workflows/phase3a1-fix.yml \
+            .github/workflows/phase3a1-typecheck-diagnostics.yml
+      - name: Commit final cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Fix Phase 3A.1 types and add atomic import tests"
+          git commit -m "Clean Phase 3A.1 implementation and fix strict types"
           git push origin HEAD:agent/atomic-writer-project-import-phase3a1
