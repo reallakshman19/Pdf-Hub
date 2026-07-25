@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const SOURCE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const SOURCE_ROOT = resolve(process.cwd(), 'src');
 
 const ENTRY_POINTS = [
   'pages/LandingPage.tsx',
@@ -11,7 +11,7 @@ const ENTRY_POINTS = [
 ] as const;
 
 function readSource(relativePath: string): string {
-  return readFileSync(new URL(relativePath, new URL('../../', import.meta.url)), 'utf8');
+  return readFileSync(resolve(SOURCE_ROOT, relativePath), 'utf8');
 }
 
 describe('primary PDF entry-point admission boundary', () => {
@@ -34,6 +34,6 @@ describe('primary PDF entry-point admission boundary', () => {
   });
 
   it('resolves the expected frontend source directory', () => {
-    expect(SOURCE_ROOT.replaceAll('\\', '/')).toMatch(/\/frontend\/src\/$/);
+    expect(SOURCE_ROOT.replaceAll('\\', '/')).toMatch(/\/frontend\/src$/);
   });
 });
