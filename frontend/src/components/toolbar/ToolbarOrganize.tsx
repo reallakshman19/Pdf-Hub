@@ -46,6 +46,7 @@ export const ToolbarOrganize: React.FC = () => {
     controller: AbortController;
     documentKey: string;
   } | null>(null);
+  const batchOperationRef = useRef<AbortController | null>(null);
 
   const {
     workingBytes,
@@ -100,6 +101,8 @@ export const ToolbarOrganize: React.FC = () => {
   useEffect(() => () => {
     donorOperationRef.current?.controller.abort('toolbar unmounted');
     donorOperationRef.current = null;
+    batchOperationRef.current?.abort('toolbar unmounted');
+    batchOperationRef.current = null;
   }, []);
 
   const admitDonorSelection = async (
@@ -410,9 +413,6 @@ export const ToolbarOrganize: React.FC = () => {
   };
 
   const confirmBatchRun = async (recipeId: string) => {
-    const files = await FileAdapter.pickPdfFiles(true);
-    if (files.length === 0) return;
-
     const recipe = BUILTIN_MACROS[recipeId];
     if (!recipe) {
       addToast({
@@ -423,27 +423,50 @@ export const ToolbarOrganize: React.FC = () => {
       return;
     }
 
-    const report = await runMacroBatch({
-      files,
-      recipe,
-      continueOnError: true,
-    });
+    batchOperationRef.current?.abort('superseded by a newer batch operation');
+    const controller = new AbortController();
+    batchOperationRef.current = controller;
 
-    const reportJson = JSON.stringify(report, null, 2);
-    const reportBytes = new TextEncoder().encode(reportJson);
-    const blob = new Blob([reportBytes], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const element = document.createElement('a');
-    element.href = url;
-    element.download = `batch-report-${Date.now()}.json`;
-    element.click();
-    URL.revokeObjectURL(url);
+    try {
+      const sources = await FileAdapter.pickPdfFileSources(true);
+      if (sources.length === 0 || controller.signal.aborted) return;
 
-    addToast({
-      type: 'success',
-      title: 'Batch Run Complete',
-      message: `Success: ${report.successes.length}, Failures: ${report.failures.length}.`,
-    });
+      const report = await runMacroBatch({
+        sources,
+        recipe,
+        continueOnError: true,
+        abortSignal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+
+      const reportJson = JSON.stringify(report, null, 2);
+      const reportBytes = new TextEncoder().encode(reportJson);
+      const blob = new Blob([reportBytes], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const element = document.createElement('a');
+      element.href = url;
+      element.download = `batch-report-${Date.now()}.json`;
+      element.click();
+      URL.revokeObjectURL(url);
+
+      addToast({
+        type: 'success',
+        title: 'Batch Run Complete',
+        message: `Success: ${report.summary.succeeded}, Failures: ${report.summary.failed}.`,
+      });
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Batch Run Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (batchOperationRef.current === controller) {
+        batchOperationRef.current = null;
+      }
+    }
   };
 
   return (
