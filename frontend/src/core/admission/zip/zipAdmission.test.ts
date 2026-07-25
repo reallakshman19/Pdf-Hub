@@ -18,6 +18,7 @@ describe('ZIP structural admission boundary', () => {
     );
 
     expect(admitZipArchive(admitted)).toBe(admitted);
+    expect(rejected.collisionGroups[0]?.key).toBe('6d616e69666573742e6a736f6e');
     expect(() => admitZipArchive(rejected)).toThrow(
       'Writer project archive contains duplicate entry "manifest.json".',
     );
