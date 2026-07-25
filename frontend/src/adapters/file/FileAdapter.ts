@@ -6,6 +6,11 @@ export interface PickedPdfFile {
   handle?: FileSystemFileHandle;
 }
 
+export interface PickedPdfFileSource {
+  file: File;
+  handle?: FileSystemFileHandle;
+}
+
 interface PermissionCapableFileHandle extends FileSystemFileHandle {
   queryPermission: (descriptor: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>;
   requestPermission: (descriptor: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>;
@@ -19,8 +24,8 @@ declare global {
 }
 
 export class FileAdapter {
-  private static readonly MAX_SIZE_MB = 100;
-  private static readonly MAX_SIZE_BYTES = this.MAX_SIZE_MB * 1024 * 1024;
+  static readonly MAX_PDF_SIZE_MB = 100;
+  static readonly MAX_PDF_SIZE_BYTES = this.MAX_PDF_SIZE_MB * 1024 * 1024;
 
   static async hashBytes(bytes: Uint8Array): Promise<string> {
     const digest = await crypto.subtle.digest('SHA-256', this.toArrayBuffer(bytes));
@@ -30,7 +35,7 @@ export class FileAdapter {
     return `sha256:${hash}`;
   }
 
-  static async pickPdfFiles(multiple: boolean): Promise<PickedPdfFile[]> {
+  static async pickPdfFileSources(multiple: boolean): Promise<PickedPdfFileSource[]> {
     try {
       if (window.isSecureContext && window.showOpenFilePicker) {
         const handles = await window.showOpenFilePicker({
@@ -45,24 +50,29 @@ export class FileAdapter {
         });
 
         const files = await Promise.all(
-          handles.map((handle) => this.readPickedHandle(handle)),
+          handles.map((handle) => this.readPickedHandleSource(handle)),
         );
 
         log('session', 'Files selected via File System Access API', { count: files.length });
         return files;
       }
 
-      return await this.pickViaInput(multiple);
+      return await this.pickViaInputSources(multiple);
     } catch (err) {
       if (this.isHandleAccessError(err)) {
         warn('session', 'File handle read failed, falling back to input picker', {
           error: String(err),
         });
-        return await this.pickViaInput(multiple);
+        return await this.pickViaInputSources(multiple);
       }
       error('system', 'File selection failed', { error: String(err) });
       throw err;
     }
+  }
+
+  static async pickPdfFiles(multiple: boolean): Promise<PickedPdfFile[]> {
+    const sources = await this.pickPdfFileSources(multiple);
+    return await Promise.all(sources.map((source) => this.readPdfSource(source)));
   }
 
   static async savePdfBytes(
@@ -129,30 +139,19 @@ export class FileAdapter {
     return Uint8Array.from(bytes).buffer;
   }
 
-  private static async pickViaInput(multiple: boolean): Promise<PickedPdfFile[]> {
+  private static async pickViaInputSources(
+    multiple: boolean,
+  ): Promise<PickedPdfFileSource[]> {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'application/pdf,.pdf';
       input.multiple = multiple;
 
-      input.onchange = async () => {
-        try {
-          const selectedFiles = Array.from(input.files ?? []);
-          const files = await Promise.all(
-            selectedFiles.map(async (file) => {
-              this.assertPdfFile(file);
-              return {
-                name: file.name,
-                bytes: new Uint8Array(await file.arrayBuffer()),
-              };
-            }),
-          );
-          log('session', 'Files selected via input fallback', { count: files.length });
-          resolve(files);
-        } catch (err) {
-          reject(err);
-        }
+      input.onchange = () => {
+        const selectedFiles = Array.from(input.files ?? []);
+        log('session', 'Files selected via input fallback', { count: selectedFiles.length });
+        resolve(selectedFiles.map((file) => ({ file })));
       };
 
       input.onerror = () => reject(new Error('Unable to open file input'));
@@ -164,16 +163,27 @@ export class FileAdapter {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       throw new Error(`Invalid file type: ${file.type || 'unknown'}`);
     }
-    if (file.size > this.MAX_SIZE_BYTES) {
+    if (file.size > this.MAX_PDF_SIZE_BYTES) {
       throw new Error(
-        `File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Max allowed is ${this.MAX_SIZE_MB}MB.`,
+        `File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Max allowed is ${this.MAX_PDF_SIZE_MB}MB.`,
       );
     }
   }
 
-  private static async readPickedHandle(handle: FileSystemFileHandle): Promise<PickedPdfFile> {
+  private static async readPdfSource(source: PickedPdfFileSource): Promise<PickedPdfFile> {
+    this.assertPdfFile(source.file);
+    return {
+      name: source.file.name,
+      bytes: new Uint8Array(await source.file.arrayBuffer()),
+      ...(source.handle ? { handle: source.handle } : {}),
+    };
+  }
+
+  private static async readPickedHandleSource(
+    handle: FileSystemFileHandle,
+  ): Promise<PickedPdfFileSource> {
     try {
-      return await this.readPickedHandleOnce(handle);
+      return await this.readPickedHandleSourceOnce(handle);
     } catch (err) {
       if (!this.isHandleAccessError(err)) {
         throw err;
@@ -184,16 +194,15 @@ export class FileAdapter {
         throw err;
       }
 
-      return await this.readPickedHandleOnce(handle);
+      return await this.readPickedHandleSourceOnce(handle);
     }
   }
 
-  private static async readPickedHandleOnce(handle: FileSystemFileHandle): Promise<PickedPdfFile> {
-    const file = await handle.getFile();
-    this.assertPdfFile(file);
+  private static async readPickedHandleSourceOnce(
+    handle: FileSystemFileHandle,
+  ): Promise<PickedPdfFileSource> {
     return {
-      name: file.name,
-      bytes: new Uint8Array(await file.arrayBuffer()),
+      file: await handle.getFile(),
       handle,
     };
   }
