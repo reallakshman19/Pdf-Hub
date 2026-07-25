@@ -1,0 +1,31 @@
+name: Phase 3A.1 focused diagnostics
+on:
+  push:
+    branches:
+      - agent/atomic-writer-project-import-phase3a1
+permissions:
+  contents: read
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Run focused Phase 3A.1 tests
+        run: |
+          set +e
+          cd frontend
+          pnpm exec vitest run src/core/writer-v2/export/projectImportController.test.ts src/core/writer-v2/export/projectImportController.source.test.ts --pool=forks --maxWorkers=1 > ../phase3a1-focused.log 2>&1
+          status=$?
+          cat ../phase3a1-focused.log
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase3a1-focused-log
+          path: phase3a1-focused.log
