@@ -120,6 +120,12 @@ jobs:
               "  stageStandaloneWriterProject: vi.fn(),\n  commitStagedWriterProjectImport: vi.fn(),\n  revokeStagedWriterProjectImport: vi.fn(),\n  importRoundTripPdfIntoWriterStore: vi.fn(),",
               'toolbar controller mock',
           )
+          replace(
+              'frontend/src/core/writer-v2/export/projectImportController.source.test.ts',
+              "    const standaloneRoute = route.slice(route.indexOf('const previous'));",
+              "    const standaloneRoute = route.slice(route.indexOf('const generation ='));",
+              'standalone route source boundary',
+          )
           PY
       - name: Verify lifecycle repair
         run: |
