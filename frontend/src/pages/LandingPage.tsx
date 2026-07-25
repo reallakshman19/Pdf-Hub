@@ -7,10 +7,15 @@ import {
   MessageSquareText,
   WandSparkles,
 } from 'lucide-react';
-import { admitAndOpenPdfFile } from '@/core/admission/openPdf';
+import {
+  admitAndOpenPdfFile,
+  firstAdmissionErrorMessage,
+} from '@/core/admission/openPdf';
+import { useToastStore } from '@/core/toast/store';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const addToast = useToastStore((state) => state.addToast);
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -20,6 +25,14 @@ export const LandingPage: React.FC = () => {
     const result = await admitAndOpenPdfFile(file, 'LANDING_DROP');
     if (result.outcome === 'ACCEPTED') {
       navigate('/workspace');
+      return;
+    }
+    if (result.outcome !== 'CANCELLED') {
+      addToast({
+        type: 'error',
+        title: 'Unable to Open PDF',
+        message: firstAdmissionErrorMessage(result) ?? 'The selected file was not accepted.',
+      });
     }
   };
 
