@@ -23,7 +23,7 @@ import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 import { useSearchStore } from '@/core/search/store';
 import { SearchIndexer } from '@/core/search/indexer';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admission/openPdf';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { ocrStore } from '@/core/ocr/store';
@@ -92,7 +92,6 @@ export const DocumentWorkspace: React.FC = () => {
     viewState,
     setPage,
     setZoom,
-    openDocument,
   } = useSessionStore();
 
   const { activeTool } = useEditorStore();
@@ -120,19 +119,15 @@ export const DocumentWorkspace: React.FC = () => {
 
   const handleBrowse = async () => {
     try {
-      const [picked] = await FileAdapter.pickPdfFiles(false);
+      const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
 
-      const safeBytes = new Uint8Array(picked.bytes);
-      const pageCount = await PdfEditAdapter.countPages(safeBytes);
-      const nextDocumentKey = await FileAdapter.hashBytes(safeBytes);
-
-      openDocument({
-        documentKey: nextDocumentKey,
-        fileName: picked.name,
-        bytes: safeBytes,
-        pageCount,
+      const result = await admitAndOpenPdfFile(picked.file, 'WORKSPACE_PICKER', {
+        saveHandle: picked.handle ?? null,
       });
+      if (result.outcome !== 'ACCEPTED') {
+        setLoadError(firstAdmissionErrorMessage(result) ?? 'PDF opening was cancelled.');
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
@@ -437,7 +432,7 @@ export const DocumentWorkspace: React.FC = () => {
             </p>
           )}
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
-            Supports PDF up to 500 MB.
+            Supports PDF up to 100 MB.
           </p>
           <button
             className={[
