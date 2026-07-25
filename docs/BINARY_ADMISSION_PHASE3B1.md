@@ -64,7 +64,7 @@ It inventories:
 - exact raw-name, decoded-name, normalized-path, and file/directory collision groups;
 - aggregate declared archive measurements.
 
-The inventory is deeply immutable. Raw filenames are retained as frozen numeric byte arrays rather than mutable typed-array views.
+The inventory is deeply immutable. Raw filenames are retained as frozen numeric byte arrays rather than mutable typed-array views. Diagnostics follow deterministic inspection order and retain central-directory ordinals instead of depending on map iteration.
 
 ## Filename policy
 
