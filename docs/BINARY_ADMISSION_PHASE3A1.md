@@ -36,6 +36,8 @@ attachment traversal is unchanged. Phase 3B and later archive-bounding, embedded
 round-trip, OCR admission, image admission, and structured-text work remain
 deferred.
 
+Focused Phase 3A.1 tests exercise overlay and blank commits, exact rollback,
+capability enforcement, semantic rejection, cancellation, and OCR-state isolation.
 The final exact PR head must pass Frontend Certify, Frontend CI, Writer Overlay V2,
 and the supported OCR/Writer compatibility certification commands. Temporary
 workflows, triggers, logs, and generated diagnostics are not part of the final diff.
