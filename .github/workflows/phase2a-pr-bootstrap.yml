@@ -1,0 +1,46 @@
+name: Phase 2A PR bootstrap
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/donor-pdf-admission-phase2a'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/donor-pdf-admission-phase2a
+          fetch-depth: 0
+
+      - name: Extract and run committed bootstrap patch
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/phase2a-core-bootstrap.yml').read_text(encoding='utf-8')
+          start_marker = "          python <<'PY'\n"
+          end_marker = "\n          PY\n\n      - name: Commit core enforcement"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script = textwrap.dedent(workflow[start:end])
+          Path('/tmp/phase2a-core-patch.py').write_text(script, encoding='utf-8')
+          PY
+          python /tmp/phase2a-core-patch.py
+
+      - name: Commit core enforcement and remove bootstrap workflows
+        shell: bash
+        run: |
+          git config user.name "OpenAI Implementation Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/phase2a-core-bootstrap.yml
+          git rm .github/workflows/phase2a-pr-bootstrap.yml
+          git add frontend
+          git commit -m "Enforce admitted donors at command boundary"
+          git push origin HEAD:agent/donor-pdf-admission-phase2a
