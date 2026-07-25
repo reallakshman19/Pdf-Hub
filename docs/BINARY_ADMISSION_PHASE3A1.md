@@ -2,7 +2,7 @@
 
 Baseline: `2c05be1b4baf00156a67f3349519c2cc569ec99b`.
 
-The standalone `.pdfhub.zip` and `.zip` route now separates source classification,
+The standalone `.pdfhub.zip` and `.zip` route separates source classification,
 ZIP-signature checking, compatibility decoding, semantic reconciliation, original
 PDF validation, immutable staging, and coordinated commit. No Writer, session, or
 editor state is changed before the staged capability is complete.
