@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { FolderOpen, Save, Download, FileOutput } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { admitAndOpenPdfFile } from '@/core/admission/openPdf';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { saveAnnotations } from '@/core/annotations/persistence';
@@ -14,7 +14,6 @@ import { useToastStore } from '@/core/toast/store';
 
 export const ToolbarFile: React.FC = () => {
   const {
-    openDocument,
     workingBytes,
     fileName,
     saveHandle,
@@ -59,25 +58,19 @@ export const ToolbarFile: React.FC = () => {
 
   const handleOpen = async () => {
     try {
-      const [picked] = await FileAdapter.pickPdfFiles(false);
+      const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) {
         return;
       }
 
-      const pageCount = await PdfEditAdapter.countPages(picked.bytes);
-      const documentKey = await FileAdapter.hashBytes(picked.bytes);
-
-      openDocument({
-        documentKey,
-        fileName: picked.name,
-        bytes: picked.bytes,
-        pageCount,
+      await admitAndOpenPdfFile(picked.file, 'TOOLBAR_PICKER', {
+        saveHandle: picked.handle ?? null,
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      logError('session', 'Failed to open PDF from toolbar', { error: String(err) });
+      logError('session', 'Failed to select PDF from toolbar', { error: String(err) });
     }
   };
 
