@@ -72,7 +72,7 @@ UTF-8 filenames are decoded with a fatal UTF-8 decoder when general-purpose flag
 
 The current Writer exporter emits ASCII-compatible project member paths. For non-UTF-8 legacy records, Phase 3B.1 accepts only deterministic ASCII bytes and fails closed for non-ASCII legacy encoding rather than depending on browser locale.
 
-Admission analysis converts backslashes to slashes and removes repeated separators and `.` segments only for collision analysis. It never rewrites the archive.
+Admission analysis converts backslashes to slashes and removes repeated separators and `.` segments only for collision analysis. It never rewrites the archive. Unsafe control characters are rendered in diagnostics as explicit Unicode code points.
 
 The following are rejected:
 
