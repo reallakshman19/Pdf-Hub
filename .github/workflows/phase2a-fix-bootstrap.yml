@@ -1,0 +1,104 @@
+name: Phase 2A diagnostic fixes
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/donor-pdf-admission-phase2a'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/donor-pdf-admission-phase2a
+          fetch-depth: 0
+      - name: Apply narrow diagnostic fixes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected snippet not found in {path}: {old[:160]}')
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_exact(
+              'frontend/src/components/toolbar/ToolbarOrganize.donor.test.tsx',
+              """vi.mock('@/components/ui/Button', () => ({
+            Button: ({
+              children,
+              variant: _variant,
+              size: _size,
+              ...props
+            }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+              variant?: string;
+              size?: string;
+            }) => <button {...props}>{children}</button>,
+          }));
+          """,
+              """vi.mock('@/components/ui/Button', () => ({
+            Button: ({
+              children,
+              ...props
+            }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+              <button {...props}>{children}</button>
+            ),
+          }));
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/core/admission/donorEntrypoints.test.ts',
+              """    expect(donorSection).toContain('FileAdapter.pickPdfFileSources(true)');
+              expect(donorSection).toContain('FileAdapter.pickPdfFileSources(false)');
+          """,
+              """    expect(donorSection).toContain('FileAdapter.pickPdfFileSources(multiple)');
+              expect(donorSection).toContain("admitDonorSelection(true, 'MERGE_PDF')");
+              expect(donorSection).toContain("admitDonorSelection(false, 'INSERT_PAGES')");
+              expect(donorSection).toContain("admitDonorSelection(false, 'REPLACE_PAGE')");
+          """,
+          )
+
+          replace_exact(
+              'frontend/src/core/admission/donorPdf.test.ts',
+              """    vi.spyOn(PdfEditAdapter, 'countPages')
+              .mockImplementationOnce(() => firstCount.promise)
+              .mockResolvedValueOnce(2);
+          
+              const firstResultPromise = admitDonorPdfFiles(
+          """,
+              """    const countPages = vi.spyOn(PdfEditAdapter, 'countPages')
+              .mockImplementationOnce(() => firstCount.promise)
+              .mockResolvedValueOnce(2);
+          
+              const firstResultPromise = admitDonorPdfFiles(
+          """,
+          )
+          replace_exact(
+              'frontend/src/core/admission/donorPdf.test.ts',
+              """    const secondResult = await admitDonorPdfFiles(
+          """,
+              """    await vi.waitFor(() => {
+              expect(countPages).toHaveBeenCalledTimes(1);
+            });
+            const secondResult = await admitDonorPdfFiles(
+          """,
+          )
+          PY
+      - name: Commit fixes and remove temporary diagnostics
+        shell: bash
+        run: |
+          git config user.name "OpenAI Implementation Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/phase2a-diagnostics.yml
+          git rm .github/workflows/phase2a-fix-bootstrap.yml
+          git add frontend
+          git commit -m "Fix Phase 2A lint and deterministic tests"
+          git push origin HEAD:agent/donor-pdf-admission-phase2a
