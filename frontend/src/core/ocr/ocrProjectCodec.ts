@@ -7,6 +7,7 @@ import {
   JSZipProjectArchiveReader,
   type ProjectArchiveReader,
 } from '@/core/admission/zip/projectArchiveReader';
+import { ZipBoundedExtractionError } from '@/core/admission/zip/zipExtractionEvidence';
 
 export interface OcrProjectArchiveV1 {
   schema: 'pdf-hub-ocr-project';
@@ -370,6 +371,7 @@ async function readOcrJsonFile<T>(
   try {
     return JSON.parse(await reader.readText(path)) as T;
   } catch (error) {
+    if (error instanceof ZipBoundedExtractionError) throw error;
     throw new Error(
       error instanceof Error
         ? `Invalid OCR JSON file ${path}: ${error.message}`
