@@ -1,0 +1,78 @@
+name: Phase 3B.2 focused closure
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3b2-focused-closure-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    if: github.event.pull_request.number == 138
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-zip-extraction-phase3b2
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+        working-directory: .
+
+      - run: corepack prepare pnpm@10.23.0 --activate
+        working-directory: .
+
+      - name: Verify frozen dependency graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Known DEFLATE compatibility fixture
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/zipBoundedExtraction.test.ts
+          -t "extracts stored and DEFLATE members with actual byte and CRC evidence"
+          --pool=forks --maxWorkers=1
+
+      - name: Focused Phase 3B.2 suite
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/zipResourcePolicy.test.ts
+          src/core/admission/zip/zipDeclaredResourceAdmission.test.ts
+          src/core/admission/zip/zipBoundedExtraction.test.ts
+          src/core/admission/zip/zipMemberSet.test.ts
+          src/core/writer-v2/export/projectImportController.source.test.ts
+          src/core/writer-v2/export/projectImportResourceAdmission.test.ts
+          src/core/writer-v2/export/projectImportStructuralAdmission.test.ts
+          src/core/writer-v2/export/projectImportController.test.ts
+          src/core/writer-v2/export/projectZip.test.ts
+          src/core/ocr/__tests__/ocrProjectCodec.test.ts
+          --pool=forks --maxWorkers=1
+
+      - name: Strict TypeScript
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Remove temporary focused workflow
+        working-directory: .
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase3b2-focused-closure.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/phase3b2-focused-closure.yml
+          git commit -m 'Remove Phase 3B.2 focused closure workflow'
+          git push origin HEAD:agent/bounded-zip-extraction-phase3b2
