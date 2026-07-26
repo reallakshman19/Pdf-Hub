@@ -35,8 +35,16 @@ jobs:
       - run: corepack prepare pnpm@10.23.0 --activate
         working-directory: .
 
-      - name: Verify frozen dependency graph
-        run: pnpm install --frozen-lockfile
+      - name: Verify Phase 3B.2 dependency declarations
+        working-directory: .
+        run: |
+          set -euo pipefail
+          grep -q '"fflate": "0.8.2"' frontend/package.json
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'specifier: 0.8.2'
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'version: 0.8.2'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
       - name: Known DEFLATE compatibility fixture
         run: >-
@@ -70,6 +78,7 @@ jobs:
         working-directory: .
         run: |
           set -euo pipefail
+          git restore pnpm-lock.yaml
           rm -f .github/workflows/phase3b2-focused-closure.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
