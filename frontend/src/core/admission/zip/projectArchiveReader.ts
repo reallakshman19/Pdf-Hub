@@ -18,9 +18,11 @@ export class ProjectArchiveUtf8Error extends Error {
 }
 
 export class JSZipProjectArchiveReader implements ProjectArchiveReader {
+  private readonly zip: JSZip;
   private readonly paths: readonly string[];
 
-  constructor(private readonly zip: JSZip) {
+  constructor(zip: JSZip) {
+    this.zip = zip;
     this.paths = Object.freeze(Object.keys(zip.files).sort());
   }
 
