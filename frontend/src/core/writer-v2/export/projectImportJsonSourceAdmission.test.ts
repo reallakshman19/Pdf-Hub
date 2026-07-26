@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildRawZipFixture } from '@/core/admission/zip/__tests__/zipFixtureBuilder';
+import { computeZipCrc32 } from '@/core/admission/zip/zipCrc32';
 import { inspectZipArchive } from '@/core/admission/zip/zipInventory';
 import { admitDeclaredZipResources } from '@/core/admission/zip/zipDeclaredResourceAdmission';
 import { admitWriterProjectMembers } from '@/core/admission/zip/writerProjectMemberAdmission';
@@ -69,8 +70,13 @@ describe('standalone Writer project JSON source admission', () => {
   });
 
   it('prevents semantic parsing and staging after fatal UTF-8 rejection', async () => {
+    const invalidUtf8 = Uint8Array.from([0x80]);
     const fixture = buildRawZipFixture([
-      { name: 'manifest.json', data: [0x80] },
+      {
+        name: 'manifest.json',
+        data: invalidUtf8,
+        crc32: computeZipCrc32(invalidUtf8),
+      },
       { name: 'writer-elements.json', data: [] },
       { name: 'writer-assets.json', data: [] },
     ]);
@@ -101,12 +107,31 @@ function blankImportedProject(): ImportPdfHubProjectResult {
       files: {
         writerElements: 'writer-elements.json',
         writerAssets: 'writer-assets.json',
+        writerDocumentMeta: 'writer-document-meta.json',
         assetDirectory: 'assets/',
       },
       counts: { writerElements: 0, writerAssets: 0 },
     },
     originalPdfBytes: new Uint8Array(),
-    documentMeta: null,
+    documentMeta: {
+      documentFingerprint: 'phase3b3b-blank',
+      mode: 'blankDocument',
+      title: 'Phase 3B.3B Blank',
+      pageSetup: {
+        preset: 'A4',
+        width: 595.28,
+        height: 841.89,
+        unit: 'pt',
+        marginTop: 72,
+        marginRight: 72,
+        marginBottom: 72,
+        marginLeft: 72,
+        backgroundColor: '#ffffff',
+      },
+      pageCount: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
     elements: [],
     assets: [],
     ocrProject: null,
