@@ -1,0 +1,95 @@
+name: Phase 3B.3B apply integration
+
+on:
+  push:
+    branches:
+      - agent/bounded-json-source-admission-phase3b3b
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3b3b-apply
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-json-source-admission-phase3b3b
+          fetch-depth: 0
+      - name: Apply controller integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/core/writer-v2/export/projectImportController.ts')
+          text = path.read_text()
+
+          def replace(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one controller match, found {count}: {old[:80]!r}')
+              text = text.replace(old, new)
+
+          replace(
+              "import type { WriterProjectMemberAdmissionEvidence } from '@/core/admission/zip/writerProjectMemberEvidence';\n",
+              "import type { WriterProjectMemberAdmissionEvidence } from '@/core/admission/zip/writerProjectMemberEvidence';\nimport { admitWriterProjectJsonSources } from '@/core/admission/zip/writerProjectJsonSourceAdmission';\nimport type { WriterProjectJsonSourceAdmissionEvidence } from '@/core/admission/zip/writerProjectJsonSourceEvidence';\nimport {\n  releaseAdmittedProjectJsonSources,\n  type AdmittedWriterProjectJsonSourceSet,\n} from '@/core/admission/zip/writerProjectJsonSourceSet';\n",
+          )
+          replace(
+              "  readonly writerProjectMemberAdmission: WriterProjectMemberAdmissionEvidence;\n  readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;\n",
+              "  readonly writerProjectMemberAdmission: WriterProjectMemberAdmissionEvidence;\n  readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;\n  readonly writerProjectJsonSourceAdmission: WriterProjectJsonSourceAdmissionEvidence;\n",
+          )
+          replace(
+              "    readonly dimensions: readonly [\n      'JSON_BYTES',\n      'WRITER_ELEMENT_COUNT',\n      'WRITER_ASSET_COUNT',\n    ];\n",
+              "    readonly dimensions: readonly [\n      'WRITER_ELEMENT_COUNT',\n      'WRITER_ASSET_COUNT',\n    ];\n",
+          )
+          replace(
+              "  readonly extractMembers?: typeof extractZipMembersBounded;\n  readonly decodeProject?: (\n",
+              "  readonly extractMembers?: typeof extractZipMembersBounded;\n  readonly admitJsonSources?: typeof admitWriterProjectJsonSources;\n  readonly decodeProject?: (\n",
+          )
+          replace(
+              "  readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;\n  readonly extractionEvidence: ZipBoundedExtractionEvidence;\n",
+              "  readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;\n  readonly extractionEvidence: ZipBoundedExtractionEvidence;\n  readonly jsonSourceAdmissionEvidence: WriterProjectJsonSourceAdmissionEvidence;\n",
+          )
+          replace(
+              "  const { imported, inventory, memberAdmissionEvidence, extractionEvidence } = decoded;\n",
+              "  const {\n    imported,\n    inventory,\n    memberAdmissionEvidence,\n    extractionEvidence,\n    jsonSourceAdmissionEvidence,\n  } = decoded;\n",
+          )
+          replace(
+              "    writerProjectMemberAdmission: memberAdmissionEvidence,\n    zipBoundedExtraction: extractionEvidence,\n",
+              "    writerProjectMemberAdmission: memberAdmissionEvidence,\n    zipBoundedExtraction: extractionEvidence,\n    writerProjectJsonSourceAdmission: jsonSourceAdmissionEvidence,\n",
+          )
+          replace(
+              "      dimensions: [\n        'JSON_BYTES',\n        'WRITER_ELEMENT_COUNT',\n        'WRITER_ASSET_COUNT',\n      ] as const,\n",
+              "      dimensions: [\n        'WRITER_ELEMENT_COUNT',\n        'WRITER_ASSET_COUNT',\n      ] as const,\n",
+          )
+          replace(
+              "  let projectBytes: Uint8Array | null = null;\n  let extracted: ZipBoundedExtractionResult | null = null;\n",
+              "  let projectBytes: Uint8Array | null = null;\n  let extracted: ZipBoundedExtractionResult | null = null;\n  let jsonSources: AdmittedWriterProjectJsonSourceSet | null = null;\n",
+          )
+          replace(
+              "    const reader = new BoundedZipMemberSetArchiveReader(extracted.memberSet);\n    assertOperationCurrent(operation, 'standalone Writer project before semantic ZIP decode');\n    const imported = await raceWithAbort(\n      (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(reader),\n",
+              "    const reader = new BoundedZipMemberSetArchiveReader(extracted.memberSet);\n    assertOperationCurrent(operation, 'standalone Writer project before JSON source admission');\n    jsonSources = await (\n      dependencies.admitJsonSources ?? admitWriterProjectJsonSources\n    )(extracted.memberSet, memberAdmission, reader, operation);\n    assertOperationCurrent(operation, 'standalone Writer project after JSON source admission');\n    assertOperationCurrent(operation, 'standalone Writer project before semantic ZIP decode');\n    const imported = await raceWithAbort(\n      (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(\n        jsonSources.reader,\n      ),\n",
+          )
+          replace(
+              "      memberAdmissionEvidence: memberAdmission.evidence,\n      extractionEvidence: extracted.evidence,\n",
+              "      memberAdmissionEvidence: memberAdmission.evidence,\n      extractionEvidence: extracted.evidence,\n      jsonSourceAdmissionEvidence: jsonSources.evidence,\n",
+          )
+          replace(
+              "  } finally {\n    if (extracted) releaseBoundedZipMemberSet(extracted.memberSet);\n    extracted = null;\n    projectBytes = null;\n  }\n",
+              "  } finally {\n    if (jsonSources) releaseAdmittedProjectJsonSources(jsonSources);\n    jsonSources = null;\n    if (extracted) releaseBoundedZipMemberSet(extracted.memberSet);\n    extracted = null;\n    projectBytes = null;\n  }\n",
+          )
+
+          path.write_text(text)
+          PY
+          rm -f .github/workflows/phase3b3b-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/core/writer-v2/export/projectImportController.ts .github/workflows/phase3b3b-apply.yml
+          git commit -m 'Integrate Phase 3B.3B JSON source admission'
+          git push origin HEAD:agent/bounded-json-source-admission-phase3b3b
