@@ -1,0 +1,102 @@
+name: Phase 3B.3A controller bootstrap
+
+on:
+  push:
+    branches:
+      - agent/static-project-member-admission-phase3b3a
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/static-project-member-admission-phase3b3a
+          fetch-depth: 0
+
+      - name: Patch standalone Writer project admission order
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/core/writer-v2/export/projectImportController.ts')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  "import type { ZipBoundedExtractionEvidence } from '@/core/admission/zip/zipExtractionEvidence';\n",
+                  "import type { ZipBoundedExtractionEvidence } from '@/core/admission/zip/zipExtractionEvidence';\n"
+                  "import { admitWriterProjectMembers } from '@/core/admission/zip/writerProjectMemberAdmission';\n"
+                  "import type { WriterProjectMemberAdmissionEvidence } from '@/core/admission/zip/writerProjectMemberEvidence';\n",
+              ),
+              (
+                  "  readonly zipStructuralAdmission: ZipArchiveInventory;\n  readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;\n",
+                  "  readonly zipStructuralAdmission: ZipArchiveInventory;\n"
+                  "  readonly writerProjectMemberAdmission: WriterProjectMemberAdmissionEvidence;\n"
+                  "  readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;\n",
+              ),
+              (
+                  "  readonly inspectArchive?: (bytes: Uint8Array) => ZipArchiveInventory;\n  readonly extractMembers?: typeof extractZipMembersBounded;\n",
+                  "  readonly inspectArchive?: (bytes: Uint8Array) => ZipArchiveInventory;\n"
+                  "  readonly admitDeclaredResources?: typeof admitDeclaredZipResources;\n"
+                  "  readonly admitMembers?: typeof admitWriterProjectMembers;\n"
+                  "  readonly extractMembers?: typeof extractZipMembersBounded;\n",
+              ),
+              (
+                  "  readonly inventory: ZipArchiveInventory;\n  readonly extractionEvidence: ZipBoundedExtractionEvidence;\n",
+                  "  readonly inventory: ZipArchiveInventory;\n"
+                  "  readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;\n"
+                  "  readonly extractionEvidence: ZipBoundedExtractionEvidence;\n",
+              ),
+              (
+                  "  const { imported, inventory, extractionEvidence } = decoded;\n",
+                  "  const { imported, inventory, memberAdmissionEvidence, extractionEvidence } = decoded;\n",
+              ),
+              (
+                  "    zipStructuralAdmission: inventory,\n    zipBoundedExtraction: extractionEvidence,\n",
+                  "    zipStructuralAdmission: inventory,\n"
+                  "    writerProjectMemberAdmission: memberAdmissionEvidence,\n"
+                  "    zipBoundedExtraction: extractionEvidence,\n",
+              ),
+              (
+                  "    const declaredAdmission = admitDeclaredZipResources(\n      inventory,\n      projectBytes.byteLength,\n    );\n    assertOperationCurrent(operation, 'standalone Writer project after declared ZIP admission');\n\n    assertOperationCurrent(operation, 'standalone Writer project before bounded extraction');\n",
+                  "    const declaredAdmission = (\n"
+                  "      dependencies.admitDeclaredResources ?? admitDeclaredZipResources\n"
+                  "    )(inventory, projectBytes.byteLength);\n"
+                  "    assertOperationCurrent(operation, 'standalone Writer project after declared ZIP admission');\n\n"
+                  "    assertOperationCurrent(operation, 'standalone Writer project before member admission');\n"
+                  "    const memberAdmission = (\n"
+                  "      dependencies.admitMembers ?? admitWriterProjectMembers\n"
+                  "    )(inventory, operation);\n"
+                  "    assertOperationCurrent(operation, 'standalone Writer project after member admission');\n\n"
+                  "    assertOperationCurrent(operation, 'standalone Writer project before bounded extraction');\n",
+              ),
+              (
+                  "      inventory,\n      extractionEvidence: extracted.evidence,\n",
+                  "      inventory,\n"
+                  "      memberAdmissionEvidence: memberAdmission.evidence,\n"
+                  "      extractionEvidence: extracted.evidence,\n",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one controller marker, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Remove temporary workflow and commit
+        run: |
+          rm -f .github/workflows/phase3b3a-controller-bootstrap.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/core/writer-v2/export/projectImportController.ts .github/workflows/phase3b3a-controller-bootstrap.yml
+          git commit -m 'Integrate static member admission before extraction'
+          git push origin HEAD:agent/static-project-member-admission-phase3b3a
