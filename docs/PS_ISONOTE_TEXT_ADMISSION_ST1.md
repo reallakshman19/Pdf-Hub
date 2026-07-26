@@ -46,7 +46,7 @@ Application-owned samples use the same production boundary and retain their exis
 An uploaded file is admitted in this order:
 
 ```text
-extension and MIME compatibility
+extension or MIME compatibility
 → File.size preflight
 → one arrayBuffer() read
 → actual byte-length verification
@@ -54,6 +54,8 @@ extension and MIME compatibility
 → structural preflight
 → existing semantic parser
 ```
+
+The extension-or-MIME rule preserves the existing browser file-picker contract, including valid `.csv`, `.tsv`, and `.txt` files reported with generic MIME types.
 
 A file whose metadata exceeds 1 MiB is rejected before `arrayBuffer()`. Production does not call `File.text()`. A leading UTF-8 BOM is accepted and remains included in byte accounting. Malformed UTF-8, UTF-16, and other invalid encodings are rejected deterministically.
 
@@ -142,6 +144,25 @@ Source controls remain disabled during scanning, annotation, and evidence packag
 For inputs within V1 limits, ST-1 does not change accepted delimiters, header aliases, PS normalization, duplicate precedence, recipe semantics, mapping hashes, occurrence IDs, versioned markers, scan matching, audit identity, audit CSV or JSON schemas, post-write verification, evidence ZIP content, sample content, sample filenames, or sample MIME types.
 
 No PDF output schema or audit schema changes are introduced.
+
+## Validation
+
+The final focused connected-runner gate passed:
+
+- admission-policy identity, exact values, and deep immutability;
+- file metadata and actual-byte boundaries;
+- fatal UTF-8 decoding, BOM, multibyte, supplementary, malformed, truncated, overlong, and UTF-16 fixtures;
+- quote-aware row, column, cell, CRLF, LF, delimiter, and Markdown-pipe measurements;
+- semantic parser suppression after structural rejection;
+- mapping-count boundaries;
+- deterministic warning truncation and metadata-only evidence;
+- accepted and rejected file, typed, pasted, and sample UI paths;
+- preservation of prior source and PDF state after rejection;
+- existing parser and sample compatibility;
+- strict TypeScript and frontend lint;
+- package and lockfile stability.
+
+Temporary validation workflows and scripts were removed after successful execution. Complete repository certification is recorded on the final pull-request head.
 
 ## Explicit non-scope
 
