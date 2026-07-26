@@ -40,6 +40,8 @@ import {
   parsePsIsonoteTable,
   type PsIsonoteParseResult,
 } from '@/core/macro/psIsonote/psIsonoteTable';
+import type { PsIsonoteSample } from '@/core/macro/psIsonote/psIsonoteSamples';
+import { PsIsonoteSampleLoader } from './PsIsonoteSampleLoader';
 
 interface ParsedState {
   result: PsIsonoteParseResult | null;
@@ -302,6 +304,14 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     }
   };
 
+  const handleSample = React.useCallback((sample: PsIsonoteSample) => {
+    setSourceText(sample.content);
+    setSourceName(sample.fileName);
+    clearRunArtifacts();
+    setError(null);
+    setMessage(`Loaded ${sample.label} sample mapping.`);
+  }, [clearRunArtifacts]);
+
   const handlePreview = async () => {
     setIsScanning(true);
     setError(null);
@@ -484,6 +494,11 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           onChange={(event) => void handleFile(event.target.files?.[0])}
         />
       </div>
+
+      <PsIsonoteSampleLoader
+        disabled={isScanning || isRunning || isPackaging}
+        onLoad={handleSample}
+      />
 
       {sourceName && <div className="truncate text-[11px] text-slate-500">Source: {sourceName}</div>}
 
