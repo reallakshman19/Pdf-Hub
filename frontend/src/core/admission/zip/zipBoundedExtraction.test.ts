@@ -54,8 +54,12 @@ describe('sequential bounded ZIP extraction', () => {
     );
     const reader = new BoundedZipMemberSetArchiveReader(result.memberSet);
 
-    expect(await reader.readBytes('stored.bin')).toEqual(stored);
-    expect(await reader.readBytes('deflated.bin')).toEqual(deflated);
+    expect(Array.from(await reader.readBytes('stored.bin'))).toEqual(
+      Array.from(stored),
+    );
+    expect(Array.from(await reader.readBytes('deflated.bin'))).toEqual(
+      Array.from(deflated),
+    );
     expect(result.evidence.archiveOutcome).toBe('ADMITTED');
     expect(result.evidence.actualExpandedArchiveBytes).toBe(
       stored.byteLength + deflated.byteLength,
@@ -73,7 +77,9 @@ describe('sequential bounded ZIP extraction', () => {
 
     const mutableCopy = await reader.readBytes('stored.bin');
     mutableCopy[0] = 99;
-    expect(await reader.readBytes('stored.bin')).toEqual(stored);
+    expect(Array.from(await reader.readBytes('stored.bin'))).toEqual(
+      Array.from(stored),
+    );
     releaseBoundedZipMemberSet(result.memberSet);
   });
 
