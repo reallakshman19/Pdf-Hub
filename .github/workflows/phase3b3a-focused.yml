@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  focused-diagnostic:
+  focused:
     if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -36,30 +36,33 @@ jobs:
         working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Capture focused test diagnostics
+      - name: Focused Phase 3B.3A tests
         working-directory: frontend
-        run: |
-          set +e
-          mkdir -p ../artifacts
-          pnpm exec vitest run \
-            src/core/admission/zip/writerProjectMemberProfile.test.ts \
-            src/core/admission/zip/writerProjectMemberAdmission.test.ts \
-            src/core/admission/zip/writerProjectMemberCompatibility.test.ts \
-            src/core/writer-v2/export/projectImportMemberAdmission.test.ts \
-            src/core/writer-v2/export/projectImportResourceAdmission.test.ts \
-            src/core/writer-v2/export/projectImportController.source.test.ts \
-            src/core/writer-v2/export/projectZip.test.ts \
-            src/core/ocr/__tests__/ocrProjectCodec.test.ts \
-            --pool=forks --maxWorkers=1 \
-            > ../artifacts/phase3b3a-focused.txt 2>&1
-          status=$?
-          cat ../artifacts/phase3b3a-focused.txt
-          exit "$status"
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/writerProjectMemberProfile.test.ts
+          src/core/admission/zip/writerProjectMemberAdmission.test.ts
+          src/core/admission/zip/writerProjectMemberCompatibility.test.ts
+          src/core/writer-v2/export/projectImportMemberAdmission.test.ts
+          src/core/writer-v2/export/projectImportResourceAdmission.test.ts
+          src/core/writer-v2/export/projectImportController.source.test.ts
+          src/core/writer-v2/export/projectZip.test.ts
+          src/core/ocr/__tests__/ocrProjectCodec.test.ts
+          --pool=forks --maxWorkers=1
 
-      - name: Upload focused diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase3b3a-focused-diagnostic
-          path: artifacts/phase3b3a-focused.txt
-          if-no-files-found: error
+      - name: Strict TypeScript
+        working-directory: frontend
+        run: pnpm run typecheck
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm run lint
+
+      - name: Remove temporary focused workflow
+        run: |
+          rm -f .github/workflows/phase3b3a-focused.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/phase3b3a-focused.yml
+          git commit -m 'Remove Phase 3B.3A focused workflow'
+          git push origin HEAD:agent/static-project-member-admission-phase3b3a
