@@ -1,10 +1,15 @@
 export type PsIsonoteSampleId = 'csv-family' | 'tsv-basic' | 'pipe-table';
+export type PsIsonoteSampleMimeType =
+  | 'text/csv;charset=utf-8'
+  | 'text/tab-separated-values;charset=utf-8'
+  | 'text/plain;charset=utf-8';
 
 export interface PsIsonoteSample {
   readonly id: PsIsonoteSampleId;
   readonly label: string;
   readonly description: string;
   readonly fileName: string;
+  readonly mimeType: PsIsonoteSampleMimeType;
   readonly content: string;
 }
 
@@ -36,6 +41,7 @@ export const PS_ISONOTE_SAMPLES: readonly PsIsonoteSample[] = Object.freeze([
     label: 'CSV',
     description: 'Comma-delimited sample with optional support family and quoted notes.',
     fileName: 'ps-isonote-sample.csv',
+    mimeType: 'text/csv;charset=utf-8' as const,
     content: CSV_FAMILY_SAMPLE,
   }),
   Object.freeze({
@@ -43,6 +49,7 @@ export const PS_ISONOTE_SAMPLES: readonly PsIsonoteSample[] = Object.freeze([
     label: 'TSV',
     description: 'Tab-delimited two-column PS_NO and ISONOTE sample.',
     fileName: 'ps-isonote-sample.tsv',
+    mimeType: 'text/tab-separated-values;charset=utf-8' as const,
     content: TSV_BASIC_SAMPLE,
   }),
   Object.freeze({
@@ -50,6 +57,7 @@ export const PS_ISONOTE_SAMPLES: readonly PsIsonoteSample[] = Object.freeze([
     label: 'Pipe table',
     description: 'Paste-friendly Markdown pipe table using supported header aliases.',
     fileName: 'ps-isonote-sample.txt',
+    mimeType: 'text/plain;charset=utf-8' as const,
     content: PIPE_TABLE_SAMPLE,
   }),
 ]);
