@@ -5,7 +5,7 @@ const ZIP64_LOCATOR_SIGNATURE = 0x07064b50;
 
 export interface RawZipFixtureEntry {
   readonly name: string | readonly number[];
-  readonly data?: readonly number[];
+  readonly data?: readonly number[] | Uint8Array;
   readonly flags?: number;
   readonly method?: number;
   readonly crc32?: number;
