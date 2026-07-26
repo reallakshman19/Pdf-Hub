@@ -1,5 +1,10 @@
 import React from 'react';
-import { FileSpreadsheet, FileText, Table2 } from 'lucide-react';
+import {
+  FileSpreadsheet,
+  FileText,
+  Table2,
+  type LucideIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   PS_ISONOTE_SAMPLES,
@@ -12,10 +17,7 @@ export interface PsIsonoteSampleLoaderProps {
   readonly onLoad: (sample: PsIsonoteSample) => void;
 }
 
-const SAMPLE_ICONS: Record<
-  PsIsonoteSampleId,
-  React.ComponentType<{ className?: string }>
-> = {
+const SAMPLE_ICONS: Record<PsIsonoteSampleId, LucideIcon> = {
   'csv-family': FileSpreadsheet,
   'tsv-basic': FileText,
   'pipe-table': Table2,
