@@ -51,7 +51,7 @@ describe('PsIsonoteRecipeBuilder structured-text admission', () => {
     expect(textarea).toHaveValue('PS No.,ISONOTE\nPS-1000.1,GUIDE');
     expect(screen.getByText(/1 unique mapping\(s\)/i)).toBeInTheDocument();
     expect(screen.getByLabelText('PS ISONOTE admission metrics')).toHaveTextContent(
-      '2 rows · 2 columns · 1 mappings · 35 bytes',
+      '2 rows · 2 columns · 1 mappings · 30 bytes',
     );
   });
 
@@ -59,9 +59,8 @@ describe('PsIsonoteRecipeBuilder structured-text admission', () => {
     render(<PsIsonoteRecipeBuilder />);
     fireEvent.click(screen.getByRole('button', { name: 'Load CSV PS ISONOTE sample' }));
 
-    expect(screen.getByLabelText('PS No. versus ISONOTE table')).toHaveValue(
-      expect.stringContaining('PS-11167.4'),
-    );
+    const textarea = screen.getByLabelText('PS No. versus ISONOTE table') as HTMLTextAreaElement;
+    expect(textarea.value).toContain('PS-11167.4');
     expect(screen.getByText(/3 unique mapping\(s\)/i)).toBeInTheDocument();
     expect(screen.getByLabelText('PS ISONOTE admission metrics')).toHaveTextContent('3 mappings');
   });
