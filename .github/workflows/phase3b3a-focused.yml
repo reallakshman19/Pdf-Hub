@@ -1,15 +1,15 @@
 name: Phase 3B.3A focused validation
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/static-project-member-admission-phase3b3a
+      - main
 
 permissions:
   contents: write
 
 concurrency:
-  group: phase3b3a-focused
+  group: phase3b3a-focused-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
