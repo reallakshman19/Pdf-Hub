@@ -80,6 +80,18 @@ export interface ZipBoundedExtractionEvidence {
   readonly cancellationStage?: string;
 }
 
+export class ZipBoundedExtractionError extends Error {
+  readonly outcome: ZipBoundedExtractionOutcome;
+  readonly evidence: ZipBoundedExtractionEvidence;
+
+  constructor(evidence: ZipBoundedExtractionEvidence, message?: string) {
+    super(message ?? evidence.diagnostics.at(-1)?.message ?? 'Writer project ZIP extraction failed.');
+    this.name = 'ZipBoundedExtractionError';
+    this.outcome = evidence.archiveOutcome;
+    this.evidence = evidence;
+  }
+}
+
 export function freezeZipExtractionEvidence(
   evidence: ZipBoundedExtractionEvidence,
 ): ZipBoundedExtractionEvidence {
