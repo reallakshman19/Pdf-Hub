@@ -75,7 +75,11 @@ export class BoundedZipMemberSet {
 }
 
 export class BoundedZipMemberSetArchiveReader implements ProjectArchiveReader {
-  constructor(private readonly memberSet: BoundedZipMemberSet) {}
+  private readonly memberSet: BoundedZipMemberSet;
+
+  constructor(memberSet: BoundedZipMemberSet) {
+    this.memberSet = memberSet;
+  }
 
   has(path: string): boolean {
     return getRegistry(this.memberSet).byPath.has(path);
