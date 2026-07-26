@@ -35,6 +35,12 @@ import type { ProjectArchiveReader } from '@/core/admission/zip/projectArchiveRe
 import type { ZipBoundedExtractionEvidence } from '@/core/admission/zip/zipExtractionEvidence';
 import { admitWriterProjectMembers } from '@/core/admission/zip/writerProjectMemberAdmission';
 import type { WriterProjectMemberAdmissionEvidence } from '@/core/admission/zip/writerProjectMemberEvidence';
+import { admitWriterProjectJsonSources } from '@/core/admission/zip/writerProjectJsonSourceAdmission';
+import type { WriterProjectJsonSourceAdmissionEvidence } from '@/core/admission/zip/writerProjectJsonSourceEvidence';
+import {
+  releaseAdmittedProjectJsonSources,
+  type AdmittedWriterProjectJsonSourceSet,
+} from '@/core/admission/zip/writerProjectJsonSourceSet';
 
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
@@ -79,10 +85,10 @@ export interface WriterProjectImportEvidence {
   readonly zipStructuralAdmission: ZipArchiveInventory;
   readonly writerProjectMemberAdmission: WriterProjectMemberAdmissionEvidence;
   readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;
+  readonly writerProjectJsonSourceAdmission: WriterProjectJsonSourceAdmissionEvidence;
   readonly unresolvedPolicy: {
     readonly authority: 'UNRESOLVED_POLICY';
     readonly dimensions: readonly [
-      'JSON_BYTES',
       'WRITER_ELEMENT_COUNT',
       'WRITER_ASSET_COUNT',
     ];
@@ -102,6 +108,7 @@ export interface StandaloneWriterProjectStageDependencies {
   readonly admitDeclaredResources?: typeof admitDeclaredZipResources;
   readonly admitMembers?: typeof admitWriterProjectMembers;
   readonly extractMembers?: typeof extractZipMembersBounded;
+  readonly admitJsonSources?: typeof admitWriterProjectJsonSources;
   readonly decodeProject?: (
     reader: ProjectArchiveReader,
   ) => Promise<ImportPdfHubProjectResult>;
@@ -139,6 +146,7 @@ interface StandaloneWriterProjectDecodeResult {
   readonly inventory: ZipArchiveInventory;
   readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;
   readonly extractionEvidence: ZipBoundedExtractionEvidence;
+  readonly jsonSourceAdmissionEvidence: WriterProjectJsonSourceAdmissionEvidence;
 }
 
 const stagedRegistry = new WeakMap<StagedWriterProjectImport, RegisteredStage>();
@@ -174,7 +182,13 @@ export async function stageStandaloneWriterProject(
   }
 
   const decoded = await decodeStandaloneWriterProject(file, operation, dependencies);
-  const { imported, inventory, memberAdmissionEvidence, extractionEvidence } = decoded;
+  const {
+    imported,
+    inventory,
+    memberAdmissionEvidence,
+    extractionEvidence,
+    jsonSourceAdmissionEvidence,
+  } = decoded;
   const reconciled = await reconcileImportedProject(imported, operation, diagnostics);
   assertOperationCurrent(operation, 'standalone Writer project before staging');
 
@@ -188,6 +202,7 @@ export async function stageStandaloneWriterProject(
     zipStructuralAdmission: inventory,
     writerProjectMemberAdmission: memberAdmissionEvidence,
     zipBoundedExtraction: extractionEvidence,
+    writerProjectJsonSourceAdmission: jsonSourceAdmissionEvidence,
     schema: imported.manifest.schema,
     schemaVersion: imported.manifest.schemaVersion,
     documentMode: reconciled.documentMeta?.mode ?? inferredMode(imported),
@@ -205,7 +220,6 @@ export async function stageStandaloneWriterProject(
     unresolvedPolicy: {
       authority: 'UNRESOLVED_POLICY' as const,
       dimensions: [
-        'JSON_BYTES',
         'WRITER_ELEMENT_COUNT',
         'WRITER_ASSET_COUNT',
       ] as const,
@@ -238,6 +252,7 @@ async function decodeStandaloneWriterProject(
 ): Promise<StandaloneWriterProjectDecodeResult> {
   let projectBytes: Uint8Array | null = null;
   let extracted: ZipBoundedExtractionResult | null = null;
+  let jsonSources: AdmittedWriterProjectJsonSourceSet | null = null;
 
   try {
     assertOperationCurrent(operation, 'standalone Writer project before source policy admission');
@@ -283,9 +298,16 @@ async function decodeStandaloneWriterProject(
     assertOperationCurrent(operation, 'standalone Writer project after bounded extraction');
 
     const reader = new BoundedZipMemberSetArchiveReader(extracted.memberSet);
+    assertOperationCurrent(operation, 'standalone Writer project before JSON source admission');
+    jsonSources = await (
+      dependencies.admitJsonSources ?? admitWriterProjectJsonSources
+    )(extracted.memberSet, memberAdmission, reader, operation);
+    assertOperationCurrent(operation, 'standalone Writer project after JSON source admission');
     assertOperationCurrent(operation, 'standalone Writer project before semantic ZIP decode');
     const imported = await raceWithAbort(
-      (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(reader),
+      (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(
+        jsonSources.reader,
+      ),
       operation.signal,
       'standalone Writer project semantic ZIP decode',
     );
@@ -296,8 +318,11 @@ async function decodeStandaloneWriterProject(
       inventory,
       memberAdmissionEvidence: memberAdmission.evidence,
       extractionEvidence: extracted.evidence,
+      jsonSourceAdmissionEvidence: jsonSources.evidence,
     });
   } finally {
+    if (jsonSources) releaseAdmittedProjectJsonSources(jsonSources);
+    jsonSources = null;
     if (extracted) releaseBoundedZipMemberSet(extracted.memberSet);
     extracted = null;
     projectBytes = null;
