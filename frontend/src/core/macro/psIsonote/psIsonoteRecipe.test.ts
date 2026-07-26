@@ -155,4 +155,20 @@ describe('psIsonoteRecipe', () => {
     expect(planned).toHaveLength(2);
     expect(planned[0].box.y).not.toBe(planned[1].box.y);
   });
+
+  it('formats callout HTML with Tag and ISO Note including confidence shorthand', () => {
+    const confMapping: PsIsonoteMapping = {
+      psNo: 'PS-11168.8',
+      family: 'Remove Guide',
+      isonote: ':/PS-11168.8 Remove Guide',
+      confidence: 'HIGH',
+      sourceRow: 5,
+    };
+    const detected = reference('PS-11168.8', 200, confMapping);
+    const result = scan([detected]);
+    const { recipe } = buildPsIsonoteAnnotationRecipe(result, { includeFamily: true });
+    const stepContent = (recipe.steps[0] as any).content;
+    expect(stepContent).toContain('Tag: Remove Guide');
+    expect(stepContent).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
+  });
 });
