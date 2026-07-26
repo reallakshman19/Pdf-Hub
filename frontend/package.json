@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "pretypecheck": "node scripts/capture-phase3b2-typecheck.mjs",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -40,7 +39,7 @@
     "certify:ocr-phase8": "vitest run src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
     "certify:ocr-phase9": "vitest run src/components/ocr/__tests__/OcrConfidenceOverlay.test.tsx src/components/ocr/__tests__/OcrLowConfidencePanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
     "certify:ocr-phase10": "vitest run src/components/ocr/__tests__/OcrCorrectionPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
-    "certify:ocr-phase11": "vitest run src/core/ocr/__tests__/ocrRegionTool.test.tsx src/components/ocr/__tests__/OcrRegionListPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
+    "certify:ocr-phase11": "vitest run src/components/ocr/__tests__/OcrRegionTool.test.tsx src/components/ocr/__tests__/OcrRegionListPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
     "certify:ocr-phase12": "vitest run src/core/ocr/__tests__/ocrRegionRunner.test.ts src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
     "certify:ocr-phase13": "vitest run src/core/ocr/__tests__/ocrTableReviewModel.test.ts src/components/ocr/__tests__/OcrTableReviewPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
     "certify:ocr-phase14": "vitest run src/core/ocr/__tests__/ocrWriterInsertion.test.ts src/components/ocr/__tests__/OcrWriterInsertPanel.test.tsx src/components/ocr/__tests__/OcrPanel.test.tsx --pool=forks --maxWorkers=1",
