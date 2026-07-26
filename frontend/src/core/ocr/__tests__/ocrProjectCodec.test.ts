@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
+import { WRITER_PROJECT_MEMBER_PROFILE_V1 } from '../../admission/zip/writerProjectMemberProfile';
 import type { WriterElementV2 } from '../../writer-v2/types';
 import { getOcrProfile } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
@@ -116,6 +117,11 @@ describe('ocrProjectCodec', () => {
     expect(zip.file('ocr/corrections.json')).toBeTruthy();
     expect(zip.file('ocr/regions.json')).toBeTruthy();
     expect(zip.file('ocr/writer-insertion-queue.json')).toBeTruthy();
+    expect(
+      Object.values(zip.files)
+        .filter((entry) => !entry.dir)
+        .map((entry) => entry.name),
+    ).toEqual(WRITER_PROJECT_MEMBER_PROFILE_V1.ocrCompatibilityFiles);
 
     const bytes = await zip.generateAsync({
       type: 'uint8array',

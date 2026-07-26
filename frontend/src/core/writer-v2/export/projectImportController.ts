@@ -33,6 +33,8 @@ import {
 } from '@/core/admission/zip/zipMemberSet';
 import type { ProjectArchiveReader } from '@/core/admission/zip/projectArchiveReader';
 import type { ZipBoundedExtractionEvidence } from '@/core/admission/zip/zipExtractionEvidence';
+import { admitWriterProjectMembers } from '@/core/admission/zip/writerProjectMemberAdmission';
+import type { WriterProjectMemberAdmissionEvidence } from '@/core/admission/zip/writerProjectMemberEvidence';
 
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
@@ -75,6 +77,7 @@ export interface WriterProjectImportEvidence {
   readonly commitTarget?: 'PDF_OVERLAY' | 'BLANK_WRITER';
   readonly diagnostics: readonly WriterProjectImportDiagnostic[];
   readonly zipStructuralAdmission: ZipArchiveInventory;
+  readonly writerProjectMemberAdmission: WriterProjectMemberAdmissionEvidence;
   readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;
   readonly unresolvedPolicy: {
     readonly authority: 'UNRESOLVED_POLICY';
@@ -96,6 +99,8 @@ export interface StandaloneWriterProjectOperation {
 
 export interface StandaloneWriterProjectStageDependencies {
   readonly inspectArchive?: (bytes: Uint8Array) => ZipArchiveInventory;
+  readonly admitDeclaredResources?: typeof admitDeclaredZipResources;
+  readonly admitMembers?: typeof admitWriterProjectMembers;
   readonly extractMembers?: typeof extractZipMembersBounded;
   readonly decodeProject?: (
     reader: ProjectArchiveReader,
@@ -132,6 +137,7 @@ interface RegisteredStage {
 interface StandaloneWriterProjectDecodeResult {
   readonly imported: ImportPdfHubProjectResult;
   readonly inventory: ZipArchiveInventory;
+  readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;
   readonly extractionEvidence: ZipBoundedExtractionEvidence;
 }
 
@@ -168,7 +174,7 @@ export async function stageStandaloneWriterProject(
   }
 
   const decoded = await decodeStandaloneWriterProject(file, operation, dependencies);
-  const { imported, inventory, extractionEvidence } = decoded;
+  const { imported, inventory, memberAdmissionEvidence, extractionEvidence } = decoded;
   const reconciled = await reconcileImportedProject(imported, operation, diagnostics);
   assertOperationCurrent(operation, 'standalone Writer project before staging');
 
@@ -180,6 +186,7 @@ export async function stageStandaloneWriterProject(
     sourceBytes: extractionEvidence.sourceBytes,
     zipSignature: 'accepted' as const,
     zipStructuralAdmission: inventory,
+    writerProjectMemberAdmission: memberAdmissionEvidence,
     zipBoundedExtraction: extractionEvidence,
     schema: imported.manifest.schema,
     schemaVersion: imported.manifest.schemaVersion,
@@ -255,11 +262,16 @@ async function decodeStandaloneWriterProject(
     admitZipArchive(inventory);
 
     assertOperationCurrent(operation, 'standalone Writer project before declared ZIP admission');
-    const declaredAdmission = admitDeclaredZipResources(
-      inventory,
-      projectBytes.byteLength,
-    );
+    const declaredAdmission = (
+      dependencies.admitDeclaredResources ?? admitDeclaredZipResources
+    )(inventory, projectBytes.byteLength);
     assertOperationCurrent(operation, 'standalone Writer project after declared ZIP admission');
+
+    assertOperationCurrent(operation, 'standalone Writer project before member admission');
+    const memberAdmission = (
+      dependencies.admitMembers ?? admitWriterProjectMembers
+    )(inventory, operation);
+    assertOperationCurrent(operation, 'standalone Writer project after member admission');
 
     assertOperationCurrent(operation, 'standalone Writer project before bounded extraction');
     extracted = await (dependencies.extractMembers ?? extractZipMembersBounded)(
@@ -282,6 +294,7 @@ async function decodeStandaloneWriterProject(
     return Object.freeze({
       imported,
       inventory,
+      memberAdmissionEvidence: memberAdmission.evidence,
       extractionEvidence: extracted.evidence,
     });
   } finally {
