@@ -11,7 +11,7 @@ standalone .pdfhub.zip or .zip
 → leading ZIP signature check
 → raw EOCD and central-directory inspection
 → local-header and byte-range reconciliation
-→ structural admission
+→ supported-profile admission
 → existing JSZip compatibility decoder
 → Phase 3A.1 semantic staging
 → coordinated commit
@@ -45,9 +45,12 @@ deflated entries, method 8
 unencrypted
 non-spanned
 non-segmented
+no data descriptors
+UTF-8 and DEFLATE option flags only
+contiguous local-entry ownership from byte zero to the central directory
 ```
 
-Unsupported structures fail closed. Phase 3B.1 does not silently reinterpret ZIP64, split archives, encrypted entries, or vendor compression methods.
+Unsupported structures fail closed. Phase 3B.1 does not silently reinterpret ZIP64, split archives, encrypted entries, data-descriptor layouts, patched-data flags, reserved flags, vendor compression methods, prepended structures, or unaccounted archive regions.
 
 ## Raw structures inspected
 
@@ -107,19 +110,26 @@ It verifies:
 - local and central filenames match byte-for-byte;
 - compression methods match;
 - relevant general-purpose flags match;
-- non-descriptor CRC and size declarations match;
-- descriptor-enabled local declarations are zero or equal to central declarations;
+- CRC and size declarations match for the admitted non-descriptor profile;
 - compressed payload ranges remain inside source bytes and before the central directory;
 - no local header begins inside the central directory;
 - no local ownership range overlaps another entry;
-- no local-header offset is owned by multiple records;
-- the first supported local header begins at source offset zero.
+- no local-header offset is owned by multiple records.
+
+Supported-profile admission additionally rejects:
+
+- all data-descriptor declarations;
+- unsupported or reserved general-purpose flag bits;
+- DEFLATE option bits on stored entries;
+- any bytes before the first local header, including empty-archive preambles;
+- any ownership gap between local entries;
+- any unaccounted bytes between the final compressed payload and the central directory.
 
 All offset and length additions use explicit safe-integer checks and little-endian readers.
 
 ## Structural outcomes
 
-The inventory uses explicit outcomes:
+The inventory and admission evidence use explicit outcomes:
 
 ```text
 ADMITTED
@@ -132,7 +142,7 @@ REJECTED_RANGE_CONFLICT
 CANCELLED
 ```
 
-Malformed archives do not collapse to `null`, `false`, or ordinary project absence. Admission errors retain the immutable inventory and deterministic first diagnostic.
+Malformed archives do not collapse to `null`, `false`, or ordinary project absence. Admission errors retain an immutable inventory and deterministic first diagnostic. A profile-level rejection derives a new frozen evidence object without mutating the raw inspection inventory.
 
 ## Cancellation boundary
 
@@ -166,7 +176,7 @@ EXTRA_FIELD_BYTES_TOTAL
 COMMENT_BYTES_TOTAL
 ```
 
-Each carries `UNRESOLVED_POLICY` provenance. Format-defined 16-bit comment and variable-field widths are structural ZIP rules, not application policy thresholds.
+Each carries `UNRESOLVED_POLICY` provenance. Format-defined 16-bit and 32-bit fields and supported-profile flag rules are structural ZIP rules, not application policy thresholds.
 
 Phase 3B.1 does not claim ZIP-bomb containment, bounded decompression, approved archive-size limits, or bounded retained memory.
 
