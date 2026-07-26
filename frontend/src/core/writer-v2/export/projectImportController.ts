@@ -15,6 +15,9 @@ import {
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
+import { inspectZipArchive } from '@/core/admission/zip/zipInventory';
+import { admitZipArchive } from '@/core/admission/zip/zipAdmission';
+import type { ZipArchiveInventory } from '@/core/admission/zip/zipTypes';
 
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
@@ -56,6 +59,7 @@ export interface WriterProjectImportEvidence {
   readonly outcome: WriterProjectImportOutcome;
   readonly commitTarget?: 'PDF_OVERLAY' | 'BLANK_WRITER';
   readonly diagnostics: readonly WriterProjectImportDiagnostic[];
+  readonly zipStructuralAdmission: ZipArchiveInventory;
   readonly unresolvedPolicy: {
     readonly authority: 'UNRESOLVED_POLICY';
     readonly dimensions: readonly [
@@ -74,6 +78,11 @@ export interface StandaloneWriterProjectOperation {
   readonly signal?: AbortSignal;
   readonly isCurrent: () => boolean;
   readonly isMounted: () => boolean;
+}
+
+export interface StandaloneWriterProjectStageDependencies {
+  readonly inspectArchive?: (bytes: Uint8Array) => ZipArchiveInventory;
+  readonly decodeProject?: (bytes: Uint8Array) => Promise<ImportPdfHubProjectResult>;
 }
 
 export interface StagedWriterProjectImport {
@@ -108,6 +117,7 @@ const stagedRegistry = new WeakMap<StagedWriterProjectImport, RegisteredStage>()
 export async function stageStandaloneWriterProject(
   file: File,
   operation: StandaloneWriterProjectOperation,
+  dependencies: StandaloneWriterProjectStageDependencies = {},
 ): Promise<StagedWriterProjectImport> {
   const diagnostics: WriterProjectImportDiagnostic[] = [];
   assertOperationCurrent(operation, 'standalone Writer project metadata');
@@ -146,9 +156,13 @@ export async function stageStandaloneWriterProject(
     throw new Error('Writer project ZIP signature is missing.');
   }
 
-  assertOperationCurrent(operation, 'standalone Writer project before ZIP decode');
+  assertOperationCurrent(operation, 'standalone Writer project before raw ZIP inspection');
+  const inventory = (dependencies.inspectArchive ?? inspectZipArchive)(projectBytes);
+  assertOperationCurrent(operation, 'standalone Writer project after raw ZIP inspection');
+  admitZipArchive(inventory);
+  assertOperationCurrent(operation, 'standalone Writer project before compatibility ZIP decode');
   const imported = await raceWithAbort(
-    importPdfHubWriterProject(projectBytes),
+    (dependencies.decodeProject ?? importPdfHubWriterProject)(projectBytes),
     operation.signal,
     'standalone Writer project ZIP decode',
   );
@@ -164,6 +178,7 @@ export async function stageStandaloneWriterProject(
     mimeType: file.type,
     sourceBytes: file.size,
     zipSignature: 'accepted' as const,
+    zipStructuralAdmission: inventory,
     schema: imported.manifest.schema,
     schemaVersion: imported.manifest.schemaVersion,
     documentMode: reconciled.documentMeta?.mode ?? inferredMode(imported),
