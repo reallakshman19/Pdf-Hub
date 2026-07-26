@@ -24,7 +24,9 @@ import {
 describe('sequential bounded ZIP extraction', () => {
   it('extracts stored and DEFLATE members with actual byte and CRC evidence', async () => {
     const stored = Uint8Array.from([1, 2, 3, 4]);
-    const deflated = new TextEncoder().encode('bounded deflate output');
+    const deflated = Uint8Array.from(
+      new TextEncoder().encode('bounded deflate output'),
+    );
     const compressed = deflateSync(deflated);
     const fixture = buildRawZipFixture([
       {
