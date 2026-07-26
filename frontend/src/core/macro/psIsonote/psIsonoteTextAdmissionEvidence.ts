@@ -2,12 +2,12 @@ import type {
   PsIsonoteTextAdmissionLimits,
   PsIsonoteTextAdmissionPolicyV1,
 } from './psIsonoteTextAdmissionPolicy';
-import type { PsIsonoteDelimiter } from './psIsonoteTable';
 
 export const PS_ISONOTE_TEXT_ADMISSION_EVIDENCE_PROFILE_ID =
   'PS_ISONOTE_TEXT_ADMISSION_EVIDENCE_V1' as const;
 
 export type PsIsonoteTextInputKind = 'FILE' | 'PASTE' | 'SAMPLE';
+export type PsIsonoteDelimiter = ',' | '\t' | ';' | '|';
 
 export type PsIsonoteTextAdmissionOutcome =
   | 'ADMITTED'
