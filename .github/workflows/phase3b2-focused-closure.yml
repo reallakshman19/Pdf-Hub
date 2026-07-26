@@ -13,9 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-diagnostic:
+  focused:
     if: github.event.pull_request.number == 138
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,27 +30,58 @@ jobs:
           node-version: 22
 
       - run: corepack enable
+        working-directory: .
 
       - run: corepack prepare pnpm@10.23.0 --activate
+        working-directory: .
+
+      - name: Verify Phase 3B.2 dependency declarations
+        working-directory: .
+        run: |
+          set -euo pipefail
+          grep -q '"fflate": "0.8.2"' frontend/package.json
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'specifier: 0.8.2'
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'version: 0.8.2'
 
       - name: Install dependencies
-        working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Capture lint result
-        working-directory: frontend
-        run: |
-          set +e
-          mkdir -p ../artifacts
-          pnpm run lint > ../artifacts/phase3b2-lint.txt 2>&1
-          status=$?
-          cat ../artifacts/phase3b2-lint.txt
-          exit "$status"
+      - name: Known DEFLATE compatibility fixture
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/zipBoundedExtraction.test.ts
+          -t "extracts stored and DEFLATE members with actual byte and CRC evidence"
+          --pool=forks --maxWorkers=1
 
-      - name: Upload lint diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase3b2-lint-diagnostic
-          path: artifacts/phase3b2-lint.txt
-          if-no-files-found: error
+      - name: Focused Phase 3B.2 suite
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/zipResourcePolicy.test.ts
+          src/core/admission/zip/zipDeclaredResourceAdmission.test.ts
+          src/core/admission/zip/zipBoundedExtraction.test.ts
+          src/core/admission/zip/zipMemberSet.test.ts
+          src/core/writer-v2/export/projectImportController.source.test.ts
+          src/core/writer-v2/export/projectImportResourceAdmission.test.ts
+          src/core/writer-v2/export/projectImportStructuralAdmission.test.ts
+          src/core/writer-v2/export/projectImportController.test.ts
+          src/core/writer-v2/export/projectZip.test.ts
+          src/core/ocr/__tests__/ocrProjectCodec.test.ts
+          --pool=forks --maxWorkers=1
+
+      - name: Strict TypeScript
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Remove temporary focused workflow
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git restore pnpm-lock.yaml
+          rm -f .github/workflows/phase3b2-focused-closure.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/phase3b2-focused-closure.yml
+          git commit -m 'Remove Phase 3B.2 focused closure workflow'
+          git push origin HEAD:agent/bounded-zip-extraction-phase3b2
