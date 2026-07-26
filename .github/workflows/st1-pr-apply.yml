@@ -40,33 +40,15 @@ jobs:
       - name: Existing sample loader tests
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteSampleLoader.test.tsx --pool=forks --maxWorkers=1
       - name: Builder typed-text admission
-        id: builder_typed
-        continue-on-error: true
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx -t "admits typed text" --pool=forks --maxWorkers=1
       - name: Builder sample admission
-        id: builder_sample
-        continue-on-error: true
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx -t "routes embedded samples" --pool=forks --maxWorkers=1
       - name: Builder rejected typed candidate preservation
-        id: builder_rejected_typed
-        continue-on-error: true
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx -t "preserves the last admitted source" --pool=forks --maxWorkers=1
       - name: Builder accepted file admission
-        id: builder_file
-        continue-on-error: true
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx -t "admits a file once" --pool=forks --maxWorkers=1
       - name: Builder rejected file preservation
-        id: builder_rejected_file
-        continue-on-error: true
         run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx -t "rejects oversized file metadata" --pool=forks --maxWorkers=1
-      - name: Builder admission scenario gate
-        if: always()
-        run: |
-          test "${{ steps.builder_typed.outcome }}" = success
-          test "${{ steps.builder_sample.outcome }}" = success
-          test "${{ steps.builder_rejected_typed.outcome }}" = success
-          test "${{ steps.builder_file.outcome }}" = success
-          test "${{ steps.builder_rejected_file.outcome }}" = success
       - name: Strict TypeScript
         run: cd frontend && pnpm run typecheck
       - name: Lint
