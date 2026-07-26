@@ -1,0 +1,65 @@
+name: Phase 3B.3A focused validation
+
+on:
+  push:
+    branches:
+      - agent/static-project-member-admission-phase3b3a
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3b3a-focused
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/static-project-member-admission-phase3b3a
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Focused Phase 3B.3A tests
+        working-directory: frontend
+        run: >-
+          pnpm exec vitest run
+          src/core/admission/zip/writerProjectMemberProfile.test.ts
+          src/core/admission/zip/writerProjectMemberAdmission.test.ts
+          src/core/admission/zip/writerProjectMemberCompatibility.test.ts
+          src/core/writer-v2/export/projectImportMemberAdmission.test.ts
+          src/core/writer-v2/export/projectImportResourceAdmission.test.ts
+          src/core/writer-v2/export/projectImportController.source.test.ts
+          src/core/writer-v2/export/projectZip.test.ts
+          src/core/ocr/__tests__/ocrProjectCodec.test.ts
+          --pool=forks --maxWorkers=1
+
+      - name: Strict TypeScript
+        working-directory: frontend
+        run: pnpm run typecheck
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm run lint
+
+      - name: Remove temporary workflow and commit
+        run: |
+          rm -f .github/workflows/phase3b3a-focused.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/phase3b3a-focused.yml
+          git commit -m 'Remove Phase 3B.3A focused workflow'
+          git push origin HEAD:agent/static-project-member-admission-phase3b3a
