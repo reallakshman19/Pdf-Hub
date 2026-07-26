@@ -60,14 +60,23 @@ interface MemberProgress {
 }
 
 class PendingExtractionFailure extends Error {
+  readonly outcome: ZipBoundedExtractionOutcome;
+  readonly code: string;
+  readonly cancellationStage?: string;
+
   constructor(
-    readonly outcome: ZipBoundedExtractionOutcome,
-    readonly code: string,
+    outcome: ZipBoundedExtractionOutcome,
+    code: string,
     message: string,
-    readonly cancellationStage?: string,
+    cancellationStage?: string,
   ) {
     super(message);
     this.name = 'PendingExtractionFailure';
+    this.outcome = outcome;
+    this.code = code;
+    if (cancellationStage !== undefined) {
+      this.cancellationStage = cancellationStage;
+    }
   }
 }
 
