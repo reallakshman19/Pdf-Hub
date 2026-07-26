@@ -7,9 +7,13 @@ import type {
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import type { OcrProjectPayloadV1 } from '../../ocr/ocrProjectCodec';
 import {
-  readOcrProjectPayloadFromZip,
+  readOcrProjectPayloadFromReader,
   writeOcrProjectPayloadToZip,
 } from '../../ocr/ocrProjectCodec';
+import {
+  JSZipProjectArchiveReader,
+  type ProjectArchiveReader,
+} from '@/core/admission/zip/projectArchiveReader';
 
 export interface PdfHubWriterProjectManifestV1 {
   schema: 'pdf-hub-project';
@@ -226,32 +230,37 @@ export async function importPdfHubWriterProject(
   projectBytes: Uint8Array,
 ): Promise<ImportPdfHubProjectResult> {
   const zip = await JSZip.loadAsync(projectBytes);
+  return importPdfHubWriterProjectFromReader(new JSZipProjectArchiveReader(zip));
+}
 
+export async function importPdfHubWriterProjectFromReader(
+  reader: ProjectArchiveReader,
+): Promise<ImportPdfHubProjectResult> {
   const manifest = await readJsonFile<PdfHubWriterProjectManifestV1>(
-    zip,
+    reader,
     'manifest.json',
   );
 
   validateManifest(manifest);
 
   const originalPdfBytes = manifest.files.originalPdf
-    ? await readBinaryFile(zip, manifest.files.originalPdf)
+    ? await readBinaryFile(reader, manifest.files.originalPdf)
     : new Uint8Array();
 
   const documentMeta = manifest.files.writerDocumentMeta
     ? await readJsonFile<WriterDocumentMetaV2>(
-        zip,
+        reader,
         manifest.files.writerDocumentMeta,
       )
     : null;
 
   const elements = await readJsonFile<WriterElementV2[]>(
-    zip,
+    reader,
     manifest.files.writerElements,
   );
 
   const storedAssets = await readJsonFile<StoredAssetMetadata[]>(
-    zip,
+    reader,
     manifest.files.writerAssets,
   );
 
@@ -259,7 +268,7 @@ export async function importPdfHubWriterProject(
 
   for (const asset of storedAssets) {
     const bytes = await readBinaryFile(
-      zip,
+      reader,
       `${manifest.files.assetDirectory}${asset.fileName}`,
     );
 
@@ -276,7 +285,7 @@ export async function importPdfHubWriterProject(
     });
   }
 
-  const ocrProject = await readOcrProjectPayloadFromZip(zip);
+  const ocrProject = await readOcrProjectPayloadFromReader(reader);
   const compatibilityWarnings: string[] = [];
   if (documentMeta && documentMeta.documentFingerprint !== manifest.documentFingerprint) {
     compatibilityWarnings.push('Writer document metadata fingerprint was normalized to the manifest fingerprint.');
@@ -338,24 +347,23 @@ function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
   }
 }
 
-async function readJsonFile<T>(zip: JSZip, path: string): Promise<T> {
-  const file = zip.file(path);
-
-  if (!file) {
+async function readJsonFile<T>(reader: ProjectArchiveReader, path: string): Promise<T> {
+  if (!reader.has(path)) {
     throw new Error(`Project ZIP missing required file: ${path}`);
   }
 
-  return JSON.parse(await file.async('string')) as T;
+  return JSON.parse(await reader.readText(path)) as T;
 }
 
-async function readBinaryFile(zip: JSZip, path: string): Promise<Uint8Array> {
-  const file = zip.file(path);
-
-  if (!file) {
+async function readBinaryFile(
+  reader: ProjectArchiveReader,
+  path: string,
+): Promise<Uint8Array> {
+  if (!reader.has(path)) {
     throw new Error(`Project ZIP missing required file: ${path}`);
   }
 
-  return await file.async('uint8array');
+  return reader.readBytes(path);
 }
 
 function assetFileName(asset: WriterAssetRecordV2): string {
