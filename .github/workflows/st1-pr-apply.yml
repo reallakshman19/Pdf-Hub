@@ -37,13 +37,10 @@ jobs:
             src/core/macro/psIsonote/psIsonoteTable.test.ts \
             src/core/macro/psIsonote/psIsonoteSamples.test.ts \
             --pool=forks --maxWorkers=1
-      - name: Component admission tests
-        run: |
-          cd frontend
-          pnpm exec vitest run \
-            src/components/sidebar/PsIsonoteSampleLoader.test.tsx \
-            src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx \
-            --pool=forks --maxWorkers=1
+      - name: Existing sample loader tests
+        run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteSampleLoader.test.tsx --pool=forks --maxWorkers=1
+      - name: Builder admission tests
+        run: cd frontend && pnpm exec vitest run src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx --pool=forks --maxWorkers=1
       - name: Strict TypeScript
         run: cd frontend && pnpm run typecheck
       - name: Lint
