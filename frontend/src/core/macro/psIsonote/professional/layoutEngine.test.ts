@@ -51,6 +51,7 @@ describe('professional PS ISONOTE layout engine', () => {
   it('generates multi-direction and margin candidates deterministically', () => {
     const input = pageInput([occurrence('11167.4', 250, 180)]);
     const options = createDefaultPsIsonoteLayoutOptions({ metrics });
+    options.maximumCandidatesPerOccurrence = 30;
     const candidates = generatePsIsonoteCandidates(input, input.occurrences[0], options);
     const kinds = new Set(candidates.map((candidate) => candidate.kind));
 
