@@ -44,6 +44,9 @@ importers:
       '@lexical/table':
         specifier: ^0.44.0
         version: 0.44.0
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1

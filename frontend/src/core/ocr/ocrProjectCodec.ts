@@ -3,6 +3,11 @@ import type { OcrDocumentResult, OcrBlock, OcrTableBlock } from './types';
 import type { OcrCorrection } from './ocrCorrections';
 import type { OcrRegion } from './ocrRegionModel';
 import type { OcrWriterInsertionQueueState } from './ocrWriterInsertion';
+import {
+  JSZipProjectArchiveReader,
+  type ProjectArchiveReader,
+} from '@/core/admission/zip/projectArchiveReader';
+import { ZipBoundedExtractionError } from '@/core/admission/zip/zipExtractionEvidence';
 
 export interface OcrProjectArchiveV1 {
   schema: 'pdf-hub-ocr-project';
@@ -158,36 +163,40 @@ export async function writeOcrProjectPayloadToZip(
 export async function readOcrProjectPayloadFromZip(
   zip: JSZip,
 ): Promise<OcrProjectPayloadV1 | null> {
-  const manifestFile = zip.file(OCR_PROJECT_MANIFEST_PATH);
+  return readOcrProjectPayloadFromReader(new JSZipProjectArchiveReader(zip));
+}
 
-  if (!manifestFile) {
+export async function readOcrProjectPayloadFromReader(
+  reader: ProjectArchiveReader,
+): Promise<OcrProjectPayloadV1 | null> {
+  if (!reader.has(OCR_PROJECT_MANIFEST_PATH)) {
     return null;
   }
 
   const manifest = await readOcrJsonFile<OcrProjectArchiveV1>(
-    zip,
+    reader,
     OCR_PROJECT_MANIFEST_PATH,
   );
 
   validateOcrProjectManifestOrThrow(manifest);
 
   const result = await readOcrJsonFile<OcrDocumentResult | null>(
-    zip,
+    reader,
     manifest.files.result,
   );
 
   const corrections = await readOcrJsonFile<OcrCorrection[]>(
-    zip,
+    reader,
     manifest.files.corrections,
   );
 
   const regions = await readOcrJsonFile<OcrRegion[]>(
-    zip,
+    reader,
     manifest.files.regions,
   );
 
   const writerInsertionQueue = await readOcrJsonFile<OcrWriterInsertionQueueState>(
-    zip,
+    reader,
     manifest.files.writerInsertionQueue,
   );
 
@@ -352,18 +361,17 @@ function validateOcrProjectManifestOrThrow(
 }
 
 async function readOcrJsonFile<T>(
-  zip: JSZip,
+  reader: ProjectArchiveReader,
   path: string,
 ): Promise<T> {
-  const file = zip.file(path);
-
-  if (!file) {
+  if (!reader.has(path)) {
     throw new Error(`OCR project ZIP missing required file: ${path}`);
   }
 
   try {
-    return JSON.parse(await file.async('string')) as T;
+    return JSON.parse(await reader.readText(path)) as T;
   } catch (error) {
+    if (error instanceof ZipBoundedExtractionError) throw error;
     throw new Error(
       error instanceof Error
         ? `Invalid OCR JSON file ${path}: ${error.message}`

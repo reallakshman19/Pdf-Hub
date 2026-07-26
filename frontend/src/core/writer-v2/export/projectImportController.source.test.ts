@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('standalone Writer project source route', () => {
-  it('uses staged import and keeps round-trip PDF separate', () => {
+  it('uses bounded staged import and keeps round-trip PDF separate', () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), 'src/components/writer-v2/WriterV2ToolbarControls.tsx'),
       'utf8',
@@ -28,21 +28,40 @@ describe('standalone Writer project source route', () => {
     );
   });
 
-  it('keeps decode/stage free of application-state mutation and OCR hydration', () => {
+  it('orders structural, declared, bounded, and semantic admission before staging', () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), 'src/core/writer-v2/export/projectImportController.ts'),
       'utf8',
+    );
+    const decodeBoundary = source.slice(
+      source.indexOf('async function decodeStandaloneWriterProject'),
+      source.indexOf('export function revokeStagedWriterProjectImport'),
     );
     const stageBoundary = source.slice(
       source.indexOf('export async function stageStandaloneWriterProject'),
       source.indexOf('export function revokeStagedWriterProjectImport'),
     );
 
-    expect(stageBoundary).toContain('inspectZipArchive');
-    expect(stageBoundary).toContain('admitZipArchive');
-    expect(stageBoundary.indexOf('admitZipArchive')).toBeLessThan(
-      stageBoundary.indexOf('importPdfHubWriterProject'),
+    expect(decodeBoundary).toContain('admitZipSourceMetadata(file.size)');
+    expect(decodeBoundary.indexOf('admitZipSourceMetadata')).toBeLessThan(
+      decodeBoundary.indexOf('file.arrayBuffer()'),
     );
+    expect(decodeBoundary).toContain('inspectZipArchive');
+    expect(decodeBoundary).toContain('admitZipArchive');
+    expect(decodeBoundary).toContain('admitDeclaredZipResources');
+    expect(decodeBoundary).toContain('extractZipMembersBounded');
+    expect(decodeBoundary).toContain('importPdfHubWriterProjectFromReader');
+    expect(decodeBoundary.indexOf('admitZipArchive')).toBeLessThan(
+      decodeBoundary.indexOf('admitDeclaredZipResources'),
+    );
+    expect(decodeBoundary.indexOf('admitDeclaredZipResources')).toBeLessThan(
+      decodeBoundary.indexOf('extractZipMembersBounded'),
+    );
+    expect(decodeBoundary.indexOf('extractZipMembersBounded')).toBeLessThan(
+      decodeBoundary.indexOf('importPdfHubWriterProjectFromReader'),
+    );
+    expect(decodeBoundary).not.toContain('importPdfHubWriterProject(projectBytes)');
+    expect(decodeBoundary).not.toContain('JSZip.loadAsync');
     expect(stageBoundary).not.toContain('useWriterV2Store.setState');
     expect(stageBoundary).not.toContain('hydrateWriterSession');
     expect(stageBoundary).not.toContain('useSessionStore.setState');
@@ -53,7 +72,7 @@ describe('standalone Writer project source route', () => {
     expect(source).not.toContain('hydrateOcrSession');
   });
 
-  it('does not borrow PDF or macro numeric policies', () => {
+  it('uses the closed owner policy and does not borrow PDF or macro limits', () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), 'src/core/writer-v2/export/projectImportController.ts'),
       'utf8',
@@ -61,11 +80,9 @@ describe('standalone Writer project source route', () => {
 
     expect(source).not.toContain('MAX_PDF_SIZE_BYTES');
     expect(source).not.toContain('DEFAULT_MACRO_RESOURCE_LIMITS');
-    expect(source).toContain('UNRESOLVED_POLICY');
-    expect(source).toContain("'SOURCE_BYTES'");
-    expect(source).toContain("'ZIP_ENTRY_COUNT'");
-    expect(source).toContain("'JSON_BYTES'");
-    expect(source).toContain("'WRITER_ELEMENT_COUNT'");
-    expect(source).toContain("'WRITER_ASSET_COUNT'");
+    expect(source).not.toContain('policy?:');
+    expect(source).toContain('admitZipSourceMetadata(file.size)');
+    expect(source).toContain('admitDeclaredZipResources');
+    expect(source).toContain('extractZipMembersBounded');
   });
 });
