@@ -176,21 +176,38 @@ describe('PS ISONOTE structured-text admission', () => {
     }
   });
 
-  it('rejects unsupported file extensions and incompatible MIME types', async () => {
+  it('preserves extension-or-MIME compatibility while rejecting unrelated files', async () => {
     const bytes = new TextEncoder().encode(VALID_CSV);
-    const extension = fakeFile({ name: 'mapping.json', size: bytes.length, bytes });
-    await expectFileRejection(
-      admitPsIsonoteTextFileForTest(extension.file, policy()),
-      'REJECTED_SOURCE_TYPE',
-    );
-    expect(extension.arrayBuffer).not.toHaveBeenCalled();
 
-    const mime = fakeFile({ name: 'mapping.csv', type: 'application/json', size: bytes.length, bytes });
+    const extensionOnly = fakeFile({
+      name: 'mapping.csv',
+      type: 'application/octet-stream',
+      size: bytes.length,
+      bytes,
+    });
+    expect((await admitPsIsonoteTextFileForTest(extensionOnly.file, policy())).parsedResult?.mappings)
+      .toHaveLength(1);
+
+    const mimeOnly = fakeFile({
+      name: 'mapping.data',
+      type: 'text/csv',
+      size: bytes.length,
+      bytes,
+    });
+    expect((await admitPsIsonoteTextFileForTest(mimeOnly.file, policy())).parsedResult?.mappings)
+      .toHaveLength(1);
+
+    const unrelated = fakeFile({
+      name: 'mapping.json',
+      type: 'application/json',
+      size: bytes.length,
+      bytes,
+    });
     await expectFileRejection(
-      admitPsIsonoteTextFileForTest(mime.file, policy()),
+      admitPsIsonoteTextFileForTest(unrelated.file, policy()),
       'REJECTED_SOURCE_TYPE',
     );
-    expect(mime.arrayBuffer).not.toHaveBeenCalled();
+    expect(unrelated.arrayBuffer).not.toHaveBeenCalled();
   });
 
   it('counts logical rows across LF, CRLF, quoted delimiters, and quoted newlines', () => {

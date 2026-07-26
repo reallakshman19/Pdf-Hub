@@ -267,10 +267,10 @@ function validateFileType(file: File): boolean {
   const lowerName = file.name.toLowerCase();
   const extensionAllowed = ALLOWED_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
   const mimeType = file.type.toLowerCase().split(';', 1)[0]?.trim() ?? '';
-  return extensionAllowed && (
-    mimeType.length === 0 ||
-    ALLOWED_MIME_TYPES.includes(mimeType as (typeof ALLOWED_MIME_TYPES)[number])
+  const mimeAllowed = ALLOWED_MIME_TYPES.includes(
+    mimeType as (typeof ALLOWED_MIME_TYPES)[number],
   );
+  return extensionAllowed || mimeAllowed;
 }
 
 function capWarnings(warnings: readonly string[], maximum: number): string[] {
