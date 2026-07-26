@@ -48,6 +48,9 @@ const FAMILY_HEADER_ALIASES = new Set([
   'supporttype',
   'category',
   'supportcategory',
+  'tag',
+  'supporttag',
+  'navistag',
 ]);
 
 function normalizeHeader(value: string): string {
@@ -68,12 +71,12 @@ export function normalizePsNumber(value: string): string | null {
     .replace(/\b(?:PS|SUPPORT)\s*(?:NO\.?|NUMBER|NUM|ID)?\s*[-:#]?\s*/g, 'PS-')
     .trim();
 
-  const prefixed = /\bPS\s*-?\s*([A-Z0-9]{2,12}(?:\s*\.\s*[A-Z0-9]{1,6})?)\b/.exec(normalized);
+  const prefixed = /\bPS\s*-?\s*([A-Z0-9]{2,12}(?:\s*(?:\.|\/)\s*[A-Z0-9]{1,12})*)\b/.exec(normalized);
   if (prefixed) {
     return `PS-${prefixed[1].replace(/\s+/g, '')}`;
   }
 
-  const bare = /^\s*([0-9]{2,12}(?:\s*\.\s*[A-Z0-9]{1,6})?)\s*$/.exec(normalized);
+  const bare = /^\s*([0-9]{2,12}(?:\s*(?:\.|\/)\s*[A-Z0-9]{1,12})*)\s*$/.exec(normalized);
   if (bare) {
     return `PS-${bare[1].replace(/\s+/g, '')}`;
   }

@@ -82,7 +82,7 @@ export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
   };
 }
 
-const PS_REFERENCE_PATTERN = /\bP\s*S\s*[-‐‑‒–—−]\s*[0-9]{2,12}(?:\s*\.\s*[A-Z0-9]{1,6})?\b/gi;
+const PS_REFERENCE_PATTERN = /\bP\s*S\s*[-‐‑‒–—−]\s*[0-9]{2,12}(?:\s*(?:\.|\/)\s*[A-Z0-9]{1,12})*\b/gi;
 
 function normalizeReferenceText(text: string): string {
   return text

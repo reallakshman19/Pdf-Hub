@@ -23,6 +23,7 @@ const SAMPLE_ICONS: Record<PsIsonoteSampleId, LucideIcon> = {
   'csv-family': FileSpreadsheet,
   'tsv-basic': FileText,
   'pipe-table': Table2,
+  'navis-tag-isonote': Table2,
 };
 
 function downloadSample(sample: PsIsonoteSample): void {
