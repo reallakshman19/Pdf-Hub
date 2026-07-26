@@ -1,0 +1,61 @@
+name: Phase 3B.2 lockfile repair
+
+on:
+  push:
+    branches:
+      - agent/bounded-zip-extraction-phase3b2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3b2-lockfile-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-zip-extraction-phase3b2
+          fetch-depth: 0
+
+      - name: Restore baseline lockfile and add direct fflate importer
+        run: |
+          set -euo pipefail
+          git show 435e4b9473d6bb2499e7d5ff72c00901b808bdf2:pnpm-lock.yaml > pnpm-lock.yaml
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('pnpm-lock.yaml')
+          text = path.read_text()
+          marker = "      html2canvas:\n"
+          addition = (
+              "      fflate:\n"
+              "        specifier: 0.8.2\n"
+              "        version: 0.8.2\n"
+          )
+          if text.count(marker) != 1:
+              raise SystemExit(f'Expected one frontend html2canvas marker, found {text.count(marker)}')
+          path.write_text(text.replace(marker, addition + marker, 1))
+          PY
+
+      - name: Verify exact lockfile delta
+        run: |
+          set -euo pipefail
+          git diff -- pnpm-lock.yaml
+          test "$(git diff --numstat 435e4b9473d6bb2499e7d5ff72c00901b808bdf2 -- pnpm-lock.yaml | awk '{print $1":"$2}')" = "3:0"
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'specifier: 0.8.2'
+          grep -A2 '^      fflate:$' pnpm-lock.yaml | grep -q 'version: 0.8.2'
+
+      - name: Remove temporary workflow and commit repair
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase3b2-lockfile-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pnpm-lock.yaml .github/workflows/phase3b2-lockfile-repair.yml
+          git commit -m 'Repair Phase 3B.2 lockfile delta'
+          git push origin HEAD:agent/bounded-zip-extraction-phase3b2
