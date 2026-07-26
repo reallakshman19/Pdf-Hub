@@ -76,7 +76,7 @@ describe('standalone Writer project resource admission', () => {
   });
 
   it('prevents semantic decoding after actual expansion rejection', async () => {
-    const fixture = buildRawZipFixture([{ name: 'manifest.json', data: [] }]);
+    const fixture = buildRawZipFixture(requiredProjectEntries());
     const inventory = admitZipArchive(inspectZipArchive(fixture.bytes));
     const evidence = rejectedEvidence(
       fixture.bytes.byteLength,
@@ -100,7 +100,7 @@ describe('standalone Writer project resource admission', () => {
   });
 
   it('does not invoke semantic decoding after extraction cancellation', async () => {
-    const fixture = buildRawZipFixture([{ name: 'manifest.json', data: [] }]);
+    const fixture = buildRawZipFixture(requiredProjectEntries());
     const inventory = admitZipArchive(inspectZipArchive(fixture.bytes));
     const controller = new AbortController();
     const evidence = rejectedEvidence(
@@ -187,6 +187,14 @@ function rejectedEvidence(
     archiveOutcome,
     ...(cancellationStage ? { cancellationStage } : {}),
   });
+}
+
+function requiredProjectEntries() {
+  return [
+    { name: 'manifest.json', data: [] },
+    { name: 'writer-elements.json', data: [] },
+    { name: 'writer-assets.json', data: [] },
+  ] as const;
 }
 
 function operation(signal?: AbortSignal): StandaloneWriterProjectOperation {
