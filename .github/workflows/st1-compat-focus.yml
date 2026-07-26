@@ -1,0 +1,54 @@
+name: ST-1 final focused compatibility gate
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ps-isonote-text-admission-st1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - name: Apply compatibility correction
+        run: python .github/st1_compat_fix.py
+      - name: Install dependencies without lockfile mutation
+        run: cd frontend && pnpm install --frozen-lockfile --silent
+      - name: Focused ST-1 tests
+        run: |
+          cd frontend
+          pnpm exec vitest run \
+            src/core/macro/psIsonote/psIsonoteTextAdmissionPolicy.test.ts \
+            src/core/macro/psIsonote/psIsonoteTextAdmission.test.ts \
+            src/core/macro/psIsonote/psIsonoteTable.test.ts \
+            src/core/macro/psIsonote/psIsonoteSamples.test.ts \
+            src/components/sidebar/PsIsonoteSampleLoader.test.tsx \
+            src/components/sidebar/PsIsonoteRecipeBuilder.admission.test.tsx \
+            --pool=forks --maxWorkers=1
+      - name: Strict TypeScript
+        run: cd frontend && pnpm run typecheck
+      - name: Lint
+        run: cd frontend && pnpm run lint
+      - name: Verify package and lockfile stability
+        run: git diff --exit-code -- frontend/package.json pnpm-lock.yaml
+      - name: Commit validated correction and remove temporary runner files
+        run: |
+          rm .github/st1_compat_fix.py
+          rm .github/workflows/st1-compat-focus.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Preserve ST-1 source file compatibility"
+          git push origin HEAD:agent/ps-isonote-text-admission-st1
