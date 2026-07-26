@@ -166,7 +166,9 @@ describe('standalone Writer project JSON source admission', () => {
           decodeProject,
         },
       ),
-    ).rejects.toThrow('cancel after JSON source-set registration');
+    ).rejects.toThrow(
+      'Operation cancelled while running standalone Writer project after JSON source admission.',
+    );
 
     expect(decodeProject).not.toHaveBeenCalled();
     expect(capturedSourceSet).toBeDefined();
