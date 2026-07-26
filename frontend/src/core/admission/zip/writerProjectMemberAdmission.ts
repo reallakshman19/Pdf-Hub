@@ -405,10 +405,10 @@ function buildEvidence(
   }
 
   const requiredRoleStatus = profile.requiredRootFiles.map((role) =>
-    roleStatus<WriterProjectRequiredRootFile>(records, role),
+    roleStatus(records, role),
   );
   const optionalRoleStatus = profile.optionalRootFiles.map((role) =>
-    roleStatus<WriterProjectOptionalRootFile>(records, role),
+    roleStatus(records, role),
   );
 
   return freezeWriterProjectMemberAdmissionEvidence({
@@ -434,12 +434,18 @@ function buildEvidence(
   });
 }
 
-function roleStatus<T extends string>(
+function roleStatus(
   records: readonly WriterProjectMemberAdmissionRecord[],
-  role: T,
-): T extends WriterProjectRequiredRootFile
-  ? WriterProjectRequiredRoleStatus
-  : WriterProjectOptionalRoleStatus {
+  role: WriterProjectRequiredRootFile,
+): WriterProjectRequiredRoleStatus;
+function roleStatus(
+  records: readonly WriterProjectMemberAdmissionRecord[],
+  role: WriterProjectOptionalRootFile,
+): WriterProjectOptionalRoleStatus;
+function roleStatus(
+  records: readonly WriterProjectMemberAdmissionRecord[],
+  role: WriterProjectRequiredRootFile | WriterProjectOptionalRootFile,
+): WriterProjectRequiredRoleStatus | WriterProjectOptionalRoleStatus {
   const record = records.find(
     (candidate) =>
       candidate.role === role && candidate.admissionOutcome === 'ADMITTED',
@@ -448,11 +454,8 @@ function roleStatus<T extends string>(
     role,
     present: Boolean(record),
     ...(record ? { ordinal: record.ordinal } : {}),
-  } as T extends WriterProjectRequiredRootFile
-    ? WriterProjectRequiredRoleStatus
-    : WriterProjectOptionalRoleStatus;
+  };
 }
-
 function emptyClassificationCounts(): Record<
   WriterProjectMemberClassification,
   number
