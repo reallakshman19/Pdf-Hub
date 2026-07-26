@@ -17,6 +17,25 @@ describe('PS ISONOTE sample mappings', () => {
     expect(parsed.every((result) => result.mappings[0]?.isonote.includes('GUIDE'))).toBe(true);
   });
 
+  it('binds each format to an exact filename and text MIME type', () => {
+    expect(
+      PS_ISONOTE_SAMPLES.map(({ fileName, mimeType }) => ({ fileName, mimeType })),
+    ).toEqual([
+      {
+        fileName: 'ps-isonote-sample.csv',
+        mimeType: 'text/csv;charset=utf-8',
+      },
+      {
+        fileName: 'ps-isonote-sample.tsv',
+        mimeType: 'text/tab-separated-values;charset=utf-8',
+      },
+      {
+        fileName: 'ps-isonote-sample.txt',
+        mimeType: 'text/plain;charset=utf-8',
+      },
+    ]);
+  });
+
   it('demonstrates that PS_NO and ISONOTE are separate TSV columns', () => {
     const sample = PS_ISONOTE_SAMPLES.find((candidate) => candidate.id === 'tsv-basic');
     expect(sample).toBeDefined();
