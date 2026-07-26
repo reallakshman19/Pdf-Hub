@@ -88,7 +88,7 @@ export class BoundedZipMemberSetArchiveReader implements ProjectArchiveReader {
   async readBytes(path: string): Promise<Uint8Array> {
     const member = getRegistry(this.memberSet).byPath.get(path);
     if (!member) throw new Error(`Archive missing file: ${path}`);
-    return new Uint8Array(member.bytes);
+    return Uint8Array.from(member.bytes);
   }
 
   async readText(path: string): Promise<string> {
