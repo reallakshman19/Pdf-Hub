@@ -11,7 +11,6 @@ import {
 import {
   createWriterProjectJsonSourcePolicyForTest,
   WRITER_PROJECT_JSON_SOURCE_POLICY_V1,
-  type WriterProjectJsonSourcePath,
 } from './writerProjectJsonSourcePolicy';
 import { releaseAdmittedProjectJsonSources } from './writerProjectJsonSourceSet';
 import {
