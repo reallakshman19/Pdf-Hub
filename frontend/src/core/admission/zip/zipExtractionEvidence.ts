@@ -33,7 +33,7 @@ export type ZipMemberClassification =
 export type ZipMemberExtractionOutcome =
   | 'EXTRACTED'
   | 'SKIPPED_DIRECTORY'
-  | Exclude<ZipBoundedExtractionOutcome, 'ADMITTED' | 'REJECTED_SOURCE_BYTES' | 'REJECTED_SOURCE_METADATA_MISMATCH' | 'REJECTED_ENTRY_COUNT' | 'REJECTED_DECLARED_ARCHIVE_EXPANDED_BYTES' | 'REJECTED_DECLARED_ARCHIVE_RATIO'>;
+  | Exclude<ZipBoundedExtractionOutcome, 'ADMITTED'>;
 
 export interface ZipExtractionDiagnostic {
   readonly severity: 'error' | 'info';
