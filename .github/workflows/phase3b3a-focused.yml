@@ -1,6 +1,9 @@
 name: Phase 3B.3A focused validation
 
 on:
+  push:
+    branches:
+      - agent/static-project-member-admission-phase3b3a
   pull_request:
     branches:
       - main
@@ -9,12 +12,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: phase3b3a-focused-${{ github.event.pull_request.number }}
+  group: phase3b3a-focused-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   focused:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
