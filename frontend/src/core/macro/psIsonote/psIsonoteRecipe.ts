@@ -359,9 +359,9 @@ function estimateCalloutHeight(
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
-  const noteLines = Math.max(1, Math.ceil(mapping.isonote.length / charactersPerLine));
-  const familyLines = includeFamily && mapping.family ? 1 : 0;
-  const totalLines = 1 + familyLines + noteLines;
+  const noteText = formatIsonoteWithConfidence(mapping);
+  const noteLines = Math.max(1, Math.ceil((noteText.length + 10) / charactersPerLine));
+  const totalLines = 1 + noteLines;
   return Math.max(52, Math.ceil(padding * 2 + totalLines * fontSize * 1.35 + 4));
 }
 
@@ -456,14 +456,27 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;');
 }
 
+export function formatIsonoteWithConfidence(mapping: PsIsonoteMapping): string {
+  let text = mapping.isonote;
+  if (!/\(C=[^)]+\)$/.test(text) && mapping.confidence) {
+    const c = mapping.confidence.trim().toUpperCase();
+    const code = c.includes('HIGH') || c.startsWith('H') ? 'H' :
+                 c.includes('MEDIUM') || c.startsWith('M') ? 'M' :
+                 c.includes('LOW') || c.startsWith('L') ? 'L' :
+                 c.charAt(0);
+    if (code) {
+      text += ` (C=${code})`;
+    }
+  }
+  return text;
+}
+
 function buildCalloutHtml(mapping: PsIsonoteMapping, includeFamily: boolean): string {
-  const family = includeFamily && mapping.family
-    ? `<div style="font-size:0.86em;opacity:0.78;margin-top:2px">Family: ${escapeHtml(mapping.family)}</div>`
-    : '';
+  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  const noteText = formatIsonoteWithConfidence(mapping);
   return [
-    `<div><strong>${escapeHtml(mapping.psNo)} - ISONOTE</strong></div>`,
-    family,
-    `<div style="margin-top:4px">${escapeHtml(mapping.isonote)}</div>`,
+    `<div><strong>Tag: ${escapeHtml(tagText)}</strong></div>`,
+    `<div style="margin-top:4px">ISO Note: ${escapeHtml(noteText)}</div>`,
   ].join('');
 }
 

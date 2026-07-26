@@ -2,6 +2,7 @@ export interface PsIsonoteMapping {
   psNo: string;
   isonote: string;
   family?: string;
+  confidence?: string;
   sourceRow: number;
 }
 
@@ -12,6 +13,7 @@ export interface PsIsonoteParseResult {
   psColumn: string;
   isonoteColumn: string;
   familyColumn?: string;
+  confidenceColumn?: string;
 }
 
 const PS_HEADER_ALIASES = new Set([
@@ -51,6 +53,14 @@ const FAMILY_HEADER_ALIASES = new Set([
   'tag',
   'supporttag',
   'navistag',
+]);
+
+const CONFIDENCE_HEADER_ALIASES = new Set([
+  'confidence',
+  'conf',
+  'c',
+  'matchconfidence',
+  'certainty',
 ]);
 
 function normalizeHeader(value: string): string {
@@ -256,6 +266,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
   let psColumn = findHeaderIndex(headers, PS_HEADER_ALIASES);
   let isonoteColumn = findHeaderIndex(headers, ISONOTE_HEADER_ALIASES);
   const familyColumn = findHeaderIndex(headers, FAMILY_HEADER_ALIASES);
+  const confidenceColumn = findHeaderIndex(headers, CONFIDENCE_HEADER_ALIASES);
 
   if (psColumn < 0) psColumn = inferPsColumn(dataRows);
   if (isonoteColumn < 0) isonoteColumn = inferIsonoteColumn(dataRows, psColumn);
@@ -276,6 +287,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     const psNo = normalizePsNumber(rawPs);
     const isonote = cleanIsonote(row[isonoteColumn] ?? '');
     const family = familyColumn >= 0 ? cleanCell(row[familyColumn] ?? '') : '';
+    const confidence = confidenceColumn >= 0 ? cleanCell(row[confidenceColumn] ?? '') : '';
 
     if (!rawPs.trim() && !isonote) return;
     if (!psNo) {
@@ -301,6 +313,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
       psNo,
       isonote,
       family: family || undefined,
+      confidence: confidence || undefined,
       sourceRow,
     });
   });
@@ -317,5 +330,6 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     psColumn: headers[psColumn] ?? `Column ${psColumn + 1}`,
     isonoteColumn: headers[isonoteColumn] ?? `Column ${isonoteColumn + 1}`,
     familyColumn: familyColumn >= 0 ? headers[familyColumn] : undefined,
+    confidenceColumn: confidenceColumn >= 0 ? headers[confidenceColumn] : undefined,
   };
 }
