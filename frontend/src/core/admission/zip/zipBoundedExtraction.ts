@@ -1,7 +1,6 @@
 import { Inflate } from 'fflate';
 import type { ZipArchiveEntryInventory, ZipArchiveInventory } from './zipTypes';
 import type { ZipDeclaredResourceAdmission } from './zipDeclaredResourceAdmission';
-import { declaredCompressionRatio } from './zipDeclaredResourceAdmission';
 import {
   WRITER_PROJECT_ZIP_RESOURCE_POLICY_V1,
   type ZipResourcePolicyV1,
@@ -43,6 +42,7 @@ export type ZipInflaterFactory = (
 export interface ZipBoundedExtractionOptions {
   readonly policy?: ZipResourcePolicyV1;
   readonly inflaterFactory?: ZipInflaterFactory;
+  readonly yieldToEventLoop?: () => Promise<void>;
 }
 
 export interface ZipBoundedExtractionResult {
@@ -80,6 +80,10 @@ export async function extractZipMembersBounded(
 ): Promise<ZipBoundedExtractionResult> {
   const policy = options.policy ?? WRITER_PROJECT_ZIP_RESOURCE_POLICY_V1;
   const inflaterFactory = options.inflaterFactory ?? createFflateInflater;
+  const yieldToEventLoop = options.yieldToEventLoop ?? yieldBrowserEventLoop;
+  const declaredByOrdinal = new Map(
+    declaredAdmission.entries.map((entry) => [entry.ordinal, entry] as const),
+  );
   const memberEvidence: ZipMemberExtractionEvidence[] = [];
   const diagnostics: ZipExtractionDiagnostic[] = [];
   const ownedMembers: BoundedZipMember[] = [];
@@ -89,6 +93,7 @@ export async function extractZipMembersBounded(
   let largestOutputChunkBytes = 0;
   let extractedMemberCount = 0;
   let skippedDirectoryCount = 0;
+  let memberSetEscaped = false;
 
   const orderedEntries = [...inventory.entries].sort(
     (left, right) => left.ordinal - right.ordinal,
@@ -99,11 +104,17 @@ export async function extractZipMembersBounded(
 
     for (const entry of orderedEntries) {
       assertOperationCurrent(operation, `before ZIP member ${entry.ordinal}`);
+      const declaredMeasurement = declaredByOrdinal.get(entry.ordinal);
+      if (!declaredMeasurement) {
+        throw new PendingExtractionFailure(
+          'EXTRACTION_FAILED',
+          'ZIP_DECLARED_ENTRY_EVIDENCE_MISSING',
+          `Writer project member ${entry.ordinal} is missing declared-admission evidence.`,
+        );
+      }
+
       const classification = classifyZipMember(entry.normalizedFilename);
-      const declaredRatio = declaredCompressionRatio(
-        entry.compressedSize,
-        entry.uncompressedSize,
-      );
+      const declaredRatio = declaredMeasurement.declaredRatio;
 
       if (entry.directory) {
         skippedDirectoryCount += 1;
@@ -136,12 +147,13 @@ export async function extractZipMembersBounded(
       };
 
       try {
-        const bytes = extractRegularMember(
+        const bytes = await extractRegularMember(
           sourceBytes,
           entry,
           operation,
           policy,
           inflaterFactory,
+          yieldToEventLoop,
           progress,
           () => archiveActualExpandedBytes,
           (nextArchiveBytes) => {
@@ -173,7 +185,8 @@ export async function extractZipMembersBounded(
           actualCrc32,
           bytes,
         }));
-        classifiedMemberCounts[classification] += 1;
+        classifiedMemberCounts[classification] =
+          classifiedMemberCounts[classification] + 1;
         extractedMemberCount += 1;
         memberEvidence.push(freezeMemberEvidence({
           ordinal: entry.ordinal,
@@ -250,6 +263,7 @@ export async function extractZipMembersBounded(
       'ADMITTED',
     );
     const memberSet = BoundedZipMemberSet.create(ownedMembers, evidence);
+    memberSetEscaped = true;
     return Object.freeze({ memberSet, evidence });
   } catch (error) {
     if (error instanceof ZipBoundedExtractionError) throw error;
@@ -278,24 +292,28 @@ export async function extractZipMembersBounded(
       failure.message,
     );
   } finally {
-    if (memberEvidence.some((member) => member.outcome !== 'EXTRACTED' && member.outcome !== 'SKIPPED_DIRECTORY')) {
+    if (!memberSetEscaped) {
       ownedMembers.length = 0;
+      memberEvidence.length = 0;
+      diagnostics.length = 0;
+      declaredByOrdinal.clear();
     }
   }
 }
 
-function extractRegularMember(
+async function extractRegularMember(
   sourceBytes: Uint8Array,
   entry: ZipArchiveEntryInventory,
   operation: ZipExtractionOperation,
   policy: ZipResourcePolicyV1,
   inflaterFactory: ZipInflaterFactory,
+  yieldToEventLoop: () => Promise<void>,
   progress: MemberProgress,
   getArchiveActualBytes: () => number,
   setArchiveActualBytes: (bytes: number) => void,
   recordActiveBytes: (bytes: number) => void,
   recordOutputChunkBytes: (bytes: number) => void,
-): Uint8Array {
+): Promise<Uint8Array> {
   const range = entry.compressedDataRange;
   if (!range) {
     throw new PendingExtractionFailure(
@@ -305,21 +323,24 @@ function extractRegularMember(
     );
   }
 
-  const destination = new Uint8Array(entry.uncompressedSize);
-  if (destination.byteLength > policy.limits.MAX_ACTIVE_EXTRACTION_BYTES) {
+  if (entry.uncompressedSize > policy.limits.MAX_ACTIVE_EXTRACTION_BYTES) {
     throw new PendingExtractionFailure(
       'REJECTED_ACTIVE_EXTRACTION_BYTES',
       'ZIP_ACTIVE_EXTRACTION_BYTES_EXCEEDED',
       `Writer project member "${entry.normalizedFilename}" exceeded the active extraction-byte limit.`,
     );
   }
-  recordActiveBytes(destination.byteLength);
 
+  const destination = new Uint8Array(entry.uncompressedSize);
+  recordActiveBytes(destination.byteLength);
   const crc = new ZipCrc32();
   const compressed = sourceBytes.subarray(range.start, range.end);
 
   const retainOutput = (chunk: Uint8Array): void => {
-    assertOperationCurrent(operation, `before retaining output for ZIP member ${entry.ordinal}`);
+    assertOperationCurrent(
+      operation,
+      `before retaining output for ZIP member ${entry.ordinal}`,
+    );
     if (chunk.byteLength > policy.limits.MAX_INFLATE_OUTPUT_CHUNK_BYTES) {
       throw new PendingExtractionFailure(
         'REJECTED_OUTPUT_CHUNK_BYTES',
@@ -382,18 +403,27 @@ function extractRegularMember(
         `Writer project stored member "${entry.normalizedFilename}" has unequal compressed and expanded declarations.`,
       );
     }
+
     for (
       let offset = 0;
       offset < compressed.byteLength;
       offset += policy.limits.COMPRESSED_INPUT_CHUNK_BYTES
     ) {
-      assertOperationCurrent(operation, `before stored input chunk for ZIP member ${entry.ordinal}`);
+      assertOperationCurrent(
+        operation,
+        `before stored input chunk for ZIP member ${entry.ordinal}`,
+      );
       const end = Math.min(
         compressed.byteLength,
         offset + policy.limits.COMPRESSED_INPUT_CHUNK_BYTES,
       );
       progress.inputChunkCount += 1;
       retainOutput(compressed.subarray(offset, end));
+      await yieldToEventLoop();
+      assertOperationCurrent(
+        operation,
+        `after stored input chunk for ZIP member ${entry.ordinal}`,
+      );
     }
   } else if (entry.compressionMethod === 8) {
     let inflater: ZipInflater | null = null;
@@ -401,26 +431,48 @@ function extractRegularMember(
       inflater = inflaterFactory((chunk, final) => {
         retainOutput(chunk);
         if (final) progress.streamCompleted = true;
-        assertOperationCurrent(operation, `after inflater callback for ZIP member ${entry.ordinal}`);
+        assertOperationCurrent(
+          operation,
+          `after inflater callback for ZIP member ${entry.ordinal}`,
+        );
       });
+
       if (compressed.byteLength === 0) {
-        assertOperationCurrent(operation, `before empty DEFLATE input for ZIP member ${entry.ordinal}`);
+        assertOperationCurrent(
+          operation,
+          `before empty DEFLATE input for ZIP member ${entry.ordinal}`,
+        );
         progress.inputChunkCount += 1;
         inflater.push(new Uint8Array(), true);
+        await yieldToEventLoop();
+        assertOperationCurrent(
+          operation,
+          `after empty DEFLATE input for ZIP member ${entry.ordinal}`,
+        );
       } else {
         for (
           let offset = 0;
           offset < compressed.byteLength;
           offset += policy.limits.COMPRESSED_INPUT_CHUNK_BYTES
         ) {
-          assertOperationCurrent(operation, `before DEFLATE input chunk for ZIP member ${entry.ordinal}`);
+          assertOperationCurrent(
+            operation,
+            `before DEFLATE input chunk for ZIP member ${entry.ordinal}`,
+          );
           const end = Math.min(
             compressed.byteLength,
             offset + policy.limits.COMPRESSED_INPUT_CHUNK_BYTES,
           );
           progress.inputChunkCount += 1;
-          inflater.push(compressed.subarray(offset, end), end === compressed.byteLength);
-          assertOperationCurrent(operation, `after DEFLATE input chunk for ZIP member ${entry.ordinal}`);
+          inflater.push(
+            compressed.subarray(offset, end),
+            end === compressed.byteLength,
+          );
+          await yieldToEventLoop();
+          assertOperationCurrent(
+            operation,
+            `after DEFLATE input chunk for ZIP member ${entry.ordinal}`,
+          );
         }
       }
     } finally {
@@ -581,6 +633,12 @@ function emptyClassificationCounts(): Record<ZipMemberClassification, number> {
     OCR_COMPATIBILITY_MEMBER: 0,
     UNCLASSIFIED_MEMBER_POLICY_DEFERRED: 0,
   };
+}
+
+function yieldBrowserEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, 0);
+  });
 }
 
 function errorMessage(error: unknown): string {
