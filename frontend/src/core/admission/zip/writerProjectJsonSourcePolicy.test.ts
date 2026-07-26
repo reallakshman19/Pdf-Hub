@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { WRITER_PROJECT_MEMBER_PROFILE_V1 } from './writerProjectMemberProfile';
 import { WRITER_PROJECT_JSON_SOURCE_POLICY_V1 } from './writerProjectJsonSourcePolicy';
 
-// Temporary certification transition marker.
 describe('WRITER_PROJECT_JSON_SOURCE_POLICY_V1', () => {
   it('freezes the exact owner-approved V1 limits', () => {
     const policy = WRITER_PROJECT_JSON_SOURCE_POLICY_V1;
