@@ -4,10 +4,6 @@ import { inspectZipArchive } from '@/core/admission/zip/zipInventory';
 import { admitZipArchive } from '@/core/admission/zip/zipAdmission';
 import type { ZipArchiveInventory } from '@/core/admission/zip/zipTypes';
 import {
-  extractZipMembersBounded,
-} from '@/core/admission/zip/zipBoundedExtraction';
-import type { ProjectArchiveReader } from '@/core/admission/zip/projectArchiveReader';
-import {
   ZIP_BOUNDED_EXTRACTION_EVIDENCE_PROFILE_ID,
   ZipBoundedExtractionError,
   freezeZipExtractionEvidence,
@@ -37,7 +33,7 @@ describe('standalone Writer project resource admission', () => {
   });
 
   it('rejects contradictory metadata and actual source length before inspection', async () => {
-    const inspectArchive = vi.fn((_bytes: Uint8Array): ZipArchiveInventory => {
+    const inspectArchive = vi.fn((): ZipArchiveInventory => {
       throw new Error('structural inspection must not run');
     });
     const bytes = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0]);
@@ -132,31 +128,25 @@ describe('standalone Writer project resource admission', () => {
 });
 
 function extractorMustNotRun() {
-  return vi.fn(
-    async (..._args: Parameters<typeof extractZipMembersBounded>): ReturnType<typeof extractZipMembersBounded> => {
-      throw new Error('bounded extraction must not run');
-    },
-  );
+  return vi.fn(async () => {
+    throw new Error('bounded extraction must not run');
+  });
 }
 
 function failingExtractor(
   evidence: ZipBoundedExtractionEvidence,
   onCall?: () => void,
 ) {
-  return vi.fn(
-    async (..._args: Parameters<typeof extractZipMembersBounded>): ReturnType<typeof extractZipMembersBounded> => {
-      onCall?.();
-      throw new ZipBoundedExtractionError(evidence);
-    },
-  );
+  return vi.fn(async () => {
+    onCall?.();
+    throw new ZipBoundedExtractionError(evidence);
+  });
 }
 
 function decoderMustNotRun() {
-  return vi.fn(
-    async (_reader: ProjectArchiveReader): Promise<ImportPdfHubProjectResult> => {
-      throw new Error('semantic decoder must not run');
-    },
-  );
+  return vi.fn(async (): Promise<ImportPdfHubProjectResult> => {
+    throw new Error('semantic decoder must not run');
+  });
 }
 
 function rejectedEvidence(
