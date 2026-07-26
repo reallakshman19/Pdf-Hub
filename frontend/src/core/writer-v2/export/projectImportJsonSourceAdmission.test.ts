@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildRawZipFixture } from '@/core/admission/zip/__tests__/zipFixtureBuilder';
+import type { ProjectArchiveReader } from '@/core/admission/zip/projectArchiveReader';
 import { computeZipCrc32 } from '@/core/admission/zip/zipCrc32';
 import { inspectZipArchive } from '@/core/admission/zip/zipInventory';
 import { admitDeclaredZipResources } from '@/core/admission/zip/zipDeclaredResourceAdmission';
 import { admitWriterProjectMembers } from '@/core/admission/zip/writerProjectMemberAdmission';
 import { extractZipMembersBounded } from '@/core/admission/zip/zipBoundedExtraction';
 import { admitWriterProjectJsonSources } from '@/core/admission/zip/writerProjectJsonSourceAdmission';
+import type { AdmittedWriterProjectJsonSourceSet } from '@/core/admission/zip/writerProjectJsonSourceSet';
 import type { ImportPdfHubProjectResult } from './projectZip';
 import {
   revokeStagedWriterProjectImport,
@@ -91,6 +93,86 @@ describe('standalone Writer project JSON source admission', () => {
       }),
     ).rejects.toMatchObject({ outcome: 'REJECTED_UTF8' });
     expect(decodeProject).not.toHaveBeenCalled();
+  });
+
+  it('releases admitted strings and bounded member ownership after decoding', async () => {
+    const fixture = buildRawZipFixture(REQUIRED_ENTRIES);
+    let capturedSourceSet: AdmittedWriterProjectJsonSourceSet | undefined;
+    let capturedBoundedReader: ProjectArchiveReader | undefined;
+
+    const stage = await stageStandaloneWriterProject(
+      fileFromBytes(fixture.bytes),
+      operation(),
+      {
+        async admitJsonSources(memberSet, memberAdmission, reader, currentOperation) {
+          capturedBoundedReader = reader;
+          capturedSourceSet = await admitWriterProjectJsonSources(
+            memberSet,
+            memberAdmission,
+            reader,
+            currentOperation,
+          );
+          return capturedSourceSet;
+        },
+        async decodeProject(reader) {
+          expect(await reader.readText('manifest.json')).toBe('');
+          return blankImportedProject();
+        },
+      },
+    );
+
+    expect(capturedSourceSet).toBeDefined();
+    expect(capturedBoundedReader).toBeDefined();
+    await expect(
+      capturedSourceSet!.reader.readText('manifest.json'),
+    ).rejects.toThrow('no longer available');
+    await expect(
+      capturedBoundedReader!.readBytes('manifest.json'),
+    ).rejects.toThrow('Bounded ZIP member set is no longer available');
+    expect(stage.evidence.writerProjectJsonSourceAdmission.admissionOutcome).toBe(
+      'ADMITTED',
+    );
+    revokeStagedWriterProjectImport(stage);
+  });
+
+  it('cancels after source-set registration and before semantic decoding', async () => {
+    const fixture = buildRawZipFixture(REQUIRED_ENTRIES);
+    const controller = new AbortController();
+    const decodeProject = vi.fn<
+      (reader: ProjectArchiveReader) => Promise<ImportPdfHubProjectResult>
+    >();
+    let capturedSourceSet: AdmittedWriterProjectJsonSourceSet | undefined;
+
+    await expect(
+      stageStandaloneWriterProject(
+        fileFromBytes(fixture.bytes),
+        operation(controller.signal),
+        {
+          async admitJsonSources(
+            memberSet,
+            memberAdmission,
+            reader,
+            currentOperation,
+          ) {
+            capturedSourceSet = await admitWriterProjectJsonSources(
+              memberSet,
+              memberAdmission,
+              reader,
+              currentOperation,
+            );
+            controller.abort('cancel after JSON source-set registration');
+            return capturedSourceSet;
+          },
+          decodeProject,
+        },
+      ),
+    ).rejects.toThrow('cancel after JSON source-set registration');
+
+    expect(decodeProject).not.toHaveBeenCalled();
+    expect(capturedSourceSet).toBeDefined();
+    await expect(
+      capturedSourceSet!.reader.readText('manifest.json'),
+    ).rejects.toThrow('no longer available');
   });
 });
 
