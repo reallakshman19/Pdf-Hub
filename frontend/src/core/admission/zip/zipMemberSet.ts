@@ -39,7 +39,9 @@ export class BoundedZipMemberSet {
     members: readonly BoundedZipMemberMetadata[],
     evidence: ZipBoundedExtractionEvidence,
   ) {
-    this.members = Object.freeze(members.map((member) => Object.freeze({ ...member })));
+    this.members = Object.freeze(
+      members.map((member) => Object.freeze({ ...member })),
+    );
     this.evidence = evidence;
     Object.freeze(this);
   }
@@ -49,14 +51,24 @@ export class BoundedZipMemberSet {
     evidence: ZipBoundedExtractionEvidence,
   ): BoundedZipMemberSet {
     const byPath = new Map<string, BoundedZipMember>();
+    const metadata: BoundedZipMemberMetadata[] = [];
+
     for (const member of ownedMembers) {
       byPath.set(member.path, member);
+      metadata.push({
+        ordinal: member.ordinal,
+        path: member.path,
+        compressionMethod: member.compressionMethod,
+        declaredCompressedBytes: member.declaredCompressedBytes,
+        declaredUncompressedBytes: member.declaredUncompressedBytes,
+        actualExpandedBytes: member.actualExpandedBytes,
+        declaredCrc32: member.declaredCrc32,
+        actualCrc32: member.actualCrc32,
+      });
     }
+
     const paths = Object.freeze([...byPath.keys()].sort());
-    const memberSet = new BoundedZipMemberSet(
-      ownedMembers.map(({ bytes: _bytes, ...metadata }) => metadata),
-      evidence,
-    );
+    const memberSet = new BoundedZipMemberSet(metadata, evidence);
     registry.set(memberSet, { byPath, paths });
     return memberSet;
   }
@@ -80,7 +92,9 @@ export class BoundedZipMemberSetArchiveReader implements ProjectArchiveReader {
       return decodeProjectArchiveUtf8(await this.readBytes(path), path);
     } catch (error) {
       if (!(error instanceof ProjectArchiveUtf8Error)) throw error;
-      const member = this.memberSet.members.find((candidate) => candidate.path === path);
+      const member = this.memberSet.members.find(
+        (candidate) => candidate.path === path,
+      );
       const evidence = rejectZipExtractionEvidence(
         this.memberSet.evidence,
         'REJECTED_UTF8',
