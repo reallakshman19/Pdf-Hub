@@ -1,47 +1,40 @@
-name: Phase 3B.3B focused validation
+name: Phase 3B.3B apply TypeScript cleanup
 
 on:
   push:
     branches:
       - agent/bounded-json-source-admission-phase3b3b
-  pull_request:
-    branches:
-      - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: phase3b3b-focused-${{ github.event.pull_request.number || github.ref }}
+  group: phase3b3b-type-cleanup
   cancel-in-progress: true
 
 jobs:
-  typecheck-diagnostic:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/bounded-json-source-admission-phase3b3b
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: corepack enable
-      - run: corepack prepare pnpm@10.23.0 --activate
-      - name: Install dependencies
-        working-directory: frontend
-        run: pnpm install --no-frozen-lockfile
-      - name: Capture strict TypeScript diagnostics
-        working-directory: frontend
+          fetch-depth: 0
+      - name: Remove unused focused-test type import
         run: |
-          set +e
-          pnpm run typecheck > phase3b3b-typecheck.log 2>&1
-          status=$?
-          cat phase3b3b-typecheck.log
-          exit $status
-      - name: Upload TypeScript diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase3b3b-typecheck-diagnostic
-          path: frontend/phase3b3b-typecheck.log
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('frontend/src/core/admission/zip/writerProjectJsonSourceAdmission.test.ts')
+          text = path.read_text()
+          needle = "  type WriterProjectJsonSourcePath,\n"
+          if text.count(needle) != 1:
+              raise SystemExit('expected one unused type import')
+          path.write_text(text.replace(needle, ''))
+          PY
+          rm -f .github/workflows/phase3b3b-focused.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/core/admission/zip/writerProjectJsonSourceAdmission.test.ts .github/workflows/phase3b3b-focused.yml
+          git commit -m 'Fix Phase 3B.3B strict TypeScript'
+          git push origin HEAD:agent/bounded-json-source-admission-phase3b3b
