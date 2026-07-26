@@ -1,73 +1,49 @@
 from pathlib import Path
+import re
 
 path = Path('frontend/src/components/sidebar/PsIsonoteRecipeBuilder.tsx')
 text = path.read_text()
 
 
-def replace_once(old: str, new: str) -> None:
+def sub_once(pattern: str, replacement: str, *, flags: int = 0) -> None:
     global text
-    if old not in text:
-        raise SystemExit(f'Expected builder snippet not found:\n{old}')
-    text = text.replace(old, new, 1)
+    text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+    if count != 1:
+        raise SystemExit(f'Expected exactly one builder match, found {count}: {pattern}')
 
 
-replace_once(
-    """import {
-  parsePsIsonoteTable,
-  type PsIsonoteParseResult,
-} from '@/core/macro/psIsonote/psIsonoteTable';
-""",
+sub_once(
+    r"import \{\s*parsePsIsonoteTable,\s*type PsIsonoteParseResult,\s*\} from '@/core/macro/psIsonote/psIsonoteTable';",
     """import type { PsIsonoteParseResult } from '@/core/macro/psIsonote/psIsonoteTable';
 import {
   admitPsIsonoteTextCandidate,
   admitPsIsonoteTextFile,
   type AdmittedPsIsonoteTextSource,
 } from '@/core/macro/psIsonote/psIsonoteTextAdmission';
-import type { PsIsonoteTextAdmissionEvidenceV1 } from '@/core/macro/psIsonote/psIsonoteTextAdmissionEvidence';
-""",
+import type { PsIsonoteTextAdmissionEvidenceV1 } from '@/core/macro/psIsonote/psIsonoteTextAdmissionEvidence';""",
 )
 
-replace_once(
-    """function parseSource(sourceText: string): ParsedState {
-  if (!sourceText.trim()) return { result: null, error: null };
-  try {
-    return { result: parsePsIsonoteTable(sourceText), error: null };
-  } catch (error) {
-    return {
-      result: null,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-""",
-    """,
+sub_once(
+    r"function parseSource\(sourceText: string\): ParsedState \{.*?\n\}\n\n(?=function buildSelector)",
+    "",
+    flags=re.S,
 )
 
-replace_once(
-    """  const [sourceText, setSourceText] = React.useState('');
-  const [sourceName, setSourceName] = React.useState('');
-""",
+sub_once(
+    r"  const \[sourceText, setSourceText\] = React\.useState\(''\);\n  const \[sourceName, setSourceName\] = React\.useState\(''\);",
     """  const [sourceText, setSourceText] = React.useState('');
   const [sourceName, setSourceName] = React.useState('');
   const [parsedState, setParsedState] = React.useState<ParsedState>({ result: null, error: null });
-  const [admissionEvidence, setAdmissionEvidence] = React.useState<PsIsonoteTextAdmissionEvidenceV1 | null>(null);
-""",
+  const [admissionEvidence, setAdmissionEvidence] = React.useState<PsIsonoteTextAdmissionEvidenceV1 | null>(null);""",
 )
 
-replace_once(
-    """  const parsedState = React.useMemo(() => parseSource(sourceText), [sourceText]);
-""",
-    """,
+sub_once(
+    r"  const parsedState = React\.useMemo\(\(\) => parseSource\(sourceText\), \[sourceText\]\);\n",
+    "",
 )
 
-replace_once(
-    """  const clearRunArtifacts = React.useCallback(() => {
-    setScanArtifact(null);
-    setAuditArtifact(null);
-    setMessage(null);
-  }, []);
-""",
+sub_once(
+    r"  const clearRunArtifacts = React\.useCallback\(\(\) => \{\n    setScanArtifact\(null\);\n    setAuditArtifact\(null\);\n    setMessage\(null\);\n  \}, \[\]\);",
     """  const clearRunArtifacts = React.useCallback(() => {
     setScanArtifact(null);
     setAuditArtifact(null);
@@ -86,31 +62,11 @@ replace_once(
     clearRunArtifacts();
     setError(null);
     if (successMessage) setMessage(successMessage);
-  }, [clearRunArtifacts]);
-""",
+  }, [clearRunArtifacts]);""",
 )
 
-replace_once(
-    """  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      setSourceText(await file.text());
-      setSourceName(file.name);
-      clearRunArtifacts();
-      setError(null);
-    } catch (fileError) {
-      setError(fileError instanceof Error ? fileError.message : String(fileError));
-    }
-  };
-
-  const handleSample = React.useCallback((sample: PsIsonoteSample) => {
-    setSourceText(sample.content);
-    setSourceName(sample.fileName);
-    clearRunArtifacts();
-    setError(null);
-    setMessage(`Loaded ${sample.label} sample mapping.`);
-  }, [clearRunArtifacts]);
-""",
+sub_once(
+    r"  const handleFile = async \(file: File \| undefined\) => \{.*?\n  const handlePreview = async \(\) => \{",
     """  const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -135,17 +91,14 @@ replace_once(
       setError(sampleError instanceof Error ? sampleError.message : String(sampleError));
     }
   }, [commitAdmittedSource]);
-""",
+
+  const handlePreview = async () => {""",
+    flags=re.S,
 )
 
-replace_once(
-    """      {sourceName && <div className="truncate text-[11px] text-slate-500">Source: {sourceName}</div>}
-
-      <textarea
-""",
-    """      {sourceName && <div className="truncate text-[11px] text-slate-500">Source: {sourceName}</div>}
-
-      {admissionEvidence && (
+sub_once(
+    r"(      \{sourceName && <div className=\"truncate text-\[11px\] text-slate-500\">Source: \{sourceName\}</div>\}\n\n)(      <textarea)",
+    r"""\1      {admissionEvidence && (
         <div
           aria-label="PS ISONOTE admission metrics"
           className="text-[10px] text-slate-500 dark:text-slate-400"
@@ -155,19 +108,11 @@ replace_once(
         </div>
       )}
 
-      <textarea
-""",
+\2""",
 )
 
-replace_once(
-    """        value={sourceText}
-        onChange={(event) => {
-          setSourceText(event.target.value);
-          setSourceName('');
-          clearRunArtifacts();
-          setError(null);
-        }}
-""",
+sub_once(
+    r"        value=\{sourceText\}\n        onChange=\{\(event\) => \{\n          setSourceText\(event\.target\.value\);\n          setSourceName\(''\);\n          clearRunArtifacts\(\);\n          setError\(null\);\n        \}\}",
     """        value={sourceText}
         disabled={isScanning || isRunning || isPackaging}
         onChange={(event) => {
@@ -180,8 +125,7 @@ replace_once(
           } catch (candidateError) {
             setError(candidateError instanceof Error ? candidateError.message : String(candidateError));
           }
-        }}
-""",
+        }}""",
 )
 
 path.write_text(text)
