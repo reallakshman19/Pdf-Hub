@@ -5,7 +5,7 @@ import { useWriterV2Store } from '../writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import {
-  importPdfHubWriterProject,
+  importPdfHubWriterProjectFromReader,
   type ImportPdfHubProjectResult,
   type PdfHubWriterProjectManifestV1,
 } from './projectZip';
@@ -18,6 +18,21 @@ import {
 import { inspectZipArchive } from '@/core/admission/zip/zipInventory';
 import { admitZipArchive } from '@/core/admission/zip/zipAdmission';
 import type { ZipArchiveInventory } from '@/core/admission/zip/zipTypes';
+import {
+  admitDeclaredZipResources,
+  admitZipSourceBytes,
+  admitZipSourceMetadata,
+} from '@/core/admission/zip/zipDeclaredResourceAdmission';
+import {
+  extractZipMembersBounded,
+  type ZipBoundedExtractionResult,
+} from '@/core/admission/zip/zipBoundedExtraction';
+import {
+  BoundedZipMemberSetArchiveReader,
+  releaseBoundedZipMemberSet,
+} from '@/core/admission/zip/zipMemberSet';
+import type { ProjectArchiveReader } from '@/core/admission/zip/projectArchiveReader';
+import type { ZipBoundedExtractionEvidence } from '@/core/admission/zip/zipExtractionEvidence';
 
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
@@ -60,11 +75,10 @@ export interface WriterProjectImportEvidence {
   readonly commitTarget?: 'PDF_OVERLAY' | 'BLANK_WRITER';
   readonly diagnostics: readonly WriterProjectImportDiagnostic[];
   readonly zipStructuralAdmission: ZipArchiveInventory;
+  readonly zipBoundedExtraction: ZipBoundedExtractionEvidence;
   readonly unresolvedPolicy: {
     readonly authority: 'UNRESOLVED_POLICY';
     readonly dimensions: readonly [
-      'SOURCE_BYTES',
-      'ZIP_ENTRY_COUNT',
       'JSON_BYTES',
       'WRITER_ELEMENT_COUNT',
       'WRITER_ASSET_COUNT',
@@ -82,7 +96,10 @@ export interface StandaloneWriterProjectOperation {
 
 export interface StandaloneWriterProjectStageDependencies {
   readonly inspectArchive?: (bytes: Uint8Array) => ZipArchiveInventory;
-  readonly decodeProject?: (bytes: Uint8Array) => Promise<ImportPdfHubProjectResult>;
+  readonly extractMembers?: typeof extractZipMembersBounded;
+  readonly decodeProject?: (
+    reader: ProjectArchiveReader,
+  ) => Promise<ImportPdfHubProjectResult>;
 }
 
 export interface StagedWriterProjectImport {
@@ -110,6 +127,12 @@ interface RegisteredStage {
   readonly operation: StandaloneWriterProjectOperation;
   consumed: boolean;
   revoked: boolean;
+}
+
+interface StandaloneWriterProjectDecodeResult {
+  readonly imported: ImportPdfHubProjectResult;
+  readonly inventory: ZipArchiveInventory;
+  readonly extractionEvidence: ZipBoundedExtractionEvidence;
 }
 
 const stagedRegistry = new WeakMap<StagedWriterProjectImport, RegisteredStage>();
@@ -144,30 +167,8 @@ export async function stageStandaloneWriterProject(
     });
   }
 
-  assertOperationCurrent(operation, 'standalone Writer project before read');
-  const buffer = await raceWithAbort(
-    file.arrayBuffer(),
-    operation.signal,
-    'standalone Writer project file read',
-  );
-  assertOperationCurrent(operation, 'standalone Writer project after read');
-  const projectBytes = new Uint8Array(buffer);
-  if (!hasZipSignature(projectBytes)) {
-    throw new Error('Writer project ZIP signature is missing.');
-  }
-
-  assertOperationCurrent(operation, 'standalone Writer project before raw ZIP inspection');
-  const inventory = (dependencies.inspectArchive ?? inspectZipArchive)(projectBytes);
-  assertOperationCurrent(operation, 'standalone Writer project after raw ZIP inspection');
-  admitZipArchive(inventory);
-  assertOperationCurrent(operation, 'standalone Writer project before compatibility ZIP decode');
-  const imported = await raceWithAbort(
-    (dependencies.decodeProject ?? importPdfHubWriterProject)(projectBytes),
-    operation.signal,
-    'standalone Writer project ZIP decode',
-  );
-  assertOperationCurrent(operation, 'standalone Writer project after ZIP decode');
-
+  const decoded = await decodeStandaloneWriterProject(file, operation, dependencies);
+  const { imported, inventory, extractionEvidence } = decoded;
   const reconciled = await reconcileImportedProject(imported, operation, diagnostics);
   assertOperationCurrent(operation, 'standalone Writer project before staging');
 
@@ -176,9 +177,10 @@ export async function stageStandaloneWriterProject(
     sourceRoute: 'WRITER_V2_TOOLBAR_STANDALONE_PROJECT' as const,
     fileName: file.name,
     mimeType: file.type,
-    sourceBytes: file.size,
+    sourceBytes: extractionEvidence.sourceBytes,
     zipSignature: 'accepted' as const,
     zipStructuralAdmission: inventory,
+    zipBoundedExtraction: extractionEvidence,
     schema: imported.manifest.schema,
     schemaVersion: imported.manifest.schemaVersion,
     documentMode: reconciled.documentMeta?.mode ?? inferredMode(imported),
@@ -196,8 +198,6 @@ export async function stageStandaloneWriterProject(
     unresolvedPolicy: {
       authority: 'UNRESOLVED_POLICY' as const,
       dimensions: [
-        'SOURCE_BYTES',
-        'ZIP_ENTRY_COUNT',
         'JSON_BYTES',
         'WRITER_ELEMENT_COUNT',
         'WRITER_ASSET_COUNT',
@@ -222,6 +222,73 @@ export async function stageStandaloneWriterProject(
     revoked: false,
   });
   return capability;
+}
+
+async function decodeStandaloneWriterProject(
+  file: File,
+  operation: StandaloneWriterProjectOperation,
+  dependencies: StandaloneWriterProjectStageDependencies,
+): Promise<StandaloneWriterProjectDecodeResult> {
+  let projectBytes: Uint8Array | null = null;
+  let extracted: ZipBoundedExtractionResult | null = null;
+
+  try {
+    assertOperationCurrent(operation, 'standalone Writer project before source policy admission');
+    admitZipSourceMetadata(file.size);
+    assertOperationCurrent(operation, 'standalone Writer project before read');
+    const buffer = await raceWithAbort(
+      file.arrayBuffer(),
+      operation.signal,
+      'standalone Writer project file read',
+    );
+    assertOperationCurrent(operation, 'standalone Writer project after read');
+    projectBytes = new Uint8Array(buffer);
+    admitZipSourceBytes(file.size, projectBytes.byteLength);
+
+    if (!hasZipSignature(projectBytes)) {
+      throw new Error('Writer project ZIP signature is missing.');
+    }
+
+    assertOperationCurrent(operation, 'standalone Writer project before raw ZIP inspection');
+    const inventory = (dependencies.inspectArchive ?? inspectZipArchive)(projectBytes);
+    assertOperationCurrent(operation, 'standalone Writer project after raw ZIP inspection');
+    admitZipArchive(inventory);
+
+    assertOperationCurrent(operation, 'standalone Writer project before declared ZIP admission');
+    const declaredAdmission = admitDeclaredZipResources(
+      inventory,
+      projectBytes.byteLength,
+    );
+    assertOperationCurrent(operation, 'standalone Writer project after declared ZIP admission');
+
+    assertOperationCurrent(operation, 'standalone Writer project before bounded extraction');
+    extracted = await (dependencies.extractMembers ?? extractZipMembersBounded)(
+      projectBytes,
+      inventory,
+      declaredAdmission,
+      operation,
+    );
+    assertOperationCurrent(operation, 'standalone Writer project after bounded extraction');
+
+    const reader = new BoundedZipMemberSetArchiveReader(extracted.memberSet);
+    assertOperationCurrent(operation, 'standalone Writer project before semantic ZIP decode');
+    const imported = await raceWithAbort(
+      (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(reader),
+      operation.signal,
+      'standalone Writer project semantic ZIP decode',
+    );
+    assertOperationCurrent(operation, 'standalone Writer project after semantic ZIP decode');
+
+    return Object.freeze({
+      imported,
+      inventory,
+      extractionEvidence: extracted.evidence,
+    });
+  } finally {
+    if (extracted) releaseBoundedZipMemberSet(extracted.memberSet);
+    extracted = null;
+    projectBytes = null;
+  }
 }
 
 export function revokeStagedWriterProjectImport(stage: StagedWriterProjectImport): void {
