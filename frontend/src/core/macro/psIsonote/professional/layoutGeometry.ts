@@ -225,7 +225,7 @@ export function generateCandidateBox(
   height: number,
   placement: PlacementClass,
   pageWidth: number,
-  pageHeight: number,
+  _pageHeight: number,
   margin = 12,
 ): Rect {
   const offset = 28;
