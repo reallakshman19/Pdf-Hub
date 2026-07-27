@@ -105,17 +105,24 @@ function cleanIsonote(value: string): string {
 function countDelimiterOutsideQuotes(line: string, delimiter: string): number {
   let count = 0;
   let quoted = false;
+  let atCellStart = true;
 
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (char === '"') {
       if (quoted && line[index + 1] === '"') {
         index += 1;
-      } else {
-        quoted = !quoted;
+      } else if (quoted) {
+        quoted = false;
+      } else if (atCellStart) {
+        quoted = true;
+        atCellStart = false;
       }
     } else if (!quoted && char === delimiter) {
       count += 1;
+      atCellStart = true;
+    } else if (!quoted && !/\s/.test(char)) {
+      atCellStart = false;
     }
   }
 
@@ -151,6 +158,7 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
   let row: string[] = [];
   let cell = '';
   let quoted = false;
+  let atCellStart = true;
 
   const source = text.replace(/^\uFEFF/, '');
   for (let index = 0; index < source.length; index += 1) {
@@ -171,6 +179,7 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
     if (!quoted && char === delimiter) {
       row.push(cleanCell(cell));
       cell = '';
+      atCellStart = true;
       continue;
     }
 
@@ -182,10 +191,14 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
       rows.push(row);
       row = [];
       cell = '';
+      atCellStart = true;
       continue;
     }
 
     cell += char;
+    if (!quoted && !/\s/.test(char)) {
+      atCellStart = false;
+    }
   }
 
   row.push(cleanCell(cell));

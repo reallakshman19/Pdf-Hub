@@ -8,7 +8,7 @@ describe('PS ISONOTE sample mappings', () => {
     expect(PS_ISONOTE_SAMPLES.every((sample) => Object.isFrozen(sample))).toBe(true);
   });
 
-  it('provides parser-valid CSV, TSV, and pipe-table samples', () => {
+  it('provides parser-valid CSV, TSV, pipe-table, and Navis samples', () => {
     const parsed = PS_ISONOTE_SAMPLES.map((sample) => parsePsIsonoteTable(sample.content));
 
     expect(parsed.map((result) => result.delimiter)).toEqual([',', '\t', '|', '\t']);

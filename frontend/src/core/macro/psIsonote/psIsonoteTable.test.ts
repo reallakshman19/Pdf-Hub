@@ -34,6 +34,41 @@ describe('psIsonoteTable', () => {
     expect(parsed.warnings).toEqual([]);
   });
 
+  it('treats inch marks inside unquoted TSV cells as literal text', () => {
+    const parsed = parsePsIsonoteTable([
+      'Name of the element\tPIPE\tPOS\tNavis Tag ID\tNavis Tag POS\tTag\tSupport ISONOTE\tconfidence\tBasis',
+      '/PS-11168/DATUM\t/ASIM-1835-8"-P8810201-31441C4-PP\tE=174657.718;N=711772.6;EL=1197.04\t3\tE=174645.189;N=711779.232;EL=1253.664\tR+G+LS\t:/PS-11168/DATUM REST, GUIDE, LINE STOP (C=M)\tMEDIUM\tDIRECT_TAG_PROXIMITY',
+      '/PS-11167.4\t/ASIM-1835-4"-P8810203-31441C4-PP\tE=175057.718;N=714772.6;EL=1144.64\t1\tE=175057.718;N=714772.6;EL=1144.64\tR+G\t:/PS-11167.4 REST, GUIDE (C=H)\tHIGH\tDIRECT_TAG_PROXIMITY',
+      '/PS-11168.8\t/ASIM-1835-4"-P8810203-31441C4-PP\tE=175057.718;N=711772.6;EL=1144.64\t2\tE=175059.782;N=711774.388;EL=1145.689\tRemove Guide\t:/PS-11168.8 Remove Guide (C=H)\tHIGH\tDIRECT_TAG_PROXIMITY',
+    ].join('\n'));
+
+    expect(parsed.delimiter).toBe('\t');
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.mappings).toEqual([
+      {
+        psNo: 'PS-11168/DATUM',
+        family: 'R+G+LS',
+        isonote: ':/PS-11168/DATUM REST, GUIDE, LINE STOP (C=M)',
+        confidence: 'MEDIUM',
+        sourceRow: 2,
+      },
+      {
+        psNo: 'PS-11167.4',
+        family: 'R+G',
+        isonote: ':/PS-11167.4 REST, GUIDE (C=H)',
+        confidence: 'HIGH',
+        sourceRow: 3,
+      },
+      {
+        psNo: 'PS-11168.8',
+        family: 'Remove Guide',
+        isonote: ':/PS-11168.8 Remove Guide (C=H)',
+        confidence: 'HIGH',
+        sourceRow: 4,
+      },
+    ]);
+  });
+
   it('accepts pasted markdown tables and XML utility output aliases', () => {
     const parsed = parsePsIsonoteTable([
       '| Name of the element | Support ISONOTE |',
