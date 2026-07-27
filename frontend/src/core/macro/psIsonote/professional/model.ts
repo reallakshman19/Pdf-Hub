@@ -1,109 +1,147 @@
 export interface Point {
-  x: number;
-  y: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface BoxPlacement {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+}
+
+export type CalloutConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+export type ConfidenceCode = 'H' | 'M' | 'L';
+export type PdfFontId = 'Helvetica' | 'Helvetica-Bold';
+export type VectorLineStyle = 'solid' | 'dashed';
+export type ProfessionalColor =
+  | '#ffffff'
+  | '#0f172a'
+  | '#334155'
+  | '#475569'
+  | '#fffaf0'
+  | '#9a3412'
+  | '#ea580c';
+
+export interface ProfessionalCalloutContent {
+  readonly tagValue?: string;
+  readonly isoNoteValue?: string;
+  readonly confidence?: CalloutConfidence;
+}
+
+export interface StyleContractInput {
+  readonly isReview: boolean;
+  readonly fontSize: number;
 }
 
 export interface StyleContract {
-  version: 'v1';
-  isReview: boolean;
-  backgroundColor: string;
-  textColor: string;
-  borderColor: string;
-  leaderColor: string;
-  fontSize: number;
-  fontFamily: string;
-  borderWidth: number;
-  cornerRadius: number;
+  readonly version: 'v1';
+  readonly isReview: boolean;
+  readonly backgroundColor: ProfessionalColor;
+  readonly textColor: ProfessionalColor;
+  readonly borderColor: ProfessionalColor;
+  readonly leaderColor: ProfessionalColor;
+  readonly fontSize: number;
+  readonly tagFontId: 'Helvetica-Bold';
+  readonly bodyFontId: 'Helvetica';
+  readonly lineHeight: number;
+  readonly padding: number;
+  readonly sectionGap: number;
+  readonly borderWidth: number;
+  readonly cornerRadius: number;
 }
 
 export interface VectorRectangle {
-  type: 'rectangle';
-  rect: Rect;
-  fillColor: string;
-  borderColor: string;
-  borderWidth: number;
-  cornerRadius?: number;
+  readonly type: 'rectangle';
+  readonly rect: Rect;
+  readonly fillColor: ProfessionalColor;
+  readonly borderColor: ProfessionalColor;
+  readonly borderWidth: number;
+  readonly cornerRadius: number;
 }
 
 export interface VectorLine {
-  type: 'line';
-  start: Point;
-  end: Point;
-  color: string;
-  width: number;
-  style?: 'solid' | 'dashed';
+  readonly type: 'line';
+  readonly start: Point;
+  readonly end: Point;
+  readonly color: ProfessionalColor;
+  readonly width: number;
+  readonly style: VectorLineStyle;
 }
 
 export interface VectorCircle {
-  type: 'circle';
-  center: Point;
-  radius: number;
-  fillColor: string;
-  borderColor: string;
-  borderWidth: number;
+  readonly type: 'circle';
+  readonly center: Point;
+  readonly radius: number;
+  readonly fillColor: ProfessionalColor;
+  readonly borderColor: ProfessionalColor;
+  readonly borderWidth: number;
 }
 
 export interface VectorText {
-  type: 'text';
-  position: Point;
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  fontWeight?: 'normal' | 'bold';
+  readonly type: 'text';
+  readonly position: Point;
+  readonly text: string;
+  readonly fontSize: number;
+  readonly fontId: PdfFontId;
+  readonly color: ProfessionalColor;
 }
 
 export type VectorPrimitive = VectorRectangle | VectorLine | VectorCircle | VectorText;
 
 export interface ProfessionalCalloutModel {
-  id: string;
-  psNo: string;
-  tag: string;
-  note: string;
-  confidence: string;
-  targetPoint: Point;
-  box: Rect;
-  style: StyleContract;
-  primitives: VectorPrimitive[];
+  readonly id: string;
+  readonly psNo: string;
+  readonly content: ProfessionalCalloutContent;
+  readonly targetPoint: Point;
+  readonly box: Rect;
+  readonly style: StyleContract;
+  readonly primitives: readonly VectorPrimitive[];
 }
 
-/**
- * Creates an engineering-oriented style contract.
- * Normal results use neutral professional styling (slate/navy on clean background).
- * Orange is strictly reserved for review-only states.
- */
-export function getStyleContract(isReview = false, fontSize = 9): StyleContract {
-  if (isReview) {
-    return {
-      version: 'v1',
-      isReview: true,
-      backgroundColor: '#fffaf0', // Orange review background
-      textColor: '#9a3412',       // Orange review text
-      borderColor: '#ea580c',     // Orange review border
-      leaderColor: '#ea580c',
-      fontSize,
-      fontFamily: 'Helvetica, Arial, sans-serif',
-      borderWidth: 1.5,
-      cornerRadius: 3,
-    };
+function assertPositiveFinite(value: number, label: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new RangeError(`${label} must be a positive finite number.`);
   }
-  return {
-    version: 'v1',
-    isReview: false,
-    backgroundColor: '#ffffff', // Neutral background
-    textColor: '#0f172a',       // Slate/navy engineering text
-    borderColor: '#334155',     // Slate border
-    leaderColor: '#475569',
-    fontSize,
-    fontFamily: 'Helvetica, Arial, sans-serif',
-    borderWidth: 1,
-    cornerRadius: 2,
+}
+
+export function getStyleContract(input: StyleContractInput): StyleContract {
+  assertPositiveFinite(input.fontSize, 'fontSize');
+  const common = {
+    version: 'v1' as const,
+    fontSize: input.fontSize,
+    tagFontId: 'Helvetica-Bold' as const,
+    bodyFontId: 'Helvetica' as const,
+    lineHeight: input.fontSize * 1.35,
+    padding: 8,
+    sectionGap: 4,
   };
+
+  return input.isReview
+    ? {
+        ...common,
+        isReview: true,
+        backgroundColor: '#fffaf0',
+        textColor: '#9a3412',
+        borderColor: '#ea580c',
+        leaderColor: '#ea580c',
+        borderWidth: 1.5,
+        cornerRadius: 3,
+      }
+    : {
+        ...common,
+        isReview: false,
+        backgroundColor: '#ffffff',
+        textColor: '#0f172a',
+        borderColor: '#334155',
+        leaderColor: '#475569',
+        borderWidth: 1,
+        cornerRadius: 2,
+      };
 }

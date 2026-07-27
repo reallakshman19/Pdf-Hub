@@ -1,153 +1,183 @@
 import {
+  type BoxPlacement,
+  type PdfFontId,
   type Point,
-  type Rect,
+  type ProfessionalCalloutContent,
   type ProfessionalCalloutModel,
+  type Rect,
+  type StyleContract,
+  type StyleContractInput,
   type VectorPrimitive,
+  type VectorText,
   getStyleContract,
 } from './model';
-import { calculateCalloutBoxDimensions } from './typography';
+import {
+  type BoxDimensions,
+  calculateCalloutBoxDimensions,
+} from './typography';
 
-export interface VectorCalloutPlanOptions {
-  width?: number;
-  fontSize?: number;
-  isReview?: boolean;
+const ANCHOR_INSET = 4;
+
+export interface VectorCalloutPlanInput {
+  readonly id: string;
+  readonly psNo: string;
+  readonly content: ProfessionalCalloutContent;
+  readonly targetPoint: Point;
+  readonly boxPlacement: BoxPlacement;
+  readonly style: StyleContractInput;
 }
 
-/**
- * Calculates the best anchor point on the perimeter of the callout rectangle towards the target point.
- */
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 export function getBoxAnchorTowards(box: Rect, target: Point): Point {
   const centerX = box.x + box.width / 2;
   const centerY = box.y + box.height / 2;
-
-  // Determine which side is closest or most direct to target
   const dx = target.x - centerX;
   const dy = target.y - centerY;
 
   if (Math.abs(dx) > Math.abs(dy)) {
-    // Connect to left or right edge
     return {
       x: dx > 0 ? box.x + box.width : box.x,
-      y: clamp(target.y, box.y + 4, box.y + box.height - 4),
+      y: clamp(target.y, box.y + ANCHOR_INSET, box.y + box.height - ANCHOR_INSET),
     };
   }
-  // Connect to top or bottom edge
   return {
-    x: clamp(target.x, box.x + 4, box.x + box.width - 4),
+    x: clamp(target.x, box.x + ANCHOR_INSET, box.x + box.width - ANCHOR_INSET),
     y: dy > 0 ? box.y + box.height : box.y,
   };
 }
 
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val));
+function assertFinite(value: number, label: string): void {
+  if (!Number.isFinite(value)) throw new RangeError(`${label} must be finite.`);
 }
 
-/**
- * Builds an auditable, pure vector callout plan consisting strictly of rectangle, line, circle, and text primitives.
- * Enforces zero raster image fallback.
- */
+function validateInput(input: VectorCalloutPlanInput): void {
+  assertFinite(input.targetPoint.x, 'targetPoint.x');
+  assertFinite(input.targetPoint.y, 'targetPoint.y');
+  assertFinite(input.boxPlacement.x, 'boxPlacement.x');
+  assertFinite(input.boxPlacement.y, 'boxPlacement.y');
+  if (!Number.isFinite(input.boxPlacement.width) || input.boxPlacement.width <= 0) {
+    throw new RangeError('boxPlacement.width must be a positive finite number.');
+  }
+}
+
+function copyContent(content: ProfessionalCalloutContent): ProfessionalCalloutContent {
+  return {
+    ...(content.tagValue !== undefined ? { tagValue: content.tagValue } : {}),
+    ...(content.isoNoteValue !== undefined ? { isoNoteValue: content.isoNoteValue } : {}),
+    ...(content.confidence !== undefined ? { confidence: content.confidence } : {}),
+  };
+}
+
+function createGeometryPrimitives(
+  box: Rect,
+  target: Point,
+  style: StyleContract,
+): readonly VectorPrimitive[] {
+  return [
+    {
+      type: 'line',
+      start: getBoxAnchorTowards(box, target),
+      end: { ...target },
+      color: style.leaderColor,
+      width: 1,
+      style: 'solid',
+    },
+    {
+      type: 'circle',
+      center: { ...target },
+      radius: 2,
+      fillColor: style.leaderColor,
+      borderColor: style.leaderColor,
+      borderWidth: 1,
+    },
+    {
+      type: 'rectangle',
+      rect: { ...box },
+      fillColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      borderWidth: style.borderWidth,
+      cornerRadius: style.cornerRadius,
+    },
+  ];
+}
+
+function createTextLines(
+  lines: readonly string[],
+  fontId: PdfFontId,
+  startY: number,
+  box: Rect,
+  style: StyleContract,
+): readonly VectorText[] {
+  return lines.map((text, index) => ({
+    type: 'text',
+    position: {
+      x: box.x + style.padding,
+      y: startY + index * style.lineHeight,
+    },
+    text,
+    fontSize: style.fontSize,
+    fontId,
+    color: style.textColor,
+  }));
+}
+
+function createTextPrimitives(
+  box: Rect,
+  dimensions: BoxDimensions,
+  style: StyleContract,
+): readonly VectorText[] {
+  const firstBaseline = box.y + style.padding + style.fontSize;
+  const tagText = createTextLines(
+    dimensions.tagLines,
+    style.tagFontId,
+    firstBaseline,
+    box,
+    style,
+  );
+  const noteStart = firstBaseline
+    + dimensions.tagLines.length * style.lineHeight
+    + dimensions.sectionGap;
+  const noteText = createTextLines(
+    dimensions.noteLines,
+    style.bodyFontId,
+    noteStart,
+    box,
+    style,
+  );
+  return [...tagText, ...noteText];
+}
+
 export function buildVectorCalloutPlan(
-  id: string,
-  psNo: string,
-  tag: string,
-  note: string,
-  confidence: string,
-  targetPoint: Point,
-  initialBox: Omit<Rect, 'height'> & { height?: number },
-  options: VectorCalloutPlanOptions = {},
+  input: VectorCalloutPlanInput,
 ): ProfessionalCalloutModel {
-  const isReview = options.isReview ?? false;
-  const fontSize = options.fontSize ?? 9;
-  const width = options.width ?? initialBox.width ?? 200;
-  
-  const style = getStyleContract(isReview, fontSize);
-  const dims = calculateCalloutBoxDimensions(tag, note, confidence, width, style.fontSize);
-  
+  validateInput(input);
+  const style = getStyleContract(input.style);
+  const dimensions = calculateCalloutBoxDimensions(
+    input.content,
+    input.boxPlacement.width,
+    style,
+  );
+  const targetPoint = { ...input.targetPoint };
   const box: Rect = {
-    x: initialBox.x,
-    y: initialBox.y,
-    width: dims.width,
-    height: dims.height,
+    x: input.boxPlacement.x,
+    y: input.boxPlacement.y,
+    width: dimensions.width,
+    height: dimensions.height,
   };
 
-  const boxAnchor = getBoxAnchorTowards(box, targetPoint);
-
-  const primitives: VectorPrimitive[] = [];
-
-  // 1. Leader line from box anchor to target point
-  primitives.push({
-    type: 'line',
-    start: boxAnchor,
-    end: targetPoint,
-    color: style.leaderColor,
-    width: 1,
-    style: 'solid',
-  });
-
-  // 2. Target anchor point dot
-  primitives.push({
-    type: 'circle',
-    center: targetPoint,
-    radius: 2,
-    fillColor: style.leaderColor,
-    borderColor: style.leaderColor,
-    borderWidth: 1,
-  });
-
-  // 3. Main callout box rectangle
-  primitives.push({
-    type: 'rectangle',
-    rect: { ...box },
-    fillColor: style.backgroundColor,
-    borderColor: style.borderColor,
-    borderWidth: style.borderWidth,
-    cornerRadius: style.cornerRadius,
-  });
-
-  // 4. Text primitive: Tag header (bold)
-  let currentY = box.y + dims.padding + dims.lineHeight * 0.8;
-  primitives.push({
-    type: 'text',
-    position: { x: box.x + dims.padding, y: currentY },
-    text: dims.tagLine,
-    fontSize: style.fontSize,
-    fontFamily: style.fontFamily,
-    color: style.textColor,
-    fontWeight: 'bold',
-  });
-
-  currentY += dims.lineHeight * 1.1;
-
-  // 5. Text primitives: Note body lines
-  for (const line of dims.noteLines) {
-    primitives.push({
-      type: 'text',
-      position: { x: box.x + dims.padding, y: currentY },
-      text: line,
-      fontSize: style.fontSize,
-      fontFamily: style.fontFamily,
-      color: style.textColor,
-      fontWeight: 'normal',
-    });
-    currentY += dims.lineHeight;
-  }
-
-  // Auditing check: Ensure no invalid primitives were injected
-  for (const p of primitives) {
-    if ((p.type as string) === 'raster' || (p.type as string) === 'image') {
-      throw new Error('Violation of engineering vector contract: raster image primitive detected.');
-    }
-  }
-
   return {
-    id,
-    psNo,
-    tag,
-    note,
-    confidence,
+    id: input.id,
+    psNo: input.psNo,
+    content: copyContent(input.content),
     targetPoint,
     box,
     style,
-    primitives,
+    primitives: [
+      ...createGeometryPrimitives(box, targetPoint, style),
+      ...createTextPrimitives(box, dimensions, style),
+    ],
   };
 }
