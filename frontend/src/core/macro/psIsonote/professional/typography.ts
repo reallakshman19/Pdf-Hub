@@ -9,6 +9,8 @@ const DEFAULT_GLYPH_RATIO = 0.56;
 const SPACE_GLYPH_RATIO = 0.28;
 const NARROW_GLYPHS = 'il1j!.,:;|';
 const WIDE_GLYPHS = 'WM@%';
+const TRAILING_HARD_BREAK = /(?:\r\n|\r|\n)$/u;
+const TRAILING_CONFIDENCE = /\s*\(\s*C\s*=\s*[^)]+\)\s*$/iu;
 const CONFIDENCE_CODES: Readonly<Record<CalloutConfidence, ConfidenceCode>> = {
   HIGH: 'H',
   MEDIUM: 'M',
@@ -111,9 +113,23 @@ export function formatConfidenceCode(confidence: CalloutConfidence): ConfidenceC
   return CONFIDENCE_CODES[confidence];
 }
 
-function assertSemanticValue(value: string | undefined, prefix: string, field: string): void {
-  if (value?.startsWith(prefix)) {
+function normalizeSemanticValue(
+  value: string | undefined,
+  prefix: string,
+  field: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+  if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
     throw new Error(`${field} must not include the presentation prefix "${prefix}".`);
+  }
+  return normalized;
+}
+
+function assertConfidenceOwnership(note: string | undefined, confidence: CalloutConfidence | undefined): void {
+  if (note && confidence && TRAILING_CONFIDENCE.test(note)) {
+    throw new Error('isoNoteValue must not include a confidence suffix when confidence is provided.');
   }
 }
 
@@ -122,15 +138,16 @@ export function formatCalloutPresentation(
 ): CalloutPresentation {
   const tagPrefix = 'Tag:';
   const notePrefix = 'ISO Note:';
-  assertSemanticValue(content.tagValue, tagPrefix, 'tagValue');
-  assertSemanticValue(content.isoNoteValue, notePrefix, 'isoNoteValue');
+  const tagValue = normalizeSemanticValue(content.tagValue, tagPrefix, 'tagValue');
+  const noteValue = normalizeSemanticValue(content.isoNoteValue, notePrefix, 'isoNoteValue');
+  assertConfidenceOwnership(noteValue, content.confidence);
 
-  const tagText = content.tagValue ? `${tagPrefix} ${content.tagValue}` : undefined;
+  const tagText = tagValue ? `${tagPrefix} ${tagValue}` : undefined;
   const confidenceSuffix = content.confidence
     ? ` (C=${formatConfidenceCode(content.confidence)})`
     : '';
-  const noteText = content.isoNoteValue
-    ? `${notePrefix} ${content.isoNoteValue}${confidenceSuffix}`
+  const noteText = noteValue
+    ? `${notePrefix} ${noteValue}${confidenceSuffix}`
     : undefined;
 
   return {
@@ -139,12 +156,18 @@ export function formatCalloutPresentation(
   };
 }
 
+function toRenderableLine(line: string): string {
+  return line.replace(TRAILING_HARD_BREAK, '');
+}
+
 function wrapOptionalText(
   text: string | undefined,
   usableWidth: number,
   fontSize: number,
 ): readonly string[] {
-  return text === undefined ? [] : wrapTextMetric(text, usableWidth, fontSize);
+  return text === undefined
+    ? []
+    : wrapTextMetric(text, usableWidth, fontSize).map(toRenderableLine);
 }
 
 export function calculateCalloutBoxDimensions(
