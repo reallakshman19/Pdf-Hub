@@ -20,7 +20,7 @@ export interface ReviewItem {
   tag: string;
   note: string;
   confidence: string;
-  targetPoint: Point;
+  targetPoint?: Point;
   status: ReviewStatus;
   isApproved: boolean;
   isSuppressed: boolean;
@@ -46,17 +46,32 @@ export function initReviewState(pageNumber: number, results: LayoutResultItem[],
   for (const item of results) {
     const isUnplaceable = item.status === 'unplaceable';
     const status: ReviewStatus = isUnplaceable ? 'unplaceable' : 'auto-placed';
+    const calloutSource = item.status === 'placed' ? item.callout : undefined;
+    const occ = (item as any).occurrence;
+    const hasDiagnostics = Boolean(item.diagnostics && item.diagnostics.length > 0);
+    const isApproved = !isUnplaceable && !hasDiagnostics;
+
+    const callout = calloutSource ? {
+      ...calloutSource,
+      style: {
+        ...calloutSource.style,
+        isReview: !isApproved || calloutSource.style.isReview,
+        backgroundColor: (!isApproved || calloutSource.style.isReview) ? '#fffaf0' : calloutSource.style.backgroundColor,
+        borderColor: (!isApproved || calloutSource.style.isReview) ? '#dd6b20' : calloutSource.style.borderColor,
+      }
+    } : undefined;
+
     items.set(item.occurrenceId, {
       occurrenceId: item.occurrenceId,
-      psNo: item.occurrence.psNo,
-      tag: item.occurrence.tag,
-      note: item.occurrence.note,
-      confidence: item.occurrence.confidence,
-      targetPoint: item.occurrence.targetPoint,
+      psNo: calloutSource?.psNo ?? occ?.psNo ?? '',
+      tag: calloutSource?.tag ?? occ?.tag ?? '',
+      note: calloutSource?.note ?? occ?.note ?? '',
+      confidence: calloutSource?.confidence ?? occ?.confidence ?? 'UNKNOWN',
+      targetPoint: calloutSource?.targetPoint ?? occ?.targetPoint ?? occ?.point ?? undefined,
       status,
-      isApproved: !isUnplaceable, // Auto-placed items start valid unless modified; unplaceables need explicit resolution
+      isApproved,
       isSuppressed: false,
-      callout: item.status === 'placed' ? { ...item.callout } : undefined,
+      callout,
       transientBox: undefined,
       originalResult: item,
     });
@@ -91,7 +106,7 @@ export function moveReviewItem(
     throw new Error(`Review item ${occurrenceId} not found.`);
   }
 
-  const target = targetPoint ?? existing.targetPoint;
+  const target = targetPoint ?? existing.targetPoint ?? { x: newBox.x, y: newBox.y };
   const reviewCallout = buildVectorCalloutPlan(
     existing.occurrenceId,
     existing.psNo,
@@ -220,12 +235,25 @@ export function resetReviewItem(state: ReviewState, occurrenceId: string, now = 
   }
 
   const isUnplaceable = existing.originalResult.status === 'unplaceable';
+  const hasDiagnostics = Boolean(existing.originalResult.diagnostics && existing.originalResult.diagnostics.length > 0);
+  const isApproved = !isUnplaceable && !hasDiagnostics;
+  const calloutSource = existing.originalResult.status === 'placed' ? existing.originalResult.callout : undefined;
+  const callout = calloutSource ? {
+    ...calloutSource,
+    style: {
+      ...calloutSource.style,
+      isReview: !isApproved || calloutSource.style.isReview,
+      backgroundColor: (!isApproved || calloutSource.style.isReview) ? '#fffaf0' : calloutSource.style.backgroundColor,
+      borderColor: (!isApproved || calloutSource.style.isReview) ? '#dd6b20' : calloutSource.style.borderColor,
+    }
+  } : undefined;
+
   const updatedItem: ReviewItem = {
     ...existing,
     status: isUnplaceable ? 'unplaceable' : 'auto-placed',
-    isApproved: !isUnplaceable,
+    isApproved,
     isSuppressed: false,
-    callout: existing.originalResult.status === 'placed' ? { ...existing.originalResult.callout } : undefined,
+    callout,
     transientBox: undefined,
   };
 
@@ -391,7 +419,7 @@ export function resolveFromDrawer(
     throw new Error(`Review item ${occurrenceId} is not in the unplaceable drawer.`);
   }
 
-  const target = targetPoint ?? existing.targetPoint;
+  const target = targetPoint ?? existing.targetPoint ?? { x: targetBox.x, y: targetBox.y };
   const reviewCallout = buildVectorCalloutPlan(
     existing.occurrenceId,
     existing.psNo,

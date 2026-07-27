@@ -339,6 +339,9 @@ export function evaluateCandidate(
     isValid = false;
   }
   score -= routeResult.penalty;
+  if (occurrence.preferredPlacement && placement === occurrence.preferredPlacement) {
+    score += 500;
+  }
   for (const d of routeResult.diagnostics) {
     diagnostics.push(d);
   }

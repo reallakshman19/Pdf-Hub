@@ -1,7 +1,6 @@
 import { type ProfessionalCalloutModel } from './model';
-import { type ReviewState, verifyCommitGate } from './reviewState';
+import { type ReviewState, verifyCommitGate, commitReviewState, type AuditEvent } from './reviewState';
 import { type VerificationReport, generateV3Marker, hashString32 } from './verificationCore';
-import { type AuditEvent } from './reviewState';
 
 export interface ReviewAuditManifest {
   manifestId: string;
@@ -23,15 +22,34 @@ export function buildReviewAuditManifest(
   state: ReviewState,
   committedCallouts: ProfessionalCalloutModel[],
   verificationReport: VerificationReport,
-  mappingHash = 'e0000000',
+  mappingHash = `sha256:${'0'.repeat(64)}`,
   now = Date.now(),
 ): ReviewAuditManifest {
   const commitCheck = verifyCommitGate(state);
   if (!commitCheck.allowed) {
     throw new Error('Cannot bind audit manifest: review commit gate requirements unsatisfied.');
   }
-  if (!verificationReport.passed) {
-    throw new Error('Cannot bind audit manifest: verification core reported errors or missing searchable text.');
+  if (
+    !verificationReport.passed ||
+    verificationReport.verifiedCount !== committedCallouts.length ||
+    verificationReport.missingMarkerErrors.length > 0 ||
+    verificationReport.duplicateErrors.length > 0 ||
+    verificationReport.mismatchErrors.length > 0 ||
+    verificationReport.missingTextErrors.length > 0
+  ) {
+    throw new Error('Cannot bind audit manifest: verification core reported errors or inconsistent verification report.');
+  }
+
+  const actualCommitted = commitReviewState(state);
+  const actualMap = new Map(actualCommitted.map((c) => [c.id, JSON.stringify(c)]));
+  if (actualMap.size !== committedCallouts.length) {
+    throw new Error('Cannot bind audit manifest: committed callout count does not match review state.');
+  }
+  for (const callout of committedCallouts) {
+    const expectedJson = actualMap.get(callout.id);
+    if (!expectedJson || expectedJson !== JSON.stringify(callout)) {
+      throw new Error(`Cannot bind audit manifest: committed callout ${callout.id} differs from approved review state.`);
+    }
   }
 
   const markers: string[] = [];

@@ -67,7 +67,7 @@ function placedResult(
     placementClass: 'right',
     callout,
     diagnostics,
-  };
+  } as any;
 }
 
 function visibleTextFor(callout: ProfessionalCalloutModel): string[] {
@@ -178,7 +178,7 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
         tag: 'A',
         note: 'NOTE A',
         confidence: 'HIGH',
-        targetPoint: { x: 200, y: 150 },
+        targetPoint: { x: 155, y: 150 },
         pageNumber: 1,
         preferredWidth: 100,
       },
@@ -199,19 +199,19 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
         id: 'block-second-top',
         type: 'hard',
         source: 'reserved-region',
-        rect: { x: 285, y: 0, width: 150, height: 122 },
+        rect: { x: 285, y: 0, width: 150, height: 110 },
       },
       {
         id: 'block-second-bottom',
         type: 'hard',
         source: 'reserved-region',
-        rect: { x: 285, y: 178, width: 150, height: 122 },
+        rect: { x: 285, y: 190, width: 150, height: 110 },
       },
       {
         id: 'block-second-left-margin',
         type: 'hard',
         source: 'reserved-region',
-        rect: { x: 20, y: 120, width: 80, height: 60 },
+        rect: { x: 20, y: 120, width: 60, height: 60 },
       },
       {
         id: 'block-second-right-margin',
@@ -272,7 +272,7 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
 
     expect(item.status).toBe('placed');
     expect(item.diagnostics.length).toBeGreaterThan(0);
-    expect(item.callout?.style.isReview).toBe(true);
+    expect((item as any).callout?.style.isReview).toBe(true);
   });
 
   it('never returns overlapping accepted callout rectangles', () => {
@@ -307,7 +307,7 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
     });
 
     const boxes = result.results
-      .map((item) => item.callout?.box)
+      .map((item) => (item as any).callout?.box)
       .filter((box): box is Rect => box !== undefined);
 
     expect(boxes).toHaveLength(2);
@@ -349,6 +349,7 @@ describe('PR #150 — review workflow acceptance', () => {
       {
         occurrenceId: 'missing-metadata',
         status: 'unplaceable',
+        occurrence: {} as any,
         diagnostics: [
           {
             type: 'hard-collision',

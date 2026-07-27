@@ -370,7 +370,6 @@ function estimateCalloutHeight(
   fontSize: number,
   includeFamily: boolean,
 ): number {
-  void _includeFamily;
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
@@ -482,6 +481,7 @@ export function planPsIsonoteCallouts(
         targetPoint,
         pageNumber,
         preferredWidth: c.box.width,
+        preferredPlacement: (placement !== 'auto' ? placement : undefined) as any,
       };
     });
 

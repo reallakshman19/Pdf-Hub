@@ -182,9 +182,9 @@ export function calculateCalloutBoxDimensions(
   padding = 8,
 ): BoxDimensions {
   const usableWidth = Math.max(50, boxWidth - padding * 2);
-  const tagLine = `Tag: ${tag}`;
+  const tagLine = tag.startsWith('Tag: ') ? tag : `Tag: ${tag}`;
   
-  let noteText = `ISO Note: ${note}`;
+  let noteText = note.startsWith('ISO Note: ') ? note : `ISO Note: ${note}`;
   if (confidence && !noteText.includes(`(C=`)) {
     const c = confidence.trim().toUpperCase();
     const code = c.includes('HIGH') || c.startsWith('H') ? 'H' :

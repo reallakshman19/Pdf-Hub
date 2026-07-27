@@ -21,14 +21,13 @@ const mockResults: LayoutResultItem[] = [
     status: 'placed', 
     placementClass: 'right', 
     callout: validCallout, 
-    diagnostics: [],
-    occurrence: { psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', point: { x: 100, y: 100 } }
+    occurrence: { id: 'occ-100', pageNumber: 1, psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', targetPoint: { x: 100, y: 100 } } as any,
   },
   { 
     occurrenceId: 'occ-200', 
     status: 'unplaceable', 
     diagnostics: [],
-    occurrence: { psNo: 'PS-11168.9', tag: 'Add Guide', note: ':/PS-11168.9 Add Guide', confidence: 'MEDIUM', point: { x: 400, y: 400 } }
+    occurrence: { id: 'occ-200', pageNumber: 1, psNo: 'PS-11168.9', tag: 'Add Guide', note: ':/PS-11168.9 Add Guide', confidence: 'MEDIUM', targetPoint: { x: 400, y: 400 } } as any,
   },
 ];
 
@@ -53,11 +52,12 @@ describe('Layout-Bound Verification Core (Layer 4 - Audit Manifest)', () => {
     state = suppressReviewItem(state, 'occ-200', 'Suppressed');
     const committed = commitReviewState(state);
 
-    const marker = generateV3Marker(validCallout, 'hash0001');
+    const testMappingHash = `sha256:${'0'.repeat(64)}`;
+    const marker = generateV3Marker(validCallout, testMappingHash);
     const visibleText = ['Tag: Remove Guide', 'ISO Note: :/PS-11168.8 Remove Guide (C=H)'];
-    const verification = verifyWrittenPage(committed, [marker], visibleText, 'hash0001');
+    const verification = verifyWrittenPage(committed, [marker], visibleText, testMappingHash);
 
-    const manifest = buildReviewAuditManifest(state, committed, verification, 'hash0001', 1722000000000);
+    const manifest = buildReviewAuditManifest(state, committed, verification, testMappingHash, 1722000000000);
     expect(manifest.manifestId).toMatch(/^MF-[a-f0-9]{8}-/);
     expect(manifest.pageNumber).toBe(1);
     expect(manifest.calloutCount).toBe(1);

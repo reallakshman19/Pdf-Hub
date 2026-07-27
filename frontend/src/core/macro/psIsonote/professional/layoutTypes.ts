@@ -70,6 +70,7 @@ export interface OccurrenceInput {
   targetPoint: Point;
   pageNumber: number;
   preferredWidth?: number;
+  preferredPlacement?: PlacementClass;
 }
 
 export interface PlacedLayoutResult {

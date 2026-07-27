@@ -34,14 +34,15 @@ describe('Layout-Bound Verification Core (Layer 4 - Verification)', () => {
   });
 
   it('generates and parses v3 marker strictly matching identity contract', () => {
-    const marker = generateV3Marker(basePlan, 'abcdef12');
-    expect(marker).toMatch(/^PDFHUBISONOTE\[v3\|11168\.8\|abcdef12\|occ-10\|[a-f0-9]{8}\|v1\]$/);
+    const testHash = `sha256:${'a'.repeat(64)}`;
+    const marker = generateV3Marker(basePlan, testHash);
+    expect(marker).toMatch(new RegExp(`^PDFHUBISONOTE\\[v3\\|11168\\.8\\|${testHash}\\|occ-10\\|sha256:[a-f0-9]{64}\\|v1\\]$`));
 
     const parsed = parseV3Marker(marker);
     expect(parsed).toBeDefined();
     expect(parsed?.version).toBe('v3');
     expect(parsed?.psSuffix).toBe('11168.8');
-    expect(parsed?.mappingHash).toBe('abcdef12');
+    expect(parsed?.mappingHash).toBe(testHash);
     expect(parsed?.occurrenceId).toBe('occ-10');
     expect(parsed?.styleVersion).toBe('v1');
   });
