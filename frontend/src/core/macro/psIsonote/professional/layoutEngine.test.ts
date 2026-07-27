@@ -1,92 +1,300 @@
 import { describe, expect, it } from 'vitest';
-import { solvePageLayout, evaluateCandidate, ALL_PLACEMENT_CLASSES } from './layoutEngine';
-import { type OccurrenceInput, type Obstacle, type PageLayoutOptions } from './layoutTypes';
+import {
+  ALL_PLACEMENT_CLASSES,
+  generateCandidateAssessments,
+  solvePageLayout,
+  validateLayoutOptions,
+} from './layoutEngine';
+import type {
+  CandidateAssessment,
+  Obstacle,
+  OccurrenceInput,
+  PageLayoutOptions,
+} from './layoutTypes';
 
-const baseOccurrence: OccurrenceInput = {
-  id: 'occ-1',
-  psNo: 'PS-100',
-  tag: 'Restraint',
-  note: ':/PS-100 Restraint Guide',
-  confidence: 'HIGH',
-  targetPoint: { x: 300, y: 400 },
-  pageNumber: 1,
+const semanticContent = Object.freeze({
+  isoNoteValue: 'one two three four five six seven eight nine ten',
+  confidence: 'HIGH' as const,
+});
+const style = Object.freeze({ isReview: false, fontSize: 9.8 });
+
+function occurrence(id: string, x: number, y: number): OccurrenceInput {
+  return {
+    id,
+    psNo: `PS-${id}`,
+    pageNumber: 1,
+    content: semanticContent,
+    targetPoint: { x, y },
+    preferredWidth: 160,
+    style,
+  };
+}
+
+function options(overrides: Partial<PageLayoutOptions> = {}): PageLayoutOptions {
+  return {
+    pageWidth: 640,
+    pageHeight: 420,
+    pageMargin: 20,
+    obstacles: [],
+    obstaclePolicy: { bySource: {} },
+    compromiseThreshold: 100,
+    beamWidth: 4,
+    ...overrides,
+  };
+}
+
+function assessment(
+  assessments: readonly CandidateAssessment[],
+  placement: CandidateAssessment['placementClass'],
+  routeKind = 'direct',
+): CandidateAssessment {
+  const match = assessments.find(
+    (item) => item.placementClass === placement && item.route.kind === routeKind,
+  );
+  if (!match) throw new Error(`Missing ${placement}/${routeKind} assessment.`);
+  return match;
+}
+
+function greedyTrapObstacles(): readonly Obstacle[] {
+  return [
+    { id: 'r', source: 'protected', rect: { x: 550, y: 220, width: 5, height: 5 } },
+    { id: 'tr', source: 'protected', rect: { x: 550, y: 180, width: 5, height: 5 } },
+    { id: 't', source: 'protected', rect: { x: 430, y: 150, width: 5, height: 5 } },
+    { id: 'b', source: 'protected', rect: { x: 420, y: 270, width: 5, height: 5 } },
+    { id: 'br', source: 'protected', rect: { x: 550, y: 270, width: 5, height: 5 } },
+    { id: 'tl', source: 'protected', rect: { x: 320, y: 155, width: 5, height: 5 } },
+    { id: 'bl', source: 'protected', rect: { x: 300, y: 280, width: 5, height: 5 } },
+    { id: 'ml', source: 'protected', rect: { x: 30, y: 230, width: 5, height: 5 } },
+  ];
+}
+
+function onlyRightBlockers(): readonly Obstacle[] {
+  return [
+    { id: 'top', source: 'protected', rect: { x: 200, y: 120, width: 5, height: 5 } },
+    { id: 'bottom', source: 'protected', rect: { x: 200, y: 250, width: 5, height: 5 } },
+    { id: 'left', source: 'protected', rect: { x: 100, y: 180, width: 5, height: 5 } },
+    { id: 'top-right', source: 'protected', rect: { x: 350, y: 120, width: 5, height: 5 } },
+    { id: 'bottom-right', source: 'protected', rect: { x: 350, y: 250, width: 5, height: 5 } },
+    { id: 'margin-right', source: 'protected', rect: { x: 500, y: 180, width: 5, height: 5 } },
+    { id: 'margin-left', source: 'protected', rect: { x: 30, y: 180, width: 5, height: 5 } },
+  ];
+}
+
+const protectedPolicy = {
+  bySource: {
+    protected: { mode: 'prohibited' as const, boxPenalty: 1000, leaderPenalty: 1000 },
+  },
 };
 
-const defaultOptions: PageLayoutOptions = {
-  pageWidth: 600,
-  pageHeight: 800,
-  pageMargin: 20,
-};
-
-describe('Obstacle-Aware Layout Core (Layer 2)', () => {
-  it('supports exactly ten deterministic placement classes', () => {
-    expect(ALL_PLACEMENT_CLASSES).toHaveLength(10);
-    expect(ALL_PLACEMENT_CLASSES).toContain('margin-right');
-    expect(ALL_PLACEMENT_CLASSES).toContain('margin-left');
+describe('deterministic least-obstruction layout', () => {
+  it('uses exactly the documented placement classes in stable order', () => {
+    expect(ALL_PLACEMENT_CLASSES).toEqual([
+      'right',
+      'top-right',
+      'bottom-right',
+      'top',
+      'bottom',
+      'left',
+      'top-left',
+      'bottom-left',
+      'margin-right',
+      'margin-left',
+    ]);
   });
 
-  it('rejects candidates that collide with page boundaries (hard obstacle)', () => {
-    const cornerOcc: OccurrenceInput = {
-      ...baseOccurrence,
-      targetPoint: { x: 590, y: 15 },
+  it('reuses the merged M001 semantic, style, dimensions, and planner contracts', () => {
+    const solution = solvePageLayout([occurrence('A', 230, 190)], options());
+    const result = solution.results[0];
+    expect(result?.status).toBe('clear');
+    if (!result || result.status === 'unplaceable') return;
+    expect(result.box).toEqual({ x: 258, y: 162, width: 160, height: 56 });
+    expect(result.callout.content).toEqual(semanticContent);
+    expect(result.callout.style.bodyFontId).toBe('Helvetica');
+    expect(result.callout.style.tagFontId).toBe('Helvetica-Bold');
+    expect(result.callout.box).toEqual(result.box);
+  });
+
+  it('ranks every clear candidate ahead of a shorter compromised candidate', () => {
+    const obstacle: Obstacle = {
+      id: 'pipe-box',
+      source: 'pipe',
+      rect: { x: 300, y: 180, width: 5, height: 5 },
     };
-    const evalResult = evaluateCandidate('top-right', { x: 580, y: 5, width: 150, height: 60 }, cornerOcc, defaultOptions, []);
-    expect(evalResult.isValid).toBe(false);
-    expect(evalResult.diagnostics[0].source).toBe('page-boundary');
+    const assessments = generateCandidateAssessments(
+      occurrence('A', 230, 190),
+      options({
+        obstacles: [obstacle],
+        obstaclePolicy: {
+          bySource: { pipe: { mode: 'weighted', boxPenalty: 50, leaderPenalty: 5 } },
+        },
+      }),
+      [],
+    );
+    expect(assessment(assessments, 'right').outcome).toBe('compromised');
+    expect(assessments[0]?.outcome).toBe('clear');
+    expect(assessments[0]?.placementClass).toBe('top');
   });
 
-  it('rejects candidates that overlap the title block (hard obstacle)', () => {
-    const titleBlockOptions: PageLayoutOptions = {
-      ...defaultOptions,
-      titleBlockRect: { x: 400, y: 700, width: 180, height: 80 },
+  it('scores leader crossings below box obstruction for the same obstacle source', () => {
+    const assessments = generateCandidateAssessments(
+      occurrence('A', 230, 190),
+      options({
+        obstacles: [
+          { id: 'route-hit', source: 'pipe', rect: { x: 240, y: 188, width: 4, height: 4 } },
+          { id: 'box-hit', source: 'pipe', rect: { x: 300, y: 180, width: 4, height: 4 } },
+        ],
+        obstaclePolicy: {
+          bySource: { pipe: { mode: 'weighted', boxPenalty: 50, leaderPenalty: 5 } },
+        },
+      }),
+      [],
+    );
+    const right = assessment(assessments, 'right');
+    const penalties = right.diagnostics.map((item) => [item.geometry, item.penalty]);
+    expect(penalties).toContainEqual(['leader', 5]);
+    expect(penalties).toContainEqual(['box', 50]);
+    expect(right.compromiseCost).toBe(55);
+  });
+
+  it('selects the lowest-cost compromised candidate when no clear candidate exists', () => {
+    const huge: Obstacle = {
+      id: 'weighted-page',
+      source: 'pipe',
+      rect: { x: 0, y: 0, width: 640, height: 420 },
     };
-    const nearTitle: OccurrenceInput = { ...baseOccurrence, targetPoint: { x: 450, y: 680 } };
-    const evalResult = evaluateCandidate('bottom-right', { x: 410, y: 690, width: 150, height: 60 }, nearTitle, titleBlockOptions, []);
-    expect(evalResult.isValid).toBe(false);
-    expect(evalResult.diagnostics[0].source).toBe('title-block');
+    const solution = solvePageLayout([occurrence('A', 230, 190)], options({
+      obstacles: [huge],
+      obstaclePolicy: {
+        bySource: { pipe: { mode: 'weighted', boxPenalty: 50, leaderPenalty: 5 } },
+      },
+    }));
+    const result = solution.results[0];
+    expect(result?.status).toBe('compromised');
+    if (!result || result.status !== 'compromised') return;
+    expect(result.requiresReview).toBe(true);
+    expect(result.placementClass).toBe('right');
+    expect(result.assessment.compromiseCost).toBe(55);
+    expect(result.occurrence).toEqual(occurrence('A', 230, 190));
   });
 
-  it('penalizes and records diagnostics for soft obstacles (existing text and drawing density)', () => {
-    const softObstacles: Obstacle[] = [
-      { id: 'txt-1', type: 'soft', source: 'existing-text', rect: { x: 320, y: 380, width: 100, height: 40 } },
-    ];
-    const evalResult = evaluateCandidate('right', { x: 310, y: 370, width: 150, height: 60 }, baseOccurrence, { ...defaultOptions, obstacles: softObstacles }, []);
-    expect(evalResult.isValid).toBe(true);
-    expect(evalResult.diagnostics).toHaveLength(1);
-    expect(evalResult.diagnostics[0].type).toBe('text-overlap');
-    expect(evalResult.score).toBeLessThan(85);
-  });
-
-  it('uses deterministic beam search to resolve multiple occurrences without collisions', () => {
-    const occ1: OccurrenceInput = { ...baseOccurrence, id: '1', targetPoint: { x: 300, y: 400 } };
-    const occ2: OccurrenceInput = { ...baseOccurrence, id: '2', psNo: 'PS-101', targetPoint: { x: 310, y: 405 } };
-
-    const solution = solvePageLayout([occ1, occ2], defaultOptions);
-    expect(solution.unplaceableCount).toBe(0);
-    expect(solution.results).toHaveLength(2);
-
-    const placed1 = solution.results.find((r) => r.occurrenceId === '1')?.callout;
-    const placed2 = solution.results.find((r) => r.occurrenceId === '2')?.callout;
-    expect(placed1).toBeDefined();
-    expect(placed2).toBeDefined();
-    // Verify they don't share the exact same box position
-    expect(placed1?.box.y === placed2?.box.y && placed1?.box.x === placed2?.box.x).toBe(false);
-  });
-
-  it('strictly returns unplaceable status when all placements are impossible (no silent bad placement)', () => {
-    // Surround target point on a tiny page or with massive hard obstacles
-    const blockedOptions: PageLayoutOptions = {
-      pageWidth: 200,
-      pageHeight: 200,
-      pageMargin: 10,
+  it('allows a low-priority leader crossing as compromised without allowing box obstruction', () => {
+    const solution = solvePageLayout([occurrence('A', 230, 190)], options({
       obstacles: [
-        { id: 'hard-1', type: 'hard', source: 'equipment', rect: { x: 0, y: 0, width: 200, height: 200 } },
+        ...onlyRightBlockers(),
+        { id: 'pipe-route', source: 'pipe', rect: { x: 240, y: 188, width: 4, height: 4 } },
       ],
+      obstaclePolicy: {
+        bySource: {
+          ...protectedPolicy.bySource,
+          pipe: { mode: 'weighted', boxPenalty: 50, leaderPenalty: 5 },
+        },
+      },
+      compromiseThreshold: 5,
+    }));
+    const result = solution.results[0];
+    expect(result?.status).toBe('compromised');
+    if (result?.status === 'compromised') {
+      expect(result.placementClass).toBe('right');
+      expect(result.assessment.compromiseCost).toBe(5);
+      expect(result.diagnostics.map((item) => item.geometry)).toEqual(['leader']);
+    }
+  });
+
+  it('returns lossless unplaceable results above the compromise threshold', () => {
+    const original = occurrence('A', 230, 190);
+    const solution = solvePageLayout([original], options({
+      obstacles: [{
+        id: 'weighted-page',
+        source: 'pipe',
+        rect: { x: 0, y: 0, width: 640, height: 420 },
+      }],
+      obstaclePolicy: {
+        bySource: { pipe: { mode: 'weighted', boxPenalty: 50, leaderPenalty: 5 } },
+      },
+      compromiseThreshold: 50,
+    }));
+    const result = solution.results[0];
+    expect(result?.status).toBe('unplaceable');
+    if (!result || result.status !== 'unplaceable') return;
+    expect(result.occurrence).toEqual(original);
+    expect(result.attemptedCandidates.length).toBeGreaterThan(10);
+    expect(result.bestRejectedCandidate).toBeDefined();
+    expect(result.reasons[0]).toContain('exceeds threshold');
+  });
+
+  it('rejects prohibited clashes and missing policies fail-closed', () => {
+    const obstacle = {
+      id: 'protected-page',
+      source: 'protected',
+      rect: { x: 0, y: 0, width: 640, height: 420 },
+    } as const;
+    const prohibited = solvePageLayout([occurrence('A', 230, 190)], options({
+      obstacles: [obstacle],
+      obstaclePolicy: protectedPolicy,
+    }));
+    const missing = solvePageLayout([occurrence('A', 230, 190)], options({
+      obstacles: [obstacle],
+    }));
+    expect(prohibited.results[0]?.status).toBe('unplaceable');
+    expect(missing.results[0]?.status).toBe('unplaceable');
+    const missingResult = missing.results[0];
+    if (missingResult?.status === 'unplaceable') {
+      expect(missingResult.diagnostics.some(
+        (item) => item.code === 'missing-obstacle-policy',
+      )).toBe(true);
+    }
+  });
+
+  it('proves beam width one falls into the approved greedy trap while width two succeeds', () => {
+    const occurrences = [occurrence('A', 230, 190), occurrence('B', 420, 230)];
+    const common = {
+      obstacles: greedyTrapObstacles(),
+      obstaclePolicy: protectedPolicy,
     };
-    const solution = solvePageLayout([baseOccurrence], blockedOptions);
-    expect(solution.unplaceableCount).toBe(1);
-    expect(solution.results[0].status).toBe('unplaceable');
-    expect(solution.results[0].callout).toBeUndefined();
-    expect(solution.results[0].diagnostics[0].message).toContain('All 10 placement classes rejected');
+    const greedy = solvePageLayout(occurrences, options({ ...common, beamWidth: 1 }));
+    const wider = solvePageLayout(occurrences, options({ ...common, beamWidth: 2 }));
+
+    expect(greedy.results.map((result) => result.status)).toEqual(['clear', 'unplaceable']);
+    expect(greedy.results[0]?.status === 'clear'
+      ? greedy.results[0].placementClass : undefined).toBe('right');
+    expect(wider.results.map((result) => result.status)).toEqual(['clear', 'clear']);
+    expect(wider.results.map((result) => result.status === 'unplaceable'
+      ? undefined : result.placementClass)).toEqual(['top', 'left']);
+    expect(wider.results.map((result) => result.occurrence.id)).toEqual(['A', 'B']);
+    expect(wider.totalCost).toBe(58);
+  });
+
+  it('is deeply deterministic and does not mutate or reuse frozen inputs', () => {
+    const first = Object.freeze({
+      ...occurrence('A', 230, 190),
+      content: semanticContent,
+      targetPoint: Object.freeze({ x: 230, y: 190 }),
+      style,
+    });
+    const second = Object.freeze({
+      ...occurrence('B', 420, 230),
+      content: semanticContent,
+      targetPoint: Object.freeze({ x: 420, y: 230 }),
+      style,
+    });
+    const input = Object.freeze([second, first]);
+    const configured = Object.freeze(options());
+    const before = JSON.stringify({ input, configured });
+    const firstRun = solvePageLayout(input, configured);
+    const secondRun = solvePageLayout(input, configured);
+
+    expect(firstRun).toStrictEqual(secondRun);
+    expect(JSON.stringify({ input, configured })).toBe(before);
+    expect(firstRun.results.map((result) => result.occurrence.id)).toEqual(['A', 'B']);
+    expect(firstRun.results[0]?.occurrence).not.toBe(first);
+  });
+
+  it('validates weighted policy ordering and beam configuration', () => {
+    expect(() => validateLayoutOptions(options({
+      obstaclePolicy: {
+        bySource: { pipe: { mode: 'weighted', boxPenalty: 5, leaderPenalty: 5 } },
+      },
+    }))).toThrow('leader penalty must be lower');
+    expect(() => validateLayoutOptions(options({ beamWidth: 0 }))).toThrow(RangeError);
   });
 });
