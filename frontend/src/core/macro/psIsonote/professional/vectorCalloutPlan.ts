@@ -7,6 +7,7 @@ import {
   type Rect,
   type StyleContract,
   type StyleContractInput,
+  type VectorLine,
   type VectorPrimitive,
   type VectorText,
   getStyleContract,
@@ -25,6 +26,7 @@ export interface VectorCalloutPlanInput {
   readonly targetPoint: Point;
   readonly boxPlacement: BoxPlacement;
   readonly style: StyleContractInput;
+  readonly leaderRoute?: readonly [Point, Point, ...Point[]];
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -53,6 +55,32 @@ function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) throw new RangeError(`${label} must be finite.`);
 }
 
+function pointsEqual(a: Point, b: Point): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function validateLeaderRoute(route: readonly Point[], target: Point): void {
+  if (route.length < 2) throw new Error('leaderRoute must contain at least two points.');
+  route.forEach((point, index) => {
+    assertFinite(point.x, `leaderRoute[${index}].x`);
+    assertFinite(point.y, `leaderRoute[${index}].y`);
+  });
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const start = route[index];
+    const end = route[index + 1];
+    if (!start || !end || pointsEqual(start, end)) {
+      throw new Error('leaderRoute segments must have non-zero length.');
+    }
+    if (start.x !== end.x && start.y !== end.y) {
+      throw new Error('leaderRoute segments must be exactly horizontal or vertical.');
+    }
+  }
+  const finalPoint = route[route.length - 1];
+  if (!finalPoint || !pointsEqual(finalPoint, target)) {
+    throw new Error('leaderRoute must terminate at targetPoint.');
+  }
+}
+
 function validateInput(input: VectorCalloutPlanInput): void {
   assertFinite(input.targetPoint.x, 'targetPoint.x');
   assertFinite(input.targetPoint.y, 'targetPoint.y');
@@ -61,6 +89,7 @@ function validateInput(input: VectorCalloutPlanInput): void {
   if (!Number.isFinite(input.boxPlacement.width) || input.boxPlacement.width <= 0) {
     throw new RangeError('boxPlacement.width must be a positive finite number.');
   }
+  if (input.leaderRoute) validateLeaderRoute(input.leaderRoute, input.targetPoint);
 }
 
 function copyContent(content: ProfessionalCalloutContent): ProfessionalCalloutContent {
@@ -71,20 +100,38 @@ function copyContent(content: ProfessionalCalloutContent): ProfessionalCalloutCo
   };
 }
 
+function createLeaderLines(
+  box: Rect,
+  target: Point,
+  style: StyleContract,
+  route?: readonly [Point, Point, ...Point[]],
+): readonly VectorLine[] {
+  const points: readonly Point[] = route ?? [getBoxAnchorTowards(box, target), target];
+  const lines: VectorLine[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (!start || !end) continue;
+    lines.push({
+      type: 'line',
+      start: { ...start },
+      end: { ...end },
+      color: style.leaderColor,
+      width: 1,
+      style: 'solid',
+    });
+  }
+  return lines;
+}
+
 function createGeometryPrimitives(
   box: Rect,
   target: Point,
   style: StyleContract,
+  route?: readonly [Point, Point, ...Point[]],
 ): readonly VectorPrimitive[] {
   return [
-    {
-      type: 'line',
-      start: getBoxAnchorTowards(box, target),
-      end: { ...target },
-      color: style.leaderColor,
-      width: 1,
-      style: 'solid',
-    },
+    ...createLeaderLines(box, target, style, route),
     {
       type: 'circle',
       center: { ...target },
@@ -113,10 +160,7 @@ function createTextLines(
 ): readonly VectorText[] {
   return lines.map((text, index) => ({
     type: 'text',
-    position: {
-      x: box.x + style.padding,
-      y: startY + index * style.lineHeight,
-    },
+    position: { x: box.x + style.padding, y: startY + index * style.lineHeight },
     text,
     fontSize: style.fontSize,
     fontId,
@@ -176,7 +220,7 @@ export function buildVectorCalloutPlan(
     box,
     style,
     primitives: [
-      ...createGeometryPrimitives(box, targetPoint, style),
+      ...createGeometryPrimitives(box, targetPoint, style, input.leaderRoute),
       ...createTextPrimitives(box, dimensions, style),
     ],
   };
