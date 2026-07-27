@@ -61,6 +61,10 @@ function placementIndex(placement: PlacementClass): number {
   return ALL_PLACEMENT_CLASSES.indexOf(placement);
 }
 
+function compareStrings(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
+}
+
 function cloneOccurrence(occurrence: OccurrenceInput): OccurrenceInput {
   return {
     id: occurrence.id,
@@ -95,6 +99,10 @@ function createSelectedResult(
     throw new Error('Cannot create a selected result from a rejected candidate.');
   }
   const copiedOccurrence = cloneOccurrence(occurrence);
+  const renderStyle = {
+    ...occurrence.style,
+    isReview: occurrence.style.isReview || assessment.outcome === 'compromised',
+  };
   const callout = buildVectorCalloutPlan({
     id: occurrence.id,
     psNo: occurrence.psNo,
@@ -105,7 +113,7 @@ function createSelectedResult(
       y: assessment.box.y,
       width: assessment.box.width,
     },
-    style: occurrence.style,
+    style: renderStyle,
     leaderRoute: assessment.route.points,
   });
   const common = {
@@ -177,7 +185,7 @@ function compareBeamNodes(first: BeamNode, second: BeamNode): number {
   if (primary !== 0) return primary;
   const firstSignature = first.results.map(resultSignature).join(';');
   const secondSignature = second.results.map(resultSignature).join(';');
-  return firstSignature.localeCompare(secondSignature);
+  return compareStrings(firstSignature, secondSignature);
 }
 
 function sortOccurrences(occurrences: readonly OccurrenceInput[]): readonly OccurrenceInput[] {
@@ -185,7 +193,7 @@ function sortOccurrences(occurrences: readonly OccurrenceInput[]): readonly Occu
     first.pageNumber - second.pageNumber
     || first.targetPoint.y - second.targetPoint.y
     || first.targetPoint.x - second.targetPoint.x
-    || first.id.localeCompare(second.id));
+    || compareStrings(first.id, second.id));
 }
 
 function expandNode(
