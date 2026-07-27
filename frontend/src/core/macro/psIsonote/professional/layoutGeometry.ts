@@ -137,6 +137,10 @@ function strongestIntersection(
   return rank[next] > rank[current] ? next : current;
 }
 
+function segmentMidpoint(start: Point, end: Point): Point {
+  return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+}
+
 export function segmentIntersectsRect(
   start: Point,
   end: Point,
@@ -162,7 +166,10 @@ export function segmentIntersectsRect(
       classifySegmentIntersection(start, end, current, next, tolerance),
     );
   }
-  return result;
+  return result === 'touch'
+    && pointStrictlyInsideRect(segmentMidpoint(start, end), rect, tolerance)
+    ? 'cross'
+    : result;
 }
 
 function pointOnRectBoundary(point: Point, rect: Rect, tolerance: number): boolean {
