@@ -160,8 +160,10 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
       if (quoted && source[index + 1] === '"') {
         cell += '"';
         index += 1;
-      } else {
+      } else if (quoted || cell === '') {
         quoted = !quoted;
+      } else {
+        cell += '"';
       }
       continue;
     }

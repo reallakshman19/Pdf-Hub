@@ -91,6 +91,10 @@ export async function simulateMacroDryRun(
       } else if (op === 'place_rich_textbox') {
         addedWriterElements += 1;
         logs.push(`  → +1 writer text element`);
+      } else if (op === 'place_professional_callout') {
+        modifiedBytes = true;
+        addedWriterElements += 1;
+        logs.push(`  → +1 professional vector callout`);
       } else if (op === 'place_table') {
         addedWriterElements += 1;
         logs.push(`  → +1 writer table element`);

@@ -37,6 +37,7 @@ const KNOWN_MACRO_OPS = new Set<MacroStep['op']>([
   'insert_image',
   'inject_rich_text',
   'place_rich_textbox',
+  'place_professional_callout',
   'place_table',
   'adjust_image',
   'draw_redaction_box',
@@ -60,6 +61,7 @@ const REQUIRED_SELECTOR_OPS = new Set<MacroStep['op']>([
 
 const OPTIONAL_SELECTOR_OPS = new Set<MacroStep['op']>([
   'place_rich_textbox',
+  'place_professional_callout',
   'place_table',
   'adjust_image',
 ]);
@@ -256,6 +258,13 @@ export class MacroValidator {
         validateText(step.content, stepIndex, step.op, `${path}.content`, errors);
         if (!step.styles || typeof step.styles !== 'object') {
           pushError(errors, stepIndex, step.op, `${path}.styles`, 'styles must be an object.');
+        }
+        break;
+
+      case 'place_professional_callout':
+        if (step.selector) validatePageSelector(step.selector, stepIndex, step.op, `${path}.selector`, errors);
+        if (!step.callout || typeof step.callout !== 'object') {
+          pushError(errors, stepIndex, step.op, `${path}.callout`, 'callout must be an object.');
         }
         break;
 

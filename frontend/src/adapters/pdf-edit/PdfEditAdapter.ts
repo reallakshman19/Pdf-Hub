@@ -759,6 +759,68 @@ export class PdfEditAdapter {
     return this.removePages(baseBytes, [pageIndex]);
   }
 
+  static async drawProfessionalCallout(
+    baseBytes: Uint8Array,
+    options: {
+      pages: number[];
+      callout: import('@/core/macro/psIsonote/professional/model').ProfessionalCalloutModel;
+      signal?: AbortSignal;
+    },
+  ): Promise<Uint8Array> {
+    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'draw professional callout: load');
+    const helvetica = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'draw professional callout: embed regular font');
+    const helveticaBold = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.HelveticaBold), options.signal, 'draw professional callout: embed bold font');
+
+    for (const pageIndex of options.pages) {
+      pdfCheckpoint(options.signal, 'draw professional callout: draw page');
+      if (pageIndex < 0 || pageIndex >= pdfDoc.getPageCount()) continue;
+      const page = pdfDoc.getPage(pageIndex);
+      const pageHeight = page.getHeight();
+
+      for (const primitive of options.callout.primitives) {
+        if (primitive.type === 'line') {
+          page.drawLine({
+            start: { x: primitive.start.x, y: pageHeight - primitive.start.y },
+            end: { x: primitive.end.x, y: pageHeight - primitive.end.y },
+            thickness: primitive.width,
+            color: hexToRgb(primitive.color),
+          });
+        } else if (primitive.type === 'circle') {
+          page.drawEllipse({
+            x: primitive.center.x,
+            y: pageHeight - primitive.center.y,
+            xScale: primitive.radius,
+            yScale: primitive.radius,
+            color: hexToRgb(primitive.fillColor),
+            borderColor: hexToRgb(primitive.borderColor),
+            borderWidth: primitive.borderWidth,
+          });
+        } else if (primitive.type === 'rectangle') {
+          page.drawRectangle({
+            x: primitive.rect.x,
+            y: pageHeight - primitive.rect.y - primitive.rect.height,
+            width: primitive.rect.width,
+            height: primitive.rect.height,
+            color: hexToRgb(primitive.fillColor),
+            borderColor: hexToRgb(primitive.borderColor),
+            borderWidth: primitive.borderWidth,
+          });
+        } else if (primitive.type === 'text') {
+          const font = primitive.fontWeight === 'bold' ? helveticaBold : helvetica;
+          page.drawText(primitive.text, {
+            x: primitive.position.x,
+            y: pageHeight - primitive.position.y,
+            font,
+            size: primitive.fontSize,
+            color: hexToRgb(primitive.color),
+          });
+        }
+      }
+    }
+
+    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'draw professional callout: save');
+  }
+
   static async exportWithAnnotations(baseBytes: Uint8Array, annotations: PdfAnnotation[]): Promise<Uint8Array> {
     const pdfDoc = await PDFDocument.load(baseBytes);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);

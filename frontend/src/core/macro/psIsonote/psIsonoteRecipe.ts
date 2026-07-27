@@ -10,6 +10,7 @@ import {
 } from './psIsonoteIdentity';
 import type { PsIsonoteMapping } from './psIsonoteTable';
 import { normalizePsNumber } from './psIsonoteTable';
+import { solvePageLayout, buildVectorCalloutPlan, type ProfessionalCalloutModel, type Obstacle } from './professional';
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
 export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items';
@@ -52,6 +53,7 @@ export interface PsIsonoteScanResult {
   legacyExisting: PsIsonoteExistingAnnotation[];
   scannedPages: number[];
   pageDimensions: Record<number, { width: number; height: number }>;
+  pageObstacles?: Record<number, Obstacle[]>;
 }
 
 export interface PsIsonoteScanOptions {
@@ -80,6 +82,7 @@ export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
     width: number;
     height: number;
   };
+  professionalModel?: ProfessionalCalloutModel;
 }
 
 const PS_REFERENCE_PATTERN = /\bP\s*S\s*[-‐‑‒–—−]\s*[0-9]{2,12}(?:\s*(?:\.|\/)\s*[A-Z0-9]{1,12})*\b/gi;
@@ -244,6 +247,7 @@ export async function scanPsIsonoteReferences(
     const staleExisting: PsIsonoteExistingAnnotation[] = [];
     const legacyExisting: PsIsonoteExistingAnnotation[] = [];
     const pageDimensions: Record<number, { width: number; height: number }> = {};
+    const pageObstacles: Record<number, Obstacle[]> = {};
     const foundPsNumbers = new Set<string>();
 
     for (const pageNumber of scannedPages) {
@@ -253,6 +257,15 @@ export async function scanPsIsonoteReferences(
         const pageText = items.map((item) => item.text).join(' ');
         const pageMarkers = parseVersionedPsIsonoteMarkers(pageText);
         pageDimensions[pageNumber] = PdfRendererAdapter.getPageDimensions(page);
+        pageObstacles[pageNumber] = items
+          .filter((item) => item.width > 0 && item.height > 0 && item.text.trim().length > 0)
+          .map((item, i) => ({
+            id: `obs-${pageNumber}-${i}`,
+            type: 'soft',
+            source: 'existing-text',
+            rect: { x: item.x, y: item.y, width: item.width, height: item.height },
+            weight: 2,
+          }));
         const unresolvedReferences = findPsIsonoteReferencesInTextItems(
           items,
           mappings,
@@ -327,6 +340,7 @@ export async function scanPsIsonoteReferences(
       legacyExisting,
       scannedPages,
       pageDimensions,
+      pageObstacles,
     };
   } finally {
     await lease.release();
@@ -354,7 +368,7 @@ function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
   fontSize: number,
-  includeFamily: boolean,
+  _includeFamily: boolean,
 ): number {
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
@@ -438,10 +452,64 @@ export function planPsIsonoteCallouts(
       attempts += 1;
     }
 
-    const callout = { ...reference, box };
+    const callout: PlannedPsIsonoteCallout = { ...reference, box };
     pageBoxes.push(callout);
     byPage.set(reference.pageNumber, pageBoxes);
     planned.push(callout);
+  }
+
+  // Integrate Professional Vector Callout & Obstacle-Aware Layout Engine
+  for (const [pageNumber, pageCallouts] of byPage.entries()) {
+    const dimensions = scan.pageDimensions[pageNumber];
+    if (!dimensions || pageCallouts.length === 0) continue;
+
+    const occurrenceInputs = pageCallouts.map((c, idx) => {
+      const tagText = includeFamily && c.mapping.family ? c.mapping.family : c.psNo;
+      const noteText = formatIsonoteWithConfidence(c.mapping);
+      const targetPoint = {
+        x: Math.round((c.rect.x + c.rect.width / 2) * 10) / 10,
+        y: Math.round((c.rect.y + c.rect.height / 2) * 10) / 10,
+      };
+      return {
+        id: c.occurrenceId || `${c.psNo}-${idx}`,
+        psNo: c.psNo,
+        tag: `Tag: ${tagText}`,
+        note: `ISO Note: ${noteText}`,
+        confidence: c.mapping.confidence || 'HIGH',
+        targetPoint,
+        pageNumber,
+        preferredWidth: c.box.width,
+      };
+    });
+
+    const obstacles = scan.pageObstacles?.[pageNumber] || [];
+    const solution = solvePageLayout(occurrenceInputs, {
+      pageWidth: dimensions.width,
+      pageHeight: dimensions.height,
+      pageMargin: margin,
+      obstacles,
+    });
+
+    for (let i = 0; i < pageCallouts.length; i++) {
+      const callout = pageCallouts[i];
+      const input = occurrenceInputs[i];
+      const result = solution.results.find((r) => r.occurrenceId === input.id);
+
+      if (result?.status === 'placed' && result.callout) {
+        callout.box = result.callout.box;
+        callout.professionalModel = result.callout;
+      } else {
+        callout.professionalModel = buildVectorCalloutPlan(
+          input.id,
+          input.psNo,
+          input.tag,
+          input.note,
+          input.confidence,
+          input.targetPoint,
+          callout.box,
+        );
+      }
+    }
   }
 
   return planned;
@@ -487,27 +555,37 @@ export function buildPsIsonoteAnnotationRecipe(
   const callouts = planPsIsonoteCallouts(scan, options);
   const fontSize = options.fontSize ?? 10;
   const includeFamily = options.includeFamily ?? true;
-  const steps: MacroStep[] = callouts.map((callout) => ({
-    op: 'place_rich_textbox',
-    selector: { mode: 'list', pages: [callout.pageNumber] },
-    x: callout.box.x,
-    y: callout.box.y,
-    width: callout.box.width,
-    height: callout.box.height,
-    content: buildCalloutHtml(callout.mapping, includeFamily),
-    styles: {
-      fontSize,
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      color: options.textColor ?? '#7c2d12',
-      backgroundColor: options.backgroundColor ?? '#fff7ed',
-      padding: 8,
-      opacity: 0.96,
-      borderWidth: 1,
-      borderColor: options.borderColor ?? '#c2410c',
-      lineHeight: 1.25,
-      textAlign: 'left',
-    },
-  }));
+  const steps: MacroStep[] = callouts.map((callout) => {
+    if (callout.professionalModel) {
+      return {
+        op: 'place_professional_callout',
+        selector: { mode: 'list', pages: [callout.pageNumber] },
+        callout: callout.professionalModel,
+        width: callout.box.width,
+      };
+    }
+    return {
+      op: 'place_rich_textbox',
+      selector: { mode: 'list', pages: [callout.pageNumber] },
+      x: callout.box.x,
+      y: callout.box.y,
+      width: callout.box.width,
+      height: callout.box.height,
+      content: buildCalloutHtml(callout.mapping, includeFamily),
+      styles: {
+        fontSize,
+        fontFamily: 'Arial, Helvetica, sans-serif',
+        color: options.textColor ?? '#7c2d12',
+        backgroundColor: options.backgroundColor ?? '#fff7ed',
+        padding: 8,
+        opacity: 0.96,
+        borderWidth: 1,
+        borderColor: options.borderColor ?? '#c2410c',
+        lineHeight: 1.25,
+        textAlign: 'left',
+      },
+    };
+  });
 
   callouts.forEach((callout, markerIndex) => {
     if (!callout.mappingHash || !callout.occurrenceId) {

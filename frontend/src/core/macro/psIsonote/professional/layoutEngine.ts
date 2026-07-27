@@ -1,4 +1,4 @@
-import { type Rect, type ProfessionalCalloutModel } from './model';
+import { type Rect } from './model';
 import { calculateCalloutBoxDimensions } from './typography';
 import { buildVectorCalloutPlan } from './vectorCalloutPlan';
 import {
