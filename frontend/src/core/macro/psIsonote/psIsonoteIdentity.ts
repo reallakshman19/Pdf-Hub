@@ -142,7 +142,7 @@ const VERSIONED_MARKER_PATTERN =
   /PDFHUBISONOTE\[V2\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64})\|(SHA256:[A-F0-9]{64})\]/gi;
 
 const VERSIONED_MARKER_PATTERN_V3 =
-  /PDFHUBISONOTE\[V3\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9\-]+)\|([a-fA-F0-9]{8})\|([^\]]+)\]/gi;
+  /PDFHUBISONOTE\[V3\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9-]+)\|([a-fA-F0-9]+)\|([^\]]+)\]/gi;
 
 export function parseVersionedPsIsonoteMarkers(
   pageText: string,

@@ -368,15 +368,17 @@ function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
   fontSize: number,
-  _includeFamily: boolean,
+  includeFamily: boolean,
 ): number {
   void _includeFamily;
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
+  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  const tagLines = Math.max(1, Math.ceil((tagText.length + 5) / charactersPerLine));
   const noteText = formatIsonoteWithConfidence(mapping);
   const noteLines = Math.max(1, Math.ceil((noteText.length + 10) / charactersPerLine));
-  const totalLines = 1 + noteLines;
+  const totalLines = tagLines + noteLines;
   return Math.max(52, Math.ceil(padding * 2 + totalLines * fontSize * 1.35 + 4));
 }
 

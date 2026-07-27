@@ -142,7 +142,7 @@ describe('psIsonoteRecipe', () => {
     expect(recipe.steps.at(-1)).toMatchObject({
       op: 'draw_text_on_pages',
     });
-    const markerText = (recipe.steps.at(-1) as any).text;
+    const markerText = (recipe.steps.at(-1) as { text: string }).text;
     expect(markerText).toContain(`PDFHUBISONOTE[v3|1234.5|${HASH_A}|${HASH_B}|`);
     expect(markerText).not.toContain('|PS-1234.5|');
   });
@@ -168,7 +168,7 @@ describe('psIsonoteRecipe', () => {
     const detected = reference('PS-11168.8', 200, confMapping);
     const result = scan([detected]);
     const { recipe } = buildPsIsonoteAnnotationRecipe(result, { includeFamily: true });
-    const callout = (recipe.steps[0] as any).callout;
+    const callout = (recipe.steps[0] as { callout: { tag: string; note: string } }).callout;
     expect(callout.tag).toContain('Tag: Remove Guide');
     expect(callout.note).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
   });
