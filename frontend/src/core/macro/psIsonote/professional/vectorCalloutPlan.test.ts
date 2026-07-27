@@ -73,6 +73,12 @@ describe('professional vector callout model and typography', () => {
     expect(formatCalloutPresentation({ isoNoteValue: 'note', confidence: 'LOW' })).toEqual({
       noteText: 'ISO Note: note (C=L)',
     });
+    expect(() => formatCalloutPresentation({
+      isoNoteValue: 'note (C=H)',
+      confidence: 'HIGH',
+    })).toThrow(
+      'isoNoteValue must not include a confidence suffix when confidence is provided.',
+    );
   });
 
   it('owns prefixes once and rejects pre-prefixed semantic values', () => {
@@ -80,13 +86,16 @@ describe('professional vector callout model and typography', () => {
       tagText: 'Tag: Remove Guide',
       noteText: 'ISO Note: :/PS-11168.8 Remove Guide (C=H)',
     });
+    expect(formatCalloutPresentation({ tagValue: '  Remove Guide  ' })).toEqual({
+      tagText: 'Tag: Remove Guide',
+    });
     expect(formatCalloutPresentation({ isoNoteValue: 'note' })).toEqual({
       noteText: 'ISO Note: note',
     });
-    expect(() => formatCalloutPresentation({ tagValue: 'Tag: Duplicate' })).toThrow(
+    expect(() => formatCalloutPresentation({ tagValue: '  TAG: Duplicate' })).toThrow(
       'tagValue must not include the presentation prefix "Tag:".',
     );
-    expect(() => formatCalloutPresentation({ isoNoteValue: 'ISO Note: Duplicate' })).toThrow(
+    expect(() => formatCalloutPresentation({ isoNoteValue: '\tiso note: Duplicate' })).toThrow(
       'isoNoteValue must not include the presentation prefix "ISO Note:".',
     );
   });
@@ -139,10 +148,22 @@ describe('professional vector callout model and typography', () => {
     expectLinesWithinWidth(dimensions.noteLines, dimensions.usableWidth, style.fontSize);
   });
 
+  it('converts source hard breaks into separate renderable lines', () => {
+    const style = getStyleContract(normalStyleInput);
+    const dimensions = calculateCalloutBoxDimensions(
+      { isoNoteValue: 'First\nSecond\r\nThird' },
+      220,
+      style,
+    );
+
+    expect(dimensions.noteLines).toEqual(['ISO Note: First', 'Second', 'Third']);
+    expect(dimensions.noteLines.every((line) => !/[\r\n]/u.test(line))).toBe(true);
+  });
+
   it('handles empty optional content without malformed text or artificial height', () => {
     const style = getStyleContract(normalStyleInput);
     const dimensions = calculateCalloutBoxDimensions({}, 220, style);
-    const emptyStrings = { tagValue: '', isoNoteValue: '', confidence: 'HIGH' as const };
+    const emptyStrings = { tagValue: '  ', isoNoteValue: '\t', confidence: 'HIGH' as const };
 
     expect(formatCalloutPresentation({})).toEqual({});
     expect(formatCalloutPresentation(emptyStrings)).toEqual({});
@@ -171,7 +192,9 @@ describe('professional vector callout plan', () => {
       'Tag: Remove GuideISO Note: :/PS-11168.8 Remove Guide (C=H)',
     );
     expect(textPrimitives[0].fontId).toBe('Helvetica-Bold');
-    expect(textPrimitives.slice(1).every((primitive) => primitive.fontId === 'Helvetica')).toBe(true);
+    expect(
+      textPrimitives.slice(1).every((primitive) => primitive.fontId === 'Helvetica'),
+    ).toBe(true);
     expect(plan.content).toEqual(createInput().content);
     expect(plan.content.tagValue).toBe('Remove Guide');
     expect(plan.content.isoNoteValue).toBe(':/PS-11168.8 Remove Guide');
