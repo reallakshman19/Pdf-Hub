@@ -8,13 +8,18 @@ describe('PS ISONOTE sample mappings', () => {
     expect(PS_ISONOTE_SAMPLES.every((sample) => Object.isFrozen(sample))).toBe(true);
   });
 
-  it('provides parser-valid CSV, TSV, and pipe-table samples', () => {
+  it('provides parser-valid CSV, TSV, pipe-table, and Navis samples', () => {
     const parsed = PS_ISONOTE_SAMPLES.map((sample) => parsePsIsonoteTable(sample.content));
 
-    expect(parsed.map((result) => result.delimiter)).toEqual([',', '\t', '|']);
+    expect(parsed.map((result) => result.delimiter)).toEqual([',', '\t', '|', '\t']);
     expect(parsed.every((result) => result.mappings.length === 3)).toBe(true);
-    expect(parsed.every((result) => result.mappings[0]?.psNo === 'PS-11167.4')).toBe(true);
-    expect(parsed.every((result) => result.mappings[0]?.isonote.includes('GUIDE'))).toBe(true);
+    expect(parsed.slice(0, 3).every((result) => result.mappings[0]?.psNo === 'PS-11167.4')).toBe(true);
+    expect(parsed.slice(0, 3).every((result) => result.mappings[0]?.isonote.includes('GUIDE'))).toBe(true);
+    expect(parsed[3]?.mappings.map((mapping) => mapping.psNo)).toEqual([
+      'PS-11168/DATUM',
+      'PS-11167.4',
+      'PS-11168.8',
+    ]);
   });
 
   it('binds each format to an exact filename and text MIME type', () => {
@@ -32,6 +37,10 @@ describe('PS ISONOTE sample mappings', () => {
       {
         fileName: 'ps-isonote-sample.txt',
         mimeType: 'text/plain;charset=utf-8',
+      },
+      {
+        fileName: 'navis-tag-isonote-resolution.tsv',
+        mimeType: 'text/tab-separated-values;charset=utf-8',
       },
     ]);
   });
