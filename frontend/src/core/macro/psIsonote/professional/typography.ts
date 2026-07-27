@@ -69,16 +69,18 @@ function findBreakPoint(
   let width = 0;
 
   for (let index = 0; index < glyphs.length; index += 1) {
-    const nextWidth = width + estimateTextWidth(glyphs[index], fontSize);
+    const glyph = glyphs[index];
+    if (glyph === undefined) break;
+    const nextWidth = width + estimateTextWidth(glyph, fontSize);
     if (nextWidth > maxLineWidth) break;
     width = nextWidth;
     fittedCount = index + 1;
-    if (isHardBreak(glyphs[index])) {
-      return glyphs[index] === '\r' && glyphs[index + 1] === '\n'
+    if (isHardBreak(glyph)) {
+      return glyph === '\r' && glyphs[index + 1] === '\n'
         ? fittedCount + 1
         : fittedCount;
     }
-    if (/\s/u.test(glyphs[index])) lastWhitespaceBreak = fittedCount;
+    if (/\s/u.test(glyph)) lastWhitespaceBreak = fittedCount;
   }
 
   if (fittedCount === glyphs.length) return fittedCount;
@@ -147,7 +149,7 @@ function wrapOptionalText(
 
 export function calculateCalloutBoxDimensions(
   content: ProfessionalCalloutContent,
-  boxWidth: number;
+  boxWidth: number,
   style: StyleContract,
 ): BoxDimensions {
   assertPositiveFinite(boxWidth, 'boxWidth');
