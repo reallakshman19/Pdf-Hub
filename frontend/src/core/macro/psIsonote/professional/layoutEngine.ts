@@ -1,292 +1,255 @@
-import { type Rect, type ProfessionalCalloutModel } from './model';
+import { getStyleContract } from './model';
 import { calculateCalloutBoxDimensions } from './typography';
 import { buildVectorCalloutPlan } from './vectorCalloutPlan';
+import { generateCandidateBox } from './layoutGeometry';
+import { generateLeaderRoutes, leaderRouteKindIndex } from './leaderRouter';
 import {
-  type PlacementClass,
-  type Obstacle,
-  type LayoutDiagnostic,
-  type OccurrenceInput,
-  type LayoutResultItem,
-  type PageLayoutSolution,
-  type PageLayoutOptions,
-  type PlacementCandidate,
+  compareCandidateAssessments,
+  evaluateCandidateAssessment,
+  validateLayoutOptions,
+} from './layoutScoring';
+import type {
+  AttemptedCandidateSummary,
+  CandidateAssessment,
+  LayoutResult,
+  OccurrenceInput,
+  PageLayoutOptions,
+  PageLayoutSolution,
+  PlacementClass,
+  SelectedLayoutResult,
+  UnplaceableLayoutResult,
 } from './layoutTypes';
-import {
-  rectsOverlap,
-  isInsidePage,
-  lineIntersectsRect,
-  linesIntersect,
-  generateCandidateBox,
-  evaluateLeaderGeometry,
-} from './layoutGeometry';
 
-export const ALL_PLACEMENT_CLASSES: PlacementClass[] = [
-  'right',
-  'top-right',
-  'bottom-right',
-  'top',
-  'bottom',
-  'left',
-  'top-left',
-  'bottom-left',
-  'margin-right',
-  'margin-left',
+export const ALL_PLACEMENT_CLASSES: readonly PlacementClass[] = [
+  'right', 'top-right', 'bottom-right', 'top', 'bottom',
+  'left', 'top-left', 'bottom-left', 'margin-right', 'margin-left',
 ];
 
-interface BeamNode {
-  placed: LayoutResultItem[];
-  unplaceable: LayoutResultItem[];
-  activeObstacles: Obstacle[]; // hard obstacles + already placed callouts/leaders
-  totalScore: number;
-}
-
-/**
- * Evaluates a single candidate box and placement class against all known hard and soft obstacles.
- */
-export function evaluateCandidate(
-  placement: PlacementClass,
-  box: Rect,
+export function generateCandidateAssessments(
   occurrence: OccurrenceInput,
   options: PageLayoutOptions,
-  currentPlaced: LayoutResultItem[],
-): PlacementCandidate {
-  const margin = options.pageMargin ?? 12;
-  const { start: leaderStart, end: leaderEnd, isOrthogonal, length } = evaluateLeaderGeometry(box, occurrence.targetPoint);
-
-  const diagnostics: LayoutDiagnostic[] = [];
-  let isValid = true;
-  let score = 100 - length * 0.2; // Prefer shorter leader lines
-
-  if (isOrthogonal) {
-    score += 15; // Prefer orthogonal leaders
-  }
-
-  // Fallback edge placements get a small base penalty so closer local placements are favored if clean
-  if (placement === 'margin-right' || placement === 'margin-left') {
-    score -= 10;
-  }
-
-  // 1. Hard Check: Page boundaries
-  if (!isInsidePage(box, options.pageWidth, options.pageHeight, margin)) {
-    isValid = false;
-    diagnostics.push({
-      type: 'hard-collision',
-      source: 'page-boundary',
-      message: `Callout exceeds page dimensions (${options.pageWidth}x${options.pageHeight}).`,
-      penalty: 1000,
-    });
-  }
-
-  // 2. Hard Check: Title Block
-  if (options.titleBlockRect && isValid) {
-    if (rectsOverlap(box, options.titleBlockRect, 2) || lineIntersectsRect(leaderStart, leaderEnd, options.titleBlockRect)) {
-      isValid = false;
-      diagnostics.push({
-        type: 'hard-collision',
-        source: 'title-block',
-        message: 'Callout or leader intersects protected title block.',
-        penalty: 1000,
-      });
+  selected: readonly SelectedLayoutResult[],
+): readonly CandidateAssessment[] {
+  const width = occurrence.preferredWidth ?? 200;
+  const style = getStyleContract(occurrence.style);
+  const dimensions = calculateCalloutBoxDimensions(occurrence.content, width, style);
+  const assessments: CandidateAssessment[] = [];
+  for (const placement of ALL_PLACEMENT_CLASSES) {
+    const box = generateCandidateBox(
+      occurrence.targetPoint, dimensions.width, dimensions.height, placement,
+      options.pageWidth, options.pageHeight, options.pageMargin,
+    );
+    for (const route of generateLeaderRoutes(box, occurrence.targetPoint)) {
+      assessments.push(evaluateCandidateAssessment(
+        placement, box, route, occurrence, options, selected,
+      ));
     }
   }
+  return assessments.sort(compareCandidateAssessments);
+}
 
-  // 3. Hard Check: Already Placed Callouts & Leaders in current beam solution
-  if (isValid) {
-    for (const existing of currentPlaced) {
-      if (existing.status === 'placed' && existing.callout) {
-        // Box vs Box
-        if (rectsOverlap(box, existing.callout.box, 6)) {
-          isValid = false;
-          diagnostics.push({
-            type: 'hard-collision',
-            source: 'callout-box',
-            message: `Collides with existing callout ${existing.callout.psNo}.`,
-            penalty: 1000,
-          });
-          break;
-        }
-        // Leader vs Existing Box
-        if (lineIntersectsRect(leaderStart, leaderEnd, existing.callout.box)) {
-          isValid = false;
-          diagnostics.push({
-            type: 'hard-collision',
-            source: 'leader-line',
-            message: `Leader intersects existing callout ${existing.callout.psNo}.`,
-            penalty: 1000,
-          });
-          break;
-        }
-        // Existing Leader vs Candidate Box
-        const existingLeader = existing.callout.primitives.find((p) => p.type === 'line');
-        if (existingLeader && existingLeader.type === 'line') {
-          if (lineIntersectsRect(existingLeader.start, existingLeader.end, box)) {
-            isValid = false;
-            diagnostics.push({
-              type: 'hard-collision',
-              source: 'callout-box',
-              message: `Box intersects existing leader line for ${existing.callout.psNo}.`,
-              penalty: 1000,
-            });
-            break;
-          }
-          if (linesIntersect(leaderStart, leaderEnd, existingLeader.start, existingLeader.end)) {
-            isValid = false;
-            diagnostics.push({
-              type: 'hard-collision',
-              source: 'leader-line',
-              message: `Leader crosses existing leader line for ${existing.callout.psNo}.`,
-              penalty: 1000,
-            });
-            break;
-          }
-        }
-      }
-    }
-  }
+const UNPLACEABLE_COST = 1_000_000;
 
-  // 4. Evaluate provided Obstacles (both Hard and Soft)
-  const obstacles = options.obstacles ?? [];
-  for (const obs of obstacles) {
-    if (rectsOverlap(box, obs.rect, 2) || lineIntersectsRect(leaderStart, leaderEnd, obs.rect)) {
-      if (obs.type === 'hard') {
-        isValid = false;
-        diagnostics.push({
-          type: 'hard-collision',
-          source: obs.source,
-          message: `Collides with hard obstacle (${obs.id}).`,
-          penalty: 1000,
-        });
-      } else {
-        const penalty = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
-        score -= penalty;
-        diagnostics.push({
-          type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
-          source: obs.source,
-          message: `Overlaps soft obstacle (${obs.id}: ${obs.source}).`,
-          penalty,
-        });
-      }
-    }
-  }
+interface BeamNode {
+  readonly results: readonly LayoutResult[];
+  readonly totalCost: number;
+  readonly compromisedCount: number;
+  readonly unplaceableCount: number;
+}
 
+function placementIndex(placement: PlacementClass): number {
+  return ALL_PLACEMENT_CLASSES.indexOf(placement);
+}
+
+function cloneOccurrence(occurrence: OccurrenceInput): OccurrenceInput {
   return {
-    placementClass: placement,
-    box,
-    leaderStart,
-    leaderEnd,
-    score: Math.round(score * 10) / 10,
-    diagnostics,
-    isValid,
+    id: occurrence.id,
+    psNo: occurrence.psNo,
+    pageNumber: occurrence.pageNumber,
+    content: {
+      ...(occurrence.content.tagValue !== undefined
+        ? { tagValue: occurrence.content.tagValue } : {}),
+      ...(occurrence.content.isoNoteValue !== undefined
+        ? { isoNoteValue: occurrence.content.isoNoteValue } : {}),
+      ...(occurrence.content.confidence !== undefined
+        ? { confidence: occurrence.content.confidence } : {}),
+    },
+    targetPoint: { ...occurrence.targetPoint },
+    ...(occurrence.preferredWidth !== undefined
+      ? { preferredWidth: occurrence.preferredWidth } : {}),
+    style: { ...occurrence.style },
   };
 }
 
-/**
- * Deterministic page-level layout engine using beam search.
- * Enforces zero silent failures: unplaceable items become explicitly flagged as unplaceable.
- */
+function selectedResults(node: BeamNode): readonly SelectedLayoutResult[] {
+  return node.results.filter(
+    (result): result is SelectedLayoutResult => result.status !== 'unplaceable',
+  );
+}
+
+function createSelectedResult(
+  occurrence: OccurrenceInput,
+  assessment: CandidateAssessment,
+): SelectedLayoutResult {
+  if (assessment.outcome === 'rejected') {
+    throw new Error('Cannot create a selected result from a rejected candidate.');
+  }
+  const copiedOccurrence = cloneOccurrence(occurrence);
+  const callout = buildVectorCalloutPlan({
+    id: occurrence.id,
+    psNo: occurrence.psNo,
+    content: occurrence.content,
+    targetPoint: occurrence.targetPoint,
+    boxPlacement: {
+      x: assessment.box.x,
+      y: assessment.box.y,
+      width: assessment.box.width,
+    },
+    style: occurrence.style,
+    leaderRoute: assessment.route.points,
+  });
+  const common = {
+    occurrence: copiedOccurrence,
+    placementClass: assessment.placementClass,
+    box: { ...assessment.box },
+    route: assessment.route,
+    assessment,
+    callout,
+    totalCost: assessment.totalCost,
+    diagnostics: assessment.diagnostics,
+  };
+  return assessment.outcome === 'clear'
+    ? { ...common, status: 'clear', requiresReview: false }
+    : { ...common, status: 'compromised', requiresReview: true };
+}
+
+function summarize(assessment: CandidateAssessment): AttemptedCandidateSummary {
+  return {
+    placementClass: assessment.placementClass,
+    routeKind: assessment.route.kind,
+    routePoints: assessment.route.points.map((point) => ({ ...point })),
+    outcome: assessment.outcome,
+    totalCost: assessment.totalCost,
+    rejectionReasons: [...assessment.rejectionReasons],
+  };
+}
+
+function createUnplaceableResult(
+  occurrence: OccurrenceInput,
+  assessments: readonly CandidateAssessment[],
+): UnplaceableLayoutResult {
+  const rejected = assessments.filter((assessment) => assessment.outcome === 'rejected');
+  const bestRejectedCandidate = rejected[0];
+  const reasons = [...new Set(rejected.flatMap((assessment) => assessment.rejectionReasons))];
+  return {
+    status: 'unplaceable',
+    requiresReview: true,
+    occurrence: cloneOccurrence(occurrence),
+    attemptedCandidates: assessments.map(summarize),
+    ...(bestRejectedCandidate ? { bestRejectedCandidate } : {}),
+    reasons: reasons.length > 0 ? reasons : ['No acceptable candidate was generated.'],
+    diagnostics: bestRejectedCandidate?.diagnostics ?? [],
+    totalCost: UNPLACEABLE_COST + (bestRejectedCandidate?.totalCost ?? 0),
+  };
+}
+
+function childWithResult(node: BeamNode, result: LayoutResult): BeamNode {
+  return {
+    results: [...node.results, result],
+    totalCost: node.totalCost + result.totalCost,
+    compromisedCount: node.compromisedCount + (result.status === 'compromised' ? 1 : 0),
+    unplaceableCount: node.unplaceableCount + (result.status === 'unplaceable' ? 1 : 0),
+  };
+}
+
+function resultSignature(result: LayoutResult): string {
+  if (result.status === 'unplaceable') return `2:${result.occurrence.id}`;
+  const status = result.status === 'clear' ? 0 : 1;
+  const points = result.route.points.map((point) => `${point.x},${point.y}`).join('|');
+  return `${status}:${result.occurrence.id}:${placementIndex(result.placementClass)}`
+    + `:${leaderRouteKindIndex(result.route.kind)}:${points}`;
+}
+
+function compareBeamNodes(first: BeamNode, second: BeamNode): number {
+  const primary = first.unplaceableCount - second.unplaceableCount
+    || first.compromisedCount - second.compromisedCount
+    || first.totalCost - second.totalCost;
+  if (primary !== 0) return primary;
+  const firstSignature = first.results.map(resultSignature).join(';');
+  const secondSignature = second.results.map(resultSignature).join(';');
+  return firstSignature.localeCompare(secondSignature);
+}
+
+function sortOccurrences(occurrences: readonly OccurrenceInput[]): readonly OccurrenceInput[] {
+  return [...occurrences].sort((first, second) =>
+    first.pageNumber - second.pageNumber
+    || first.targetPoint.y - second.targetPoint.y
+    || first.targetPoint.x - second.targetPoint.x
+    || first.id.localeCompare(second.id));
+}
+
+function expandNode(
+  node: BeamNode,
+  occurrence: OccurrenceInput,
+  options: PageLayoutOptions,
+): readonly BeamNode[] {
+  const assessments = generateCandidateAssessments(
+    occurrence,
+    options,
+    selectedResults(node),
+  );
+  const acceptable = assessments.filter((assessment) => assessment.outcome !== 'rejected');
+  if (acceptable.length === 0) {
+    return [childWithResult(node, createUnplaceableResult(occurrence, assessments))];
+  }
+  return acceptable.map(
+    (assessment) => childWithResult(node, createSelectedResult(occurrence, assessment)),
+  );
+}
+
 export function solvePageLayout(
-  occurrences: OccurrenceInput[],
+  occurrences: readonly OccurrenceInput[],
   options: PageLayoutOptions,
 ): PageLayoutSolution {
+  validateLayoutOptions(options);
+  const ordered = sortOccurrences(occurrences);
+  const pageNumber = ordered[0]?.pageNumber ?? 1;
+  if (ordered.some((occurrence) => occurrence.pageNumber !== pageNumber)) {
+    throw new Error('solvePageLayout accepts occurrences from exactly one page.');
+  }
   const beamWidth = options.beamWidth ?? 4;
-  let beam: BeamNode[] = [{ placed: [], unplaceable: [], activeObstacles: options.obstacles ?? [], totalScore: 0 }];
+  let beam: readonly BeamNode[] = [{
+    results: [],
+    totalCost: 0,
+    compromisedCount: 0,
+    unplaceableCount: 0,
+  }];
 
-  const sortedOccurrences = [...occurrences].sort((a, b) =>
-    a.targetPoint.y - b.targetPoint.y || a.targetPoint.x - b.targetPoint.x
-  );
-
-  for (const occurrence of sortedOccurrences) {
-    const width = occurrence.preferredWidth ?? 200;
-    const dims = calculateCalloutBoxDimensions(occurrence.tag, occurrence.note, occurrence.confidence, width);
-
-    const newBeam: BeamNode[] = [];
-
-    for (const node of beam) {
-      let bestCandidate: PlacementCandidate | null = null;
-
-      for (const placement of ALL_PLACEMENT_CLASSES) {
-        const candidateBox = generateCandidateBox(
-          occurrence.targetPoint,
-          dims.width,
-          dims.height,
-          placement,
-          options.pageWidth,
-          options.pageHeight,
-          options.pageMargin,
-        );
-        const evaluation = evaluateCandidate(placement, candidateBox, occurrence, options, node.placed);
-
-        if (evaluation.isValid) {
-          if (!bestCandidate || evaluation.score > bestCandidate.score) {
-            bestCandidate = evaluation;
-          }
-        }
-      }
-
-      if (bestCandidate) {
-        const callout = buildVectorCalloutPlan(
-          occurrence.id,
-          occurrence.psNo,
-          occurrence.tag,
-          occurrence.note,
-          occurrence.confidence,
-          occurrence.targetPoint,
-          bestCandidate.box,
-          { isReview: false },
-        );
-        const resultItem: LayoutResultItem = {
-          occurrenceId: occurrence.id,
-          status: 'placed',
-          placementClass: bestCandidate.placementClass,
-          callout,
-          diagnostics: bestCandidate.diagnostics,
-        };
-        newBeam.push({
-          placed: [...node.placed, resultItem],
-          unplaceable: [...node.unplaceable],
-          activeObstacles: node.activeObstacles,
-          totalScore: node.totalScore + bestCandidate.score,
-        });
-      } else {
-        // Unplaceable: NO silent bad placement!
-        const resultItem: LayoutResultItem = {
-          occurrenceId: occurrence.id,
-          status: 'unplaceable',
-          diagnostics: [
-            {
-              type: 'hard-collision',
-              source: 'layout-solver',
-              message: `All 10 placement classes rejected due to hard obstacle or boundary collisions.`,
-              penalty: 1000,
-            },
-          ],
-        };
-        newBeam.push({
-          placed: [...node.placed],
-          unplaceable: [...node.unplaceable, resultItem],
-          activeObstacles: node.activeObstacles,
-          totalScore: node.totalScore - 100, // penalty for unplaceable in beam search
-        });
-      }
-    }
-
-    // Keep top beamWidth solutions
-    beam = newBeam.sort((a, b) => {
-      // Favor solutions with fewer unplaceables first
-      if (a.unplaceable.length !== b.unplaceable.length) {
-        return a.unplaceable.length - b.unplaceable.length;
-      }
-      return b.totalScore - a.totalScore;
-    }).slice(0, beamWidth);
+  for (const occurrence of ordered) {
+    beam = beam
+      .flatMap((node) => expandNode(node, occurrence, options))
+      .sort(compareBeamNodes)
+      .slice(0, beamWidth);
   }
 
-  const bestSolution = beam[0] ?? { placed: [], unplaceable: [], totalScore: 0 };
-  const allResults = [...bestSolution.placed, ...bestSolution.unplaceable];
-
+  const best = beam[0] ?? {
+    results: [],
+    totalCost: 0,
+    compromisedCount: 0,
+    unplaceableCount: 0,
+  };
   return {
-    pageNumber: occurrences[0]?.pageNumber ?? 1,
-    results: allResults,
-    totalScore: Math.round(bestSolution.totalScore * 10) / 10,
-    unplaceableCount: bestSolution.unplaceable.length,
+    pageNumber,
+    results: best.results,
+    totalCost: Math.round(best.totalCost * 100) / 100,
+    clearCount: best.results.filter((result) => result.status === 'clear').length,
+    compromisedCount: best.compromisedCount,
+    unplaceableCount: best.unplaceableCount,
   };
 }
+
+export {
+  compareCandidateAssessments,
+  evaluateCandidateAssessment,
+  validateLayoutOptions,
+};
