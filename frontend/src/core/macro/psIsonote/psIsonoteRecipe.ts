@@ -354,7 +354,6 @@ function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
   fontSize: number,
-  includeFamily: boolean,
 ): number {
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
@@ -410,7 +409,6 @@ export function planPsIsonoteCallouts(
   const fontSize = options.fontSize ?? 10;
   const gap = options.gap ?? 8;
   const margin = options.pageMargin ?? 12;
-  const includeFamily = options.includeFamily ?? true;
   const planned: PlannedPsIsonoteCallout[] = [];
   const byPage = new Map<number, PlannedPsIsonoteCallout[]>();
 
@@ -424,7 +422,7 @@ export function planPsIsonoteCallouts(
     const dimensions = scan.pageDimensions[reference.pageNumber];
     if (!dimensions) continue;
     const width = clamp(configuredWidth, 120, Math.max(120, dimensions.width - margin * 2));
-    const height = estimateCalloutHeight(reference.mapping, width, fontSize, includeFamily);
+    const height = estimateCalloutHeight(reference.mapping, width, fontSize);
     const box = chooseInitialBox(reference, dimensions, width, height, placement, gap, margin);
     const pageBoxes = byPage.get(reference.pageNumber) ?? [];
 
