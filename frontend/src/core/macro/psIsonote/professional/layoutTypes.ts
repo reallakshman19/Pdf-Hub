@@ -1,82 +1,157 @@
-import { type Point, type Rect, type ProfessionalCalloutModel } from './model';
+import type {
+  Point,
+  ProfessionalCalloutContent,
+  ProfessionalCalloutModel,
+  Rect,
+  StyleContractInput,
+} from './model';
 
-/**
- * Ten deterministic placement classes:
- * Eight local cardinal/ordinal orientations around the anchor, plus two edge margin fallbacks.
- */
+/** Stable generation and tie-break order is exported by layoutEngine.ts. */
 export type PlacementClass =
-  | 'top'
-  | 'top-right'
   | 'right'
+  | 'top-right'
   | 'bottom-right'
+  | 'top'
   | 'bottom'
-  | 'bottom-left'
   | 'left'
   | 'top-left'
+  | 'bottom-left'
   | 'margin-right'
   | 'margin-left';
 
-export type ObstacleType = 'hard' | 'soft';
+export type LeaderRouteKind =
+  | 'direct'
+  | 'one-elbow-hv'
+  | 'one-elbow-vh'
+  | 'two-elbow-hvh'
+  | 'two-elbow-vhv';
 
-export type HardObstacleSource = 'page-boundary' | 'title-block' | 'callout-box' | 'leader-line';
-export type SoftObstacleSource = 'drawing-density' | 'existing-text';
+export interface LeaderRoute {
+  readonly kind: LeaderRouteKind;
+  readonly points: readonly [Point, Point, ...Point[]];
+  readonly length: number;
+}
+
+export type SegmentIntersectionKind = 'none' | 'touch' | 'cross' | 'overlap';
+export type AffectedGeometry = 'box' | 'leader';
+export type ObstaclePolicyMode = 'prohibited' | 'weighted';
 
 export interface Obstacle {
-  id: string;
-  type: ObstacleType;
-  source: HardObstacleSource | SoftObstacleSource | string;
-  rect: Rect;
-  weight?: number; // Penalty weight for soft obstacles
+  readonly id: string;
+  readonly source: string;
+  readonly rect: Rect;
 }
 
-export interface LayoutDiagnostic {
-  type: 'hard-collision' | 'text-overlap' | 'drawing-density';
-  source: string;
-  message: string;
-  penalty: number;
+export interface ObstaclePolicyRule {
+  readonly mode: ObstaclePolicyMode;
+  readonly boxPenalty: number;
+  readonly leaderPenalty: number;
 }
 
-export interface PlacementCandidate {
-  placementClass: PlacementClass;
-  box: Rect;
-  leaderStart: Point;
-  leaderEnd: Point;
-  score: number;
-  diagnostics: LayoutDiagnostic[];
-  isValid: boolean;
+export interface ObstaclePolicy {
+  readonly bySource: Readonly<Record<string, ObstaclePolicyRule>>;
 }
 
 export interface OccurrenceInput {
-  id: string;
-  psNo: string;
-  tag: string;
-  note: string;
-  confidence: string;
-  targetPoint: Point;
-  pageNumber: number;
-  preferredWidth?: number;
+  readonly id: string;
+  readonly psNo: string;
+  readonly pageNumber: number;
+  readonly content: ProfessionalCalloutContent;
+  readonly targetPoint: Point;
+  readonly preferredWidth?: number;
+  readonly style: StyleContractInput;
 }
 
-export interface LayoutResultItem {
-  occurrenceId: string;
-  status: 'placed' | 'unplaceable';
-  placementClass?: PlacementClass;
-  callout?: ProfessionalCalloutModel;
-  diagnostics: LayoutDiagnostic[];
+export interface LayoutDiagnostic {
+  readonly code:
+    | 'page-boundary'
+    | 'callout-box'
+    | 'callout-leader'
+    | 'obstacle-clash'
+    | 'missing-obstacle-policy'
+    | 'compromise-threshold';
+  readonly message: string;
+  readonly penalty: number;
+  readonly obstacleId?: string;
+  readonly source?: string;
+  readonly geometry?: AffectedGeometry;
+  readonly policyMode?: ObstaclePolicyMode;
+  readonly intersection?: SegmentIntersectionKind;
+}
+
+export type CandidateOutcome = 'clear' | 'compromised' | 'rejected';
+
+export interface CandidateAssessment {
+  readonly placementClass: PlacementClass;
+  readonly box: Rect;
+  readonly route: LeaderRoute;
+  readonly outcome: CandidateOutcome;
+  readonly baseCost: number;
+  readonly compromiseCost: number;
+  readonly totalCost: number;
+  readonly diagnostics: readonly LayoutDiagnostic[];
+  readonly rejectionReasons: readonly string[];
+}
+
+export interface AttemptedCandidateSummary {
+  readonly placementClass: PlacementClass;
+  readonly routeKind: LeaderRouteKind;
+  readonly routePoints: readonly Point[];
+  readonly outcome: CandidateOutcome;
+  readonly totalCost: number;
+  readonly rejectionReasons: readonly string[];
+}
+
+interface SelectedLayoutResultBase {
+  readonly occurrence: OccurrenceInput;
+  readonly placementClass: PlacementClass;
+  readonly box: Rect;
+  readonly route: LeaderRoute;
+  readonly assessment: CandidateAssessment;
+  readonly callout: ProfessionalCalloutModel;
+  readonly totalCost: number;
+  readonly diagnostics: readonly LayoutDiagnostic[];
+}
+
+export interface ClearLayoutResult extends SelectedLayoutResultBase {
+  readonly status: 'clear';
+  readonly requiresReview: false;
+}
+
+export interface CompromisedLayoutResult extends SelectedLayoutResultBase {
+  readonly status: 'compromised';
+  readonly requiresReview: true;
+}
+
+export interface UnplaceableLayoutResult {
+  readonly status: 'unplaceable';
+  readonly requiresReview: true;
+  readonly occurrence: OccurrenceInput;
+  readonly attemptedCandidates: readonly AttemptedCandidateSummary[];
+  readonly bestRejectedCandidate?: CandidateAssessment;
+  readonly reasons: readonly string[];
+  readonly diagnostics: readonly LayoutDiagnostic[];
+  readonly totalCost: number;
+}
+
+export type SelectedLayoutResult = ClearLayoutResult | CompromisedLayoutResult;
+export type LayoutResult = SelectedLayoutResult | UnplaceableLayoutResult;
+
+export interface PageLayoutOptions {
+  readonly pageWidth: number;
+  readonly pageHeight: number;
+  readonly pageMargin?: number;
+  readonly obstacles?: readonly Obstacle[];
+  readonly obstaclePolicy: ObstaclePolicy;
+  readonly compromiseThreshold: number;
+  readonly beamWidth?: number;
 }
 
 export interface PageLayoutSolution {
-  pageNumber: number;
-  results: LayoutResultItem[];
-  totalScore: number;
-  unplaceableCount: number;
-}
-
-export interface PageLayoutOptions {
-  pageWidth: number;
-  pageHeight: number;
-  pageMargin?: number;
-  titleBlockRect?: Rect;
-  obstacles?: Obstacle[];
-  beamWidth?: number;
+  readonly pageNumber: number;
+  readonly results: readonly LayoutResult[];
+  readonly totalCost: number;
+  readonly clearCount: number;
+  readonly compromisedCount: number;
+  readonly unplaceableCount: number;
 }
