@@ -16,8 +16,20 @@ const validCallout = buildVectorCalloutPlan(
 );
 
 const mockResults: LayoutResultItem[] = [
-  { occurrenceId: 'occ-100', status: 'placed', placementClass: 'right', callout: validCallout, diagnostics: [] },
-  { occurrenceId: 'occ-200', status: 'unplaceable', diagnostics: [] },
+  { 
+    occurrenceId: 'occ-100', 
+    status: 'placed', 
+    placementClass: 'right', 
+    callout: validCallout, 
+    diagnostics: [],
+    occurrence: { psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', point: { x: 100, y: 100 } }
+  },
+  { 
+    occurrenceId: 'occ-200', 
+    status: 'unplaceable', 
+    diagnostics: [],
+    occurrence: { psNo: 'PS-11168.9', tag: 'Add Guide', note: ':/PS-11168.9 Add Guide', confidence: 'MEDIUM', point: { x: 400, y: 400 } }
+  },
 ];
 
 describe('Layout-Bound Verification Core (Layer 4 - Audit Manifest)', () => {
