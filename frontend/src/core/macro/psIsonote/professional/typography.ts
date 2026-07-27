@@ -127,9 +127,14 @@ function normalizeSemanticValue(
   return normalized;
 }
 
-function assertConfidenceOwnership(note: string | undefined, confidence: CalloutConfidence | undefined): void {
+function assertConfidenceOwnership(
+  note: string | undefined,
+  confidence: CalloutConfidence | undefined,
+): void {
   if (note && confidence && TRAILING_CONFIDENCE.test(note)) {
-    throw new Error('isoNoteValue must not include a confidence suffix when confidence is provided.');
+    throw new Error(
+      'isoNoteValue must not include a confidence suffix when confidence is provided.',
+    );
   }
 }
 
