@@ -63,4 +63,63 @@ describe('Professional Vector Callout Core (Layer 1)', () => {
     expect(anchorLeft.x).toBe(200);
     expect(anchorLeft.y).toBe(120);
   });
+
+  it('never emits a text line wider than the available width (long token overflow test)', () => {
+    const token =
+      'PS-11168.8/THIS_IS_A_SINGLE_UNBROKEN_ENGINEERING_IDENTIFIER_' +
+      'WITH_A_VERY_LONG_SUFFIX_12345678901234567890';
+    const maxWidth = 90;
+    const fontSize = 9;
+    const lines = wrapTextMetric(token, maxWidth, fontSize);
+
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) {
+      expect(
+        estimateTextWidth(line, fontSize),
+        `Overflowing line: "${line}"`,
+      ).toBeLessThanOrEqual(maxWidth);
+    }
+    expect(lines.join('')).toBe(token);
+  });
+
+  it('renders a diagonal relationship using orthogonal vector segments', () => {
+    const plan = buildVectorCalloutPlan(
+      'callout-orthogonal',
+      'PS-101',
+      'Elbow Check',
+      'Note with diagonal target',
+      'HIGH',
+      { x: 80, y: 60 },
+      { x: 220, y: 180, width: 160 },
+    );
+
+    const leaderSegments = plan.primitives.filter(
+      (primitive) => primitive.type === 'line',
+    );
+    expect(leaderSegments.length).toBeGreaterThanOrEqual(2);
+
+    for (const segment of leaderSegments) {
+      if (segment.type === 'line') {
+        const isHorizontal = segment.start.y === segment.end.y;
+        const isVertical = segment.start.x === segment.end.x;
+        expect(
+          isHorizontal || isVertical,
+          `Segment from (${segment.start.x},${segment.start.y}) to (${segment.end.x},${segment.end.y}) is neither horizontal nor vertical.`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('honors initialBox.height as requested minimum height', () => {
+    const plan = buildVectorCalloutPlan(
+      'callout-height',
+      'PS-102',
+      'Short Note',
+      'Short',
+      'HIGH',
+      { x: 100, y: 100 },
+      { x: 200, y: 200, width: 150, height: 180 },
+    );
+    expect(plan.box.height).toBeGreaterThanOrEqual(180);
+  });
 });

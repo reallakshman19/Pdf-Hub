@@ -89,7 +89,7 @@ export function getStyleContract(isReview = false, fontSize = 9): StyleContract 
       borderColor: '#ea580c',     // Orange review border
       leaderColor: '#ea580c',
       fontSize,
-      fontFamily: 'Helvetica, Arial, sans-serif',
+      fontFamily: 'Helvetica',
       borderWidth: 1.5,
       cornerRadius: 3,
     };
@@ -102,8 +102,20 @@ export function getStyleContract(isReview = false, fontSize = 9): StyleContract 
     borderColor: '#334155',     // Slate border
     leaderColor: '#475569',
     fontSize,
-    fontFamily: 'Helvetica, Arial, sans-serif',
+    fontFamily: 'Helvetica',
     borderWidth: 1,
     cornerRadius: 2,
   };
+}
+
+export function deepFreeze<T>(value: T): Readonly<T> {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      deepFreeze(child);
+    }
+  }
+
+  return value;
 }

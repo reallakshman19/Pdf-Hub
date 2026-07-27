@@ -4,13 +4,32 @@ import {
   type ProfessionalCalloutModel,
   type VectorPrimitive,
   getStyleContract,
+  deepFreeze,
 } from './model';
 import { calculateCalloutBoxDimensions } from './typography';
+
+export interface LeaderPath {
+  points: readonly [Point, Point, ...Point[]];
+  anchorRadius: number;
+}
 
 export interface VectorCalloutPlanOptions {
   width?: number;
   fontSize?: number;
   isReview?: boolean;
+  leaderPath?: LeaderPath;
+}
+
+export function assertValidRect(rect: Rect, label: string): void {
+  const values = [rect.x, rect.y, rect.width, rect.height];
+
+  if (!values.every(Number.isFinite)) {
+    throw new Error(`${label} contains a non-finite coordinate.`);
+  }
+
+  if (rect.width <= 0 || rect.height <= 0) {
+    throw new Error(`${label} must have positive width and height.`);
+  }
 }
 
 /**
@@ -63,32 +82,56 @@ export function buildVectorCalloutPlan(
   const style = getStyleContract(isReview, fontSize);
   const dims = calculateCalloutBoxDimensions(tag, note, confidence, width, style.fontSize);
   
+  const requestedHeight = initialBox.height ?? 0;
+  const height = Math.max(dims.height, requestedHeight);
+
   const box: Rect = {
     x: initialBox.x,
     y: initialBox.y,
     width: dims.width,
-    height: dims.height,
+    height,
   };
 
-  const boxAnchor = getBoxAnchorTowards(box, targetPoint);
+  assertValidRect(box, `Callout box geometry for ${id}`);
 
+  const boxAnchor = getBoxAnchorTowards(box, targetPoint);
   const primitives: VectorPrimitive[] = [];
 
-  // 1. Leader line from box anchor to target point
-  primitives.push({
-    type: 'line',
-    start: boxAnchor,
-    end: targetPoint,
-    color: style.leaderColor,
-    width: 1,
-    style: 'solid',
-  });
+  // 1. Leader line polyline segments from box anchor to target point
+  let leaderPoints: readonly Point[];
+  let anchorRadius = 2;
+  if (options.leaderPath) {
+    leaderPoints = options.leaderPath.points;
+    anchorRadius = options.leaderPath.anchorRadius;
+  } else {
+    if (boxAnchor.x === targetPoint.x || boxAnchor.y === targetPoint.y) {
+      leaderPoints = [boxAnchor, targetPoint];
+    } else {
+      const isHorizontalExit = Math.abs(targetPoint.x - (box.x + box.width / 2)) > Math.abs(targetPoint.y - (box.y + box.height / 2));
+      const knee: Point = isHorizontalExit
+        ? { x: targetPoint.x, y: boxAnchor.y }
+        : { x: boxAnchor.x, y: targetPoint.y };
+      leaderPoints = [boxAnchor, knee, targetPoint];
+    }
+  }
+
+  for (let i = 0; i < leaderPoints.length - 1; i += 1) {
+    primitives.push({
+      type: 'line',
+      start: leaderPoints[i],
+      end: leaderPoints[i + 1],
+      color: style.leaderColor,
+      width: 1,
+      style: 'solid',
+    });
+  }
 
   // 2. Target anchor point dot
+  const targetEnd = leaderPoints[leaderPoints.length - 1] ?? targetPoint;
   primitives.push({
     type: 'circle',
-    center: targetPoint,
-    radius: 2,
+    center: targetEnd,
+    radius: anchorRadius,
     fillColor: style.leaderColor,
     borderColor: style.leaderColor,
     borderWidth: 1,
@@ -139,7 +182,7 @@ export function buildVectorCalloutPlan(
     }
   }
 
-  return {
+  return deepFreeze({
     id,
     psNo,
     tag,
@@ -149,5 +192,5 @@ export function buildVectorCalloutPlan(
     box,
     style,
     primitives,
-  };
+  });
 }

@@ -25,27 +25,139 @@ export function estimateTextWidth(text: string, fontSize: number): number {
   return total;
 }
 
+export interface TextMetricsProvider {
+  widthOfText(
+    text: string,
+    fontSize: number,
+    weight?: 'normal' | 'bold',
+  ): number;
+}
+
+export class DefaultTextMetricsProvider implements TextMetricsProvider {
+  widthOfText(text: string, fontSize: number): number {
+    return estimateTextWidth(text, fontSize);
+  }
+}
+
+export const defaultMetricsProvider = new DefaultTextMetricsProvider();
+
+function breakLongToken(
+  token: string,
+  maxLineWidth: number,
+  fontSize: number,
+  provider: TextMetricsProvider,
+): string[] {
+  const chars = Array.from(token);
+  const result: string[] = [];
+  let current = '';
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const ch = chars[i];
+    if (provider.widthOfText(ch, fontSize, 'normal') > maxLineWidth) {
+      throw new Error(`Available line width (${maxLineWidth}) is too narrow to fit character '${ch}'.`);
+    }
+
+    const candidate = current + ch;
+    if (provider.widthOfText(candidate, fontSize, 'normal') <= maxLineWidth) {
+      current = candidate;
+    } else {
+      let splitIdx = -1;
+      const semanticChars = ['/', '-', '_', '.', ':'];
+      for (let j = current.length - 1; j > 0; j -= 1) {
+        if (semanticChars.includes(current[j])) {
+          splitIdx = j + 1;
+          break;
+        }
+      }
+
+      if (splitIdx > 0 && splitIdx < current.length) {
+        result.push(current.slice(0, splitIdx));
+        current = current.slice(splitIdx);
+        if (provider.widthOfText(current + ch, fontSize, 'normal') <= maxLineWidth) {
+          current += ch;
+        } else {
+          result.push(current);
+          current = ch;
+        }
+      } else {
+        result.push(current);
+        current = ch;
+      }
+    }
+  }
+
+  if (current) {
+    result.push(current);
+  }
+
+  return result;
+}
+
 /**
  * Wraps text deterministically based on maximum box width and font metrics.
  */
-export function wrapTextMetric(text: string, maxLineWidth: number, fontSize: number): string[] {
+export function wrapTextMetric(
+  text: string,
+  maxLineWidth: number,
+  fontSize: number,
+  provider: TextMetricsProvider = defaultMetricsProvider,
+): string[] {
   if (!text) return [];
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
+  if (maxLineWidth <= 0) {
+    throw new Error('maxLineWidth must be positive.');
+  }
 
-  for (const word of words) {
-    const candidate = currentLine ? `${currentLine} ${word}` : word;
-    if (estimateTextWidth(candidate, fontSize) <= maxLineWidth || !currentLine) {
-      currentLine = candidate;
-    } else {
+  if (provider.widthOfText('i', fontSize, 'normal') > maxLineWidth) {
+    throw new Error(`Available line width (${maxLineWidth}) is too narrow to fit even one glyph.`);
+  }
+
+  const explicitLines = text.split('\n');
+  const lines: string[] = [];
+
+  for (const explicitLine of explicitLines) {
+    if (explicitLine === '') {
+      lines.push('');
+      continue;
+    }
+
+    const words = explicitLine.split(' ');
+    let currentLine = '';
+
+    for (const word of words) {
+      if (provider.widthOfText(word, fontSize, 'normal') > maxLineWidth) {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = '';
+        }
+        const brokenTokens = breakLongToken(word, maxLineWidth, fontSize, provider);
+        for (let i = 0; i < brokenTokens.length - 1; i += 1) {
+          lines.push(brokenTokens[i]);
+        }
+        currentLine = brokenTokens[brokenTokens.length - 1] ?? '';
+        continue;
+      }
+
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
+      if (provider.widthOfText(candidate, fontSize, 'normal') <= maxLineWidth) {
+        currentLine = candidate;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        currentLine = word;
+      }
+    }
+    if (currentLine) {
       lines.push(currentLine);
-      currentLine = word;
     }
   }
-  if (currentLine) {
-    lines.push(currentLine);
+
+  for (const line of lines) {
+    if (provider.widthOfText(line, fontSize, 'normal') > maxLineWidth) {
+      throw new Error(`Line "${line}" width exceeds maxLineWidth (${maxLineWidth}).`);
+    }
   }
+
   return lines;
 }
 
