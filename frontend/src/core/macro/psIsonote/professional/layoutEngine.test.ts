@@ -172,6 +172,7 @@ describe('deterministic least-obstruction layout', () => {
     expect(result?.status).toBe('compromised');
     if (!result || result.status !== 'compromised') return;
     expect(result.requiresReview).toBe(true);
+    expect(result.callout.style.isReview).toBe(true);
     expect(result.placementClass).toBe('right');
     expect(result.assessment.compromiseCost).toBe(55);
     expect(result.occurrence).toEqual(occurrence('A', 230, 190));
