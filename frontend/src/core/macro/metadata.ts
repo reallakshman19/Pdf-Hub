@@ -49,6 +49,7 @@ export const MACRO_OP_METADATA: Record<string, MacroOpMetadata> = {
   add_content_page:  { op: 'add_content_page',   mode: 'client', category: 'content',     label: 'Add Content Page',    description: 'Add a page with layout blocks',              requiresDocument: true,  requiresSelection: false },
   add_image_header_page: { op: 'add_image_header_page', mode: 'client', category: 'content', label: 'Image Header Page', description: 'Add cover page with image header',       requiresDocument: true,  requiresSelection: false },
   place_rich_textbox:{ op: 'place_rich_textbox',  mode: 'client', category: 'writer',     label: 'Place Rich Textbox',  description: 'Place a writer-style rich textbox',          requiresDocument: true,  requiresSelection: false },
+  place_professional_callout:{ op: 'place_professional_callout', mode: 'client', category: 'writer', label: 'Place Professional Callout', description: 'Place vector engineering callouts', requiresDocument: true, requiresSelection: false },
   place_table:       { op: 'place_table',         mode: 'client', category: 'writer',     label: 'Place Table',         description: 'Place a data table on page',                 requiresDocument: true,  requiresSelection: false },
   adjust_image:      { op: 'adjust_image',        mode: 'client', category: 'content',    label: 'Adjust Image',        description: 'Position and style an image on page',        requiresDocument: true,  requiresSelection: false },
 

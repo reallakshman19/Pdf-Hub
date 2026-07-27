@@ -8,14 +8,14 @@ import {
 import { createTestCapabilities } from '@/hooks/useCapabilities';
 
 describe('MacroOpMetadata', () => {
-  it('has metadata for all 22 registered ops', () => {
+  it('has metadata for all registered ops', () => {
     const ALL_OPS = [
       'rotate_pages', 'extract_pages', 'split_pages', 'duplicate_pages',
       'remove_pages', 'insert_blank_page', 'replace_page', 'reorder_pages',
       'select_pages', 'merge_files', 'insert_pdf',
       'header_footer_text', 'draw_text_on_pages', 'inject_rich_text',
       'insert_image', 'add_content_page', 'add_image_header_page',
-      'place_rich_textbox', 'place_table', 'adjust_image',
+      'place_rich_textbox', 'place_professional_callout', 'place_table', 'adjust_image',
       'conditional', 'apply_template_vars',
     ];
 
@@ -31,7 +31,7 @@ describe('getAvailableOps', () => {
     const caps = createTestCapabilities('static');
     const available = getAvailableOps(caps);
 
-    expect(available.length).toBe(22); // all current ops are client-mode
+    expect(available.length).toBe(23); // all current ops are client-mode
     expect(available.every((m) => m.mode === 'client')).toBe(true);
   });
 
@@ -39,7 +39,7 @@ describe('getAvailableOps', () => {
     const caps = createTestCapabilities('server');
     const available = getAvailableOps(caps);
 
-    expect(available.length).toBeGreaterThanOrEqual(22);
+    expect(available.length).toBeGreaterThanOrEqual(23);
   });
 });
 

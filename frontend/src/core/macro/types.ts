@@ -132,6 +132,12 @@ export type MacroStep =
       styles: import('../writer/types').WriterStyles;
     }
   | {
+      op: 'place_professional_callout';
+      selector?: PageSelector;
+      callout: import('./psIsonote/professional/model').ProfessionalCalloutModel;
+      width?: number; // fallback/display helper
+    }
+  | {
       op: 'place_table';
       selector?: PageSelector;
       x: number;

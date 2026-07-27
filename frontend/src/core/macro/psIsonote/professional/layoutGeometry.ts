@@ -204,7 +204,9 @@ export function generateCandidateBox(
       break;
   }
 
-  return { x, y, width, height };
+  const clampedX = Math.max(margin, Math.min(x, pageWidth - margin - width));
+  const clampedY = Math.max(margin, Math.min(y, pageHeight - margin - height));
+  return { x: clampedX, y: clampedY, width, height };
 }
 
 /**

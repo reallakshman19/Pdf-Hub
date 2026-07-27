@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getStyleContract } from './model';
-import { estimateTextWidth, wrapTextMetric, calculateCalloutBoxDimensions } from './typography';
+import { wrapTextMetric, calculateCalloutBoxDimensions } from './typography';
 import { buildVectorCalloutPlan, getBoxAnchorTowards } from './vectorCalloutPlan';
 
 describe('Professional Vector Callout Core (Layer 1)', () => {

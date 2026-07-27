@@ -1,6 +1,7 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import type { MacroRecipe, PageSelector } from '@/core/macro/types';
 import type { PsIsonoteMapping } from './psIsonoteTable';
+import { generateV3Marker } from './professional/verificationCore';
 
 export const PS_ISONOTE_AUDIT_SCHEMA_VERSION = '3';
 export const PS_ISONOTE_MARKER_SCHEMA_VERSION = 'v2';
@@ -9,6 +10,7 @@ export interface PsIsonoteMarkerIdentity {
   psNo: string;
   mappingHash: string;
   occurrenceId: string;
+  professionalModel?: import('./professional/model').ProfessionalCalloutModel;
 }
 
 export interface ParsedPsIsonoteMarker extends PsIsonoteMarkerIdentity {
@@ -118,6 +120,9 @@ export function legacyMarkerForPs(psNo: string): string {
 export function versionedMarkerForOccurrence(
   identity: PsIsonoteMarkerIdentity,
 ): string {
+  if (identity.professionalModel) {
+    return generateV3Marker(identity.professionalModel, identity.mappingHash);
+  }
   // Store only the suffix so the hidden marker cannot be rediscovered by the
   // PDF PS-reference search pattern as a false occurrence on later runs.
   return [
@@ -134,7 +139,10 @@ export function versionedMarkerForOccurrence(
 }
 
 const VERSIONED_MARKER_PATTERN =
-  /PDFHUBISONOTE\[V2\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64})\|(SHA256:[A-F0-9]{64})\]/g;
+  /PDFHUBISONOTE\[V2\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64})\|(SHA256:[A-F0-9]{64})\]/gi;
+
+const VERSIONED_MARKER_PATTERN_V3 =
+  /PDFHUBISONOTE\[V3\|([A-Z0-9.-]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9]+)\|(SHA256:[A-F0-9]{64}|[a-fA-F0-9\-]+)\|([a-fA-F0-9]{8})\|([^\]]+)\]/gi;
 
 export function parseVersionedPsIsonoteMarkers(
   pageText: string,
@@ -145,6 +153,16 @@ export function parseVersionedPsIsonoteMarkers(
   let match: RegExpExecArray | null;
 
   while ((match = VERSIONED_MARKER_PATTERN.exec(normalized)) !== null) {
+    markers.push({
+      raw: match[0],
+      psNo: `PS-${match[1]}`,
+      mappingHash: match[2].toLowerCase(),
+      occurrenceId: match[3].toLowerCase(),
+    });
+  }
+
+  VERSIONED_MARKER_PATTERN_V3.lastIndex = 0;
+  while ((match = VERSIONED_MARKER_PATTERN_V3.exec(normalized)) !== null) {
     markers.push({
       raw: match[0],
       psNo: `PS-${match[1]}`,
