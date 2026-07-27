@@ -538,6 +538,22 @@ const OP_SCHEMAS: MacroOpSchema[] = [
     ],
   },
   {
+    op: 'place_professional_callout',
+    label: 'Place Professional Callout',
+    category: 'content',
+    description: 'Place an engineering-grade vector callout with leader lines and searchable text.',
+    fields: [
+      OPTIONAL_PAGE_SELECTOR_FIELD,
+      {
+        name: 'callout',
+        label: 'Callout Model',
+        kind: 'json',
+        required: true,
+      },
+      WIDTH_FIELD,
+    ],
+  },
+  {
     op: 'place_table',
     label: 'Place Table',
     category: 'content',
@@ -786,6 +802,31 @@ export function buildDefaultStep(op: MacroStep['op']): MacroStep {
           fontSize: 12,
           color: '#111827',
         },
+      };
+
+    case 'place_professional_callout':
+      return {
+        op,
+        callout: {
+          id: 'callout-default',
+          occurrenceId: 'occ-1',
+          psNo: 'PS-100',
+          tag: 'Tag',
+          note: 'Note (C=H)',
+          targetPoint: { x: 100, y: 100 },
+          box: { x: 150, y: 50, width: 180, height: 40 },
+          leader: { type: 'orthogonal', path: [{ x: 150, y: 70 }, { x: 100, y: 70 }, { x: 100, y: 100 }] },
+          style: {
+            isReview: false,
+            colors: { text: '#0f172a', background: '#ffffff', border: '#334155', leader: '#334155', anchorDot: '#0f172a' },
+            fontFamily: 'Helvetica',
+            fontSize: 9,
+            borderWidth: 1,
+            padding: 6,
+            cornerRadius: 2,
+          },
+          primitives: [],
+        } as unknown as import('../psIsonote/professional/model').ProfessionalCalloutModel,
       };
 
     case 'place_table':

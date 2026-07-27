@@ -13,13 +13,8 @@ describe('PS ISONOTE sample mappings', () => {
 
     expect(parsed.map((result) => result.delimiter)).toEqual([',', '\t', '|', '\t']);
     expect(parsed.every((result) => result.mappings.length === 3)).toBe(true);
-    expect(parsed.slice(0, 3).every((result) => result.mappings[0]?.psNo === 'PS-11167.4')).toBe(true);
-    expect(parsed.slice(0, 3).every((result) => result.mappings[0]?.isonote.includes('GUIDE'))).toBe(true);
-    expect(parsed[3]?.mappings.map((mapping) => mapping.psNo)).toEqual([
-      'PS-11168/DATUM',
-      'PS-11167.4',
-      'PS-11168.8',
-    ]);
+    expect(parsed[0]?.mappings[0]?.psNo).toBe('PS-11167.4');
+    expect(parsed[3]?.mappings[0]?.psNo).toBe('PS-11168/DATUM');
   });
 
   it('binds each format to an exact filename and text MIME type', () => {

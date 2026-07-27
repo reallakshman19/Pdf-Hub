@@ -1,147 +1,121 @@
 export interface Point {
-  readonly x: number;
-  readonly y: number;
+  x: number;
+  y: number;
 }
 
 export interface Rect {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-export interface BoxPlacement {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-}
-
-export type CalloutConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
-export type ConfidenceCode = 'H' | 'M' | 'L';
-export type PdfFontId = 'Helvetica' | 'Helvetica-Bold';
-export type VectorLineStyle = 'solid' | 'dashed';
-export type ProfessionalColor =
-  | '#ffffff'
-  | '#0f172a'
-  | '#334155'
-  | '#475569'
-  | '#fffaf0'
-  | '#9a3412'
-  | '#ea580c';
-
-export interface ProfessionalCalloutContent {
-  readonly tagValue?: string;
-  readonly isoNoteValue?: string;
-  readonly confidence?: CalloutConfidence;
-}
-
-export interface StyleContractInput {
-  readonly isReview: boolean;
-  readonly fontSize: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface StyleContract {
-  readonly version: 'v1';
-  readonly isReview: boolean;
-  readonly backgroundColor: ProfessionalColor;
-  readonly textColor: ProfessionalColor;
-  readonly borderColor: ProfessionalColor;
-  readonly leaderColor: ProfessionalColor;
-  readonly fontSize: number;
-  readonly tagFontId: 'Helvetica-Bold';
-  readonly bodyFontId: 'Helvetica';
-  readonly lineHeight: number;
-  readonly padding: number;
-  readonly sectionGap: number;
-  readonly borderWidth: number;
-  readonly cornerRadius: number;
+  version: 'v1';
+  isReview: boolean;
+  backgroundColor: string;
+  textColor: string;
+  borderColor: string;
+  leaderColor: string;
+  fontSize: number;
+  fontFamily: string;
+  borderWidth: number;
+  cornerRadius: number;
 }
 
 export interface VectorRectangle {
-  readonly type: 'rectangle';
-  readonly rect: Rect;
-  readonly fillColor: ProfessionalColor;
-  readonly borderColor: ProfessionalColor;
-  readonly borderWidth: number;
-  readonly cornerRadius: number;
+  type: 'rectangle';
+  rect: Rect;
+  fillColor: string;
+  borderColor: string;
+  borderWidth: number;
+  cornerRadius?: number;
 }
 
 export interface VectorLine {
-  readonly type: 'line';
-  readonly start: Point;
-  readonly end: Point;
-  readonly color: ProfessionalColor;
-  readonly width: number;
-  readonly style: VectorLineStyle;
+  type: 'line';
+  start: Point;
+  end: Point;
+  color: string;
+  width: number;
+  style?: 'solid' | 'dashed';
 }
 
 export interface VectorCircle {
-  readonly type: 'circle';
-  readonly center: Point;
-  readonly radius: number;
-  readonly fillColor: ProfessionalColor;
-  readonly borderColor: ProfessionalColor;
-  readonly borderWidth: number;
+  type: 'circle';
+  center: Point;
+  radius: number;
+  fillColor: string;
+  borderColor: string;
+  borderWidth: number;
 }
 
 export interface VectorText {
-  readonly type: 'text';
-  readonly position: Point;
-  readonly text: string;
-  readonly fontSize: number;
-  readonly fontId: PdfFontId;
-  readonly color: ProfessionalColor;
+  type: 'text';
+  position: Point;
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight?: 'normal' | 'bold';
 }
 
 export type VectorPrimitive = VectorRectangle | VectorLine | VectorCircle | VectorText;
 
 export interface ProfessionalCalloutModel {
-  readonly id: string;
-  readonly psNo: string;
-  readonly content: ProfessionalCalloutContent;
-  readonly targetPoint: Point;
-  readonly box: Rect;
-  readonly style: StyleContract;
-  readonly primitives: readonly VectorPrimitive[];
+  id: string;
+  psNo: string;
+  tag: string;
+  note: string;
+  confidence: string;
+  targetPoint: Point;
+  box: Rect;
+  style: StyleContract;
+  primitives: VectorPrimitive[];
 }
 
-function assertPositiveFinite(value: number, label: string): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new RangeError(`${label} must be a positive finite number.`);
+/**
+ * Creates an engineering-oriented style contract.
+ * Normal results use neutral professional styling (slate/navy on clean background).
+ * Orange is strictly reserved for review-only states.
+ */
+export function getStyleContract(isReview = false, fontSize = 9): StyleContract {
+  if (isReview) {
+    return {
+      version: 'v1',
+      isReview: true,
+      backgroundColor: '#fffaf0', // Orange review background
+      textColor: '#9a3412',       // Orange review text
+      borderColor: '#ea580c',     // Orange review border
+      leaderColor: '#ea580c',
+      fontSize,
+      fontFamily: 'Helvetica',
+      borderWidth: 1.5,
+      cornerRadius: 3,
+    };
   }
+  return {
+    version: 'v1',
+    isReview: false,
+    backgroundColor: '#ffffff', // Neutral background
+    textColor: '#0f172a',       // Slate/navy engineering text
+    borderColor: '#334155',     // Slate border
+    leaderColor: '#475569',
+    fontSize,
+    fontFamily: 'Helvetica',
+    borderWidth: 1,
+    cornerRadius: 2,
+  };
 }
 
-export function getStyleContract(input: StyleContractInput): StyleContract {
-  assertPositiveFinite(input.fontSize, 'fontSize');
-  const common = {
-    version: 'v1' as const,
-    fontSize: input.fontSize,
-    tagFontId: 'Helvetica-Bold' as const,
-    bodyFontId: 'Helvetica' as const,
-    lineHeight: input.fontSize * 1.35,
-    padding: 8,
-    sectionGap: 4,
-  };
+export function deepFreeze<T>(value: T): Readonly<T> {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
 
-  return input.isReview
-    ? {
-        ...common,
-        isReview: true,
-        backgroundColor: '#fffaf0',
-        textColor: '#9a3412',
-        borderColor: '#ea580c',
-        leaderColor: '#ea580c',
-        borderWidth: 1.5,
-        cornerRadius: 3,
-      }
-    : {
-        ...common,
-        isReview: false,
-        backgroundColor: '#ffffff',
-        textColor: '#0f172a',
-        borderColor: '#334155',
-        leaderColor: '#475569',
-        borderWidth: 1,
-        cornerRadius: 2,
-      };
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      deepFreeze(child);
+    }
+  }
+
+  return value;
 }

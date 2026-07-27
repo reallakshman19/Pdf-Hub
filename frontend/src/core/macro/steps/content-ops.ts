@@ -589,6 +589,37 @@ async function executePlaceRichTextbox(
 
 macroRegistry.register('place_rich_textbox', executePlaceRichTextbox);
 
+type PlaceProfessionalCalloutStep = Extract<MacroStep, { op: 'place_professional_callout' }>;
+
+async function executePlaceProfessionalCallout(
+  step: PlaceProfessionalCalloutStep,
+  ctx: MacroExecutionContext,
+  state: MacroMutableState,
+): Promise<StepResult> {
+  try {
+    const pages = resolvePagesForOptionalSelector(step.selector, ctx, state);
+
+    if (pages.length === 0) {
+      return warning('No pages matched place_professional_callout selector.');
+    }
+
+    const updatedBytes = await PdfEditAdapter.drawProfessionalCallout(state.workingBytes, {
+      pages: toZeroBasedPageIndices(pages),
+      callout: step.callout,
+      signal: ctx.options?.abortSignal,
+    });
+
+    return success(
+      `Placed professional vector callout on ${pages.length} page(s)`,
+      [bytesEffect(updatedBytes)],
+    );
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+macroRegistry.register('place_professional_callout', executePlaceProfessionalCallout);
+
 type PlaceTableStep = Extract<MacroStep, { op: 'place_table' }>;
 
 async function executePlaceTable(

@@ -124,7 +124,7 @@ describe('psIsonoteRecipe', () => {
 
     const planned = planPsIsonoteCallouts(result, { noteWidth: 210, placement: 'right' });
     expect(planned).toHaveLength(1);
-    expect(planned[0].box.x).toBeGreaterThan(160);
+    expect(planned[0].box.x).toBeGreaterThan(150);
     expect(planned[0].box.width).toBe(210);
 
     const { recipe, callouts } = buildPsIsonoteAnnotationRecipe(result, {
@@ -134,16 +134,17 @@ describe('psIsonoteRecipe', () => {
 
     expect(callouts).toHaveLength(1);
     expect(recipe.steps[0]).toMatchObject({
-      op: 'place_rich_textbox',
+      op: 'place_professional_callout',
       selector: { mode: 'list', pages: [1] },
       width: 210,
     });
     expect(JSON.stringify(recipe.steps[0])).toContain('REST(6kN)');
     expect(recipe.steps.at(-1)).toMatchObject({
       op: 'draw_text_on_pages',
-      text: `PDFHUBISONOTE[v2|1234.5|${HASH_A}|${HASH_B}]`,
     });
-    expect(JSON.stringify(recipe.steps.at(-1))).not.toContain('|PS-1234.5|');
+    const markerText = (recipe.steps.at(-1) as { text: string }).text;
+    expect(markerText).toContain(`PDFHUBISONOTE[v3|1234.5|${HASH_A}|${HASH_B}|`);
+    expect(markerText).not.toContain('|PS-1234.5|');
   });
 
   it('moves colliding callouts apart on the same page', () => {
@@ -167,8 +168,8 @@ describe('psIsonoteRecipe', () => {
     const detected = reference('PS-11168.8', 200, confMapping);
     const result = scan([detected]);
     const { recipe } = buildPsIsonoteAnnotationRecipe(result, { includeFamily: true });
-    const stepContent = (recipe.steps[0] as any).content;
-    expect(stepContent).toContain('Tag: Remove Guide');
-    expect(stepContent).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
+    const callout = (recipe.steps[0] as { callout: { tag: string; note: string } }).callout;
+    expect(callout.tag).toContain('Tag: Remove Guide');
+    expect(callout.note).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
   });
 });

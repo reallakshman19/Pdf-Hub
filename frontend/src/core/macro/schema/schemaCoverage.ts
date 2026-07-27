@@ -23,6 +23,7 @@ export const SUPPORTED_MACRO_OPS: MacroStep['op'][] = [
   'insert_image',
   'inject_rich_text',
   'place_rich_textbox',
+  'place_professional_callout',
   'place_table',
   'adjust_image',
   'draw_redaction_box',
