@@ -225,7 +225,7 @@ export function generateCandidateBox(
   height: number,
   placement: PlacementClass,
   pageWidth: number,
-  _pageHeight: number,
+  pageHeight: number,
   margin = 12,
 ): Rect {
   const offset = 28;
@@ -240,11 +240,15 @@ export function generateCandidateBox(
     'top-left': { x: target.x - width - diagonalOffset, y: target.y - height - diagonalOffset },
     'bottom-left': { x: target.x - width - diagonalOffset, y: target.y + diagonalOffset },
   };
+  const marginY = Math.min(
+    Math.max(target.y - height / 2, margin),
+    pageHeight - margin - height,
+  );
   if (placement === 'margin-right') {
-    return { x: pageWidth - margin - width, y: target.y - height / 2, width, height };
+    return { x: pageWidth - margin - width, y: marginY, width, height };
   }
   if (placement === 'margin-left') {
-    return { x: margin, y: target.y - height / 2, width, height };
+    return { x: margin, y: marginY, width, height };
   }
   return { ...local[placement], width, height };
 }
