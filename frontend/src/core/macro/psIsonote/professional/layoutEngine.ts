@@ -1,4 +1,4 @@
-import { type Point, type Rect, type ProfessionalCalloutModel } from './model';
+import { type Point, type Rect } from './model';
 import { calculateCalloutBoxDimensions } from './typography';
 import { buildVectorCalloutPlan, getBoxAnchorTowards } from './vectorCalloutPlan';
 import {
@@ -16,10 +16,7 @@ import {
 import {
   rectsOverlap,
   isInsidePage,
-  lineIntersectsRect,
-  linesIntersect,
   generateCandidateBox,
-  evaluateLeaderGeometry,
   polylineIntersectsRect,
   polylineIntersectsSegment,
   polylinesIntersect,
@@ -99,10 +96,11 @@ interface RouteEvaluation {
 
 function evaluateRoute(
   route: Point[],
-  box: Rect,
+  _box: Rect,
   options: PageLayoutOptions,
   currentPlaced: PlacedLayoutResult[],
 ): RouteEvaluation {
+  void _box;
   const diagnostics: LayoutDiagnostic[] = [];
   let isValid = true;
   let penalty = 0;
@@ -480,13 +478,10 @@ export function solvePageLayout(
         return c2.score - c1.score;
       });
       const viableCandidates = candidates.slice(0, maxCandidates);
-
-      let placedAny = false;
       for (const candidate of viableCandidates) {
         if (!candidate.isValid) {
           continue;
         }
-        placedAny = true;
         const hasSoftOverlap = candidate.diagnostics.some(
           d => d.type === 'text-overlap' || d.type === 'drawing-density'
         );

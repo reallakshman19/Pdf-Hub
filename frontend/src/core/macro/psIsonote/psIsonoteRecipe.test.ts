@@ -167,7 +167,7 @@ describe('psIsonoteRecipe', () => {
     const detected = reference('PS-11168.8', 200, confMapping);
     const result = scan([detected]);
     const { recipe } = buildPsIsonoteAnnotationRecipe(result, { includeFamily: true });
-    const stepContent = (recipe.steps[0] as any).content;
+    const stepContent = (recipe.steps[0] as { content?: string }).content;
     expect(stepContent).toContain('Tag: Remove Guide');
     expect(stepContent).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
   });

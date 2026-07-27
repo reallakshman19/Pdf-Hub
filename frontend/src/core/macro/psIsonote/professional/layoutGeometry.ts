@@ -153,9 +153,10 @@ export function generateCandidateBox(
   height: number,
   placement: PlacementClass,
   pageWidth: number,
-  pageHeight: number,
+  _pageHeight: number,
   margin = 12,
 ): Rect {
+  void _pageHeight;
   const offset = 28; // Distance from target point to box edge
   let x = target.x;
   let y = target.y;

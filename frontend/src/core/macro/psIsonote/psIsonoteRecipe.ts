@@ -354,8 +354,9 @@ function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
   fontSize: number,
-  includeFamily: boolean,
+  _includeFamily: boolean,
 ): number {
+  void _includeFamily;
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
