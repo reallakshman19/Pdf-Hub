@@ -1,6 +1,6 @@
-import { type Rect, type ProfessionalCalloutModel } from './model';
+import { type Point, type Rect, type ProfessionalCalloutModel } from './model';
 import { calculateCalloutBoxDimensions } from './typography';
-import { buildVectorCalloutPlan } from './vectorCalloutPlan';
+import { buildVectorCalloutPlan, getBoxAnchorTowards } from './vectorCalloutPlan';
 import {
   type PlacementClass,
   type Obstacle,
@@ -10,6 +10,8 @@ import {
   type PageLayoutSolution,
   type PageLayoutOptions,
   type PlacementCandidate,
+  type PlacedLayoutResult,
+  type UnplaceableLayoutResult,
 } from './layoutTypes';
 import {
   rectsOverlap,
@@ -18,6 +20,9 @@ import {
   linesIntersect,
   generateCandidateBox,
   evaluateLeaderGeometry,
+  polylineIntersectsRect,
+  polylineIntersectsSegment,
+  polylinesIntersect,
 } from './layoutGeometry';
 
 export const ALL_PLACEMENT_CLASSES: PlacementClass[] = [
@@ -34,10 +39,174 @@ export const ALL_PLACEMENT_CLASSES: PlacementClass[] = [
 ];
 
 interface BeamNode {
-  placed: LayoutResultItem[];
-  unplaceable: LayoutResultItem[];
-  activeObstacles: Obstacle[]; // hard obstacles + already placed callouts/leaders
+  placed: PlacedLayoutResult[];
+  unplaceable: UnplaceableLayoutResult[];
+  activeObstacles: Obstacle[];
   totalScore: number;
+  hardConflicts: number;
+  unplaceableCount: number;
+  canonicalKey?: string;
+}
+
+export function simplifyOrthogonalPath(points: readonly Point[]): Point[] {
+  if (points.length === 0) return [];
+  const deduped: Point[] = [points[0]];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = deduped[deduped.length - 1];
+    if (Math.abs(points[i].x - prev.x) > 1e-6 || Math.abs(points[i].y - prev.y) > 1e-6) {
+      deduped.push(points[i]);
+    }
+  }
+  if (deduped.length <= 2) return deduped;
+  const simplified: Point[] = [deduped[0]];
+  for (let i = 1; i < deduped.length - 1; i += 1) {
+    const prev = simplified[simplified.length - 1];
+    const curr = deduped[i];
+    const next = deduped[i + 1];
+    const colinearX = Math.abs(prev.x - curr.x) < 1e-6 && Math.abs(curr.x - next.x) < 1e-6;
+    const colinearY = Math.abs(prev.y - curr.y) < 1e-6 && Math.abs(curr.y - next.y) < 1e-6;
+    if (!colinearX && !colinearY) {
+      simplified.push(curr);
+    }
+  }
+  simplified.push(deduped[deduped.length - 1]);
+  return simplified;
+}
+
+export function generateOrthogonalRoutes(boxAnchor: Point, target: Point): Point[][] {
+  if (Math.abs(boxAnchor.x - target.x) < 1e-6 || Math.abs(boxAnchor.y - target.y) < 1e-6) {
+    return [simplifyOrthogonalPath([boxAnchor, target])];
+  }
+  const routeH = simplifyOrthogonalPath([
+    boxAnchor,
+    { x: target.x, y: boxAnchor.y },
+    target,
+  ]);
+  const routeV = simplifyOrthogonalPath([
+    boxAnchor,
+    { x: boxAnchor.x, y: target.y },
+    target,
+  ]);
+  return [routeH, routeV];
+}
+
+interface RouteEvaluation {
+  route: Point[];
+  isValid: boolean;
+  diagnostics: LayoutDiagnostic[];
+  penalty: number;
+}
+
+function evaluateRoute(
+  route: Point[],
+  box: Rect,
+  options: PageLayoutOptions,
+  currentPlaced: PlacedLayoutResult[],
+): RouteEvaluation {
+  const diagnostics: LayoutDiagnostic[] = [];
+  let isValid = true;
+  let penalty = 0;
+
+  if (options.titleBlockRect && polylineIntersectsRect(route, options.titleBlockRect, false)) {
+    isValid = false;
+    diagnostics.push({
+      type: 'hard-collision',
+      source: 'title-block',
+      message: 'Leader intersects protected title block.',
+      penalty: 1000,
+    });
+    penalty += 1000;
+  }
+
+  for (const existing of currentPlaced) {
+    if (polylineIntersectsRect(route, existing.callout.box, false)) {
+      isValid = false;
+      diagnostics.push({
+        type: 'hard-collision',
+        source: 'leader-line',
+        message: `Leader intersects existing callout ${existing.callout.psNo}.`,
+        penalty: 1000,
+      });
+      penalty += 1000;
+      break;
+    }
+    const existingLines = existing.callout.primitives
+      .filter((p): p is { type: 'line'; start: Point; end: Point; color: string; width: number } => p.type === 'line')
+      .map(p => [p.start, p.end]);
+    for (const seg of existingLines) {
+      if (polylinesIntersect(route, seg)) {
+        isValid = false;
+        diagnostics.push({
+          type: 'hard-collision',
+          source: 'leader-line',
+          message: `Leader crosses existing leader line for ${existing.callout.psNo}.`,
+          penalty: 1000,
+        });
+        penalty += 1000;
+        break;
+      }
+    }
+  }
+
+  const obstacles = options.obstacles ?? [];
+  for (const obs of obstacles) {
+    if ('kind' in obs && obs.kind === 'segment') {
+      if (polylineIntersectsSegment(route, obs.start, obs.end, obs.clearance)) {
+        if (obs.type === 'hard') {
+          isValid = false;
+          diagnostics.push({
+            type: 'hard-collision',
+            source: obs.source,
+            message: `Leader collides with hard segment obstacle (${obs.id}).`,
+            penalty: 1000,
+          });
+          penalty += 1000;
+        } else {
+          const w = obs.weight ?? 20;
+          penalty += w;
+          diagnostics.push({
+            type: 'drawing-density',
+            source: obs.source,
+            message: `Leader intersects soft segment (${obs.id}).`,
+            penalty: w,
+          });
+        }
+      }
+    } else {
+      if (polylineIntersectsRect(route, obs.rect, true)) {
+        if (obs.type === 'hard') {
+          isValid = false;
+          diagnostics.push({
+            type: 'hard-collision',
+            source: obs.source,
+            message: `Leader collides with hard obstacle (${obs.id}).`,
+            penalty: 1000,
+          });
+          penalty += 1000;
+        } else {
+          const w = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
+          penalty += w;
+          diagnostics.push({
+            type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
+            source: obs.source,
+            message: `Leader overlaps soft obstacle (${obs.id}).`,
+            penalty: w,
+          });
+        }
+      }
+    }
+  }
+
+  // Score Manhattan length and bends
+  let length = 0;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    length += Math.hypot(route[i + 1].x - route[i].x, route[i + 1].y - route[i].y);
+  }
+  penalty += length * 0.2;
+  const bends = Math.max(0, route.length - 2);
+  penalty += bends * 2.5;
+
+  return { route, isValid, diagnostics, penalty };
 }
 
 /**
@@ -48,20 +217,16 @@ export function evaluateCandidate(
   box: Rect,
   occurrence: OccurrenceInput,
   options: PageLayoutOptions,
-  currentPlaced: LayoutResultItem[],
+  currentPlaced: LayoutResultItem[] = [],
 ): PlacementCandidate {
   const margin = options.pageMargin ?? 12;
-  const { start: leaderStart, end: leaderEnd, isOrthogonal, length } = evaluateLeaderGeometry(box, occurrence.targetPoint);
+  const boxAnchor = getBoxAnchorTowards(box, occurrence.targetPoint);
+  const placedOnly = currentPlaced.filter((item): item is PlacedLayoutResult => item.status === 'placed');
 
   const diagnostics: LayoutDiagnostic[] = [];
   let isValid = true;
-  let score = 100 - length * 0.2; // Prefer shorter leader lines
+  let score = 100;
 
-  if (isOrthogonal) {
-    score += 15; // Prefer orthogonal leaders
-  }
-
-  // Fallback edge placements get a small base penalty so closer local placements are favored if clean
   if (placement === 'margin-right' || placement === 'margin-left') {
     score -= 10;
   }
@@ -78,131 +243,223 @@ export function evaluateCandidate(
   }
 
   // 2. Hard Check: Title Block
-  if (options.titleBlockRect && isValid) {
-    if (rectsOverlap(box, options.titleBlockRect, 2) || lineIntersectsRect(leaderStart, leaderEnd, options.titleBlockRect)) {
+  if (options.titleBlockRect) {
+    if (rectsOverlap(box, options.titleBlockRect, 2)) {
       isValid = false;
       diagnostics.push({
         type: 'hard-collision',
         source: 'title-block',
-        message: 'Callout or leader intersects protected title block.',
+        message: 'Callout intersects protected title block.',
         penalty: 1000,
       });
     }
   }
 
-  // 3. Hard Check: Already Placed Callouts & Leaders in current beam solution
-  if (isValid) {
-    for (const existing of currentPlaced) {
-      if (existing.status === 'placed' && existing.callout) {
-        // Box vs Box
-        if (rectsOverlap(box, existing.callout.box, 6)) {
+  // 3. Hard Check: Already Placed Callout Boxes
+  for (const existing of placedOnly) {
+    if (rectsOverlap(box, existing.callout.box, 6)) {
+      isValid = false;
+      diagnostics.push({
+        type: 'hard-collision',
+        source: 'callout-box',
+        message: `Collides with existing callout ${existing.callout.psNo}.`,
+        penalty: 1000,
+      });
+      break;
+    }
+  }
+
+  // 4. Evaluate provided Obstacles against Box
+  const obstacles = options.obstacles ?? [];
+  for (const obs of obstacles) {
+    if ('kind' in obs && obs.kind === 'segment') {
+      const minX = Math.min(obs.start.x, obs.end.x) - obs.clearance;
+      const minY = Math.min(obs.start.y, obs.end.y) - obs.clearance;
+      const w = Math.abs(obs.end.x - obs.start.x) + obs.clearance * 2;
+      const h = Math.abs(obs.end.y - obs.start.y) + obs.clearance * 2;
+      if (rectsOverlap(box, { x: minX, y: minY, width: w, height: h }, 0)) {
+        if (obs.type === 'hard') {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
-            source: 'callout-box',
-            message: `Collides with existing callout ${existing.callout.psNo}.`,
+            source: obs.source,
+            message: `Box collides with hard segment (${obs.id}).`,
             penalty: 1000,
           });
-          break;
+        } else {
+          const penalty = obs.weight ?? 20;
+          score -= penalty;
+          diagnostics.push({
+            type: 'drawing-density',
+            source: obs.source,
+            message: `Box intersects soft segment (${obs.id}).`,
+            penalty,
+          });
         }
-        // Leader vs Existing Box
-        if (lineIntersectsRect(leaderStart, leaderEnd, existing.callout.box)) {
+      }
+    } else {
+      if (rectsOverlap(box, obs.rect, 2)) {
+        if (obs.type === 'hard') {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
-            source: 'leader-line',
-            message: `Leader intersects existing callout ${existing.callout.psNo}.`,
+            source: obs.source,
+            message: `Collides with hard obstacle (${obs.id}).`,
             penalty: 1000,
           });
-          break;
-        }
-        // Existing Leader vs Candidate Box
-        const existingLeader = existing.callout.primitives.find((p) => p.type === 'line');
-        if (existingLeader && existingLeader.type === 'line') {
-          if (lineIntersectsRect(existingLeader.start, existingLeader.end, box)) {
-            isValid = false;
-            diagnostics.push({
-              type: 'hard-collision',
-              source: 'callout-box',
-              message: `Box intersects existing leader line for ${existing.callout.psNo}.`,
-              penalty: 1000,
-            });
-            break;
-          }
-          if (linesIntersect(leaderStart, leaderEnd, existingLeader.start, existingLeader.end)) {
-            isValid = false;
-            diagnostics.push({
-              type: 'hard-collision',
-              source: 'leader-line',
-              message: `Leader crosses existing leader line for ${existing.callout.psNo}.`,
-              penalty: 1000,
-            });
-            break;
-          }
+        } else {
+          const penalty = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
+          score -= penalty;
+          diagnostics.push({
+            type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
+            source: obs.source,
+            message: `Overlaps soft obstacle (${obs.id}: ${obs.source}).`,
+            penalty,
+          });
         }
       }
     }
   }
 
-  // 4. Evaluate provided Obstacles (both Hard and Soft)
-  const obstacles = options.obstacles ?? [];
-  for (const obs of obstacles) {
-    if (rectsOverlap(box, obs.rect, 2) || lineIntersectsRect(leaderStart, leaderEnd, obs.rect)) {
-      if (obs.type === 'hard') {
-        isValid = false;
-        diagnostics.push({
-          type: 'hard-collision',
-          source: obs.source,
-          message: `Collides with hard obstacle (${obs.id}).`,
-          penalty: 1000,
-        });
-      } else {
-        const penalty = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
-        score -= penalty;
-        diagnostics.push({
-          type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
-          source: obs.source,
-          message: `Overlaps soft obstacle (${obs.id}: ${obs.source}).`,
-          penalty,
-        });
-      }
+  // Evaluate dynamic orthogonal elbow routes
+  const routes = generateOrthogonalRoutes(boxAnchor, occurrence.targetPoint);
+  let bestRouteEval: RouteEvaluation | null = null;
+
+  for (const r of routes) {
+    const rEval = evaluateRoute(r, box, options, placedOnly);
+    if (!bestRouteEval) {
+      bestRouteEval = rEval;
+    } else if (rEval.isValid && !bestRouteEval.isValid) {
+      bestRouteEval = rEval;
+    } else if (rEval.isValid === bestRouteEval.isValid && rEval.penalty < bestRouteEval.penalty) {
+      bestRouteEval = rEval;
     }
   }
+
+  const routeResult = bestRouteEval ?? { route: [boxAnchor, occurrence.targetPoint], isValid: true, diagnostics: [], penalty: 0 };
+  if (!routeResult.isValid) {
+    isValid = false;
+  }
+  score -= routeResult.penalty;
+  for (const d of routeResult.diagnostics) {
+    diagnostics.push(d);
+  }
+
+  const leaderPoints = routeResult.route;
+  const leaderStart = leaderPoints[0] ?? boxAnchor;
+  const leaderEnd = leaderPoints[leaderPoints.length - 1] ?? occurrence.targetPoint;
 
   return {
     placementClass: placement,
     box,
     leaderStart,
     leaderEnd,
+    leaderPoints,
     score: Math.round(score * 10) / 10,
     diagnostics,
     isValid,
   };
 }
 
+function computeStateCanonicalKey(node: BeamNode): string {
+  const placedPart = node.placed
+    .map(p => `${p.occurrenceId}:${p.placementClass}:${Math.round(p.callout.box.x)},${Math.round(p.callout.box.y)}`)
+    .sort()
+    .join('|');
+  const unplacedPart = node.unplaceable
+    .map(u => u.occurrenceId)
+    .sort()
+    .join('|');
+  return `${placedPart}||${unplacedPart}`;
+}
+
+function compareBeamStates(a: BeamNode, b: BeamNode): number {
+  if (a.unplaceableCount !== b.unplaceableCount) {
+    return a.unplaceableCount - b.unplaceableCount;
+  }
+  if (a.hardConflicts !== b.hardConflicts) {
+    return a.hardConflicts - b.hardConflicts;
+  }
+  if (Math.abs(b.totalScore - a.totalScore) > 1e-3) {
+    return b.totalScore - a.totalScore;
+  }
+  const keyA = a.canonicalKey ?? computeStateCanonicalKey(a);
+  const keyB = b.canonicalKey ?? computeStateCanonicalKey(b);
+  return keyA.localeCompare(keyB);
+}
+
+function markUnplaceable(node: BeamNode, occurrence: OccurrenceInput): BeamNode {
+  const unplaceableResult: UnplaceableLayoutResult = {
+    status: 'unplaceable',
+    occurrenceId: occurrence.id,
+    occurrence,
+    diagnostics: [
+      {
+        type: 'hard-collision',
+        source: 'layout-solver',
+        message: 'Placement deferred or rejected to preserve global layout feasibility.',
+        penalty: 1000,
+      },
+    ],
+  };
+  const next: BeamNode = {
+    placed: node.placed,
+    unplaceable: [...node.unplaceable, unplaceableResult],
+    activeObstacles: node.activeObstacles,
+    totalScore: node.totalScore - 1000,
+    hardConflicts: node.hardConflicts,
+    unplaceableCount: node.unplaceableCount + 1,
+  };
+  next.canonicalKey = computeStateCanonicalKey(next);
+  return next;
+}
+
 /**
- * Deterministic page-level layout engine using beam search.
- * Enforces zero silent failures: unplaceable items become explicitly flagged as unplaceable.
+ * Deterministic page-level layout engine using global beam search with unplaceable deferral branches.
  */
 export function solvePageLayout(
   occurrences: OccurrenceInput[],
   options: PageLayoutOptions,
 ): PageLayoutSolution {
-  const beamWidth = options.beamWidth ?? 4;
-  let beam: BeamNode[] = [{ placed: [], unplaceable: [], activeObstacles: options.obstacles ?? [], totalScore: 0 }];
+  if (options.beamWidth !== undefined && (options.beamWidth < 1 || !Number.isFinite(options.beamWidth))) {
+    throw new Error('Invalid beam width: must be >= 1.');
+  }
+  const beamWidth = Math.min(64, Math.max(1, options.beamWidth ?? 4));
+  const maxCandidates = 32;
 
-  const sortedOccurrences = [...occurrences].sort((a, b) =>
-    a.targetPoint.y - b.targetPoint.y || a.targetPoint.x - b.targetPoint.x
-  );
+  // Order occurrences by most constrained first against static obstacles
+  const sortedOccurrences = [...occurrences].sort((a, b) => {
+    let validA = 0;
+    let validB = 0;
+    const dimsA = calculateCalloutBoxDimensions(a.tag, a.note, a.confidence, a.preferredWidth ?? 200);
+    const dimsB = calculateCalloutBoxDimensions(b.tag, b.note, b.confidence, b.preferredWidth ?? 200);
+    for (const cls of ALL_PLACEMENT_CLASSES) {
+      if (evaluateCandidate(cls, generateCandidateBox(a.targetPoint, dimsA.width, dimsA.height, cls, options.pageWidth, options.pageHeight, options.pageMargin), a, options, []).isValid) validA++;
+      if (evaluateCandidate(cls, generateCandidateBox(b.targetPoint, dimsB.width, dimsB.height, cls, options.pageWidth, options.pageHeight, options.pageMargin), b, options, []).isValid) validB++;
+    }
+    if (validA !== validB) return validA - validB; // fewer valid options = more constrained
+    return a.targetPoint.y - b.targetPoint.y || a.targetPoint.x - b.targetPoint.x || a.id.localeCompare(b.id);
+  });
+
+  let beam: BeamNode[] = [{
+    placed: [],
+    unplaceable: [],
+    activeObstacles: options.obstacles ?? [],
+    totalScore: 0,
+    hardConflicts: 0,
+    unplaceableCount: 0,
+    canonicalKey: '||',
+  }];
 
   for (const occurrence of sortedOccurrences) {
     const width = occurrence.preferredWidth ?? 200;
     const dims = calculateCalloutBoxDimensions(occurrence.tag, occurrence.note, occurrence.confidence, width);
 
-    const newBeam: BeamNode[] = [];
+    const nextBeam: BeamNode[] = [];
+    const seenKeys = new Set<string>();
 
-    for (const node of beam) {
-      let bestCandidate: PlacementCandidate | null = null;
+    for (const state of beam) {
+      const candidates: PlacementCandidate[] = [];
 
       for (const placement of ALL_PLACEMENT_CLASSES) {
         const candidateBox = generateCandidateBox(
@@ -214,16 +471,25 @@ export function solvePageLayout(
           options.pageHeight,
           options.pageMargin,
         );
-        const evaluation = evaluateCandidate(placement, candidateBox, occurrence, options, node.placed);
-
-        if (evaluation.isValid) {
-          if (!bestCandidate || evaluation.score > bestCandidate.score) {
-            bestCandidate = evaluation;
-          }
-        }
+        const evalResult = evaluateCandidate(placement, candidateBox, occurrence, options, state.placed);
+        candidates.push(evalResult);
       }
 
-      if (bestCandidate) {
+      candidates.sort((c1, c2) => {
+        if (c1.isValid !== c2.isValid) return c1.isValid ? -1 : 1;
+        return c2.score - c1.score;
+      });
+      const viableCandidates = candidates.slice(0, maxCandidates);
+
+      let placedAny = false;
+      for (const candidate of viableCandidates) {
+        if (!candidate.isValid) {
+          continue;
+        }
+        placedAny = true;
+        const hasSoftOverlap = candidate.diagnostics.some(
+          d => d.type === 'text-overlap' || d.type === 'drawing-density'
+        );
         const callout = buildVectorCalloutPlan(
           occurrence.id,
           occurrence.psNo,
@@ -231,62 +497,55 @@ export function solvePageLayout(
           occurrence.note,
           occurrence.confidence,
           occurrence.targetPoint,
-          bestCandidate.box,
-          { isReview: false },
+          candidate.box,
+          {
+            isReview: hasSoftOverlap,
+            leaderPath: candidate.leaderPoints ? { points: candidate.leaderPoints as [Point, Point, ...Point[]], anchorRadius: 2 } : undefined,
+          },
         );
-        const resultItem: LayoutResultItem = {
-          occurrenceId: occurrence.id,
+        const resultItem: PlacedLayoutResult = {
           status: 'placed',
-          placementClass: bestCandidate.placementClass,
-          callout,
-          diagnostics: bestCandidate.diagnostics,
-        };
-        newBeam.push({
-          placed: [...node.placed, resultItem],
-          unplaceable: [...node.unplaceable],
-          activeObstacles: node.activeObstacles,
-          totalScore: node.totalScore + bestCandidate.score,
-        });
-      } else {
-        // Unplaceable: NO silent bad placement!
-        const resultItem: LayoutResultItem = {
           occurrenceId: occurrence.id,
-          status: 'unplaceable',
-          diagnostics: [
-            {
-              type: 'hard-collision',
-              source: 'layout-solver',
-              message: `All 10 placement classes rejected due to hard obstacle or boundary collisions.`,
-              penalty: 1000,
-            },
-          ],
+          occurrence,
+          placementClass: candidate.placementClass,
+          callout,
+          diagnostics: candidate.diagnostics,
         };
-        newBeam.push({
-          placed: [...node.placed],
-          unplaceable: [...node.unplaceable, resultItem],
-          activeObstacles: node.activeObstacles,
-          totalScore: node.totalScore - 100, // penalty for unplaceable in beam search
-        });
+        const nextNode: BeamNode = {
+          placed: [...state.placed, resultItem],
+          unplaceable: [...state.unplaceable],
+          activeObstacles: state.activeObstacles,
+          totalScore: state.totalScore + candidate.score,
+          hardConflicts: state.hardConflicts + (candidate.isValid ? 0 : 1),
+          unplaceableCount: state.unplaceableCount,
+        };
+        const key = computeStateCanonicalKey(nextNode);
+        nextNode.canonicalKey = key;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          nextBeam.push(nextNode);
+        }
+      }
+
+      // Explicit defer/unplaceable branch even when viable candidates exist
+      const unplacedNode = markUnplaceable(state, occurrence);
+      const unplacedKey = unplacedNode.canonicalKey ?? computeStateCanonicalKey(unplacedNode);
+      if (!seenKeys.has(unplacedKey)) {
+        seenKeys.add(unplacedKey);
+        nextBeam.push(unplacedNode);
       }
     }
 
-    // Keep top beamWidth solutions
-    beam = newBeam.sort((a, b) => {
-      // Favor solutions with fewer unplaceables first
-      if (a.unplaceable.length !== b.unplaceable.length) {
-        return a.unplaceable.length - b.unplaceable.length;
-      }
-      return b.totalScore - a.totalScore;
-    }).slice(0, beamWidth);
+    beam = nextBeam.sort(compareBeamStates).slice(0, beamWidth);
   }
 
-  const bestSolution = beam[0] ?? { placed: [], unplaceable: [], totalScore: 0 };
-  const allResults = [...bestSolution.placed, ...bestSolution.unplaceable];
+  const bestSolution = beam[0] ?? { placed: [], unplaceable: [], totalScore: 0, unplaceableCount: 0 };
+  const allResults: LayoutResultItem[] = [...bestSolution.placed, ...bestSolution.unplaceable];
 
   return {
     pageNumber: occurrences[0]?.pageNumber ?? 1,
     results: allResults,
     totalScore: Math.round(bestSolution.totalScore * 10) / 10,
-    unplaceableCount: bestSolution.unplaceable.length,
+    unplaceableCount: bestSolution.unplaceableCount,
   };
 }

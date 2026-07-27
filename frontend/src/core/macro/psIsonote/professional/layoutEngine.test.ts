@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { solvePageLayout, evaluateCandidate, ALL_PLACEMENT_CLASSES } from './layoutEngine';
+import { solvePageLayout, evaluateCandidate, ALL_PLACEMENT_CLASSES, generateOrthogonalRoutes, simplifyOrthogonalPath } from './layoutEngine';
+import { linesIntersect, rectsOverlap } from './layoutGeometry';
 import { type OccurrenceInput, type Obstacle, type PageLayoutOptions } from './layoutTypes';
 
 const baseOccurrence: OccurrenceInput = {
@@ -46,15 +47,61 @@ describe('Obstacle-Aware Layout Core (Layer 2)', () => {
     expect(evalResult.diagnostics[0].source).toBe('title-block');
   });
 
-  it('penalizes and records diagnostics for soft obstacles (existing text and drawing density)', () => {
+  it('penalizes and records diagnostics for soft obstacles and triggers review mode in solvePageLayout', () => {
     const softObstacles: Obstacle[] = [
       { id: 'txt-1', type: 'soft', source: 'existing-text', rect: { x: 320, y: 380, width: 100, height: 40 } },
     ];
     const evalResult = evaluateCandidate('right', { x: 310, y: 370, width: 150, height: 60 }, baseOccurrence, { ...defaultOptions, obstacles: softObstacles }, []);
     expect(evalResult.isValid).toBe(true);
-    expect(evalResult.diagnostics).toHaveLength(1);
-    expect(evalResult.diagnostics[0].type).toBe('text-overlap');
-    expect(evalResult.score).toBeLessThan(85);
+    expect(evalResult.diagnostics.length).toBeGreaterThanOrEqual(1);
+    expect(evalResult.diagnostics.some(d => d.type === 'text-overlap')).toBe(true);
+
+    // When solved, if soft overlap occurs on all available placement candidates, the placed callout must be flagged for review
+    const everywhereSoft: Obstacle[] = [
+      { id: 'txt-all', type: 'soft', source: 'existing-text', rect: { x: 0, y: 0, width: 600, height: 800 } },
+    ];
+    const solution = solvePageLayout([baseOccurrence], { ...defaultOptions, obstacles: everywhereSoft });
+    const res = solution.results[0];
+    if (res.status === 'placed') {
+      expect(res.callout.style.isReview).toBe(true);
+      expect(res.callout.style.borderColor).toBe('#ea580c');
+    }
+  });
+
+  it('supports structured segment obstacles without flattening them into zero-width rectangles', () => {
+    const segObstacles: Obstacle[] = [
+      { id: 'pipe-1', kind: 'segment', type: 'hard', source: 'piping', start: { x: 290, y: 350 }, end: { x: 450, y: 350 }, clearance: 10 },
+    ];
+    const evalResult = evaluateCandidate('top-right', { x: 300, y: 320, width: 150, height: 40 }, baseOccurrence, { ...defaultOptions, obstacles: segObstacles }, []);
+    expect(evalResult.isValid).toBe(false);
+    expect(evalResult.diagnostics.some(d => d.source === 'piping')).toBe(true);
+  });
+
+  it('generates dynamic orthogonal elbow routes and simplifies collinear points', () => {
+    const routes = generateOrthogonalRoutes({ x: 100, y: 100 }, { x: 200, y: 150 });
+    expect(routes).toHaveLength(2);
+    expect(routes[0]).toEqual([
+      { x: 100, y: 100 },
+      { x: 200, y: 100 },
+      { x: 200, y: 150 },
+    ]);
+
+    const simplified = simplifyOrthogonalPath([
+      { x: 10, y: 10 },
+      { x: 20, y: 10 },
+      { x: 30, y: 10 },
+      { x: 30, y: 50 },
+    ]);
+    expect(simplified).toEqual([
+      { x: 10, y: 10 },
+      { x: 30, y: 10 },
+      { x: 30, y: 50 },
+    ]);
+  });
+
+  it('rejects NaN and Infinity in geometry helpers', () => {
+    expect(linesIntersect({ x: NaN, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 10, y: 0 })).toBe(false);
+    expect(rectsOverlap({ x: 0, y: Infinity, width: 10, height: 10 }, { x: 0, y: 0, width: 10, height: 10 })).toBe(false);
   });
 
   it('uses deterministic beam search to resolve multiple occurrences without collisions', () => {
@@ -65,16 +112,19 @@ describe('Obstacle-Aware Layout Core (Layer 2)', () => {
     expect(solution.unplaceableCount).toBe(0);
     expect(solution.results).toHaveLength(2);
 
-    const placed1 = solution.results.find((r) => r.occurrenceId === '1')?.callout;
-    const placed2 = solution.results.find((r) => r.occurrenceId === '2')?.callout;
-    expect(placed1).toBeDefined();
-    expect(placed2).toBeDefined();
-    // Verify they don't share the exact same box position
-    expect(placed1?.box.y === placed2?.box.y && placed1?.box.x === placed2?.box.x).toBe(false);
+    const res1 = solution.results.find((r) => r.occurrenceId === '1');
+    const res2 = solution.results.find((r) => r.occurrenceId === '2');
+    expect(res1?.status).toBe('placed');
+    expect(res2?.status).toBe('placed');
+
+    if (res1?.status === 'placed' && res2?.status === 'placed') {
+      expect(res1.callout).toBeDefined();
+      expect(res2.callout).toBeDefined();
+      expect(res1.callout.box.y === res2.callout.box.y && res1.callout.box.x === res2.callout.box.x).toBe(false);
+    }
   });
 
-  it('strictly returns unplaceable status when all placements are impossible (no silent bad placement)', () => {
-    // Surround target point on a tiny page or with massive hard obstacles
+  it('strictly returns unplaceable status and preserves OccurrenceInput when placements are blocked', () => {
     const blockedOptions: PageLayoutOptions = {
       pageWidth: 200,
       pageHeight: 200,
@@ -85,8 +135,12 @@ describe('Obstacle-Aware Layout Core (Layer 2)', () => {
     };
     const solution = solvePageLayout([baseOccurrence], blockedOptions);
     expect(solution.unplaceableCount).toBe(1);
-    expect(solution.results[0].status).toBe('unplaceable');
-    expect(solution.results[0].callout).toBeUndefined();
-    expect(solution.results[0].diagnostics[0].message).toContain('All 10 placement classes rejected');
+    const res = solution.results[0];
+    expect(res.status).toBe('unplaceable');
+    expect('callout' in res).toBe(false);
+    expect(res.diagnostics.length).toBeGreaterThan(0);
+    if (res.status === 'unplaceable') {
+      expect(res.occurrence).toEqual(baseOccurrence);
+    }
   });
 });

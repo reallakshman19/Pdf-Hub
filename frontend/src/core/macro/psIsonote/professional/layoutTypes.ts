@@ -21,13 +21,27 @@ export type ObstacleType = 'hard' | 'soft';
 export type HardObstacleSource = 'page-boundary' | 'title-block' | 'callout-box' | 'leader-line';
 export type SoftObstacleSource = 'drawing-density' | 'existing-text';
 
-export interface Obstacle {
+export interface RectObstacle {
   id: string;
+  kind?: 'rect';
   type: ObstacleType;
   source: HardObstacleSource | SoftObstacleSource | string;
   rect: Rect;
   weight?: number; // Penalty weight for soft obstacles
 }
+
+export interface SegmentObstacle {
+  id: string;
+  kind: 'segment';
+  type: ObstacleType;
+  source: HardObstacleSource | SoftObstacleSource | string;
+  start: Point;
+  end: Point;
+  clearance: number;
+  weight?: number;
+}
+
+export type Obstacle = RectObstacle | SegmentObstacle;
 
 export interface LayoutDiagnostic {
   type: 'hard-collision' | 'text-overlap' | 'drawing-density';
@@ -41,6 +55,7 @@ export interface PlacementCandidate {
   box: Rect;
   leaderStart: Point;
   leaderEnd: Point;
+  leaderPoints?: readonly Point[];
   score: number;
   diagnostics: LayoutDiagnostic[];
   isValid: boolean;
@@ -57,13 +72,23 @@ export interface OccurrenceInput {
   preferredWidth?: number;
 }
 
-export interface LayoutResultItem {
+export interface PlacedLayoutResult {
+  status: 'placed';
   occurrenceId: string;
-  status: 'placed' | 'unplaceable';
-  placementClass?: PlacementClass;
-  callout?: ProfessionalCalloutModel;
-  diagnostics: LayoutDiagnostic[];
+  occurrence: OccurrenceInput;
+  placementClass: PlacementClass;
+  callout: ProfessionalCalloutModel;
+  diagnostics: readonly LayoutDiagnostic[];
 }
+
+export interface UnplaceableLayoutResult {
+  status: 'unplaceable';
+  occurrenceId: string;
+  occurrence: OccurrenceInput;
+  diagnostics: readonly LayoutDiagnostic[];
+}
+
+export type LayoutResultItem = PlacedLayoutResult | UnplaceableLayoutResult;
 
 export interface PageLayoutSolution {
   pageNumber: number;
