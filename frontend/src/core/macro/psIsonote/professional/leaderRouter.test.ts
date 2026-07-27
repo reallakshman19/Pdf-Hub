@@ -140,6 +140,15 @@ describe('orthogonal leader routing and geometry', () => {
     )).toHaveLength(1);
   });
 
+  it('does not exempt a final segment that traverses the target obstacle', () => {
+    const route = createLeaderRoute([{ x: 0, y: 0 }, { x: 10, y: 0 }]);
+    expect(routeRectHits(
+      route,
+      { x: 0, y: -1, width: 10, height: 2 },
+      { x: 10, y: 0 },
+    )).toEqual([{ segmentIndex: 0, kind: 'cross' }]);
+  });
+
   it('generates the approved exact greedy-trap candidate boxes', () => {
     const target = { x: 230, y: 190 };
     expect(generateCandidateBox(target, 160, 56, 'right', 640, 420, 20)).toEqual({
