@@ -6,6 +6,7 @@ import {
   Download,
   FileJson,
   FileSpreadsheet,
+  Info,
   Search,
   Upload,
   WandSparkles,
@@ -619,9 +620,15 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       </div>
 
       <label className="block text-[11px] text-slate-600 dark:text-slate-400">
-        Matching tolerance
+        <div className="flex items-center gap-1 mb-1">
+          Matching tolerance
+          <Info 
+            className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-help transition-colors" 
+            title={"Examples of Tolerant (Stem) Matching:\n\n1. PS Suffixes: If PDF has 'PS-11167' but CSV has 'PS-11167.4', it will still match.\n\n2. Pipe Line Designations: If PDF has 'LINE NO 6\"-P8810193-33421-PP' but CSV has '/ASIM-1835-6\"-W8810193-33421', it extracts the core '8810193' and matches them."} 
+          />
+        </div>
         <select
-          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
           value={tolerance}
           onChange={(event) => {
             setTolerance(event.target.value as 'stem' | 'exact');
