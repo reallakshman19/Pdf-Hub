@@ -466,7 +466,7 @@ export const DocumentWorkspace: React.FC = () => {
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
     return (
-      <div key={pageNumber} className="flex justify-center py-4 px-8">
+      <div key={pageNumber} style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>
         <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
@@ -517,7 +517,7 @@ export const DocumentWorkspace: React.FC = () => {
   };
 
   const renderSingle = () => (
-    <div className="flex flex-col items-center w-full overflow-x-auto py-4 px-8">
+    <div style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>
       {renderPage(viewState.currentPage - 1)}
     </div>
   );
@@ -552,7 +552,7 @@ export const DocumentWorkspace: React.FC = () => {
     const currentSpreadIndex =
       viewState.currentPage === 1 ? 0 : Math.floor(viewState.currentPage / 2);
 
-    return <div className="flex flex-col items-center w-full overflow-x-auto py-4 px-8">{pages[currentSpreadIndex]}</div>;
+    return <div style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>{pages[currentSpreadIndex]}</div>;
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
