@@ -624,9 +624,9 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         </label>
       </div>
 
-      <label className="block text-[11px] text-slate-600 dark:text-slate-400">
+      <div className="block text-[11px] text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-1 mb-1">
-          Matching tolerance
+          <label className="font-medium">Matching tolerance</label>
           <Info 
             className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-help transition-colors" 
             title={"Examples of Tolerant (Stem) Matching:\n\n1. PS Suffixes: If PDF has 'PS-11167' but CSV has 'PS-11167.4', it will still match.\n\n2. Pipe Line Designations: If PDF has 'LINE NO 6\"-P8810193-33421-PP' but CSV has '/ASIM-1835-6\"-W8810193-33421', it extracts the core '8810193' and matches them."} 
@@ -656,7 +656,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
             </label>
           </div>
         )}
-      </label>
+      </div>
 
       <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
         <input
