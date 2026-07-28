@@ -40,6 +40,7 @@ export interface PsIsonoteScopeIdentity {
   noteWidth: number;
   fontSize: number;
   includeFamily: boolean;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface CreatePsIsonoteAuditIdentityOptions {

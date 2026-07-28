@@ -55,6 +55,7 @@ interface ScanArtifact {
   sourceText: string;
   scope: ScopeMode;
   skipExisting: boolean;
+  tolerance: 'stem' | 'exact';
   currentPage: number;
   selectedPagesKey: string;
   result: PsIsonoteScanResult;
@@ -66,6 +67,7 @@ interface AuditArtifact {
   documentName: string;
   scope: ScopeMode;
   skipExisting: boolean;
+  tolerance: 'stem' | 'exact';
   currentPage: number;
   selectedPagesKey: string;
   placement: PsIsonotePlacement;
@@ -157,6 +159,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [fontSize, setFontSize] = React.useState(10);
   const [includeFamily, setIncludeFamily] = React.useState(true);
   const [skipExisting, setSkipExisting] = React.useState(true);
+  const [tolerance, setTolerance] = React.useState<'stem' | 'exact'>('stem');
   const [scanArtifact, setScanArtifact] = React.useState<ScanArtifact | null>(null);
   const [auditArtifact, setAuditArtifact] = React.useState<AuditArtifact | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
@@ -172,13 +175,15 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     noteWidth,
     fontSize,
     includeFamily,
-  }), [fontSize, includeFamily, noteWidth, placement]);
+    tolerance,
+  }), [fontSize, includeFamily, noteWidth, placement, tolerance]);
 
   const scanResult = scanArtifact &&
     scanArtifact.documentBytes === workingBytes &&
     scanArtifact.sourceText === sourceText &&
     scanArtifact.scope === scope &&
     scanArtifact.skipExisting === skipExisting &&
+    scanArtifact.tolerance === tolerance &&
     scanArtifact.currentPage === viewState.currentPage &&
     scanArtifact.selectedPagesKey === selectedPagesKey
     ? scanArtifact.result
@@ -189,6 +194,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     auditArtifact.sourceText === sourceText &&
     auditArtifact.scope === scope &&
     auditArtifact.skipExisting === skipExisting &&
+    auditArtifact.tolerance === tolerance &&
     auditArtifact.currentPage === viewState.currentPage &&
     auditArtifact.selectedPagesKey === selectedPagesKey &&
     auditArtifact.placement === placement &&
@@ -213,7 +219,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     noteWidth,
     fontSize,
     includeFamily,
-  }), [fontSize, includeFamily, noteWidth, placement, scope, selectedPages, skipExisting, viewState.currentPage]);
+    tolerance,
+  }), [fontSize, includeFamily, noteWidth, placement, scope, selectedPages, skipExisting, tolerance, viewState.currentPage]);
 
   const runScan = React.useCallback(async (): Promise<PsIsonoteScanResult> => {
     if (!workingBytes) throw new Error('Open a PDF before scanning for PS numbers.');
@@ -229,8 +236,9 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       currentPage: viewState.currentPage,
       selectedPages,
       skipExisting,
+      tolerance,
     });
-  }, [parsedState, scope, selectedPages, skipExisting, viewState.currentPage, workingBytes]);
+  }, [parsedState, scope, selectedPages, skipExisting, tolerance, viewState.currentPage, workingBytes]);
 
   const recordScanResult = React.useCallback((result: PsIsonoteScanResult, bytes: Uint8Array) => {
     setScanArtifact({
@@ -238,11 +246,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       sourceText,
       scope,
       skipExisting,
+      tolerance,
       currentPage: viewState.currentPage,
       selectedPagesKey,
       result,
     });
-  }, [scope, selectedPagesKey, skipExisting, sourceText, viewState.currentPage]);
+  }, [scope, selectedPagesKey, skipExisting, sourceText, tolerance, viewState.currentPage]);
 
   const recordAudit = React.useCallback(async (options: {
     result: PsIsonoteScanResult;
@@ -276,6 +285,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       documentName: fileName || 'document.pdf',
       scope,
       skipExisting,
+      tolerance,
       currentPage: viewState.currentPage,
       selectedPagesKey,
       placement,
@@ -290,7 +300,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         ...(options.failureMessage ? { failureMessage: options.failureMessage } : {}),
       }),
     });
-  }, [buildScopeIdentity, fileName, fontSize, includeFamily, noteWidth, parsedState.result, placement, scope, selectedPagesKey, skipExisting, sourceText, viewState.currentPage]);
+  }, [buildScopeIdentity, fileName, fontSize, includeFamily, noteWidth, parsedState.result, placement, scope, selectedPagesKey, skipExisting, sourceText, tolerance, viewState.currentPage]);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -602,6 +612,21 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           />
         </label>
       </div>
+
+      <label className="block text-[11px] text-slate-600 dark:text-slate-400">
+        Matching tolerance
+        <select
+          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
+          value={tolerance}
+          onChange={(event) => {
+            setTolerance(event.target.value as 'stem' | 'exact');
+            clearRunArtifacts();
+          }}
+        >
+          <option value="stem">Tolerant — match stems if revision suffixes vary</option>
+          <option value="exact">Exact — require identical revision suffixes</option>
+        </select>
+      </label>
 
       <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
         <input

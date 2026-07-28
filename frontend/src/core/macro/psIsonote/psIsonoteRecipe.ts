@@ -77,6 +77,7 @@ export interface PsIsonoteScanOptions {
   currentPage?: number;
   selectedPages?: number[];
   skipExisting?: boolean;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface PsIsonoteRecipeOptions {
@@ -89,6 +90,7 @@ export interface PsIsonoteRecipeOptions {
   backgroundColor?: string;
   borderColor?: string;
   textColor?: string;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
@@ -139,6 +141,7 @@ export function findPsIsonoteReferencesInTextItems(
   mappings: PsIsonoteMapping[],
   pageNumber = 1,
   mappingHashes: ReadonlyMap<string, string> = new Map(),
+  options: { tolerance?: 'stem' | 'exact' | boolean } = {},
 ): PsIsonoteTextReference[] {
   const mappingByPs = new Map(mappings.map((mapping) => [mapping.psNo, mapping]));
   let fullText = '';
@@ -160,7 +163,7 @@ export function findPsIsonoteReferencesInTextItems(
     const psNo = normalizePsNumber(normalizeReferenceText(match[0]));
     if (!psNo) continue;
     let mapping = mappingByPs.get(psNo);
-    if (!mapping) {
+    if (!mapping && options.tolerance !== 'exact' && options.tolerance !== false) {
       const stem = psNo.split(/[.\/]/)[0];
       mapping = mappings.find((m) => {
         const mStem = m.psNo.split(/[.\/]/)[0];
@@ -291,6 +294,7 @@ export async function scanPsIsonoteReferences(
           mappings,
           pageNumber,
           mappingHashes,
+          options,
         );
         const pageReferences = await Promise.all(
           unresolvedReferences.map(async (reference) => ({

@@ -32,9 +32,19 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
     const scanResult = await scanPsIsonoteReferences(pdfBytes, parsed.mappings, {
       selector: { mode: 'all' },
       skipExisting: false,
+      tolerance: 'stem',
     });
 
-    console.log(`[BM2 Audit] Scan matched ${scanResult.references.length} PS occurrences in searchable text.`);
+    const scanExact = await scanPsIsonoteReferences(pdfBytes, parsed.mappings, {
+      selector: { mode: 'all' },
+      skipExisting: false,
+      tolerance: 'exact',
+    });
+
+    console.log(`[BM2 Audit] Tolerant ('stem') scan matched ${scanResult.references.length} PS occurrences.`);
+    console.log(`[BM2 Audit] Strict ('exact') scan matched ${scanExact.references.length} PS occurrences.`);
+    expect(scanExact.references.length).toBeLessThan(scanResult.references.length);
+
     console.log(`[BM2 Audit] Page dimensions in scan:`, JSON.stringify(scanResult.pageDimensions));
     console.log(`[BM2 Audit] Page scenes captured in scan:`, Object.keys(scanResult.pageScenes || {}).length, 'pages');
 
