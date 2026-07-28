@@ -836,68 +836,6 @@ export class PdfEditAdapter {
           });
         }
       }
-
-      // Register Native Interactive PDF FreeText Callout Annotation in /Annots dictionary
-      // This converts flat visual graphics into fully editable, movable callout boxes with leader lines in Microsoft Edge & Adobe Acrobat
-      try {
-        const { context } = pdfDoc;
-        const { box, tag, note, style, targetPoint } = options.callout;
-        const minX = box.x;
-        const minY = pageHeight - box.y - box.height;
-        const maxX = box.x + box.width;
-        const maxY = pageHeight - box.y;
-
-        // Extract leader coordinates for /Callout array specification [x1, y1, x2, y2, x3, y3]
-        // In ISO 32000-1 (Table 174), (x1,y1) touches box perimeter, (x2,y2) is elbow/knee, (x3,y3) touches target object
-        const leaderLines = options.callout.primitives
-          .filter((p): p is { type: 'line' | 'arrow'; start: { x: number; y: number }; end: { x: number; y: number } } => p.type === 'line' || p.type === 'arrow');
-        
-        const calloutCoords: number[] = [];
-        if (leaderLines.length > 0) {
-          calloutCoords.push(
-            leaderLines[0].start.x, pageHeight - leaderLines[0].start.y,
-            leaderLines[0].end.x, pageHeight - leaderLines[0].end.y,
-            leaderLines[leaderLines.length - 1].end.x, pageHeight - leaderLines[leaderLines.length - 1].end.y,
-          );
-        } else {
-          calloutCoords.push(
-            box.x + box.width / 2, pageHeight - (box.y + box.height / 2),
-            box.x + box.width / 2, pageHeight - (box.y + box.height / 2),
-            targetPoint.x, pageHeight - targetPoint.y,
-          );
-        }
-
-        const borderRgb = hexToRgb(style.borderColor);
-        const fillRgb = hexToRgb(style.backgroundColor);
-        const textRgb = hexToRgb(style.textColor);
-
-        const annotDict = context.obj({
-          Type: 'Annot',
-          Subtype: 'FreeText',
-          IT: PDFName.of('FreeTextCallout'),
-          Intent: PDFName.of('FreeTextCallout'),
-          Rect: [minX, minY, maxX, maxY],
-          CL: calloutCoords,
-          Callout: calloutCoords,
-          LE: [PDFName.of('None'), PDFName.of('ClosedArrow')],
-          Contents: PDFString.of(`${tag}\r\n${note}`),
-          DA: PDFString.of(`/Helv ${style.fontSize} Tf ${textRgb.red} ${textRgb.green} ${textRgb.blue} rg`),
-          C: [borderRgb.red, borderRgb.green, borderRgb.blue],
-          IC: [fillRgb.red, fillRgb.green, fillRgb.blue],
-          BS: { Type: PDFName.of('Border'), W: style.borderWidth, S: PDFName.of('S') },
-          Border: [0, 0, style.borderWidth],
-          RD: [0, 0, 0, 0],
-          F: 4, // Print flag (Bit 3) ensuring visibility across printing and plot exports
-        });
-
-        const annotRef = context.register(annotDict);
-        const pageNode = page.node;
-        const existingAnnots = pageNode.lookupMaybe(PDFName.of('Annots'), PDFArray) ?? context.obj([]);
-        existingAnnots.push(annotRef);
-        pageNode.set(PDFName.of('Annots'), existingAnnots);
-      } catch (err) {
-        console.warn('Interactive annotation registration encountered non-standard page dictionary structure:', err);
-      }
     }
 
     return await awaitPdfOperation(pdfDoc.save(), options.signal, 'draw professional callout: save');

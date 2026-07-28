@@ -172,4 +172,38 @@ describe('psIsonoteRecipe', () => {
     expect(callout.tag).toContain('Tag: Remove Guide');
     expect(callout.note).toContain('ISO Note: :/PS-11168.8 Remove Guide');
   });
+
+  it('matches unmatched supports via pipe line designation stem when tolerant matching is enabled', () => {
+    const pldMapping: PsIsonoteMapping = {
+      psNo: 'PS-9999.1',
+      isonote: 'SPRING HANGER (C=H)',
+      pipeLineDesignation: '/ASIM-1835-6"-W8810193-33421',
+      pipeLineStem: '8810193',
+      sourceRow: 10,
+    };
+    const items = [
+      textItem('a', 'SOME CAD TITLE', 50, 500, 100),
+      textItem('b', 'LINE NO 6"-P8810193-33421-PP', 200, 300, 150),
+    ];
+
+    const stemReferences = findPsIsonoteReferencesInTextItems(
+      items,
+      [pldMapping],
+      1,
+      new Map(),
+      { tolerance: 'stem' }
+    );
+    expect(stemReferences).toHaveLength(1);
+    expect(stemReferences[0].matchMethod).toBe('pipe-line-stem');
+    expect(stemReferences[0].psNo).toBe('PS-9999.1');
+
+    const exactReferences = findPsIsonoteReferencesInTextItems(
+      items,
+      [pldMapping],
+      1,
+      new Map(),
+      { tolerance: 'exact' }
+    );
+    expect(exactReferences).toHaveLength(0);
+  });
 });

@@ -40,6 +40,7 @@ export interface PsIsonoteScopeIdentity {
   noteWidth: number;
   fontSize: number;
   includeFamily: boolean;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface CreatePsIsonoteAuditIdentityOptions {
@@ -83,6 +84,7 @@ export async function computePsIsonoteMappingHash(
   return hashCanonical({
     psNo: mapping.psNo,
     family: mapping.family?.trim() ?? '',
+    tagNo: mapping.tagNo?.trim() ?? '',
     isonote: mapping.isonote.trim().replace(/\s+/g, ' '),
   });
 }

@@ -632,6 +632,43 @@ async function executePlaceProfessionalCallout(
       // This path occurs if PdfRendererAdapter is unavailable in the current execution environment.
     }
 
+    try {
+      const { useAnnotationStore } = await import('../../annotations/store');
+      const annotationStore = useAnnotationStore.getState();
+      const pageIndices = toZeroBasedPageIndices(pages);
+      for (const pageIdx of pageIndices) {
+        const pageNumber = pageIdx + 1;
+        annotationStore.addAnnotation({
+          id: step.callout.id || crypto.randomUUID(),
+          type: 'callout',
+          pageNumber,
+          rect: {
+            x: step.callout.box.x,
+            y: step.callout.box.y,
+            width: step.callout.box.width,
+            height: step.callout.box.height,
+          },
+          data: {
+            text: `${step.callout.tag}\n${step.callout.note}`,
+            title: step.callout.tag,
+            anchor: step.callout.targetPoint,
+            leaderStyle: 'elbow',
+            arrowHead: 'filled',
+            backgroundColor: step.callout.style.backgroundColor,
+            borderColor: step.callout.style.borderColor,
+            borderWidth: step.callout.style.borderWidth,
+            textColor: step.callout.style.textColor,
+            fontSize: step.callout.style.fontSize,
+            fontWeight: 'bold',
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+    } catch {
+      // Non-fatal if annotation store is unavailable in headless CLI/worker contexts
+    }
+
     return success(
       `Placed professional vector callout on ${pages.length} page(s)`,
       [bytesEffect(updatedBytes)],

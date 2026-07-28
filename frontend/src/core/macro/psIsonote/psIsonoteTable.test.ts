@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePsNumber, parsePsIsonoteTable } from './psIsonoteTable';
+import { extractPipeLineStem, normalizePsNumber, parsePsIsonoteTable } from './psIsonoteTable';
 
 describe('psIsonoteTable', () => {
   it('normalizes common PS number forms', () => {
@@ -8,6 +8,13 @@ describe('psIsonoteTable', () => {
     expect(normalizePsNumber('support number 0099.2')).toBe('PS-0099.2');
     expect(normalizePsNumber('1234.5')).toBe('PS-1234.5');
     expect(normalizePsNumber('not-a-support')).toBeNull();
+  });
+
+  it('extracts stable line number stems from Navis and CAD pipe line designations', () => {
+    expect(extractPipeLineStem('/ASIM-1835-6"-W8810193-33421')).toBe('8810193');
+    expect(extractPipeLineStem('ASIM-1835-1/2"-P8810265-31441C4-PP')).toBe('8810265');
+    expect(extractPipeLineStem('4"-P8810203-31441C4-PP')).toBe('8810203');
+    expect(extractPipeLineStem('')).toBeNull();
   });
 
   it('parses quoted CSV notes and family columns', () => {
@@ -48,22 +55,31 @@ describe('psIsonoteTable', () => {
       {
         psNo: 'PS-11168/DATUM',
         family: 'R+G+LS',
+        tagNo: '3',
         isonote: ':/PS-11168/DATUM REST, GUIDE, LINE STOP (C=M)',
         confidence: 'MEDIUM',
+        pipeLineDesignation: '/ASIM-1835-8"-P8810201-31441C4-PP',
+        pipeLineStem: '8810201',
         sourceRow: 2,
       },
       {
         psNo: 'PS-11167.4',
         family: 'R+G',
+        tagNo: '1',
         isonote: ':/PS-11167.4 REST, GUIDE (C=H)',
         confidence: 'HIGH',
+        pipeLineDesignation: '/ASIM-1835-4"-P8810203-31441C4-PP',
+        pipeLineStem: '8810203',
         sourceRow: 3,
       },
       {
         psNo: 'PS-11168.8',
         family: 'Remove Guide',
+        tagNo: '2',
         isonote: ':/PS-11168.8 Remove Guide (C=H)',
         confidence: 'HIGH',
+        pipeLineDesignation: '/ASIM-1835-4"-P8810203-31441C4-PP',
+        pipeLineStem: '8810203',
         sourceRow: 4,
       },
     ]);

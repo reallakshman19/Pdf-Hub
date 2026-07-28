@@ -8,8 +8,7 @@ import {
   parseVersionedPsIsonoteMarkers,
   versionedMarkerForOccurrence,
 } from './psIsonoteIdentity';
-import type { PsIsonoteMapping } from './psIsonoteTable';
-import { normalizePsNumber } from './psIsonoteTable';
+import { extractPipeLineStem, normalizePsNumber } from './psIsonoteTable';
 import { solvePageLayout, buildVectorCalloutPlan, type ProfessionalCalloutModel, type Obstacle } from './professional';
 import type { PageScene } from '../../annotation-core/page-scene';
 import { buildPageSceneFromTextLayer } from '../../pdf-analysis/page-scene-builder';
@@ -28,7 +27,7 @@ function pageSceneToObstacles(scene: PageScene): Obstacle[] {
 }
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
-export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items';
+export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items' | 'stem' | 'pipe-line-stem';
 export type PsIsonoteExistingMarkerState = 'none' | 'current' | 'stale' | 'legacy';
 
 export interface PsIsonoteTextReference {
@@ -77,6 +76,7 @@ export interface PsIsonoteScanOptions {
   currentPage?: number;
   selectedPages?: number[];
   skipExisting?: boolean;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface PsIsonoteRecipeOptions {
@@ -89,6 +89,7 @@ export interface PsIsonoteRecipeOptions {
   backgroundColor?: string;
   borderColor?: string;
   textColor?: string;
+  tolerance?: 'stem' | 'exact' | boolean;
 }
 
 export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
@@ -115,7 +116,11 @@ function classifyMatch(
   rawMatchedText: string,
   psNo: string,
   textItemCount: number,
+  isStemMatch?: boolean,
+  isPipeLineMatch?: boolean,
 ): PsIsonoteMatchMethod {
+  if (isPipeLineMatch) return 'pipe-line-stem';
+  if (isStemMatch) return 'stem';
   if (textItemCount > 1) return 'joined-text-items';
   return rawMatchedText.trim().toUpperCase() === psNo ? 'exact' : 'normalized';
 }
@@ -139,6 +144,7 @@ export function findPsIsonoteReferencesInTextItems(
   mappings: PsIsonoteMapping[],
   pageNumber = 1,
   mappingHashes: ReadonlyMap<string, string> = new Map(),
+  options: { tolerance?: 'stem' | 'exact' | boolean } = {},
 ): PsIsonoteTextReference[] {
   const mappingByPs = new Map(mappings.map((mapping) => [mapping.psNo, mapping]));
   let fullText = '';
@@ -159,7 +165,16 @@ export function findPsIsonoteReferencesInTextItems(
   while ((match = PS_REFERENCE_PATTERN.exec(fullText)) !== null) {
     const psNo = normalizePsNumber(normalizeReferenceText(match[0]));
     if (!psNo) continue;
-    const mapping = mappingByPs.get(psNo);
+    let mapping = mappingByPs.get(psNo);
+    let isStemMatch = false;
+    if (!mapping && options.tolerance !== 'exact' && options.tolerance !== false) {
+      const stem = psNo.split(/[.\/]/)[0];
+      mapping = mappings.find((m) => {
+        const mStem = m.psNo.split(/[.\/]/)[0];
+        return mStem === stem;
+      });
+      if (mapping) isStemMatch = true;
+    }
     if (!mapping) continue;
 
     const matchStart = match.index;
@@ -176,13 +191,64 @@ export function findPsIsonoteReferencesInTextItems(
       pageNumber,
       rect,
       mapping,
-      mappingHash: mappingHashes.get(psNo) ?? '',
+      mappingHash: mappingHashes.get(mapping.psNo) ?? mappingHashes.get(psNo) ?? '',
       occurrenceId: '',
       existingMarkerState: 'none',
       rawMatchedText,
-      matchMethod: classifyMatch(rawMatchedText, psNo, matchedItems.length),
+      matchMethod: classifyMatch(rawMatchedText, psNo, matchedItems.length, isStemMatch, false),
       textItemCount: matchedItems.length,
     });
+  }
+
+  if (options.tolerance !== 'exact' && options.tolerance !== false) {
+    const matchedMappingRows = new Set(references.map((r) => r.mapping.sourceRow));
+    const unmatchedMappingsWithPipe = mappings.filter(
+      (m) => !matchedMappingRows.has(m.sourceRow) && Boolean(m.pipeLineStem),
+    );
+
+    if (unmatchedMappingsWithPipe.length > 0) {
+      const PIPE_LINE_PATTERN = /\b(?:[A-Z0-9/.\-"′']+-)*[A-Z]([0-9]{6,9})(?:-[A-Z0-9/.\-"′']+)*\b/gi;
+      PIPE_LINE_PATTERN.lastIndex = 0;
+
+      while ((match = PIPE_LINE_PATTERN.exec(fullText)) !== null) {
+        const pldStem = extractPipeLineStem(match[0]);
+        if (!pldStem) continue;
+
+        const candidateMappings = unmatchedMappingsWithPipe.filter((m) => m.pipeLineStem === pldStem);
+        if (candidateMappings.length === 0) continue;
+
+        const matchStart = match.index;
+        const matchEnd = match.index + match[0].length;
+        const matchedItems = itemSpans
+          .filter((span) => span.start < matchEnd && span.end > matchStart)
+          .map((span) => span.item);
+        const rect = unionRects(matchedItems);
+        if (!rect) continue;
+
+        const rawMatchedText = match[0];
+        for (const mapping of candidateMappings) {
+          references.push({
+            psNo: mapping.psNo,
+            pageNumber,
+            rect: { ...rect },
+            mapping,
+            mappingHash: mappingHashes.get(mapping.psNo) ?? '',
+            occurrenceId: '',
+            existingMarkerState: 'none',
+            rawMatchedText,
+            matchMethod: classifyMatch(rawMatchedText, mapping.psNo, matchedItems.length, false, true),
+            textItemCount: matchedItems.length,
+          });
+          matchedMappingRows.add(mapping.sourceRow);
+        }
+        for (let idx = unmatchedMappingsWithPipe.length - 1; idx >= 0; idx--) {
+          if (matchedMappingRows.has(unmatchedMappingsWithPipe[idx].sourceRow)) {
+            unmatchedMappingsWithPipe.splice(idx, 1);
+          }
+        }
+        if (unmatchedMappingsWithPipe.length === 0) break;
+      }
+    }
   }
 
   return references;
@@ -284,6 +350,7 @@ export async function scanPsIsonoteReferences(
           mappings,
           pageNumber,
           mappingHashes,
+          options,
         );
         const pageReferences = await Promise.all(
           unresolvedReferences.map(async (reference) => ({
@@ -378,6 +445,18 @@ function boxesOverlap(
   );
 }
 
+export function formatCalloutTag(mapping: PsIsonoteMapping, includeFamily = true): string {
+  const familyText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  if (mapping.tagNo && mapping.tagNo.trim()) {
+    const cleanTagNo = mapping.tagNo.trim().replace(/^Tag\s*(No\.?)?\s*/i, '');
+    if (includeFamily && mapping.family) {
+      return `Tag No. ${cleanTagNo}, ${mapping.family}`;
+    }
+    return `Tag No. ${cleanTagNo}, ${mapping.psNo}`;
+  }
+  return `Tag: ${familyText}`;
+}
+
 function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
@@ -387,8 +466,8 @@ function estimateCalloutHeight(
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
-  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
-  const tagLines = Math.max(1, Math.ceil((tagText.length + 5) / charactersPerLine));
+  const tagHeader = formatCalloutTag(mapping, includeFamily);
+  const tagLines = Math.max(1, Math.ceil(tagHeader.length / charactersPerLine));
   const noteText = formatIsonoteWithConfidence(mapping);
   const noteLines = Math.max(1, Math.ceil((noteText.length + 10) / charactersPerLine));
   const totalLines = tagLines + noteLines;
@@ -483,7 +562,7 @@ export function planPsIsonoteCallouts(
     if (!dimensions || pageCallouts.length === 0) continue;
 
     const occurrenceInputs = pageCallouts.map((c, idx) => {
-      const tagText = includeFamily && c.mapping.family ? c.mapping.family : c.psNo;
+      const tagString = formatCalloutTag(c.mapping, includeFamily);
       const noteText = formatIsonoteWithConfidence(c.mapping);
       const targetPoint = {
         x: Math.round((c.rect.x + c.rect.width / 2) * 10) / 10,
@@ -492,7 +571,7 @@ export function planPsIsonoteCallouts(
       return {
         id: c.occurrenceId || `${c.psNo}-${idx}`,
         psNo: c.psNo,
-        tag: `Tag: ${tagText}`,
+        tag: tagString,
         note: `ISO Note: ${noteText}`,
         confidence: c.mapping.confidence || 'HIGH',
         targetPoint,
@@ -555,10 +634,10 @@ export function formatIsonoteWithConfidence(mapping: PsIsonoteMapping): string {
 }
 
 function buildCalloutHtml(mapping: PsIsonoteMapping, includeFamily: boolean): string {
-  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  const tagString = formatCalloutTag(mapping, includeFamily);
   const noteText = formatIsonoteWithConfidence(mapping);
   return [
-    `<div><strong>Tag: ${escapeHtml(tagText)}</strong></div>`,
+    `<div><strong>${escapeHtml(tagString)}</strong></div>`,
     `<div style="margin-top:4px">ISO Note: ${escapeHtml(noteText)}</div>`,
   ].join('');
 }
