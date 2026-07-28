@@ -131,7 +131,7 @@ describe('PR #148 — professional vector callout acceptance', () => {
     const callout = makeCallout('vector-only');
 
     for (const primitive of callout.primitives) {
-      expect(['rectangle', 'line', 'circle', 'text']).toContain(
+      expect(['rectangle', 'line', 'arrow', 'circle', 'text']).toContain(
         primitive.type,
       );
     }

@@ -184,24 +184,13 @@ export function calculateCalloutBoxDimensions(
   const usableWidth = Math.max(50, boxWidth - padding * 2);
   const tagLine = tag.startsWith('Tag: ') ? tag : `Tag: ${tag}`;
   
-  let noteText = note.startsWith('ISO Note: ') ? note : `ISO Note: ${note}`;
-  if (confidence && !noteText.includes(`(C=`)) {
-    const c = confidence.trim().toUpperCase();
-    const code = c.includes('HIGH') || c.startsWith('H') ? 'H' :
-                 c.includes('MEDIUM') || c.startsWith('M') ? 'M' :
-                 c.includes('LOW') || c.startsWith('L') ? 'L' :
-                 c.charAt(0);
-    if (code) {
-      noteText += ` (C=${code})`;
-    }
-  }
-
+  const noteText = note.startsWith('ISO Note: ') ? note : `ISO Note: ${note}`;
   const noteLines = wrapTextMetric(noteText, usableWidth, fontSize);
   const lineHeight = fontSize * 1.35;
   
-  // Total height = padding (top) + tagLine + space (3px) + noteLines + padding (bottom)
+  // Total height = padding (top) + tagLine + space for divider rule + noteLines + padding (bottom)
   const totalLines = 1 + noteLines.length;
-  const height = Math.ceil(padding * 2 + totalLines * lineHeight + 4);
+  const height = Math.ceil(padding * 2 + totalLines * lineHeight + 8);
   
   return {
     width: boxWidth,

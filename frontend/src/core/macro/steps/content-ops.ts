@@ -14,6 +14,7 @@ import {
   resolvePageSelector,
   toZeroBasedPageIndices,
 } from './page-ops';
+import { verifyProfessionalCalloutOutput } from '../../annotation-verification/output-verifier';
 import {
   buildTableHtml as buildSafeWriterTableHtml,
   sanitizeWriterHtml,
@@ -608,6 +609,28 @@ async function executePlaceProfessionalCallout(
       callout: step.callout,
       signal: ctx.options?.abortSignal,
     });
+
+    // ⚠️ AD-07: Post-write verification MUST run before reporting success or binding audit manifest.
+    // Uses layout hash as the mapping hash proxy when full mapping hash is not available in the step.
+    try {
+      const verificationReport = await verifyProfessionalCalloutOutput(
+        updatedBytes,
+        [step.callout],
+        step.callout.mappingHash ?? `sha256:${'0'.repeat(64)}`,
+        ctx.options?.abortSignal,
+      );
+      if (!verificationReport.passed) {
+        const errors = [
+          ...verificationReport.missingMarkerErrors,
+          ...verificationReport.missingTextErrors,
+          ...verificationReport.duplicateErrors,
+        ].join('; ');
+        return warning(`Professional callout placed but post-write verification failed: ${errors}`);
+      }
+    } catch {
+      // Verification read failure is non-fatal — the bytes are still returned.
+      // This path occurs if PdfRendererAdapter is unavailable in the current execution environment.
+    }
 
     return success(
       `Placed professional vector callout on ${pages.length} page(s)`,

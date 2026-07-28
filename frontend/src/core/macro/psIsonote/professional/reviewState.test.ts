@@ -98,7 +98,7 @@ describe('Visual Review Workflow Core (Layer 3)', () => {
     expect(item?.status).toBe('moved');
     expect(item?.isApproved).toBe(false);
     expect(item?.callout?.style.isReview).toBe(true);
-    expect(item?.callout?.style.backgroundColor).toBe('#fffaf0'); // Orange review background
+    expect(item?.callout?.style.backgroundColor).toBe('#ffffff'); // Pure white masking background
     expect(state.auditLog.at(-1)?.action).toBe('move');
   });
 
@@ -173,11 +173,11 @@ describe('Visual Review Workflow Core (Layer 3)', () => {
     expect(queue).toHaveLength(1);
     expect(queue[0].occurrenceId).toBe('occ-2');
 
-    state = resolveFromDrawer(state, 'occ-2', { x: 400, y: 450, width: 200, height: 60 });
+    state = resolveFromDrawer(state, 'occ-2', { x: 400, y: 450, width: 200, height: 65 });
     expect(getUnplaceableQueue(state)).toHaveLength(0);
     const resolved = state.items.get('occ-2');
     expect(resolved?.status).toBe('moved');
-    expect(resolved?.callout?.box).toEqual({ x: 400, y: 450, width: 200, height: 60 });
+    expect(resolved?.callout?.box).toEqual({ x: 400, y: 450, width: 200, height: 65 });
     expect(resolved?.callout?.style.isReview).toBe(true);
     expect(state.auditLog.at(-1)?.action).toBe('resolve-drawer');
   });
@@ -192,9 +192,9 @@ describe('Visual Review Workflow Core (Layer 3)', () => {
     expect(state.auditLog.length).toBe(initialLogLength);
 
     // Update drag coordinates multiple times
-    state = updateTransientDrag(state, 'occ-1', { x: 360, y: 385, width: 200, height: 60 });
-    state = updateTransientDrag(state, 'occ-1', { x: 380, y: 390, width: 200, height: 60 });
-    expect(state.items.get('occ-1')?.transientBox).toEqual({ x: 380, y: 390, width: 200, height: 60 });
+    state = updateTransientDrag(state, 'occ-1', { x: 360, y: 385, width: 200, height: 65 });
+    state = updateTransientDrag(state, 'occ-1', { x: 380, y: 390, width: 200, height: 65 });
+    expect(state.items.get('occ-1')?.transientBox).toEqual({ x: 380, y: 390, width: 200, height: 65 });
     expect(state.items.get('occ-1')?.callout?.box).toEqual({ x: 350, y: 380, width: 200, height: 60 }); // original unaltered
     expect(state.auditLog.length).toBe(initialLogLength); // zero audit spam
 
@@ -204,7 +204,7 @@ describe('Visual Review Workflow Core (Layer 3)', () => {
     // Commit drag session
     state = commitTransientDrag(state, 'occ-1');
     expect(state.items.get('occ-1')?.transientBox).toBeUndefined();
-    expect(state.items.get('occ-1')?.callout?.box).toEqual({ x: 380, y: 390, width: 200, height: 60 });
+    expect(state.items.get('occ-1')?.callout?.box).toEqual({ x: 380, y: 390, width: 200, height: 65 });
     expect(state.auditLog.length).toBe(initialLogLength + 1);
     expect(state.auditLog.at(-1)?.action).toBe('commit-drag');
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLayoutHash, generateV3Marker, parseV3Marker, verifyWrittenPage } from './verificationCore';
+import { computeLayoutHash, generateV3Marker, parseV3Marker, verifyWrittenPage, buildAnnotationIdentity } from './verificationCore';
 import { buildVectorCalloutPlan } from './vectorCalloutPlan';
 
 const basePlan = buildVectorCalloutPlan(
@@ -76,4 +76,19 @@ describe('Layout-Bound Verification Core (Layer 4 - Verification)', () => {
     expect(resAbsentText.missingTextErrors).toHaveLength(1);
     expect(resAbsentText.missingTextErrors[0]).toContain('Marker verified for occ-10, but expected visible searchable text');
   });
+
+  it('builds canonical annotation identity from rendered text lines (AD-07)', () => {
+    const identity = buildAnnotationIdentity(
+      basePlan,
+      'sha256:doc123',
+      'sha256:map123',
+      ['Tag: Remove Guide', 'ISO Note: :/PS-11168.8 Remove Guide (C=H)']
+    );
+    expect(identity.objectType).toBe('ps-isonote-callout');
+    expect(identity.occurrenceId).toBe('occ-10');
+    expect(identity.contentSha256).toMatch(/^sha256:/);
+    expect(identity.geometrySha256).toMatch(/^sha256:/);
+    expect(identity.placementProfileVersion).toBe('piping-iso-v1');
+  });
 });
+
