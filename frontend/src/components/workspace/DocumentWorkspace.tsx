@@ -309,7 +309,7 @@ export const DocumentWorkspace: React.FC = () => {
 
     // Resolve the actual scrollable container parent. In continuous mode, this is the Virtua VList scrolling element.
     const scrollContainer = viewState.viewMode === 'continuous'
-      ? (root.querySelector('.min-h-full')?.firstElementChild as HTMLElement) || root
+      ? (root.querySelector('[data-vlist-wrapper]')?.firstElementChild as HTMLElement) || root
       : root;
 
     visibleRatiosRef.current.clear();
@@ -466,7 +466,7 @@ export const DocumentWorkspace: React.FC = () => {
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
     return (
-      <div key={pageNumber} className="flex justify-center min-w-fit mx-auto mb-8">
+      <div key={pageNumber} className="flex justify-center mb-8">
         <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
@@ -517,7 +517,7 @@ export const DocumentWorkspace: React.FC = () => {
   };
 
   const renderSingle = () => (
-    <div className="flex flex-col items-center min-w-fit mx-auto">
+    <div className="flex flex-col items-center w-full">
       {renderPage(viewState.currentPage - 1)}
     </div>
   );
@@ -552,7 +552,7 @@ export const DocumentWorkspace: React.FC = () => {
     const currentSpreadIndex =
       viewState.currentPage === 1 ? 0 : Math.floor(viewState.currentPage / 2);
 
-    return <div className="flex flex-col items-center min-w-fit mx-auto w-full">{pages[currentSpreadIndex]}</div>;
+    return <div className="flex flex-col items-center w-full">{pages[currentSpreadIndex]}</div>;
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -565,10 +565,15 @@ export const DocumentWorkspace: React.FC = () => {
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPanning || activeTool !== 'hand' || !lastPanPos.current || !containerRef.current) return;
+    if (!isPanning || activeTool !== 'hand' || !lastPanPos.current) return;
     const dx = event.clientX - lastPanPos.current.x;
     const dy = event.clientY - lastPanPos.current.y;
-    containerRef.current.scrollBy(-dx, -dy);
+    // In continuous mode scroll via the VList handle; otherwise scroll the outer container
+    if (viewState.viewMode === 'continuous' && vlistRef.current) {
+      vlistRef.current.scrollBy(-dy);
+    } else if (containerRef.current) {
+      containerRef.current.scrollBy(-dx, -dy);
+    }
     lastPanPos.current = { x: event.clientX, y: event.clientY };
   };
 
@@ -585,7 +590,7 @@ export const DocumentWorkspace: React.FC = () => {
     <div
       ref={containerRef}
       id="workspace-scroll-container"
-      className={`flex flex-col h-full bg-slate-200 dark:bg-slate-950 overflow-auto ${
+      className={`flex flex-col h-full bg-slate-200 dark:bg-slate-950 overflow-hidden ${
         activeTool === 'hand' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
       }`}
       onPointerDown={handlePointerDown}
@@ -611,11 +616,11 @@ export const DocumentWorkspace: React.FC = () => {
           </button>
         </div>
       )}
-      <div className="min-h-full min-w-fit flex flex-col items-center py-8 px-4 mx-auto">
+      <div data-vlist-wrapper="true" className="flex-1 overflow-hidden">
         {viewState.viewMode === 'continuous' ? (
           <VList
             ref={vlistRef}
-            style={{ height: '100%', width: '100%', minWidth: 'fit-content', display: 'flex', flexDirection: 'column' }}
+            style={{ height: '100%', width: '100%' }}
           >
             {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
           </VList>
