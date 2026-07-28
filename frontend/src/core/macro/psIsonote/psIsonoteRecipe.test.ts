@@ -170,6 +170,6 @@ describe('psIsonoteRecipe', () => {
     const { recipe } = buildPsIsonoteAnnotationRecipe(result, { includeFamily: true });
     const callout = (recipe.steps[0] as { callout: { tag: string; note: string } }).callout;
     expect(callout.tag).toContain('Tag: Remove Guide');
-    expect(callout.note).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
+    expect(callout.note).toContain('ISO Note: :/PS-11168.8 Remove Guide');
   });
 });

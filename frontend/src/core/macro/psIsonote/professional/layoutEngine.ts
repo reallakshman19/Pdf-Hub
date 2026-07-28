@@ -21,6 +21,20 @@ import {
   polylineIntersectsSegment,
   polylinesIntersect,
 } from './layoutGeometry';
+import { PIPING_ISO_PLACEMENT_POLICY, type PlacementPolicy } from '../../../annotation-core/placement-policy';
+import type { ObstacleKind } from '../../../annotation-core/page-scene';
+
+function getObstaclePenalty(
+  obs: Obstacle,
+  layer: 'box' | 'leader',
+  policy: PlacementPolicy,
+): number {
+  const kind = obs.source as ObstacleKind;
+  const policyPenalty = layer === 'box'
+    ? policy.boxPenalties[kind]
+    : policy.leaderPenalties[kind];
+  return policyPenalty ?? obs.weight ?? (layer === 'box' ? 15 : 10);
+}
 
 export const ALL_PLACEMENT_CLASSES: PlacementClass[] = [
   'right',
@@ -74,17 +88,16 @@ export function generateOrthogonalRoutes(boxAnchor: Point, target: Point): Point
   if (Math.abs(boxAnchor.x - target.x) < 1e-6 || Math.abs(boxAnchor.y - target.y) < 1e-6) {
     return [simplifyOrthogonalPath([boxAnchor, target])];
   }
-  const routeH = simplifyOrthogonalPath([
-    boxAnchor,
-    { x: target.x, y: boxAnchor.y },
-    target,
-  ]);
-  const routeV = simplifyOrthogonalPath([
-    boxAnchor,
-    { x: boxAnchor.x, y: target.y },
-    target,
-  ]);
-  return [routeH, routeV];
+  // Standard CAD oblique leader route: horizontal shelf exiting side boundary, then diagonal shaft to target point
+  const shelfLength = 24;
+  const isTargetLeft = target.x < boxAnchor.x;
+  const shelfEnd: Point = {
+    x: isTargetLeft ? boxAnchor.x - shelfLength : boxAnchor.x + shelfLength,
+    y: boxAnchor.y,
+  };
+  const obliqueRoute = [boxAnchor, shelfEnd, target];
+  const orthogonalRoute = simplifyOrthogonalPath([boxAnchor, { x: target.x, y: boxAnchor.y }, target]);
+  return [obliqueRoute, orthogonalRoute];
 }
 
 interface RouteEvaluation {
@@ -129,7 +142,7 @@ function evaluateRoute(
       break;
     }
     const existingLines = existing.callout.primitives
-      .filter((p): p is { type: 'line'; start: Point; end: Point; color: string; width: number } => p.type === 'line')
+      .filter((p): p is { type: 'line' | 'arrow'; start: Point; end: Point; color: string; width: number } => p.type === 'line' || p.type === 'arrow')
       .map(p => [p.start, p.end]);
     for (const seg of existingLines) {
       if (polylinesIntersect(route, seg)) {
@@ -146,11 +159,12 @@ function evaluateRoute(
     }
   }
 
+  const policy = options.policy ?? PIPING_ISO_PLACEMENT_POLICY;
   const obstacles = options.obstacles ?? [];
   for (const obs of obstacles) {
     if ('kind' in obs && obs.kind === 'segment') {
       if (polylineIntersectsSegment(route, obs.start, obs.end, obs.clearance)) {
-        if (obs.type === 'hard') {
+        if (obs.type === 'hard' || policy.prohibited.has(obs.source as ObstacleKind)) {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
@@ -160,7 +174,7 @@ function evaluateRoute(
           });
           penalty += 1000;
         } else {
-          const w = obs.weight ?? 20;
+          const w = getObstaclePenalty(obs, 'leader', policy);
           penalty += w;
           diagnostics.push({
             type: 'drawing-density',
@@ -172,7 +186,7 @@ function evaluateRoute(
       }
     } else {
       if (polylineIntersectsRect(route, obs.rect, true)) {
-        if (obs.type === 'hard') {
+        if (obs.type === 'hard' || policy.prohibited.has(obs.source as ObstacleKind)) {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
@@ -182,7 +196,7 @@ function evaluateRoute(
           });
           penalty += 1000;
         } else {
-          const w = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
+          const w = getObstaclePenalty(obs, 'leader', policy);
           penalty += w;
           diagnostics.push({
             type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
@@ -195,12 +209,18 @@ function evaluateRoute(
     }
   }
 
-  // Score Manhattan length and bends
+  // Score leader distance and bends: strictly favor closest available clean white space to prevent long trailing lines
   let length = 0;
   for (let i = 0; i < route.length - 1; i += 1) {
     length += Math.hypot(route[i + 1].x - route[i].x, route[i + 1].y - route[i].y);
   }
-  penalty += length * 0.2;
+  // Progressive distance penalty to ensure callouts settle in the nearest open white-space pocket around the valve
+  if (length > 70) {
+    penalty += (length - 70) * 0.2;
+  }
+  if (length > 200) {
+    penalty += (length - 200) * 0.5; // Additional heavy weighting against distant across-page line stretches
+  }
   const bends = Math.max(0, route.length - 2);
   penalty += bends * 2.5;
 
@@ -225,8 +245,13 @@ export function evaluateCandidate(
   let isValid = true;
   let score = 100;
 
-  if (placement === 'margin-right' || placement === 'margin-left') {
-    score -= 10;
+  // Prioritize local diagonal white-space field orientations over extreme margin fallbacks
+  if (placement === 'top-left' || placement === 'top-right' || placement === 'bottom-left' || placement === 'bottom-right') {
+    score += 20; // Preferred drafting diagonal shelf orientation
+  } else if (placement === 'top' || placement === 'bottom' || placement === 'left' || placement === 'right') {
+    score += 10;
+  } else if (placement === 'margin-left' || placement === 'margin-right') {
+    score -= 25; // Margin placement reserved strictly as fallback when local white-space field is fully blocked
   }
 
   // 1. Hard Check: Page boundaries
@@ -253,7 +278,7 @@ export function evaluateCandidate(
     }
   }
 
-  // 3. Hard Check: Already Placed Callout Boxes
+  // 3. Hard Check: Already Placed Callout Boxes & Leader Lines
   for (const existing of placedOnly) {
     if (rectsOverlap(box, existing.callout.box, 6)) {
       isValid = false;
@@ -265,9 +290,24 @@ export function evaluateCandidate(
       });
       break;
     }
+    const existingLeaderLines = existing.callout.primitives
+      .filter((p): p is { type: 'line' | 'arrow'; start: { x: number; y: number }; end: { x: number; y: number } } => p.type === 'line' || p.type === 'arrow');
+    for (const seg of existingLeaderLines) {
+      if (polylineIntersectsRect([seg.start, seg.end], box, true)) {
+        isValid = false;
+        diagnostics.push({
+          type: 'hard-collision',
+          source: 'leader-line',
+          message: `Candidate box collides with leader line of existing callout ${existing.callout.psNo}.`,
+          penalty: 1000,
+        });
+        break;
+      }
+    }
   }
 
   // 4. Evaluate provided Obstacles against Box
+  const policy = options.policy ?? PIPING_ISO_PLACEMENT_POLICY;
   const obstacles = options.obstacles ?? [];
   for (const obs of obstacles) {
     if ('kind' in obs && obs.kind === 'segment') {
@@ -276,7 +316,7 @@ export function evaluateCandidate(
       const w = Math.abs(obs.end.x - obs.start.x) + obs.clearance * 2;
       const h = Math.abs(obs.end.y - obs.start.y) + obs.clearance * 2;
       if (rectsOverlap(box, { x: minX, y: minY, width: w, height: h }, 0)) {
-        if (obs.type === 'hard') {
+        if (obs.type === 'hard' || policy.prohibited.has(obs.source as ObstacleKind)) {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
@@ -285,7 +325,7 @@ export function evaluateCandidate(
             penalty: 1000,
           });
         } else {
-          const penalty = obs.weight ?? 20;
+          const penalty = getObstaclePenalty(obs, 'box', policy) * 8; // Heavy architectural penalty (8x) against placing annotations in congested text corridors
           score -= penalty;
           diagnostics.push({
             type: 'drawing-density',
@@ -297,7 +337,7 @@ export function evaluateCandidate(
       }
     } else {
       if (rectsOverlap(box, obs.rect, 2)) {
-        if (obs.type === 'hard') {
+        if (obs.type === 'hard' || policy.prohibited.has(obs.source as ObstacleKind)) {
           isValid = false;
           diagnostics.push({
             type: 'hard-collision',
@@ -306,7 +346,7 @@ export function evaluateCandidate(
             penalty: 1000,
           });
         } else {
-          const penalty = obs.weight ?? (obs.source === 'existing-text' ? 35 : 15);
+          const penalty = getObstaclePenalty(obs, 'box', policy) * 8; // Heavy architectural penalty (8x) against overlapping existing text and drawing density
           score -= penalty;
           diagnostics.push({
             type: obs.source === 'existing-text' ? 'text-overlap' : 'drawing-density',
@@ -319,12 +359,17 @@ export function evaluateCandidate(
     }
   }
 
-  // Evaluate dynamic orthogonal elbow routes
+  // Evaluate dynamic orthogonal elbow routes, strictly favoring oblique 2-line drafting shelf leaders
   const routes = generateOrthogonalRoutes(boxAnchor, occurrence.targetPoint);
   let bestRouteEval: RouteEvaluation | null = null;
 
-  for (const r of routes) {
+  for (let idx = 0; idx < routes.length; idx += 1) {
+    const r = routes[idx];
     const rEval = evaluateRoute(r, box, options, placedOnly);
+    // Explicit CAD aesthetic rule: heavily favor oblique horizontal shelf leader (idx === 0) over orthogonal vertical staircases
+    if (idx !== 0) {
+      rEval.penalty += 150;
+    }
     if (!bestRouteEval) {
       bestRouteEval = rEval;
     } else if (rEval.isValid && !bestRouteEval.isValid) {
@@ -459,21 +504,40 @@ export function solvePageLayout(
     const nextBeam: BeamNode[] = [];
     const seenKeys = new Set<string>();
 
+    // Concentric radial expansion distances to locate the closest empty white-space pocket
+    const radialOffsets = [35, 50, 65, 85, 110, 140, 180, 230, 290];
+
     for (const state of beam) {
       const candidates: PlacementCandidate[] = [];
 
       for (const placement of ALL_PLACEMENT_CLASSES) {
-        const candidateBox = generateCandidateBox(
-          occurrence.targetPoint,
-          dims.width,
-          dims.height,
-          placement,
-          options.pageWidth,
-          options.pageHeight,
-          options.pageMargin,
-        );
-        const evalResult = evaluateCandidate(placement, candidateBox, occurrence, options, state.placed);
-        candidates.push(evalResult);
+        if (placement === 'margin-left' || placement === 'margin-right') {
+          const candidateBox = generateCandidateBox(
+            occurrence.targetPoint,
+            dims.width,
+            dims.height,
+            placement,
+            options.pageWidth,
+            options.pageHeight,
+            options.pageMargin,
+          );
+          candidates.push(evaluateCandidate(placement, candidateBox, occurrence, options, state.placed));
+        } else {
+          // Sweep outward in concentric white-space search rings along each orientation to find nearest clean space
+          for (const offset of radialOffsets) {
+            const candidateBox = generateCandidateBox(
+              occurrence.targetPoint,
+              dims.width,
+              dims.height,
+              placement,
+              options.pageWidth,
+              options.pageHeight,
+              options.pageMargin,
+              offset,
+            );
+            candidates.push(evaluateCandidate(placement, candidateBox, occurrence, options, state.placed));
+          }
+        }
       }
 
       candidates.sort((c1, c2) => {
@@ -497,8 +561,8 @@ export function solvePageLayout(
           occurrence.targetPoint,
           candidate.box,
           {
-            isReview: hasSoftOverlap,
-            leaderPath: candidate.leaderPoints ? { points: candidate.leaderPoints as [Point, Point, ...Point[]], anchorRadius: 2 } : undefined,
+            isReview: hasSoftOverlap || !candidate.isValid,
+            leaderPath: candidate.leaderPoints ? { points: candidate.leaderPoints as [Point, Point, ...Point[]], anchorRadius: 1.2 } : undefined,
           },
         );
         const resultItem: PlacedLayoutResult = {

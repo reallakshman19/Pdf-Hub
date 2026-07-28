@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb, PDFName, PDFArray, PDFString, moveTo, lineTo, closePath, fill, setFillingColor } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { readFillColor, readStrokeColor, readStrokeWidth } from '@/core/annotations/readers';
@@ -122,21 +122,23 @@ function drawArrowHead(
   style: 'open' | 'filled',
 ): void {
   const angle = Math.atan2(y2 - y1, x2 - x1);
-  const headLength = Math.max(8, thickness * 4);
+  // ASME Y14.2 mechanical CAD standard drafting arrowhead: 3:1 aspect ratio with prominent visibility
+  const headLength = Math.max(10, thickness * 6);
+  const wingAngle = Math.PI / 15; // 12 degrees for razor-sharp engineering profile
 
-  const leftX = x2 - headLength * Math.cos(angle - Math.PI / 6);
-  const leftY = y2 - headLength * Math.sin(angle - Math.PI / 6);
-  const rightX = x2 - headLength * Math.cos(angle + Math.PI / 6);
-  const rightY = y2 - headLength * Math.sin(angle + Math.PI / 6);
+  const leftX = x2 - headLength * Math.cos(angle - wingAngle);
+  const leftY = y2 - headLength * Math.sin(angle - wingAngle);
+  const rightX = x2 - headLength * Math.cos(angle + wingAngle);
+  const rightY = y2 - headLength * Math.sin(angle + wingAngle);
 
   if (style === 'filled') {
-    page.drawSvgPath(
-      `M ${x2} ${y2} L ${leftX} ${leftY} L ${rightX} ${rightY} Z`,
-      {
-        color,
-        borderColor: color,
-        borderWidth: Math.max(0.5, thickness * 0.5),
-      },
+    page.pushOperators(
+      setFillingColor(color),
+      moveTo(x2, y2),
+      lineTo(leftX, leftY),
+      lineTo(rightX, rightY),
+      closePath(),
+      fill(),
     );
     return;
   }
@@ -785,6 +787,24 @@ export class PdfEditAdapter {
             thickness: primitive.width,
             color: hexToRgb(primitive.color),
           });
+        } else if (primitive.type === 'arrow') {
+          const color = hexToRgb(primitive.color);
+          page.drawLine({
+            start: { x: primitive.start.x, y: pageHeight - primitive.start.y },
+            end: { x: primitive.end.x, y: pageHeight - primitive.end.y },
+            thickness: primitive.width,
+            color,
+          });
+          drawArrowHead(
+            page,
+            primitive.start.x,
+            pageHeight - primitive.start.y,
+            primitive.end.x,
+            pageHeight - primitive.end.y,
+            color,
+            primitive.width,
+            primitive.headStyle === 'open' ? 'open' : 'filled',
+          );
         } else if (primitive.type === 'circle') {
           page.drawEllipse({
             x: primitive.center.x,
@@ -815,6 +835,68 @@ export class PdfEditAdapter {
             color: hexToRgb(primitive.color),
           });
         }
+      }
+
+      // Register Native Interactive PDF FreeText Callout Annotation in /Annots dictionary
+      // This converts flat visual graphics into fully editable, movable callout boxes with leader lines in Microsoft Edge & Adobe Acrobat
+      try {
+        const { context } = pdfDoc;
+        const { box, tag, note, style, targetPoint } = options.callout;
+        const minX = box.x;
+        const minY = pageHeight - box.y - box.height;
+        const maxX = box.x + box.width;
+        const maxY = pageHeight - box.y;
+
+        // Extract leader coordinates for /Callout array specification [x1, y1, x2, y2, x3, y3]
+        // In ISO 32000-1 (Table 174), (x1,y1) touches box perimeter, (x2,y2) is elbow/knee, (x3,y3) touches target object
+        const leaderLines = options.callout.primitives
+          .filter((p): p is { type: 'line' | 'arrow'; start: { x: number; y: number }; end: { x: number; y: number } } => p.type === 'line' || p.type === 'arrow');
+        
+        const calloutCoords: number[] = [];
+        if (leaderLines.length > 0) {
+          calloutCoords.push(
+            leaderLines[0].start.x, pageHeight - leaderLines[0].start.y,
+            leaderLines[0].end.x, pageHeight - leaderLines[0].end.y,
+            leaderLines[leaderLines.length - 1].end.x, pageHeight - leaderLines[leaderLines.length - 1].end.y,
+          );
+        } else {
+          calloutCoords.push(
+            box.x + box.width / 2, pageHeight - (box.y + box.height / 2),
+            box.x + box.width / 2, pageHeight - (box.y + box.height / 2),
+            targetPoint.x, pageHeight - targetPoint.y,
+          );
+        }
+
+        const borderRgb = hexToRgb(style.borderColor);
+        const fillRgb = hexToRgb(style.backgroundColor);
+        const textRgb = hexToRgb(style.textColor);
+
+        const annotDict = context.obj({
+          Type: 'Annot',
+          Subtype: 'FreeText',
+          IT: PDFName.of('FreeTextCallout'),
+          Intent: PDFName.of('FreeTextCallout'),
+          Rect: [minX, minY, maxX, maxY],
+          CL: calloutCoords,
+          Callout: calloutCoords,
+          LE: [PDFName.of('None'), PDFName.of('ClosedArrow')],
+          Contents: PDFString.of(`${tag}\r\n${note}`),
+          DA: PDFString.of(`/Helv ${style.fontSize} Tf ${textRgb.red} ${textRgb.green} ${textRgb.blue} rg`),
+          C: [borderRgb.red, borderRgb.green, borderRgb.blue],
+          IC: [fillRgb.red, fillRgb.green, fillRgb.blue],
+          BS: { Type: PDFName.of('Border'), W: style.borderWidth, S: PDFName.of('S') },
+          Border: [0, 0, style.borderWidth],
+          RD: [0, 0, 0, 0],
+          F: 4, // Print flag (Bit 3) ensuring visibility across printing and plot exports
+        });
+
+        const annotRef = context.register(annotDict);
+        const pageNode = page.node;
+        const existingAnnots = pageNode.lookupMaybe(PDFName.of('Annots'), PDFArray) ?? context.obj([]);
+        existingAnnots.push(annotRef);
+        pageNode.set(PDFName.of('Annots'), existingAnnots);
+      } catch (err) {
+        console.warn('Interactive annotation registration encountered non-standard page dictionary structure:', err);
       }
     }
 

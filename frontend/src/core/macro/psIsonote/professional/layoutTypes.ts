@@ -1,4 +1,6 @@
 import { type Point, type Rect, type ProfessionalCalloutModel } from './model';
+import type { ObstacleKind } from '../../../annotation-core/page-scene';
+import type { PlacementPolicy } from '../../../annotation-core/placement-policy';
 
 /**
  * Ten deterministic placement classes:
@@ -25,7 +27,8 @@ export interface RectObstacle {
   id: string;
   kind?: 'rect';
   type: ObstacleType;
-  source: HardObstacleSource | SoftObstacleSource | string;
+  /** Typed against canonical ObstacleKind union. Legacy string values still accepted for backward compat. */
+  source: ObstacleKind | string;
   rect: Rect;
   weight?: number; // Penalty weight for soft obstacles
 }
@@ -34,7 +37,8 @@ export interface SegmentObstacle {
   id: string;
   kind: 'segment';
   type: ObstacleType;
-  source: HardObstacleSource | SoftObstacleSource | string;
+  /** Typed against canonical ObstacleKind union. Legacy string values still accepted for backward compat. */
+  source: ObstacleKind | string;
   start: Point;
   end: Point;
   clearance: number;
@@ -105,4 +109,6 @@ export interface PageLayoutOptions {
   titleBlockRect?: Rect;
   obstacles?: Obstacle[];
   beamWidth?: number;
+  /** ⚠️ If omitted, PIPING_ISO_PLACEMENT_POLICY is used as the default. */
+  policy?: PlacementPolicy;
 }

@@ -155,8 +155,9 @@ export function generateCandidateBox(
   pageWidth: number,
   pageHeight: number,
   margin = 12,
+  customOffset = 45,
 ): Rect {
-  const offset = 28; // Distance from target point to box edge
+  const offset = customOffset; // Architectural CAD radial distance for closest empty space field detection
   let x = target.x;
   let y = target.y;
 

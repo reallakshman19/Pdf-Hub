@@ -11,6 +11,21 @@ import {
 import type { PsIsonoteMapping } from './psIsonoteTable';
 import { normalizePsNumber } from './psIsonoteTable';
 import { solvePageLayout, buildVectorCalloutPlan, type ProfessionalCalloutModel, type Obstacle } from './professional';
+import type { PageScene } from '../../annotation-core/page-scene';
+import { buildPageSceneFromTextLayer } from '../../pdf-analysis/page-scene-builder';
+import { PIPING_ISO_PLACEMENT_POLICY } from '../../annotation-core/placement-policy';
+
+function pageSceneToObstacles(scene: PageScene): Obstacle[] {
+  return scene.obstacles
+    .filter(o => o.penaltyWeight !== Infinity && o.bounds.width > 0 && o.bounds.height > 0)
+    .map(o => ({
+      id: o.id,
+      type: (o.penaltyWeight ?? 0) > 500 ? 'hard' : 'soft',
+      source: o.kind === 'text' ? 'existing-text' : o.kind,
+      rect: o.bounds,
+      weight: o.kind === 'text' ? 2 : o.penaltyWeight,
+    } as any));
+}
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
 export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items';
@@ -54,6 +69,7 @@ export interface PsIsonoteScanResult {
   scannedPages: number[];
   pageDimensions: Record<number, { width: number; height: number }>;
   pageObstacles?: Record<number, Obstacle[]>;
+  pageScenes?: Record<number, PageScene>;
 }
 
 export interface PsIsonoteScanOptions {
@@ -83,6 +99,7 @@ export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
     height: number;
   };
   professionalModel?: ProfessionalCalloutModel;
+  layoutStatus?: 'placed' | 'unplaceable';
 }
 
 const PS_REFERENCE_PATTERN = /\bP\s*S\s*[-‐‑‒–—−]\s*[0-9]{2,12}(?:\s*(?:\.|\/)\s*[A-Z0-9]{1,12})*\b/gi;
@@ -248,6 +265,7 @@ export async function scanPsIsonoteReferences(
     const legacyExisting: PsIsonoteExistingAnnotation[] = [];
     const pageDimensions: Record<number, { width: number; height: number }> = {};
     const pageObstacles: Record<number, Obstacle[]> = {};
+    const pageScenes: Record<number, PageScene> = {};
     const foundPsNumbers = new Set<string>();
 
     for (const pageNumber of scannedPages) {
@@ -256,16 +274,11 @@ export async function scanPsIsonoteReferences(
         const items = await PdfRendererAdapter.getPageTextItems(page, 1);
         const pageText = items.map((item) => item.text).join(' ');
         const pageMarkers = parseVersionedPsIsonoteMarkers(pageText);
-        pageDimensions[pageNumber] = PdfRendererAdapter.getPageDimensions(page);
-        pageObstacles[pageNumber] = items
-          .filter((item) => item.width > 0 && item.height > 0 && item.text.trim().length > 0)
-          .map((item, i) => ({
-            id: `obs-${pageNumber}-${i}`,
-            type: 'soft',
-            source: 'existing-text',
-            rect: { x: item.x, y: item.y, width: item.width, height: item.height },
-            weight: 2,
-          }));
+        const dims = PdfRendererAdapter.getPageDimensions(page);
+        pageDimensions[pageNumber] = dims;
+        const scene = buildPageSceneFromTextLayer(pageNumber, dims.width, dims.height, items);
+        pageScenes[pageNumber] = scene;
+        pageObstacles[pageNumber] = pageSceneToObstacles(scene);
         const unresolvedReferences = findPsIsonoteReferencesInTextItems(
           items,
           mappings,
@@ -341,6 +354,7 @@ export async function scanPsIsonoteReferences(
       scannedPages,
       pageDimensions,
       pageObstacles,
+      pageScenes,
     };
   } finally {
     await lease.release();
@@ -419,6 +433,9 @@ function chooseInitialBox(
 export function planPsIsonoteCallouts(
   scan: PsIsonoteScanResult,
   options: PsIsonoteRecipeOptions = {},
+  // AD-09: Callers MUST pass a PageScene map — not a raw obstacle list.
+  // Pass scan.pageScenes from scanPsIsonoteReferences, or an empty record for tests.
+  pageScenes: Record<number, PageScene> = scan.pageScenes ?? {},
 ): PlannedPsIsonoteCallout[] {
   const placement = options.placement ?? 'auto';
   const configuredWidth = options.noteWidth ?? 220;
@@ -483,12 +500,16 @@ export function planPsIsonoteCallouts(
       };
     });
 
-    const obstacles = scan.pageObstacles?.[pageNumber] || [];
+    const pageScene = pageScenes[pageNumber];
+    const obstacles = pageScene ? pageSceneToObstacles(pageScene) : (scan.pageObstacles?.[pageNumber] || []);
+    const titleBlockRect = pageScene?.protectedRegions.find(r => r.kind === 'title-block')?.bounds;
     const solution = solvePageLayout(occurrenceInputs, {
       pageWidth: dimensions.width,
       pageHeight: dimensions.height,
       pageMargin: margin,
+      titleBlockRect,
       obstacles,
+      policy: PIPING_ISO_PLACEMENT_POLICY,
     });
 
     for (let i = 0; i < pageCallouts.length; i++) {
@@ -499,6 +520,7 @@ export function planPsIsonoteCallouts(
       if (result?.status === 'placed' && result.callout) {
         callout.box = result.callout.box;
         callout.professionalModel = result.callout;
+        callout.layoutStatus = 'placed';
       } else {
         callout.professionalModel = buildVectorCalloutPlan(
           input.id,
@@ -509,6 +531,7 @@ export function planPsIsonoteCallouts(
           input.targetPoint,
           callout.box,
         );
+        callout.layoutStatus = result?.status ?? 'unplaceable';
       }
     }
   }
@@ -526,18 +549,7 @@ function escapeHtml(value: string): string {
 }
 
 export function formatIsonoteWithConfidence(mapping: PsIsonoteMapping): string {
-  let text = mapping.isonote;
-  if (!/\(C=[^)]+\)$/.test(text) && mapping.confidence) {
-    const c = mapping.confidence.trim().toUpperCase();
-    const code = c.includes('HIGH') || c.startsWith('H') ? 'H' :
-                 c.includes('MEDIUM') || c.startsWith('M') ? 'M' :
-                 c.includes('LOW') || c.startsWith('L') ? 'L' :
-                 c.charAt(0);
-    if (code) {
-      text += ` (C=${code})`;
-    }
-  }
-  return text;
+  return mapping.isonote;
 }
 
 function buildCalloutHtml(mapping: PsIsonoteMapping, includeFamily: boolean): string {
@@ -553,7 +565,7 @@ export function buildPsIsonoteAnnotationRecipe(
   scan: PsIsonoteScanResult,
   options: PsIsonoteRecipeOptions = {},
 ): { recipe: MacroRecipe; callouts: PlannedPsIsonoteCallout[] } {
-  const callouts = planPsIsonoteCallouts(scan, options);
+  const callouts = planPsIsonoteCallouts(scan, options, scan.pageScenes ?? {});
   const fontSize = options.fontSize ?? 10;
   const includeFamily = options.includeFamily ?? true;
   const steps: MacroStep[] = callouts.map((callout) => {

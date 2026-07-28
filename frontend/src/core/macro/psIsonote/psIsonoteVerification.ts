@@ -167,3 +167,6 @@ export async function verifyPsIsonoteOutput(
     diagnostics,
   };
 }
+
+export { verifyProfessionalCalloutOutput } from '../../annotation-verification/output-verifier';
+

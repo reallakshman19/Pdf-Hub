@@ -64,7 +64,7 @@ describe('Obstacle-Aware Layout Core (Layer 2)', () => {
     const res = solution.results[0];
     if (res.status === 'placed') {
       expect(res.callout.style.isReview).toBe(true);
-      expect(res.callout.style.borderColor).toBe('#ea580c');
+      expect(res.callout.style.borderColor).toBe('#b91c1c');
     }
   });
 
@@ -82,7 +82,7 @@ describe('Obstacle-Aware Layout Core (Layer 2)', () => {
     expect(routes).toHaveLength(2);
     expect(routes[0]).toEqual([
       { x: 100, y: 100 },
-      { x: 200, y: 100 },
+      { x: 124, y: 100 },
       { x: 200, y: 150 },
     ]);
 

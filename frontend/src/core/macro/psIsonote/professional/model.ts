@@ -41,6 +41,16 @@ export interface VectorLine {
   style?: 'solid' | 'dashed';
 }
 
+export interface VectorArrow {
+  type: 'arrow';
+  start: Point;
+  end: Point;
+  color: string;
+  width: number;
+  headStyle: 'filled-triangle' | 'open' | 'dot' | 'none';
+  headSize?: number;
+}
+
 export interface VectorCircle {
   type: 'circle';
   center: Point;
@@ -60,7 +70,7 @@ export interface VectorText {
   fontWeight?: 'normal' | 'bold';
 }
 
-export type VectorPrimitive = VectorRectangle | VectorLine | VectorCircle | VectorText;
+export type VectorPrimitive = VectorRectangle | VectorLine | VectorArrow | VectorCircle | VectorText;
 
 export interface ProfessionalCalloutModel {
   id: string;
@@ -75,36 +85,38 @@ export interface ProfessionalCalloutModel {
 }
 
 /**
- * Creates an engineering-oriented style contract.
- * Normal results use neutral professional styling (slate/navy on clean background).
- * Orange is strictly reserved for review-only states.
+ * Creates an authoritative engineering CAD style contract.
+ * Normal and review results use rigorous Acrobat / CAD drafting standards:
+ * - Solid 100% white masking background (#ffffff)
+ * - Sharp architectural square corners (cornerRadius 0)
+ * - Deep black / jet slate borders and typography (#000000 / #0f172a)
  */
-export function getStyleContract(isReview = false, fontSize = 9): StyleContract {
+export function getStyleContract(isReview = false, fontSize = 10): StyleContract {
   if (isReview) {
     return {
       version: 'v1',
       isReview: true,
-      backgroundColor: '#fffaf0', // Orange review background
-      textColor: '#9a3412',       // Orange review text
-      borderColor: '#ea580c',     // Orange review border
-      leaderColor: '#ea580c',
+      backgroundColor: '#ffffff', // Solid white masking background
+      textColor: '#0f172a',       // Jet slate engineering typography
+      borderColor: '#b91c1c',     // Crisp architectural crimson accent for review state
+      leaderColor: '#b91c1c',
       fontSize,
       fontFamily: 'Helvetica',
-      borderWidth: 1.5,
-      cornerRadius: 3,
+      borderWidth: 1.0,           // Clear precise 1.0pt review weight
+      cornerRadius: 0,            // Square engineering corners
     };
   }
   return {
     version: 'v1',
     isReview: false,
-    backgroundColor: '#ffffff', // Neutral background
-    textColor: '#0f172a',       // Slate/navy engineering text
-    borderColor: '#334155',     // Slate border
-    leaderColor: '#475569',
+    backgroundColor: '#ffffff', // Solid white masking background
+    textColor: '#0f172a',       // Jet slate engineering typography
+    borderColor: '#000000',     // Solid CAD black ruled box
+    leaderColor: '#000000',     // Solid CAD black leader line
     fontSize,
     fontFamily: 'Helvetica',
-    borderWidth: 1,
-    cornerRadius: 2,
+    borderWidth: 0.75,          // 0.75pt (0.25mm) standard CAD line weight
+    cornerRadius: 0,            // Square engineering corners
   };
 }
 

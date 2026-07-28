@@ -1,4 +1,5 @@
 import { type ProfessionalCalloutModel } from './model';
+import type { GeneratedAnnotationIdentity } from '../../../annotation-core/annotation-identity';
 
 export interface V3MarkerData {
   version: 'v3';
@@ -220,5 +221,31 @@ export function verifyWrittenPage(
     duplicateErrors,
     mismatchErrors,
     missingTextErrors,
+  };
+}
+
+export function buildAnnotationIdentity(
+  callout: ProfessionalCalloutModel,
+  sourceDocumentSha256: string,
+  mappingSha256: string,
+  renderedTextLines: string[],
+): GeneratedAnnotationIdentity {
+  const contentSha256 = `sha256:${computeSha256(renderedTextLines.join('\n'))}`;
+  const geometryPayload = JSON.stringify({
+    box: callout.box,
+    targetPoint: callout.targetPoint,
+  });
+  const geometrySha256 = `sha256:${computeSha256(geometryPayload)}`;
+
+  return {
+    schemaVersion: 1,
+    objectType: 'ps-isonote-callout',
+    sourceDocumentSha256,
+    mappingSha256,
+    occurrenceId: callout.id,
+    contentSha256,
+    geometrySha256,
+    styleVersion: callout.style.version,
+    placementProfileVersion: 'piping-iso-v1',
   };
 }

@@ -37,23 +37,11 @@ export function assertValidRect(rect: Rect, label: string): void {
  */
 export function getBoxAnchorTowards(box: Rect, target: Point): Point {
   const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
-
-  // Determine which side is closest or most direct to target
-  const dx = target.x - centerX;
-  const dy = target.y - centerY;
-
-  if (Math.abs(dx) > Math.abs(dy)) {
-    // Connect to left or right edge
-    return {
-      x: dx > 0 ? box.x + box.width : box.x,
-      y: clamp(target.y, box.y + 4, box.y + box.height - 4),
-    };
-  }
-  // Connect to top or bottom edge
+  // Always attach to Left or Right vertical side boundary for professional horizontal shelf leaders
+  const isTargetLeft = target.x < centerX;
   return {
-    x: clamp(target.x, box.x + 4, box.x + box.width - 4),
-    y: dy > 0 ? box.y + box.height : box.y,
+    x: isTargetLeft ? box.x : box.x + box.width,
+    y: clamp(target.y, box.y + 12, box.y + box.height - 12),
   };
 }
 
@@ -76,7 +64,7 @@ export function buildVectorCalloutPlan(
   options: VectorCalloutPlanOptions = {},
 ): ProfessionalCalloutModel {
   const isReview = options.isReview ?? false;
-  const fontSize = options.fontSize ?? 9;
+  const fontSize = options.fontSize ?? 10;
   const width = options.width ?? initialBox.width ?? 200;
   
   const style = getStyleContract(isReview, fontSize);
@@ -97,9 +85,9 @@ export function buildVectorCalloutPlan(
   const boxAnchor = getBoxAnchorTowards(box, targetPoint);
   const primitives: VectorPrimitive[] = [];
 
-  // 1. Leader line polyline segments from box anchor to target point
+  // 1. Leader line polyline segments from box anchor to target point (Oblique 2-line leader with arrows)
   let leaderPoints: readonly Point[];
-  let anchorRadius = 2;
+  let anchorRadius = 1.5;
   if (options.leaderPath) {
     leaderPoints = options.leaderPath.points;
     anchorRadius = options.leaderPath.anchorRadius;
@@ -107,34 +95,49 @@ export function buildVectorCalloutPlan(
     if (boxAnchor.x === targetPoint.x || boxAnchor.y === targetPoint.y) {
       leaderPoints = [boxAnchor, targetPoint];
     } else {
-      const isHorizontalExit = Math.abs(targetPoint.x - (box.x + box.width / 2)) > Math.abs(targetPoint.y - (box.y + box.height / 2));
-      const knee: Point = isHorizontalExit
-        ? { x: targetPoint.x, y: boxAnchor.y }
-        : { x: boxAnchor.x, y: targetPoint.y };
-      leaderPoints = [boxAnchor, knee, targetPoint];
+      // Oblique 2-line leader: horizontal shelf exiting callout box, then diagonal oblique segment to target point
+      const shelfLength = 24;
+      const isTargetLeft = targetPoint.x < (box.x + box.width / 2);
+      const shelfEnd: Point = {
+        x: isTargetLeft ? boxAnchor.x - shelfLength : boxAnchor.x + shelfLength,
+        y: boxAnchor.y,
+      };
+      leaderPoints = [boxAnchor, shelfEnd, targetPoint];
     }
   }
 
   for (let i = 0; i < leaderPoints.length - 1; i += 1) {
-    primitives.push({
-      type: 'line',
-      start: leaderPoints[i],
-      end: leaderPoints[i + 1],
-      color: style.leaderColor,
-      width: 1,
-      style: 'solid',
-    });
+    const isTerminalSegment = (i === leaderPoints.length - 2);
+    if (isTerminalSegment) {
+      primitives.push({
+        type: 'arrow',
+        start: leaderPoints[i],
+        end: leaderPoints[i + 1],
+        color: style.leaderColor,
+        width: style.borderWidth,
+        headStyle: 'filled-triangle',
+        headSize: 6,
+      });
+    } else {
+      primitives.push({
+        type: 'line',
+        start: leaderPoints[i],
+        end: leaderPoints[i + 1],
+        color: style.leaderColor,
+        width: style.borderWidth,
+        style: 'solid',
+      });
+    }
   }
 
-  // 2. Target anchor point dot
-  const targetEnd = leaderPoints[leaderPoints.length - 1] ?? targetPoint;
+  // 2. Leader origin anchor node on callout box perimeter (leaves target arrowhead cleanly unobstructed)
   primitives.push({
     type: 'circle',
-    center: targetEnd,
-    radius: anchorRadius,
+    center: boxAnchor,
+    radius: 1.2,
     fillColor: style.leaderColor,
     borderColor: style.leaderColor,
-    borderWidth: 1,
+    borderWidth: 0.5,
   });
 
   // 3. Main callout box rectangle
@@ -159,9 +162,35 @@ export function buildVectorCalloutPlan(
     fontWeight: 'bold',
   });
 
-  currentY += dims.lineHeight * 1.1;
+  // 5. Confidence badge (top-right CAD annotation chip)
+  if (confidence && style.fontSize >= 8) {
+    const c = confidence.trim().toUpperCase();
+    const badgeText = c.includes('HIGH') || c.startsWith('H') ? '[HIGH]' :
+                      c.includes('MED') || c.startsWith('M') ? '[MED]' : '[LOW]';
+    primitives.push({
+      type: 'text',
+      position: { x: box.x + box.width - dims.padding - 40, y: currentY },
+      text: badgeText,
+      fontSize: Math.max(7, style.fontSize - 2),
+      fontFamily: style.fontFamily,
+      color: style.textColor,
+      fontWeight: 'bold',
+    });
+  }
 
-  // 5. Text primitives: Note body lines
+  // 6. Horizontal rule dividing Tag Header from Note Body
+  currentY += dims.lineHeight * 0.3;
+  primitives.push({
+    type: 'line',
+    start: { x: box.x + dims.padding, y: currentY },
+    end: { x: box.x + box.width - dims.padding, y: currentY },
+    color: style.borderColor,
+    width: 0.5,
+    style: 'solid',
+  });
+  currentY += dims.lineHeight * 0.8;
+
+  // 7. Text primitives: Note body lines
   for (const line of dims.noteLines) {
     primitives.push({
       type: 'text',

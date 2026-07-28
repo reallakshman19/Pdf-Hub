@@ -4,16 +4,18 @@ import { wrapTextMetric, calculateCalloutBoxDimensions, estimateTextWidth } from
 import { buildVectorCalloutPlan, getBoxAnchorTowards } from './vectorCalloutPlan';
 
 describe('Professional Vector Callout Core (Layer 1)', () => {
-  it('enforces neutral styling for normal state and orange styling exclusively for review state', () => {
+  it('enforces professional CAD engineering styling for normal state and orange styling exclusively for review state', () => {
     const normalStyle = getStyleContract(false);
     expect(normalStyle.isReview).toBe(false);
     expect(normalStyle.backgroundColor).toBe('#ffffff');
     expect(normalStyle.textColor).toBe('#0f172a');
+    expect(normalStyle.borderWidth).toBe(0.75);
+    expect(normalStyle.cornerRadius).toBe(0);
 
     const reviewStyle = getStyleContract(true);
     expect(reviewStyle.isReview).toBe(true);
-    expect(reviewStyle.backgroundColor).toBe('#fffaf0');
-    expect(reviewStyle.borderColor).toBe('#ea580c');
+    expect(reviewStyle.backgroundColor).toBe('#ffffff');
+    expect(reviewStyle.borderColor).toBe('#b91c1c');
   });
 
   it('computes deterministic text width and wraps lines predictably without DOM', () => {
@@ -26,7 +28,7 @@ describe('Professional Vector Callout Core (Layer 1)', () => {
   it('calculates deterministic box height and includes confidence code shorthand', () => {
     const dims = calculateCalloutBoxDimensions('Remove Guide', ':/PS-11168.8 Remove Guide', 'HIGH', 200, 10, 8);
     expect(dims.tagLine).toBe('Tag: Remove Guide');
-    expect(dims.noteLines.join(' ')).toContain('ISO Note: :/PS-11168.8 Remove Guide (C=H)');
+    expect(dims.noteLines.join(' ')).toContain('ISO Note: :/PS-11168.8 Remove Guide');
     expect(dims.height).toBeGreaterThan(50);
   });
 
@@ -49,6 +51,7 @@ describe('Professional Vector Callout Core (Layer 1)', () => {
 
     const primitiveTypes = plan.primitives.map((p) => p.type);
     expect(primitiveTypes).toContain('line');
+    expect(primitiveTypes).toContain('arrow');
     expect(primitiveTypes).toContain('circle');
     expect(primitiveTypes).toContain('rectangle');
     expect(primitiveTypes).toContain('text');
@@ -82,7 +85,7 @@ describe('Professional Vector Callout Core (Layer 1)', () => {
     expect(lines.join('')).toBe(token);
   });
 
-  it('renders a diagonal relationship using orthogonal vector segments', () => {
+  it('renders an oblique leader relationship using a horizontal shelf line and diagonal arrow segment', () => {
     const plan = buildVectorCalloutPlan(
       'callout-orthogonal',
       'PS-101',
@@ -93,20 +96,15 @@ describe('Professional Vector Callout Core (Layer 1)', () => {
       { x: 220, y: 180, width: 160 },
     );
 
-    const leaderSegments = plan.primitives.filter(
-      (primitive) => primitive.type === 'line',
-    );
-    expect(leaderSegments.length).toBeGreaterThanOrEqual(2);
-
-    for (const segment of leaderSegments) {
-      if (segment.type === 'line') {
-        const isHorizontal = segment.start.y === segment.end.y;
-        const isVertical = segment.start.x === segment.end.x;
-        expect(
-          isHorizontal || isVertical,
-          `Segment from (${segment.start.x},${segment.start.y}) to (${segment.end.x},${segment.end.y}) is neither horizontal nor vertical.`,
-        ).toBe(true);
-      }
+    const shelf = plan.primitives.find((primitive) => primitive.type === 'line' && primitive.start.y === primitive.end.y);
+    const arrow = plan.primitives.find((primitive) => primitive.type === 'arrow');
+    
+    expect(shelf).toBeDefined();
+    expect(arrow).toBeDefined();
+    if (arrow && arrow.type === 'arrow') {
+      expect(arrow.headStyle).toBe('filled-triangle');
+      expect(arrow.end.x).toBe(80);
+      expect(arrow.end.y).toBe(60);
     }
   });
 

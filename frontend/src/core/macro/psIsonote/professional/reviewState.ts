@@ -29,6 +29,21 @@ export interface ReviewItem {
   originalResult: LayoutResultItem;
 }
 
+export type ProposedReviewItem = ReviewItem & { status: 'auto-placed' };
+export type CompromisedReviewItem = ReviewItem & { status: 'auto-placed'; isApproved: false };
+export type MovedReviewItem = ReviewItem & { status: 'moved' };
+export type ApprovedReviewItem = ReviewItem & { status: 'approved'; isApproved: true };
+export type UnplaceableReviewItem = ReviewItem & { status: 'unplaceable' };
+export type SuppressedReviewItem = ReviewItem & { status: 'suppressed'; isSuppressed: true };
+
+export type AnnotationReviewItem =
+  | ProposedReviewItem
+  | CompromisedReviewItem
+  | MovedReviewItem
+  | ApprovedReviewItem
+  | UnplaceableReviewItem
+  | SuppressedReviewItem;
+
 export interface ReviewState {
   pageNumber: number;
   items: ReadonlyMap<string, ReviewItem>;
