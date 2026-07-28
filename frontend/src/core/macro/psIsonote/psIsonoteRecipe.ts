@@ -656,7 +656,7 @@ export function buildPsIsonoteAnnotationRecipe(
       return {
         op: 'place_professional_callout',
         selector: { mode: 'list', pages: [callout.pageNumber] },
-        callout: callout.professionalModel,
+        callout: structuredClone(callout.professionalModel),
         width: callout.box.width,
       };
     }
