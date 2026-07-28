@@ -9,6 +9,10 @@ export interface PsIsonoteMapping {
   sourceRow: number;
 }
 
+export interface PsIsonoteParseOptions {
+  pipeLineStemLength?: [number, number];
+}
+
 export interface PsIsonoteParseResult {
   mappings: PsIsonoteMapping[];
   warnings: string[];
@@ -94,9 +98,11 @@ const PIPE_HEADER_ALIASES = new Set([
   'navispipe',
 ]);
 
-export function extractPipeLineStem(value: string): string | null {
+export function extractPipeLineStem(value: string, options: PsIsonoteParseOptions = {}): string | null {
   if (!value) return null;
-  const match = /(?<![0-9])([0-9]{6,9})(?![0-9])/.exec(value);
+  const [min, max] = options.pipeLineStemLength || [6, 9];
+  const regex = new RegExp(`(?<![0-9])([0-9]{${min},${max}})(?![0-9])`);
+  const match = regex.exec(value);
   return match ? match[1] : null;
 }
 
@@ -296,7 +302,7 @@ function inferIsonoteColumn(rows: string[][], psColumn: number): number {
   return bestIndex;
 }
 
-export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
+export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions = {}): PsIsonoteParseResult {
   const delimiter = detectDelimiter(text);
   const rows = parseDelimitedText(text, delimiter);
 
@@ -344,7 +350,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     const tagNo = tagNoColumn >= 0 ? cleanCell(row[tagNoColumn] ?? '') : '';
     const confidence = confidenceColumn >= 0 ? cleanCell(row[confidenceColumn] ?? '') : '';
     const pipeLineDesignation = pipeColumn >= 0 ? cleanCell(row[pipeColumn] ?? '') : '';
-    const pipeLineStem = pipeLineDesignation ? (extractPipeLineStem(pipeLineDesignation) || undefined) : undefined;
+    const pipeLineStem = pipeLineDesignation ? (extractPipeLineStem(pipeLineDesignation, options) || undefined) : undefined;
 
     if (!rawPs.trim() && !isonote) return;
     if (!psNo) {

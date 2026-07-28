@@ -90,6 +90,7 @@ export interface PsIsonoteRecipeOptions {
   borderColor?: string;
   textColor?: string;
   tolerance?: 'stem' | 'exact' | boolean;
+  pipeLineStemLength?: [number, number];
 }
 
 export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
@@ -207,11 +208,12 @@ export function findPsIsonoteReferencesInTextItems(
     );
 
     if (unmatchedMappingsWithPipe.length > 0) {
-      const PIPE_LINE_PATTERN = /\b(?:[A-Z0-9/.\-"′']+-)*[A-Z]([0-9]{6,9})(?:-[A-Z0-9/.\-"′']+)*\b/gi;
+      const [min, max] = options.pipeLineStemLength || [6, 9];
+      const PIPE_LINE_PATTERN = new RegExp(`\\b(?:[A-Z0-9/.\\-"′']+-)*[A-Z]([0-9]{${min},${max}})(?:-[A-Z0-9/.\\-"′']+)*\\b`, 'gi');
       PIPE_LINE_PATTERN.lastIndex = 0;
 
       while ((match = PIPE_LINE_PATTERN.exec(fullText)) !== null) {
-        const pldStem = extractPipeLineStem(match[0]);
+        const pldStem = extractPipeLineStem(match[0], options);
         if (!pldStem) continue;
 
         const candidateMappings = unmatchedMappingsWithPipe.filter((m) => m.pipeLineStem === pldStem);
