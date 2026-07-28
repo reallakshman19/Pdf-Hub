@@ -161,6 +161,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [includeFamily, setIncludeFamily] = React.useState(true);
   const [skipExisting, setSkipExisting] = React.useState(true);
   const [tolerance, setTolerance] = React.useState<'stem' | 'exact'>('stem');
+  const [pipeLineStemMin, setPipeLineStemMin] = React.useState(6);
+  const [pipeLineStemMax, setPipeLineStemMax] = React.useState(9);
   const [scanArtifact, setScanArtifact] = React.useState<ScanArtifact | null>(null);
   const [auditArtifact, setAuditArtifact] = React.useState<AuditArtifact | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
@@ -177,7 +179,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     fontSize,
     includeFamily,
     tolerance,
-  }), [fontSize, includeFamily, noteWidth, placement, tolerance]);
+    pipeLineStemLength: [pipeLineStemMin, pipeLineStemMax] as [number, number],
+  }), [fontSize, includeFamily, noteWidth, placement, tolerance, pipeLineStemMin, pipeLineStemMax]);
 
   const scanResult = scanArtifact &&
     scanArtifact.documentBytes === workingBytes &&
@@ -221,7 +224,8 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     fontSize,
     includeFamily,
     tolerance,
-  }), [fontSize, includeFamily, noteWidth, placement, scope, selectedPages, skipExisting, tolerance, viewState.currentPage]);
+    pipeLineStemLength: [pipeLineStemMin, pipeLineStemMax] as [number, number],
+  }), [fontSize, includeFamily, noteWidth, placement, scope, selectedPages, skipExisting, tolerance, viewState.currentPage, pipeLineStemMin, pipeLineStemMax]);
 
   const runScan = React.useCallback(async (): Promise<PsIsonoteScanResult> => {
     if (!workingBytes) throw new Error('Open a PDF before scanning for PS numbers.');
@@ -238,8 +242,9 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       selectedPages,
       skipExisting,
       tolerance,
+      pipeLineStemLength: [pipeLineStemMin, pipeLineStemMax] as [number, number],
     });
-  }, [parsedState, scope, selectedPages, skipExisting, tolerance, viewState.currentPage, workingBytes]);
+  }, [parsedState, scope, selectedPages, skipExisting, tolerance, viewState.currentPage, workingBytes, pipeLineStemMin, pipeLineStemMax]);
 
   const recordScanResult = React.useCallback((result: PsIsonoteScanResult, bytes: Uint8Array) => {
     setScanArtifact({
@@ -638,6 +643,19 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
           <option value="stem">Tolerant — match stems if revision suffixes vary</option>
           <option value="exact">Exact — require identical revision suffixes</option>
         </select>
+        {tolerance === 'stem' && (
+          <div className="mt-2 flex items-center gap-2 rounded bg-slate-50 p-1.5 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 font-medium">Line Stem Length:</span>
+            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+              Min
+              <input type="number" min={1} max={20} className="w-12 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900" value={pipeLineStemMin} onChange={e => { setPipeLineStemMin(Number(e.target.value) || 6); clearRunArtifacts(); }} />
+            </label>
+            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+              Max
+              <input type="number" min={1} max={20} className="w-12 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900" value={pipeLineStemMax} onChange={e => { setPipeLineStemMax(Number(e.target.value) || 9); clearRunArtifacts(); }} />
+            </label>
+          </div>
+        )}
       </label>
 
       <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
