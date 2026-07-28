@@ -5,6 +5,7 @@ import { parsePsIsonoteTable } from './psIsonoteTable';
 import { scanPsIsonoteReferences, planPsIsonoteCallouts, buildPsIsonoteAnnotationRecipe } from './psIsonoteRecipe';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import { inspectMacroRecipeBudget } from '../resourceBudget';
 
 describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
   it('parses Navis CSV, scans target PDF, solves white-space layouts, and generates interactive vector callouts', async () => {
@@ -71,6 +72,8 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
     }
 
     const builtRecipe = buildPsIsonoteAnnotationRecipe(scanResult);
+    // Definitive cyclic graph check — must not throw
+    inspectMacroRecipeBudget(builtRecipe.recipe);
     const profSteps = builtRecipe.recipe.steps.filter(s => s.op === 'place_professional_callout');
     const richSteps = builtRecipe.recipe.steps.filter(s => s.op === 'place_rich_textbox');
     console.log(`[BM2 Audit] Recipe generation: emitted ${profSteps.length} place_professional_callout steps and ${richSteps.length} place_rich_textbox steps.`);

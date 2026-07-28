@@ -111,8 +111,8 @@ export function buildVectorCalloutPlan(
     if (isTerminalSegment) {
       primitives.push({
         type: 'arrow',
-        start: leaderPoints[i],
-        end: leaderPoints[i + 1],
+        start: { ...leaderPoints[i] },
+        end: { ...leaderPoints[i + 1] },
         color: style.leaderColor,
         width: style.borderWidth,
         headStyle: 'filled-triangle',
@@ -121,8 +121,8 @@ export function buildVectorCalloutPlan(
     } else {
       primitives.push({
         type: 'line',
-        start: leaderPoints[i],
-        end: leaderPoints[i + 1],
+        start: { ...leaderPoints[i] },
+        end: { ...leaderPoints[i + 1] },
         color: style.leaderColor,
         width: style.borderWidth,
         style: 'solid',
@@ -133,7 +133,7 @@ export function buildVectorCalloutPlan(
   // 2. Leader origin anchor node on callout box perimeter (leaves target arrowhead cleanly unobstructed)
   primitives.push({
     type: 'circle',
-    center: boxAnchor,
+    center: { ...boxAnchor },
     radius: 1.2,
     fillColor: style.leaderColor,
     borderColor: style.leaderColor,

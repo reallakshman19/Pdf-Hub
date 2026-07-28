@@ -90,6 +90,7 @@ export interface PsIsonoteRecipeOptions {
   borderColor?: string;
   textColor?: string;
   tolerance?: 'stem' | 'exact' | boolean;
+  pipeLineStemLength?: [number, number];
 }
 
 export interface PlannedPsIsonoteCallout extends PsIsonoteTextReference {
@@ -190,7 +191,7 @@ export function findPsIsonoteReferencesInTextItems(
       psNo,
       pageNumber,
       rect,
-      mapping,
+      mapping: { ...mapping },
       mappingHash: mappingHashes.get(mapping.psNo) ?? mappingHashes.get(psNo) ?? '',
       occurrenceId: '',
       existingMarkerState: 'none',
@@ -207,11 +208,12 @@ export function findPsIsonoteReferencesInTextItems(
     );
 
     if (unmatchedMappingsWithPipe.length > 0) {
-      const PIPE_LINE_PATTERN = /\b(?:[A-Z0-9/.\-"′']+-)*[A-Z]([0-9]{6,9})(?:-[A-Z0-9/.\-"′']+)*\b/gi;
+      const [min, max] = options.pipeLineStemLength || [6, 9];
+      const PIPE_LINE_PATTERN = new RegExp(`\\b(?:[A-Z0-9/.\\-"′']+-)*[A-Z]([0-9]{${min},${max}})(?:-[A-Z0-9/.\\-"′']+)*\\b`, 'gi');
       PIPE_LINE_PATTERN.lastIndex = 0;
 
       while ((match = PIPE_LINE_PATTERN.exec(fullText)) !== null) {
-        const pldStem = extractPipeLineStem(match[0]);
+        const pldStem = extractPipeLineStem(match[0], options);
         if (!pldStem) continue;
 
         const candidateMappings = unmatchedMappingsWithPipe.filter((m) => m.pipeLineStem === pldStem);
@@ -231,7 +233,7 @@ export function findPsIsonoteReferencesInTextItems(
             psNo: mapping.psNo,
             pageNumber,
             rect: { ...rect },
-            mapping,
+            mapping: { ...mapping },
             mappingHash: mappingHashes.get(mapping.psNo) ?? '',
             occurrenceId: '',
             existingMarkerState: 'none',
@@ -654,7 +656,7 @@ export function buildPsIsonoteAnnotationRecipe(
       return {
         op: 'place_professional_callout',
         selector: { mode: 'list', pages: [callout.pageNumber] },
-        callout: callout.professionalModel,
+        callout: structuredClone(callout.professionalModel),
         width: callout.box.width,
       };
     }
@@ -689,11 +691,11 @@ export function buildPsIsonoteAnnotationRecipe(
       op: 'draw_text_on_pages',
       selector: { mode: 'list', pages: [callout.pageNumber] },
       text: versionedMarkerForOccurrence(callout),
-      x: 2,
-      y: 2 + markerIndex * 0.15,
-      fontSize: 0.1,
+      x: callout.box.x,
+      y: callout.box.height > 20 ? callout.box.y : 100 + (markerIndex * 5),
+      fontSize: 2,
       color: '#ffffff',
-      opacity: 0.01,
+      opacity: 0.05,
       align: 'left',
       pageNumberToken: false,
       fileNameToken: false,
