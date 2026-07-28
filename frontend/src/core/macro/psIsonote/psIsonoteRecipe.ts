@@ -159,7 +159,14 @@ export function findPsIsonoteReferencesInTextItems(
   while ((match = PS_REFERENCE_PATTERN.exec(fullText)) !== null) {
     const psNo = normalizePsNumber(normalizeReferenceText(match[0]));
     if (!psNo) continue;
-    const mapping = mappingByPs.get(psNo);
+    let mapping = mappingByPs.get(psNo);
+    if (!mapping) {
+      const stem = psNo.split(/[.\/]/)[0];
+      mapping = mappings.find((m) => {
+        const mStem = m.psNo.split(/[.\/]/)[0];
+        return mStem === stem;
+      });
+    }
     if (!mapping) continue;
 
     const matchStart = match.index;
@@ -176,7 +183,7 @@ export function findPsIsonoteReferencesInTextItems(
       pageNumber,
       rect,
       mapping,
-      mappingHash: mappingHashes.get(psNo) ?? '',
+      mappingHash: mappingHashes.get(mapping.psNo) ?? mappingHashes.get(psNo) ?? '',
       occurrenceId: '',
       existingMarkerState: 'none',
       rawMatchedText,
