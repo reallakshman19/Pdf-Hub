@@ -616,7 +616,7 @@ async function executePlaceProfessionalCallout(
       const verificationReport = await verifyProfessionalCalloutOutput(
         updatedBytes,
         [step.callout],
-        step.callout.mappingHash ?? `sha256:${'0'.repeat(64)}`,
+        (step.callout as any).mappingHash ?? `sha256:${'0'.repeat(64)}`,
         ctx.options?.abortSignal,
       );
       if (!verificationReport.passed) {

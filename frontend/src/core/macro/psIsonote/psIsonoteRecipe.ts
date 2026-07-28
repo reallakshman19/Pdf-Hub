@@ -8,7 +8,7 @@ import {
   parseVersionedPsIsonoteMarkers,
   versionedMarkerForOccurrence,
 } from './psIsonoteIdentity';
-import { extractPipeLineStem, normalizePsNumber } from './psIsonoteTable';
+import { extractPipeLineStem, normalizePsNumber, type PsIsonoteMapping } from './psIsonoteTable';
 import { solvePageLayout, buildVectorCalloutPlan, type ProfessionalCalloutModel, type Obstacle } from './professional';
 import type { PageScene } from '../../annotation-core/page-scene';
 import { buildPageSceneFromTextLayer } from '../../pdf-analysis/page-scene-builder';
@@ -77,6 +77,7 @@ export interface PsIsonoteScanOptions {
   selectedPages?: number[];
   skipExisting?: boolean;
   tolerance?: 'stem' | 'exact' | boolean;
+  pipeLineStemLength?: [number, number];
 }
 
 export interface PsIsonoteRecipeOptions {
@@ -145,7 +146,7 @@ export function findPsIsonoteReferencesInTextItems(
   mappings: PsIsonoteMapping[],
   pageNumber = 1,
   mappingHashes: ReadonlyMap<string, string> = new Map(),
-  options: { tolerance?: 'stem' | 'exact' | boolean } = {},
+  options: { tolerance?: 'stem' | 'exact' | boolean, pipeLineStemLength?: [number, number] } = {},
 ): PsIsonoteTextReference[] {
   const mappingByPs = new Map(mappings.map((mapping) => [mapping.psNo, mapping]));
   let fullText = '';
@@ -213,7 +214,7 @@ export function findPsIsonoteReferencesInTextItems(
       PIPE_LINE_PATTERN.lastIndex = 0;
 
       while ((match = PIPE_LINE_PATTERN.exec(fullText)) !== null) {
-        const pldStem = extractPipeLineStem(match[0], options);
+        const pldStem = extractPipeLineStem(match[0], { pipeLineStemLength: options.pipeLineStemLength });
         if (!pldStem) continue;
 
         const candidateMappings = unmatchedMappingsWithPipe.filter((m) => m.pipeLineStem === pldStem);

@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, degrees, rgb, PDFName, PDFArray, PDFString, moveTo, lineTo, closePath, fill, setFillingColor } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb, moveTo, lineTo, closePath, fill, setFillingColor } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { readFillColor, readStrokeColor, readStrokeWidth } from '@/core/annotations/readers';

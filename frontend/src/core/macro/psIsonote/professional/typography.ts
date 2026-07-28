@@ -176,7 +176,7 @@ export interface BoxDimensions {
 export function calculateCalloutBoxDimensions(
   tag: string,
   note: string,
-  confidence: string,
+  _confidence: string,
   boxWidth = 200,
   fontSize = 9,
   padding = 8,

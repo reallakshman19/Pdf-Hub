@@ -142,7 +142,7 @@ function evaluateRoute(
       break;
     }
     const existingLines = existing.callout.primitives
-      .filter((p): p is { type: 'line' | 'arrow'; start: Point; end: Point; color: string; width: number } => p.type === 'line' || p.type === 'arrow')
+      .filter((p): p is (import('./model').VectorLine | import('./model').VectorArrow) => p.type === 'line' || p.type === 'arrow')
       .map(p => [p.start, p.end]);
     for (const seg of existingLines) {
       if (polylinesIntersect(route, seg)) {
@@ -290,9 +290,9 @@ export function evaluateCandidate(
       });
       break;
     }
-    const existingLeaderLines = existing.callout.primitives
-      .filter((p): p is { type: 'line' | 'arrow'; start: { x: number; y: number }; end: { x: number; y: number } } => p.type === 'line' || p.type === 'arrow');
-    for (const seg of existingLeaderLines) {
+    const leaderPrimitives = (existing.callout.primitives || [])
+      .filter((p): p is (import('./model').VectorLine | import('./model').VectorArrow) => p.type === 'line' || p.type === 'arrow');
+    for (const seg of leaderPrimitives) {
       if (polylineIntersectsRect([seg.start, seg.end], box, true)) {
         isValid = false;
         diagnostics.push({

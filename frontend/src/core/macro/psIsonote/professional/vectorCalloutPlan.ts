@@ -87,10 +87,9 @@ export function buildVectorCalloutPlan(
 
   // 1. Leader line polyline segments from box anchor to target point (Oblique 2-line leader with arrows)
   let leaderPoints: readonly Point[];
-  let anchorRadius = 1.5;
+
   if (options.leaderPath) {
     leaderPoints = options.leaderPath.points;
-    anchorRadius = options.leaderPath.anchorRadius;
   } else {
     if (boxAnchor.x === targetPoint.x || boxAnchor.y === targetPoint.y) {
       leaderPoints = [boxAnchor, targetPoint];
