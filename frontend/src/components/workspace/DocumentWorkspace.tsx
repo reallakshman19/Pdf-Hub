@@ -466,7 +466,7 @@ export const DocumentWorkspace: React.FC = () => {
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
     return (
-      <div key={pageNumber} className="flex justify-center mb-8">
+      <div key={pageNumber} className="flex justify-center py-4 px-8">
         <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
@@ -517,7 +517,7 @@ export const DocumentWorkspace: React.FC = () => {
   };
 
   const renderSingle = () => (
-    <div className="flex flex-col items-center w-full">
+    <div className="flex flex-col items-center w-full overflow-x-auto py-4 px-8">
       {renderPage(viewState.currentPage - 1)}
     </div>
   );
@@ -552,7 +552,7 @@ export const DocumentWorkspace: React.FC = () => {
     const currentSpreadIndex =
       viewState.currentPage === 1 ? 0 : Math.floor(viewState.currentPage / 2);
 
-    return <div className="flex flex-col items-center w-full">{pages[currentSpreadIndex]}</div>;
+    return <div className="flex flex-col items-center w-full overflow-x-auto py-4 px-8">{pages[currentSpreadIndex]}</div>;
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -616,11 +616,12 @@ export const DocumentWorkspace: React.FC = () => {
           </button>
         </div>
       )}
-      <div data-vlist-wrapper="true" className="flex-1 overflow-hidden">
+      {/* Outer wrapper: flex-1 gives VList its measured height; overflow-x allows horizontal scroll on wide CAD drawings */}
+      <div data-vlist-wrapper="true" className="flex-1" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
         {viewState.viewMode === 'continuous' ? (
           <VList
             ref={vlistRef}
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '100%', minWidth: 'fit-content', width: '100%' }}
           >
             {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
           </VList>
