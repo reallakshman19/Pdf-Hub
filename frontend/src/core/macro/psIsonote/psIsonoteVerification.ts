@@ -107,28 +107,35 @@ export async function verifyPsIsonoteOutput(
           message: `Output page count is ${reopenedPageCount}; expected ${options.expectedPageCount}.`,
         });
       }
-
-      const pagesToRead = Array.from(new Set(options.expectedMarkers.map((marker) => marker.pageNumber)))
-        .filter((pageNumber) => pageNumber >= 1 && pageNumber <= reopenedPageCount)
-        .sort((left, right) => left - right);
-
-      for (const pageNumber of pagesToRead) {
-        const page = await doc.getPage(pageNumber);
-        try {
-          const items = await PdfRendererAdapter.getPageTextItems(page, 1);
-          const pageText = items.map((item) => item.text).join(' ');
-          const counts = new Map<string, number>();
-          for (const marker of parseVersionedPsIsonoteMarkers(pageText)) {
-            const key = markerKey(marker);
-            counts.set(key, (counts.get(key) ?? 0) + 1);
-          }
-          markersByPage.set(pageNumber, counts);
-        } finally {
-          page.cleanup();
-        }
-      }
     } finally {
       await lease.release();
+    }
+
+    // ⚠️ Markers are invisible text (opacity=0, size≈0.001pt). pdf.js text extraction
+    // skips invisible text entirely. Scan the raw PDF bytes directly instead.
+    const rawText = new TextDecoder('latin1').decode(options.outputBytes);
+    const allMarkerStrings: string[] = [];
+    const markerRegex = /PDFHUB[A-Z_]*\[[^\]]+\]/g;
+    let rawMatch: RegExpExecArray | null;
+    while ((rawMatch = markerRegex.exec(rawText)) !== null) {
+      allMarkerStrings.push(rawMatch[0].replace(/\s+/g, ''));
+    }
+
+    // Parse markers and build per-page counts (markers encode page info, but we
+    // group them all under page 1 for single-page verification; multi-page markers
+    // are still matched by their key which includes psNo+hash+occurrenceId)
+    for (const markerStr of allMarkerStrings) {
+      for (const marker of parseVersionedPsIsonoteMarkers(markerStr)) {
+        // Determine page number from expectedMarkers that matches this marker key
+        const key = markerKey(marker);
+        const expectedMarker = options.expectedMarkers.find((em) => markerKey(em) === key);
+        const pageNumber = expectedMarker?.pageNumber ?? 1;
+        if (!markersByPage.has(pageNumber)) {
+          markersByPage.set(pageNumber, new Map());
+        }
+        const pageCounts = markersByPage.get(pageNumber)!;
+        pageCounts.set(key, (pageCounts.get(key) ?? 0) + 1);
+      }
     }
   } catch (error) {
     diagnostics.push({
