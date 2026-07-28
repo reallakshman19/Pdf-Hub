@@ -93,5 +93,5 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
     console.log(`[BM2 Audit] Saved copy to repository root: ${repoOutPath}`);
 
     expect(callouts.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 });

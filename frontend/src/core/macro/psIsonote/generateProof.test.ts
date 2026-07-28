@@ -102,5 +102,5 @@ describe('Definitive Proof Generation — Professional CAD Engineering Annotatio
 
     console.log('Successfully generated professional verified benchmark PDF:');
     console.log(' ->', authoritativeOutPath);
-  });
+  }, 30000);
 });

@@ -466,7 +466,7 @@ export const DocumentWorkspace: React.FC = () => {
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
     return (
-      <div key={pageNumber} className="flex justify-center mb-8">
+      <div key={pageNumber} className="flex justify-center min-w-fit mx-auto mb-8">
         <PageSurfaceMemo
           doc={pdfDoc}
           pageNumber={pageNumber}
@@ -517,7 +517,7 @@ export const DocumentWorkspace: React.FC = () => {
   };
 
   const renderSingle = () => (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center min-w-fit mx-auto">
       {renderPage(viewState.currentPage - 1)}
     </div>
   );
@@ -552,7 +552,7 @@ export const DocumentWorkspace: React.FC = () => {
     const currentSpreadIndex =
       viewState.currentPage === 1 ? 0 : Math.floor(viewState.currentPage / 2);
 
-    return <div className="flex flex-col items-center w-full">{pages[currentSpreadIndex]}</div>;
+    return <div className="flex flex-col items-center min-w-fit mx-auto w-full">{pages[currentSpreadIndex]}</div>;
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -611,11 +611,11 @@ export const DocumentWorkspace: React.FC = () => {
           </button>
         </div>
       )}
-      <div className="min-h-full flex flex-col items-center py-8">
+      <div className="min-h-full min-w-fit flex flex-col items-center py-8 px-4 mx-auto">
         {viewState.viewMode === 'continuous' ? (
           <VList
             ref={vlistRef}
-            style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}
+            style={{ height: '100%', width: '100%', minWidth: 'fit-content', display: 'flex', flexDirection: 'column' }}
           >
             {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
           </VList>
