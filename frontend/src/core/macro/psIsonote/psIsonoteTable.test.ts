@@ -48,6 +48,7 @@ describe('psIsonoteTable', () => {
       {
         psNo: 'PS-11168/DATUM',
         family: 'R+G+LS',
+        tagNo: '3',
         isonote: ':/PS-11168/DATUM REST, GUIDE, LINE STOP (C=M)',
         confidence: 'MEDIUM',
         sourceRow: 2,
@@ -55,6 +56,7 @@ describe('psIsonoteTable', () => {
       {
         psNo: 'PS-11167.4',
         family: 'R+G',
+        tagNo: '1',
         isonote: ':/PS-11167.4 REST, GUIDE (C=H)',
         confidence: 'HIGH',
         sourceRow: 3,
@@ -62,6 +64,7 @@ describe('psIsonoteTable', () => {
       {
         psNo: 'PS-11168.8',
         family: 'Remove Guide',
+        tagNo: '2',
         isonote: ':/PS-11168.8 Remove Guide (C=H)',
         confidence: 'HIGH',
         sourceRow: 4,

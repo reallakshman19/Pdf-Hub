@@ -20,7 +20,7 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
     const parsed = parsePsIsonoteTable(csvText);
     console.log(`[BM2 Audit] Parsed ${parsed.mappings.length} mappings from Navis CSV. Delimiter detected: "${parsed.delimiter}"`);
     if (parsed.mappings.length > 0) {
-      console.log(`[BM2 Audit] Sample mapping 0: PS No = "${parsed.mappings[0].psNo}", Family = "${parsed.mappings[0].family}", Note = "${parsed.mappings[0].isonote.slice(0, 50)}..."`);
+      console.log(`[BM2 Audit] Sample mapping 0: PS No = "${parsed.mappings[0].psNo}", Tag No = "${parsed.mappings[0].tagNo}", Family = "${parsed.mappings[0].family}", Note = "${parsed.mappings[0].isonote.slice(0, 50)}..."`);
     }
 
     const pdfBytes = new Uint8Array(fs.readFileSync(pdfPath));
@@ -44,7 +44,11 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
 
     const callouts = planPsIsonoteCallouts(scanResult);
     console.log(`[BM2 Audit] Planned ${callouts.length} total callouts.`);
-    
+    if (callouts.length > 0 && callouts[0].professionalModel) {
+      console.log(`[BM2 Audit] Sample callout header line: "${callouts[0].professionalModel.tag}"`);
+      expect(callouts[0].professionalModel.tag).toMatch(/^Tag No\. \d+, .+/);
+    }
+
     const placedCount = callouts.filter(c => c.layoutStatus === 'placed').length;
     const unplaceableCount = callouts.filter(c => c.layoutStatus === 'unplaceable').length;
     console.log(`[BM2 Audit] Layout performance: ${placedCount}/${callouts.length} placed without blocker collisions. (${unplaceableCount} fallback/unplaceable)`);

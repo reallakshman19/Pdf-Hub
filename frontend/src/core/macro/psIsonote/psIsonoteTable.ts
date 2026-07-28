@@ -2,6 +2,7 @@ export interface PsIsonoteMapping {
   psNo: string;
   isonote: string;
   family?: string;
+  tagNo?: string;
   confidence?: string;
   sourceRow: number;
 }
@@ -13,6 +14,7 @@ export interface PsIsonoteParseResult {
   psColumn: string;
   isonoteColumn: string;
   familyColumn?: string;
+  tagNoColumn?: string;
   confidenceColumn?: string;
 }
 
@@ -53,6 +55,19 @@ const FAMILY_HEADER_ALIASES = new Set([
   'tag',
   'supporttag',
   'navistag',
+]);
+
+const TAG_NO_HEADER_ALIASES = new Set([
+  'tagno',
+  'tagnumber',
+  'tagnum',
+  'tagid',
+  'navistagno',
+  'navistagnumber',
+  'navistagnum',
+  'navistagid',
+  'id',
+  'navisid',
 ]);
 
 const CONFIDENCE_HEADER_ALIASES = new Set([
@@ -281,6 +296,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
   let psColumn = findHeaderIndex(headers, PS_HEADER_ALIASES);
   let isonoteColumn = findHeaderIndex(headers, ISONOTE_HEADER_ALIASES);
   const familyColumn = findHeaderIndex(headers, FAMILY_HEADER_ALIASES);
+  const tagNoColumn = findHeaderIndex(headers, TAG_NO_HEADER_ALIASES);
   const confidenceColumn = findHeaderIndex(headers, CONFIDENCE_HEADER_ALIASES);
 
   if (psColumn < 0) psColumn = inferPsColumn(dataRows);
@@ -302,6 +318,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     const psNo = normalizePsNumber(rawPs);
     const isonote = cleanIsonote(row[isonoteColumn] ?? '');
     const family = familyColumn >= 0 ? cleanCell(row[familyColumn] ?? '') : '';
+    const tagNo = tagNoColumn >= 0 ? cleanCell(row[tagNoColumn] ?? '') : '';
     const confidence = confidenceColumn >= 0 ? cleanCell(row[confidenceColumn] ?? '') : '';
 
     if (!rawPs.trim() && !isonote) return;
@@ -328,6 +345,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
       psNo,
       isonote,
       family: family || undefined,
+      tagNo: tagNo || undefined,
       confidence: confidence || undefined,
       sourceRow,
     });
@@ -345,6 +363,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     psColumn: headers[psColumn] ?? `Column ${psColumn + 1}`,
     isonoteColumn: headers[isonoteColumn] ?? `Column ${isonoteColumn + 1}`,
     familyColumn: familyColumn >= 0 ? headers[familyColumn] : undefined,
+    tagNoColumn: tagNoColumn >= 0 ? headers[tagNoColumn] : undefined,
     confidenceColumn: confidenceColumn >= 0 ? headers[confidenceColumn] : undefined,
   };
 }

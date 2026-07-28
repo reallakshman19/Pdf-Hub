@@ -182,7 +182,7 @@ export function calculateCalloutBoxDimensions(
   padding = 8,
 ): BoxDimensions {
   const usableWidth = Math.max(50, boxWidth - padding * 2);
-  const tagLine = tag.startsWith('Tag: ') ? tag : `Tag: ${tag}`;
+  const tagLine = /^Tag(\s*No\.|:|\s)/i.test(tag) ? tag : `Tag: ${tag}`;
   
   const noteText = note.startsWith('ISO Note: ') ? note : `ISO Note: ${note}`;
   const noteLines = wrapTextMetric(noteText, usableWidth, fontSize);

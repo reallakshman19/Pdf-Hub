@@ -195,8 +195,8 @@ export function verifyWrittenPage(
     }
 
     // 2. Visible text verification: marker success alone is insufficient!
-    const tagHeader = `Tag: ${expected.tag}`;
-    const notePrefix = `ISO Note: ${expected.note}`;
+    const tagHeader = /^Tag(\s*No\.|:|\s)/i.test(expected.tag) ? expected.tag : `Tag: ${expected.tag}`;
+    const notePrefix = expected.note.startsWith('ISO Note: ') ? expected.note : `ISO Note: ${expected.note}`;
     if (!joinedVisibleText.includes(tagHeader) || !joinedVisibleText.includes(notePrefix)) {
       missingTextErrors.push(
         `Marker verified for ${expected.id}, but expected visible searchable text (${tagHeader} / ${notePrefix}) is absent from document content.`,

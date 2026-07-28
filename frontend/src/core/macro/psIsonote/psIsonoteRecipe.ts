@@ -385,6 +385,18 @@ function boxesOverlap(
   );
 }
 
+export function formatCalloutTag(mapping: PsIsonoteMapping, includeFamily = true): string {
+  const familyText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  if (mapping.tagNo && mapping.tagNo.trim()) {
+    const cleanTagNo = mapping.tagNo.trim().replace(/^Tag\s*(No\.?)?\s*/i, '');
+    if (includeFamily && mapping.family) {
+      return `Tag No. ${cleanTagNo}, ${mapping.family}`;
+    }
+    return `Tag No. ${cleanTagNo}, ${mapping.psNo}`;
+  }
+  return `Tag: ${familyText}`;
+}
+
 function estimateCalloutHeight(
   mapping: PsIsonoteMapping,
   width: number,
@@ -394,8 +406,8 @@ function estimateCalloutHeight(
   const padding = 8;
   const usableWidth = Math.max(40, width - padding * 2);
   const charactersPerLine = Math.max(12, Math.floor(usableWidth / Math.max(4, fontSize * 0.55)));
-  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
-  const tagLines = Math.max(1, Math.ceil((tagText.length + 5) / charactersPerLine));
+  const tagHeader = formatCalloutTag(mapping, includeFamily);
+  const tagLines = Math.max(1, Math.ceil(tagHeader.length / charactersPerLine));
   const noteText = formatIsonoteWithConfidence(mapping);
   const noteLines = Math.max(1, Math.ceil((noteText.length + 10) / charactersPerLine));
   const totalLines = tagLines + noteLines;
@@ -490,7 +502,7 @@ export function planPsIsonoteCallouts(
     if (!dimensions || pageCallouts.length === 0) continue;
 
     const occurrenceInputs = pageCallouts.map((c, idx) => {
-      const tagText = includeFamily && c.mapping.family ? c.mapping.family : c.psNo;
+      const tagString = formatCalloutTag(c.mapping, includeFamily);
       const noteText = formatIsonoteWithConfidence(c.mapping);
       const targetPoint = {
         x: Math.round((c.rect.x + c.rect.width / 2) * 10) / 10,
@@ -499,7 +511,7 @@ export function planPsIsonoteCallouts(
       return {
         id: c.occurrenceId || `${c.psNo}-${idx}`,
         psNo: c.psNo,
-        tag: `Tag: ${tagText}`,
+        tag: tagString,
         note: `ISO Note: ${noteText}`,
         confidence: c.mapping.confidence || 'HIGH',
         targetPoint,
@@ -562,10 +574,10 @@ export function formatIsonoteWithConfidence(mapping: PsIsonoteMapping): string {
 }
 
 function buildCalloutHtml(mapping: PsIsonoteMapping, includeFamily: boolean): string {
-  const tagText = includeFamily && mapping.family ? mapping.family : mapping.psNo;
+  const tagString = formatCalloutTag(mapping, includeFamily);
   const noteText = formatIsonoteWithConfidence(mapping);
   return [
-    `<div><strong>Tag: ${escapeHtml(tagText)}</strong></div>`,
+    `<div><strong>${escapeHtml(tagString)}</strong></div>`,
     `<div style="margin-top:4px">ISO Note: ${escapeHtml(noteText)}</div>`,
   ].join('');
 }

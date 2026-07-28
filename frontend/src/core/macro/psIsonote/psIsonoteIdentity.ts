@@ -83,6 +83,7 @@ export async function computePsIsonoteMappingHash(
   return hashCanonical({
     psNo: mapping.psNo,
     family: mapping.family?.trim() ?? '',
+    tagNo: mapping.tagNo?.trim() ?? '',
     isonote: mapping.isonote.trim().replace(/\s+/g, ' '),
   });
 }
