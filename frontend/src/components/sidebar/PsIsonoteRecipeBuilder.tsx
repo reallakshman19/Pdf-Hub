@@ -375,12 +375,17 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
 
       if (scanned.references.length === 0) {
         if (scanned.staleExisting.length > 0 || scanned.legacyExisting.length > 0) {
-          throw new Error('Stale or legacy ISONOTE markers require review before another annotation is added.');
+          throw new Error(
+            `${scanned.staleExisting.length + scanned.legacyExisting.length} stale or legacy ISONOTE marker(s) found — review or clear them before adding new annotations.`,
+          );
         }
         if (scanned.skippedExisting.length > 0) {
-          throw new Error('All matched PS occurrences already have current versioned annotations.');
+          throw new Error(
+            `${scanned.skippedExisting.length} PS occurrence(s) already have up-to-date ISONOTE annotations and were skipped. ` +
+            `To re-annotate, uncheck "Skip current markers" and run again, or open the original un-annotated PDF.`,
+          );
         }
-        throw new Error('No mapped PS numbers were found in searchable PDF text.');
+        throw new Error('No mapped PS numbers were found in the searchable PDF text layer. Verify the PDF has a text layer (not a scanned image) and the CSV PS numbers match what appears in the drawing.');
       }
 
       const execution = await runMacroRecipeAgainstSession(recipe, { saveOutputs: false });
