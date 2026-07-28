@@ -8,8 +8,7 @@ import {
   parseVersionedPsIsonoteMarkers,
   versionedMarkerForOccurrence,
 } from './psIsonoteIdentity';
-import type { PsIsonoteMapping } from './psIsonoteTable';
-import { normalizePsNumber } from './psIsonoteTable';
+import { extractPipeLineStem, normalizePsNumber } from './psIsonoteTable';
 import { solvePageLayout, buildVectorCalloutPlan, type ProfessionalCalloutModel, type Obstacle } from './professional';
 import type { PageScene } from '../../annotation-core/page-scene';
 import { buildPageSceneFromTextLayer } from '../../pdf-analysis/page-scene-builder';
@@ -28,7 +27,7 @@ function pageSceneToObstacles(scene: PageScene): Obstacle[] {
 }
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
-export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items';
+export type PsIsonoteMatchMethod = 'exact' | 'normalized' | 'joined-text-items' | 'stem' | 'pipe-line-stem';
 export type PsIsonoteExistingMarkerState = 'none' | 'current' | 'stale' | 'legacy';
 
 export interface PsIsonoteTextReference {
@@ -117,7 +116,11 @@ function classifyMatch(
   rawMatchedText: string,
   psNo: string,
   textItemCount: number,
+  isStemMatch?: boolean,
+  isPipeLineMatch?: boolean,
 ): PsIsonoteMatchMethod {
+  if (isPipeLineMatch) return 'pipe-line-stem';
+  if (isStemMatch) return 'stem';
   if (textItemCount > 1) return 'joined-text-items';
   return rawMatchedText.trim().toUpperCase() === psNo ? 'exact' : 'normalized';
 }
@@ -163,12 +166,14 @@ export function findPsIsonoteReferencesInTextItems(
     const psNo = normalizePsNumber(normalizeReferenceText(match[0]));
     if (!psNo) continue;
     let mapping = mappingByPs.get(psNo);
+    let isStemMatch = false;
     if (!mapping && options.tolerance !== 'exact' && options.tolerance !== false) {
       const stem = psNo.split(/[.\/]/)[0];
       mapping = mappings.find((m) => {
         const mStem = m.psNo.split(/[.\/]/)[0];
         return mStem === stem;
       });
+      if (mapping) isStemMatch = true;
     }
     if (!mapping) continue;
 
@@ -190,9 +195,60 @@ export function findPsIsonoteReferencesInTextItems(
       occurrenceId: '',
       existingMarkerState: 'none',
       rawMatchedText,
-      matchMethod: classifyMatch(rawMatchedText, psNo, matchedItems.length),
+      matchMethod: classifyMatch(rawMatchedText, psNo, matchedItems.length, isStemMatch, false),
       textItemCount: matchedItems.length,
     });
+  }
+
+  if (options.tolerance !== 'exact' && options.tolerance !== false) {
+    const matchedMappingRows = new Set(references.map((r) => r.mapping.sourceRow));
+    const unmatchedMappingsWithPipe = mappings.filter(
+      (m) => !matchedMappingRows.has(m.sourceRow) && Boolean(m.pipeLineStem),
+    );
+
+    if (unmatchedMappingsWithPipe.length > 0) {
+      const PIPE_LINE_PATTERN = /\b(?:[A-Z0-9/.\-"′']+-)*[A-Z]([0-9]{6,9})(?:-[A-Z0-9/.\-"′']+)*\b/gi;
+      PIPE_LINE_PATTERN.lastIndex = 0;
+
+      while ((match = PIPE_LINE_PATTERN.exec(fullText)) !== null) {
+        const pldStem = extractPipeLineStem(match[0]);
+        if (!pldStem) continue;
+
+        const candidateMappings = unmatchedMappingsWithPipe.filter((m) => m.pipeLineStem === pldStem);
+        if (candidateMappings.length === 0) continue;
+
+        const matchStart = match.index;
+        const matchEnd = match.index + match[0].length;
+        const matchedItems = itemSpans
+          .filter((span) => span.start < matchEnd && span.end > matchStart)
+          .map((span) => span.item);
+        const rect = unionRects(matchedItems);
+        if (!rect) continue;
+
+        const rawMatchedText = match[0];
+        for (const mapping of candidateMappings) {
+          references.push({
+            psNo: mapping.psNo,
+            pageNumber,
+            rect: { ...rect },
+            mapping,
+            mappingHash: mappingHashes.get(mapping.psNo) ?? '',
+            occurrenceId: '',
+            existingMarkerState: 'none',
+            rawMatchedText,
+            matchMethod: classifyMatch(rawMatchedText, mapping.psNo, matchedItems.length, false, true),
+            textItemCount: matchedItems.length,
+          });
+          matchedMappingRows.add(mapping.sourceRow);
+        }
+        for (let idx = unmatchedMappingsWithPipe.length - 1; idx >= 0; idx--) {
+          if (matchedMappingRows.has(unmatchedMappingsWithPipe[idx].sourceRow)) {
+            unmatchedMappingsWithPipe.splice(idx, 1);
+          }
+        }
+        if (unmatchedMappingsWithPipe.length === 0) break;
+      }
+    }
   }
 
   return references;

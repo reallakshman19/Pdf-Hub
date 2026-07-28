@@ -4,6 +4,8 @@ export interface PsIsonoteMapping {
   family?: string;
   tagNo?: string;
   confidence?: string;
+  pipeLineDesignation?: string;
+  pipeLineStem?: string;
   sourceRow: number;
 }
 
@@ -16,6 +18,7 @@ export interface PsIsonoteParseResult {
   familyColumn?: string;
   tagNoColumn?: string;
   confidenceColumn?: string;
+  pipeColumn?: string;
 }
 
 const PS_HEADER_ALIASES = new Set([
@@ -77,6 +80,25 @@ const CONFIDENCE_HEADER_ALIASES = new Set([
   'matchconfidence',
   'certainty',
 ]);
+
+const PIPE_HEADER_ALIASES = new Set([
+  'pipe',
+  'pipeline',
+  'pipelinedesignation',
+  'linenumber',
+  'lineno',
+  'linenum',
+  'line',
+  'pipeno',
+  'pipenumer',
+  'navispipe',
+]);
+
+export function extractPipeLineStem(value: string): string | null {
+  if (!value) return null;
+  const match = /(?<![0-9])([0-9]{6,9})(?![0-9])/.exec(value);
+  return match ? match[1] : null;
+}
 
 function normalizeHeader(value: string): string {
   return value
@@ -298,6 +320,7 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
   const familyColumn = findHeaderIndex(headers, FAMILY_HEADER_ALIASES);
   const tagNoColumn = findHeaderIndex(headers, TAG_NO_HEADER_ALIASES);
   const confidenceColumn = findHeaderIndex(headers, CONFIDENCE_HEADER_ALIASES);
+  const pipeColumn = findHeaderIndex(headers, PIPE_HEADER_ALIASES);
 
   if (psColumn < 0) psColumn = inferPsColumn(dataRows);
   if (isonoteColumn < 0) isonoteColumn = inferIsonoteColumn(dataRows, psColumn);
@@ -320,6 +343,8 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     const family = familyColumn >= 0 ? cleanCell(row[familyColumn] ?? '') : '';
     const tagNo = tagNoColumn >= 0 ? cleanCell(row[tagNoColumn] ?? '') : '';
     const confidence = confidenceColumn >= 0 ? cleanCell(row[confidenceColumn] ?? '') : '';
+    const pipeLineDesignation = pipeColumn >= 0 ? cleanCell(row[pipeColumn] ?? '') : '';
+    const pipeLineStem = pipeLineDesignation ? (extractPipeLineStem(pipeLineDesignation) || undefined) : undefined;
 
     if (!rawPs.trim() && !isonote) return;
     if (!psNo) {
@@ -347,6 +372,8 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
       family: family || undefined,
       tagNo: tagNo || undefined,
       confidence: confidence || undefined,
+      pipeLineDesignation: pipeLineDesignation || undefined,
+      pipeLineStem,
       sourceRow,
     });
   });
@@ -365,5 +392,6 @@ export function parsePsIsonoteTable(text: string): PsIsonoteParseResult {
     familyColumn: familyColumn >= 0 ? headers[familyColumn] : undefined,
     tagNoColumn: tagNoColumn >= 0 ? headers[tagNoColumn] : undefined,
     confidenceColumn: confidenceColumn >= 0 ? headers[confidenceColumn] : undefined,
+    pipeColumn: pipeColumn >= 0 ? headers[pipeColumn] : undefined,
   };
 }

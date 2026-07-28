@@ -16,6 +16,8 @@ export type PsIsonoteDiagnosticCode =
   | 'PS_ISONOTE_LEGACY_EXISTING'
   | 'PS_ISONOTE_MATCH_NORMALIZED'
   | 'PS_ISONOTE_MATCH_JOINED_TEXT_ITEMS'
+  | 'PS_ISONOTE_MATCH_STEM'
+  | 'PS_ISONOTE_MATCH_PIPE_LINE_STEM'
   | 'PS_ISONOTE_REVIEW_REQUIRED'
   | 'PS_ISONOTE_CONFLICTING_MAPPING'
   | 'PS_ISONOTE_ANNOTATION_FAILED'
@@ -127,7 +129,11 @@ export function scorePsIsonoteReference(
     ? 100
     : reference.matchMethod === 'normalized'
       ? 95
-      : 88;
+      : reference.matchMethod === 'stem'
+        ? 90
+        : reference.matchMethod === 'pipe-line-stem'
+          ? 85
+          : 88;
   const geometry = reference.textItemCount <= 1
     ? 100
     : reference.textItemCount <= 3
@@ -213,6 +219,22 @@ function buildOccurrenceAudit(
       'PS_ISONOTE_MATCH_JOINED_TEXT_ITEMS',
       'warning',
       `${reference.psNo} was reconstructed from ${reference.textItemCount} PDF text items.`,
+    ));
+  }
+  if (reference.matchMethod === 'stem') {
+    diagnostics.push(referenceDiagnostic(
+      reference,
+      'PS_ISONOTE_MATCH_STEM',
+      'info',
+      `${reference.psNo} matched via support stem tolerance.`,
+    ));
+  }
+  if (reference.matchMethod === 'pipe-line-stem') {
+    diagnostics.push(referenceDiagnostic(
+      reference,
+      'PS_ISONOTE_MATCH_PIPE_LINE_STEM',
+      'info',
+      `${reference.psNo} matched via pipe line designation stem tolerance.`,
     ));
   }
   if (reference.existingMarkerState === 'current') {
