@@ -1,0 +1,30 @@
+{
+  "id": "P4-T01",
+  "phase": "P4",
+  "title": "Store selectors across all no-selector subscriptions",
+  "finding": "H-1",
+  "maxFiles": 45,
+  "mayTouch": [
+    "frontend/src/components/**",
+    "frontend/src/core/**",
+    "frontend/eslint.config.js",
+    "tasks/RATCHET.json"
+  ],
+  "preconditions": [
+    "P3-T03 merged"
+  ],
+  "change": [
+    "Convert every no-selector store call to a selector, using useShallow for object selections. Add the no-restricted-syntax lint rule from the audit. Re-baseline the ratchet."
+  ],
+  "exit": [
+    "node scripts/guard-forbidden.mjs  \u2192  FB-3 clean",
+    "cd frontend && pnpm run lint  \u2192  exit 0",
+    "cd frontend && pnpm run test:ci  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT restructure any component. Selector conversion only \u2014 no JSX changes, no extracted subcomponents, no renamed props."
+  ],
+  "escalate": [
+    "A component needs the whole store legitimately. Name it and justify; do not add a blanket eslint-disable."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "P5-T02",
+  "phase": "P5",
+  "title": "Three end-to-end user journeys",
+  "finding": "M-4",
+  "maxFiles": 8,
+  "mayTouch": [
+    "frontend/e2e/**",
+    "frontend/playwright.config.ts",
+    ".github/workflows/frontend-ci.yml"
+  ],
+  "preconditions": [
+    "P5-T01 merged"
+  ],
+  "change": [
+    "Add Playwright specs: (1) open PDF \u2192 annotate \u2192 save \u2192 reopen and verify annotation persists; (2) Writer V2 create \u2192 export project ZIP \u2192 reimport \u2192 verify element count and asset count; (3) PS\u2192ISONOTE paste table \u2192 generate annotations \u2192 export evidence package. Wire into frontend-ci.yml."
+  ],
+  "exit": [
+    "cd frontend && npx playwright test  \u2192  exit 0",
+    "All 3 specs run in CI"
+  ],
+  "forbidden": [
+    "Do NOT mock the PDF pipeline. These are integration tests or they are worthless."
+  ],
+  "escalate": [
+    "A journey cannot be automated because it requires a native file dialog."
+  ]
+}

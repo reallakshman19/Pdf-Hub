@@ -1,0 +1,32 @@
+{
+  "id": "P0-T01",
+  "phase": "P0",
+  "title": "Make the lockfile authoritative",
+  "finding": "C-2",
+  "maxFiles": 8,
+  "mayTouch": [
+    ".github/workflows/*.yml",
+    ".nvmrc",
+    "frontend/package.json"
+  ],
+  "preconditions": [
+    "git status --porcelain | wc -l  \u2192  0"
+  ],
+  "change": [
+    "Replace every `pnpm install --no-frozen-lockfile` with `pnpm install --frozen-lockfile` in all 5 workflows.",
+    "Create .nvmrc containing exactly: 22",
+    "In all 5 workflows replace `node-version: 20|22` with `node-version-file: '.nvmrc'`.",
+    "Add to frontend/package.json: \"engines\": { \"node\": \">=22 <23\", \"pnpm\": \">=10.23.0\" }"
+  ],
+  "exit": [
+    "grep -rn 'no-frozen-lockfile' .github/workflows/  \u2192  no output",
+    "grep -c 'node-version-file' .github/workflows/*.yml | grep -v ':1$'  \u2192  no output",
+    "cat .nvmrc  \u2192  22"
+  ],
+  "forbidden": [
+    "Do NOT run `pnpm install` and commit a regenerated lockfile in this task. That is P0-T02."
+  ],
+  "escalate": [
+    "Any workflow fails after this change \u2014 that failure is the real finding. Record it and stop."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "P0-T03",
+  "phase": "P0",
+  "title": "Install the guard scripts and wire them into CI",
+  "finding": "process",
+  "maxFiles": 12,
+  "mayTouch": [
+    "frontend/scripts/guard-*.mjs",
+    "scripts/guard-*.mjs",
+    ".github/workflows/guards.yml",
+    "tasks/STATE.json",
+    "tasks/RATCHET.json",
+    "AGENT_PROTOCOL.md",
+    "frontend/package.json"
+  ],
+  "preconditions": [
+    "P0-T02 merged"
+  ],
+  "change": [
+    "Copy the three guard scripts to scripts/.",
+    "Create tasks/STATE.json and tasks/RATCHET.json.",
+    "Run: node scripts/guard-ratchet.mjs --update   (captures today's baseline)",
+    "Add .github/workflows/guards.yml running all three guards on every PR.",
+    "Commit AGENT_PROTOCOL.md."
+  ],
+  "exit": [
+    "node scripts/guard-ratchet.mjs  \u2192  exit 0",
+    "node scripts/guard-scope.mjs  \u2192  exit 0",
+    "git show origin/main:tasks/RATCHET.json  \u2192  exists after merge"
+  ],
+  "forbidden": [
+    "Do NOT fix any finding in this task. This task only installs the machinery."
+  ],
+  "escalate": [
+    "A guard fails in a way you cannot explain. Do not weaken the guard."
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "activeTask": "P0-T01",
+  "phase": "P0",
+  "completed": [],
+  "blocked": [],
+  "notes": "Single source of truth for where the programme is. Exactly one activeTask at a time.",
+  "updated": "2026-07-26"
+}

@@ -1,0 +1,33 @@
+{
+  "id": "P0-T02",
+  "phase": "P0",
+  "title": "Reconcile dependency drift exposed by the frozen install",
+  "finding": "C-2",
+  "maxFiles": 3,
+  "mayTouch": [
+    "pnpm-lock.yaml",
+    "frontend/package.json",
+    "tasks/DRIFT-REPORT.md"
+  ],
+  "preconditions": [
+    "P0-T01 merged",
+    "node scripts/guard-forbidden.mjs  \u2192  FB-1 clean"
+  ],
+  "change": [
+    "Run: cd frontend && pnpm install --frozen-lockfile",
+    "If it fails, run `pnpm install --lockfile-only`, commit the lockfile, and record every version that moved in tasks/DRIFT-REPORT.md.",
+    "Re-run typecheck and tests. Fix ONLY breakages caused by the version moves."
+  ],
+  "exit": [
+    "cd frontend && pnpm install --frozen-lockfile  \u2192  exit 0",
+    "cd frontend && pnpm run typecheck  \u2192  exit 0",
+    "cd frontend && pnpm run test:ci  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT change source files to make tests pass. If a test fails, the dependency move is the cause \u2014 record it.",
+    "Do NOT add --legacy-peer-deps or --force."
+  ],
+  "escalate": [
+    "A dependency requires a MAJOR version change to resolve. Stop; that is a human decision."
+  ]
+}

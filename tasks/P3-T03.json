@@ -1,0 +1,28 @@
+{
+  "id": "P3-T03",
+  "phase": "P3",
+  "title": "IMG-1 \u2014 active Writer V2 image admission",
+  "finding": "roadmap item 3",
+  "maxFiles": 14,
+  "mayTouch": [
+    "frontend/src/core/admission/**",
+    "frontend/src/components/writer-v2/**",
+    "frontend/src/core/writer-v2/**"
+  ],
+  "preconditions": [
+    "P3-T02 merged"
+  ],
+  "change": [
+    "One shared boundary (metadata \u2192 byte signature \u2192 bounded dimension probe \u2192 pixel decision \u2192 decode \u2192 staged asset \u2192 atomic mutation) across five active paths: upload, drag-drop, paste, replace, rich-content insert. Formats PNG/JPEG/WebP only. Controls: source bytes, width, height, total pixels, projected decoded RGBA bytes, projected retained data-URL bytes, multi-image aggregate, cancellation, orphan-asset cleanup."
+  ],
+  "exit": [
+    "cd frontend && pnpm run certify:writer-overlay-v2  \u2192  exit 0",
+    "A test proves a decompression-bomb image is rejected before canvas allocation"
+  ],
+  "forbidden": [
+    "No macro brand images. No legacy Writer migration. No animated images. No SVG. No HEIC. No transcoding UI. No global image cache. No image-quality settings."
+  ],
+  "escalate": [
+    "A fifth active path exists that is not in the list. Name it; do not silently include it."
+  ]
+}
