@@ -437,6 +437,70 @@ main-thread responsiveness in a live browser. Flagged in
 `tasks/STATE.json`'s `blocked[]` list; a human should perform this check
 before merging.
 
+## Finding 12 — The coverage gate has silently never enforced its 80% threshold for `src/core`/`src/adapters`; real measured coverage is below it (found during P5-T01)
+
+P5-T01 asks to add `src/components/**` to `coverage.include` with its own
+(lower, measured) threshold, without lowering the existing 80% threshold
+for `src/core`/`src/adapters`. Two discoveries while implementing this:
+
+**Vitest skips coverage reporting entirely when any test fails, silently.**
+`pnpm run coverage` is `vitest run --coverage`. Vitest's coverage provider
+has a documented default: `if (state.getCountOfFailedTests() > 0) { if
+(!coverageOptions.reportOnFailure) return; }` (confirmed by reading
+`@vitest/coverage-v8`'s bundled source directly) — coverage report
+generation, and the threshold check that runs as part of it, are both
+skipped with **zero output** (no report, no error, no `coverage/` directory
+at all) whenever a single test fails anywhere in the run. This repo has
+had 4 pre-existing, unrelated failing tests since before this programme
+started (Finding 5). The practical effect: `pnpm run coverage`'s threshold
+gate has **never actually been evaluated** in this repo's history — it
+looked wired up (`thresholds: { lines: 80, ... }` in `vite.config.ts`) but
+silently never ran, masked by Finding 5's pre-existing failures. Fixed by
+setting `coverage.reportOnFailure: true`, which is the documented,
+intended way to decouple coverage reporting from unrelated test-suite
+health — a real fix, not a workaround, and squarely within this card's
+`mayTouch` (`vite.config.ts`).
+
+**Once actually evaluated, `src/core` and `src/adapters` do not meet their
+existing 80% threshold.** With `reportOnFailure: true` in place and a real
+full-suite run: `src/core/**` measures **77.32% statements / 78.82% lines
+/ 79.49% functions / 67.16% branches** (all below 80%, branches
+substantially so), and `src/adapters/**` measures **17.03% statements /
+17.26% lines / 51.29% functions / 9.74% branches** (dramatically below
+80% — `adapters/equation` measures 0% across the board, `adapters/file`
+~12%, `adapters/pdf-edit` ~15%). This is a genuine, pre-existing gap this
+task did not create — verified by checking the per-file breakdown, not a
+glob-matching bug (the same `src/adapters/**` pattern already worked
+correctly as an `include` entry). The card's `forbidden` clause says
+"Do NOT lower the existing 80% threshold ... to make the build pass" —
+left both at 80% exactly as instructed, which means `pnpm run coverage`
+now (correctly) reports real failures for `src/core`/`src/adapters`,
+independent of anything added for `src/components`.
+
+**What this means for the exit criterion**: `cd frontend && pnpm run
+coverage → exit 0` cannot currently pass, for two independent, pre-existing
+reasons neither introduced by this task: (1) Finding 5's 4 failing tests
+still set `process.exitCode = 1` regardless of coverage results even with
+`reportOnFailure: true` (coverage reporting and overall exit code are
+separate mechanisms), and (2) `src/core`/`src/adapters` do not actually
+meet the 80% bar the card requires being left unchanged. Did not lower
+either existing threshold to force a pass — that is explicitly forbidden
+and would hide a real regression-detection gap rather than fix it.
+`src/components/**`'s own threshold (lines 40, statements/functions/branches
+35 — measured 2026-07-29, rounded down to the nearest 5) is correctly
+configured and, in isolation, passes against its own measured baseline.
+
+This needs a human decision: fixing `src/adapters`' coverage from ~10-17%
+to 80% (or `src/core`'s from ~77-79%) is a substantially larger effort than
+this card's scope, and possibly a signal the original 80% figure was never
+real to begin with. Options: (a) a dedicated task to actually raise
+`src/adapters`/`src/core` coverage, (b) a human-reviewed decision to reset
+those thresholds to their real current measured values (same treatment
+this card gives `src/components`, applied retroactively — a scope change
+outside a single task's own diff per R-10's spirit), or (c) accept
+`pnpm run coverage` stays red until (a) or (b) lands, tracked here rather
+than silently ignored via another `reportOnFailure`-style masking.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no

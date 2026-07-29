@@ -51,12 +51,39 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/core/**', 'src/adapters/**'],
+      // Vitest skips coverage report generation entirely when any test fails,
+      // unless this is set — without it, this repo's 4 pre-existing unrelated
+      // test failures (see tasks/DRIFT-REPORT.md Finding 5) would silently
+      // suppress the coverage/threshold report on every run.
+      reportOnFailure: true,
+      include: ['src/core/**', 'src/adapters/**', 'src/components/**/*.{ts,tsx}'],
+      // Per-glob thresholds (not the top-level lines/functions/branches/statements
+      // keys) so src/components's lower bar doesn't dilute the src/core and
+      // src/adapters 80% floor — Vitest's top-level threshold keys apply to the
+      // FULL combined coverage map across every included file, glob-matched or
+      // not, so setting them here would check core+adapters+components together.
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
+        'src/core/**': {
+          lines: 80,
+          functions: 80,
+          branches: 80,
+          statements: 80,
+        },
+        'src/adapters/**': {
+          lines: 80,
+          functions: 80,
+          branches: 80,
+          statements: 80,
+        },
+        // Measured 2026-07-29: lines 40.47%, statements 39.95%, functions
+        // 39.79%, branches 35.08% — rounded down to the nearest 5. Ratchet
+        // upward as component test coverage grows.
+        'src/components/**/*.{ts,tsx}': {
+          lines: 40,
+          functions: 35,
+          branches: 35,
+          statements: 35,
+        },
       },
     },
   },

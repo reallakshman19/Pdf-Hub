@@ -1,12 +1,13 @@
 {
-  "activeTask": "P5-T01",
+  "activeTask": "P5-T02",
   "phase": "P5",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
     "P2-T01", "P2-T02", "P2-T03", "P2-T04",
     "P3-T01", "P3-T02", "P3-T03",
-    "P4-T01", "P4-T02", "P4-T03"
+    "P4-T01", "P4-T02", "P4-T03",
+    "P5-T01"
   ],
   "blocked": [
     {
@@ -44,8 +45,12 @@
     {
       "id": "p4-t03-manual-responsiveness-check-not-performed",
       "reason": "P4-T03's exit criteria include a manual check ('export a 50-page document; the UI must remain responsive throughout') that requires interactive browser use and was not performed in this automated session. Substituted: verified zero DOM dependencies in flattenedPdfExport.ts/projectZip.ts before moving them into the worker; verified with a real production build that exportWorkerEntrypoint.ts bundles into its own worker chunk (matching ocrWorkerEntrypoint's pattern); added an automated 50-page/50-element flatten test as a correctness (not UI-responsiveness) proxy. A human should do the live manual check before merging. See tasks/DRIFT-REPORT.md Finding 11."
+    },
+    {
+      "id": "coverage-gate-core-adapters-below-80pct",
+      "reason": "MAJOR: the coverage threshold gate has silently never been enforced in this repo's history. Vitest skips coverage report generation entirely (zero output) whenever any test fails, unless coverage.reportOnFailure is set -- it wasn't, and this repo has had 4 pre-existing failing tests since before this programme (Finding 5), so the 80% threshold for src/core/src/adapters was configured but never actually checked. Set reportOnFailure: true (a real fix, in scope for this card) to make it actually run, which revealed src/core measures ~77-79% (below 80%) and src/adapters measures ~10-51% (severely below 80%, adapters/equation at 0%, adapters/file ~12%, adapters/pdf-edit ~15%). Left both thresholds at 80% per this card's forbidden clause (must not lower them to force a pass) rather than hiding the gap. pnpm run coverage cannot exit 0 right now for two independent pre-existing reasons: Finding 5's failing tests still set the process exit code non-zero even with reportOnFailure, and src/core/src/adapters genuinely don't meet 80%. src/components/**'s own new threshold (lines 40, statements/functions/branches 35, measured 2026-07-29) is correctly configured and passes in isolation. See tasks/DRIFT-REPORT.md Finding 12. Needs a human decision: fund real coverage work for src/adapters/src/core, or reset those thresholds to their real measured values (a scope change outside any single task's own diff)."
     }
   ],
-  "notes": "Phase 0 through Phase 4 complete. P4-T03 (worker offload for flattenedPdfExport + ZIP pack/unpack) added core/export/{exportWorkerClient,exportWorkerEntrypoint,exportWorkerTypes}.ts mirroring ocrWorkerClient's shape, and -- with the user's explicit approval after flagging the mayTouch conflict -- wired real callers (exportCurrentWriterPdf.ts, exportCurrentWriterProject.ts) to use the worker by default when Worker is available, falling back to the main-thread path otherwise (auto-detected, matching ocrPipelineMode.ts's capability-detection pattern). Phase 5 (P5-T01 coverage gate, P5-T02 e2e journeys) not yet started. Eleven findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
+  "notes": "Phase 0 through Phase 4 complete. P5-T01 added 'src/components/**/*.{ts,tsx}' to coverage.include with its own measured threshold (lines 40, statements/functions/branches 35) via Vitest's per-glob thresholds feature -- NOT the top-level threshold keys, since those apply to the full combined coverage map regardless of glob matches and would have diluted the existing 80% floor. Also set coverage.reportOnFailure: true, a genuine fix needed to make the coverage gate run at all when unrelated tests fail (previously silently skipped). This surfaced a major pre-existing gap: src/core and src/adapters do not actually meet their stated 80% threshold (adapters especially, ~10-51%) -- left unchanged per this card's forbidden clause, documented as Finding 12 for a human decision. Phase 5's remaining task (P5-T02: three Playwright e2e journeys) not yet started. Twelve findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work except pnpm run coverage's own exit code (pre-existing, not introduced by this programme).",
   "updated": "2026-07-29"
 }
