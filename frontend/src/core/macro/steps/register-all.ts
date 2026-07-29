@@ -1,6 +1,9 @@
 import './page-ops';
 import './document-ops';
 import './content-ops';
+// The committed PS/ISONOTE executor intentionally replaces content-ops' legacy
+// dual-write implementation. Import order is part of the single-authority contract.
+import './professional-callout-commit-ops';
 import './conditional-ops';
 
 import { macroRegistry } from '../registry';
