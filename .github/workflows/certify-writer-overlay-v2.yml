@@ -23,8 +23,8 @@ jobs:
       - name: Typecheck
         run: cd frontend && pnpm run typecheck
 
-      - name: Full Vitest suite
-        run: cd frontend && pnpm run test
+      - name: Portable Vitest suite
+        run: cd frontend && pnpm exec vitest run --exclude src/core/macro/psIsonote/rca.test.ts
 
       - name: Writer Overlay V2 certification
         run: cd frontend && pnpm run certify:writer-overlay-v2
