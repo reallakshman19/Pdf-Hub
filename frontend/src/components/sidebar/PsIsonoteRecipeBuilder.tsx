@@ -42,6 +42,10 @@ import {
   parsePsIsonoteTable,
   type PsIsonoteParseResult,
 } from '@/core/macro/psIsonote/psIsonoteTable';
+import {
+  admitPastedPsIsonoteText,
+  admitPsIsonoteUploadSize,
+} from '@/core/macro/psIsonote/psIsonoteAdmission';
 import type { PsIsonoteSample } from '@/core/macro/psIsonote/psIsonoteSamples';
 import { PsIsonoteSampleLoader } from './PsIsonoteSampleLoader';
 
@@ -301,6 +305,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
+      admitPsIsonoteUploadSize(file);
       setSourceText(await file.text());
       setSourceName(file.name);
       clearRunArtifacts();
@@ -522,6 +527,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         placeholder={'PS No.,Family,ISONOTE\nPS-1234.5,Guide,"REST(6kN), GUIDE [Gap=10mm] (8kN)"'}
         value={sourceText}
         onChange={(event) => {
+          try {
+            admitPastedPsIsonoteText(event.target.value);
+          } catch (pasteError) {
+            setError(pasteError instanceof Error ? pasteError.message : String(pasteError));
+            return;
+          }
           setSourceText(event.target.value);
           setSourceName('');
           clearRunArtifacts();

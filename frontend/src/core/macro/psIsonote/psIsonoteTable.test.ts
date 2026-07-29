@@ -5,6 +5,7 @@ import {
   parsePsIsonoteTable,
   PsIsonoteParseError,
 } from './psIsonoteTable';
+import { PS_ISONOTE_ADMISSION_LIMITS, PsIsonoteAdmissionError } from './psIsonoteAdmission';
 
 describe('psIsonoteTable', () => {
   it('normalizes common PS number forms', () => {
@@ -151,5 +152,65 @@ describe('psIsonoteTable', () => {
 
     expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteParseError);
     expect(() => parsePsIsonoteTable(input)).toThrow(/unterminated/i);
+  });
+
+  it('attaches admission evidence to a successfully parsed table', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-100001,ok',
+    ].join('\n'));
+
+    expect(parsed.admission).toMatchObject({
+      evidenceProfileId: 'PS_ISONOTE_ADMISSION_EVIDENCE_V1',
+      measuredRows: 2,
+      measuredColumns: 2,
+      measuredMappingCount: 1,
+      measuredDiagnosticCount: 0,
+      admissionOutcome: 'ADMITTED',
+    });
+    expect(Object.isFrozen(parsed.admission)).toBe(true);
+  });
+
+  it('rejects a table with more rows than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxRows; i += 1) {
+      rows.push(`PS-1${String(i).padStart(6, '0')},ok`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects a table with more columns than the admission limit', () => {
+    const header = Array.from({ length: PS_ISONOTE_ADMISSION_LIMITS.maxColumns + 1 }, (_, i) => `Col${i}`);
+    const input = [header.join(','), header.map(() => 'x').join(',')].join('\n');
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects a cell larger than the admission limit', () => {
+    const hugeCell = 'x'.repeat(PS_ISONOTE_ADMISSION_LIMITS.maxCellCodeUnits + 1);
+    const input = ['PS,NOTE', `PS-1,${hugeCell}`].join('\n');
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects more unique mappings than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxMappingCount; i += 1) {
+      rows.push(`PS-1${String(i).padStart(6, '0')},ok`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects more diagnostics than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxDiagnosticCount; i += 1) {
+      rows.push(`PS-${i},`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('honors cancellation while parsing', () => {
+    const controller = new AbortController();
+    controller.abort();
+    const input = ['PS,NOTE', 'PS-100001,ok'].join('\n');
+    expect(() => parsePsIsonoteTable(input, { signal: controller.signal })).toThrow(/cancelled/i);
   });
 });
