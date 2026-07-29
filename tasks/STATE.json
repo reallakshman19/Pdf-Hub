@@ -1,17 +1,17 @@
 {
-  "activeTask": "P0-T03",
-  "phase": "P0",
-  "completed": ["P0-T01", "P0-T02", "P0-T02b"],
+  "activeTask": "P1-T01",
+  "phase": "P1",
+  "completed": ["P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04"],
   "blocked": [
     {
       "id": "P0-T02-followup",
-      "reason": "pnpm run test:ci has 4 pre-existing failures unrelated to dependency drift: a debug test hardcoding a Windows path (rca.test.ts), and 3 tests (output-verifier.test.ts, psIsonoteVerification.test.ts x2) that look like one shared root cause in PDF marker/callout verification under Node/jsdom (a 'legacy build' pdfjs-dist warning precedes each failure). See tasks/DRIFT-REPORT.md Finding 5. Needs a dedicated investigation task; not blocking P0-T03."
+      "reason": "pnpm run test:ci has 4 pre-existing failures unrelated to dependency drift: a debug test hardcoding a Windows path (rca.test.ts), and 3 tests (output-verifier.test.ts, psIsonoteVerification.test.ts x2) that look like one shared root cause in PDF marker/callout verification under Node/jsdom (a 'legacy build' pdfjs-dist warning precedes each failure). See tasks/DRIFT-REPORT.md Finding 5. Needs a dedicated investigation task."
     },
     {
       "id": "lint-debt",
       "reason": "pnpm run lint has 84 pre-existing errors (mostly no-explicit-any in test files), unrelated to dependency drift. See tasks/DRIFT-REPORT.md Finding 4. Needs its own scoped task(s); not part of any P0 card's exit criteria."
     }
   ],
-  "notes": "Single source of truth for where the programme is. Exactly one activeTask at a time.",
+  "notes": "P0-T04 verified via GitHub: PR #140 already merged 2026-07-26, no action needed. Phase 0 complete. Single source of truth for where the programme is. Exactly one activeTask at a time.",
   "updated": "2026-07-29"
 }
