@@ -68,4 +68,26 @@ describe('Session Store', () => {
 
     expect(useSessionStore.getState().selectedPages).toEqual([4]);
   });
+
+  it('stores document bytes by reference (copy-on-write), not by copy', () => {
+    const openedBytes = new Uint8Array([1, 2, 3]);
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc4',
+      fileName: 'doc4.pdf',
+      bytes: openedBytes,
+      pageCount: 1,
+    });
+
+    expect(useSessionStore.getState().originalBytes).toBe(openedBytes);
+    expect(useSessionStore.getState().workingBytes).toBe(openedBytes);
+
+    const replacedBytes = new Uint8Array([4, 5]);
+    useSessionStore.getState().replaceWorkingCopy(replacedBytes, 1);
+    expect(useSessionStore.getState().workingBytes).toBe(replacedBytes);
+
+    const committedBytes = new Uint8Array([6, 7, 8]);
+    useSessionStore.getState().commitWorkingCopy({ bytes: committedBytes, pageCount: 1 });
+    expect(useSessionStore.getState().originalBytes).toBe(committedBytes);
+    expect(useSessionStore.getState().workingBytes).toBe(committedBytes);
+  });
 });

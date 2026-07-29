@@ -89,12 +89,13 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
 
   setDocumentKey: (documentKey) => set({ documentKey }),
 
-  openDocument: ({ documentKey, fileName, bytes, pageCount, saveHandle = null }) =>
-    set({
+  openDocument: ({ documentKey, fileName, bytes, pageCount, saveHandle = null }) => {
+    if (import.meta.env.DEV) Object.freeze(bytes.buffer);
+    return set({
       documentKey,
       fileName,
-      originalBytes: new Uint8Array(bytes),
-      workingBytes: new Uint8Array(bytes),
+      originalBytes: bytes,
+      workingBytes: bytes,
       pageCount,
       isDirty: false,
       isDocumentDirty: false,
@@ -116,11 +117,13 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         status: 'idle',
         pendingCount: 0,
       },
-    }),
+    });
+  },
 
-  replaceWorkingCopy: (bytes, pageCount) =>
-    set((state) => ({
-      workingBytes: new Uint8Array(bytes),
+  replaceWorkingCopy: (bytes, pageCount) => {
+    if (import.meta.env.DEV) Object.freeze(bytes.buffer);
+    return set((state) => ({
+      workingBytes: bytes,
       pageCount,
       isDirty: true,
       isDocumentDirty: true,
@@ -134,13 +137,15 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         ...state.viewState,
         currentPage: clampPage(state.viewState.currentPage, pageCount),
       },
-    })),
+    }));
+  },
 
-  commitWorkingCopy: ({ bytes, pageCount, documentKey }) =>
-    set((state) => ({
+  commitWorkingCopy: ({ bytes, pageCount, documentKey }) => {
+    if (import.meta.env.DEV) Object.freeze(bytes.buffer);
+    return set((state) => ({
       documentKey: documentKey === undefined ? state.documentKey : documentKey,
-      originalBytes: new Uint8Array(bytes),
-      workingBytes: new Uint8Array(bytes),
+      originalBytes: bytes,
+      workingBytes: bytes,
       pageCount,
       isDirty: false,
       isDocumentDirty: false,
@@ -161,7 +166,8 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         pendingCount: 0,
         lastSavedAt: Date.now(),
       },
-    })),
+    }));
+  },
 
   setPage: (currentPage) =>
     set((state) => ({
