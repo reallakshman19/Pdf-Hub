@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractPipeLineStem, normalizePsNumber, parsePsIsonoteTable } from './psIsonoteTable';
+import {
+  extractPipeLineStem,
+  normalizePsNumber,
+  parsePsIsonoteTable,
+  PsIsonoteParseError,
+} from './psIsonoteTable';
 
 describe('psIsonoteTable', () => {
   it('normalizes common PS number forms', () => {
@@ -109,5 +114,42 @@ describe('psIsonoteTable', () => {
     expect(parsed.mappings).toHaveLength(1);
     expect(parsed.mappings[0].isonote).toBe('REST(2kN)');
     expect(parsed.warnings[0]).toContain('conflicting ISONOTE');
+  });
+
+  it('preserves a literal inch mark mid-field in unquoted CSV without losing subsequent rows', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-101,12" flange spec',
+      'PS-102,ok',
+    ].join('\n'));
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.mappings).toEqual([
+      { psNo: 'PS-101', isonote: '12" flange spec', sourceRow: 2 },
+      { psNo: 'PS-102', isonote: 'ok', sourceRow: 3 },
+    ]);
+  });
+
+  it('supports RFC4180 quoted fields with an embedded delimiter', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-103,"REST(6kN), GUIDE (8kN)"',
+    ].join('\n'));
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.mappings).toEqual([
+      { psNo: 'PS-103', isonote: 'REST(6kN), GUIDE (8kN)', sourceRow: 2 },
+    ]);
+  });
+
+  it('rejects an unterminated quoted field loudly instead of swallowing the rest of the file', () => {
+    const input = [
+      'PS,NOTE',
+      'PS-104,"unterminated',
+      'PS-105,ok',
+    ].join('\n');
+
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteParseError);
+    expect(() => parsePsIsonoteTable(input)).toThrow(/unterminated/i);
   });
 });

@@ -1,3 +1,15 @@
+export class PsIsonoteParseError extends Error {
+  readonly code: 'UNTERMINATED_QUOTE';
+  readonly row: number;
+
+  constructor(code: 'UNTERMINATED_QUOTE', row: number) {
+    super(`PS/ISONOTE table row ${row}: unterminated quoted field.`);
+    this.name = 'PsIsonoteParseError';
+    this.code = code;
+    this.row = row;
+  }
+}
+
 export interface PsIsonoteMapping {
   psNo: string;
   isonote: string;
@@ -235,6 +247,10 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
     }
 
     cell += char;
+  }
+
+  if (quoted) {
+    throw new PsIsonoteParseError('UNTERMINATED_QUOTE', rows.length + 1);
   }
 
   row.push(cleanCell(cell));
