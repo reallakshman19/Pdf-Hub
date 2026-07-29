@@ -25,8 +25,6 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**', 'e2e-report.spec.ts'],
     pool: 'threads',
-    // Increase heap for workers loading pdfjs-dist + pdf-lib (BM2 benchmark)
-    workerExecArgs: ['--max-old-space-size=512'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

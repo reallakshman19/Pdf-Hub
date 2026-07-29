@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Table2,
-  type LucideIcon,
-} from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   PS_ISONOTE_SAMPLES,
@@ -19,7 +13,9 @@ export interface PsIsonoteSampleLoaderProps {
   readonly onDownload?: (sample: PsIsonoteSample) => void;
 }
 
-const SAMPLE_ICONS: Record<PsIsonoteSampleId, LucideIcon> = {
+type SampleIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+
+const SAMPLE_ICONS: Record<PsIsonoteSampleId, SampleIcon> = {
   'csv-family': FileSpreadsheet,
   'tsv-basic': FileText,
   'pipe-table': Table2,
