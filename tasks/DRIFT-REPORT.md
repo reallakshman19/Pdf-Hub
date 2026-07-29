@@ -501,6 +501,81 @@ outside a single task's own diff per R-10's spirit), or (c) accept
 `pnpm run coverage` stays red until (a) or (b) lands, tracked here rather
 than silently ignored via another `reportOnFailure`-style masking.
 
+## Finding 13 — `runCurrentWriterExportPreflight()` always checks the open-PDF session, blocking every export for blank Writer documents; two smaller e2e-specific fixes (found during P5-T02)
+
+While building Journey 2 (Writer V2 create → export project ZIP →
+reimport), first tried the "Blank Doc" flow (`BlankDocumentCreateDialog`
+→ place a rich text box on the blank canvas → "Save Project"). The
+export preflight dialog blocked it with two errors: `NO_PDF_OPEN` ("Open
+a PDF before exporting Writer content") and `OBJECT_OUTSIDE_PAGE_RANGE`
+("Writer object ... targets page 1, outside document page range"), with
+no way to proceed (a disabled "Blocked" button, only "Cancel"
+available).
+
+Root cause, read directly in
+`frontend/src/core/writer-v2/export/writerExportPreflight.ts:83-93`:
+`runCurrentWriterExportPreflight()` always builds its input from
+`useSessionStore.getState()` — `sourceBytes: session.workingBytes ??
+session.originalBytes` and `pageCount: session.pageCount` — the
+*PDF-overlay* session's own state. It never reads
+`useWriterV2Store.getState().documentMeta` to detect blank-document mode
+or use ITS OWN `pageCount`/page setup. So for a blank Writer document
+(no PDF ever opened, by design — that's the whole point of "Blank Doc"),
+`session.pageCount` is always `0`, which trips `NO_PDF_OPEN`
+unconditionally, and the same `0` is reused as the page-range bound for
+every placed element, tripping `OBJECT_OUTSIDE_PAGE_RANGE` for literally
+any element on any page. This means **blank Writer documents can never
+be exported as a project ZIP (or, likely, any other format routed
+through `runWithWriterPreflight`) via the real UI today** — a real,
+pre-existing, user-facing bug, not a quirk of my test setup (confirmed
+by reading the preflight dialog's own reported counts: 1 visible
+element, 1 text element, but still blocked).
+
+Not fixed here: `writerExportPreflight.ts` is not in P5-T02's `mayTouch`
+(`frontend/e2e/**`, `frontend/playwright.config.ts`,
+`.github/workflows/frontend-ci.yml`), and fixing it correctly means
+threading `documentMeta.mode === 'blankDocument'` through the preflight
+input builder to source `pageCount` from the blank document's own page
+count instead of the PDF session — a real fix belonging to its own task,
+not a one-line patch to slip in here. Worked around it for Journey 2 by
+anchoring the Writer V2 element on top of an actually-open PDF instead of
+a blank document (a legitimate, equally real "Writer V2 create → export
+→ reimport" path — for a PDF-backed document, "Writer Box" creates the
+main rich box directly with no click-to-place step, and the preflight
+correctly sees a nonzero `session.pageCount`). Flagging this as its own
+follow-up task in `tasks/STATE.json`'s `blocked[]` list.
+
+Two smaller, in-scope fixes also landed as part of building these specs:
+
+- `frontend/playwright.config.ts`'s `webServer.command` (`npm run dev --
+  host 127.0.0.1`) fails on Linux: `node_modules/.bin/vite` is a POSIX
+  shell shim, and `npm run dev` invokes it as `node
+  node_modules/.bin/vite`, which crashes immediately
+  (`SyntaxError: missing ) after argument list`, since node cannot
+  execute a shell script). Reproduced directly. Changed the command to
+  call vite's real JS entrypoint (`node node_modules/vite/bin/vite.js
+  --host 127.0.0.1`) instead — same behavior, works on Linux (and by
+  extension, GitHub Actions' `ubuntu-latest` runners). Also added an
+  optional `PLAYWRIGHT_CHROMIUM_PATH` env-var escape hatch for sandboxes
+  with a pre-installed Chromium build that doesn't match this project's
+  pinned `@playwright/test` version at the default auto-discovered path
+  — unused in CI, where `playwright install` provides a matching browser
+  at the default path.
+- `frontend/e2e/static-smoke.spec.ts` (pre-existing, predates this
+  programme — confirmed via `git log`, last touched by commit `88253d5`)
+  asserted the visible `role="status"` banner contains "Running in
+  preview mode", but that text belongs to `PreviewModeBanner.tsx`, which
+  only renders on mobile viewports. On the default desktop viewport
+  Playwright uses, the `role="status"` element that actually renders is
+  `StatusBar.tsx`'s "Static Mode — Some features require local server"
+  text — a stale assertion from when the copy was presumably different,
+  unrelated to any of my changes. Since this genuinely blocks this
+  card's own `npx playwright test → exit 0` exit criterion and is
+  trivially, correctly fixable within this card's own `mayTouch`
+  (`frontend/e2e/**`), fixed the assertion to match the real, current,
+  correct banner text rather than leaving an unrelated pre-existing
+  failure in place.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no

@@ -1,13 +1,13 @@
 {
-  "activeTask": "P5-T02",
-  "phase": "P5",
+  "activeTask": null,
+  "phase": "complete",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
     "P2-T01", "P2-T02", "P2-T03", "P2-T04",
     "P3-T01", "P3-T02", "P3-T03",
     "P4-T01", "P4-T02", "P4-T03",
-    "P5-T01"
+    "P5-T01", "P5-T02"
   ],
   "blocked": [
     {
@@ -49,8 +49,16 @@
     {
       "id": "coverage-gate-core-adapters-below-80pct",
       "reason": "MAJOR: the coverage threshold gate has silently never been enforced in this repo's history. Vitest skips coverage report generation entirely (zero output) whenever any test fails, unless coverage.reportOnFailure is set -- it wasn't, and this repo has had 4 pre-existing failing tests since before this programme (Finding 5), so the 80% threshold for src/core/src/adapters was configured but never actually checked. Set reportOnFailure: true (a real fix, in scope for this card) to make it actually run, which revealed src/core measures ~77-79% (below 80%) and src/adapters measures ~10-51% (severely below 80%, adapters/equation at 0%, adapters/file ~12%, adapters/pdf-edit ~15%). Left both thresholds at 80% per this card's forbidden clause (must not lower them to force a pass) rather than hiding the gap. pnpm run coverage cannot exit 0 right now for two independent pre-existing reasons: Finding 5's failing tests still set the process exit code non-zero even with reportOnFailure, and src/core/src/adapters genuinely don't meet 80%. src/components/**'s own new threshold (lines 40, statements/functions/branches 35, measured 2026-07-29) is correctly configured and passes in isolation. See tasks/DRIFT-REPORT.md Finding 12. Needs a human decision: fund real coverage work for src/adapters/src/core, or reset those thresholds to their real measured values (a scope change outside any single task's own diff)."
+    },
+    {
+      "id": "writer-export-preflight-blocks-blank-document-export",
+      "reason": "MAJOR: runCurrentWriterExportPreflight() (writerExportPreflight.ts:83-93) always sources pageCount/sourceBytes from useSessionStore (the open-PDF session), never checking useWriterV2Store's documentMeta for blank-document mode. Result: blank Writer documents (created via the 'Blank Doc' button, by design with no PDF open) ALWAYS fail preflight with NO_PDF_OPEN and OBJECT_OUTSIDE_PAGE_RANGE errors, and the preflight dialog has no way to proceed past errors (only Cancel) -- meaning blank Writer documents can never be exported via the real UI today (project ZIP, and likely every other export routed through runWithWriterPreflight). Discovered while building P5-T02's Journey 2 e2e test; worked around it by anchoring the journey on an already-open PDF instead of a blank document (an equally real, arguably more common Writer V2 usage path) rather than fixing the out-of-scope preflight bug. See tasks/DRIFT-REPORT.md Finding 13. Needs its own scoped task to thread documentMeta.mode through the preflight input builder."
+    },
+    {
+      "id": "p5-t02-maxfiles-slightly-over",
+      "reason": "P5-T02's card declares maxFiles: 8. The 8 functional files (3 new spec files, 2 new fixture helpers, 1 fixed pre-existing spec, playwright.config.ts, .github/workflows/frontend-ci.yml) exactly match the budget, but tasks/STATE.json and tasks/DRIFT-REPORT.md bookkeeping updates push the real diff to 10 files -- consistent with every other task in this programme, and consistent with the pattern already flagged in Finding 10 (maxFiles budgets don't account for the two standard bookkeeping files). Not fixed (would mean skipping STATE.json/DRIFT-REPORT.md updates, breaking this programme's own audit trail); flagged here per precedent."
     }
   ],
-  "notes": "Phase 0 through Phase 4 complete. P5-T01 added 'src/components/**/*.{ts,tsx}' to coverage.include with its own measured threshold (lines 40, statements/functions/branches 35) via Vitest's per-glob thresholds feature -- NOT the top-level threshold keys, since those apply to the full combined coverage map regardless of glob matches and would have diluted the existing 80% floor. Also set coverage.reportOnFailure: true, a genuine fix needed to make the coverage gate run at all when unrelated tests fail (previously silently skipped). This surfaced a major pre-existing gap: src/core and src/adapters do not actually meet their stated 80% threshold (adapters especially, ~10-51%) -- left unchanged per this card's forbidden clause, documented as Finding 12 for a human decision. Phase 5's remaining task (P5-T02: three Playwright e2e journeys) not yet started. Twelve findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work except pnpm run coverage's own exit code (pre-existing, not introduced by this programme).",
+  "notes": "All 21 task cards (Phase -1 through P5-T02) complete. P5-T02 added three real Playwright e2e journeys (frontend/e2e/pdf-annotation-roundtrip.spec.ts, writer-v2-project-roundtrip.spec.ts, ps-isonote-evidence-package.spec.ts) plus shared fixtures (stubNativeFilePickers.ts to bypass the File System Access API's native dialog, testPdf.ts to build real pdf-lib fixture PDFs), wired into a new e2e-tests job in .github/workflows/frontend-ci.yml. All 4 e2e specs (including the pre-existing static-smoke.spec.ts, whose stale assertion was fixed) pass reliably across repeated local runs. No part of the PDF/Writer/PS-ISONOTE pipelines was mocked -- every journey drives the real app in a real browser against real generated PDF/ZIP bytes, verified afterward with real parsing (pdfjs-dist, JSZip). Thirteen findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks for a human to triage; none block the work already merged into this branch.",
   "updated": "2026-07-29"
 }
