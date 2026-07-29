@@ -41,6 +41,8 @@ import {
   releaseAdmittedProjectJsonSources,
   type AdmittedWriterProjectJsonSourceSet,
 } from '@/core/admission/zip/writerProjectJsonSourceSet';
+import { admitJsonStructuralBounds } from '@/core/admission/zip/jsonStructuralAdmission';
+import type { JsonStructuralAdmissionEvidence } from '@/core/admission/zip/jsonStructuralAdmission';
 
 export interface ImportedProjectSession {
   originalPdfBytes: Uint8Array;
@@ -109,6 +111,7 @@ export interface StandaloneWriterProjectStageDependencies {
   readonly admitMembers?: typeof admitWriterProjectMembers;
   readonly extractMembers?: typeof extractZipMembersBounded;
   readonly admitJsonSources?: typeof admitWriterProjectJsonSources;
+  readonly admitJsonStructuralBounds?: typeof admitJsonStructuralBounds;
   readonly decodeProject?: (
     reader: ProjectArchiveReader,
   ) => Promise<ImportPdfHubProjectResult>;
@@ -147,6 +150,7 @@ interface StandaloneWriterProjectDecodeResult {
   readonly memberAdmissionEvidence: WriterProjectMemberAdmissionEvidence;
   readonly extractionEvidence: ZipBoundedExtractionEvidence;
   readonly jsonSourceAdmissionEvidence: WriterProjectJsonSourceAdmissionEvidence;
+  readonly jsonStructuralAdmissionEvidence: JsonStructuralAdmissionEvidence;
 }
 
 const stagedRegistry = new WeakMap<StagedWriterProjectImport, RegisteredStage>();
@@ -188,6 +192,7 @@ export async function stageStandaloneWriterProject(
     memberAdmissionEvidence,
     extractionEvidence,
     jsonSourceAdmissionEvidence,
+    jsonStructuralAdmissionEvidence,
   } = decoded;
   const reconciled = await reconcileImportedProject(imported, operation, diagnostics);
   assertOperationCurrent(operation, 'standalone Writer project before staging');
@@ -203,6 +208,7 @@ export async function stageStandaloneWriterProject(
     writerProjectMemberAdmission: memberAdmissionEvidence,
     zipBoundedExtraction: extractionEvidence,
     writerProjectJsonSourceAdmission: jsonSourceAdmissionEvidence,
+    jsonStructuralAdmission: jsonStructuralAdmissionEvidence,
     schema: imported.manifest.schema,
     schemaVersion: imported.manifest.schemaVersion,
     documentMode: reconciled.documentMeta?.mode ?? inferredMode(imported),
@@ -303,6 +309,11 @@ async function decodeStandaloneWriterProject(
       dependencies.admitJsonSources ?? admitWriterProjectJsonSources
     )(extracted.memberSet, memberAdmission, reader, operation);
     assertOperationCurrent(operation, 'standalone Writer project after JSON source admission');
+    assertOperationCurrent(operation, 'standalone Writer project before JSON structural admission');
+    const jsonStructuralAdmissionEvidence = await (
+      dependencies.admitJsonStructuralBounds ?? admitJsonStructuralBounds
+    )(jsonSources, operation);
+    assertOperationCurrent(operation, 'standalone Writer project after JSON structural admission');
     assertOperationCurrent(operation, 'standalone Writer project before semantic ZIP decode');
     const imported = await raceWithAbort(
       (dependencies.decodeProject ?? importPdfHubWriterProjectFromReader)(
@@ -319,6 +330,7 @@ async function decodeStandaloneWriterProject(
       memberAdmissionEvidence: memberAdmission.evidence,
       extractionEvidence: extracted.evidence,
       jsonSourceAdmissionEvidence: jsonSources.evidence,
+      jsonStructuralAdmissionEvidence,
     });
   } finally {
     if (jsonSources) releaseAdmittedProjectJsonSources(jsonSources);
