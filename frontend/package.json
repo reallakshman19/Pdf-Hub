@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.23.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "node --max-old-space-size=1024 node_modules/.bin/vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",

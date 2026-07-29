@@ -201,8 +201,6 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
   let row: string[] = [];
   let cell = '';
   let quoted = false;
-  let atCellStart = true;
-
   const source = text.replace(/^\uFEFF/, '');
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
@@ -222,7 +220,6 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
     if (!quoted && char === delimiter) {
       row.push(cleanCell(cell));
       cell = '';
-      atCellStart = true;
       continue;
     }
 
@@ -234,14 +231,10 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
       rows.push(row);
       row = [];
       cell = '';
-      atCellStart = true;
       continue;
     }
 
     cell += char;
-    if (!quoted && !/\s/.test(char)) {
-      atCellStart = false;
-    }
   }
 
   row.push(cleanCell(cell));

@@ -21,6 +21,7 @@ const mockResults: LayoutResultItem[] = [
     status: 'placed', 
     placementClass: 'right', 
     callout: validCallout, 
+    diagnostics: [],
     occurrence: { id: 'occ-100', pageNumber: 1, psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', targetPoint: { x: 100, y: 100 } } as any,
   },
   { 

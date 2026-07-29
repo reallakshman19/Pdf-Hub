@@ -29,6 +29,7 @@ describe('Output Verifier (Phase D - Verification Hardening)', () => {
     vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
       doc: mockDoc as any,
       release: vi.fn().mockResolvedValue(undefined),
+      cacheKey: 'mock',
     });
 
     vi.spyOn(PdfRendererAdapter, 'getPageTextItems').mockResolvedValue([

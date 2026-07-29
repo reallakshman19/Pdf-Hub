@@ -94,6 +94,7 @@ export async function verifyPsIsonoteOutput(
   const markersByPage = new Map<number, Map<string, number>>();
 
   try {
+    // Phase 1: Page count check via pdf.js
     const lease = await PdfRendererAdapter.acquireDocument(options.outputBytes);
     try {
       const doc = lease.doc;
@@ -107,28 +108,69 @@ export async function verifyPsIsonoteOutput(
           message: `Output page count is ${reopenedPageCount}; expected ${options.expectedPageCount}.`,
         });
       }
-
-      const pagesToRead = Array.from(new Set(options.expectedMarkers.map((marker) => marker.pageNumber)))
-        .filter((pageNumber) => pageNumber >= 1 && pageNumber <= reopenedPageCount)
-        .sort((left, right) => left - right);
-
-      for (const pageNumber of pagesToRead) {
-        const page = await doc.getPage(pageNumber);
-        try {
-          const items = await PdfRendererAdapter.getPageTextItems(page, 1);
-          const pageText = items.map((item) => item.text).join(' ');
-          const counts = new Map<string, number>();
-          for (const marker of parseVersionedPsIsonoteMarkers(pageText)) {
-            const key = markerKey(marker);
-            counts.set(key, (counts.get(key) ?? 0) + 1);
-          }
-          markersByPage.set(pageNumber, counts);
-        } finally {
-          page.cleanup();
-        }
-      }
     } finally {
       await lease.release();
+    }
+
+    // Phase 2: Marker extraction via pdf-lib (decompresses FlateDecode streams)
+    // ⚠️ Markers are invisible text (opacity=0, size≈0.001pt). pdf.js text extraction
+    // skips invisible text. Raw byte scans fail because PDF content streams are compressed.
+    // pdf-lib decompresses on load → we can scan the decompressed content for marker strings.
+    const { PDFDocument } = await import('pdf-lib');
+    const pdfLibDoc = await PDFDocument.load(options.outputBytes, { ignoreEncryption: true });
+    const pages = pdfLibDoc.getPages();
+
+    for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+      const page = pages[pageIdx];
+      // Get content stream as raw bytes, decode to text, and scan for markers
+      const contentStream = page.node.Contents();
+      if (!contentStream) continue;
+
+      // Collect all raw content bytes from the page
+      let rawContent = '';
+      const pdfDoc = pdfLibDoc.context;
+
+      // Handle both single stream and array of streams
+      if ('get' in contentStream && typeof contentStream.get === 'function') {
+        // It's a PDFArray
+        const arr = contentStream as any;
+        const size = arr.size?.() ?? arr.length ?? 0;
+        for (let i = 0; i < size; i++) {
+          const ref = arr.get(i);
+          const stream = ref ? pdfDoc.lookup(ref) : null;
+          if (stream && 'getContents' in stream) {
+            const bytes = (stream as any).getContents();
+            rawContent += new TextDecoder('latin1').decode(bytes);
+          }
+        }
+      } else if ('getContents' in contentStream) {
+        // It's a single PDFStream
+        const bytes = (contentStream as any).getContents();
+        rawContent += new TextDecoder('latin1').decode(bytes);
+      } else {
+        // It might be a reference
+        const resolved = pdfDoc.lookup(contentStream as any);
+        if (resolved && 'getContents' in (resolved as any)) {
+          const bytes = (resolved as any).getContents();
+          rawContent += new TextDecoder('latin1').decode(bytes);
+        }
+      }
+
+      // Scan decompressed content for PDFHUBISONOTE markers
+      const pageNumber = pageIdx + 1;
+      const counts = markersByPage.get(pageNumber) ?? new Map<string, number>();
+      const markerRegex = /PDFHUBISONOTE\[[^\]]+\]/gi;
+      let rawMatch: RegExpExecArray | null;
+      while ((rawMatch = markerRegex.exec(rawContent)) !== null) {
+        const cleanedMarker = rawMatch[0].replace(/\s+/g, '');
+        for (const marker of parseVersionedPsIsonoteMarkers(cleanedMarker)) {
+          const key = markerKey(marker);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      }
+      if (counts.size > 0) {
+        markersByPage.set(pageNumber, counts);
+      }
     }
   } catch (error) {
     diagnostics.push({

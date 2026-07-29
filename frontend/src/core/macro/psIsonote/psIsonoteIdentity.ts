@@ -41,6 +41,7 @@ export interface PsIsonoteScopeIdentity {
   fontSize: number;
   includeFamily: boolean;
   tolerance?: 'stem' | 'exact' | boolean;
+  pipeLineStemLength?: [number, number];
 }
 
 export interface CreatePsIsonoteAuditIdentityOptions {
