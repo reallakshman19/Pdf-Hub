@@ -168,6 +168,34 @@ after P0-T02b's changes):
 None of the four are caused by the lockfile, by P0-T02b's changes, or by
 anything else in this programme so far.
 
+## Finding 6 — A second, weaker HTML sanitizer exists in the export path (found during P1-T04)
+
+M-2's `change` list cites `content-ops.ts:268` and `exporter.ts:81` as
+callers of `htmlSanitizer.ts`'s `sanitizeHtml`/`sanitizeHtmlWithReport`.
+They aren't. Both actually call `sanitizeWriterHtml`, a **separate,
+regex-based sanitizer defined locally in `exporter.ts`** (strips
+`<script>`/`<style>`/`<iframe>`/`<object>`/`<embed>`/`<form>` tags and
+`on*=`/`javascript:` via regex — no DOMParser, no allowlist, no node/depth
+bounds, no href/image validation). It is unrelated to any of the fixes in
+P1-T04 and does not benefit from them.
+
+The real callers of `htmlSanitizer.ts` are `RichTextEditorPanel.tsx` and
+`WriterElementNode.tsx` (5 call sites across the two files) — P1-T04
+fixed truncation-surfacing there instead, since that's where the fixed
+sanitizer is actually used.
+
+`sanitizeWriterHtml`'s regex approach is a known-fragile pattern for HTML
+sanitization (nested/malformed tags, encoded entities, and split
+attributes can all defeat a single-pass regex in ways a DOMParser
+reconstruction doesn't) and is used to build canvas-rendered export
+output from Writer element content — the same untrusted-content surface
+`htmlSanitizer.ts` was hardened for. Proposed: a dedicated task to
+either route `exporter.ts`'s two call sites through `sanitizeHtml`
+instead, or audit `sanitizeWriterHtml`'s regexes directly. Not attempted
+here — replacing a whole sanitizer implementation is a materially
+different, larger task than patching 5 defects in the one already
+judged sound.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no
