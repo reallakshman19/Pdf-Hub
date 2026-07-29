@@ -1,9 +1,10 @@
 {
-  "activeTask": "P2-T01",
-  "phase": "P2",
+  "activeTask": "P3-T01",
+  "phase": "P3",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
-    "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05"
+    "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
+    "P2-T01", "P2-T02", "P2-T03", "P2-T04"
   ],
   "blocked": [
     {
@@ -17,8 +18,16 @@
     {
       "id": "second-sanitizer",
       "reason": "exporter.ts's sanitizeWriterHtml is a separate, weaker, regex-based sanitizer used for canvas export rendering -- unrelated to and not covered by P1-T04's htmlSanitizer.ts fixes. See tasks/DRIFT-REPORT.md Finding 6. Needs its own task."
+    },
+    {
+      "id": "check-static-console-log",
+      "reason": "check:static's no-console.log rule flags 52 pre-existing console.log calls in bm2_benchmark.test.ts. See tasks/DRIFT-REPORT.md Finding 7. Needs its own task."
+    },
+    {
+      "id": "csp-report-only-hosting",
+      "reason": "Content-Security-Policy-Report-Only cannot be delivered via <meta> (browser/spec limitation, verified) and GitHub Pages (the live deployment) can't set custom HTTP headers at all. frontend/nginx.conf has a working header for the Docker/nginx path, but the live site has no working Report-Only CSP today. See tasks/DRIFT-REPORT.md Finding 8. Needs a human hosting decision, not a code fix."
     }
   ],
-  "notes": "Phase 0 and Phase 1 complete. Phase 2 (P2-T01..T04: delete diverged shadow tree, collapse certify scripts, root README, self-host fonts + CSP) not yet started this session.",
+  "notes": "Phase 0, Phase 1, and Phase 2 complete. Phase 3 (admission/binary work per P3-T01..T03) not yet started this session. Five findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
   "updated": "2026-07-29"
 }
