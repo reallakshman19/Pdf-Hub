@@ -1,3 +1,23 @@
+import { throwIfAborted } from '@/core/cancellation/operationCancellation';
+import {
+  PS_ISONOTE_ADMISSION_LIMITS,
+  PsIsonoteAdmissionError,
+  freezePsIsonoteAdmissionEvidence,
+  type PsIsonoteAdmissionEvidence,
+} from './psIsonoteAdmission';
+
+export class PsIsonoteParseError extends Error {
+  readonly code: 'UNTERMINATED_QUOTE';
+  readonly row: number;
+
+  constructor(code: 'UNTERMINATED_QUOTE', row: number) {
+    super(`PS/ISONOTE table row ${row}: unterminated quoted field.`);
+    this.name = 'PsIsonoteParseError';
+    this.code = code;
+    this.row = row;
+  }
+}
+
 export interface PsIsonoteMapping {
   psNo: string;
   isonote: string;
@@ -11,6 +31,8 @@ export interface PsIsonoteMapping {
 
 export interface PsIsonoteParseOptions {
   pipeLineStemLength?: [number, number];
+  /** Checked periodically while parsing large tables. */
+  signal?: AbortSignal;
 }
 
 export interface PsIsonoteParseResult {
@@ -23,6 +45,7 @@ export interface PsIsonoteParseResult {
   tagNoColumn?: string;
   confidenceColumn?: string;
   pipeColumn?: string;
+  admission: PsIsonoteAdmissionEvidence;
 }
 
 const PS_HEADER_ALIASES = new Set([
@@ -237,6 +260,10 @@ function parseDelimitedText(text: string, delimiter: string): string[][] {
     cell += char;
   }
 
+  if (quoted) {
+    throw new PsIsonoteParseError('UNTERMINATED_QUOTE', rows.length + 1);
+  }
+
   row.push(cleanCell(cell));
   rows.push(row);
 
@@ -303,6 +330,38 @@ export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions
     throw new Error('The PS/ISONOTE table is empty.');
   }
 
+  if (rows.length > PS_ISONOTE_ADMISSION_LIMITS.maxRows) {
+    throw new PsIsonoteAdmissionError('REJECTED_ROW_COUNT', {
+      metric: 'rowCount',
+      actual: rows.length,
+      limit: PS_ISONOTE_ADMISSION_LIMITS.maxRows,
+    });
+  }
+
+  let measuredColumns = 0;
+  let measuredMaxCellCodeUnits = 0;
+  for (const row of rows) {
+    throwIfAborted(options.signal, 'parse PS/ISONOTE table');
+    measuredColumns = Math.max(measuredColumns, row.length);
+    if (measuredColumns > PS_ISONOTE_ADMISSION_LIMITS.maxColumns) {
+      throw new PsIsonoteAdmissionError('REJECTED_COLUMN_COUNT', {
+        metric: 'columnCount',
+        actual: measuredColumns,
+        limit: PS_ISONOTE_ADMISSION_LIMITS.maxColumns,
+      });
+    }
+    for (const cell of row) {
+      measuredMaxCellCodeUnits = Math.max(measuredMaxCellCodeUnits, cell.length);
+      if (measuredMaxCellCodeUnits > PS_ISONOTE_ADMISSION_LIMITS.maxCellCodeUnits) {
+        throw new PsIsonoteAdmissionError('REJECTED_CELL_SIZE', {
+          metric: 'cellCodeUnits',
+          actual: measuredMaxCellCodeUnits,
+          limit: PS_ISONOTE_ADMISSION_LIMITS.maxCellCodeUnits,
+        });
+      }
+    }
+  }
+
   const firstRow = rows[0];
   const normalizedFirst = firstRow.map(normalizeHeader);
   const hasHeader = normalizedFirst.some((header) =>
@@ -334,7 +393,19 @@ export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions
   const warnings: string[] = [];
   const byPsNumber = new Map<string, PsIsonoteMapping>();
 
+  function pushWarning(warning: string): void {
+    warnings.push(warning);
+    if (warnings.length > PS_ISONOTE_ADMISSION_LIMITS.maxDiagnosticCount) {
+      throw new PsIsonoteAdmissionError('REJECTED_DIAGNOSTIC_COUNT', {
+        metric: 'diagnosticCount',
+        actual: warnings.length,
+        limit: PS_ISONOTE_ADMISSION_LIMITS.maxDiagnosticCount,
+      });
+    }
+  }
+
   dataRows.forEach((row, dataIndex) => {
+    throwIfAborted(options.signal, 'parse PS/ISONOTE table');
     const sourceRow = dataIndex + (hasHeader ? 2 : 1);
     const rawPs = row[psColumn] ?? '';
     const psNo = normalizePsNumber(rawPs);
@@ -347,18 +418,18 @@ export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions
 
     if (!rawPs.trim() && !isonote) return;
     if (!psNo) {
-      warnings.push(`Row ${sourceRow}: ignored invalid PS No. "${rawPs}".`);
+      pushWarning(`Row ${sourceRow}: ignored invalid PS No. "${rawPs}".`);
       return;
     }
     if (!isonote) {
-      warnings.push(`Row ${sourceRow}: ignored ${psNo} because ISONOTE is empty.`);
+      pushWarning(`Row ${sourceRow}: ignored ${psNo} because ISONOTE is empty.`);
       return;
     }
 
     const existing = byPsNumber.get(psNo);
     if (existing) {
       if (existing.isonote !== isonote) {
-        warnings.push(
+        pushWarning(
           `Row ${sourceRow}: conflicting ISONOTE for ${psNo}; kept row ${existing.sourceRow}.`,
         );
       }
@@ -382,6 +453,25 @@ export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions
     throw new Error('No valid PS No. versus ISONOTE rows were found.');
   }
 
+  if (mappings.length > PS_ISONOTE_ADMISSION_LIMITS.maxMappingCount) {
+    throw new PsIsonoteAdmissionError('REJECTED_MAPPING_COUNT', {
+      metric: 'mappingCount',
+      actual: mappings.length,
+      limit: PS_ISONOTE_ADMISSION_LIMITS.maxMappingCount,
+    });
+  }
+
+  const admission = freezePsIsonoteAdmissionEvidence({
+    evidenceProfileId: 'PS_ISONOTE_ADMISSION_EVIDENCE_V1',
+    limits: PS_ISONOTE_ADMISSION_LIMITS,
+    measuredRows: rows.length,
+    measuredColumns,
+    measuredMaxCellCodeUnits,
+    measuredMappingCount: mappings.length,
+    measuredDiagnosticCount: warnings.length,
+    admissionOutcome: 'ADMITTED',
+  });
+
   return {
     mappings,
     warnings,
@@ -392,5 +482,6 @@ export function parsePsIsonoteTable(text: string, options: PsIsonoteParseOptions
     tagNoColumn: tagNoColumn >= 0 ? headers[tagNoColumn] : undefined,
     confidenceColumn: confidenceColumn >= 0 ? headers[confidenceColumn] : undefined,
     pipeColumn: pipeColumn >= 0 ? headers[pipeColumn] : undefined,
+    admission,
   };
 }

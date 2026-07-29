@@ -1,0 +1,37 @@
+{
+  "id": "P1-T03",
+  "phase": "P1",
+  "title": "Consolidate downloadBlob to one implementation",
+  "finding": "M-1",
+  "maxFiles": 9,
+  "mayTouch": [
+    "frontend/src/core/document/download.ts",
+    "frontend/src/core/document/download.test.ts",
+    "frontend/src/core/writer-v2/export/downloadWriterFile.ts",
+    "frontend/src/core/writer-v2/export/writerCommentSummary.ts",
+    "frontend/src/adapters/file/FileAdapter.ts",
+    "frontend/src/components/sidebar/PsIsonoteRecipeBuilder.tsx",
+    "frontend/src/components/sidebar/PsIsonoteSampleLoader.tsx",
+    "frontend/src/components/sidebar/CommentsSidebar.tsx",
+    "frontend/src/components/toolbar/ToolbarOrganize.tsx"
+  ],
+  "preconditions": [
+    "P1-T02 merged"
+  ],
+  "change": [
+    "Rewrite core/document/download.ts with the canonical helper from the audit (delayed revoke, 30s).",
+    "Delete the local copies in the other 7 files; import downloadBlob instead.",
+    "Keep each call site's existing filename logic unchanged."
+  ],
+  "exit": [
+    "node scripts/guard-forbidden.mjs  \u2192  FB-2 clean",
+    "cd frontend && pnpm run typecheck  \u2192  exit 0",
+    "cd frontend && pnpm run test:ci  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT touch PdfRendererAdapter, tesseractJsEngine, or OcrSearchablePdfExportPanel \u2014 those own object URLs legitimately."
+  ],
+  "escalate": [
+    "A call site needs different revoke timing. Do not special-case it silently."
+  ]
+}

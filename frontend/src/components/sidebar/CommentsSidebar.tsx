@@ -1,16 +1,27 @@
 import React, { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { exportReviewSummary, formatReviewSummaryText } from '@/core/review/export';
+import { downloadBlob } from '@/core/document/download';
 import { MessageSquare, Download, CircleDot, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
 export const CommentsSidebar: React.FC = () => {
-  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore();
-  const { setPage } = useSessionStore();
-  const { filterStatus, setFilterStatus } = useReviewStore();
+  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    activeAnnotationId: state.activeAnnotationId,
+    setActiveAnnotationId: state.setActiveAnnotationId,
+  })));
+  const { setPage } = useSessionStore(useShallow((state) => ({
+    setPage: state.setPage,
+  })));
+  const { filterStatus, setFilterStatus } = useReviewStore(useShallow((state) => ({
+    filterStatus: state.filterStatus,
+    setFilterStatus: state.setFilterStatus,
+  })));
 
   const filteredAnnotations = useMemo(() => {
     return annotations.filter((a) => {
@@ -32,24 +43,14 @@ export const CommentsSidebar: React.FC = () => {
   const handleExportJson = () => {
     const summary = exportReviewSummary(annotations);
     const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `review-summary-${summary.generatedAt}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `review-summary-${summary.generatedAt}.json`);
   };
 
   const handleExportText = () => {
     const summary = exportReviewSummary(annotations);
     const text = formatReviewSummaryText(summary);
     const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `review-summary-${summary.generatedAt}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `review-summary-${summary.generatedAt}.txt`);
   };
 
   if (annotations.length === 0) {

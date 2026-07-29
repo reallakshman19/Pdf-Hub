@@ -4,12 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      No Content-Security-Policy-Report-Only meta tag here on purpose.
+      Verified with Chromium: browsers ignore that directive entirely when
+      delivered via <meta> (spec-defined; only the enforcing
+      Content-Security-Policy is meta-deliverable) -- console says exactly
+      that. A meta tag here would silently do nothing. See
+      tasks/DRIFT-REPORT.md Finding 8 for the header-based alternative
+      (frontend/nginx.conf has it) and why the live GitHub Pages deployment
+      needs a hosting decision to get a working Report-Only CSP at all.
+    -->
     <title>DocCraft — PDF Editor</title>
   </head>
   <body>

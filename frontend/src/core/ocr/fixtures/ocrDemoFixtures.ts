@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import type {
   OcrAnyBlock,
   OcrDocumentResult,
@@ -13,6 +13,8 @@ import {
   createOcrWriterInsertionCandidate,
 } from '../ocrWriterInsertion';
 import type { WriterElementV2 } from '../../writer-v2/types';
+
+type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
 
 export type OcrDemoFixtureId =
   | 'clean-text'
@@ -121,6 +123,8 @@ export async function createOcrDemoPdfBytes(
   id: OcrDemoFixtureId,
 ): Promise<Uint8Array> {
   const descriptor = getOcrDemoFixtureDescriptor(id);
+  const lib = await pdfLib();
+  const { PDFDocument, StandardFonts, rgb } = lib;
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -148,7 +152,7 @@ export async function createOcrDemoPdfBytes(
   });
 
   if (id === 'simple-table') {
-    drawDemoTable(page, font, bold);
+    drawDemoTable(page, font, bold, lib);
   }
 
   return pdf.save({
@@ -523,10 +527,12 @@ function createDemoTableBlock(): OcrAnyBlock {
 }
 
 function drawDemoTable(
-  page: ReturnType<PDFDocument['addPage']>,
-  font: Awaited<ReturnType<PDFDocument['embedFont']>>,
-  bold: Awaited<ReturnType<PDFDocument['embedFont']>>,
+  page: ReturnType<import('pdf-lib').PDFDocument['addPage']>,
+  font: Awaited<ReturnType<import('pdf-lib').PDFDocument['embedFont']>>,
+  bold: Awaited<ReturnType<import('pdf-lib').PDFDocument['embedFont']>>,
+  lib: PdfLibNs,
 ): void {
+  const { rgb } = lib;
   const rows = [
     ['Tag', 'Description', 'Status'],
     ['PS-001', 'Support near tie-in', 'Open'],

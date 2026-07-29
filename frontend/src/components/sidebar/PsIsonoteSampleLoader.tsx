@@ -1,12 +1,7 @@
 import React from 'react';
-import {
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Table2,
-  type LucideIcon,
-} from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { downloadBlob } from '@/core/document/download';
 import {
   PS_ISONOTE_SAMPLES,
   type PsIsonoteSample,
@@ -19,7 +14,9 @@ export interface PsIsonoteSampleLoaderProps {
   readonly onDownload?: (sample: PsIsonoteSample) => void;
 }
 
-const SAMPLE_ICONS: Record<PsIsonoteSampleId, LucideIcon> = {
+type SampleIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+
+const SAMPLE_ICONS: Record<PsIsonoteSampleId, SampleIcon> = {
   'csv-family': FileSpreadsheet,
   'tsv-basic': FileText,
   'pipe-table': Table2,
@@ -28,14 +25,7 @@ const SAMPLE_ICONS: Record<PsIsonoteSampleId, LucideIcon> = {
 
 function downloadSample(sample: PsIsonoteSample): void {
   const blob = new Blob([`${sample.content}\n`], { type: sample.mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = sample.fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, sample.fileName);
 }
 
 export const PsIsonoteSampleLoader: React.FC<PsIsonoteSampleLoaderProps> = ({

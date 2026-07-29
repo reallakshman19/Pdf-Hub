@@ -1,0 +1,34 @@
+{
+  "id": "P2-T01",
+  "phase": "P2",
+  "title": "Delete the diverged shadow source tree",
+  "finding": "H-4",
+  "maxFiles": 40,
+  "mayTouch": [
+    "core/**",
+    "archive/**",
+    "LICENSE-backend",
+    "pnpm-workspace.yaml",
+    "frontend/vite.config.ts"
+  ],
+  "preconditions": [
+    "P1-T05 merged",
+    "grep -rn \"from '.*\\\\.\\\\./core/\" frontend/src | grep -v 'src/core'  \u2192  no output (proves nothing imports root core/)"
+  ],
+  "change": [
+    "git rm -r core/ archive/ LICENSE-backend",
+    "pnpm-workspace.yaml: packages list becomes exactly ['frontend']",
+    "vite.config.ts: delete the server.proxy block pointing at 127.0.0.1:8000"
+  ],
+  "exit": [
+    "node scripts/guard-forbidden.mjs  \u2192  FB-5 clean",
+    "cd frontend && pnpm run typecheck  \u2192  exit 0",
+    "cd frontend && npx vite build  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT delete frontend/src/core/ \u2014 that is the live tree. Read the path twice."
+  ],
+  "escalate": [
+    "The precondition grep returns ANY output. Something imports root core/; stop immediately."
+  ]
+}

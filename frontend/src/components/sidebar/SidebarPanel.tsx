@@ -1,4 +1,5 @@
 import React, { useState, Suspense } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { MacrosSidebar } from '@/components/sidebar/MacrosSidebar';
 import { PsIsonoteRecipeBuilder } from '@/components/sidebar/PsIsonoteRecipeBuilder';
@@ -24,7 +25,11 @@ const SearchPanel = React.lazy(() =>
 );
 
 export const SidebarPanel: React.FC = () => {
-  const { sidebarTab, leftPanelWidth, setLeftPanelWidth } = useEditorStore();
+  const { sidebarTab, leftPanelWidth, setLeftPanelWidth } = useEditorStore(useShallow((state) => ({
+    sidebarTab: state.sidebarTab,
+    leftPanelWidth: state.leftPanelWidth,
+    setLeftPanelWidth: state.setLeftPanelWidth,
+  })));
   const [previousWidth, setPreviousWidth] = useState(20);
 
   const isCollapsed = leftPanelWidth <= 0.1;

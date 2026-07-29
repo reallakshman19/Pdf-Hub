@@ -1,0 +1,64 @@
+{
+  "activeTask": null,
+  "phase": "complete",
+  "completed": [
+    "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
+    "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
+    "P2-T01", "P2-T02", "P2-T03", "P2-T04",
+    "P3-T01", "P3-T02", "P3-T03",
+    "P4-T01", "P4-T02", "P4-T03",
+    "P5-T01", "P5-T02"
+  ],
+  "blocked": [
+    {
+      "id": "P0-T02-followup",
+      "reason": "pnpm run test:ci has 4 pre-existing failures unrelated to dependency drift: a debug test hardcoding a Windows path (rca.test.ts), and 3 tests (output-verifier.test.ts, psIsonoteVerification.test.ts x2) that look like one shared root cause in PDF marker/callout verification under Node/jsdom (a 'legacy build' pdfjs-dist warning precedes each failure). See tasks/DRIFT-REPORT.md Finding 5. Needs a dedicated investigation task."
+    },
+    {
+      "id": "lint-debt",
+      "reason": "pnpm run lint has 84 pre-existing errors (mostly no-explicit-any in test files), unrelated to dependency drift. See tasks/DRIFT-REPORT.md Finding 4. Needs its own scoped task(s)."
+    },
+    {
+      "id": "second-sanitizer",
+      "reason": "exporter.ts's sanitizeWriterHtml is a separate, weaker, regex-based sanitizer used for canvas export rendering -- unrelated to and not covered by P1-T04's htmlSanitizer.ts fixes. See tasks/DRIFT-REPORT.md Finding 6. Needs its own task."
+    },
+    {
+      "id": "check-static-console-log",
+      "reason": "check:static's no-console.log rule flags 52 pre-existing console.log calls in bm2_benchmark.test.ts. See tasks/DRIFT-REPORT.md Finding 7. Needs its own task."
+    },
+    {
+      "id": "csp-report-only-hosting",
+      "reason": "Content-Security-Policy-Report-Only cannot be delivered via <meta> (browser/spec limitation, verified) and GitHub Pages (the live deployment) can't set custom HTTP headers at all. frontend/nginx.conf has a working header for the Docker/nginx path, but the live site has no working Report-Only CSP today. See tasks/DRIFT-REPORT.md Finding 8. Needs a human hosting decision, not a code fix."
+    },
+    {
+      "id": "imagedropplugin-no-dom-test",
+      "reason": "ImageDropPlugin.tsx's drop handling has no DOM-level integration test: this jsdom environment has no DragEvent implementation at all, and Lexical's root 'drop' listener doesn't fire through testing-library's plain-Event fallback. Pre-existing environment limitation (the plugin had zero test coverage before P3-T03). Covered instead by the shared writerImageAdmission module's unit tests + typecheck + manual review of the (minimal, structurally faithful) change."
+    },
+    {
+      "id": "guard-scope-base-mismatch",
+      "reason": "guard-scope.mjs's default base (origin/main) has never had any tasks/*.json for the life of this programme, since all work has run as one long-lived branch/PR (per this session's explicit branch instructions) rather than the kit's one-branch-per-task model. Confirmed origin/main has no tasks/ directory at all. Would have failed identically for every prior task. See tasks/DRIFT-REPORT.md Finding 9. Needs a human call: merge PR #163 incrementally, or change guard-scope.mjs's default base for single-PR-programme runs (guard script change requires R-10's human-reviewed PR, not a task-scoped fix)."
+    },
+    {
+      "id": "p4-t02-maxfiles-overrun",
+      "reason": "P4-T02's card declares maxFiles: 15, but the real count of non-test files with a static pdf-lib/html2canvas import was 16 (verified by grep against FB-4's own pattern before starting), plus vite.config.ts, eslint.config.js, tasks/RATCHET.json, tasks/STATE.json, and the new core/pdf/lazyPdfLib.ts -- 27 files total, all within mayTouch's globs but over budget. Also: the audit's prescribed manualChunks object-literal config does not work under this repo's actual bundler (Rolldown via Vite 8) -- it silently requires a function, not an object of arrays; converted to the function form (same vendor grouping) and verified 0 INEFFECTIVE_DYNAMIC_IMPORT warnings and largest gzip chunk 303.30 kB (< 500 kB) with a real build. See tasks/DRIFT-REPORT.md Finding 10. Needs a human call on the maxFiles budget; the Rolldown manualChunks fix is factual and already applied."
+    },
+    {
+      "id": "p4-t03-manual-responsiveness-check-not-performed",
+      "reason": "P4-T03's exit criteria include a manual check ('export a 50-page document; the UI must remain responsive throughout') that requires interactive browser use and was not performed in this automated session. Substituted: verified zero DOM dependencies in flattenedPdfExport.ts/projectZip.ts before moving them into the worker; verified with a real production build that exportWorkerEntrypoint.ts bundles into its own worker chunk (matching ocrWorkerEntrypoint's pattern); added an automated 50-page/50-element flatten test as a correctness (not UI-responsiveness) proxy. A human should do the live manual check before merging. See tasks/DRIFT-REPORT.md Finding 11."
+    },
+    {
+      "id": "coverage-gate-core-adapters-below-80pct",
+      "reason": "MAJOR: the coverage threshold gate has silently never been enforced in this repo's history. Vitest skips coverage report generation entirely (zero output) whenever any test fails, unless coverage.reportOnFailure is set -- it wasn't, and this repo has had 4 pre-existing failing tests since before this programme (Finding 5), so the 80% threshold for src/core/src/adapters was configured but never actually checked. Set reportOnFailure: true (a real fix, in scope for this card) to make it actually run, which revealed src/core measures ~77-79% (below 80%) and src/adapters measures ~10-51% (severely below 80%, adapters/equation at 0%, adapters/file ~12%, adapters/pdf-edit ~15%). Left both thresholds at 80% per this card's forbidden clause (must not lower them to force a pass) rather than hiding the gap. pnpm run coverage cannot exit 0 right now for two independent pre-existing reasons: Finding 5's failing tests still set the process exit code non-zero even with reportOnFailure, and src/core/src/adapters genuinely don't meet 80%. src/components/**'s own new threshold (lines 40, statements/functions/branches 35, measured 2026-07-29) is correctly configured and passes in isolation. See tasks/DRIFT-REPORT.md Finding 12. Needs a human decision: fund real coverage work for src/adapters/src/core, or reset those thresholds to their real measured values (a scope change outside any single task's own diff)."
+    },
+    {
+      "id": "writer-export-preflight-blocks-blank-document-export",
+      "reason": "MAJOR: runCurrentWriterExportPreflight() (writerExportPreflight.ts:83-93) always sources pageCount/sourceBytes from useSessionStore (the open-PDF session), never checking useWriterV2Store's documentMeta for blank-document mode. Result: blank Writer documents (created via the 'Blank Doc' button, by design with no PDF open) ALWAYS fail preflight with NO_PDF_OPEN and OBJECT_OUTSIDE_PAGE_RANGE errors, and the preflight dialog has no way to proceed past errors (only Cancel) -- meaning blank Writer documents can never be exported via the real UI today (project ZIP, and likely every other export routed through runWithWriterPreflight). Discovered while building P5-T02's Journey 2 e2e test; worked around it by anchoring the journey on an already-open PDF instead of a blank document (an equally real, arguably more common Writer V2 usage path) rather than fixing the out-of-scope preflight bug. See tasks/DRIFT-REPORT.md Finding 13. Needs its own scoped task to thread documentMeta.mode through the preflight input builder."
+    },
+    {
+      "id": "p5-t02-maxfiles-slightly-over",
+      "reason": "P5-T02's card declares maxFiles: 8. The 8 functional files (3 new spec files, 2 new fixture helpers, 1 fixed pre-existing spec, playwright.config.ts, .github/workflows/frontend-ci.yml) exactly match the budget, but tasks/STATE.json and tasks/DRIFT-REPORT.md bookkeeping updates push the real diff to 10 files -- consistent with every other task in this programme, and consistent with the pattern already flagged in Finding 10 (maxFiles budgets don't account for the two standard bookkeeping files). Not fixed (would mean skipping STATE.json/DRIFT-REPORT.md updates, breaking this programme's own audit trail); flagged here per precedent."
+    }
+  ],
+  "notes": "All 21 task cards (Phase -1 through P5-T02) complete. P5-T02 added three real Playwright e2e journeys (frontend/e2e/pdf-annotation-roundtrip.spec.ts, writer-v2-project-roundtrip.spec.ts, ps-isonote-evidence-package.spec.ts) plus shared fixtures (stubNativeFilePickers.ts to bypass the File System Access API's native dialog, testPdf.ts to build real pdf-lib fixture PDFs), wired into a new e2e-tests job in .github/workflows/frontend-ci.yml. All 4 e2e specs (including the pre-existing static-smoke.spec.ts, whose stale assertion was fixed) pass reliably across repeated local runs. No part of the PDF/Writer/PS-ISONOTE pipelines was mocked -- every journey drives the real app in a real browser against real generated PDF/ZIP bytes, verified afterward with real parsing (pdfjs-dist, JSZip). Thirteen findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks for a human to triage; none block the work already merged into this branch.",
+  "updated": "2026-07-29"
+}

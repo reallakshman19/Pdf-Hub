@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
 import { BUILTIN_MACROS } from '@/core/macro/builtins';
@@ -198,7 +199,12 @@ function RecipeStepTable({ json }: { json: string }) {
 // ─── MacrosSidebar ───────────────────────────────────────────────────────────
 
 export const MacrosSidebar: React.FC = () => {
-  const { workingBytes, pageCount, viewState, fileName } = useSessionStore();
+  const { workingBytes, pageCount, viewState, fileName } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    pageCount: state.pageCount,
+    viewState: state.viewState,
+    fileName: state.fileName,
+  })));
   const { savedPresets, savePreset, deletePreset } = usePresetsStore();
 
   const allRecipes = React.useMemo(() => [...BUILTIN_RECIPES, ...savedPresets], [savedPresets]);

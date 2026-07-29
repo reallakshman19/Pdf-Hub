@@ -1,3 +1,5 @@
+import { downloadBlob } from '@/core/document/download';
+
 export function downloadWriterBytes(
   bytes: Uint8Array,
   fileName: string,
@@ -7,18 +9,7 @@ export function downloadWriterBytes(
     type: mimeType,
   });
 
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = 'none';
-
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, fileName);
 }
 
 export function safeDownloadBaseName(fileName: string | null | undefined): string {

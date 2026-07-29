@@ -13,6 +13,9 @@
 
 ## 0\. Read this first
 
+Execution protocol, task cards, and anti-drift guards: see AGENT_PROTOCOL.md.
+Read tasks/STATE.json before any work.
+
 This document governs every coding agent and every developer working on DocCraft.
 It does not change mid-phase. When this file conflicts with a task description,
 this file wins.

@@ -1,0 +1,37 @@
+{
+  "id": "P0-T02b",
+  "phase": "P0",
+  "title": "Fix pre-existing typecheck drift found by P0-T02's frozen install",
+  "finding": "C-2 (follow-up)",
+  "maxFiles": 7,
+  "mayTouch": [
+    "frontend/src/modules.d.ts",
+    "frontend/vite.config.ts",
+    "frontend/src/components/sidebar/PsIsonoteSampleLoader.tsx",
+    "frontend/src/core/annotation-placement/index.ts",
+    "frontend/src/core/annotation-placement/margin-rail.ts",
+    "frontend/src/core/annotation-rendering/index.ts",
+    "frontend/src/core/annotation-typography/index.ts",
+    "frontend/src/core/macro/psIsonote/bm2_benchmark.test.ts"
+  ],
+  "preconditions": [
+    "P0-T02 escalated with tasks/DRIFT-REPORT.md documenting Findings 1-2",
+    "User directed: fix now rather than defer (recommended option)"
+  ],
+  "change": [
+    "Delete frontend/src/modules.d.ts: its hand-written `declare module 'pdfjs-dist'` shim shadowed the real, complete pdfjs-dist types and was the sole cause of the PageViewport/Util/RenderTask.cancel() typecheck errors. Verified deleting it introduces zero new errors.",
+    "Remove the unsupported `workerExecArgs` key from vite.config.ts's test block (vitest 4.1.4 has no such config surface; poolOptions.threads.execArgv doesn't exist in this version either).",
+    "Delete the three dead barrel files (annotation-placement/index.ts + margin-rail.ts, annotation-rendering/index.ts, annotation-typography/index.ts): confirmed zero external references anywhere in src; their re-exports referenced types renamed/removed from professional/layoutEngine.ts and professional/model.ts long ago.",
+    "PsIsonoteSampleLoader.tsx: replace the lucide-react LucideIcon type (which resolves ambiguously as a namespace under this project's moduleResolution=bundler + verbatimModuleSyntax config) with a local React.ComponentType<React.SVGProps<SVGSVGElement>> alias.",
+    "bm2_benchmark.test.ts: remove one unused `rotation` local variable."
+  ],
+  "exit": [
+    "cd frontend && pnpm run typecheck  →  exit 0",
+    "cd frontend && pnpm run test:ci  →  see separate note on 3 pre-existing unrelated test failures"
+  ],
+  "forbidden": [
+    "Do NOT fix the 84 pre-existing eslint errors surfaced by `pnpm run lint` (no-explicit-any across ~10 files, prefer-const, no-console in rca.test.ts). Not part of this card's exit criteria; separate, larger finding.",
+    "Do NOT fix the 3 test:ci failures here (hardcoded Windows path in rca.test.ts; a psIsonoteVerification.test.ts assertion mismatch). Separate finding, separate task."
+  ],
+  "escalate": []
+}

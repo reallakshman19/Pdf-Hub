@@ -96,7 +96,6 @@ describe('BM2 Definitive Benchmark — User CSV and PDF Integration', () => {
     const pdfLibForInspect = await PDFDoc2.load(pdfBytes);
     const pdfLibPage = pdfLibForInspect.getPage(0);
     console.log(`[BM2 Audit] pdf-lib page size: width=${pdfLibPage.getWidth().toFixed(1)}, height=${pdfLibPage.getHeight().toFixed(1)}`);
-    const rotation = pdfLibPage.getRotation();
     // Log the actual primitive data of the first callout
     if (callouts[0]?.professionalModel) {
       const m = callouts[0].professionalModel;

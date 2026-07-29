@@ -6,6 +6,7 @@ import { MobileBottomTabBar } from '@/components/shell/MobileBottomTabBar';
 import { MobileDrawer } from '@/components/shell/MobileDrawer';
 import { MobileSheet } from '@/components/shell/MobileSheet';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
@@ -39,7 +40,12 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     setMobileDrawerOpen,
     mobileSheetOpen,
     setMobileSheetOpen,
-  } = useEditorStore();
+  } = useEditorStore(useShallow((state) => ({
+    mobileDrawerOpen: state.mobileDrawerOpen,
+    setMobileDrawerOpen: state.setMobileDrawerOpen,
+    mobileSheetOpen: state.mobileSheetOpen,
+    setMobileSheetOpen: state.setMobileSheetOpen,
+  })));
 
   const selectedAnnotationIds = useAnnotationStore((state) => state.selectedAnnotationIds);
   const prevSelectedCountRef = useRef(0);

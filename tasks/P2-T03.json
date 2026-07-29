@@ -1,0 +1,26 @@
+{
+  "id": "P2-T03",
+  "phase": "P2",
+  "title": "Write a real root README",
+  "finding": "M-7",
+  "maxFiles": 2,
+  "mayTouch": [
+    "README.md",
+    "frontend/README.md"
+  ],
+  "preconditions": [
+    "P2-T02 merged"
+  ],
+  "change": [
+    "Root README.md: what the app is, live URL, quickstart (pnpm install --frozen-lockfile; pnpm dev), architecture map, where the docs live, link to AGENT_PROTOCOL.md.",
+    "Replace the Vite boilerplate in frontend/README.md with a pointer to the root README."
+  ],
+  "exit": [
+    "grep -c 'This template provides a minimal setup' frontend/README.md  \u2192  0",
+    "test -f README.md  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "No feature roadmap in the README. It describes what exists today."
+  ],
+  "escalate": []
+}

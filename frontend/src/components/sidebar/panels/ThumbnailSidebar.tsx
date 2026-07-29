@@ -2,6 +2,7 @@ import React from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Layers, GripVertical, ZoomIn, ZoomOut } from 'lucide-react';
 import { VList, type VListHandle } from 'virtua';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useEditorStore } from '@/core/editor/store';
@@ -148,11 +149,25 @@ const ThumbnailSidebar: React.FC = () => {
     selectedPages,
     setSelectedPages,
     toggleSelectedPage,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    viewState: state.viewState,
+    setPage: state.setPage,
+    selectedPages: state.selectedPages,
+    setSelectedPages: state.setSelectedPages,
+    toggleSelectedPage: state.toggleSelectedPage,
+  })));
   const { pdfDoc } = usePdfStore();
-  const { setSidebarTab } = useEditorStore();
-  const { annotations } = useAnnotationStore();
-  const { hits } = useSearchStore();
+  const { setSidebarTab } = useEditorStore(useShallow((state) => ({
+    setSidebarTab: state.setSidebarTab,
+  })));
+  const { annotations } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+  })));
+  const { hits } = useSearchStore(useShallow((state) => ({
+    hits: state.hits,
+  })));
 
   const [thumbs, setThumbs] = React.useState<ThumbItem[]>([]);
   const [loading, setLoading] = React.useState(false);

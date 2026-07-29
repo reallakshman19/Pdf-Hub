@@ -8,6 +8,7 @@ import {
   Layers,
   Sparkles,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import type { ActiveMode } from '@/core/editor/types';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -23,7 +24,11 @@ const MODES: Array<{ id: ActiveMode; icon: React.ComponentType<{ className?: str
 ];
 
 export const ModeBar: React.FC = () => {
-  const { activeMode, setActiveMode, setMobileSheetOpen } = useEditorStore();
+  const { activeMode, setActiveMode, setMobileSheetOpen } = useEditorStore(useShallow((state) => ({
+    activeMode: state.activeMode,
+    setActiveMode: state.setActiveMode,
+    setMobileSheetOpen: state.setMobileSheetOpen,
+  })));
   const isMobile = useIsMobile();
 
   if (!isMobile) {

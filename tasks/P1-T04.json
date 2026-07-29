@@ -1,0 +1,34 @@
+{
+  "id": "P1-T04",
+  "phase": "P1",
+  "title": "Sanitizer hardening: five defects",
+  "finding": "M-2",
+  "maxFiles": 4,
+  "mayTouch": [
+    "frontend/src/core/writer/htmlSanitizer.ts",
+    "frontend/src/core/writer/htmlSanitizer.test.ts",
+    "frontend/src/core/macro/steps/content-ops.ts",
+    "frontend/src/core/writer/exporter.ts"
+  ],
+  "preconditions": [
+    "P1-T03 merged"
+  ],
+  "change": [
+    "(a) sanitizeHref: return parsed.href, not the raw trimmed string. Also reject protocol-relative '//'.",
+    "(b) sanitizeImageSource: apply maxDataImageBytes to blob: URLs, or reject blob: entirely.",
+    "(c) Drop 'gif' from the data:image regex to match the IMG-1 format policy.",
+    "(d) sanitizeHtmlWithReport: guard on html.length before calling textEncoder.encode.",
+    "(e) Surface report.truncated at both callers (content-ops.ts, exporter.ts) via the existing toast store."
+  ],
+  "exit": [
+    "cd frontend && npx vitest run src/core/writer/htmlSanitizer  \u2192  exit 0",
+    "New tests: backslash href normalised; '//evil.com' rejected; blob: bounded; gif rejected; truncation surfaced"
+  ],
+  "forbidden": [
+    "Do NOT widen ALLOWED_TAGS, GLOBAL_ATTRIBUTES, or SAFE_STYLE_PROPERTIES.",
+    "Do NOT replace the sanitizer with DOMPurify in this task."
+  ],
+  "escalate": [
+    "Rejecting blob: breaks an existing image path. Report which one."
+  ]
+}

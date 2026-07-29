@@ -14,6 +14,7 @@ import { useWriterStore } from '@/core/writer/store';
 import { composeCommittedPdf } from '@/core/document/commitPipeline';
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
+import { useShallow } from 'zustand/react/shallow';
 
 export const ToolbarFile: React.FC = () => {
   const {
@@ -28,9 +29,24 @@ export const ToolbarFile: React.FC = () => {
     beginExportOperation,
     completeSaveOperation,
     failSaveOperation,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    fileName: state.fileName,
+    saveHandle: state.saveHandle,
+    setSaveHandle: state.setSaveHandle,
+    isDirty: state.isDirty,
+    recordSaveExportAction: state.recordSaveExportAction,
+    commitWorkingCopy: state.commitWorkingCopy,
+    beginSaveOperation: state.beginSaveOperation,
+    beginExportOperation: state.beginExportOperation,
+    completeSaveOperation: state.completeSaveOperation,
+    failSaveOperation: state.failSaveOperation,
+  })));
 
-  const { annotations, setAnnotations } = useAnnotationStore();
+  const { annotations, setAnnotations } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    setAnnotations: state.setAnnotations,
+  })));
   const addToast = useToastStore((state) => state.addToast);
 
   const writerElements = useWriterStore((state) => state.elements);

@@ -17,6 +17,7 @@ import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { useAnnotationPersistence } from './useAnnotationPersistence';
 import { useWriterPersistence } from './useWriterPersistence';
+import { useShallow } from 'zustand/react/shallow';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 
@@ -83,7 +84,18 @@ export const DocumentWorkspace: React.FC = () => {
     setSelection,
     toggleSelection,
     clearSelection,
-  } = useAnnotationStore();
+  } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    setAnnotations: state.setAnnotations,
+    addAnnotation: state.addAnnotation,
+    updateAnnotation: state.updateAnnotation,
+    updateManyAnnotations: state.updateManyAnnotations,
+    setActiveAnnotationId: state.setActiveAnnotationId,
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    setSelection: state.setSelection,
+    toggleSelection: state.toggleSelection,
+    clearSelection: state.clearSelection,
+  })));
   const isMobile = useIsMobile();
 
   const {
@@ -92,10 +104,20 @@ export const DocumentWorkspace: React.FC = () => {
     viewState,
     setPage,
     setZoom,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    viewState: state.viewState,
+    setPage: state.setPage,
+    setZoom: state.setZoom,
+  })));
 
-  const { activeTool } = useEditorStore();
-  const { hideResolved } = useReviewStore();
+  const { activeTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+  })));
+  const { hideResolved } = useReviewStore(useShallow((state) => ({
+    hideResolved: state.hideResolved,
+  })));
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
 
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
@@ -720,7 +742,10 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
 }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
-  const { hits, activeHitId } = useSearchStore();
+  const { hits, activeHitId } = useSearchStore(useShallow((state) => ({
+    hits: state.hits,
+    activeHitId: state.activeHitId,
+  })));
   const isSelectTool = activeTool === 'select';
   const isTextMarkTool = isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
   const isNoteTool = activeTool === 'comment';

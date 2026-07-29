@@ -1,0 +1,30 @@
+name: Guards
+
+on:
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    name: Anti-drift guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Scope — PR touches only what the active task card allows
+        run: node scripts/guard-scope.mjs origin/${{ github.base_ref }}
+
+      - name: Forbidden — no fixed bug may return
+        run: node scripts/guard-forbidden.mjs
+
+      - name: Ratchet — counters may only decrease
+        run: node scripts/guard-ratchet.mjs

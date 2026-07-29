@@ -4,6 +4,7 @@ import { MacroRecipeBuilder } from './builder/MacroRecipeBuilder';
 import { findBuiltInMacroRecipe, getBuiltInMacroRecipes } from '@/core/macro/recipes/builtInRecipes';
 import { loadCustomMacroRecipes } from '@/core/macro/recipes/recipeStorage';
 import type { MacroRecipe } from '@/core/macro/types';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 
 function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
@@ -11,7 +12,10 @@ function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
 }
 
 export const MacroBuilderDrawer: React.FC = () => {
-  const { macroBuilderOpen, setMacroBuilderOpen } = useEditorStore();
+  const { macroBuilderOpen, setMacroBuilderOpen } = useEditorStore(useShallow((state) => ({
+    macroBuilderOpen: state.macroBuilderOpen,
+    setMacroBuilderOpen: state.setMacroBuilderOpen,
+  })));
   const builtIns = React.useMemo(() => getBuiltInMacroRecipes(), []);
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
   const [selectedSource, setSelectedSource] = React.useState<string>('new');

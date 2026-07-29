@@ -1,0 +1,31 @@
+{
+  "id": "P4-T02",
+  "phase": "P4",
+  "title": "Make code splitting real",
+  "finding": "H-2",
+  "maxFiles": 15,
+  "mayTouch": [
+    "frontend/src/core/pdf/lazyPdfLib.ts",
+    "frontend/vite.config.ts",
+    "frontend/eslint.config.js",
+    "frontend/src/**",
+    "tasks/RATCHET.json"
+  ],
+  "preconditions": [
+    "P4-T01 merged"
+  ],
+  "change": [
+    "Create core/pdf/lazyPdfLib.ts. Convert all static pdf-lib importers to it. Convert the html2canvas static import in core/writer/exporter.ts to dynamic. Add manualChunks from the audit. Add the no-restricted-imports rule."
+  ],
+  "exit": [
+    "cd frontend && npx vite build 2>&1 | grep -c INEFFECTIVE_DYNAMIC_IMPORT  \u2192  0",
+    "Largest chunk gzip  \u2192  < 500 kB (record the actual number in the PR)",
+    "node scripts/guard-forbidden.mjs  \u2192  FB-4 clean"
+  ],
+  "forbidden": [
+    "Do NOT change any PDF logic. Import mechanics only."
+  ],
+  "escalate": [
+    "A module cannot become async without changing a synchronous public API."
+  ]
+}

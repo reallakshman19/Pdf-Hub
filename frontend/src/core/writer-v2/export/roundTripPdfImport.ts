@@ -1,15 +1,12 @@
-import {
-  PDFDocument,
-  PDFName,
-  PDFDict,
-  PDFArray,
-  PDFRawStream,
-  decodePDFRawStream,
-} from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import {
   importPdfHubWriterProject,
   type ImportPdfHubProjectResult,
 } from './projectZip';
+
+type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
+type PDFDocumentT = import('pdf-lib').PDFDocument;
+type PDFDictT = import('pdf-lib').PDFDict;
 
 /**
  * Detect and extract the editable Writer project ZIP that
@@ -21,14 +18,15 @@ import {
 export async function extractWriterProjectFromPdf(
   pdfBytes: Uint8Array,
 ): Promise<ImportPdfHubProjectResult | null> {
-  let doc: PDFDocument;
+  const lib = await pdfLib();
+  let doc: PDFDocumentT;
   try {
-    doc = await PDFDocument.load(pdfBytes, { throwOnInvalidObject: false });
+    doc = await lib.PDFDocument.load(pdfBytes, { throwOnInvalidObject: false });
   } catch {
     return null;
   }
 
-  const zipBytes = findEmbeddedProjectZip(doc);
+  const zipBytes = findEmbeddedProjectZip(doc, lib);
   if (!zipBytes) return null;
 
   try {
@@ -39,15 +37,15 @@ export async function extractWriterProjectFromPdf(
   }
 }
 
-function findEmbeddedProjectZip(doc: PDFDocument): Uint8Array | null {
-  const names = doc.catalog.lookupMaybe(PDFName.of('Names'), PDFDict);
+function findEmbeddedProjectZip(doc: PDFDocumentT, lib: PdfLibNs): Uint8Array | null {
+  const names = doc.catalog.lookupMaybe(lib.PDFName.of('Names'), lib.PDFDict);
   if (!names) return null;
 
-  const embeddedFiles = names.lookupMaybe(PDFName.of('EmbeddedFiles'), PDFDict);
+  const embeddedFiles = names.lookupMaybe(lib.PDFName.of('EmbeddedFiles'), lib.PDFDict);
   if (!embeddedFiles) return null;
 
   const collected: Uint8Array[] = [];
-  collectFromNameTree(embeddedFiles, collected, 0);
+  collectFromNameTree(embeddedFiles, collected, 0, lib);
 
   for (const bytes of collected) {
     if (looksLikeZip(bytes)) return bytes;
@@ -60,46 +58,47 @@ function findEmbeddedProjectZip(doc: PDFDocument): Uint8Array | null {
  * Walk both, bounded by a depth guard against malformed/cyclic trees.
  */
 function collectFromNameTree(
-  node: PDFDict,
+  node: PDFDictT,
   out: Uint8Array[],
   depth: number,
+  lib: PdfLibNs,
 ): void {
   if (depth > 32) return;
 
-  const namesArray = node.lookupMaybe(PDFName.of('Names'), PDFArray);
+  const namesArray = node.lookupMaybe(lib.PDFName.of('Names'), lib.PDFArray);
   if (namesArray) {
     // Entries alternate: name, fileSpec, name, fileSpec, ...
     for (let index = 1; index < namesArray.size(); index += 2) {
-      const fileSpec = namesArray.lookupMaybe(index, PDFDict);
-      const bytes = readFileSpecBytes(fileSpec);
+      const fileSpec = namesArray.lookupMaybe(index, lib.PDFDict);
+      const bytes = readFileSpecBytes(fileSpec, lib);
       if (bytes) out.push(bytes);
     }
   }
 
-  const kids = node.lookupMaybe(PDFName.of('Kids'), PDFArray);
+  const kids = node.lookupMaybe(lib.PDFName.of('Kids'), lib.PDFArray);
   if (kids) {
     for (let index = 0; index < kids.size(); index += 1) {
-      const kid = kids.lookupMaybe(index, PDFDict);
-      if (kid) collectFromNameTree(kid, out, depth + 1);
+      const kid = kids.lookupMaybe(index, lib.PDFDict);
+      if (kid) collectFromNameTree(kid, out, depth + 1, lib);
     }
   }
 }
 
-function readFileSpecBytes(fileSpec: PDFDict | undefined): Uint8Array | null {
+function readFileSpecBytes(fileSpec: PDFDictT | undefined, lib: PdfLibNs): Uint8Array | null {
   if (!fileSpec) return null;
 
-  const ef = fileSpec.lookupMaybe(PDFName.of('EF'), PDFDict);
+  const ef = fileSpec.lookupMaybe(lib.PDFName.of('EF'), lib.PDFDict);
   if (!ef) return null;
 
-  const fObj = ef.lookup(PDFName.of('F'));
-  const ufObj = ef.lookup(PDFName.of('UF'));
+  const fObj = ef.lookup(lib.PDFName.of('F'));
+  const ufObj = ef.lookup(lib.PDFName.of('UF'));
   const stream =
-    (fObj instanceof PDFRawStream ? fObj : undefined) ??
-    (ufObj instanceof PDFRawStream ? ufObj : undefined);
+    (fObj instanceof lib.PDFRawStream ? fObj : undefined) ??
+    (ufObj instanceof lib.PDFRawStream ? ufObj : undefined);
   if (!stream) return null;
 
   try {
-    return decodePDFRawStream(stream).decode();
+    return lib.decodePDFRawStream(stream).decode();
   } catch {
     try {
       return stream.getContents();

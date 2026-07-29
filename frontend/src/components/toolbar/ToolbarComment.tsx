@@ -35,6 +35,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
+import { useShallow } from 'zustand/react/shallow';
 import type { ActiveTool } from '@/core/editor/types';
 import type { AnnotationType } from '@/core/annotations/annotationTypes';
 import { Button } from '@/components/ui/Button';
@@ -47,7 +48,10 @@ import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarC
 import { Separator } from '@/components/ui/Separator';
 
 export const ToolbarComment: React.FC = () => {
-  const { activeTool, setActiveTool } = useEditorStore();
+  const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+  })));
   const writerActiveTool = useWriterStore((state) => state.activeTool);
   const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
   const {
@@ -63,10 +67,28 @@ export const ToolbarComment: React.FC = () => {
     distributeSelection,
     deleteSelection,
     toggleLockSelection,
-  } = useAnnotationStore();
+  } = useAnnotationStore(useShallow((state) => ({
+    undo: state.undo,
+    redo: state.redo,
+    history: state.history,
+    future: state.future,
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    copySelection: state.copySelection,
+    pasteClipboard: state.pasteClipboard,
+    duplicateSelection: state.duplicateSelection,
+    alignSelection: state.alignSelection,
+    distributeSelection: state.distributeSelection,
+    deleteSelection: state.deleteSelection,
+    toggleLockSelection: state.toggleLockSelection,
+  })));
 
-  const { viewState } = useSessionStore();
-  const { hideResolved, setHideResolved } = useReviewStore();
+  const { viewState } = useSessionStore(useShallow((state) => ({
+    viewState: state.viewState,
+  })));
+  const { hideResolved, setHideResolved } = useReviewStore(useShallow((state) => ({
+    hideResolved: state.hideResolved,
+    setHideResolved: state.setHideResolved,
+  })));
   const hasSelection = selectedAnnotationIds.length > 0;
 
   const handleToolClick = (tool: AnnotationType) => {

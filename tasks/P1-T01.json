@@ -1,0 +1,33 @@
+{
+  "id": "P1-T01",
+  "phase": "P1",
+  "title": "Fix the CSV quote-handling data-loss bug",
+  "finding": "C-1",
+  "maxFiles": 2,
+  "mayTouch": [
+    "frontend/src/core/macro/psIsonote/psIsonoteTable.ts",
+    "frontend/src/core/macro/psIsonote/psIsonoteTable.test.ts"
+  ],
+  "preconditions": [
+    "P0-T04 merged"
+  ],
+  "change": [
+    "Add a `fieldStart` boolean to parseDelimitedText.",
+    "A double-quote opens quoting ONLY when fieldStart is true; otherwise append it as a literal character.",
+    "Set fieldStart=true after every delimiter and every row break; false after any other character.",
+    "If the loop ends with quoted===true, throw PsIsonoteParseError('UNTERMINATED_QUOTE', row).",
+    "Add the three regression tests from the audit verbatim."
+  ],
+  "exit": [
+    "cd frontend && npx vitest run src/core/macro/psIsonote/  \u2192  exit 0",
+    "New tests must include: literal inch mark preserved; RFC4180 quoted field with embedded delimiter; unterminated quote throws"
+  ],
+  "forbidden": [
+    "Do NOT add byte/row/cell limits here. That is P3-T01.",
+    "Do NOT change cleanCell, detectDelimiter, header aliasing, or any caller.",
+    "Do NOT swap in a third-party CSV library."
+  ],
+  "escalate": [
+    "An existing test asserts the OLD (buggy) behaviour. Do not delete it \u2014 report it; it means a downstream consumer depends on the bug."
+  ]
+}

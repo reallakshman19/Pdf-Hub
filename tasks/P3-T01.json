@@ -1,0 +1,29 @@
+{
+  "id": "P3-T01",
+  "phase": "P3",
+  "title": "ST-1 \u2014 bounded PS/ISONOTE structured-text admission",
+  "finding": "roadmap item 1",
+  "maxFiles": 8,
+  "mayTouch": [
+    "frontend/src/core/macro/psIsonote/**",
+    "frontend/src/components/sidebar/PsIsonoteRecipeBuilder.tsx",
+    "frontend/src/core/admission/**"
+  ],
+  "preconditions": [
+    "P1-T01 merged (parser must be correct before it is bounded)",
+    "P2-T04 merged"
+  ],
+  "change": [
+    "Implement exactly the dimensions listed in the governing roadmap: uploaded source bytes before file.text(); pasted code-unit size; row count; column count; max cell size; unique mapping count; diagnostic count; cancellation during large parsing; immutable admission evidence."
+  ],
+  "exit": [
+    "cd frontend && npx vitest run src/core/macro/psIsonote/  \u2192  exit 0",
+    "A test proves file.text() is not reached for an oversized upload"
+  ],
+  "forbidden": [
+    "No XLSX. No generic spreadsheet import. No PDF scanning changes. No annotation placement changes. No evidence schema redesign. No global memory accounting."
+  ],
+  "escalate": [
+    "The bound cannot be applied before file.text() without changing the caller's contract."
+  ]
+}

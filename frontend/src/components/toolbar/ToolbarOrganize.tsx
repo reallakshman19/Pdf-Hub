@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { downloadBlob } from '@/core/document/download';
 import {
   admitDonorPdfFiles,
   assertAdmittedDonorSetDispatchAllowed,
@@ -30,6 +31,7 @@ import type { DocumentCommand } from '@/core/commands/types';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import { useHistoryStore } from '@/core/document-history/store';
+import { useShallow } from 'zustand/react/shallow';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
@@ -56,9 +58,22 @@ export const ToolbarOrganize: React.FC = () => {
     viewState,
     setPage,
     clearSelectedPages,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    viewState: state.viewState,
+    setPage: state.setPage,
+    clearSelectedPages: state.clearSelectedPages,
+  })));
   const addToast = useToastStore((state) => state.addToast);
-  const { canUndo, canRedo, peekUndo, peekRedo } = useHistoryStore();
+  const { canUndo, canRedo, peekUndo, peekRedo } = useHistoryStore(useShallow((state) => ({
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
+    peekUndo: state.peekUndo,
+    peekRedo: state.peekRedo,
+  })));
 
   const activePages = selectedPages.length > 0 ? selectedPages : [viewState.currentPage];
   const activeIndices = activePages.map((page) => page - 1);
@@ -442,12 +457,7 @@ export const ToolbarOrganize: React.FC = () => {
       const reportJson = JSON.stringify(report, null, 2);
       const reportBytes = new TextEncoder().encode(reportJson);
       const blob = new Blob([reportBytes], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const element = document.createElement('a');
-      element.href = url;
-      element.download = `batch-report-${Date.now()}.json`;
-      element.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `batch-report-${Date.now()}.json`);
 
       addToast({
         type: 'success',

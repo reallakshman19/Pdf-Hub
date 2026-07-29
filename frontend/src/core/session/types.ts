@@ -72,6 +72,12 @@ export interface AnnotationAutosaveState {
 export interface DocumentSession {
   documentKey: string | null;
   fileName: string | null;
+  /**
+   * Copy-on-write: the store holds whatever reference callers pass to
+   * openDocument/replaceWorkingCopy/commitWorkingCopy without copying it.
+   * Callers must treat any Uint8Array they hand to the store as immutable
+   * from that point on; copy it yourself before writing into it in place.
+   */
   originalBytes: Uint8Array | null;
   workingBytes: Uint8Array | null;
   pageCount: number;

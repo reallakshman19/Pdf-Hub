@@ -1,4 +1,5 @@
 import type { WriterElementV2 } from './types';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from './writerV2Store';
 import { createRichTextBoxElement } from './writerElementFactory';
@@ -43,7 +44,7 @@ export async function ensureRichTextEditing(
     return null;
   }
 
-  const { PDFDocument } = await import('pdf-lib');
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const pageIndex = Math.max(
     0,

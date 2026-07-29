@@ -8,10 +8,17 @@ import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { useEditorStore } from '@/core/editor/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useShallow } from 'zustand/react/shallow';
 
 export const useKeyboardShortcuts = () => {
   const navigate = useNavigate();
-  const { setZoom, setViewMode, setPage, viewState, pageCount } = useSessionStore();
+  const { setZoom, setViewMode, setPage, viewState, pageCount } = useSessionStore(useShallow((state) => ({
+    setZoom: state.setZoom,
+    setViewMode: state.setViewMode,
+    setPage: state.setPage,
+    viewState: state.viewState,
+    pageCount: state.pageCount,
+  })));
   const {
     copySelection,
     pasteClipboard,
@@ -20,7 +27,15 @@ export const useKeyboardShortcuts = () => {
     clearSelection,
     undo,
     redo,
-  } = useAnnotationStore();
+  } = useAnnotationStore(useShallow((state) => ({
+    copySelection: state.copySelection,
+    pasteClipboard: state.pasteClipboard,
+    duplicateSelection: state.duplicateSelection,
+    deleteSelection: state.deleteSelection,
+    clearSelection: state.clearSelection,
+    undo: state.undo,
+    redo: state.redo,
+  })));
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

@@ -1,3 +1,7 @@
+import {
+  admitWriterImageFile,
+  encodeWriterImageDataUrl,
+} from '@/core/admission/image/writerImageAdmission';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 
 export async function createWriterImageAssetFromFile(
@@ -5,21 +9,27 @@ export async function createWriterImageAssetFromFile(
   documentFingerprint: string,
   now = new Date().toISOString(),
 ): Promise<WriterAssetRecordV2> {
-  if (!file.type.startsWith('image/')) {
-    throw new Error(`Unsupported writer image asset type: ${file.type}`);
-  }
+  const admitted = await admitWriterImageFile(file);
 
   return {
     id: createWriterAssetId(),
     documentFingerprint,
     kind: 'image',
-    mimeType: file.type,
-    dataUrl: await fileToDataUrl(file),
+    mimeType: admitted.mimeType,
+    dataUrl: encodeWriterImageDataUrl(admitted),
+    width: admitted.width,
+    height: admitted.height,
     createdAt: now,
     updatedAt: now,
   };
 }
 
+/**
+ * Pasted clipboard items can include several candidate images (or none, or
+ * ones a browser mislabels). A file failing the shared admission boundary
+ * is skipped rather than failing the whole paste -- there is no per-item
+ * error channel back to the user for a multi-item paste.
+ */
 export async function extractImageAssetsFromClipboardData(
   clipboardData: Pick<DataTransfer, 'files' | 'items'>,
   documentFingerprint: string,
@@ -44,7 +54,12 @@ export async function extractImageAssetsFromClipboardData(
   const assets: WriterAssetRecordV2[] = [];
 
   for (const file of files.values()) {
-    assets.push(await createWriterImageAssetFromFile(file, documentFingerprint));
+    try {
+      assets.push(await createWriterImageAssetFromFile(file, documentFingerprint));
+    } catch {
+      // Not a real, admissible image (bad signature, unsupported format,
+      // over a size/dimension bound) -- skip it, don't fail the paste.
+    }
   }
 
   return assets;
@@ -62,20 +77,3 @@ function createWriterAssetId(): string {
   return `writer-asset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error('Failed to read image asset as data URL.'));
-    };
-
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image asset.'));
-    reader.readAsDataURL(file);
-  });
-}

@@ -1,10 +1,8 @@
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFPage,
-  type PDFFont,
-} from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
+
+type PDFPageT = import('pdf-lib').PDFPage;
+type PDFFontT = import('pdf-lib').PDFFont;
+type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
 
 export type TextAlign = 'left' | 'center' | 'right';
 
@@ -93,6 +91,8 @@ export function getPageSizePoints(size: PageSizeName = 'a4'): {
 export async function buildContentPagePdf(
   options: ContentPageOptions,
 ): Promise<Uint8Array> {
+  const lib = await pdfLib();
+  const { PDFDocument, StandardFonts } = lib;
   const pageSize = getPageSizePoints(options.size);
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([pageSize.width, pageSize.height]);
@@ -105,7 +105,7 @@ export async function buildContentPagePdf(
       y: 0,
       width: pageSize.width,
       height: pageSize.height,
-      color: hexToRgb(options.background),
+      color: hexToRgb(options.background, lib),
     });
   }
 
@@ -131,6 +131,7 @@ export async function buildContentPagePdf(
         fontSize,
         color: block.color ?? '#111827',
         align: block.align ?? 'left',
+        lib,
       });
       cursorY -= 12;
       continue;
@@ -148,6 +149,7 @@ export async function buildContentPagePdf(
         fontSize,
         color: block.color ?? '#111827',
         align: block.align ?? 'left',
+        lib,
       });
       cursorY -= 10;
       continue;
@@ -164,6 +166,7 @@ export async function buildContentPagePdf(
         font: regularFont,
         fontSize,
         columnWidths: block.columnWidths,
+        lib,
       });
       cursorY -= 12;
       continue;
@@ -179,6 +182,7 @@ export async function buildContentPagePdf(
         thickness: block.thickness ?? 1,
         marginTop: block.marginTop ?? 8,
         marginBottom: block.marginBottom ?? 12,
+        lib,
       });
       continue;
     }
@@ -195,6 +199,7 @@ export async function buildContentPagePdf(
         fontSize: block.fontSize ?? 11,
         color: block.color ?? '#111827',
         indent: block.indent ?? 18,
+        lib,
       });
       cursorY -= 8;
       continue;
@@ -210,6 +215,7 @@ export async function buildContentPagePdf(
         width: block.width ?? 180,
         color: block.color ?? '#64748B',
         marginTop: block.marginTop ?? 24,
+        lib,
       });
       cursorY -= 12;
       continue;
@@ -222,6 +228,8 @@ export async function buildContentPagePdf(
 export async function buildImageHeaderPagePdf(
   options: ImageHeaderPageOptions,
 ): Promise<Uint8Array> {
+  const lib = await pdfLib();
+  const { PDFDocument, StandardFonts, rgb } = lib;
   const pageSize = getPageSizePoints(options.size);
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([pageSize.width, pageSize.height]);
@@ -291,6 +299,7 @@ export async function buildImageHeaderPagePdf(
       fontSize: 11,
       color: '#111827',
       align: 'left',
+      lib,
     });
   }
 
@@ -315,15 +324,16 @@ function resolveAlignedX(args: {
 }
 
 function drawWrappedText(args: {
-  page: PDFPage;
+  page: PDFPageT;
   text: string;
   x: number;
   y: number;
   maxWidth: number;
-  font: PDFFont;
+  font: PDFFontT;
   fontSize: number;
   color: string;
   align?: TextAlign;
+  lib: PdfLibNs;
 }): number {
   const lines = wrapText(args.text, args.font, args.fontSize, args.maxWidth);
   let y = args.y;
@@ -342,7 +352,7 @@ function drawWrappedText(args: {
       y,
       font: args.font,
       size: args.fontSize,
-      color: hexToRgb(args.color),
+      color: hexToRgb(args.color, args.lib),
       maxWidth: args.maxWidth,
     });
 
@@ -353,7 +363,7 @@ function drawWrappedText(args: {
 }
 
 function drawSeparator(args: {
-  page: PDFPage;
+  page: PDFPageT;
   x: number;
   y: number;
   width: number;
@@ -361,6 +371,7 @@ function drawSeparator(args: {
   thickness: number;
   marginTop: number;
   marginBottom: number;
+  lib: PdfLibNs;
 }): number {
   const safeThickness = Math.max(0.25, args.thickness);
   const lineY = args.y - Math.max(0, args.marginTop);
@@ -369,23 +380,24 @@ function drawSeparator(args: {
     start: { x: args.x, y: lineY },
     end: { x: args.x + args.width, y: lineY },
     thickness: safeThickness,
-    color: hexToRgb(args.color),
+    color: hexToRgb(args.color, args.lib),
   });
 
   return lineY - Math.max(0, args.marginBottom);
 }
 
 function drawList(args: {
-  page: PDFPage;
+  page: PDFPageT;
   items: string[];
   ordered: boolean;
   x: number;
   y: number;
   maxWidth: number;
-  font: PDFFont;
+  font: PDFFontT;
   fontSize: number;
   color: string;
   indent: number;
+  lib: PdfLibNs;
 }): number {
   if (args.items.length === 0) {
     return args.y;
@@ -405,7 +417,7 @@ function drawList(args: {
       y,
       font: args.font,
       size: args.fontSize,
-      color: hexToRgb(args.color),
+      color: hexToRgb(args.color, args.lib),
       maxWidth: markerWidth,
     });
 
@@ -419,6 +431,7 @@ function drawList(args: {
       fontSize: args.fontSize,
       color: args.color,
       align: 'left',
+      lib: args.lib,
     });
 
     y = afterTextY - 4;
@@ -428,14 +441,15 @@ function drawList(args: {
 }
 
 function drawSignatureLine(args: {
-  page: PDFPage;
+  page: PDFPageT;
   x: number;
   y: number;
-  font: PDFFont;
+  font: PDFFontT;
   label: string;
   width: number;
   color: string;
   marginTop: number;
+  lib: PdfLibNs;
 }): number {
   const safeWidth = Math.max(60, args.width);
   const lineY = args.y - Math.max(0, args.marginTop);
@@ -444,7 +458,7 @@ function drawSignatureLine(args: {
     start: { x: args.x, y: lineY },
     end: { x: args.x + safeWidth, y: lineY },
     thickness: 0.75,
-    color: hexToRgb(args.color),
+    color: hexToRgb(args.color, args.lib),
   });
 
   args.page.drawText(args.label, {
@@ -452,7 +466,7 @@ function drawSignatureLine(args: {
     y: lineY - 13,
     font: args.font,
     size: 9,
-    color: hexToRgb(args.color),
+    color: hexToRgb(args.color, args.lib),
     maxWidth: safeWidth,
   });
 
@@ -487,15 +501,17 @@ function resolveTableColumnWidths(args: {
 }
 
 function drawSimpleTable(args: {
-  page: PDFPage;
+  page: PDFPageT;
   rows: string[][];
   x: number;
   y: number;
   width: number;
-  font: PDFFont;
+  font: PDFFontT;
   fontSize: number;
   columnWidths?: number[];
+  lib: PdfLibNs;
 }): number {
+  const { rgb } = args.lib;
   const columnCount = Math.max(1, ...args.rows.map((row) => row.length));
   const columnWidths = resolveTableColumnWidths({
     totalWidth: args.width,
@@ -542,7 +558,7 @@ function drawSimpleTable(args: {
 
 function wrapText(
   text: string,
-  font: PDFFont,
+  font: PDFFontT,
   fontSize: number,
   maxWidth: number,
 ): string[] {
@@ -671,9 +687,9 @@ function detectImageMime(bytes: Uint8Array): 'image/png' | 'image/jpeg' | null {
   return null;
 }
 
-function hexToRgb(hex: string): ReturnType<typeof rgb> {
+function hexToRgb(hex: string, lib: PdfLibNs): import('pdf-lib').Color {
   const safe = normalizeHex(hex);
-  return rgb(
+  return lib.rgb(
     parseInt(safe.slice(0, 2), 16) / 255,
     parseInt(safe.slice(2, 4), 16) / 255,
     parseInt(safe.slice(4, 6), 16) / 255,

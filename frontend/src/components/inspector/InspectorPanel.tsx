@@ -1,4 +1,5 @@
 ﻿import React, { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
@@ -13,7 +14,13 @@ import { Tooltip } from '@/components/ui/Tooltip';
 
 
 export const InspectorPanel: React.FC = () => {
-  const { inspectorTab, setInspectorTab, rightPanelWidth, setRightPanelWidth, activeMode } = useEditorStore();
+  const { inspectorTab, setInspectorTab, rightPanelWidth, setRightPanelWidth, activeMode } = useEditorStore(useShallow((state) => ({
+    inspectorTab: state.inspectorTab,
+    setInspectorTab: state.setInspectorTab,
+    rightPanelWidth: state.rightPanelWidth,
+    setRightPanelWidth: state.setRightPanelWidth,
+    activeMode: state.activeMode,
+  })));
   const {
     annotations,
     selectedAnnotationIds,
@@ -23,7 +30,16 @@ export const InspectorPanel: React.FC = () => {
     deleteSelection,
     setReviewStatusForSelection,
     toggleLockSelection,
-  } = useAnnotationStore();
+  } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    activeAnnotationId: state.activeAnnotationId,
+    updateAnnotation: state.updateAnnotation,
+    updateManyAnnotations: state.updateManyAnnotations,
+    deleteSelection: state.deleteSelection,
+    setReviewStatusForSelection: state.setReviewStatusForSelection,
+    toggleLockSelection: state.toggleLockSelection,
+  })));
 
   const writerSelectedIds = useWriterStore(s => s.selectedIds);
   const writerActiveTool = useWriterStore(s => s.activeTool);
@@ -562,7 +578,9 @@ const PropertiesTab: React.FC<{
 const StyleTab: React.FC<{
   annotation: PdfAnnotation;
 }> = ({ annotation }) => {
-  const { updateStyleForSelection } = useAnnotationStore();
+  const { updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
+    updateStyleForSelection: state.updateStyleForSelection,
+  })));
 
   const applyToSelection = (dataPatch: Record<string, unknown>) => {
     updateStyleForSelection(dataPatch);

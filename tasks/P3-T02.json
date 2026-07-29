@@ -1,0 +1,27 @@
+{
+  "id": "P3-T02",
+  "phase": "P3",
+  "title": "3B.3C \u2014 bounded JSON structural analysis",
+  "finding": "roadmap item 2",
+  "maxFiles": 10,
+  "mayTouch": [
+    "frontend/src/core/admission/**",
+    "frontend/src/core/writer-v2/export/projectImportController.ts"
+  ],
+  "preconditions": [
+    "P3-T01 merged"
+  ],
+  "change": [
+    "One bounded structural scanner used only by the nine admitted project JSON members. Limit depth, total nodes, object properties, array elements, key length, string length, aggregate string code units. Cancellation and stale-work checks. Immutable per-member and aggregate evidence."
+  ],
+  "exit": [
+    "cd frontend && npx vitest run src/core/admission/  \u2192  exit 0",
+    "A test proves a deeply-nested valid JSON document is rejected before semantic decoding"
+  ],
+  "forbidden": [
+    "No Writer or OCR schema redesign. No manifest-reference changes. No asset count policy. No streaming semantic hydration. No generic JSON editor support. Do NOT build a JSON feature platform."
+  ],
+  "escalate": [
+    "A production fixture legitimately exceeds a proposed limit."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "P1-T05",
+  "phase": "P1",
+  "title": "Mark the latent XSS sink in EquationOverlay",
+  "finding": "M-3",
+  "maxFiles": 2,
+  "mayTouch": [
+    "frontend/src/components/viewer/EquationOverlay.tsx",
+    "frontend/src/adapters/equation/MathJaxAdapter.ts"
+  ],
+  "preconditions": [
+    "P1-T04 merged"
+  ],
+  "change": [
+    "Add the SECURITY comment block above the dangerouslySetInnerHTML at EquationOverlay.tsx:88.",
+    "Add the same warning to MathJaxAdapter.renderToSvg's docblock."
+  ],
+  "exit": [
+    "grep -c 'SECURITY' frontend/src/components/viewer/EquationOverlay.tsx  \u2192  \u22651"
+  ],
+  "forbidden": [
+    "Do NOT wire a real MathJax renderer. This task is 2 lines of comment."
+  ],
+  "escalate": []
+}

@@ -15,6 +15,9 @@ import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterBlankImageInsertButton } from '../WriterBlankImageInsertButton';
 
+const ONE_BY_ONE_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
 describe('WriterBlankImageInsertButton', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
@@ -36,7 +39,8 @@ describe('WriterBlankImageInsertButton', () => {
 
     render(<WriterBlankImageInsertButton />);
 
-    const file = new File([new Uint8Array([1, 2, 3, 4])], 'sample.png', {
+    const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
+    const file = new File([bytes], 'sample.png', {
       type: 'image/png',
     });
 

@@ -1,0 +1,28 @@
+{
+  "id": "P4-T03",
+  "phase": "P4",
+  "title": "Move PDF export and ZIP work off the main thread",
+  "finding": "H-3",
+  "maxFiles": 12,
+  "mayTouch": [
+    "frontend/src/core/export/**",
+    "frontend/src/core/writer-v2/export/flattenedPdfExport.ts",
+    "frontend/src/core/writer-v2/export/projectZip.ts"
+  ],
+  "preconditions": [
+    "P4-T02 merged"
+  ],
+  "change": [
+    "Create core/export/exportWorkerClient.ts mirroring the existing ocrWorkerClient shape (dispose + terminate + rejectAll). Move flattenedPdfExport first, then ZIP pack/unpack."
+  ],
+  "exit": [
+    "cd frontend && pnpm run test:ci  \u2192  exit 0",
+    "Manual: export a 50-page document; the UI must remain responsive throughout"
+  ],
+  "forbidden": [
+    "Do NOT invent a new worker abstraction. Copy the ocrWorkerClient pattern."
+  ],
+  "escalate": [
+    "A dependency of flattenedPdfExport touches the DOM and cannot run in a worker."
+  ]
+}

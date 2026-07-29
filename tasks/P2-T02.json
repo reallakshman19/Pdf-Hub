@@ -1,0 +1,36 @@
+{
+  "id": "P2-T02",
+  "phase": "P2",
+  "title": "Collapse fossilised certify scripts and delete stray blobs",
+  "finding": "M-6",
+  "maxFiles": 6,
+  "mayTouch": [
+    "frontend/package.json",
+    ".github/workflows/*.yml",
+    "PDF writer v2 update and fixes.txt",
+    "v2-group icons.txt",
+    "Docs/**",
+    "tasks/RATCHET.json"
+  ],
+  "preconditions": [
+    "P2-T01 merged"
+  ],
+  "change": [
+    "Replace certify:ocr-phase1..36 with a single certify:ocr running the union of those test paths.",
+    "Keep: certify, check:all, check:release, check:static, check:doc-hub, certify:writer-v2-ocr.",
+    "git rm the two root .txt files (212 KB, 469 KB). Move phase docs to Docs/archive/.",
+    "Update any workflow referencing a deleted script name.",
+    "Re-baseline: node scripts/guard-ratchet.mjs --update"
+  ],
+  "exit": [
+    "grep -c '\"certify:' frontend/package.json  \u2192  \u2264 10",
+    "grep -rn 'certify:ocr-phase' .github/  \u2192  no output",
+    "cd frontend && pnpm run check:all  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT delete the underlying test FILES. Only the npm script aliases."
+  ],
+  "escalate": [
+    "A workflow references a script you cannot map to a replacement."
+  ]
+}

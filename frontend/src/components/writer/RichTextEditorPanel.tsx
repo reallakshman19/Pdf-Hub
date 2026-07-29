@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { sanitizeHtml } from '../../core/writer/htmlSanitizer';
+import { sanitizeHtml, sanitizeHtmlWithReport } from '../../core/writer/htmlSanitizer';
+import { useToastStore } from '@/core/toast/store';
 
 interface Props {
   element: PlacedElement;
@@ -28,6 +29,7 @@ interface Props {
 
 export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }) => {
   const { updateElement } = useWriterStore();
+  const addToast = useToastStore((state) => state.addToast);
   const editorRef = useRef<HTMLDivElement>(null);
   const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);
   const [fontFamily, setFontFamily] = useState(element.styles.fontFamily ?? 'Arial');
@@ -51,9 +53,16 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== element.content) {
       // Only update innerHTML if it's strictly different to avoid losing caret position
-      editorRef.current.innerHTML = sanitizeHtml(element.content || '<p><br/></p>');
+      const report = sanitizeHtmlWithReport(element.content || '<p><br/></p>');
+      editorRef.current.innerHTML = report.html;
+      if (report.truncated) {
+        addToast({
+          type: 'error',
+          title: 'Content was too large and has been shortened',
+        });
+      }
     }
-  }, [element.content]);
+  }, [element.content, addToast]);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -308,8 +317,14 @@ export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }
       const htmlContent = e.clipboardData.getData('text/html');
       if (htmlContent) {
         e.preventDefault(); // Stop native unsafe paste
-        const sanitized = sanitizeHtml(htmlContent);
-        insertHtmlAtCaret(sanitized);
+        const report = sanitizeHtmlWithReport(htmlContent);
+        insertHtmlAtCaret(report.html);
+        if (report.truncated) {
+          addToast({
+            type: 'error',
+            title: 'Pasted content was too large and has been shortened',
+          });
+        }
       }
       setTimeout(saveContent, 0); // Save the content after paste completes
     }

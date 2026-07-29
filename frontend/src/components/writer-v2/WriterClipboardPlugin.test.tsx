@@ -4,6 +4,9 @@ import { WriterInlineEditor } from './WriterInlineEditor';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
 
+const ONE_BY_ONE_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
 function element(): WriterElementV2 {
   return {
     id: 'writer-1',
@@ -86,7 +89,8 @@ describe('WriterClipboardPlugin', () => {
 
   it('captures pasted image assets and saves asset ids', async () => {
     const onSave = vi.fn();
-    const file = new File(['fake'], 'clip.png', {
+    const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
+    const file = new File([bytes], 'clip.png', {
       type: 'image/png',
     });
 

@@ -1,0 +1,33 @@
+{
+  "id": "P1-T02",
+  "phase": "P1",
+  "title": "Make session PDF bytes copy-on-write",
+  "finding": "C-3",
+  "maxFiles": 3,
+  "mayTouch": [
+    "frontend/src/core/session/store.ts",
+    "frontend/src/core/session/store.test.ts",
+    "frontend/src/core/session/types.ts"
+  ],
+  "preconditions": [
+    "P1-T01 merged"
+  ],
+  "change": [
+    "Remove all five `new Uint8Array(bytes)` copies in openDocument, replaceWorkingCopy, commitWorkingCopy.",
+    "Assign the incoming reference directly. Document the contract in types.ts: callers must not mutate buffers handed to the store.",
+    "Add a DEV-only Object.freeze(bytes.buffer) assertion behind import.meta.env.DEV.",
+    "Add a test asserting store.originalBytes === the input reference (identity, not deep equality)."
+  ],
+  "exit": [
+    "grep -c 'new Uint8Array(bytes)' frontend/src/core/session/store.ts  \u2192  0",
+    "cd frontend && npx vitest run src/core/session/  \u2192  exit 0",
+    "node scripts/guard-forbidden.mjs  \u2192  FB-6 clean"
+  ],
+  "forbidden": [
+    "Do NOT move originalBytes out of the store in this task \u2014 that is a follow-up.",
+    "Do NOT add memory accounting, budgets, or telemetry."
+  ],
+  "escalate": [
+    "A caller genuinely mutates a buffer it passed in. Name the file and stop \u2014 that caller needs its own task."
+  ]
+}

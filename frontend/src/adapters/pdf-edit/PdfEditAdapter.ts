@@ -1,9 +1,12 @@
-import { PDFDocument, StandardFonts, degrees, rgb, moveTo, lineTo, closePath, fill, setFillingColor } from 'pdf-lib';
-import type { PDFPage } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { readFillColor, readStrokeColor, readStrokeWidth } from '@/core/annotations/readers';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
+
+type PDFPageT = import('pdf-lib').PDFPage;
+type PdfColor = import('pdf-lib').Color;
+type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
 
 type HeaderFooterOptions = {
   pages: number[];
@@ -61,7 +64,7 @@ function normalizePageIndices(pageIndices: number[]): number[] {
   return Array.from(new Set(pageIndices)).sort((a, b) => a - b);
 }
 
-function hexToRgb(hex: string): ReturnType<typeof rgb> {
+function hexToRgb(hex: string, lib: PdfLibNs): PdfColor {
   const normalized = hex.replace('#', '').trim();
   const safe =
     normalized.length === 3
@@ -74,7 +77,7 @@ function hexToRgb(hex: string): ReturnType<typeof rgb> {
   const red = parseInt(safe.slice(0, 2), 16) / 255;
   const green = parseInt(safe.slice(2, 4), 16) / 255;
   const blue = parseInt(safe.slice(4, 6), 16) / 255;
-  return rgb(red, green, blue);
+  return lib.rgb(red, green, blue);
 }
 
 function resolveHeaderFooterTokens(
@@ -112,14 +115,15 @@ function resolveHeaderFooterTokens(
 }
 
 function drawArrowHead(
-  page: PDFPage,
+  page: PDFPageT,
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  color: ReturnType<typeof rgb>,
+  color: PdfColor,
   thickness: number,
   style: 'open' | 'filled',
+  lib: PdfLibNs,
 ): void {
   const angle = Math.atan2(y2 - y1, x2 - x1);
   // ASME Y14.2 mechanical CAD standard drafting arrowhead: 3:1 aspect ratio with prominent visibility
@@ -133,12 +137,12 @@ function drawArrowHead(
 
   if (style === 'filled') {
     page.pushOperators(
-      setFillingColor(color),
-      moveTo(x2, y2),
-      lineTo(leftX, leftY),
-      lineTo(rightX, rightY),
-      closePath(),
-      fill(),
+      lib.setFillingColor(color),
+      lib.moveTo(x2, y2),
+      lib.lineTo(leftX, leftY),
+      lib.lineTo(rightX, rightY),
+      lib.closePath(),
+      lib.fill(),
     );
     return;
   }
@@ -180,19 +184,20 @@ function readPoint(value: unknown): Point2D | null {
 }
 
 function drawLineCap(
-  page: PDFPage,
+  page: PDFPageT,
   cap: LineCapStyle,
   from: Point2D,
   to: Point2D,
-  color: ReturnType<typeof rgb>,
+  color: PdfColor,
   thickness: number,
+  lib: PdfLibNs,
 ): void {
   if (cap === 'none') {
     return;
   }
 
   if (cap === 'arrow') {
-    drawArrowHead(page, from.x, from.y, to.x, to.y, color, thickness, 'filled');
+    drawArrowHead(page, from.x, from.y, to.x, to.y, color, thickness, 'filled', lib);
     return;
   }
 
@@ -227,6 +232,7 @@ export class PdfEditAdapter {
     bytes: Uint8Array,
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<number> {
+    const { PDFDocument } = await pdfLib();
     const pdfDoc = await awaitPdfOperation(
       PDFDocument.load(bytes),
       operationOptions.signal,
@@ -241,6 +247,7 @@ export class PdfEditAdapter {
     pageIndex: number,
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<{ width: number; height: number }> {
+    const { PDFDocument } = await pdfLib();
     const pdfDoc = await awaitPdfOperation(
       PDFDocument.load(bytes),
       operationOptions.signal,
@@ -256,6 +263,7 @@ export class PdfEditAdapter {
     appendDocs: Uint8Array[],
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const out = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -289,6 +297,7 @@ export class PdfEditAdapter {
     atIndex: number,
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const baseDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -321,6 +330,7 @@ export class PdfEditAdapter {
     size: { width: number; height: number },
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const pdfDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -338,6 +348,7 @@ export class PdfEditAdapter {
     donorPageIndex: number,
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const baseDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -383,6 +394,7 @@ export class PdfEditAdapter {
     pageIndices: number[],
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const srcDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -411,6 +423,7 @@ export class PdfEditAdapter {
     pageIndices: number[],
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const srcDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -445,6 +458,7 @@ export class PdfEditAdapter {
     pageIndices: number[],
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const srcDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -482,6 +496,7 @@ export class PdfEditAdapter {
     deltaDegrees: number,
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument, degrees } = await pdfLib();
     const pdfDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -509,6 +524,7 @@ export class PdfEditAdapter {
     targetIndex: number,   // 0-based
     placement: 'before' | 'after' | 'append'
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const srcDoc = await PDFDocument.load(baseBytes);
     const pageCount = srcDoc.getPageCount();
 
@@ -544,6 +560,7 @@ export class PdfEditAdapter {
     order: number[],
     operationOptions: PdfEditOperationOptions = {},
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const srcDoc = await awaitPdfOperation(
       PDFDocument.load(baseBytes),
       operationOptions.signal,
@@ -584,6 +601,8 @@ export class PdfEditAdapter {
     baseBytes: Uint8Array,
     options: HeaderFooterOptions,
   ): Promise<Uint8Array> {
+    const lib = await pdfLib();
+    const { PDFDocument, StandardFonts } = lib;
     const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'header/footer: load');
     const font = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'header/footer: embed font');
     const totalPages = pdfDoc.getPageCount();
@@ -621,7 +640,7 @@ export class PdfEditAdapter {
         y,
         font,
         size: options.fontSize,
-        color: hexToRgb(options.color),
+        color: hexToRgb(options.color, lib),
         opacity: options.opacity,
       });
     }
@@ -633,6 +652,8 @@ export class PdfEditAdapter {
     baseBytes: Uint8Array,
     options: DrawTextOptions,
   ): Promise<Uint8Array> {
+    const lib = await pdfLib();
+    const { PDFDocument, StandardFonts, degrees } = lib;
     const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'draw text: load');
     const font = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'draw text: embed font');
     const totalPages = pdfDoc.getPageCount();
@@ -665,7 +686,7 @@ export class PdfEditAdapter {
         y: options.y,
         font,
         size: options.fontSize,
-        color: hexToRgb(options.color),
+        color: hexToRgb(options.color, lib),
         opacity: options.opacity,
         rotate: options.rotation !== undefined ? degrees(options.rotation) : undefined,
       });
@@ -692,6 +713,7 @@ export class PdfEditAdapter {
       signal?: AbortSignal;
     }
   ): Promise<Uint8Array> {
+    const { PDFDocument } = await pdfLib();
     const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'insert image: load');
     const image = options.mimeType === 'image/jpeg'
       ? await awaitPdfOperation(pdfDoc.embedJpg(options.imageBytes), options.signal, 'insert image: embed JPEG')
@@ -731,8 +753,10 @@ export class PdfEditAdapter {
       signal?: AbortSignal;
     },
   ): Promise<Uint8Array> {
+    const lib = await pdfLib();
+    const { PDFDocument } = lib;
     const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'redaction boxes: load');
-    const fill = hexToRgb(options.fillColor);
+    const fill = hexToRgb(options.fillColor, lib);
 
     for (const pageIndex of options.pages) {
       pdfCheckpoint(options.signal, 'redaction boxes: draw page');
@@ -785,6 +809,8 @@ export class PdfEditAdapter {
     }>,
     signal?: AbortSignal,
   ): Promise<Uint8Array> {
+    const lib = await pdfLib();
+    const { PDFDocument, StandardFonts } = lib;
     const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), signal, 'draw professional callouts: load');
     const helvetica = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), signal, 'draw professional callouts: embed regular font');
     const helveticaBold = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.HelveticaBold), signal, 'draw professional callouts: embed bold font');
@@ -802,10 +828,10 @@ export class PdfEditAdapter {
               start: { x: primitive.start.x, y: pageHeight - primitive.start.y },
               end: { x: primitive.end.x, y: pageHeight - primitive.end.y },
               thickness: primitive.width,
-              color: hexToRgb(primitive.color),
+              color: hexToRgb(primitive.color, lib),
             });
           } else if (primitive.type === 'arrow') {
-            const color = hexToRgb(primitive.color);
+            const color = hexToRgb(primitive.color, lib);
             page.drawLine({
               start: { x: primitive.start.x, y: pageHeight - primitive.start.y },
               end: { x: primitive.end.x, y: pageHeight - primitive.end.y },
@@ -821,6 +847,7 @@ export class PdfEditAdapter {
               color,
               primitive.width,
               primitive.headStyle === 'open' ? 'open' : 'filled',
+              lib,
             );
           } else if (primitive.type === 'circle') {
             page.drawEllipse({
@@ -828,8 +855,8 @@ export class PdfEditAdapter {
               y: pageHeight - primitive.center.y,
               xScale: primitive.radius,
               yScale: primitive.radius,
-              color: hexToRgb(primitive.fillColor),
-              borderColor: hexToRgb(primitive.borderColor),
+              color: hexToRgb(primitive.fillColor, lib),
+              borderColor: hexToRgb(primitive.borderColor, lib),
               borderWidth: primitive.borderWidth,
             });
           } else if (primitive.type === 'rectangle') {
@@ -838,8 +865,8 @@ export class PdfEditAdapter {
               y: pageHeight - primitive.rect.y - primitive.rect.height,
               width: primitive.rect.width,
               height: primitive.rect.height,
-              color: hexToRgb(primitive.fillColor),
-              borderColor: hexToRgb(primitive.borderColor),
+              color: hexToRgb(primitive.fillColor, lib),
+              borderColor: hexToRgb(primitive.borderColor, lib),
               borderWidth: primitive.borderWidth,
             });
           } else if (primitive.type === 'text') {
@@ -849,7 +876,7 @@ export class PdfEditAdapter {
               y: pageHeight - primitive.position.y,
               font,
               size: primitive.fontSize,
-              color: hexToRgb(primitive.color),
+              color: hexToRgb(primitive.color, lib),
             });
           }
         }
@@ -861,6 +888,8 @@ export class PdfEditAdapter {
 
 
   static async exportWithAnnotations(baseBytes: Uint8Array, annotations: PdfAnnotation[]): Promise<Uint8Array> {
+    const lib = await pdfLib();
+    const { PDFDocument, StandardFonts, rgb, degrees } = lib;
     const pdfDoc = await PDFDocument.load(baseBytes);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
@@ -881,8 +910,8 @@ export class PdfEditAdapter {
       const borderColorHex = readStrokeColor(annotation);
       const fillColorHex = readFillColor(annotation);
       const strokeWidth = readStrokeWidth(annotation);
-      const borderColor = borderColorHex === 'transparent' ? undefined : hexToRgb(borderColorHex);
-      const fillColor = fillColorHex === 'transparent' ? undefined : hexToRgb(fillColorHex);
+      const borderColor = borderColorHex === 'transparent' ? undefined : hexToRgb(borderColorHex, lib);
+      const fillColor = fillColorHex === 'transparent' ? undefined : hexToRgb(fillColorHex, lib);
 
       if (annotation.type === 'highlight') {
         page.drawRectangle({
@@ -994,8 +1023,8 @@ export class PdfEditAdapter {
             thickness: strokeWidth,
             color: borderColor,
           });
-          drawLineCap(page, startCap, { x: x2, y: y2 }, { x: x1, y: y1 }, borderColor, strokeWidth);
-          drawLineCap(page, endCap, { x: x1, y: y1 }, { x: x2, y: y2 }, borderColor, strokeWidth);
+          drawLineCap(page, startCap, { x: x2, y: y2 }, { x: x1, y: y1 }, borderColor, strokeWidth, lib);
+          drawLineCap(page, endCap, { x: x1, y: y1 }, { x: x2, y: y2 }, borderColor, strokeWidth, lib);
         }
         continue;
       }
@@ -1039,6 +1068,7 @@ export class PdfEditAdapter {
               borderColor,
               strokeWidth,
               arrowHead,
+              lib,
             );
           }
         }
@@ -1062,7 +1092,7 @@ export class PdfEditAdapter {
             size: typeof annotation.data.fontSize === 'number' ? annotation.data.fontSize : 12,
             color:
               typeof annotation.data.textColor === 'string'
-                ? hexToRgb(annotation.data.textColor)
+                ? hexToRgb(annotation.data.textColor, lib)
                 : rgb(0.12, 0.12, 0.12),
             maxWidth: Math.max(20, annotation.rect.width - 12),
             rotate:
@@ -1102,7 +1132,7 @@ export class PdfEditAdapter {
               y: y + Math.max(8, annotation.rect.height - 24),
               font: helvetica,
               size: typeof annotation.data.fontSize === 'number' ? annotation.data.fontSize : 10,
-              color: typeof annotation.data.textColor === 'string' ? hexToRgb(annotation.data.textColor) : rgb(0.12, 0.12, 0.12),
+              color: typeof annotation.data.textColor === 'string' ? hexToRgb(annotation.data.textColor, lib) : rgb(0.12, 0.12, 0.12),
               maxWidth: Math.max(20, annotation.rect.width - 12),
             });
           }
@@ -1129,7 +1159,7 @@ export class PdfEditAdapter {
           size: typeof annotation.data.fontSize === 'number' ? annotation.data.fontSize : 12,
           color:
             typeof annotation.data.textColor === 'string'
-              ? hexToRgb(annotation.data.textColor)
+              ? hexToRgb(annotation.data.textColor, lib)
               : annotation.type === 'stamp'
               ? rgb(0.75, 0.1, 0.1)
               : rgb(0.12, 0.12, 0.12),

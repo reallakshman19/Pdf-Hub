@@ -83,6 +83,11 @@ function EquationBlockRenderer({
           Equation Failed
         </div>
       ) : (
+        /* SECURITY: svgHtml is rendered unsanitised. It is safe today only because
+           MathJaxAdapter.renderToSvg is a placeholder that escapes & < > and returns
+           static SVG. Any real MathJax (or other) renderer wired in here MUST have
+           its output pass through a sanitizer that permits SVG, or this becomes an
+           XSS sink fed by OCR-extracted LaTeX. */
         <div
           className="w-full h-full flex items-center justify-center overflow-hidden"
           dangerouslySetInnerHTML={{ __html: svgHtml || '' }}

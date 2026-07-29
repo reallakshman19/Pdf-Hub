@@ -1,0 +1,26 @@
+{
+  "id": "P5-T01",
+  "phase": "P5",
+  "title": "Extend the coverage gate to the component layer",
+  "finding": "M-4",
+  "maxFiles": 2,
+  "mayTouch": [
+    "frontend/vite.config.ts",
+    "tasks/RATCHET.json"
+  ],
+  "preconditions": [
+    "P4-T03 merged"
+  ],
+  "change": [
+    "Add 'src/components/**' to coverage.include. Set that path's threshold to the measured current value rounded DOWN to the nearest 5, minimum 50. Record the number."
+  ],
+  "exit": [
+    "cd frontend && pnpm run coverage  \u2192  exit 0"
+  ],
+  "forbidden": [
+    "Do NOT lower the existing 80% threshold for src/core or src/adapters to make the build pass."
+  ],
+  "escalate": [
+    "Measured component coverage is below 30% \u2014 that is a bigger conversation than a threshold."
+  ]
+}

@@ -6,6 +6,7 @@ import {
   Separator as PanelResizeHandle,
   type PanelImperativeHandle,
 } from 'react-resizable-panels';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -27,7 +28,12 @@ interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = (props) => {
   const { topnav, toolbar, leftRail, sidebar, workspace, inspector, statusbar } = props;
   const isMobile = useIsMobile();
-  const { leftPanelWidth, rightPanelWidth, setLeftPanelWidth, setRightPanelWidth } = useEditorStore();
+  const { leftPanelWidth, rightPanelWidth, setLeftPanelWidth, setRightPanelWidth } = useEditorStore(useShallow((state) => ({
+    leftPanelWidth: state.leftPanelWidth,
+    rightPanelWidth: state.rightPanelWidth,
+    setLeftPanelWidth: state.setLeftPanelWidth,
+    setRightPanelWidth: state.setRightPanelWidth,
+  })));
   const capabilities = useCapabilities();
   const documentKey = useSessionStore((state) => state.documentKey);
   const fileName = useSessionStore((state) => state.fileName);

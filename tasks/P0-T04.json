@@ -1,0 +1,26 @@
+{
+  "id": "P0-T04",
+  "phase": "P0",
+  "title": "Certify and merge PR #140",
+  "finding": "roadmap item 0",
+  "maxFiles": 0,
+  "mayTouch": [],
+  "preconditions": [
+    "P0-T03 merged",
+    "All 4 exact-head workflows green on PR #140"
+  ],
+  "change": [
+    "Verify Writer Overlay V2 workflow passed at the exact head commit.",
+    "Independently re-run the certification locally.",
+    "Merge."
+  ],
+  "exit": [
+    "gh pr view 140 --json state  \u2192  MERGED"
+  ],
+  "forbidden": [
+    "Do NOT rebase or add commits to #140. If it needs changes, it is a new task."
+  ],
+  "escalate": [
+    "Writer Overlay V2 is still failing after P0-T02's dependency reconciliation."
+  ]
+}

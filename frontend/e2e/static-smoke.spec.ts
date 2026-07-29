@@ -12,7 +12,7 @@ test.describe('DocCraft Static Mode Smoke Test', () => {
     // 2. Verify static mode banner is displayed at the top and contains the correct text
     const banner = page.getByRole('status');
     await expect(banner).toBeVisible();
-    await expect(banner).toContainText(/Running in preview mode/i);
+    await expect(banner).toContainText(/Static Mode/i);
 
     // 3. Verify App Shell and sidebar mounts
     // Let's just check that some main containers or the shell mounts.

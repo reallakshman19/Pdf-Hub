@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractPipeLineStem, normalizePsNumber, parsePsIsonoteTable } from './psIsonoteTable';
+import {
+  extractPipeLineStem,
+  normalizePsNumber,
+  parsePsIsonoteTable,
+  PsIsonoteParseError,
+} from './psIsonoteTable';
+import { PS_ISONOTE_ADMISSION_LIMITS, PsIsonoteAdmissionError } from './psIsonoteAdmission';
 
 describe('psIsonoteTable', () => {
   it('normalizes common PS number forms', () => {
@@ -109,5 +115,102 @@ describe('psIsonoteTable', () => {
     expect(parsed.mappings).toHaveLength(1);
     expect(parsed.mappings[0].isonote).toBe('REST(2kN)');
     expect(parsed.warnings[0]).toContain('conflicting ISONOTE');
+  });
+
+  it('preserves a literal inch mark mid-field in unquoted CSV without losing subsequent rows', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-101,12" flange spec',
+      'PS-102,ok',
+    ].join('\n'));
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.mappings).toEqual([
+      { psNo: 'PS-101', isonote: '12" flange spec', sourceRow: 2 },
+      { psNo: 'PS-102', isonote: 'ok', sourceRow: 3 },
+    ]);
+  });
+
+  it('supports RFC4180 quoted fields with an embedded delimiter', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-103,"REST(6kN), GUIDE (8kN)"',
+    ].join('\n'));
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.mappings).toEqual([
+      { psNo: 'PS-103', isonote: 'REST(6kN), GUIDE (8kN)', sourceRow: 2 },
+    ]);
+  });
+
+  it('rejects an unterminated quoted field loudly instead of swallowing the rest of the file', () => {
+    const input = [
+      'PS,NOTE',
+      'PS-104,"unterminated',
+      'PS-105,ok',
+    ].join('\n');
+
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteParseError);
+    expect(() => parsePsIsonoteTable(input)).toThrow(/unterminated/i);
+  });
+
+  it('attaches admission evidence to a successfully parsed table', () => {
+    const parsed = parsePsIsonoteTable([
+      'PS,NOTE',
+      'PS-100001,ok',
+    ].join('\n'));
+
+    expect(parsed.admission).toMatchObject({
+      evidenceProfileId: 'PS_ISONOTE_ADMISSION_EVIDENCE_V1',
+      measuredRows: 2,
+      measuredColumns: 2,
+      measuredMappingCount: 1,
+      measuredDiagnosticCount: 0,
+      admissionOutcome: 'ADMITTED',
+    });
+    expect(Object.isFrozen(parsed.admission)).toBe(true);
+  });
+
+  it('rejects a table with more rows than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxRows; i += 1) {
+      rows.push(`PS-1${String(i).padStart(6, '0')},ok`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects a table with more columns than the admission limit', () => {
+    const header = Array.from({ length: PS_ISONOTE_ADMISSION_LIMITS.maxColumns + 1 }, (_, i) => `Col${i}`);
+    const input = [header.join(','), header.map(() => 'x').join(',')].join('\n');
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects a cell larger than the admission limit', () => {
+    const hugeCell = 'x'.repeat(PS_ISONOTE_ADMISSION_LIMITS.maxCellCodeUnits + 1);
+    const input = ['PS,NOTE', `PS-1,${hugeCell}`].join('\n');
+    expect(() => parsePsIsonoteTable(input)).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects more unique mappings than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxMappingCount; i += 1) {
+      rows.push(`PS-1${String(i).padStart(6, '0')},ok`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('rejects more diagnostics than the admission limit', () => {
+    const rows = ['PS,NOTE'];
+    for (let i = 0; i <= PS_ISONOTE_ADMISSION_LIMITS.maxDiagnosticCount; i += 1) {
+      rows.push(`PS-${i},`);
+    }
+    expect(() => parsePsIsonoteTable(rows.join('\n'))).toThrow(PsIsonoteAdmissionError);
+  });
+
+  it('honors cancellation while parsing', () => {
+    const controller = new AbortController();
+    controller.abort();
+    const input = ['PS,NOTE', 'PS-100001,ok'].join('\n');
+    expect(() => parsePsIsonoteTable(input, { signal: controller.signal })).toThrow(/cancelled/i);
   });
 });

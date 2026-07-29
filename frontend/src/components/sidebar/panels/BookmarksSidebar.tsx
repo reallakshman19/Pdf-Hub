@@ -2,13 +2,19 @@ import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { loadAppBookmarks, saveAppBookmarks } from '@/core/bookmarks/persistence';
 import type { AppBookmark } from '@/core/bookmarks/types';
 
 const BookmarksSidebar: React.FC = () => {
-  const { workingBytes, documentKey, viewState, setPage } = useSessionStore();
+  const { workingBytes, documentKey, viewState, setPage } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    viewState: state.viewState,
+    setPage: state.setPage,
+  })));
 
   const [nativeBookmarks, setNativeBookmarks] = React.useState<
     Array<{ id: string; title: string; pageNumber: number | null; depth: number }>

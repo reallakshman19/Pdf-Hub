@@ -1,5 +1,6 @@
 import React from 'react';
 import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
+import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   resolveOcrRegionPageInput,
@@ -42,7 +43,13 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   onWriterInsertionQueueChange,
   onInsertWriterElements,
 }) => {
-  const store = useOcrStore();
+  const store = useOcrStore(useShallow((state) => ({
+    confidenceSummary: state.confidenceSummary,
+    correctedResult: state.correctedResult,
+    lowConfidenceWords: state.lowConfidenceWords,
+    regions: state.regions,
+    searchIndex: state.searchIndex,
+  })));
   const [selectedLowConfidenceWordId, setSelectedLowConfidenceWordId] = React.useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = React.useState<string | null>(null);
   const [lastRegionWriterElementType, setLastRegionWriterElementType] = React.useState<string | null>(null);

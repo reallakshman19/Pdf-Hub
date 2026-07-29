@@ -15,6 +15,7 @@ import { BUILTIN_MACROS } from '@/core/macro/builtins';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
+import { useShallow } from 'zustand/react/shallow';
 
 const BUILTIN_MENU_ITEMS: Array<{
   id: string;
@@ -37,8 +38,12 @@ const BUILTIN_MENU_ITEMS: Array<{
 ];
 
 export const ToolbarMacro: React.FC = () => {
-  const { setSidebarTab } = useEditorStore();
-  const { workingBytes } = useSessionStore();
+  const { setSidebarTab } = useEditorStore(useShallow((state) => ({
+    setSidebarTab: state.setSidebarTab,
+  })));
+  const { workingBytes } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+  })));
   const addToast = useToastStore((state) => state.addToast);
   const [runningRecipeId, setRunningRecipeId] = React.useState<string | null>(null);
   const [builtinsOpen, setBuiltinsOpen] = React.useState(false);

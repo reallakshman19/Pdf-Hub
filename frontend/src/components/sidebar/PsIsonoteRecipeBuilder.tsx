@@ -12,7 +12,9 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
+import { downloadBlob } from '@/core/document/download';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import type { MacroRecipe, PageSelector } from '@/core/macro/types';
 import {
@@ -41,6 +43,10 @@ import {
   parsePsIsonoteTable,
   type PsIsonoteParseResult,
 } from '@/core/macro/psIsonote/psIsonoteTable';
+import {
+  admitPastedPsIsonoteText,
+  admitPsIsonoteUploadSize,
+} from '@/core/macro/psIsonote/psIsonoteAdmission';
 import type { PsIsonoteSample } from '@/core/macro/psIsonote/psIsonoteSamples';
 import { PsIsonoteSampleLoader } from './PsIsonoteSampleLoader';
 
@@ -107,17 +113,6 @@ function artifactStem(documentName: string): string {
   return documentName.replace(/\.pdf$/i, '').replace(/[^a-z0-9._-]+/gi, '_') || 'document';
 }
 
-function downloadBlob(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
 function downloadText(content: string, name: string, type: string): void {
   downloadBlob(new Blob([content], { type }), name);
 }
@@ -150,7 +145,14 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     pageCount,
     selectedPages,
     viewState,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    fileName: state.fileName,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    viewState: state.viewState,
+  })));
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [sourceText, setSourceText] = React.useState('');
   const [sourceName, setSourceName] = React.useState('');
@@ -311,6 +313,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
+      admitPsIsonoteUploadSize(file);
       setSourceText(await file.text());
       setSourceName(file.name);
       clearRunArtifacts();
@@ -532,6 +535,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
         placeholder={'PS No.,Family,ISONOTE\nPS-1234.5,Guide,"REST(6kN), GUIDE [Gap=10mm] (8kN)"'}
         value={sourceText}
         onChange={(event) => {
+          try {
+            admitPastedPsIsonoteText(event.target.value);
+          } catch (pasteError) {
+            setError(pasteError instanceof Error ? pasteError.message : String(pasteError));
+            return;
+          }
           setSourceText(event.target.value);
           setSourceName('');
           clearRunArtifacts();

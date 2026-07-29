@@ -9,6 +9,14 @@ import {
 } from 'lexical';
 import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
+import {
+  admitWriterImageFile,
+  encodeWriterImageDataUrl,
+} from '@/core/admission/image/writerImageAdmission';
+
+function createDroppedAssetId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `asset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
 
 export interface ImageDropPluginProps {
   documentFingerprint: string;
@@ -49,30 +57,37 @@ export const ImageDropPlugin: React.FC<ImageDropPluginProps> = ({
         event.preventDefault();
 
         for (const file of imageFiles) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const asset: WriterAssetRecordV2 = {
-              id: 'asset_' + Math.random().toString(36).substring(2, 11),
-              documentFingerprint,
-              kind: 'image',
-              mimeType: file.type,
-              dataUrl,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
+          void admitWriterImageFile(file).then(
+            (admitted) => {
+              const dataUrl = encodeWriterImageDataUrl(admitted);
+              const asset: WriterAssetRecordV2 = {
+                id: createDroppedAssetId(),
+                documentFingerprint,
+                kind: 'image',
+                mimeType: admitted.mimeType,
+                dataUrl,
+                width: admitted.width,
+                height: admitted.height,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
 
-            onAssetsImported([asset]);
+              onAssetsImported([asset]);
 
-            editor.update(() => {
-              const selection = $getSelection();
-              if ($isRangeSelection(selection)) {
-                const imageNode = $createImageNode(dataUrl, file.name);
-                selection.insertNodes([imageNode]);
-              }
-            });
-          };
-          reader.readAsDataURL(file);
+              editor.update(() => {
+                const selection = $getSelection();
+                if ($isRangeSelection(selection)) {
+                  const imageNode = $createImageNode(dataUrl, file.name);
+                  selection.insertNodes([imageNode]);
+                }
+              });
+            },
+            () => {
+              // Not a real, admissible image (bad signature, unsupported
+              // format, over a size/dimension bound) -- drop it silently,
+              // other dropped files are unaffected.
+            },
+          );
         }
 
         return true;

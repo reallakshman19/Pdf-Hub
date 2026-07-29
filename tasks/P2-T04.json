@@ -1,0 +1,34 @@
+{
+  "id": "P2-T04",
+  "phase": "P2",
+  "title": "Self-host fonts and ship CSP in Report-Only",
+  "finding": "L-1, M-3",
+  "maxFiles": 6,
+  "mayTouch": [
+    "frontend/index.html",
+    "frontend/nginx.conf",
+    "frontend/public/fonts/**",
+    "frontend/src/index.css"
+  ],
+  "preconditions": [
+    "P2-T03 merged"
+  ],
+  "change": [
+    "Download IBM Plex Sans + Mono woff2 into frontend/public/fonts/; add @font-face rules.",
+    "Remove both fonts.googleapis.com preconnects and the stylesheet link.",
+    "Add Content-Security-Policy-Report-Only meta with the policy from the audit (note: 'wasm-unsafe-eval' is required by tesseract.js).",
+    "Mirror the header in nginx.conf."
+  ],
+  "exit": [
+    "grep -c 'googleapis' frontend/index.html  \u2192  0",
+    "grep -c 'Content-Security-Policy-Report-Only' frontend/index.html  \u2192  1",
+    "cd frontend && npx vite build  \u2192  exit 0",
+    "Manual: load the app, open devtools, confirm zero CSP violations for a PDF open + OCR run"
+  ],
+  "forbidden": [
+    "Do NOT ship enforcing CSP in this task. Report-Only for one week first."
+  ],
+  "escalate": [
+    "OCR triggers CSP violations you cannot resolve without 'unsafe-eval'."
+  ]
+}
