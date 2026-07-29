@@ -1,9 +1,24 @@
 import { useWriterV2Store } from '../writerV2Store';
-import { exportPdfHubWriterProject } from './projectZip';
+import {
+  exportPdfHubWriterProject,
+  type ExportPdfHubProjectInput,
+  type ExportPdfHubProjectResult,
+} from './projectZip';
+import {
+  createDefaultExportWorkerClient,
+  type ExportWorkerClient,
+} from '@/core/export/exportWorkerClient';
 
 export interface ExportCurrentWriterProjectInput {
   originalPdfBytes?: Uint8Array | null;
   documentFingerprint?: string;
+  /**
+   * Force main-thread (false) or worker (true) execution. Defaults to
+   * `typeof Worker !== 'undefined'` — see exportCurrentWriterPdf.ts for the
+   * same pattern and rationale.
+   */
+  useWorker?: boolean;
+  workerClient?: Pick<ExportWorkerClient, 'packProjectZip'>;
 }
 
 export async function exportCurrentWriterProject(
@@ -23,13 +38,35 @@ export async function exportCurrentWriterProject(
     throw new Error('Cannot export PDF overlay project without originalPdfBytes.');
   }
 
-  const result = await exportPdfHubWriterProject({
+  const packInput: ExportPdfHubProjectInput = {
     originalPdfBytes: input.originalPdfBytes,
     documentFingerprint,
     documentMeta: state.documentMeta,
     elements: state.elements,
     assets: state.assetRecords,
-  });
+  };
+
+  const shouldUseWorker = input.useWorker ?? typeof Worker !== 'undefined';
+
+  const result = shouldUseWorker
+    ? await runPackProjectZipViaWorker(packInput, input.workerClient)
+    : await exportPdfHubWriterProject(packInput);
 
   return result.bytes;
+}
+
+async function runPackProjectZipViaWorker(
+  payload: ExportPdfHubProjectInput,
+  injectedClient: Pick<ExportWorkerClient, 'packProjectZip'> | undefined,
+): Promise<ExportPdfHubProjectResult> {
+  if (injectedClient) {
+    return injectedClient.packProjectZip(payload);
+  }
+
+  const client = createDefaultExportWorkerClient();
+  try {
+    return await client.packProjectZip(payload);
+  } finally {
+    client.dispose();
+  }
 }

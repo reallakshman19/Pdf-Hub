@@ -59,4 +59,49 @@ describe('exportCurrentWriterPdf', () => {
     const reloaded = await PDFDocument.load(bytes);
     expect(reloaded.getPageCount()).toBe(1);
   });
+
+  it('defaults to the main-thread path when Worker is unavailable (this test environment)', async () => {
+    expect(typeof Worker).toBe('undefined');
+
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+    });
+
+    // No useWorker/workerClient override — exercises the real auto-detect default.
+    const bytes = await exportCurrentWriterPdf({
+      pdfBytes: await blankPdfBytes(),
+    });
+
+    expect(bytes.length).toBeGreaterThan(0);
+  });
+
+  it('delegates to an injected worker client when useWorker is true', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+    });
+
+    const flattenPdf = async () => ({
+      bytes: new Uint8Array([1, 2, 3]),
+      pageCount: 1,
+      flattenedElementCount: 1,
+      embeddedAssetCount: 0,
+    });
+
+    let calledWithElements = 0;
+    const bytes = await exportCurrentWriterPdf({
+      pdfBytes: await blankPdfBytes(),
+      useWorker: true,
+      workerClient: {
+        flattenPdf: async (payload) => {
+          calledWithElements = payload.elements.length;
+          return flattenPdf();
+        },
+      },
+    });
+
+    expect(calledWithElements).toBe(1);
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+  });
 });

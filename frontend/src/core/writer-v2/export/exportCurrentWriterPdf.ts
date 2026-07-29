@@ -1,9 +1,26 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
-import { exportFlattenedWriterPdf } from './flattenedPdfExport';
+import {
+  exportFlattenedWriterPdf,
+  type FlattenWriterExportInput,
+  type FlattenWriterExportResult,
+} from './flattenedPdfExport';
 import { useWriterV2Store } from '../writerV2Store';
+import {
+  createDefaultExportWorkerClient,
+  type ExportWorkerClient,
+} from '@/core/export/exportWorkerClient';
 
 export interface ExportCurrentWriterPdfInput {
   pdfBytes?: Uint8Array | null;
+  /**
+   * Force main-thread (false) or worker (true) execution. Defaults to
+   * `typeof Worker !== 'undefined'` — real browsers offload to the export
+   * worker automatically; environments without a Worker implementation
+   * (e.g. this test suite's jsdom environment) fall back to the direct
+   * main-thread path with no behavior change.
+   */
+  useWorker?: boolean;
+  workerClient?: Pick<ExportWorkerClient, 'flattenPdf'>;
 }
 
 export async function exportCurrentWriterPdf(
@@ -12,13 +29,35 @@ export async function exportCurrentWriterPdf(
   const state = useWriterV2Store.getState();
   const sourcePdfBytes = input.pdfBytes ?? await createBlankDocumentPdfBytes();
 
-  const result = await exportFlattenedWriterPdf({
+  const flattenInput: FlattenWriterExportInput = {
     pdfBytes: sourcePdfBytes,
     elements: state.elements,
     assets: state.assetRecords,
-  });
+  };
+
+  const shouldUseWorker = input.useWorker ?? typeof Worker !== 'undefined';
+
+  const result = shouldUseWorker
+    ? await runFlattenPdfViaWorker(flattenInput, input.workerClient)
+    : await exportFlattenedWriterPdf(flattenInput);
 
   return result.bytes;
+}
+
+async function runFlattenPdfViaWorker(
+  payload: FlattenWriterExportInput,
+  injectedClient: Pick<ExportWorkerClient, 'flattenPdf'> | undefined,
+): Promise<FlattenWriterExportResult> {
+  if (injectedClient) {
+    return injectedClient.flattenPdf(payload);
+  }
+
+  const client = createDefaultExportWorkerClient();
+  try {
+    return await client.flattenPdf(payload);
+  } finally {
+    client.dispose();
+  }
 }
 
 async function createBlankDocumentPdfBytes(): Promise<Uint8Array> {

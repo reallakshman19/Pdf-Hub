@@ -377,6 +377,66 @@ check reserve for a human-reviewed PR, not something to silently widen from
 within the task's own diff. Flagging both here per the card's `escalate`
 field intent, matching Finding 9's precedent.
 
+## Finding 11 — P4-T03's `mayTouch` excludes every real caller, making the worker path unreachable without an explicitly-approved scope expansion; live UI-responsiveness check not performed (found during P4-T03)
+
+P4-T03 asks to move `flattenedPdfExport`/ZIP work off the main thread by
+mirroring `ocrWorkerClient`. Before writing any code, verified
+`flattenedPdfExport.ts` and `projectZip.ts` have zero DOM dependencies
+(no `document`/`window`/`Image`/canvas references — confirmed by grep),
+so both are worker-safe as-is.
+
+A structural conflict surfaced: the card's `mayTouch` lists only
+`frontend/src/core/export/**` (a new directory) plus the two files
+above — it excludes every real call site
+(`exportCurrentWriterPdf.ts`, `exportCurrentWriterProject.ts`,
+`roundTripPdfExport.ts`, `projectImportController.ts`, etc.). The
+existing OCR precedent this card says to mirror is itself **opt-in at
+the call site** (`runWorkerOcrJob`, `ocrPipelineMode.ts`) — never
+transparent inside the low-level function — and this repo's test
+environment (jsdom) has no `Worker` global at all (verified directly:
+`typeof Worker === 'undefined'` in a real vitest run). Making
+`exportFlattenedWriterPdf`'s exported function transparently
+auto-detect "am I in a browser" and silently switch to a real
+`new Worker(...)` would have broken every existing test that calls it
+directly, since jsdom would throw constructing that Worker. Taken
+literally, `mayTouch` as written makes it impossible to actually wire
+any caller to use the new worker infrastructure — the plumbing would
+exist but never run.
+
+Presented this conflict to the user with three options (build
+infrastructure only; expand scope to wire a real caller; stop and
+escalate without building) rather than silently picking one for a
+multi-hour build with real architectural stakes. The user chose to
+expand scope: build the full worker client/entrypoint/types (mirroring
+`OcrWorkerClient`/`ocrWorkerEntrypoint.ts` exactly — same pending-request
+map, timeout, abort-signal handling, dispose/terminate/rejectAll shape),
+then also touch `exportCurrentWriterPdf.ts` and
+`exportCurrentWriterProject.ts` (outside the card's `mayTouch`) to add
+an optional `useWorker`/`workerClient` parameter defaulting to
+`typeof Worker !== 'undefined'` — mirroring `ocrPipelineMode.ts`'s
+`getDefaultOcrPipelineCapabilities()` capability-detection pattern
+exactly, not a new invention. Because jsdom has no `Worker`, every
+existing test for these two files continues to exercise the unchanged
+main-thread path with zero test changes required; a real browser now
+defaults to the worker path automatically. New tests
+(`exportWorkerClient.test.ts`, `exportWorkerEntrypoint.test.ts`, plus
+additions to both callers' existing test files) inject a fake
+worker/client, exactly as `ocrWorkerClient.test.ts`'s `FakeOcrWorker`
+does — no real `Worker` is ever constructed inside the test suite.
+Verified with a real production build that `exportWorkerEntrypoint.ts`
+bundles into its own separate chunk, the same way
+`ocrWorkerEntrypoint.ts` does.
+
+**Not performed**: the card's second exit criterion — "Manual: export a
+50-page document; the UI must remain responsive throughout" — requires
+interactive browser use this automated session cannot perform. Added an
+automated 50-page/50-element flatten test as a *correctness* proxy (the
+worker entrypoint completes without hanging or erroring on a realistic
+large document), but this does not substitute for confirming actual
+main-thread responsiveness in a live browser. Flagged in
+`tasks/STATE.json`'s `blocked[]` list; a human should perform this check
+before merging.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no

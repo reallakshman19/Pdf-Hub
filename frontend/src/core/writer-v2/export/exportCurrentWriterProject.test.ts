@@ -71,4 +71,61 @@ describe('exportCurrentWriterProject', () => {
       }),
     ).rejects.toThrow(/documentFingerprint/);
   });
+
+  it('defaults to the main-thread path when Worker is unavailable (this test environment)', async () => {
+    expect(typeof Worker).toBe('undefined');
+
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assetRecords: [],
+    });
+
+    const bytes = await exportCurrentWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+    });
+
+    expect(bytes.length).toBeGreaterThan(0);
+  });
+
+  it('delegates to an injected worker client when useWorker is true', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assetRecords: [],
+    });
+
+    let calledWithFingerprint = '';
+    const bytes = await exportCurrentWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+      useWorker: true,
+      workerClient: {
+        packProjectZip: async (payload) => {
+          calledWithFingerprint = payload.documentFingerprint;
+          return {
+            bytes: new Uint8Array([4, 5, 6]),
+            manifest: {
+              schema: 'pdf-hub-project',
+              schemaVersion: 1,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              documentFingerprint: payload.documentFingerprint,
+              files: {
+                writerElements: 'writer-elements.json',
+                writerAssets: 'writer-assets.json',
+                assetDirectory: 'assets/',
+              },
+              counts: { writerElements: 1, writerAssets: 0 },
+            },
+            elementCount: 1,
+            assetCount: 0,
+            ocrProjectIncluded: false,
+          };
+        },
+      },
+    });
+
+    expect(calledWithFingerprint).toBe('doc-1');
+    expect(bytes).toEqual(new Uint8Array([4, 5, 6]));
+  });
 });

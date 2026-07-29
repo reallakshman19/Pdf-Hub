@@ -1,12 +1,12 @@
 {
-  "activeTask": "P4-T03",
-  "phase": "P4",
+  "activeTask": "P5-T01",
+  "phase": "P5",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
     "P2-T01", "P2-T02", "P2-T03", "P2-T04",
     "P3-T01", "P3-T02", "P3-T03",
-    "P4-T01", "P4-T02"
+    "P4-T01", "P4-T02", "P4-T03"
   ],
   "blocked": [
     {
@@ -40,8 +40,12 @@
     {
       "id": "p4-t02-maxfiles-overrun",
       "reason": "P4-T02's card declares maxFiles: 15, but the real count of non-test files with a static pdf-lib/html2canvas import was 16 (verified by grep against FB-4's own pattern before starting), plus vite.config.ts, eslint.config.js, tasks/RATCHET.json, tasks/STATE.json, and the new core/pdf/lazyPdfLib.ts -- 27 files total, all within mayTouch's globs but over budget. Also: the audit's prescribed manualChunks object-literal config does not work under this repo's actual bundler (Rolldown via Vite 8) -- it silently requires a function, not an object of arrays; converted to the function form (same vendor grouping) and verified 0 INEFFECTIVE_DYNAMIC_IMPORT warnings and largest gzip chunk 303.30 kB (< 500 kB) with a real build. See tasks/DRIFT-REPORT.md Finding 10. Needs a human call on the maxFiles budget; the Rolldown manualChunks fix is factual and already applied."
+    },
+    {
+      "id": "p4-t03-manual-responsiveness-check-not-performed",
+      "reason": "P4-T03's exit criteria include a manual check ('export a 50-page document; the UI must remain responsive throughout') that requires interactive browser use and was not performed in this automated session. Substituted: verified zero DOM dependencies in flattenedPdfExport.ts/projectZip.ts before moving them into the worker; verified with a real production build that exportWorkerEntrypoint.ts bundles into its own worker chunk (matching ocrWorkerEntrypoint's pattern); added an automated 50-page/50-element flatten test as a correctness (not UI-responsiveness) proxy. A human should do the live manual check before merging. See tasks/DRIFT-REPORT.md Finding 11."
     }
   ],
-  "notes": "Phase 0, Phase 1, Phase 2, and Phase 3 (all three admission tasks: ST-1 PS/ISONOTE text bounds, 3B.3C JSON structural bounds, IMG-1 Writer image admission) complete. P4-T01 (store selectors) and P4-T02 (real code splitting: lazyPdfLib accessor across 16 converted modules, html2canvas dynamic import, function-form manualChunks for Rolldown, no-restricted-imports lint rule, ratchet re-baselined static-pdflib 13→0) complete. P4-T03 (worker offload) not yet started. Ten findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
+  "notes": "Phase 0 through Phase 4 complete. P4-T03 (worker offload for flattenedPdfExport + ZIP pack/unpack) added core/export/{exportWorkerClient,exportWorkerEntrypoint,exportWorkerTypes}.ts mirroring ocrWorkerClient's shape, and -- with the user's explicit approval after flagging the mayTouch conflict -- wired real callers (exportCurrentWriterPdf.ts, exportCurrentWriterProject.ts) to use the worker by default when Worker is available, falling back to the main-thread path otherwise (auto-detected, matching ocrPipelineMode.ts's capability-detection pattern). Phase 5 (P5-T01 coverage gate, P5-T02 e2e journeys) not yet started. Eleven findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
   "updated": "2026-07-29"
 }
