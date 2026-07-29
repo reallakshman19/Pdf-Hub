@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { dispatchCommand } from '@/core/commands/dispatch';
 import type { DocumentCommand } from '@/core/commands/types';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 
 interface ThumbnailActionStripProps {
@@ -16,7 +17,9 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
   currentPage,
 }) => {
   const targetPages = selectedPages.length > 0 ? selectedPages : [currentPage];
-  const { workingBytes } = useSessionStore();
+  const { workingBytes } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+  })));
   const pageIndices = targetPages.map((page) => page - 1);
 
   const handleCommand = (command: DocumentCommand) => {

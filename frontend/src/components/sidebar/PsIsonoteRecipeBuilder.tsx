@@ -12,6 +12,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { downloadBlob } from '@/core/document/download';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
@@ -144,7 +145,14 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
     pageCount,
     selectedPages,
     viewState,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    fileName: state.fileName,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    viewState: state.viewState,
+  })));
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [sourceText, setSourceText] = React.useState('');
   const [sourceName, setSourceName] = React.useState('');

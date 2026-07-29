@@ -1,5 +1,6 @@
 import React from 'react';
 import { Layers, Highlighter, PenTool, MousePointer2, MoreHorizontal } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 
 export const MobileBottomTabBar: React.FC = () => {
@@ -10,7 +11,14 @@ export const MobileBottomTabBar: React.FC = () => {
     setMobileDrawerOpen,
     mobileSheetOpen,
     setMobileSheetOpen,
-  } = useEditorStore();
+  } = useEditorStore(useShallow((state) => ({
+    activeMode: state.activeMode,
+    setActiveMode: state.setActiveMode,
+    mobileDrawerOpen: state.mobileDrawerOpen,
+    setMobileDrawerOpen: state.setMobileDrawerOpen,
+    mobileSheetOpen: state.mobileSheetOpen,
+    setMobileSheetOpen: state.setMobileSheetOpen,
+  })));
 
   const handleTabClick = (tab: 'pages' | 'annotate' | 'draw' | 'view' | 'more') => {
     if (tab === 'pages') {

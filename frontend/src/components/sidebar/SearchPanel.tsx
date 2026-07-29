@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
@@ -11,7 +12,11 @@ import { useToastStore } from '@/core/toast/store';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 
 export const SearchPanel: React.FC = () => {
-  const { documentKey, workingBytes, setPage } = useSessionStore();
+  const { documentKey, workingBytes, setPage } = useSessionStore(useShallow((state) => ({
+    documentKey: state.documentKey,
+    workingBytes: state.workingBytes,
+    setPage: state.setPage,
+  })));
   const {
     query,
     setQuery,
@@ -26,7 +31,21 @@ export const SearchPanel: React.FC = () => {
     setIsSearching,
     error,
     setError,
-  } = useSearchStore();
+  } = useSearchStore(useShallow((state) => ({
+    query: state.query,
+    setQuery: state.setQuery,
+    hits: state.hits,
+    setHits: state.setHits,
+    activeHitId: state.activeHitId,
+    setActiveHit: state.setActiveHit,
+    clearSearch: state.clearSearch,
+    nextHit: state.nextHit,
+    prevHit: state.prevHit,
+    isSearching: state.isSearching,
+    setIsSearching: state.setIsSearching,
+    error: state.error,
+    setError: state.setError,
+  })));
   const addToast = useToastStore((state) => state.addToast);
   const searchAbortControllerRef = React.useRef<AbortController | null>(null);
 

@@ -17,6 +17,7 @@ import {
   runOcrRegion,
 } from '@/core/ocr/ocrRegionRunner';
 import { ocrRegionResultToWriterElement } from '@/core/ocr/ocrRegionToWriter';
+import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 
 export interface OcrRegionActionPanelProps {
@@ -46,7 +47,10 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
   onRegionResult,
   onWriterElementCreated,
 }) => {
-  const store = useOcrStore();
+  const store = useOcrStore(useShallow((state) => ({
+    engineId: state.engineId,
+    profileId: state.profileId,
+  })));
 
   const [isRunning, setIsRunning] = React.useState(false);
   const [regionResult, setRegionResult] = React.useState<OcrRegionResult | null>(null);

@@ -11,6 +11,7 @@ import {
   createOcrCorrection,
   getOcrCorrectionForTarget,
 } from '@/core/ocr/ocrCorrections';
+import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 
 export interface OcrCorrectionPanelProps {
@@ -26,7 +27,13 @@ export const OcrCorrectionPanel: React.FC<OcrCorrectionPanelProps> = ({
   onSaved,
   onDeleted,
 }) => {
-  const store = useOcrStore();
+  const store = useOcrStore(useShallow((state) => ({
+    correctedResult: state.correctedResult,
+    corrections: state.corrections,
+    deleteOcrCorrectionForTarget: state.deleteOcrCorrectionForTarget,
+    documentFingerprint: state.documentFingerprint,
+    upsertOcrCorrection: state.upsertOcrCorrection,
+  })));
 
   const effectiveDocumentFingerprint =
     documentFingerprint

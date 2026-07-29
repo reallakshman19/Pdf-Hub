@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
@@ -9,9 +10,18 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
 export const CommentsSidebar: React.FC = () => {
-  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore();
-  const { setPage } = useSessionStore();
-  const { filterStatus, setFilterStatus } = useReviewStore();
+  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    activeAnnotationId: state.activeAnnotationId,
+    setActiveAnnotationId: state.setActiveAnnotationId,
+  })));
+  const { setPage } = useSessionStore(useShallow((state) => ({
+    setPage: state.setPage,
+  })));
+  const { filterStatus, setFilterStatus } = useReviewStore(useShallow((state) => ({
+    filterStatus: state.filterStatus,
+    setFilterStatus: state.setFilterStatus,
+  })));
 
   const filteredAnnotations = useMemo(() => {
     return annotations.filter((a) => {

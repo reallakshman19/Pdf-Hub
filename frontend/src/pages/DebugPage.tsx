@@ -7,6 +7,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useWriterStore } from '@/core/writer/store';
 import { useSearchStore } from '@/core/search/store';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
+import { useShallow } from 'zustand/react/shallow';
 
 type DebugTab = 'logs' | 'state' | 'performance' | 'system';
 
@@ -16,11 +17,37 @@ export const DebugPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DebugTab>('logs');
   const entries = useLoggerStore((state) => state.entries);
   const clearLogs = useLoggerStore((state) => state.clear);
-  const sessionState = useSessionStore();
-  const editorState = useEditorStore();
-  const annotationState = useAnnotationStore();
+  const sessionState = useSessionStore(useShallow((state) => ({
+    documentKey: state.documentKey,
+    fileName: state.fileName,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    isDirty: state.isDirty,
+    viewState: state.viewState,
+    workingBytes: state.workingBytes,
+  })));
+  const editorState = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    sidebarTab: state.sidebarTab,
+    inspectorTab: state.inspectorTab,
+    leftPanelWidth: state.leftPanelWidth,
+    rightPanelWidth: state.rightPanelWidth,
+  })));
+  const annotationState = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    activeAnnotationId: state.activeAnnotationId,
+    history: state.history,
+    future: state.future,
+  })));
   const writerState = useWriterStore();
-  const searchState = useSearchStore();
+  const searchState = useSearchStore(useShallow((state) => ({
+    query: state.query,
+    hits: state.hits,
+    activeHitId: state.activeHitId,
+    isSearching: state.isSearching,
+    error: state.error,
+  })));
 
   const sessionSnapshot = useMemo(
     () => ({

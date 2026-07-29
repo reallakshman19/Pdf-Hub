@@ -3,6 +3,7 @@ import type {
   OcrJobRunnerPageInput,
   OcrJobRunnerSnapshot,
 } from '@/core/ocr/ocrJobRunner';
+import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   createOcrAbortControllerWithTimeout,
@@ -65,7 +66,15 @@ export function useOcrRunWorkflow({
   pages,
   pdfBytes = null,
 }: UseOcrRunWorkflowInput): UseOcrRunWorkflowResult {
-  const store = useOcrStore();
+  const store = useOcrStore(useShallow((state) => ({
+    clearOcr: state.clearOcr,
+    correctedResult: state.correctedResult,
+    documentFingerprint: state.documentFingerprint,
+    engineId: state.engineId,
+    forceOcr: state.forceOcr,
+    profileId: state.profileId,
+    selectedPageIndexes: state.selectedPageIndexes,
+  })));
 
   const effectiveDocumentFingerprint =
     documentFingerprint

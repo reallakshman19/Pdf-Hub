@@ -31,6 +31,7 @@ import type { DocumentCommand } from '@/core/commands/types';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import { useHistoryStore } from '@/core/document-history/store';
+import { useShallow } from 'zustand/react/shallow';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
@@ -57,9 +58,22 @@ export const ToolbarOrganize: React.FC = () => {
     viewState,
     setPage,
     clearSelectedPages,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    viewState: state.viewState,
+    setPage: state.setPage,
+    clearSelectedPages: state.clearSelectedPages,
+  })));
   const addToast = useToastStore((state) => state.addToast);
-  const { canUndo, canRedo, peekUndo, peekRedo } = useHistoryStore();
+  const { canUndo, canRedo, peekUndo, peekRedo } = useHistoryStore(useShallow((state) => ({
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
+    peekUndo: state.peekUndo,
+    peekRedo: state.peekRedo,
+  })));
 
   const activePages = selectedPages.length > 0 ? selectedPages : [viewState.currentPage];
   const activeIndices = activePages.map((page) => page - 1);

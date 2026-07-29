@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bookmark, Layers, MessageSquare, Search, Sparkles, HelpCircle, ScanText } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import type { SidebarTab } from '@/core/editor/types';
 
@@ -14,7 +15,10 @@ const allTabs: Array<{ id: SidebarTab; icon: React.ComponentType<{ className?: s
 ];
 
 export const LeftRail: React.FC = () => {
-  const { sidebarTab, setSidebarTab } = useEditorStore();
+  const { sidebarTab, setSidebarTab } = useEditorStore(useShallow((state) => ({
+    sidebarTab: state.sidebarTab,
+    setSidebarTab: state.setSidebarTab,
+  })));
   const visibleTabs = React.useMemo(
     () => allTabs.filter(() => true),
     [],

@@ -27,6 +27,10 @@ export default tseslint.config(
       'react-refresh/only-export-components': 'off',
       'no-console': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      'no-restricted-syntax': ['error', {
+        selector: "CallExpression[callee.name=/^use(Session|WriterV2|Ocr|Annotation|Editor|Review|Search)Store$/][arguments.length=0]",
+        message: 'Subscribe with a selector (use useShallow for object selections).',
+      }],
     },
   }
 );

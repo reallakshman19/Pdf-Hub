@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, Clock, Loader2, Save, WifiOff } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterStore } from '@/core/writer/store';
 import { useAnnotationStore } from '@/core/annotations/store';
@@ -14,7 +15,15 @@ export const SaveStatusIndicator: React.FC = () => {
     saveState,
     annotationAutosaveState,
     fileName,
-  } = useSessionStore();
+  } = useSessionStore(useShallow((state) => ({
+    isDirty: state.isDirty,
+    isDocumentDirty: state.isDocumentDirty,
+    isReviewDirty: state.isReviewDirty,
+    isSessionDirty: state.isSessionDirty,
+    saveState: state.saveState,
+    annotationAutosaveState: state.annotationAutosaveState,
+    fileName: state.fileName,
+  })));
 
   const writerElementCount = useWriterStore((state) => state.elements.length);
   const annotationCount = useAnnotationStore((state) => state.annotations.length);

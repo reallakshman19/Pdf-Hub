@@ -262,6 +262,60 @@ CSS in `dist/`).
 debugging tooling, exempt it from the rule) or convert it to structured
 logging like the rest of the codebase.
 
+## Finding 9 — `guard-scope.mjs`'s default base (`origin/main`) never contains any `tasks/*.json`, for every task in this programme (found during P4-T01)
+
+`guard-scope.mjs` diffs the current branch against `origin/main` by
+default and requires `tasks/{activeTask}.json` to already exist there
+("Task cards are authored and merged BEFORE the work begins."). Ran it
+for the first time at P4-T01 and it failed immediately:
+`tasks/P4-T01.json does not exist on origin/main.` Checked why: this
+entire programme — Phase −1's kit install through every task so far —
+has been developed as a single long-lived branch/PR
+(`claude/upgrade-implementation-plan-7wl4jd` → PR #163), per this
+session's explicit branch instructions, not as the kit's prescribed
+one-branch-per-task model where each card is authored and merged to
+main before the next task's work starts. `origin/main` has advanced
+independently in the meantime (merged PR #162, unrelated feature work)
+and has never had a `tasks/` directory at all — confirmed with
+`git show origin/main:tasks/STATE.json` failing the same way. So this
+check would have failed identically on every prior task's card
+(P0-T01 through P3-T03) had it been run — it was never run before
+because `guard-forbidden.mjs` and `guard-ratchet.mjs` (the two guards
+whose exit criteria are actually named in every card) were the ones
+exercised, and manual `git status`/`git diff --stat` review stood in
+for scope-checking.
+
+Not fixed here: the guard script is correct for the workflow it was
+designed for (one branch per task, merged incrementally); the mismatch
+is with *this session's* single-branch-per-programme instruction, not
+a bug in the script. Re-running `node scripts/guard-scope.mjs HEAD~1`
+(or any prior commit on this same branch, rather than `origin/main`)
+does give a meaningful mayTouch/maxFiles check and was used informally
+in its place — `git status --short` was diffed against each card's
+`mayTouch` allowlist by hand for every task in this session, including
+P4-T01 (35 files changed, budget 45, all under `frontend/src/components/**`,
+`frontend/src/core/**` — wait, `frontend/src/hooks/useKeyboardShortcuts.ts`
+and `frontend/src/pages/DebugPage.tsx` are outside both listed globs;
+see note below — plus `frontend/eslint.config.js` and `tasks/RATCHET.json`,
+both explicitly listed). This needs a human call: either (a) merge PR
+#163 incrementally so `origin/main` actually catches up and the guard
+becomes meaningful again for whatever tasks remain, or (b) change
+`guard-scope.mjs`'s default base to the branch's own first commit for
+single-PR-programme runs like this one (a change to the guard script
+itself, which per R-10 needs a human-reviewed PR that says so
+explicitly — not something to slip in from within a task's own diff).
+
+**mayTouch gap note:** P4-T01's card lists `frontend/src/components/**`
+and `frontend/src/core/**` but two of the required conversions live
+outside both — `frontend/src/hooks/useKeyboardShortcuts.ts` (a hook,
+not a component or core module) and `frontend/src/pages/DebugPage.tsx`
+(a page). Both are legitimate no-selector call sites the card's own
+"every no-selector store call" instruction requires touching, and both
+are pure selector-conversion edits (same mechanical pattern as every
+other file, no restructuring). Escalating per the card's own field
+rather than silently expanding scope: flagged here instead of widening
+`mayTouch` in the card myself.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no

@@ -8,6 +8,7 @@ import {
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { dispatchCommand } from '@/core/commands/dispatch';
 import type { DocumentCommand } from '@/core/commands/types';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import {
@@ -34,7 +35,12 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const donorOperationRef = useRef<AbortController | null>(null);
-  const { workingBytes, documentKey, fileName, viewState } = useSessionStore();
+  const { workingBytes, documentKey, fileName, viewState } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
+    fileName: state.fileName,
+    viewState: state.viewState,
+  })));
   const addToast = useToastStore((state) => state.addToast);
   const targetPages = selectedPages.includes(page) ? selectedPages : [page];
   const pageIndices = targetPages.map((value) => value - 1);

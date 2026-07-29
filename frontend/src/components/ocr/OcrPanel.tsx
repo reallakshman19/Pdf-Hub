@@ -2,6 +2,7 @@ import React from 'react';
 import type {
   OcrJobRunnerPageInput,
 } from '@/core/ocr/ocrJobRunner';
+import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { listOcrProfiles } from '@/core/ocr/ocrProfiles';
 import { defaultOcrEngineRegistry } from '@/core/ocr/engines/ocrEngineRegistry';
@@ -75,7 +76,18 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   onSearchablePdfExported,
   projectPayload = null,
 }) => {
-  const store = useOcrStore();
+  const store = useOcrStore(useShallow((state) => ({
+    activeJobId: state.activeJobId,
+    correctedResult: state.correctedResult,
+    corrections: state.corrections,
+    engineId: state.engineId,
+    forceOcr: state.forceOcr,
+    jobs: state.jobs,
+    profileId: state.profileId,
+    setForceOcr: state.setForceOcr,
+    setOcrEngineId: state.setOcrEngineId,
+    setOcrProfileId: state.setOcrProfileId,
+  })));
   const runWorkflow = useOcrRunWorkflow({
     documentFingerprint,
     selectedPageIndexes,

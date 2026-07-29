@@ -1,11 +1,18 @@
 import React from 'react';
 import { MessageSquare } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 
 const CommentsSidebar: React.FC = () => {
-  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore();
-  const { setPage } = useSessionStore();
+  const { annotations, activeAnnotationId, setActiveAnnotationId } = useAnnotationStore(useShallow((state) => ({
+    annotations: state.annotations,
+    activeAnnotationId: state.activeAnnotationId,
+    setActiveAnnotationId: state.setActiveAnnotationId,
+  })));
+  const { setPage } = useSessionStore(useShallow((state) => ({
+    setPage: state.setPage,
+  })));
 
   if (annotations.length === 0) {
     return (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useCapabilities } from '@/hooks/useCapabilities';
@@ -13,8 +14,16 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 export const StatusBar: React.FC = () => {
-  const { isDirty, viewState, pageCount, setZoom, setPage } = useSessionStore();
-  const { activeMode } = useEditorStore();
+  const { isDirty, viewState, pageCount, setZoom, setPage } = useSessionStore(useShallow((state) => ({
+    isDirty: state.isDirty,
+    viewState: state.viewState,
+    pageCount: state.pageCount,
+    setZoom: state.setZoom,
+    setPage: state.setPage,
+  })));
+  const { activeMode } = useEditorStore(useShallow((state) => ({
+    activeMode: state.activeMode,
+  })));
   const capabilities = useCapabilities();
 
   const [localPageValue, setLocalPageValue] = useState<string>('');

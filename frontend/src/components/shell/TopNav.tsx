@@ -7,6 +7,7 @@ import {
   ChevronRight, Menu, FlaskConical, MousePointer2, PenTool, Type, Layers, Sparkles,
   Undo2, Redo2, Minus, Plus
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { ActiveMode } from '@/core/editor/types';
@@ -24,7 +25,13 @@ import { useMockPdf } from '@/hooks/useMockPdf';
 
 export const TopNav: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const { documentKey, fileName, isDirty, viewState, setZoom } = useSessionStore();
+  const { documentKey, fileName, isDirty, viewState, setZoom } = useSessionStore(useShallow((state) => ({
+    documentKey: state.documentKey,
+    fileName: state.fileName,
+    isDirty: state.isDirty,
+    viewState: state.viewState,
+    setZoom: state.setZoom,
+  })));
   const {
     setSidebarTab,
     setLeftPanelWidth,
@@ -34,9 +41,28 @@ export const TopNav: React.FC = () => {
     setMobileDrawerOpen,
     activeMode,
     setActiveMode,
-  } = useEditorStore();
-  const { history, future, undo, redo } = useAnnotationStore();
-  const { undoWriter, redoWriter, undoStack, redoStack } = useWriterV2Store();
+  } = useEditorStore(useShallow((state) => ({
+    setSidebarTab: state.setSidebarTab,
+    setLeftPanelWidth: state.setLeftPanelWidth,
+    leftPanelWidth: state.leftPanelWidth,
+    setMacroBuilderOpen: state.setMacroBuilderOpen,
+    mobileDrawerOpen: state.mobileDrawerOpen,
+    setMobileDrawerOpen: state.setMobileDrawerOpen,
+    activeMode: state.activeMode,
+    setActiveMode: state.setActiveMode,
+  })));
+  const { history, future, undo, redo } = useAnnotationStore(useShallow((state) => ({
+    history: state.history,
+    future: state.future,
+    undo: state.undo,
+    redo: state.redo,
+  })));
+  const { undoWriter, redoWriter, undoStack, redoStack } = useWriterV2Store(useShallow((state) => ({
+    undoWriter: state.undoWriter,
+    redoWriter: state.redoWriter,
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
+  })));
 
   const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
 
@@ -73,7 +99,15 @@ export const TopNav: React.FC = () => {
     clearSearch,
     nextHit,
     setIsSearching,
-  } = useSearchStore();
+  } = useSearchStore(useShallow((state) => ({
+    query: state.query,
+    setQuery: state.setQuery,
+    setHits: state.setHits,
+    setError: state.setError,
+    clearSearch: state.clearSearch,
+    nextHit: state.nextHit,
+    setIsSearching: state.setIsSearching,
+  })));
 
   const [localQuery, setLocalQuery] = useState(query);
   const [previousQuery, setPreviousQuery] = useState(query);

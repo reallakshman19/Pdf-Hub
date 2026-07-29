@@ -6,6 +6,7 @@ import {
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
   Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
@@ -113,8 +114,15 @@ const FileSection: React.FC = () => (
 );
 
 const ViewSection: React.FC = () => {
-  const { activeTool, setActiveTool } = useEditorStore();
-  const { viewState, setFitMode, setViewMode } = useSessionStore();
+  const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+  })));
+  const { viewState, setFitMode, setViewMode } = useSessionStore(useShallow((state) => ({
+    viewState: state.viewState,
+    setFitMode: state.setFitMode,
+    setViewMode: state.setViewMode,
+  })));
 
   return (
     <>
@@ -135,9 +143,15 @@ const ViewSection: React.FC = () => {
 };
 
 const AnnotateSection: React.FC = () => {
-  const { activeTool, setActiveTool } = useEditorStore();
+  const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+  })));
   const { setActiveTool: setWriterActiveTool, activeTool: writerActiveTool } = useWriterStore();
-  const { hideResolved, setHideResolved } = useReviewStore();
+  const { hideResolved, setHideResolved } = useReviewStore(useShallow((state) => ({
+    hideResolved: state.hideResolved,
+    setHideResolved: state.setHideResolved,
+  })));
 
   const handleToolClick = (tool: ActiveTool) => {
     if (isToolDisabled(tool)) return;
@@ -181,7 +195,10 @@ const AnnotateSection: React.FC = () => {
 };
 
 const DrawSection: React.FC = () => {
-  const { activeTool, setActiveTool } = useEditorStore();
+  const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+  })));
   const { setActiveTool: setWriterActiveTool } = useWriterStore();
 
   const handleToolClick = (tool: ActiveTool) => {
@@ -228,7 +245,9 @@ const OrganizeSection: React.FC = () => (
 );
 
 const GenerateSection: React.FC = () => {
-  const { setMacroBuilderOpen } = useEditorStore();
+  const { setMacroBuilderOpen } = useEditorStore(useShallow((state) => ({
+    setMacroBuilderOpen: state.setMacroBuilderOpen,
+  })));
   const addToast = useToastStore((s) => s.addToast);
   const stub = (name: string) => () =>
     addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
@@ -251,7 +270,9 @@ const GenerateSection: React.FC = () => {
 // ── CtxBar shell ─────────────────────────────────────────────────────────────
 
 export const CtxBar: React.FC = () => {
-  const { activeMode } = useEditorStore();
+  const { activeMode } = useEditorStore(useShallow((state) => ({
+    activeMode: state.activeMode,
+  })));
   const isMobile = useIsMobile();
 
   return (

@@ -4,10 +4,21 @@ import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
+import { useShallow } from 'zustand/react/shallow';
 
 export const ToolbarView: React.FC = () => {
-  const { activeTool, setActiveTool } = useEditorStore();
-  const { viewState, pageCount, setZoom, setFitMode, setViewMode, setPage } = useSessionStore();
+  const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+  })));
+  const { viewState, pageCount, setZoom, setFitMode, setViewMode, setPage } = useSessionStore(useShallow((state) => ({
+    viewState: state.viewState,
+    pageCount: state.pageCount,
+    setZoom: state.setZoom,
+    setFitMode: state.setFitMode,
+    setViewMode: state.setViewMode,
+    setPage: state.setPage,
+  })));
 
   const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 300, 400];
 

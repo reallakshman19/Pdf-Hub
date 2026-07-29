@@ -1,11 +1,12 @@
 {
-  "activeTask": "P4-T01",
+  "activeTask": "P4-T02",
   "phase": "P4",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
     "P2-T01", "P2-T02", "P2-T03", "P2-T04",
-    "P3-T01", "P3-T02", "P3-T03"
+    "P3-T01", "P3-T02", "P3-T03",
+    "P4-T01"
   ],
   "blocked": [
     {
@@ -31,8 +32,12 @@
     {
       "id": "imagedropplugin-no-dom-test",
       "reason": "ImageDropPlugin.tsx's drop handling has no DOM-level integration test: this jsdom environment has no DragEvent implementation at all, and Lexical's root 'drop' listener doesn't fire through testing-library's plain-Event fallback. Pre-existing environment limitation (the plugin had zero test coverage before P3-T03). Covered instead by the shared writerImageAdmission module's unit tests + typecheck + manual review of the (minimal, structurally faithful) change."
+    },
+    {
+      "id": "guard-scope-base-mismatch",
+      "reason": "guard-scope.mjs's default base (origin/main) has never had any tasks/*.json for the life of this programme, since all work has run as one long-lived branch/PR (per this session's explicit branch instructions) rather than the kit's one-branch-per-task model. Confirmed origin/main has no tasks/ directory at all. Would have failed identically for every prior task. See tasks/DRIFT-REPORT.md Finding 9. Needs a human call: merge PR #163 incrementally, or change guard-scope.mjs's default base for single-PR-programme runs (guard script change requires R-10's human-reviewed PR, not a task-scoped fix)."
     }
   ],
-  "notes": "Phase 0, Phase 1, Phase 2, and Phase 3 (all three admission tasks: ST-1 PS/ISONOTE text bounds, 3B.3C JSON structural bounds, IMG-1 Writer image admission) complete. Phase 4 (P4-T01..T03: store selectors, code splitting, worker offload) not yet started this session. Six findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
+  "notes": "Phase 0, Phase 1, Phase 2, and Phase 3 (all three admission tasks: ST-1 PS/ISONOTE text bounds, 3B.3C JSON structural bounds, IMG-1 Writer image admission) complete. P4-T01 (store selectors + useShallow across all 33 no-selector call sites, no-restricted-syntax lint rule added, ratchet re-baselined store-no-selector 68→0) complete. P4-T02 (code splitting) and P4-T03 (worker offload) not yet started. Seven findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
   "updated": "2026-07-29"
 }
