@@ -1,11 +1,42 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { verifyProfessionalCalloutOutput } from './output-verifier';
 import { PdfRendererAdapter } from '../../adapters/pdf-renderer/PdfRendererAdapter';
 import { buildVectorCalloutPlan } from '../macro/psIsonote/professional/vectorCalloutPlan';
-import { generateV3Marker } from '../macro/psIsonote/professional/verificationCore';
 
-describe('Output Verifier (Phase D - Verification Hardening)', () => {
-  it('verifies callouts by acquiring document and parsing visible text and markers (AD-07)', async () => {
+function installDocument(textItems: string[]) {
+  const cleanup = vi.fn();
+  const release = vi.fn().mockResolvedValue(undefined);
+
+  vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
+    doc: {
+      numPages: 1,
+      getPage: vi.fn().mockResolvedValue({ cleanup }),
+    } as never,
+    release,
+    cacheKey: 'mock',
+  });
+
+  vi.spyOn(PdfRendererAdapter, 'getPageTextItems').mockResolvedValue(
+    textItems.map((text, index) => ({
+      id: String(index),
+      text,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      fontSize: 10,
+    })),
+  );
+
+  return { cleanup, release };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('Output Verifier (professional callout write boundary)', () => {
+  it('verifies visible callout text without requiring a marker written by a later recipe step', async () => {
     const plan = buildVectorCalloutPlan(
       'occ-99',
       'PS-555',
@@ -13,39 +44,47 @@ describe('Output Verifier (Phase D - Verification Hardening)', () => {
       ':/PS-555 Valve Check',
       'HIGH',
       { x: 10, y: 10 },
-      { x: 50, y: 50, width: 150 }
+      { x: 50, y: 50, width: 150 },
     );
-
-    const testHash = `sha256:${'a'.repeat(64)}`;
-    const validMarker = generateV3Marker(plan, testHash);
-
-    const mockDoc = {
-      numPages: 1,
-      getPage: vi.fn().mockResolvedValue({
-        cleanup: vi.fn(),
-      }),
-    };
-
-    vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
-      doc: mockDoc as any,
-      release: vi.fn().mockResolvedValue(undefined),
-      cacheKey: 'mock',
-    });
-
-    vi.spyOn(PdfRendererAdapter, 'getPageTextItems').mockResolvedValue([
-      { id: '1', text: validMarker, x: 0, y: 0, width: 0, height: 0, fontSize: 0 },
-      { id: '2', text: 'Tag: Valve Check', x: 50, y: 50, width: 100, height: 10, fontSize: 10 },
-      { id: '3', text: 'ISO Note: :/PS-555 Valve Check (C=H)', x: 50, y: 60, width: 100, height: 10, fontSize: 10 },
+    const { cleanup, release } = installDocument([
+      'Tag: Valve Check',
+      'ISO Note: :/PS-555 Valve Check',
     ]);
 
-    const dummyBytes = new Uint8Array([1, 2, 3]);
-    const report = await verifyProfessionalCalloutOutput(dummyBytes, [plan], testHash);
+    const report = await verifyProfessionalCalloutOutput(
+      new Uint8Array([1, 2, 3]),
+      [plan],
+      `sha256:${'a'.repeat(64)}`,
+    );
 
     expect(report.passed).toBe(true);
     expect(report.verifiedCount).toBe(1);
-    expect(report.missingMarkerErrors).toHaveLength(0);
-    expect(report.missingTextErrors).toHaveLength(0);
+    expect(report.missingMarkerErrors).toEqual([]);
+    expect(report.missingTextErrors).toEqual([]);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
 
-    vi.restoreAllMocks();
+  it('fails when the written callout is missing searchable visible text', async () => {
+    const plan = buildVectorCalloutPlan(
+      'occ-100',
+      'PS-556',
+      'Guide Check',
+      ':/PS-556 Guide Check',
+      'HIGH',
+      { x: 10, y: 10 },
+      { x: 50, y: 50, width: 150 },
+    );
+    installDocument(['Unrelated page text']);
+
+    const report = await verifyProfessionalCalloutOutput(
+      new Uint8Array([4, 5, 6]),
+      [plan],
+      `sha256:${'b'.repeat(64)}`,
+    );
+
+    expect(report.passed).toBe(false);
+    expect(report.verifiedCount).toBe(0);
+    expect(report.missingTextErrors).toHaveLength(1);
   });
 });
