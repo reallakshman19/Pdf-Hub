@@ -1,7 +1,10 @@
 {
-  "activeTask": "P1-T01",
-  "phase": "P1",
-  "completed": ["P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04"],
+  "activeTask": "P2-T01",
+  "phase": "P2",
+  "completed": [
+    "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
+    "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05"
+  ],
   "blocked": [
     {
       "id": "P0-T02-followup",
@@ -9,9 +12,13 @@
     },
     {
       "id": "lint-debt",
-      "reason": "pnpm run lint has 84 pre-existing errors (mostly no-explicit-any in test files), unrelated to dependency drift. See tasks/DRIFT-REPORT.md Finding 4. Needs its own scoped task(s); not part of any P0 card's exit criteria."
+      "reason": "pnpm run lint has 84 pre-existing errors (mostly no-explicit-any in test files), unrelated to dependency drift. See tasks/DRIFT-REPORT.md Finding 4. Needs its own scoped task(s)."
+    },
+    {
+      "id": "second-sanitizer",
+      "reason": "exporter.ts's sanitizeWriterHtml is a separate, weaker, regex-based sanitizer used for canvas export rendering -- unrelated to and not covered by P1-T04's htmlSanitizer.ts fixes. See tasks/DRIFT-REPORT.md Finding 6. Needs its own task."
     }
   ],
-  "notes": "P0-T04 verified via GitHub: PR #140 already merged 2026-07-26, no action needed. Phase 0 complete. Single source of truth for where the programme is. Exactly one activeTask at a time.",
+  "notes": "Phase 0 and Phase 1 complete. Phase 2 (P2-T01..T04: delete diverged shadow tree, collapse certify scripts, root README, self-host fonts + CSP) not yet started this session.",
   "updated": "2026-07-29"
 }
