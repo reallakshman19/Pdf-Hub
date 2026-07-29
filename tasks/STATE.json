@@ -1,8 +1,13 @@
 {
-  "activeTask": "P0-T01",
+  "activeTask": "P0-T02",
   "phase": "P0",
-  "completed": [],
-  "blocked": [],
+  "completed": ["P0-T01"],
+  "blocked": [
+    {
+      "id": "P0-T02",
+      "reason": "Frozen install itself is clean (no lockfile drift), but typecheck is red for reasons outside this card's mayTouch: a stale pdfjs-dist type shim (src/modules.d.ts) and an obsolete vitest config key (vite.config.ts workerExecArgs). See tasks/DRIFT-REPORT.md. Needs a human decision on whether to fix now (small, separate task) or defer, before P0-T03's CI gate goes live assuming green typecheck."
+    }
+  ],
   "notes": "Single source of truth for where the programme is. Exactly one activeTask at a time.",
-  "updated": "2026-07-26"
+  "updated": "2026-07-29"
 }
