@@ -1,4 +1,5 @@
 import { log, error, warn } from '@/core/logger/service';
+import { downloadBlob } from '@/core/document/download';
 
 export interface PickedPdfFile {
   name: string;
@@ -114,14 +115,7 @@ export class FileAdapter {
 
   static downloadBytes(bytes: Uint8Array, name: string): void {
     const blob = new Blob([this.toArrayBuffer(bytes)], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = name;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, name);
     log('session', 'PDF downloaded', { fileName: name, size: bytes.byteLength });
   }
 

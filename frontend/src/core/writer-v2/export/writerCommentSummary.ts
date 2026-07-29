@@ -1,4 +1,5 @@
 import { useSessionStore } from '@/core/session/store';
+import { downloadBlob } from '@/core/document/download';
 import type {
   WriterElementV2,
   WriterReviewCategory,
@@ -206,16 +207,5 @@ function downloadTextFile(
   mimeType: string,
 ): void {
   const blob = new Blob([text], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.rel = 'noopener';
-
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(blob, filename);
 }

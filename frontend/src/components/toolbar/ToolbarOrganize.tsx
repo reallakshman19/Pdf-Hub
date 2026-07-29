@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { downloadBlob } from '@/core/document/download';
 import {
   admitDonorPdfFiles,
   assertAdmittedDonorSetDispatchAllowed,
@@ -442,12 +443,7 @@ export const ToolbarOrganize: React.FC = () => {
       const reportJson = JSON.stringify(report, null, 2);
       const reportBytes = new TextEncoder().encode(reportJson);
       const blob = new Blob([reportBytes], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const element = document.createElement('a');
-      element.href = url;
-      element.download = `batch-report-${Date.now()}.json`;
-      element.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `batch-report-${Date.now()}.json`);
 
       addToast({
         type: 'success',

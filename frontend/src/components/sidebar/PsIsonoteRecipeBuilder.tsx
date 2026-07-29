@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/core/session/store';
+import { downloadBlob } from '@/core/document/download';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import type { MacroRecipe, PageSelector } from '@/core/macro/types';
 import {
@@ -105,17 +106,6 @@ function delimiterLabel(delimiter: PsIsonoteParseResult['delimiter']): string {
 
 function artifactStem(documentName: string): string {
   return documentName.replace(/\.pdf$/i, '').replace(/[^a-z0-9._-]+/gi, '_') || 'document';
-}
-
-function downloadBlob(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 function downloadText(content: string, name: string, type: string): void {
