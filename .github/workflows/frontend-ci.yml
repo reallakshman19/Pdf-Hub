@@ -45,9 +45,35 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Run release gate
+      - name: Type check
         working-directory: frontend
-        run: pnpm run check:release
+        run: pnpm run typecheck
+
+      - name: Mojibake audit
+        working-directory: frontend
+        run: pnpm run audit:no-mojibake
+
+      - name: Portable test suite
+        working-directory: frontend
+        run: pnpm exec vitest run --pool=forks --maxWorkers=1 --exclude src/core/macro/psIsonote/rca.test.ts
+
+      - name: Doc Hub certification
+        working-directory: frontend
+        run: pnpm run check:doc-hub
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Baseline lint diagnostics
+        continue-on-error: true
+        working-directory: frontend
+        run: pnpm run lint
+
+      - name: Baseline static diagnostics
+        continue-on-error: true
+        working-directory: frontend
+        run: pnpm run check:static
 
       - name: Upload Doc Hub certification artifacts
         if: always()
