@@ -212,6 +212,53 @@ verified working (`pnpm run certify:ocr`: 58/58 test files, 398/398
 tests passing), and `check:all`/`check:static` were already unable to
 exit 0 before this task touched anything. Needs its own task: either
 silence the specific file (if the console output is intentional
+
+## Finding 8 — `Content-Security-Policy-Report-Only` cannot be delivered via `<meta>`, and GitHub Pages can't set custom headers at all (found during P2-T04)
+
+P2-T04's card asks for a `Content-Security-Policy-Report-Only` **meta**
+tag in `frontend/index.html`. Implemented it, then verified with a
+headless Chromium load (Playwright) before trusting it: the browser
+prints *"The report-only Content Security Policy '...' was delivered
+via a `<meta>` element, which is disallowed. The policy has been
+ignored."* and does nothing with it. This isn't a bug in the policy
+string — it's spec-defined (CSP3 §"Delivery"): only the **enforcing**
+`Content-Security-Policy` header can be delivered via `<meta>`;
+`-Report-Only` is HTTP-header-only, in every browser, by design (a meta
+tag can't carry the out-of-band violation-reporting semantics the
+Report-Only mode exists for). No amount of correct policy content fixes
+this — a meta tag is architecturally the wrong delivery mechanism.
+
+That would ordinarily just mean "use the header instead" — which is
+exactly what `frontend/nginx.conf` now does (real, functional, for
+anyone deploying via the Docker/nginx path in this repo). But the
+actual **live** deployment (`https://reallaksh19.github.io/Pdf-Hub/`,
+per `.github/workflows/deploy.yml`) is GitHub Pages, which serves
+static files with no mechanism to set custom HTTP response headers at
+all. So on the one URL this app is actually reachable at today, there
+is currently no way to ship a working Report-Only CSP — not via meta
+(browsers ignore it), not via a header (the host can't set one).
+
+Did not ship the non-functional meta tag — a silently-ignored policy
+gives false confidence that violations are being monitored when they
+aren't, which is worse than shipping nothing. Left a comment in
+`index.html` explaining why, pointing here.
+
+This needs a human decision, not a code fix: either (a) move the live
+deployment to a host that supports custom response headers (Cloudflare
+Pages, Netlify, Vercel, S3+CloudFront, etc.) and use nginx.conf's header
+as the template, or (b) front GitHub Pages with something that can
+inject headers (a Cloudflare Worker or similar reverse proxy), or (c)
+accept that CSP monitoring only exists for the nginx/Docker deployment
+path and the GitHub Pages live site stays unmonitored. Everything else
+in this card is done: fonts are self-hosted
+(`frontend/public/fonts/`, 4 files, ~99 KB total, weight/style
+combinations matching what the Google Fonts stylesheet previously
+requested) and `index.html` no longer references
+`fonts.googleapis.com`/`fonts.gstatic.com` at all — verified with a
+production build that the self-hosted font URLs correctly pick up the
+`/Pdf-Hub/` base path (Vite rewrites `url(/fonts/...)` in CSS the same
+way it rewrites the favicon link, confirmed by inspecting the compiled
+CSS in `dist/`).
 debugging tooling, exempt it from the rule) or convert it to structured
 logging like the rest of the codebase.
 
