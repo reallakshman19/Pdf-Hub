@@ -97,13 +97,83 @@ they aren't lost, not fixing them here (out of scope for P0-T02):
 - `src/core/annotation-placement/index.ts`, `src/core/annotation-rendering/index.ts`, `src/core/annotation-typography/index.ts` — re-export several names (`PageLayoutOptions`, `LayoutSolution`, `LeaderPath`, `BoxModel`, `StyleProfile`, `formatIsonoteWithConfidence`) that their source modules no longer export.
 - `src/core/macro/psIsonote/bm2_benchmark.test.ts:99` — unused `rotation` variable.
 
+## Resolution
+
+All of Findings 1–2 and the "unrelated pre-existing" bullets above were fixed
+in a follow-up commit, tracked as `tasks/P0-T02b.json` (its own scoped card,
+since the fix touches 7 source files — outside P0-T02's mayTouch). Result:
+`pnpm run typecheck` now exits 0. See P0-T02b.json for exactly what changed
+and why each change was safe (each was independently verified to introduce
+zero new errors before being applied).
+
+## Finding 4 — `pnpm run lint` has 84 pre-existing errors, unrelated to any of the above
+
+Running lint (not part of P0-T02's or P0-T02b's exit criteria, checked for
+completeness) surfaces 84 errors across ~10 files — almost entirely
+`@typescript-eslint/no-explicit-any` in test files under
+`src/core/macro/psIsonote/professional/` and `src/core/macro/steps/`, plus a
+`prefer-const` and six `no-console` violations in `rca.test.ts` (see Finding
+5). This directly qualifies the audit's headline claim ("1 `as any` across
+817 source files") — that count is accurate for hand-written `as any` casts
+in application source, but does not cover `: any` type annotations in test
+files, which lint catches separately and which are numerous. Not fixed here:
+84 errors is far outside any task's file budget and needs its own scoped
+card (proposed: one per directory, e.g. `professional/*.test.ts` and
+`macro/steps/*.ts`).
+
+## Finding 5 — Four pre-existing test:ci failures, unrelated to dependency drift
+
+`pnpm run test:ci -- --reporter=verbose` fails on 4 of 1682 tests (295/299
+files pass), all of them pre-existing (reproduced identically before and
+after P0-T02b's changes):
+
+1. **`rca.test.ts` — hardcoded absolute Windows path.** `rca.test.ts:8` reads
+   `'D:/Code3/Tag to PDF/BM2/AML-88-PDFEED-MP-2343-00010-0315-001.pdf'` — a
+   developer's local filesystem path. This reads as a debugging scratch file
+   ("RCA" = root-cause analysis) accidentally committed as a real test; it
+   cannot pass in any CI environment. Proposed fix: delete the file or gate
+   it behind an environment variable / `it.skip` with a tracking note — a
+   human call on which, since R-5 forbids silently skipping tests.
+2. **Three tests share what looks like one root cause** — a PDF
+   marker/callout verification pipeline that reports "missing"/`false` for
+   content that should be found:
+   - `output-verifier.test.ts` — "verifies callouts by acquiring document and
+     parsing visible text and markers (AD-07)": `report.passed` expected
+     `true`, got `false`.
+   - `psIsonoteVerification.test.ts` — "verifies an output with matching
+     hash, page count, and exactly one marker": same `false`-instead-of-`true`
+     shape.
+   - `psIsonoteVerification.test.ts:116` — "rejects duplicate markers…":
+     expects `{status:'duplicate', foundCount:2}`, gets
+     `{status:'missing', foundCount:0}` — the scanner isn't finding a marker
+     that's present twice in the fixture, let alone flagging the duplicate.
+
+   All three runs print `Warning: Please use the 'legacy' build in Node.js
+   environments` from pdfjs-dist before failing, which suggests the shared
+   cause is the PDF text-extraction path used by
+   `verifyProfessionalCalloutOutput`/`verifyPsIsonoteOutput` in the
+   jsdom/Node test environment — possibly the pinned pdfjs-dist@5.6.205
+   behaving differently under Node than whatever version these
+   marker-detection tests were originally written and passing against. This
+   is plausibly a **real instance of C-2** (dependency version resolved
+   differently than the code/tests assume) rather than an unrelated bug, but
+   confirming that requires investigating `PdfRendererAdapter`'s document
+   loading path and the verifier's marker-scanning logic together — deeper
+   than this report should go without becoming an unplanned fix. Proposed:
+   a dedicated task to (a) confirm whether switching to
+   `pdfjs-dist/legacy/build/pdf.mjs` in the test environment changes the
+   result, and (b) only then decide whether the verifier or the fixtures
+   need to change.
+
+None of the four are caused by the lockfile, by P0-T02b's changes, or by
+anything else in this programme so far.
+
 ## Recommendation
 
-- Do not merge P0-T03 (CI wiring) on the assumption that `pnpm run typecheck`
-  is currently green — it is not, independent of anything this program has
-  touched. Either fix Findings 1–2 in a dedicated task before P0-T03's CI
-  gate goes live, or have P0-T03 land with typecheck allowed to be red and
-  schedule the fix immediately after (human call — this is exactly the
-  "requires a decision" escalation the card anticipates, just from an
-  unexpected angle: not a major version bump, but a source-level shim that
-  predates and disagrees with the already-pinned dependency version).
+P0-T02's own scope (lockfile/package.json reconciliation) is complete: no
+drift to reconcile, confirmed by a clean `--frozen-lockfile` install.
+P0-T02b closed the typecheck gap. Two things remain genuinely open before
+`pnpm run test:ci` is green and before lint is enforceable in CI — Findings
+4 and 5 — and both need their own scoped task cards rather than folding into
+P0-T03. P0-T03 (wiring guards into CI) does not itself require green
+typecheck/test/lint to install correctly, so it is not blocked by these.
