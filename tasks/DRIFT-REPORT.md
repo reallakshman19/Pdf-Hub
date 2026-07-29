@@ -196,6 +196,25 @@ here — replacing a whole sanitizer implementation is a materially
 different, larger task than patching 5 defects in the one already
 judged sound.
 
+## Finding 7 — `check:static`'s no-console.log rule has a pre-existing failure (found during P2-T02)
+
+P2-T02's exit criterion is `cd frontend && pnpm run check:all`, which
+chains `test:ci` (Finding 5's 4 failures) and then `check:static`.
+Verified `check:static` independently: it also fails on its own,
+for a reason unrelated to both P2-T02 and Finding 5 —
+`scripts/static-contract-checks.mjs`'s "no console.log in source" rule
+flags 52 pre-existing `console.log(...)` calls in
+`src/core/macro/psIsonote/bm2_benchmark.test.ts`, a debug/audit-logging
+test file (`[BM2 Audit] ...` messages) that predates this programme.
+Not fixed here — same reasoning as Findings 4/5: this task's actual
+change (collapsing the certify:ocr-phase* scripts) is independently
+verified working (`pnpm run certify:ocr`: 58/58 test files, 398/398
+tests passing), and `check:all`/`check:static` were already unable to
+exit 0 before this task touched anything. Needs its own task: either
+silence the specific file (if the console output is intentional
+debugging tooling, exempt it from the rule) or convert it to structured
+logging like the rest of the codebase.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no
