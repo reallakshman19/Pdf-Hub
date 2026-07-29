@@ -1,11 +1,15 @@
 {
-  "activeTask": "P0-T02",
+  "activeTask": "P0-T03",
   "phase": "P0",
-  "completed": ["P0-T01"],
+  "completed": ["P0-T01", "P0-T02", "P0-T02b"],
   "blocked": [
     {
-      "id": "P0-T02",
-      "reason": "Frozen install itself is clean (no lockfile drift), but typecheck is red for reasons outside this card's mayTouch: a stale pdfjs-dist type shim (src/modules.d.ts) and an obsolete vitest config key (vite.config.ts workerExecArgs). See tasks/DRIFT-REPORT.md. Needs a human decision on whether to fix now (small, separate task) or defer, before P0-T03's CI gate goes live assuming green typecheck."
+      "id": "P0-T02-followup",
+      "reason": "pnpm run test:ci has 4 pre-existing failures unrelated to dependency drift: a debug test hardcoding a Windows path (rca.test.ts), and 3 tests (output-verifier.test.ts, psIsonoteVerification.test.ts x2) that look like one shared root cause in PDF marker/callout verification under Node/jsdom (a 'legacy build' pdfjs-dist warning precedes each failure). See tasks/DRIFT-REPORT.md Finding 5. Needs a dedicated investigation task; not blocking P0-T03."
+    },
+    {
+      "id": "lint-debt",
+      "reason": "pnpm run lint has 84 pre-existing errors (mostly no-explicit-any in test files), unrelated to dependency drift. See tasks/DRIFT-REPORT.md Finding 4. Needs its own scoped task(s); not part of any P0 card's exit criteria."
     }
   ],
   "notes": "Single source of truth for where the programme is. Exactly one activeTask at a time.",
