@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { exportFlattenedWriterPdf } from './flattenedPdfExport';
 import { exportPdfHubWriterProject } from './projectZip';
 import type { WriterElementV2 } from '../types';
@@ -52,6 +52,7 @@ export async function exportRoundTripWriterPdf(
   });
 
   // 3. Attach the editable project inside the flattened PDF.
+  const { PDFDocument } = await pdfLib();
   const doc = await PDFDocument.load(flattened.bytes);
   const now = new Date();
   await doc.attach(project.bytes, ROUND_TRIP_ATTACHMENT_NAME, {

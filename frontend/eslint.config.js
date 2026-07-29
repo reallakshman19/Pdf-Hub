@@ -31,6 +31,18 @@ export default tseslint.config(
         selector: "CallExpression[callee.name=/^use(Session|WriterV2|Ocr|Annotation|Editor|Review|Search)Store$/][arguments.length=0]",
         message: 'Subscribe with a selector (use useShallow for object selections).',
       }],
+      'no-restricted-imports': ['error', {
+        paths: [
+          { name: 'pdf-lib', message: 'Use await pdfLib() from @/core/pdf/lazyPdfLib.' },
+          { name: 'html2canvas', message: 'Import dynamically at the call site.' },
+        ],
+      }],
+    },
+  },
+  {
+    files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', 'src/core/pdf/lazyPdfLib.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
     },
   }
 );

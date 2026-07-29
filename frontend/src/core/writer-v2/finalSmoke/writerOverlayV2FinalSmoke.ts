@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useWriterV2Store } from '../writerV2Store';
 import {
   createRichTextBoxElement,
@@ -29,6 +29,7 @@ export async function runWriterOverlayV2FinalSmoke(): Promise<WriterOverlayV2Fin
 
   useWriterV2Store.getState().clearWriterV2();
 
+  const { PDFDocument } = await pdfLib();
   const originalPdfBytes = await createSamplePdf();
   const sourcePdf = await PDFDocument.load(originalPdfBytes);
   const sourcePageCount = sourcePdf.getPageCount();
@@ -190,6 +191,7 @@ export async function runWriterOverlayV2FinalSmoke(): Promise<WriterOverlayV2Fin
 }
 
 async function createSamplePdf(): Promise<Uint8Array> {
+  const { PDFDocument } = await pdfLib();
   const doc = await PDFDocument.create();
   const page = doc.addPage([612, 792]);
 

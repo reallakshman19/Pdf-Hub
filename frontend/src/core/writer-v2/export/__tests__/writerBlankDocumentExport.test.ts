@@ -45,18 +45,18 @@ describe('blank Writer document exports', () => {
     expect(bytes.length).toBeGreaterThan(0);
   });
 
-  it('converts CSS hex background color to pdf-lib RGB', () => {
-    expect(cssHexToPdfRgb('#ffffff')).toMatchObject({
+  it('converts CSS hex background color to pdf-lib RGB', async () => {
+    expect(await cssHexToPdfRgb('#ffffff')).toMatchObject({
       red: 1,
       green: 1,
       blue: 1,
     });
-    expect(cssHexToPdfRgb('#000000')).toMatchObject({
+    expect(await cssHexToPdfRgb('#000000')).toMatchObject({
       red: 0,
       green: 0,
       blue: 0,
     });
-    expect(cssHexToPdfRgb('not-a-color')).toBeNull();
+    expect(await cssHexToPdfRgb('not-a-color')).toBeNull();
   });
 
   it('exports blank Writer document to DOCX with page setup and expected text', async () => {

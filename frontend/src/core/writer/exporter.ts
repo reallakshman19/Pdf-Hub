@@ -1,4 +1,3 @@
-import html2canvas from 'html2canvas';
 import { PdfEditAdapter } from '../../adapters/pdf-edit/PdfEditAdapter';
 import type { PlacedElement, WriterTableData } from './types';
 import { visibleWriterElementsForExport } from './writerObjects';
@@ -233,6 +232,7 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
   document.body.appendChild(container);
 
   try {
+    const { default: html2canvas } = await import('html2canvas');
     const canvas = await html2canvas(container, {
       width:           w,
       height:          h,

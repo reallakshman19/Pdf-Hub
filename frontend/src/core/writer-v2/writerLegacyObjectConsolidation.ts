@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useSessionStore } from '@/core/session/store';
 import type {
   PdfRect,
@@ -37,6 +37,7 @@ export async function consolidateCurrentPageLegacyWriterObjects(): Promise<Write
     };
   }
 
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const pageIndex = Math.max(
     0,
@@ -72,6 +73,7 @@ export async function consolidateLegacyWriterObjectsOnPage(
     };
   }
 
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const page = pdf.getPage(Math.max(0, Math.min(pageIndex, pdf.getPageCount() - 1)));
   const pageSize = page.getSize();

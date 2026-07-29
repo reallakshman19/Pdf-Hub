@@ -1,75 +1,89 @@
-import { StandardFonts } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 
 /**
  * A resolved set of all four Standard-14 variants for one font family.
  */
 export interface Standard14FontGroup {
-  regular: StandardFonts;
-  bold: StandardFonts;
-  italic: StandardFonts;
-  boldItalic: StandardFonts;
+  regular: import('pdf-lib').StandardFonts;
+  bold: import('pdf-lib').StandardFonts;
+  italic: import('pdf-lib').StandardFonts;
+  boldItalic: import('pdf-lib').StandardFonts;
 }
+
+type FamilyMap = Array<[pattern: RegExp, group: Standard14FontGroup]>;
 
 /**
  * Mapping from CSS font-family strings (lowercased, trimmed) to Standard-14
  * font groups.  Every family the ribbon offers must appear here so the export
- * is honest — what the user picks is what lands in the PDF.
+ * is honest — what the user picks is what lands in the PDF. Built lazily (and
+ * cached) on first use so pdf-lib's StandardFonts enum isn't pulled into the
+ * eagerly-loaded bundle.
  */
-const FAMILY_MAP: Array<[pattern: RegExp, group: Standard14FontGroup]> = [
-  [
-    /courier|monospace|courier new|lucida console/i,
-    {
-      regular: StandardFonts.Courier,
-      bold: StandardFonts.CourierBold,
-      italic: StandardFonts.CourierOblique,
-      boldItalic: StandardFonts.CourierBoldOblique,
-    },
-  ],
-  [
-    /times|georgia|serif|times new roman|garamond/i,
-    {
-      regular: StandardFonts.TimesRoman,
-      bold: StandardFonts.TimesRomanBold,
-      italic: StandardFonts.TimesRomanItalic,
-      boldItalic: StandardFonts.TimesRomanBoldItalic,
-    },
-  ],
-  // Helvetica is the default — also covers Arial, Inter, IBM Plex Sans, etc.
-  [
-    /.*/,
-    {
-      regular: StandardFonts.Helvetica,
-      bold: StandardFonts.HelveticaBold,
-      italic: StandardFonts.HelveticaOblique,
-      boldItalic: StandardFonts.HelveticaBoldOblique,
-    },
-  ],
-];
+let familyMapPromise: Promise<FamilyMap> | null = null;
+
+function getFamilyMap(): Promise<FamilyMap> {
+  if (!familyMapPromise) {
+    familyMapPromise = pdfLib().then(({ StandardFonts }) => [
+      [
+        /courier|monospace|courier new|lucida console/i,
+        {
+          regular: StandardFonts.Courier,
+          bold: StandardFonts.CourierBold,
+          italic: StandardFonts.CourierOblique,
+          boldItalic: StandardFonts.CourierBoldOblique,
+        },
+      ],
+      [
+        /times|georgia|serif|times new roman|garamond/i,
+        {
+          regular: StandardFonts.TimesRoman,
+          bold: StandardFonts.TimesRomanBold,
+          italic: StandardFonts.TimesRomanItalic,
+          boldItalic: StandardFonts.TimesRomanBoldItalic,
+        },
+      ],
+      // Helvetica is the default — also covers Arial, Inter, IBM Plex Sans, etc.
+      [
+        /.*/,
+        {
+          regular: StandardFonts.Helvetica,
+          bold: StandardFonts.HelveticaBold,
+          italic: StandardFonts.HelveticaOblique,
+          boldItalic: StandardFonts.HelveticaBoldOblique,
+        },
+      ],
+    ]);
+  }
+  return familyMapPromise;
+}
 
 /**
  * Resolve a CSS font-family string (or undefined) to the correct Standard-14
  * font group.  The catch-all at the end always matches, so this never throws.
  */
-export function resolveStandard14Group(fontFamily: string | undefined): Standard14FontGroup {
+export async function resolveStandard14Group(
+  fontFamily: string | undefined,
+): Promise<Standard14FontGroup> {
   const name = (fontFamily ?? '').replace(/['"]/g, '').trim();
+  const familyMap = await getFamilyMap();
 
-  for (const [pattern, group] of FAMILY_MAP) {
+  for (const [pattern, group] of familyMap) {
     if (pattern.test(name)) return group;
   }
 
   // Unreachable — the catch-all always fires — but satisfies the type checker.
-  return FAMILY_MAP[FAMILY_MAP.length - 1][1];
+  return familyMap[familyMap.length - 1][1];
 }
 
 /**
  * Pick the right StandardFonts variant given bold/italic flags and a family.
  */
-export function pickStandard14Font(
+export async function pickStandard14Font(
   fontFamily: string | undefined,
   bold: boolean,
   italic: boolean,
-): StandardFonts {
-  const group = resolveStandard14Group(fontFamily);
+): Promise<import('pdf-lib').StandardFonts> {
+  const group = await resolveStandard14Group(fontFamily);
   if (bold && italic) return group.boldItalic;
   if (bold) return group.bold;
   if (italic) return group.italic;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PDFDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
@@ -317,6 +317,7 @@ export const WriterV2ToolbarControls: React.FC = () => {
           );
           return;
         }
+        const { PDFDocument } = await pdfLib();
         const pdf = await PDFDocument.load(imported.originalPdfBytes);
         openDocument({
           documentKey: imported.documentFingerprint,

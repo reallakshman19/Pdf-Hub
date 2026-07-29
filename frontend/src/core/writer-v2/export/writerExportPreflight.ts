@@ -1,5 +1,6 @@
 import type { WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '../writerV2Store';
 import {
@@ -326,7 +327,7 @@ async function safeReadPageSizes(
   bytes: Uint8Array,
 ): Promise<WriterExportPreflightPageSize[]> {
   try {
-    const { PDFDocument } = await import('pdf-lib');
+    const { PDFDocument } = await pdfLib();
     const pdf = await PDFDocument.load(bytes);
 
     return pdf.getPages().map((page, pageIndex) => {

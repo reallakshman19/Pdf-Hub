@@ -316,6 +316,67 @@ other file, no restructuring). Escalating per the card's own field
 rather than silently expanding scope: flagged here instead of widening
 `mayTouch` in the card myself.
 
+## Finding 10 — P4-T02's `maxFiles: 15` budget undercounts by ~12, and the audit's `manualChunks` config doesn't work under this repo's actual bundler (found during P4-T02)
+
+Two separate discoveries while executing P4-T02 ("Make code splitting real"):
+
+**Budget undercount.** Before starting, re-derived FB-4's own count from its
+exact regex (`^import\s+[\s\S]{0,200}?\sfrom\s+['"](pdf-lib|html2canvas)['"]`)
+against every non-test file in `frontend/src`: **16** files had a static
+`pdf-lib`/`html2canvas` import (`PdfEditAdapter.ts`, `WriterV2ToolbarControls.tsx`,
+`LayoutEngine.ts`, `mockPdfGenerator.ts`, `ocrDemoFixtures.ts`,
+`ocrSearchablePdfExport.ts`, `exportCurrentWriterPdf.ts`,
+`flattenedPdfExport.ts`, `fontFamilyResolver.ts`,
+`projectImportController.ts`, `roundTripPdfExport.ts`,
+`roundTripPdfImport.ts`, `writerOverlayV2FinalSmoke.ts`,
+`writerLegacyObjectConsolidation.ts`, `writerRichBoxFitActions.ts`,
+`core/writer/exporter.ts`), not the card's implied smaller number. Converting
+all 16 to the shared `core/pdf/lazyPdfLib.ts` accessor, plus the two files
+the audit separately named as already having a (defeated) dynamic import
+(`ensureRichTextEditing.ts`, `writerExportPreflight.ts` — rerouted onto the
+same shared accessor instead of leaving a second independent
+`import('pdf-lib')` call site), plus the new `core/pdf/lazyPdfLib.ts` file
+itself, plus `vite.config.ts`, `eslint.config.js`, `tasks/RATCHET.json`, and
+`tasks/STATE.json`, totals **27 files** — all within the card's `mayTouch`
+globs (`frontend/src/**` covers every converted module; the other four are
+individually listed), but well past `maxFiles: 15`. Proceeded anyway because
+the card's own exit criteria (`guard-forbidden.mjs → FB-4 clean`,
+`INEFFECTIVE_DYNAMIC_IMPORT → 0`, `largest chunk gzip < 500 kB`) are only
+achievable by converting every real static importer — a partial conversion
+leaving some files unfixed would fail FB-4 outright. No scope creep occurred
+(every touched file is a pdf-lib/html2canvas import-mechanics change, a
+build-config change directly required by the card, or the two required
+bookkeeping files); only the numeric budget is stale.
+
+**`manualChunks` config shape.** The audit's prescribed fix (`build:{
+rollupOptions:{ output:{ manualChunks: { 'vendor-react': [...], ... } } } }`,
+the classic Rollup object-of-package-name-arrays shorthand) was implemented
+verbatim first, then verified with a real `npx vite build` before trusting
+it — the build failed immediately: `Warning: Invalid output options...
+Expected Function but received Object` followed by a hard crash
+(`TypeError: manualChunks is not a function`). This repo's Vite 8 uses
+**Rolldown** as its bundler (`rolldown@1.0.0-rc.15` in the lockfile, confirmed
+in the crash's stack trace), and Rolldown's `manualChunks` option only
+accepts a **function** `(id: string) => string | undefined`, not classic
+Rollup's object-of-arrays form — a real, verifiable incompatibility, not a
+typo. Rewrote it as a function with identical vendor groupings
+(`vendor-react`, `vendor-lexical`, `vendor-pdf`, `vendor-canvas`,
+`vendor-docs`), matched against `id.includes('/node_modules/<pkg>/')`, and
+re-verified with another real build: 0 `INEFFECTIVE_DYNAMIC_IMPORT`
+warnings, largest chunk now `index-*.js` at 303.30 kB gzip (previously a
+single 598.53 kB gzip main chunk) — under the card's 500 kB target. Also
+rerouted two colour/font-table modules (`fontFamilyResolver.ts`,
+`mockPdfGenerator.ts`'s colour palette) off module-scope-eager pdf-lib value
+construction onto lazily-built, cached tables so the dynamic import isn't
+defeated by a top-level `rgb(...)`/`StandardFonts.X` call running at module
+load — same output, computed once on first use instead of at import time.
+
+Not fixed here: the `maxFiles` number itself, since correcting a card's own
+budget is the kind of scope change R-10 and `guard-scope.mjs`'s own tamper
+check reserve for a human-reviewed PR, not something to silently widen from
+within the task's own diff. Flagging both here per the card's `escalate`
+field intent, matching Finding 9's precedent.
+
 ## Recommendation
 
 P0-T02's own scope (lockfile/package.json reconciliation) is complete: no

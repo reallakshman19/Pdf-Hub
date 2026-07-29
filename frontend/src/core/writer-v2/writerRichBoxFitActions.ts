@@ -1,5 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
-import type { PDFDocument as PdfLibDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useSessionStore } from '@/core/session/store';
 import { editorStateToPdfBlocks } from './export/richTextRenderer';
 import { estimateRichContentMetrics } from './export/richContentMetrics';
@@ -7,6 +6,8 @@ import { getActiveRichBoxStyleTarget } from './writerRichBoxStyleActions';
 import { ensureRichTextEditing } from './ensureRichTextEditing';
 import { useWriterV2Store } from './writerV2Store';
 import type { WriterElementV2 } from './types';
+
+type PdfLibDocument = import('pdf-lib').PDFDocument;
 
 export interface WriterRichBoxFitResult {
   changed: boolean;
@@ -58,6 +59,7 @@ export async function fitActiveRichBoxToContent(): Promise<WriterRichBoxFitResul
     };
   }
 
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const fit = computeRichBoxFit(element, pdf);
   const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
@@ -97,6 +99,7 @@ export async function fitRichBoxToContentById(
     };
   }
 
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const fit = computeRichBoxFit(element, pdf);
   const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
@@ -139,6 +142,7 @@ export async function fitRichBoxesToContentByIds(
     };
   }
 
+  const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   let fittedCount = 0;
   let skippedCount = 0;

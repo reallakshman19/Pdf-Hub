@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { exportFlattenedWriterPdf } from './flattenedPdfExport';
 import { useWriterV2Store } from '../writerV2Store';
 
@@ -28,9 +28,10 @@ async function createBlankDocumentPdfBytes(): Promise<Uint8Array> {
     throw new Error('No PDF bytes were provided for flattened Writer PDF export.');
   }
 
+  const { PDFDocument } = await pdfLib();
   const doc = await PDFDocument.create();
   const pageCount = Math.max(1, Math.floor(meta.pageCount));
-  const background = cssHexToPdfRgb(meta.pageSetup.backgroundColor ?? '#ffffff');
+  const background = await cssHexToPdfRgb(meta.pageSetup.backgroundColor ?? '#ffffff');
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const page = doc.addPage([meta.pageSetup.width, meta.pageSetup.height]);
@@ -50,7 +51,7 @@ async function createBlankDocumentPdfBytes(): Promise<Uint8Array> {
   return await doc.save();
 }
 
-export function cssHexToPdfRgb(color: string) {
+export async function cssHexToPdfRgb(color: string) {
   const trimmed = color.trim();
   const match = /^#?([0-9a-f]{6})$/i.exec(trimmed);
 
@@ -63,5 +64,6 @@ export function cssHexToPdfRgb(color: string) {
   const green = Number.parseInt(value.slice(2, 4), 16) / 255;
   const blue = Number.parseInt(value.slice(4, 6), 16) / 255;
 
+  const { rgb } = await pdfLib();
   return rgb(red, green, blue);
 }

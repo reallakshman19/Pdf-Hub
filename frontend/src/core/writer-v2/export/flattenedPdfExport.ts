@@ -1,13 +1,4 @@
-import {
-  PDFDocument,
-  PDFName,
-  PDFArray,
-  PDFString,
-  rgb,
-  StandardFonts,
-  type PDFPage,
-  type PDFFont,
-} from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { pickStandard14Font } from './fontFamilyResolver';
 import type {
   PdfPoint,
@@ -27,6 +18,37 @@ import {
   type PdfTextStyle,
 } from './richTextRenderer';
 
+type PDFPageT = import('pdf-lib').PDFPage;
+type PDFFontT = import('pdf-lib').PDFFont;
+type PDFDocumentT = import('pdf-lib').PDFDocument;
+type StandardFontsT = import('pdf-lib').StandardFonts;
+type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
+
+// ─────────────────────────────────────────────
+// Lazily-loaded pdf-lib namespace, populated once by exportFlattenedWriterPdf()
+// before any drawing happens — every helper below runs only after that
+// resolves, so the synchronous `rgb()` wrapper is always safe to call.
+// ─────────────────────────────────────────────
+let pdfLibCache: PdfLibNs | null = null;
+
+function lib(): PdfLibNs {
+  if (!pdfLibCache) {
+    throw new Error('pdf-lib not loaded yet — exportFlattenedWriterPdf() must load it first');
+  }
+  return pdfLibCache;
+}
+
+async function ensurePdfLibLoaded(): Promise<PdfLibNs> {
+  if (!pdfLibCache) {
+    pdfLibCache = await pdfLib();
+  }
+  return pdfLibCache;
+}
+
+function rgb(r: number, g: number, b: number) {
+  return lib().rgb(r, g, b);
+}
+
 export interface FlattenWriterExportInput {
   pdfBytes: Uint8Array;
   elements: WriterElementV2[];
@@ -41,7 +63,7 @@ export interface FlattenWriterExportResult {
 }
 
 interface PendingLinkAnnotation {
-  page: PDFPage;
+  page: PDFPageT;
   x: number;
   y: number;
   width: number;
@@ -50,10 +72,10 @@ interface PendingLinkAnnotation {
 }
 
 interface DrawContext {
-  doc: PDFDocument;
-  page: PDFPage;
-  /** Lazily-populated cache: StandardFonts enum value → embedded PDFFont. */
-  fontCache: Map<StandardFonts, PDFFont>;
+  doc: PDFDocumentT;
+  page: PDFPageT;
+  /** Lazily-populated cache: StandardFonts enum value → embedded PDFFontT. */
+  fontCache: Map<StandardFontsT, PDFFontT>;
   /** Fallback element-level font family (from element.style.fontFamily). */
   elementFontFamily: string | undefined;
   assetsById: Map<string, WriterAssetRecordV2>;
@@ -66,10 +88,11 @@ const DEFAULT_FONT_SIZE = 11;
 export async function exportFlattenedWriterPdf(
   input: FlattenWriterExportInput,
 ): Promise<FlattenWriterExportResult> {
+  const { PDFDocument } = await ensurePdfLibLoaded();
   const doc = await PDFDocument.load(input.pdfBytes);
 
   // Shared font cache — variants are embedded on first use, reused after.
-  const fontCache = new Map<StandardFonts, PDFFont>();
+  const fontCache = new Map<StandardFontsT, PDFFontT>();
 
   const pages = doc.getPages();
   const assetsById = new Map((input.assets ?? []).map((asset) => [asset.id, asset]));
@@ -341,7 +364,7 @@ async function drawTableBox(
 }
 
 function drawBoxBackground(
-  page: PDFPage,
+  page: PDFPageT,
   element: WriterElementV2,
   rect: PdfRect,
 ): void {
@@ -389,9 +412,9 @@ function drawBoxBackground(
 async function getFontForStyle(
   context: DrawContext,
   style: PdfTextStyle,
-): Promise<PDFFont> {
+): Promise<PDFFontT> {
   const family = style.fontFamily ?? context.elementFontFamily;
-  const variant = pickStandard14Font(family, !!style.bold, !!style.italic);
+  const variant = await pickStandard14Font(family, !!style.bold, !!style.italic);
 
   const cached = context.fontCache.get(variant);
   if (cached) return cached;
@@ -805,7 +828,7 @@ async function drawRichBlocks(
             height: 9999,
           };
           const finalY = await drawRichBlocks(
-            { ...context, page: { ...context.page, drawText() {}, drawRectangle() {}, drawLine() {}, drawImage() {} } as unknown as PDFPage },
+            { ...context, page: { ...context.page, drawText() {}, drawRectangle() {}, drawLine() {}, drawImage() {} } as unknown as PDFPageT },
             cell.children,
             measureRect,
             cellPadding,
@@ -863,7 +886,7 @@ async function drawRichBlocks(
 }
 
 function drawCalloutLeader(
-  page: PDFPage,
+  page: PDFPageT,
   element: WriterElementV2,
   rect: PdfRect,
 ): void {
@@ -898,7 +921,7 @@ function drawCalloutLeader(
 }
 
 function drawArrowHead(
-  page: PDFPage,
+  page: PDFPageT,
   anchor: PdfPoint,
   target: PdfPoint,
   width: number,
@@ -1027,13 +1050,14 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Register a PDF URI link annotation on the page.
- * Uses the low-level pdf-lib API because the high-level PDFPage API only
+ * Uses the low-level pdf-lib API because the high-level PDFPageT API only
  * exposes widget annotations (form fields).
  */
 function registerLinkAnnotation(
-  doc: PDFDocument,
+  doc: PDFDocumentT,
   link: PendingLinkAnnotation,
 ): void {
+  const { PDFString, PDFName, PDFArray } = lib();
   try {
     const actionDict = doc.context.obj({
       Type: 'Action',
@@ -1174,7 +1198,7 @@ async function drawStyledTableCell(
 }
 
 function drawFlattenedTableCellBorders(
-  page: PDFPage,
+  page: PDFPageT,
   rect: PdfRect,
   style: WriterTableCellStyle,
 ): void {
@@ -1214,7 +1238,7 @@ function drawFlattenedTableCellBorders(
 }
 
 function drawFlattenedTableBorderLine(
-  page: PDFPage,
+  page: PDFPageT,
   input: {
     border: WriterTableBorder | undefined;
     x1: number;
@@ -1278,7 +1302,7 @@ function drawFlattenedTableBorderLine(
 }
 
 function drawDashedPdfLine(
-  page: PDFPage,
+  page: PDFPageT,
   input: {
     x1: number;
     y1: number;
@@ -1321,7 +1345,7 @@ function drawDashedPdfLine(
 }
 
 function drawDoublePdfLine(
-  page: PDFPage,
+  page: PDFPageT,
   input: {
     x1: number;
     y1: number;
@@ -1358,7 +1382,7 @@ function drawDoublePdfLine(
 }
 
 function drawFlattenedTableTextDecoration(
-  page: PDFPage,
+  page: PDFPageT,
   input: {
     x: number;
     y: number;
@@ -1564,7 +1588,7 @@ function isValidWriterTableData(
 
 function wrapPlainTextForPdf(input: {
   text: string;
-  font: PDFFont;
+  font: PDFFontT;
   fontSize: number;
   maxWidth: number;
 }): string[] {

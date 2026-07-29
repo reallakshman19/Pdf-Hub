@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import type { WriterDocumentMetaV2, WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
@@ -488,6 +488,7 @@ async function reconcileImportedProject(
     }
     assertOperationCurrent(operation, 'Writer project before original PDF validation');
     try {
+      const { PDFDocument } = await pdfLib();
       const pdf = await raceWithAbort(
         PDFDocument.load(imported.originalPdfBytes),
         operation.signal,

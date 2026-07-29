@@ -1,10 +1,4 @@
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFPage,
-} from 'pdf-lib';
+import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import type { PdfRect } from '../writer-v2/types';
 import type {
   OcrDocumentResult,
@@ -86,8 +80,9 @@ export interface OcrSearchablePdfDiagnostic {
 }
 
 interface DrawOcrTextContext {
-  page: PDFPage;
-  font: PDFFont;
+  page: import('pdf-lib').PDFPage;
+  font: import('pdf-lib').PDFFont;
+  rgb: typeof import('pdf-lib').rgb;
   pageSize: {
     width: number;
     height: number;
@@ -111,6 +106,7 @@ interface OcrTextItem {
 export async function exportSearchableOcrPdf(
   input: OcrSearchablePdfExportInput,
 ): Promise<OcrSearchablePdfExportResult> {
+  const { PDFDocument, StandardFonts, rgb } = await pdfLib();
   const doc = await PDFDocument.load(input.pdfBytes);
   const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -164,6 +160,7 @@ export async function exportSearchableOcrPdf(
     const context: DrawOcrTextContext = {
       page,
       font,
+      rgb,
       pageSize,
       ocrPageSize: {
         width: ocrPageWidth,
@@ -298,8 +295,8 @@ function drawOcrTextItem(
     : context.invisibleOpacity;
 
   const color = context.visibilityMode === 'debug-visible'
-    ? rgb(1, 0, 0)
-    : rgb(1, 1, 1);
+    ? context.rgb(1, 0, 0)
+    : context.rgb(1, 1, 1);
 
   context.page.drawText(sanitizedText, {
     x: rect.x,
@@ -314,7 +311,7 @@ function drawOcrTextItem(
 }
 
 function fitFontSizeToRect(input: {
-  font: PDFFont;
+  font: import('pdf-lib').PDFFont;
   text: string;
   rect: PdfRect;
 }): number {
