@@ -74,4 +74,40 @@ describe('html sanitizer', () => {
     expect(report.visitedNodes).toBeLessThanOrEqual(5);
     expect(report.html).not.toContain('deep');
   });
+
+  it('normalizes a backslash href to its real parsed destination instead of the raw string', () => {
+    const html = sanitizeHtml('<a href="\\\\evil.com">link</a>');
+
+    expect(html).not.toContain('\\\\evil.com');
+    expect(html).toContain('href="https://evil.com/"');
+  });
+
+  it('rejects a protocol-relative href instead of letting it navigate off-site', () => {
+    const html = sanitizeHtml('<a href="//evil.com">link</a>');
+
+    expect(html).toBe('<a>link</a>');
+  });
+
+  it('rejects blob: image sources entirely rather than admitting them unbounded', () => {
+    const html = sanitizeHtml('<img src="blob:https://pdfhub.invalid/abc-123" alt="x">');
+
+    expect(html).not.toContain('blob:');
+    expect(html).not.toContain('src=');
+  });
+
+  it('rejects animated GIF image sources to match the IMG-1 format policy', () => {
+    const html = sanitizeHtml('<img src="data:image/gif;base64,R0lGODlh" alt="x">');
+
+    expect(html).not.toContain('image/gif');
+    expect(html).not.toContain('src=');
+  });
+
+  it('surfaces truncation via sanitizeHtmlWithReport so callers can warn the user', () => {
+    const report = sanitizeHtmlWithReport('<script>alert(1)</script>'.repeat(20), {
+      maxInputBytes: 32,
+      maxFallbackTextCharacters: 24,
+    });
+
+    expect(report.truncated).toBe(true);
+  });
 });

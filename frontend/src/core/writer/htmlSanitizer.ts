@@ -108,6 +108,22 @@ export function sanitizeHtmlWithReport(
   limitOverrides: Partial<HtmlSanitizerLimits> = {},
 ): HtmlSanitizationReport {
   const limits = resolveLimits(limitOverrides);
+
+  // A UTF-8 encoding is never shorter than the UTF-16 code-unit count, so
+  // this is a safe, cheap lower bound: if it already exceeds the limit,
+  // the real (encoded) byte count would too. Skip the allocating encode.
+  if (html.length > limits.maxInputBytes) {
+    const fallback = html.slice(0, limits.maxFallbackTextCharacters);
+    return {
+      html: `<p>${escapeHtml(fallback)}${html.length > fallback.length ? '…' : ''}</p>`,
+      inputBytes: html.length,
+      visitedNodes: 0,
+      droppedNodes: 0,
+      droppedAttributes: 0,
+      truncated: true,
+    };
+  }
+
   const inputBytes = textEncoder.encode(html).byteLength;
 
   if (inputBytes > limits.maxInputBytes) {
@@ -265,12 +281,16 @@ function sanitizeHref(value: string): string | null {
     return null;
   }
 
+  // Protocol-relative ("//evil.com") would otherwise match the leading-slash
+  // relative-path check below and navigate off-site using the page's protocol.
+  if (/^\/\//.test(trimmed)) return null;
+
   if (/^(#|\/|\.\/|\.\.\/|\?)/.test(trimmed)) return trimmed;
 
   try {
     const parsed = new URL(trimmed, 'https://pdfhub.invalid/');
     return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol.toLowerCase())
-      ? trimmed
+      ? parsed.href
       : null;
   } catch {
     return null;
@@ -279,9 +299,14 @@ function sanitizeHref(value: string): string | null {
 
 function sanitizeImageSource(value: string, maxDataImageBytes: number): string | null {
   const trimmed = value.trim();
-  if (/^blob:/i.test(trimmed)) return trimmed;
 
-  const match = /^data:image\/(png|jpe?g|gif|webp);base64,([a-z0-9+/=\s]+)$/i.exec(trimmed);
+  // blob: URLs reference in-memory objects whose size can't be determined
+  // from the string alone, so maxDataImageBytes can't be enforced on them.
+  // No admitted image path in this app uses blob: (image insertion reads
+  // files via FileReader.readAsDataURL), so reject rather than admit unbounded.
+  if (/^blob:/i.test(trimmed)) return null;
+
+  const match = /^data:image\/(png|jpe?g|webp);base64,([a-z0-9+/=\s]+)$/i.exec(trimmed);
   if (!match) return null;
 
   const payloadLength = match[2].replace(/\s+/g, '').length;
