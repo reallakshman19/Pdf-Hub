@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
-import { clearActiveImageBoxAsset } from './writerImageBoxActions';
+import { clearActiveImageBoxAsset, replaceActiveImageBoxAsset } from './writerImageBoxActions';
+
+const ONE_BY_ONE_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+function pngFile(name = 'photo.png'): File {
+  const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
+  return new File([bytes], name, { type: 'image/png' });
+}
 
 function imageElement(): WriterElementV2 {
   return {
@@ -47,5 +55,26 @@ describe('writerImageBoxActions', () => {
     expect(result.changed).toBe(true);
     expect(useWriterV2Store.getState().elements[0].imageAssetId).toBeUndefined();
     expect(useWriterV2Store.getState().elements[0].assetIds).toEqual([]);
+  });
+
+  it('replaces an active image asset through the shared admission boundary', async () => {
+    const result = await replaceActiveImageBoxAsset(pngFile());
+
+    expect(result.changed).toBe(true);
+    const element = useWriterV2Store.getState().elements[0];
+    expect(element.imageAssetId).toBeDefined();
+    const asset = useWriterV2Store.getState().assetRecords.find((a) => a.id === element.imageAssetId);
+    expect(asset?.width).toBe(1);
+    expect(asset?.height).toBe(1);
+  });
+
+  it('rejects a file that is not a real image without touching the element', async () => {
+    const notAnImage = new File(['plain text'], 'fake.png', { type: 'image/png' });
+    const before = useWriterV2Store.getState().elements[0].imageAssetId;
+
+    const result = await replaceActiveImageBoxAsset(notAnImage);
+
+    expect(result.changed).toBe(false);
+    expect(useWriterV2Store.getState().elements[0].imageAssetId).toBe(before);
   });
 });

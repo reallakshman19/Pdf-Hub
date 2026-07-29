@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { importClipboardDataForWriter } from './importClipboardData';
 
+const ONE_BY_ONE_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+function realPngFile(name = 'screenshot.png'): File {
+  const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
+  return new File([bytes], name, { type: 'image/png' });
+}
+
 function clipboardStub(input: {
   html?: string;
   text?: string;
@@ -50,13 +58,9 @@ describe('importClipboardDataForWriter', () => {
   });
 
   it('imports image files as asset records', async () => {
-    const file = new File(['fake'], 'screenshot.png', {
-      type: 'image/png',
-    });
-
     const result = await importClipboardDataForWriter(
       clipboardStub({
-        files: [file],
+        files: [realPngFile()],
       }),
       'doc-1',
     );
@@ -66,5 +70,21 @@ describe('importClipboardDataForWriter', () => {
     expect(result.assets[0].documentFingerprint).toBe('doc-1');
     expect(result.assets[0].mimeType).toBe('image/png');
     expect(result.assets[0].dataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(result.assets[0].width).toBe(1);
+    expect(result.assets[0].height).toBe(1);
+  });
+
+  it('skips a pasted file that is not a real image (bad byte signature) instead of failing the paste', async () => {
+    const notAnImage = new File(['fake'], 'screenshot.png', { type: 'image/png' });
+
+    const result = await importClipboardDataForWriter(
+      clipboardStub({
+        files: [notAnImage],
+      }),
+      'doc-1',
+    );
+
+    expect(result.assets).toEqual([]);
+    expect(result.source).toBe('empty');
   });
 });

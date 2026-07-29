@@ -1,3 +1,7 @@
+import {
+  admitWriterImageFile,
+  encodeWriterImageDataUrl,
+} from '@/core/admission/image/writerImageAdmission';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
@@ -29,21 +33,23 @@ export async function replaceActiveImageBoxAsset(
     };
   }
 
-  if (!/^image\/(png|jpeg|webp)$/i.test(file.type)) {
+  let admitted;
+  try {
+    admitted = await admitWriterImageFile(file, {
+      existingAggregateAssetBytes: aggregateAssetBytes(store.assetRecords),
+    });
+  } catch (admissionError) {
     return {
       changed: false,
-      message: 'Only PNG, JPG, and WEBP images are supported.',
+      message: admissionError instanceof Error ? admissionError.message : String(admissionError),
     };
   }
 
-  const originalDataUrl = await readFileAsDataUrl(file);
-  const dataUrl = file.type.toLowerCase() === 'image/webp'
+  const originalDataUrl = encodeWriterImageDataUrl(admitted);
+  const dataUrl = admitted.format === 'webp'
     ? await renderImageDataUrlToPng(originalDataUrl)
     : originalDataUrl;
-  const mimeType = file.type.toLowerCase() === 'image/webp'
-    ? 'image/png'
-    : file.type;
-  const size = await measureImageDataUrl(dataUrl);
+  const mimeType = admitted.format === 'webp' ? 'image/png' : admitted.mimeType;
   const now = new Date().toISOString();
   const assetId = createWriterAssetId();
 
@@ -55,8 +61,8 @@ export async function replaceActiveImageBoxAsset(
     kind: 'image',
     mimeType,
     dataUrl,
-    width: size.width,
-    height: size.height,
+    width: admitted.width,
+    height: admitted.height,
     createdAt: now,
     updatedAt: now,
   };
@@ -72,6 +78,10 @@ export async function replaceActiveImageBoxAsset(
       assetIds: [assetId],
     },
   });
+
+  if (!result.changed) {
+    store.removeWriterAsset(assetId);
+  }
 
   return {
     changed: result.changed,
@@ -134,22 +144,8 @@ export function getActiveImageBox(): WriterElementV2 | null {
   return element;
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Image import did not produce a data URL.'));
-        return;
-      }
-
-      resolve(reader.result);
-    };
-
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'));
-    reader.readAsDataURL(file);
-  });
+function aggregateAssetBytes(assets: readonly WriterAssetRecordV2[]): number {
+  return assets.reduce((sum, asset) => sum + (asset.dataUrl?.length ?? 0), 0);
 }
 
 function measureImageDataUrl(
