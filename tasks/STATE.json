@@ -1,10 +1,11 @@
 {
-  "activeTask": "P3-T01",
-  "phase": "P3",
+  "activeTask": "P4-T01",
+  "phase": "P4",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
-    "P2-T01", "P2-T02", "P2-T03", "P2-T04"
+    "P2-T01", "P2-T02", "P2-T03", "P2-T04",
+    "P3-T01", "P3-T02", "P3-T03"
   ],
   "blocked": [
     {
@@ -26,8 +27,12 @@
     {
       "id": "csp-report-only-hosting",
       "reason": "Content-Security-Policy-Report-Only cannot be delivered via <meta> (browser/spec limitation, verified) and GitHub Pages (the live deployment) can't set custom HTTP headers at all. frontend/nginx.conf has a working header for the Docker/nginx path, but the live site has no working Report-Only CSP today. See tasks/DRIFT-REPORT.md Finding 8. Needs a human hosting decision, not a code fix."
+    },
+    {
+      "id": "imagedropplugin-no-dom-test",
+      "reason": "ImageDropPlugin.tsx's drop handling has no DOM-level integration test: this jsdom environment has no DragEvent implementation at all, and Lexical's root 'drop' listener doesn't fire through testing-library's plain-Event fallback. Pre-existing environment limitation (the plugin had zero test coverage before P3-T03). Covered instead by the shared writerImageAdmission module's unit tests + typecheck + manual review of the (minimal, structurally faithful) change."
     }
   ],
-  "notes": "Phase 0, Phase 1, and Phase 2 complete. Phase 3 (admission/binary work per P3-T01..T03) not yet started this session. Five findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
+  "notes": "Phase 0, Phase 1, Phase 2, and Phase 3 (all three admission tasks: ST-1 PS/ISONOTE text bounds, 3B.3C JSON structural bounds, IMG-1 Writer image admission) complete. Phase 4 (P4-T01..T03: store selectors, code splitting, worker offload) not yet started this session. Six findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks, none blocking further phase work.",
   "updated": "2026-07-29"
 }
