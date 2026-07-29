@@ -7,6 +7,14 @@
 
 import { warn } from '@/core/logger/service';
 
+/**
+ * SECURITY: the SVG string this returns is rendered via
+ * dangerouslySetInnerHTML in EquationOverlay.tsx without further
+ * sanitization. It is safe only because this placeholder escapes
+ * & < > and emits static SVG. Any real renderer substituted here
+ * MUST have its output pass through a sanitizer that permits SVG,
+ * or EquationOverlay becomes an XSS sink fed by OCR-extracted LaTeX.
+ */
 export async function renderToSvg(latex: string): Promise<string> {
   warn('ocr', 'MathJax SVG renderer is not wired yet; returning accessible placeholder SVG', {
     latexLength: latex.length,
