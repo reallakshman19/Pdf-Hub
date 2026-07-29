@@ -1,5 +1,2 @@
 packages:
   - 'frontend'
-  - 'backend'
-  - 'sdk'
-  - 'tests'
