@@ -44,7 +44,7 @@
     },
     {
       "id": "p4-t03-manual-responsiveness-check-not-performed",
-      "reason": "P4-T03's card declares maxFiles: 15, but the real count of non-test files with a static pdf-lib/html2canvas import was 16 (verified by grep against FB-4's own pattern before starting), plus vite.config.ts, eslint.config.js, tasks/RATCHET.json, tasks/STATE.json, and the new core/pdf/lazyPdfLib.ts -- 27 files total, all within mayTouch's globs but over budget. Also: the audit's prescribed manualChunks object-literal config does not work under this repo's actual bundler (Rolldown via Vite 8) -- it silently requires a function, not an object of arrays; converted to the function form (same vendor grouping) and verified 0 INEFFECTIVE_DYNAMIC_IMPORT warnings and largest gzip chunk 303.30 kB (< 500 kB) with a real build. See tasks/DRIFT-REPORT.md Finding 10. Needs a human call on the maxFiles budget; the Rolldown manualChunks fix is factual and already applied."
+      "reason": "P4-T03's exit criteria include a manual check ('export a 50-page document; the UI must remain responsive throughout') that requires interactive browser use and was not performed in this automated session. Substituted: verified zero DOM dependencies in flattenedPdfExport.ts/projectZip.ts before moving them into the worker; verified with a real production build that exportWorkerEntrypoint.ts bundles into its own worker chunk (matching ocrWorkerEntrypoint's pattern); added an automated 50-page/50-element flatten test as a correctness (not UI-responsiveness) proxy. A human should do the live manual check before merging. See tasks/DRIFT-REPORT.md Finding 11."
     },
     {
       "id": "coverage-gate-core-adapters-below-80pct",
