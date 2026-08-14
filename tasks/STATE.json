@@ -1,13 +1,13 @@
 {
-  "activeTask": "P6-T01",
-  "phase": "P6",
+  "activeTask": null,
+  "phase": "complete",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
     "P2-T01", "P2-T02", "P2-T03", "P2-T04",
     "P3-T01", "P3-T02", "P3-T03",
     "P4-T01", "P4-T02", "P4-T03",
-    "P5-T01", "P5-T02"
+    "P5-T01", "P5-T02", "P6-T01"
   ],
   "blocked": [
     {
@@ -59,6 +59,6 @@
       "reason": "P5-T02's card declares maxFiles: 8. The 8 functional files (3 new spec files, 2 new fixture helpers, 1 fixed pre-existing spec, playwright.config.ts, .github/workflows/frontend-ci.yml) exactly match the budget, but tasks/STATE.json and tasks/DRIFT-REPORT.md bookkeeping updates push the real diff to 10 files -- consistent with every other task in this programme, and consistent with the pattern already flagged in Finding 10 (maxFiles budgets don't account for the two standard bookkeeping files). Not fixed (would mean skipping STATE.json/DRIFT-REPORT.md updates, breaking this programme's own audit trail); flagged here per precedent."
     }
   ],
-  "notes": "All 21 task cards (Phase -1 through P5-T02) remain complete. Owner activated P6-T01 on 2026-08-14 to implement the neutral DocumentEvidence.v1 TypeScript conformance/client layer pinned to XML_Compare_Utilities OpenAPI 1.4.1 merge 6eeefae925528079d59acd86a2d98975c60f94ce. Existing blocked/debt findings remain baseline context and are not part of P6-T01.",
+  "notes": "P6-T01 completed the neutral DocumentEvidence.v1 TypeScript conformance/client layer pinned to XML_Compare_Utilities OpenAPI 1.4.1 and RFC 8785 JCS reference merge e7a394fd7f35c34cda5cad13df55cae2dd37bca2. It adds no engineering authority and preserves the fitz isolation boundary. Existing blocked/debt findings remain baseline context.",
   "updated": "2026-08-14"
 }
