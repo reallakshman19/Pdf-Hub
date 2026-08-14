@@ -1,0 +1,42 @@
+{
+  "id": "P6-T01",
+  "phase": "P6",
+  "title": "DocumentEvidence v1 neutral TypeScript conformance client",
+  "finding": "DocumentEvidence-v1-cross-repo",
+  "maxFiles": 8,
+  "mayTouch": [
+    "frontend/src/core/document-evidence/**",
+    "frontend/src/adapters/document-evidence/**",
+    "tasks/STATE.json"
+  ],
+  "preconditions": [
+    "XML_Compare_Utilities PR #973 merged to main at 02e9e9c3f251c983c46d7f8252ed52cae13ce92c",
+    "DocumentEvidence schema authority remains reallaksh19/XML_Compare_Utilities/contracts/document-evidence/v1",
+    "No fitz imports may be added outside backend/pdf_engine/"
+  ],
+  "change": [
+    "Add pure TypeScript DocumentEvidence.v1 transport/domain types with the XML_Compare_Utilities contract commit pinned as external schema authority.",
+    "Add RFC 8785 JCS canonicalization plus schema-domain SHA-256 helpers for cross-repo conformance vectors.",
+    "Add fail-closed response guards for source identity, provider profile, observations, evidence decisions, table discovery and explicit-page table extraction.",
+    "Add a thin fetch-based XML_Compare_Utilities client for /v2/tables/discover and /v2/tables/extract; extraction requires sourceHash and explicit 1-based pages.",
+    "Add focused Vitest coverage proving JCS/hash compatibility, extraction authority remains evidence-only, invalid source/page/evidence shapes fail closed, and no engineering authority is inferred."
+  ],
+  "exit": [
+    "cd frontend && pnpm exec vitest run src/core/document-evidence src/adapters/document-evidence  -> exit 0",
+    "cd frontend && pnpm run typecheck  -> exit 0",
+    "grep -rn \"import fitz\" backend/app backend/services backend/tasks  -> empty",
+    "node scripts/guard-forbidden.mjs  -> exit 0",
+    "node scripts/guard-ratchet.mjs  -> exit 0"
+  ],
+  "forbidden": [
+    "Do NOT copy XML_Compare_Utilities Python runtime or make Pdf-Hub the canonical schema authority.",
+    "Do NOT add vibration/T3/T2.8/T2.9/T4 engineering rules or engineering authority.",
+    "Do NOT import fitz outside backend/pdf_engine/ or couple frontend core types to PDF.js/Tesseract/Konva types.",
+    "Do NOT relax existing OCR, lint, type or guard gates."
+  ],
+  "escalate": [
+    "The XML_Compare_Utilities v1 contract cannot be represented without changing an existing Pdf-Hub architectural invariant.",
+    "Implementation needs files outside the declared mayTouch patterns.",
+    "Canonicalization differs from the XML_Compare_Utilities RFC 8785 conformance vectors."
+  ]
+}
