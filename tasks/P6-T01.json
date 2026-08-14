@@ -10,7 +10,7 @@
     "tasks/STATE.json"
   ],
   "preconditions": [
-    "XML_Compare_Utilities PR #973 merged to main at 02e9e9c3f251c983c46d7f8252ed52cae13ce92c",
+    "XML_Compare_Utilities DocumentEvidence OpenAPI 1.4.1 merged to main at 6eeefae925528079d59acd86a2d98975c60f94ce",
     "DocumentEvidence schema authority remains reallaksh19/XML_Compare_Utilities/contracts/document-evidence/v1",
     "No fitz imports may be added outside backend/pdf_engine/"
   ],
