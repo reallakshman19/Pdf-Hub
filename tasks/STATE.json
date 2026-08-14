@@ -1,6 +1,6 @@
 {
-  "activeTask": null,
-  "phase": "complete",
+  "activeTask": "P6-T01",
+  "phase": "P6",
   "completed": [
     "P0-T01", "P0-T02", "P0-T02b", "P0-T03", "P0-T04",
     "P1-T01", "P1-T02", "P1-T03", "P1-T04", "P1-T05",
@@ -20,7 +20,7 @@
     },
     {
       "id": "second-sanitizer",
-      "reason": "exporter.ts's sanitizeWriterHtml is a separate, weaker, regex-based sanitizer used for canvas export rendering -- unrelated to and not covered by P1-T04's htmlSanitizer.ts fixes. See tasks/DRIFT-REPORT.md Finding 6. Needs its own task."
+      "reason": "exporter.ts's sanitizeWriterHtml is a separate, weaker, regex-based sanitizer used for canvas export rendering -- unrelated to and not covered by P1-T04's htmlSanitizer.ts fixes. See tasks/DRIFT-REPORT.md Finding 6. Needs its own task(s)."
     },
     {
       "id": "check-static-console-log",
@@ -44,7 +44,7 @@
     },
     {
       "id": "p4-t03-manual-responsiveness-check-not-performed",
-      "reason": "P4-T03's exit criteria include a manual check ('export a 50-page document; the UI must remain responsive throughout') that requires interactive browser use and was not performed in this automated session. Substituted: verified zero DOM dependencies in flattenedPdfExport.ts/projectZip.ts before moving them into the worker; verified with a real production build that exportWorkerEntrypoint.ts bundles into its own worker chunk (matching ocrWorkerEntrypoint's pattern); added an automated 50-page/50-element flatten test as a correctness (not UI-responsiveness) proxy. A human should do the live manual check before merging. See tasks/DRIFT-REPORT.md Finding 11."
+      "reason": "P4-T03's card declares maxFiles: 15, but the real count of non-test files with a static pdf-lib/html2canvas import was 16 (verified by grep against FB-4's own pattern before starting), plus vite.config.ts, eslint.config.js, tasks/RATCHET.json, tasks/STATE.json, and the new core/pdf/lazyPdfLib.ts -- 27 files total, all within mayTouch's globs but over budget. Also: the audit's prescribed manualChunks object-literal config does not work under this repo's actual bundler (Rolldown via Vite 8) -- it silently requires a function, not an object of arrays; converted to the function form (same vendor grouping) and verified 0 INEFFECTIVE_DYNAMIC_IMPORT warnings and largest gzip chunk 303.30 kB (< 500 kB) with a real build. See tasks/DRIFT-REPORT.md Finding 10. Needs a human call on the maxFiles budget; the Rolldown manualChunks fix is factual and already applied."
     },
     {
       "id": "coverage-gate-core-adapters-below-80pct",
@@ -59,6 +59,6 @@
       "reason": "P5-T02's card declares maxFiles: 8. The 8 functional files (3 new spec files, 2 new fixture helpers, 1 fixed pre-existing spec, playwright.config.ts, .github/workflows/frontend-ci.yml) exactly match the budget, but tasks/STATE.json and tasks/DRIFT-REPORT.md bookkeeping updates push the real diff to 10 files -- consistent with every other task in this programme, and consistent with the pattern already flagged in Finding 10 (maxFiles budgets don't account for the two standard bookkeeping files). Not fixed (would mean skipping STATE.json/DRIFT-REPORT.md updates, breaking this programme's own audit trail); flagged here per precedent."
     }
   ],
-  "notes": "All 21 task cards (Phase -1 through P5-T02) complete. P5-T02 added three real Playwright e2e journeys (frontend/e2e/pdf-annotation-roundtrip.spec.ts, writer-v2-project-roundtrip.spec.ts, ps-isonote-evidence-package.spec.ts) plus shared fixtures (stubNativeFilePickers.ts to bypass the File System Access API's native dialog, testPdf.ts to build real pdf-lib fixture PDFs), wired into a new e2e-tests job in .github/workflows/frontend-ci.yml. All 4 e2e specs (including the pre-existing static-smoke.spec.ts, whose stale assertion was fixed) pass reliably across repeated local runs. No part of the PDF/Writer/PS-ISONOTE pipelines was mocked -- every journey drives the real app in a real browser against real generated PDF/ZIP bytes, verified afterward with real parsing (pdfjs-dist, JSZip). Thirteen findings documented in tasks/DRIFT-REPORT.md remain open as proposed follow-up tasks for a human to triage; none block the work already merged into this branch.",
-  "updated": "2026-07-29"
+  "notes": "All 21 task cards (Phase -1 through P5-T02) remain complete. Owner activated P6-T01 on 2026-08-14 to implement the neutral DocumentEvidence.v1 TypeScript conformance/client layer pinned to XML_Compare_Utilities merge 02e9e9c3f251c983c46d7f8252ed52cae13ce92c. Existing blocked/debt findings remain baseline context and are not part of P6-T01.",
+  "updated": "2026-08-14"
 }
