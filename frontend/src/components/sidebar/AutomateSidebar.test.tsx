@@ -175,6 +175,74 @@ describe('AutomateSidebar', () => {
     expect(screen.getByRole('button', { name: 'Close Generator' })).toBeInTheDocument();
   });
 
+  it('locks standard workflow launches while Specialized workflows is open', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+
+    const quickAction = screen.getByText('Footer Page Numbers').closest('article');
+    expect(quickAction).not.toBeNull();
+    expect(
+      within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+
+    expect(
+      within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
+    ).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).not.toBeDisabled();
+  });
+
+  it('keeps Generate Document mounted by locking Automate tabs while generation runs', async () => {
+    let resolveGeneration:
+      | ((value: {
+          success: boolean;
+          status: string;
+          outputFiles: [];
+          logs: string[];
+          finalBytes: Uint8Array;
+          selectedPages: number[];
+          stepResults: [];
+        }) => void)
+      | undefined;
+
+    runMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveGeneration = resolve;
+        }) as ReturnType<typeof runMacroRecipeAgainstSession>,
+    );
+
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generator' }));
+    fireEvent.click(screen.getByTestId('macro-generate-run'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'My Workflows' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Close Generator' })).toBeDisabled();
+    });
+
+    resolveGeneration?.({
+      success: true,
+      status: 'success',
+      outputFiles: [],
+      logs: ['generated'],
+      finalBytes: new Uint8Array([4, 5, 6]),
+      selectedPages: [],
+      stepResults: [],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'My Workflows' })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Build' })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Close Generator' })).not.toBeDisabled();
+    });
+  });
+
   it('keeps specialized workflows available without restoring the legacy Advanced surface', () => {
     render(<AutomateSidebar />);
 
