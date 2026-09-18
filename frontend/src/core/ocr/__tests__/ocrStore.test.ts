@@ -365,6 +365,36 @@ describe('ocrStore', () => {
     expect(useOcrStore.getState().documentFingerprint).toBeNull();
   });
 
+
+  it('ignores late OCR job snapshots from a superseded document revision', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'current-doc',
+      fileName: 'current.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+    });
+
+    await runOcrJob({
+      id: 'stale-job',
+      documentFingerprint: 'old-doc',
+      engineId: 'mock',
+      now: '2026-09-18T00:00:00.000Z',
+      pages: [{
+        pageIndex: 0,
+        imageBytes: new Uint8Array([1, 2, 3]),
+        width: 595,
+        height: 842,
+      }],
+      onProgress: (snapshot) => {
+        useOcrStore.getState().applyOcrJobSnapshot(snapshot);
+      },
+    });
+
+    expect(useOcrStore.getState().activeJobId).toBeNull();
+    expect(useOcrStore.getState().jobs).toEqual([]);
+    expect(useOcrStore.getState().result).toBeNull();
+  });
+
 });
 
 async function createMockDocument() {
