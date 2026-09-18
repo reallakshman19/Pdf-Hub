@@ -31,6 +31,7 @@ const requiredFiles = [
   'src/components/ocr/OcrSearchablePdfExportPanel.tsx',
   'src/components/ocr/OcrProjectRestorePanel.tsx',
   'src/components/ocr/workflow/useOcrRunWorkflow.ts',
+  'src/components/ocr/workflow/OcrPageScopeControl.tsx',
   'src/components/ocr/workflow/OcrReviewWorkspace.tsx',
   'src/core/ocr/fixtures/ocrDemoFixtures.ts',
   'src/components/ocr/OcrDemoFixturePanel.tsx',
@@ -64,6 +65,7 @@ const requiredTestFiles = [
   'src/components/ocr/__tests__/OcrUnifiedPanel.test.tsx',
   'src/components/ocr/__tests__/OcrSourceSummaryCard.test.tsx',
   'src/components/ocr/__tests__/OcrSections.test.tsx',
+  'src/components/ocr/__tests__/OcrPageScopeControl.test.tsx',
   'src/components/ocr/__tests__/useOcrRunWorkflow.test.tsx',
   'src/components/ocr/__tests__/OcrReviewWorkspace.test.tsx',
   'src/core/ocr/__tests__/ocrFinalIntegration.test.ts',
@@ -386,6 +388,44 @@ function assertUnifiedOcrUxReady() {
   );
 }
 
+function assertPrimaryOcrFlowReady() {
+  assertContains(
+    'src/components/ocr/OcrPanel.tsx',
+    ['OcrPageScopeControl', 'ocr-advanced-workflow', 'runDisabled={!runWorkflow.canRun}', 'hasReviewWorkspace', 'hasCurrentResult'],
+    'OCR_PRIMARY_FLOW_READY',
+  );
+
+  assertContains(
+    'src/components/ocr/workflow/OcrRunControls.tsx',
+    ['Recognize text', 'Recognizing', 'cancel-ocr-button', 'runDisabled'],
+    'OCR_PRIMARY_ACTIONS_READY',
+  );
+
+  assertContains(
+    'src/components/ocr/workflow/OcrPageScopeControl.tsx',
+    ["'current' | 'selected' | 'all'", 'ocr-page-scope', 'No pages selected'],
+    'OCR_PAGE_SCOPE_READY',
+  );
+
+  assertContains(
+    'src/components/ocr/workflow/useOcrRunWorkflow.ts',
+    ['hasInputSource', 'pdfBytes || (pages && pages.length > 0)', 'canRun = !isRunning && hasInputSource'],
+    'OCR_REAL_INPUT_REQUIRED',
+  );
+
+  assertContains(
+    'src/components/ocr/OcrSearchablePdfExportPanel.tsx',
+    ['ocr-searchable-advanced-settings', 'Searchable PDF settings', 'Create searchable PDF'],
+    'OCR_EXPORT_PRIMARY_ACTION_READY',
+  );
+
+  assertNotContains(
+    'src/components/ocr/sections/OcrRunSection.tsx',
+    ['setAdvancedOpen(true)', 'diagnostics arriving after the run plan'],
+    'OCR_SETTINGS_DO_NOT_AUTO_OPEN',
+  );
+}
+
 function assertOcrSectionsReady() {
   assertContains(
     'src/components/ocr/sections/OcrRunSection.tsx',
@@ -486,6 +526,7 @@ function main() {
   assertWorkerProtocolsReady();
   assertDemoFixturesReady();
   assertUnifiedOcrUxReady();
+  assertPrimaryOcrFlowReady();
   assertOcrSectionsReady();
   assertFinalIntegrationReady();
   assertReviewWorkspaceReady();

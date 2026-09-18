@@ -75,6 +75,11 @@ describe('OcrSearchablePdfExportPanel', () => {
       />,
     );
 
+    const settings = screen.getByTestId('ocr-searchable-advanced-settings') as HTMLDetailsElement;
+    expect(settings.open).toBe(false);
+    fireEvent.click(screen.getByText('Searchable PDF settings'));
+    expect(settings.open).toBe(true);
+
     fireEvent.change(screen.getByTestId('ocr-searchable-layer-mode'), {
       target: {
         value: 'line',
@@ -112,6 +117,10 @@ describe('OcrSearchablePdfExportPanel', () => {
         }}
       />,
     );
+
+    const settings = screen.getByTestId('ocr-searchable-advanced-settings') as HTMLDetailsElement;
+    expect(settings.open).toBe(false);
+    fireEvent.click(screen.getByText('Searchable PDF settings'));
 
     fireEvent.click(screen.getByTestId('ocr-searchable-debug-visible'));
     fireEvent.click(screen.getByTestId('ocr-searchable-pdf-export-button'));

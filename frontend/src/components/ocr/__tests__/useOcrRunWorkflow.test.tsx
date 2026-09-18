@@ -43,6 +43,14 @@ function WorkflowProbe(props: UseOcrRunWorkflowInput) {
   );
 }
 
+const pageInput = (pageIndex: number) => ({
+  pageIndex,
+  imageBytes: new Uint8Array([1, 2, 3]),
+  width: 595,
+  height: 842,
+  imageCount: 1,
+});
+
 describe('useOcrRunWorkflow', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
@@ -54,6 +62,7 @@ describe('useOcrRunWorkflow', () => {
         documentFingerprint="workflow-doc"
         selectedPageIndexes={[1]}
         pageCount={3}
+        pages={[pageInput(1)]}
       />,
     );
 
@@ -64,6 +73,19 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-can-run').textContent).toBe('true');
     expect(screen.getByTestId('workflow-can-clear').textContent).toBe('true');
     expect(screen.getByTestId('workflow-can-cancel').textContent).toBe('false');
+  });
+
+  it('stays idle when no PDF bytes or raster page inputs are available', () => {
+    render(
+      <WorkflowProbe
+        documentFingerprint="workflow-no-source"
+        selectedPageIndexes={[0]}
+        pageCount={1}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-state').textContent).toBe('idle');
+    expect(screen.getByTestId('workflow-can-run').textContent).toBe('false');
   });
 
   it('falls back to store-selected OCR pages when props do not provide a page selection', () => {
@@ -89,6 +111,7 @@ describe('useOcrRunWorkflow', () => {
       <WorkflowProbe
         documentFingerprint="current-document"
         selectedPageIndexes={[0]}
+        pages={[pageInput(0)]}
       />,
     );
 
@@ -101,6 +124,7 @@ describe('useOcrRunWorkflow', () => {
       <WorkflowProbe
         documentFingerprint="workflow-run"
         selectedPageIndexes={[0]}
+        pages={[pageInput(0)]}
       />,
     );
 
@@ -126,6 +150,7 @@ describe('useOcrRunWorkflow', () => {
       <WorkflowProbe
         documentFingerprint="workflow-cancel-guard"
         selectedPageIndexes={[0]}
+        pages={[pageInput(0)]}
       />,
     );
 

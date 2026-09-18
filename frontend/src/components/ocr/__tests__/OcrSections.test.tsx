@@ -44,6 +44,9 @@ describe('OCR section components', () => {
         executionSettings={<div>Execution settings</div>}
         executionDiagnostics={<div>Execution diagnostics</div>}
         batchQueue={<div>Batch queue</div>}
+        pageScopeControls={<div>Page scope</div>}
+        progress={<div>OCR progress</div>}
+        statusMessage={<div>Recognizing 2 pages…</div>}
         runControls={<button type="button">Trigger OCR</button>}
         errorMessage="OCR failed"
       />,
@@ -56,6 +59,9 @@ describe('OCR section components', () => {
     expect(screen.getByText('Execution settings')).toBeTruthy();
     expect(screen.getByText('Execution diagnostics')).toBeTruthy();
     expect(screen.getByText('Batch queue')).toBeTruthy();
+    expect(screen.getByText('Page scope')).toBeTruthy();
+    expect(screen.getByText('OCR progress')).toBeTruthy();
+    expect(screen.getByText('Recognizing 2 pages…')).toBeTruthy();
     expect(screen.getByText('Trigger OCR')).toBeTruthy();
     expect(screen.getByText('OCR failed')).toBeTruthy();
   });

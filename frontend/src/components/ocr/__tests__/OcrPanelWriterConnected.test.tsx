@@ -152,9 +152,14 @@ describe('OcrPanelWriterConnected', () => {
     render(<OcrPanelWriterConnected />);
 
     expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
-    expect(screen.getByRole('button', { name: /run ocr/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
     expect(screen.getAllByTestId('ocr-run-section')).toHaveLength(1);
-    expect(screen.getAllByTestId('ocr-review-section')).toHaveLength(1);
+    expect(screen.queryByTestId('ocr-review-section')).toBeNull();
+
+    const runSettings = screen.getByTestId('ocr-run-advanced-settings') as HTMLDetailsElement;
+    const advancedWorkflow = screen.getByTestId('ocr-advanced-workflow') as HTMLDetailsElement;
+    expect(runSettings.open).toBe(false);
+    expect(advancedWorkflow.open).toBe(false);
 
     const runSection = screen.getByTestId('ocr-run-section');
     const sourceSection = screen.getByTestId('ocr-connected-source');
@@ -164,8 +169,9 @@ describe('OcrPanelWriterConnected', () => {
     );
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(within(summary).getByText('browser-smoke.pdf')).toBeTruthy();
+    expect(screen.getByText('browser-smoke.pdf')).toBeTruthy();
     expect(within(summary).getByText('working')).toBeTruthy();
+    expect(within(summary).getByText('1 selected')).toBeTruthy();
   });
 
   it('inserts OCR region Writer element into Writer V2 store', async () => {
@@ -255,10 +261,10 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(screen.getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
     expect(within(unifiedSummary).getByText('4')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('2')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('2 selected')).toBeTruthy();
   });
 
   it('passes session document fingerprint when no explicit prop is supplied', () => {
@@ -276,7 +282,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(screen.getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
   });
 
@@ -291,6 +297,52 @@ describe('OcrPanelWriterConnected', () => {
 
     expect(warning).toBeTruthy();
     expect(within(warning).getByText(/No active PDF document is loaded/)).toBeTruthy();
+  });
+
+  it('runs OCR only on the current page when Current scope is chosen', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'scope-current-doc',
+      fileName: 'scope-current.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 3,
+    });
+    useSessionStore.getState().setSelectedPages([2]);
+    useSessionStore.getState().setPage(3);
+
+    render(<OcrPanelWriterConnected />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /current/i }));
+    fireEvent.click(screen.getByTestId('run-ocr-button'));
+
+    await waitFor(() => {
+      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
+    });
+
+    const result = useOcrStore.getState().correctedResult;
+    expect(result?.pages).toHaveLength(1);
+    expect(result?.pages[0].pageIndex).toBe(2);
+  });
+
+  it('runs OCR on every page when All scope is chosen even when thumbnails are selected', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'scope-all-doc',
+      fileName: 'scope-all.pdf',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+      pageCount: 3,
+    });
+    useSessionStore.getState().setSelectedPages([2]);
+
+    render(<OcrPanelWriterConnected />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /all/i }));
+    fireEvent.click(screen.getByTestId('run-ocr-button'));
+
+    await waitFor(() => {
+      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
+    });
+
+    const result = useOcrStore.getState().correctedResult;
+    expect(result?.pages.map((page) => page.pageIndex)).toEqual([0, 1, 2]);
   });
 
   it('uses 0-based selected page indexes when running OCR fallback path', async () => {

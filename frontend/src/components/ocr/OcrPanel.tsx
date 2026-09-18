@@ -32,11 +32,16 @@ import {
 } from './workflow/OcrRunControls';
 import { useOcrRunWorkflow } from './workflow/useOcrRunWorkflow';
 import { OcrReviewWorkspace } from './workflow/OcrReviewWorkspace';
+import {
+  OcrPageScopeControl,
+  type OcrPageScope,
+} from './workflow/OcrPageScopeControl';
 
 export interface OcrPanelProps {
   documentFingerprint?: string | null;
   selectedPageIndexes?: number[];
   pageCount?: number;
+  currentPageIndex?: number;
 
   /**
    * Real raster inputs can be supplied later by PDF.js page rendering.
@@ -70,6 +75,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   documentFingerprint,
   selectedPageIndexes = [],
   pageCount = 1,
+  currentPageIndex = 0,
   pages,
   onInsertWriterElements,
   pdfBytes = null,
@@ -84,13 +90,46 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     forceOcr: state.forceOcr,
     jobs: state.jobs,
     profileId: state.profileId,
+    lowConfidenceWords: state.lowConfidenceWords,
+    regions: state.regions,
     setForceOcr: state.setForceOcr,
     setOcrEngineId: state.setOcrEngineId,
     setOcrProfileId: state.setOcrProfileId,
   })));
+  const [pageScope, setPageScope] = React.useState<OcrPageScope>(
+    selectedPageIndexes.length > 0 ? 'selected' : 'all',
+  );
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- document changes reset the user-facing page scope to the active selection.
+    setPageScope(selectedPageIndexes.length > 0 ? 'selected' : 'all');
+  }, [documentFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scopedPageIndexes = React.useMemo(() => {
+    const maxPageCount = Math.max(1, pageCount);
+    const current = Math.max(0, Math.min(currentPageIndex, maxPageCount - 1));
+
+    if (pageScope === 'current') {
+      return [current];
+    }
+
+    if (pageScope === 'selected' && selectedPageIndexes.length > 0) {
+      return [...new Set(selectedPageIndexes)]
+        .filter((pageIndex) => pageIndex >= 0 && pageIndex < maxPageCount)
+        .sort((a, b) => a - b);
+    }
+
+    return Array.from({ length: maxPageCount }, (_, pageIndex) => pageIndex);
+  }, [
+    currentPageIndex,
+    pageCount,
+    pageScope,
+    selectedPageIndexes,
+  ]);
+
   const runWorkflow = useOcrRunWorkflow({
     documentFingerprint,
-    selectedPageIndexes,
+    selectedPageIndexes: scopedPageIndexes,
     pageCount,
     pages,
     pdfBytes,
@@ -135,11 +174,34 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   const runControlsNode = (
     <OcrRunActions
       running={runWorkflow.isRunning}
+      runDisabled={!runWorkflow.canRun}
       clearDisabled={!runWorkflow.canClear}
+      showClear={runWorkflow.state === 'complete' || runWorkflow.state === 'error'}
       onRun={runWorkflow.runSelectedOcr}
       onClear={runWorkflow.clearOcr}
+      onCancel={runWorkflow.cancelActiveOcr}
     />
   );
+
+  const hasCurrentResult =
+    store.correctedResult?.documentFingerprint === runWorkflow.effectiveDocumentFingerprint;
+  const hasCurrentRegions = store.regions.some(
+    (region) => region.documentFingerprint === runWorkflow.effectiveDocumentFingerprint,
+  );
+  const hasReviewWorkspace =
+    hasCurrentResult
+    || hasCurrentRegions
+    || writerInsertionQueue.candidates.some(
+      (candidate) =>
+        candidate.element.documentFingerprint === runWorkflow.effectiveDocumentFingerprint,
+    );
+
+  const runStatusMessage =
+    runWorkflow.state === 'running'
+      ? `Recognizing ${runWorkflow.requestedPageIndexes.length} page${runWorkflow.requestedPageIndexes.length === 1 ? '' : 's'}…`
+      : runWorkflow.state === 'complete'
+        ? `OCR complete. ${store.lowConfidenceWords.length} item${store.lowConfidenceWords.length === 1 ? '' : 's'} need review.`
+        : null;
 
   return (
     <div
@@ -147,6 +209,16 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
       data-testid="ocr-panel"
     >
       <OcrRunSection
+        pageScopeControls={
+          <OcrPageScopeControl
+            value={pageScope}
+            currentPageIndex={currentPageIndex}
+            selectedPageIndexes={selectedPageIndexes}
+            pageCount={pageCount}
+            disabled={runWorkflow.isRunning}
+            onChange={setPageScope}
+          />
+        }
         engineControls={engineControlsNode}
         pipelineMode={
           <OcrPipelineModePanel
@@ -183,26 +255,37 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
           />
         }
         runControls={runControlsNode}
+        progress={
+          runWorkflow.isRunning ? (
+            <OcrProgressPanel
+              jobs={store.jobs}
+              activeJobId={store.activeJobId}
+            />
+          ) : undefined
+        }
+        statusMessage={runStatusMessage}
         errorMessage={runWorkflow.errorMessage}
       />
 
-      <OcrReviewSection
-        resultSummary={
-          <OcrReviewWorkspace
-            documentFingerprint={runWorkflow.effectiveDocumentFingerprint}
-            selectedPages={runWorkflow.selectedPages}
-            pages={pages}
-            pdfBytes={pdfBytes}
-            writerInsertionQueue={writerInsertionQueue}
-            onWriterInsertionQueueChange={setWriterInsertionQueue}
-            onInsertWriterElements={onInsertWriterElements}
-          />
-        }
-      />
+      {hasReviewWorkspace ? (
+        <OcrReviewSection
+          resultSummary={
+            <OcrReviewWorkspace
+              documentFingerprint={runWorkflow.effectiveDocumentFingerprint}
+              selectedPages={runWorkflow.selectedPages}
+              pages={pages}
+              pdfBytes={pdfBytes}
+              writerInsertionQueue={writerInsertionQueue}
+              onWriterInsertionQueueChange={setWriterInsertionQueue}
+              onInsertWriterElements={onInsertWriterElements}
+            />
+          }
+        />
+      ) : null}
 
-      <OcrExportSection
-        searchablePdfExport={
-          pdfBytes || store.correctedResult ? (
+      {hasCurrentResult ? (
+        <OcrExportSection
+          searchablePdfExport={
             <OcrSearchablePdfExportPanel
               pdfBytes={pdfBytes}
               ocrResult={store.correctedResult}
@@ -211,28 +294,33 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
                 onSearchablePdfExported?.(result.bytes);
               }}
             />
-          ) : undefined
-        }
-      />
-
-      <OcrProjectSection
-        restorePanel={
-          <OcrProjectRestorePanel
-            payload={projectPayload || null}
-            expectedDocumentFingerprint={runWorkflow.effectiveDocumentFingerprint}
-            onWriterInsertionQueueRestored={setWriterInsertionQueue}
-          />
-        }
-      />
-
-      <OcrDiagnosticsSection
-        messages={allDiagnostics}
-      >
-        <OcrProgressPanel
-          jobs={store.jobs}
-          activeJobId={store.activeJobId}
+          }
         />
-      </OcrDiagnosticsSection>
+      ) : null}
+
+      <details
+        className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+        data-testid="ocr-advanced-workflow"
+      >
+        <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+          Advanced and troubleshooting
+        </summary>
+        <div className="space-y-3 border-t border-slate-100 p-3 dark:border-slate-800">
+          <OcrProjectSection
+            restorePanel={
+              <OcrProjectRestorePanel
+                payload={projectPayload || null}
+                expectedDocumentFingerprint={runWorkflow.effectiveDocumentFingerprint}
+                onWriterInsertionQueueRestored={setWriterInsertionQueue}
+              />
+            }
+          />
+
+          <OcrDiagnosticsSection
+            messages={allDiagnostics}
+          />
+        </div>
+      </details>
     </div>
   );
 };
