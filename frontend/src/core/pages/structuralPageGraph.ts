@@ -35,7 +35,15 @@ export function reorderPageGraphByOrder(
     }
   }
 
-  return createPageGraph(order.map((oldIndex) => graph.pages[oldIndex]));
+  const reordered = order.map((oldIndex) => {
+    const page = graph.pages[oldIndex];
+    if (!page) {
+      throw new Error(`PageGraph reorder references missing page index ${oldIndex}`);
+    }
+    return page;
+  });
+
+  return createPageGraph(reordered);
 }
 
 /**
