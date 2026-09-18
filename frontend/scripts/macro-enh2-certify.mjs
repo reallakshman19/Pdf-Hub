@@ -35,6 +35,7 @@ const commands = [
       'src/core/macro/store/presets.slice12.test.ts',
       'src/core/macro/sessionRunner.slice12.test.ts',
       'src/core/macro/builtins.slice13.test.ts',
+      'src/core/macro/risk.test.ts',
       'src/components/sidebar/AutomateSidebar.test.tsx',
       'src/components/toolbar/ToolbarMacro.test.tsx',
       'src/components/shell/TopNav.test.tsx',
