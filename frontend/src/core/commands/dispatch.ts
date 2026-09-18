@@ -340,6 +340,11 @@ export async function dispatchPdfCommand(
           if (!page) throw new Error(`PageGraph is missing page index ${idx}`);
           return { pageIndex: idx, angle, width: page.width, height: page.height };
         });
+        const nextPageGraph = rotatePagesInGraph(
+          pageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
+          angle,
+        );
         const anchoredAnnotations = normalizeAnnotationPageAnchors(
           useAnnotationStore.getState().annotations,
           pageGraph,
@@ -352,11 +357,6 @@ export async function dispatchPdfCommand(
         const nextWriterElements = remapWriterAfterRotate(
           useWriterV2Store.getState().elements,
           rotations,
-        );
-        const nextPageGraph = rotatePagesInGraph(
-          pageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
-          angle,
         );
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
         const result = await applyMutation(
