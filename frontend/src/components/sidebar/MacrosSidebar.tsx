@@ -810,91 +810,22 @@ export const MacrosSidebar: React.FC = () => {
         )}
       </section>
 
-      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Run
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              className="flex-1 text-xs"
-              onClick={() => void handleDryRun()}
-              disabled={generationRunning || isDryRunning || !workingBytes}
-            >
-              {isDryRunning ? (
-                <RotateCw className="w-3.5 h-3.5 mr-1 animate-spin" />
-              ) : (
-                <Eye className="w-3.5 h-3.5 mr-1" />
-              )}
-              Dry Run
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1 text-xs"
-              onClick={handleSavePreset}
-              disabled={generationRunning || !workingBytes}
-            >
-              <Save className="w-3.5 h-3.5 mr-1" />
-              Save Preset
-            </Button>
-          </div>
-
-          {preflightReport && (
-            <div className={`p-2 rounded text-xs ${preflightReport.isValid ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-              <div className="flex items-center gap-1 font-semibold mb-1">
-                {preflightReport.isValid ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                {preflightReport.isValid ? 'Preflight Passed' : 'Preflight Failed'}
-              </div>
-              {preflightReport.errors.length > 0 && (
-                <ul className="list-disc pl-4 space-y-0.5 mt-1">
-                  {preflightReport.errors.map((err, i) => <li key={i}>{err}</li>)}
-                </ul>
-              )}
-              {preflightReport.warnings.length > 0 && (
-                <ul className="list-disc pl-4 space-y-0.5 mt-1 text-amber-600 dark:text-amber-400">
-                  {preflightReport.warnings.map((warn, i) => <li key={i}>{warn}</li>)}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            {generationRunning ? (
-              <Button variant="secondary" size="sm" onClick={cancelSelectedMacro} className="text-red-600">
-                <Square className="w-4 h-4 mr-1" />
-                Cancel
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => void runSelectedMacro()} disabled={!selectedRecipe || (preflightReport ? !preflightReport.isValid : false)}>
-                <Play className="w-4 h-4 mr-1" />
-                Run Macro
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={resetPanel}>
-              Reset
-            </Button>
-          </div>
-        </div>
-
-        {generationError && (
-          <div className="rounded-md border border-red-300 bg-red-50 text-red-700 px-2 py-1 text-xs">
-            {generationError}
-          </div>
-        )}
-
-        <div className="space-y-1 max-h-32 overflow-auto rounded-md border border-slate-200 dark:border-slate-800 p-2">
-          {generationLogs.length === 0 && (
-            <div className="text-xs text-slate-500">No run logs yet.</div>
-          )}
-          {generationLogs.map((line) => (
-            <div key={`${selectedRecipe?.id}-${line}`} className="text-xs text-slate-600 dark:text-slate-300">
-              {line}
-            </div>
-          ))}
-        </div>
-      </section>
+      <MacroPresetExecutionPanel
+        recipe={effectiveRecipe}
+        disabled={generationRunning}
+        onBusyChange={setPresetRunnerBusy}
+        onSavePreset={saveCurrentPreset}
+        onReset={resetPanel}
+        onOutputsProduced={(outputs) => {
+          setOutputQueue((current) => [
+            ...current,
+            ...outputs.map((output) => ({
+              id: uuidv4(),
+              ...output,
+            })),
+          ]);
+        }}
+      />
 
       <MacroOutputQueue
         outputs={outputQueue}
