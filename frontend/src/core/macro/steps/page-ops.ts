@@ -202,11 +202,23 @@ function outputFileEffect(
 function resolveInsertIndex(
   position: InsertPosition,
   pageCount: number,
+  currentPage: number | undefined,
 ): number {
   if (position.mode === 'start') return 0;
   if (position.mode === 'end') return pageCount;
   if (position.mode === 'before') return Math.max(0, Math.min(position.page - 1, pageCount));
   if (position.mode === 'after') return Math.max(0, Math.min(position.page, pageCount));
+
+  const current = Math.max(
+    1,
+    Math.min(currentPage ?? 1, Math.max(1, pageCount)),
+  );
+  if (position.mode === 'before-current') {
+    return Math.max(0, Math.min(current - 1, pageCount));
+  }
+  if (position.mode === 'after-current') {
+    return Math.max(0, Math.min(current, pageCount));
+  }
 
   return pageCount;
 }
@@ -216,6 +228,7 @@ function resolveBlankPageSize(
   currentBytes: Uint8Array,
   state: MacroMutableState,
   position: InsertPosition,
+  currentPage: number | undefined,
   signal?: AbortSignal,
 ): Promise<{ width: number; height: number }> | { width: number; height: number } {
   if (typeof size === 'object') {
@@ -242,7 +255,12 @@ function resolveBlankPageSize(
   const referencePage =
     position.mode === 'before' || position.mode === 'after'
       ? Math.max(0, Math.min(position.page - 1, state.pageCount - 1))
-      : 0;
+      : position.mode === 'before-current' || position.mode === 'after-current'
+        ? Math.max(
+            0,
+            Math.min((currentPage ?? 1) - 1, state.pageCount - 1),
+          )
+        : 0;
 
   return PdfEditAdapter.getPageSize(currentBytes, referencePage, ...operationArgs(signal));
 }
@@ -478,11 +496,16 @@ async function executeInsertBlankPage(
       currentBytes,
       state,
       step.position,
+      ctx.currentPage,
       ctx.options?.abortSignal,
     );
 
     for (let index = 0; index < count; index += 1) {
-      const insertIndex = resolveInsertIndex(step.position, currentPageCount);
+      const insertIndex = resolveInsertIndex(
+        step.position,
+        currentPageCount,
+        ctx.currentPage,
+      );
       currentBytes = await PdfEditAdapter.insertBlankPage(
         currentBytes,
         insertIndex,
