@@ -25,7 +25,6 @@ export interface MacroPresetExecutionPanelProps {
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
   onSavePreset?: (recipe: MacroRecipe) => void;
-  onReset?: () => void;
   onOutputsProduced?: (outputs: MacroOutputFile[]) => void;
 }
 
@@ -34,7 +33,6 @@ export const MacroPresetExecutionPanel: React.FC<MacroPresetExecutionPanelProps>
   disabled = false,
   onBusyChange,
   onSavePreset,
-  onReset,
   onOutputsProduced,
 }) => {
   const {
@@ -221,13 +219,12 @@ export const MacroPresetExecutionPanel: React.FC<MacroPresetExecutionPanelProps>
     }
   };
 
-  const reset = () => {
+  const clearRunState = () => {
     setPreflight(null);
     setPreflightSignature(null);
     setLastTestedSignature(null);
     setLogs([]);
     setRunError(null);
-    onReset?.();
   };
 
   return (
@@ -340,10 +337,10 @@ export const MacroPresetExecutionPanel: React.FC<MacroPresetExecutionPanelProps>
         <Button
           variant="ghost"
           size="sm"
-          onClick={reset}
+          onClick={clearRunState}
           disabled={busy}
         >
-          Reset
+          Clear Run State
         </Button>
       </div>
 
