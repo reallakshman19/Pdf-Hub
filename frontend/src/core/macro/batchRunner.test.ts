@@ -389,6 +389,32 @@ describe('runMacroBatch', () => {
     expect(report.records.map((record) => record.status)).toEqual(['cancelled', 'not-run']);
   });
 
+  it('keeps a handed-off output successful when cancellation happens at its commit boundary', async () => {
+    const controller = new AbortController();
+    const second = createSource('second.pdf');
+    const secondRead = vi.spyOn(second.file, 'arrayBuffer');
+
+    const report = await runMacroBatch({
+      sources: [createSource('first.pdf'), second],
+      recipe: RECIPE,
+      continueOnError: true,
+      abortSignal: controller.signal,
+      onOutput: () => {
+        controller.abort('stop after first output');
+      },
+    });
+
+    expect(report.outcome).toBe('cancelled');
+    expect(secondRead).not.toHaveBeenCalled();
+    expect(report.records.map((record) => record.status)).toEqual([
+      'success',
+      'not-run',
+    ]);
+    expect(
+      report.records.filter((record) => record.inputIndex === 0),
+    ).toHaveLength(1);
+  });
+
   it('cancellation during page counting prevents macro execution', async () => {
     const controller = new AbortController();
     const pageCount = deferred<number>();
