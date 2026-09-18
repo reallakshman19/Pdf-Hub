@@ -3,6 +3,7 @@ import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
 import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
@@ -110,7 +111,10 @@ export async function commitDocumentMutation(
   }
 
   const annotationState = useAnnotationStore.getState();
-  const annotationsToPersist = input.nextAnnotations ?? annotationState.annotations;
+  const annotationsToPersist = normalizeAnnotationPageAnchors(
+    input.nextAnnotations ?? annotationState.annotations,
+    pageGraphForCommit,
+  );
 
   try {
     await saveAnnotations(nextDocumentKey, annotationsToPersist);
@@ -160,7 +164,7 @@ export async function commitDocumentMutation(
     );
 
     if (input.nextAnnotations) {
-      useAnnotationStore.getState().setAnnotations(input.nextAnnotations);
+      useAnnotationStore.getState().setAnnotations(annotationsToPersist);
     }
 
     if (input.nextWriterElements) {
