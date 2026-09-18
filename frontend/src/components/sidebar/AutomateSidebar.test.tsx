@@ -138,6 +138,33 @@ describe('AutomateSidebar', () => {
     expect(useEditorStore.getState().macroBuilderSource).toBe('custom:saved-workflow');
   });
 
+  it('routes destructive saved workflows through Review & Run instead of direct execution', () => {
+    upsertCustomMacroRecipe({
+      id: 'destructive-workflow',
+      name: 'Remove Selected Pages',
+      steps: [
+        {
+          op: 'remove_pages',
+          selector: { mode: 'selected' },
+        },
+      ],
+    });
+
+    render(<AutomateSidebar />);
+    fireEvent.click(screen.getByRole('button', { name: 'My Workflows' }));
+
+    const card = screen.getByText('Remove Selected Pages').closest('article');
+    expect(card).not.toBeNull();
+
+    fireEvent.click(
+      within(card as HTMLElement).getByRole('button', { name: 'Review & Run' }),
+    );
+
+    expect(runMock).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().macroBuilderOpen).toBe(true);
+    expect(useEditorStore.getState().macroBuilderSource).toBe('custom:destructive-workflow');
+  });
+
   it('mounts specialized and legacy tools only after their disclosure is opened', () => {
     render(<AutomateSidebar />);
 
