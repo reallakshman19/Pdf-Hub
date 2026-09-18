@@ -119,7 +119,7 @@ export function MacroBuilderExecutionPanel({
           dryRun: false,
         },
         {
-          saveOutputs: false,
+          saveOutputs: true,
           abortSignal: controller.signal,
         },
       );
