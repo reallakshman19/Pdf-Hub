@@ -1,6 +1,7 @@
 import type {
   PageGraph,
   PageId,
+  PageLabelRange,
   PageNode,
   PageRotation,
 } from './types';
@@ -18,16 +19,20 @@ export interface PageGraphValidationResult {
  */
 export function createPageGraph<TPage extends PageNode>(
   pages: readonly TPage[],
+  pageLabelRanges?: readonly PageLabelRange[],
 ): PageGraph<TPage> {
   return {
     pages: normalizePhysicalIndices(pages),
+    ...(pageLabelRanges !== undefined
+      ? { pageLabelRanges: pageLabelRanges.map((range) => ({ ...range })) }
+      : {}),
   };
 }
 
 export function clonePageGraph<TPage extends PageNode>(
   graph: PageGraph<TPage>,
 ): PageGraph<TPage> {
-  return createPageGraph(graph.pages);
+  return createPageGraph(graph.pages, graph.pageLabelRanges);
 }
 
 export function rekeyPageGraph<TPage extends PageNode>(
@@ -39,6 +44,7 @@ export function rekeyPageGraph<TPage extends PageNode>(
       ...page,
       documentKey,
     } as TPage)),
+    graph.pageLabelRanges,
   );
 }
 
@@ -136,7 +142,7 @@ export function reorderPageGraph<TPage extends PageNode>(
     ...remaining.slice(0, insertionIndex),
     ...moving,
     ...remaining.slice(insertionIndex),
-  ]);
+  ], graph.pageLabelRanges);
 }
 
 export function removePagesFromGraph<TPage extends PageNode>(
@@ -146,6 +152,7 @@ export function removePagesFromGraph<TPage extends PageNode>(
   const removeSet = new Set(pageIds);
   return createPageGraph(
     graph.pages.filter((page) => !removeSet.has(page.pageId)),
+    graph.pageLabelRanges,
   );
 }
 
@@ -168,7 +175,7 @@ export function insertPagesIntoGraph<TPage extends PageNode>(
     ...graph.pages.slice(0, insertionIndex),
     ...pagesToInsert,
     ...graph.pages.slice(insertionIndex),
-  ]);
+  ], graph.pageLabelRanges);
 }
 
 /**
@@ -213,7 +220,7 @@ export function duplicatePagesInGraph<TPage extends PageNode>(
     } as TPage);
   }
 
-  return createPageGraph(next);
+  return createPageGraph(next, graph.pageLabelRanges);
 }
 
 export function rotatePagesInGraph<TPage extends PageNode>(
@@ -232,6 +239,7 @@ export function rotatePagesInGraph<TPage extends PageNode>(
         ? normalizePageRotation(page.rotation + normalizedAngle)
         : page.rotation,
     } as TPage)),
+    graph.pageLabelRanges,
   );
 }
 
