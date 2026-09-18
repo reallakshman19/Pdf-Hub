@@ -62,6 +62,16 @@ describe('built-in macro recipes slice 6', () => {
     ]) {
       expect(ids.has(id), id).toBe(true);
     }
+
+    const insertBlank = getBuiltInMacroRecipes().find(
+      (item) => item.id === 'insert-blank-after-current',
+    );
+    expect(insertBlank?.recipe.steps[0]).toMatchObject({
+      op: 'insert_blank_page',
+      position: { mode: 'after-current' },
+      size: 'match-current',
+      count: 1,
+    });
   });
 
   it('findBuiltInMacroRecipe returns cloned recipe', () => {
