@@ -133,7 +133,9 @@ describe('MacroBuilderExecutionPanel', () => {
       }),
     );
 
-    expect(screen.getByText(/active document was updated/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/active document was updated/i)).toBeInTheDocument();
+    });
   });
 
   it('blocks Run when preflight reports an error', async () => {
