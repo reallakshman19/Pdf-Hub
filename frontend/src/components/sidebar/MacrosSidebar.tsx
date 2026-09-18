@@ -181,7 +181,6 @@ export const MacrosSidebar: React.FC = () => {
       ...current,
       [selectedRecipe.id]: createDefaultOverrides(selectedRecipe, Math.max(1, pageCount)),
     }));
-    setOutputQueue([]);
   };
 
   const saveCurrentPreset = (recipe: MacroRecipe) => {
