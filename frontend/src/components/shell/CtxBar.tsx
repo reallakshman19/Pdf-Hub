@@ -4,7 +4,7 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info,
+  Sparkles, BrainCircuit, TableProperties, FileSearch, Info,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
@@ -245,24 +245,21 @@ const OrganizeSection: React.FC = () => (
 );
 
 const GenerateSection: React.FC = () => {
-  const { setMacroBuilderOpen } = useEditorStore(useShallow((state) => ({
-    setMacroBuilderOpen: state.setMacroBuilderOpen,
-  })));
   const addToast = useToastStore((s) => s.addToast);
   const stub = (name: string) => () =>
     addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
   return (
     <div className="flex items-center h-full">
-      <CtxLabel first>AI Tools</CtxLabel>
-      <CtxBtn icon={Wand2} label="Builder" ai onClick={() => setMacroBuilderOpen(true)} />
+      <CtxLabel first>Workflows</CtxLabel>
+      <ToolbarMacro />
+      <CtxSep />
+      <CtxLabel>AI Tools</CtxLabel>
       <CtxBtn icon={Sparkles} label="Smart Fill" ai onClick={stub('Smart Fill')} />
       <CtxBtn icon={BrainCircuit} label="Ask AI" ai onClick={stub('Ask AI')} />
       <CtxSep />
       <CtxLabel>Extract</CtxLabel>
       <CtxBtn icon={TableProperties} label="Extract Fields" ai onClick={stub('Extract Fields')} />
       <CtxBtn icon={FileSearch} label="Summarize" ai onClick={stub('Summarize')} />
-      <CtxSep />
-      <ToolbarMacro />
     </div>
   );
 };
