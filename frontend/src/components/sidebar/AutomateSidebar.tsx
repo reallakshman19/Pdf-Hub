@@ -225,18 +225,21 @@ export const AutomateSidebar: React.FC = () => {
       <div className="grid grid-cols-3 gap-1 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
         <AutomateTabButton
           active={tab === 'quick'}
+          disabled={generationBusy}
           onClick={() => setTab('quick')}
         >
           Quick Actions
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'workflows'}
+          disabled={generationBusy}
           onClick={() => setTab('workflows')}
         >
           My Workflows
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'build'}
+          disabled={generationBusy}
           onClick={() => setTab('build')}
         >
           Build
@@ -384,10 +387,12 @@ function GenerateDocumentQuickAction({
 
 function AutomateTabButton({
   active,
+  disabled = false,
   children,
   onClick,
 }: {
   active: boolean;
+  disabled?: boolean;
   children: React.ReactNode;
   onClick: () => void;
 }) {
@@ -401,6 +406,7 @@ function AutomateTabButton({
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
       ].join(' ')}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>
