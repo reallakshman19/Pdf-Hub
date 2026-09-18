@@ -12,17 +12,24 @@ function cloneRecipe(recipe: MacroRecipe): MacroRecipe {
 }
 
 export const MacroBuilderDrawer: React.FC = () => {
-  const { macroBuilderOpen, setMacroBuilderOpen } = useEditorStore(useShallow((state) => ({
+  const {
+    macroBuilderOpen,
+    macroBuilderSource,
+    setMacroBuilderOpen,
+    setMacroBuilderSource,
+  } = useEditorStore(useShallow((state) => ({
     macroBuilderOpen: state.macroBuilderOpen,
+    macroBuilderSource: state.macroBuilderSource,
     setMacroBuilderOpen: state.setMacroBuilderOpen,
+    setMacroBuilderSource: state.setMacroBuilderSource,
   })));
   const builtIns = React.useMemo(() => getBuiltInMacroRecipes(), []);
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
-  const [selectedSource, setSelectedSource] = React.useState<string>('new');
+  const [selectedSource, setSelectedSource] = React.useState<string>(macroBuilderSource ?? 'new');
   const [activeRecipe, setActiveRecipe] = React.useState<MacroRecipe | undefined>(undefined);
   const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
 
-  function handleLoadSelected(value: string): void {
+  const loadSelected = React.useCallback((value: string): void => {
     setSelectedSource(value);
     setSaveMessage(null);
     if (value === 'new') { setActiveRecipe(undefined); return; }
@@ -36,6 +43,21 @@ export const MacroBuilderDrawer: React.FC = () => {
       const found = customRecipes.find((r) => r.id === id);
       setActiveRecipe(found ? cloneRecipe(found) : undefined);
     }
+  }, [customRecipes]);
+
+  React.useEffect(() => {
+    if (!macroBuilderOpen) return;
+    loadSelected(macroBuilderSource ?? 'new');
+  }, [loadSelected, macroBuilderOpen, macroBuilderSource]);
+
+  function handleLoadSelected(value: string): void {
+    setMacroBuilderSource(value);
+    loadSelected(value);
+  }
+
+  function closeBuilder(): void {
+    closeBuilder();
+    setMacroBuilderSource(null);
   }
 
   function handleSave(recipe: MacroRecipe): void {
@@ -55,7 +77,7 @@ export const MacroBuilderDrawer: React.FC = () => {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-        onClick={() => setMacroBuilderOpen(false)}
+        onClick={() => closeBuilder()}
       />
 
       {/* Drawer panel — right side, full height */}
@@ -67,8 +89,8 @@ export const MacroBuilderDrawer: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 m-0">Macro Recipe Builder</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Build, validate, import, export, and save macro recipes.</p>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 m-0">Workflow Builder</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Build, test, save, and run reusable document workflows.</p>
           </div>
           <div className="flex items-center gap-3">
             {saveMessage && (
@@ -95,7 +117,7 @@ export const MacroBuilderDrawer: React.FC = () => {
               )}
             </select>
             <button
-              onClick={() => setMacroBuilderOpen(false)}
+              onClick={() => closeBuilder()}
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all border-none bg-transparent cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -109,7 +131,7 @@ export const MacroBuilderDrawer: React.FC = () => {
             key={activeRecipe?.id ?? selectedSource}
             initialRecipe={activeRecipe}
             onSave={handleSave}
-            onClose={() => setMacroBuilderOpen(false)}
+            onClose={closeBuilder}
           />
         </div>
       </div>
