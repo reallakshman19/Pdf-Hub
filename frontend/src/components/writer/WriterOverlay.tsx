@@ -225,7 +225,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
   const commitOcrRegion = (mode: OcrRegionMode) => {
     if (!pendingOcrRect) return;
 
-    const fingerprint = ocrDocumentFingerprint ?? documentKey;
+    const fingerprint = documentKey ?? ocrDocumentFingerprint;
     if (!fingerprint) {
       addToast({
         type: 'error',
