@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { upsertCustomMacroRecipe } from '@/core/macro/recipes/recipeStorage';
+import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { AutomateSidebar } from './AutomateSidebar';
 
 vi.mock('@/core/macro/sessionRunner', () => ({
@@ -27,8 +28,11 @@ vi.mock('./MacrosSidebar', () => ({
   MacrosSidebar: () => <div data-testid="legacy-macro-tools">Legacy macro tools</div>,
 }));
 
+const runMock = vi.mocked(runMacroRecipeAgainstSession);
+
 describe('AutomateSidebar', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     localStorage.clear();
     useSessionStore.getState().clearDocument();
     useEditorStore.setState({
@@ -57,6 +61,30 @@ describe('AutomateSidebar', () => {
     expect(screen.queryByTestId('legacy-macro-tools')).toBeNull();
     expect(screen.queryByText('Macro Panel')).toBeNull();
     expect(screen.queryByText('Built-ins')).toBeNull();
+  });
+
+  it('preflights and runs a quick action through the shared session runner', async () => {
+    render(<AutomateSidebar />);
+
+    const card = screen.getByText('Footer Page Numbers').closest('article');
+    expect(card).not.toBeNull();
+
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(runMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'footer-page-numbers',
+        dryRun: false,
+      }),
+      expect.objectContaining({
+        saveOutputs: true,
+        abortSignal: expect.any(AbortSignal),
+      }),
+    );
   });
 
   it('opens a quick action in the workflow builder for customization', () => {
