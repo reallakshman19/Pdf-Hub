@@ -1,60 +1,112 @@
-# Operation Contract
+# PDF Hub Operation Contract
 
-This document defines the contract that governs all actions performed by DocCraft.  By formalising the command interface we ensure that every modification to a PDF is auditable, undoable (where technically possible) and safe.  The contract also distinguishes between preview and final execution for destructive operations.
+Status: **authoritative for the current local-first editor architecture**.
 
-## Command Structure
+This contract defines how document mutations enter PDF Hub and how undo/redo is recorded. Historical plans describing a second command registry/store, server-first execution, or subsystem-local PDF history are not authoritative.
 
-Each command is represented by a TypeScript interface extending `PdfCommandBase` and contains:
+## Canonical mutation flow
 
-* `id` – a unique identifier for the command instance.
-* `type` – a string literal indicating the specific command (e.g. `ANNOTATION_ADD`).
-* `source` – where the command originated: `'user'`, `'macro'`, `'ai'` or `'system'`.
-* `risk` – one of `'safe'`, `'destructive-preview-required'`, `'destructive-confirm-required'` or `'server-only'`.
-* `createdAt` – ISO timestamp when the command was created.
-* `documentKey` – the key identifying the document being operated on.
-* `payload` – command‑specific data.  For example, an `ANNOTATION_ADD` payload contains the annotation type, page number and rectangle.
+```text
+Desktop UI ─┐
+Mobile UI ──┤
+Automate ───┤
+Future SDK ─┼──> PdfCommand
+Future Agent┘        |
+                     v
+              CommandBus.execute()
+                     |
+                     v
+              dispatchCommand()
+                     |
+                     v
+             DocumentTransaction
+                     |
+                     v
+               DocumentSession
+                     |
+                     v
+                  PDF engine
+```
 
-Commands return a `PdfCommandResult` containing:
+`dispatchCommand()` is an internal dispatcher. Product surfaces must enter through `CommandBus.execute()` for covered document mutations.
 
-* `ok` – whether the command succeeded.
-* `dirty` – whether the document is now unsaved.
-* `message` – optional human‑readable information.
-* `inverseCommand` – a command that reverses this one (for undo).
+## Command invariants
 
-## Lifecycle
+A canonical `PdfCommand` is JSON-serializable and contains:
+- stable command ID
+- operation type
+- source
+- risk classification
+- creation timestamp
+- document key
+- serializable payload
+- optional group ID
 
-1. **Creation:** A UI event or API call constructs a command and assigns a unique ID and timestamp.
-2. **Validation:** The command is passed to a validator which checks types, ranges and permissions.  Invalid commands are rejected before execution.
-3. **Preview:** For destructive commands (`risk` = `'destructive-preview-required'`), the system produces a `PdfCommandPreview` summarising the effects (e.g. pages that will be deleted) and prompts the user for confirmation.
-4. **Confirmation:** The user (or macro/AI depending on source) must confirm before final execution.  Commands with `risk` = `'destructive-confirm-required'` always require explicit confirmation, even if no preview is shown.
-5. **Execution:** A registered handler applies the command to the document.  The handler must return a `PdfCommandResult` with an inverse command for undo.
-6. **History:** The command and its inverse are recorded in the history stack, making undo/redo possible.  If execution failed, the history is not mutated.
-7. **Persist:** If the document is in server mode, changes are persisted via API calls.  In preview mode, changes remain client‑side until the user saves.
+Binary PDF bytes and donor capabilities are **not** stored inside commands. They are supplied out-of-band through execution resources.
 
-## Risk Levels
+## Transaction invariants
 
-The `risk` field signals how the UI should handle the command:
+A document transaction is the user-visible undo unit.
 
-| Risk                              | UI Handling                                                             |
-|-----------------------------------|-------------------------------------------------------------------------|
-| `safe`                            | Execute immediately; user can undo.                                    |
-| `destructive-preview-required`    | Display preview with diff; require confirmation before execution.       |
-| `destructive-confirm-required`    | Require confirmation; preview is optional.                              |
-| `server-only`                     | Command cannot run client‑side; must be dispatched to the back‑end.     |
+For structural operations it captures the coherent before/after state required to restore:
+- working PDF bytes/revision
+- document key
+- page count
+- current page
+- selected pages
+- annotations/review-backed annotation state
+- Writer V2 overlay state
 
-Examples: adding an annotation is `safe`; deleting pages is `destructive-preview-required`; applying a redaction is `destructive-confirm-required`; merging large files may be `server-only`.
+Page remapping of annotations and Writer elements belongs to the same transaction as the page operation.
 
-## Invariants
+Automate/macros commit as one canonical transaction when the workflow produces one document commit.
 
-* All commands must be serialisable into JSON.  This allows them to be persisted, replayed and transmitted to the server.
-* Undo must never be destructive.  If a command cannot be undone (e.g. due to loss of original content), it must be marked as non‑undoable and the UI should warn the user.
-* The validator must not mutate the document; it only inspects the payload.
-* Command handlers must be pure relative to external state: given the same document and payload they should produce the same result.
+## Chronological history
 
-## Extensibility
+PDF-backed editing uses one chronological document history.
 
-New commands should extend the `PdfCommandBase` interface and be added to the `PdfCommand` union type in `frontend/src/core/commands/types.ts`.  A corresponding handler should be registered in `frontend/src/core/commands/registry.ts`.
+```text
+add annotation
+add Writer element
+rotate pages
+run Automate workflow
+```
 
-## Conclusion
+Undo reverses those operations in exact reverse chronological order, regardless of which UI mode created them.
 
-By adhering to this contract, the DocCraft workbench ensures that user actions are predictable, traceable and reversible.  This foundation enables advanced features such as macros, AI‑generated edits and collaborative workflows without compromising safety.
+Annotation-local document undo/history is retired.
+
+Writer V2 local undo/redo is allowed only for `blankDocument` authoring. PDF-overlay Writer mutations emit `WRITER_CHANGE` transactions into document history and do not retain a second local undo stack.
+
+Lexical in-editor undo while actively editing rich text remains an editor-level concern; committed Writer object mutations enter document history.
+
+## Restore ordering
+
+Undo/redo runs through the document-operation queue. A history move must not race another document mutation.
+
+Before moving a history pointer, persistence required for the target state must succeed. If persistence fails, the history stack remains unchanged.
+
+Restoring a transaction restores dependent annotation and Writer state with document state.
+
+## Save/export separation
+
+History semantics do not change the save contract:
+- **Save / Save As** preserve supported editable native annotations.
+- **Export Flattened** burns visual markup into page content.
+- **Searchable PDF export** is a separate OCR output path.
+
+## Forbidden architecture
+
+Do not reintroduce:
+- `CommandStore`
+- a command registry as a second execution system
+- command-local history separate from document history
+- annotation `history/future/undo/redo` stacks for PDF-backed editing
+- direct product imports of `core/commands/dispatch`
+- PDF-overlay Writer undo as an independent timeline
+
+The Phase 4 architecture audit enforces these boundaries.
+
+## Future phases
+
+Stable `PageId`, PageGraph, PageLabels, large-file sources, mutation-engine abstraction, and the public SDK must build on this command/transaction contract rather than creating parallel mutation paths.
