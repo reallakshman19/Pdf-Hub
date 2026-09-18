@@ -417,6 +417,61 @@ void pageLabelTypes;
 void pageLabelDomain;
 void pageLabelWriter;
 
+const pageLabelEditing = requireContains('src/core/pages/pageLabelEditing.ts', [
+  'buildPageLabelRangesForRestart',
+  'previewPageLabelRestart',
+  "style: 'decimal'",
+]);
+
+const pageLabelsDialog = requireContains(
+  'src/components/dialogs/PageLabelsDialog.tsx',
+  [
+    'Logical Page Labels',
+    'Page labels change the PDF navigator label only',
+    'Physical page',
+    'Apply restart',
+    'Clear labels',
+  ],
+);
+
+const organizeToolbar = requireContains(
+  'src/components/toolbar/ToolbarOrganize.tsx',
+  [
+    'PageLabelsDialog',
+    "type: 'SET_PAGE_LABELS'",
+    'preserveSelection: true',
+    'Logical Page Labels',
+  ],
+);
+
+const thumbnailSidebar = requireContains(
+  'src/components/sidebar/panels/ThumbnailSidebar.tsx',
+  [
+    'logicalLabel',
+    'Page {thumb.pageNumber}',
+    'logical label',
+  ],
+);
+
+const viewToolbar = requireContains(
+  'src/components/toolbar/ToolbarView.tsx',
+  [
+    'currentLogicalLabel',
+    'Logical PDF page label',
+    'viewState.currentPage',
+  ],
+);
+
+if (pageLabelsDialog.includes('drawText') || pageLabelsDialog.includes('ADD_HEADER_FOOTER_TEXT')) {
+  failures.push('PageLabels dialog must not conflate logical labels with printed page content');
+}
+
+void pageLabelEditing;
+void pageLabelsDialog;
+void organizeToolbar;
+void thumbnailSidebar;
+void viewToolbar;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
