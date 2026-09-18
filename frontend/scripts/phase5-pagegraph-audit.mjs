@@ -351,11 +351,36 @@ const pageLabelReader = requireContains('src/core/pages/pdfPageLabels.ts', [
   'Unable to read PDF page labels; using physical page numbers',
 ]);
 
-const pageLabelDomain = requireContains('src/core/pages/pageLabels.ts', [
-  'applyResolvedPageLabels',
-  'clearResolvedPageLabels',
-  'delete next.logicalLabel',
+const pageLabelTypes = requireContains('src/core/pages/types.ts', [
+  'export interface PageLabelRange',
+  'startPageId: PageId',
+  'pageLabelRanges?: PageLabelRange[]',
 ]);
+
+const pageLabelDomain = requireContains('src/core/pages/pageLabels.ts', [
+  'validatePageLabelRanges',
+  'withPageLabelRanges',
+  'reanchorPageLabelRangesAfterGraphChange',
+  'resolveLogicalPageLabels',
+  'formatPageLabelNumber',
+]);
+
+const pageLabelWriter = requireContains('src/core/pages/pdfPageLabelWriter.ts', [
+  "PDFName.of('PageLabels')",
+  "PDFName.of('Nums')",
+  'PDFNumber.of(startIndex)',
+  'PDFHexString.fromText(range.prefix)',
+  'doc.catalog.delete(pageLabelsKey)',
+]);
+
+const commandTypes = read('src/core/commands/types.ts');
+const commandValidators = read('src/core/commands/validators.ts');
+if (!commandTypes.includes("'SET_PAGE_LABELS'")) {
+  failures.push('canonical command types must include SET_PAGE_LABELS');
+}
+if (!commandValidators.includes("case 'SET_PAGE_LABELS'")) {
+  failures.push('command validator must validate SET_PAGE_LABELS');
+}
 
 for (const requiredToken of [
   'readResolvedPdfPageLabels',
@@ -366,16 +391,31 @@ for (const requiredToken of [
   }
 }
 
-const labelInvalidationCount =
-  commandDispatch.match(/clearResolvedPageLabels\(/g)?.length ?? 0;
-if (labelInvalidationCount < 7) {
+for (const requiredToken of [
+  "case 'SET_PAGE_LABELS'",
+  'validatePageLabelRanges',
+  'withPageLabelRanges',
+  'writePdfPageLabels',
+  'reanchorPageLabelRangesAfterGraphChange',
+  'synchronizeStructuralPageLabels',
+]) {
+  if (!commandDispatch.includes(requiredToken)) {
+    failures.push(`command dispatch missing PageLabels token: ${requiredToken}`);
+  }
+}
+
+const labelSyncCount =
+  commandDispatch.match(/synchronizeStructuralPageLabels\(/g)?.length ?? 0;
+if (labelSyncCount < 8) {
   failures.push(
-    `order/count-changing structural commands must invalidate resolved PageLabels; found ${labelInvalidationCount} invalidation sites`,
+    `PageLabel-aware structural commands must rewrite the number tree; found ${labelSyncCount} synchronization sites`,
   );
 }
 
 void pageLabelReader;
+void pageLabelTypes;
 void pageLabelDomain;
+void pageLabelWriter;
 
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
