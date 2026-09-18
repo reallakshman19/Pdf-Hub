@@ -213,9 +213,9 @@ export function MacroBuilderExecutionPanel({
           </p>
         </div>
 
-        {status === 'success' ? (
+        {assessmentCurrent && status === 'success' ? (
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-        ) : status === 'error' ? (
+        ) : assessmentCurrent && status === 'error' ? (
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
         ) : null}
       </div>
