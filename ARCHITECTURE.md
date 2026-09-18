@@ -227,3 +227,29 @@ Until the stabilization roadmap is complete, avoid expanding:
 - Word-like global text reflow
 
 The immediate objective is coherence, correctness and PDF fidelity—not feature count.
+
+
+## Canonical command and history architecture
+
+All PDF-backed product mutations converge on the serializable `PdfCommand` contract and `CommandBus.execute(...)`. The internal dispatcher is not a second public mutation surface.
+
+```text
+UI / Mobile / Automate / future SDK / future agent
+                         |
+                         v
+                    CommandBus
+                         |
+                         v
+                DocumentTransaction
+                         |
+                         v
+                  DocumentSession
+```
+
+Document history is chronological across page operations, annotations, Writer V2 PDF overlays, and Automate commits. Page operations restore dependent annotation and Writer state in the same transaction.
+
+Writer V2 keeps its local undo stack only for standalone `blankDocument` authoring. PDF-overlay Writer mutations create `WRITER_CHANGE` transactions in global document history.
+
+Execution-only binary resources remain out-of-band so command/history records stay serializable.
+
+See `Docs/OPERATION_CONTRACT.md` for the authoritative operation invariants. The Phase 4 static audit prevents the retired duplicate command registry/store and subsystem-local PDF history from returning.
