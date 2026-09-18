@@ -43,6 +43,8 @@ for (const file of [
   'src/components/macro/advanced/MacroPresetParameters.test.tsx',
   'src/core/macro/presetOverrides.ts',
   'src/core/macro/presetOverrides.test.ts',
+  'src/core/macro/builtins.ts',
+  'src/core/macro/builtins.slice13.test.ts',
 ]) {
   forbidFile(file);
 }
@@ -53,6 +55,8 @@ requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
   'Build',
   'Generate Document',
   'MacroGenerateDocumentPanel',
+  'MacroBatchRunPanel',
+  'Batch Process PDFs',
   'MacroOutputQueue',
   'Specialized workflows',
   'setMacroBuilderSource',
@@ -74,6 +78,29 @@ requireMarkers('src/components/macro/advanced/MacroGenerateDocumentPanel.tsx', [
   'dryRun: false',
   'onBusyChange',
   'onOutputsProduced',
+]);
+
+requireMarkers('src/components/macro/advanced/MacroBatchRunPanel.tsx', [
+  'Batch Process PDFs',
+  'FileAdapter.pickPdfFileSources(true)',
+  'runMacroBatch({',
+  'onOutput:',
+  'FileAdapter.downloadBytes',
+  'onBusyChange',
+]);
+
+requireMarkers('src/components/dialogs/BatchRunDialog.tsx', [
+  'getBuiltInMacroRecipes',
+  'isRunnerSafeBuiltInRecipe',
+  'analyzeMacroWorkflowRisk',
+  'usesSelectedPageSelector',
+]);
+
+forbidMarkers('src/components/toolbar/ToolbarOrganize.tsx', [
+  'Batch Run Recipe',
+  'BatchRunDialog',
+  'runMacroBatch',
+  'BUILTIN_MACROS',
 ]);
 
 requireMarkers('src/components/macro/advanced/MacroOutputQueue.tsx', [
