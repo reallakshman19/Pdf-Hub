@@ -104,14 +104,25 @@ function currentOcrPageState(): OcrPageAnchoredState {
 
 function commitOcrPageState(state: OcrPageAnchoredState): void {
   const current = useOcrStore.getState();
+  const hasOcrState = Boolean(
+    state.documentFingerprint
+    || state.result
+    || state.corrections.length > 0
+    || state.regions.length > 0
+    || state.selectedPageIndexes.length > 0
+    || state.reviewFocus,
+  );
+
   useOcrStore.setState(
     recomputeOcrDerivedState({
       ...current,
       ...cloneOcrPageAnchoredState(state),
       activeJobId: null,
       jobs: [],
-      dirty: true,
-      lastUpdatedAt: new Date().toISOString(),
+      dirty: hasOcrState,
+      lastUpdatedAt: hasOcrState
+        ? new Date().toISOString()
+        : current.lastUpdatedAt,
     }),
   );
 }
