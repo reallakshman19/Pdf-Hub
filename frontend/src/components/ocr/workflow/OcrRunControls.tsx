@@ -86,14 +86,18 @@ export interface OcrRunActionsProps {
   running: boolean;
   onRun: () => void;
   onClear: () => void;
+  onCancel?: () => void;
   clearDisabled?: boolean;
+  showClear?: boolean;
 }
 
 export function OcrRunActions({
   running,
   onRun,
   onClear,
+  onCancel,
   clearDisabled = false,
+  showClear = true,
 }: OcrRunActionsProps) {
   return (
     <div className="flex flex-wrap gap-2" data-testid="ocr-run-actions-workflow">
@@ -107,27 +111,41 @@ export function OcrRunActions({
         {running ? (
           <>
             <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            Running
+            Recognizing
           </>
         ) : (
           <>
             <Search className="mr-1 h-3.5 w-3.5" />
-            Run OCR
+            Recognize text
           </>
         )}
       </Button>
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={onClear}
-        disabled={running || clearDisabled}
-        data-testid="clear-ocr-button"
-      >
-        <RotateCcw className="mr-1 h-3.5 w-3.5" />
-        Clear
-      </Button>
+      {running && onCancel ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={onCancel}
+          data-testid="cancel-ocr-button"
+        >
+          Cancel
+        </Button>
+      ) : null}
+
+      {showClear ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onClear}
+          disabled={running || clearDisabled}
+          data-testid="clear-ocr-button"
+        >
+          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+          Reset OCR
+        </Button>
+      ) : null}
     </div>
   );
 }
