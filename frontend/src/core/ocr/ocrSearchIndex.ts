@@ -1,4 +1,5 @@
 import type { PdfRect } from '../writer-v2/types';
+import type { PageId } from '../pages/types';
 import type { OcrCorrection } from './ocrCorrections';
 import type {
   OcrAnyBlock,
@@ -21,6 +22,7 @@ export type OcrSearchCorrection = OcrCorrection;
 export interface OcrSearchIndexItem {
   id: string;
   documentFingerprint: string;
+  pageId?: PageId;
   pageIndex: number;
   source: OcrSearchIndexSource;
   targetId: string;
@@ -138,6 +140,7 @@ export function buildOcrSearchIndex(
               return {
                 id: `ocr-table-cell:${page.pageIndex ?? 0}:${cell.id}`,
                 documentFingerprint: input.document.documentFingerprint,
+                ...(page.pageId ? { pageId: page.pageId } : {}),
                 pageIndex: page.pageIndex ?? 0,
                 source: 'ocrTableCell' as const,
                 targetId: cell.id,
@@ -278,6 +281,7 @@ function wordToSearchItem(
   return {
     id: `ocr-word:${page.pageIndex ?? 0}:${word.id}`,
     documentFingerprint,
+    ...(page.pageId ? { pageId: page.pageId } : {}),
     pageIndex: page.pageIndex ?? 0,
     source: correction ? 'ocrCorrection' : 'ocrWord',
     targetId: word.id,
@@ -299,6 +303,7 @@ function lineToSearchItem(
   return {
     id: `ocr-line:${page.pageIndex ?? 0}:${line.id}`,
     documentFingerprint,
+    ...(page.pageId ? { pageId: page.pageId } : {}),
     pageIndex: page.pageIndex ?? 0,
     source: correction ? 'ocrCorrection' : 'ocrLine',
     targetId: line.id,
@@ -320,6 +325,7 @@ function blockToSearchItem(
   return {
     id: `ocr-block:${page.pageIndex ?? 0}:${block.id}`,
     documentFingerprint,
+    ...(page.pageId ? { pageId: page.pageId } : {}),
     pageIndex: page.pageIndex ?? 0,
     source: correction ? 'ocrCorrection' : 'ocrBlock',
     targetId: block.id,
@@ -337,6 +343,7 @@ function correctionToSearchItem(
   return {
     id: `ocr-correction:${correction.pageIndex}:${correction.id}`,
     documentFingerprint: correction.documentFingerprint,
+    ...(correction.pageId ? { pageId: correction.pageId } : {}),
     pageIndex: correction.pageIndex,
     source: 'ocrCorrection',
     targetId: correction.targetId,
