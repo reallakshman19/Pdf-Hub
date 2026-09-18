@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAnnotationStore } from './store';
 import { useSessionStore } from '../session/store';
+import { useHistoryStore } from '../document-history/store';
 import type { PdfAnnotation } from './types';
 
 const baseAnnotation = (id: string, pageNumber: number, x: number, y: number): PdfAnnotation => ({
@@ -17,20 +18,15 @@ describe('annotation store', () => {
   beforeEach(() => {
     useAnnotationStore.setState({
       annotations: [],
-      history: [],
-      future: [],
       activeAnnotationId: null,
       selectedAnnotationIds: [],
       clipboard: [],
     });
-    useSessionStore.setState({
-      isDirty: false,
-      isDocumentDirty: false,
-      isSessionDirty: false,
-    });
+    useSessionStore.getState().clearDocument();
+    useHistoryStore.getState().clear();
   });
 
-  it('add/update/delete manage selection and history snapshots', () => {
+  it('add/update/delete manage selection state', () => {
     const store = useAnnotationStore.getState();
 
     store.addAnnotation(baseAnnotation('a1', 1, 10, 20));
@@ -40,7 +36,6 @@ describe('annotation store', () => {
     expect(state.annotations).toHaveLength(2);
     expect(state.selectedAnnotationIds).toEqual(['a2']);
     expect(state.activeAnnotationId).toBe('a2');
-    expect(state.history).toHaveLength(2);
 
     store.updateAnnotation('a2', { rect: { x: 111, y: 222, width: 88, height: 55 } });
     state = useAnnotationStore.getState();
@@ -178,4 +173,23 @@ describe('annotation store', () => {
     expect(state.annotations.find((a) => a.id === 'a2')?.rect.x).toBe(10);
     expect(state.annotations.find((a) => a.id === 'a3')?.rect.x).toBe(10);
   });
+
+  it('records PDF-backed annotation mutations in canonical document history', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-annotations',
+      fileName: 'annotations.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+    });
+
+    useAnnotationStore.getState().addAnnotation(baseAnnotation('history-a1', 1, 10, 20));
+
+    const history = useHistoryStore.getState();
+    expect(history.undoStack).toHaveLength(1);
+    expect(history.undoStack[0]?.command.type).toBe('ANNOTATION_CHANGE');
+    expect(history.undoStack[0]?.after.annotations.map((annotation) => annotation.id)).toEqual([
+      'history-a1',
+    ]);
+  });
+
 });
