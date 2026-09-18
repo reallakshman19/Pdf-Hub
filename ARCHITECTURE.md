@@ -272,3 +272,24 @@ Primary PDF admission builds the initial graph from PDF.js page metrics. The ses
 Until structural commands become PageGraph-aware in Phase 5C, legacy `replaceWorkingCopy(...)` invalidates `pageGraph` instead of retaining stale page identity data. Non-structural committed saves preserve PageIds and rekey the graph metadata when the content hash/document key changes.
 
 `pageCount` remains a compatibility field during migration; when PageGraph is present, its page count must agree with `pageGraph.pages.length`.
+
+
+### Structural PageGraph transactions
+
+Structural PDF commands now compute PageGraph changes before the document transaction commits. The same transaction snapshot contains PDF bytes, PageGraph, annotations, Writer state, selection, and current page.
+
+Identity semantics:
+- rotate: preserve PageId; update rotation
+- reorder: preserve PageId; change currentIndex/order
+- split/delete: remove affected PageIds
+- insert donor pages: create new destination PageIds
+- insert blank: create a new PageId
+- duplicate: preserve source PageId and create a new duplicate PageId immediately after it
+- replace page: preserve the target PageId while adopting donor page dimensions/rotation
+- merge: preserve existing PageIds and append newly created destination PageIds
+
+Undo/redo restores the exact PageGraph snapshot with the corresponding byte revision.
+
+`APPLY_WORKING_COPY` remains an opaque whole-document boundary: because the macro output does not yet expose structural intent as canonical page commands, PDF Hub rebuilds a fresh PageGraph for that output. Phase 5H will tighten Automate/API identity semantics once persistent PageId selectors are exposed.
+
+Rotation remapping uses PageGraph page metrics rather than reparsing the PDF once per selected page.

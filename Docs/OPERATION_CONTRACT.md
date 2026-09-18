@@ -52,12 +52,13 @@ For structural operations it captures the coherent before/after state required t
 - working PDF bytes/revision
 - document key
 - page count
+- PageGraph / stable PageIds
 - current page
 - selected pages
 - annotations/review-backed annotation state
 - Writer V2 overlay state
 
-Page remapping of annotations and Writer elements belongs to the same transaction as the page operation.
+PageGraph mutation and page remapping of annotations and Writer elements belong to the same transaction as the page operation. Undo/redo must restore the corresponding PageGraph snapshot together with the byte revision.
 
 Automate/macros commit as one canonical transaction when the workflow produces one document commit.
 

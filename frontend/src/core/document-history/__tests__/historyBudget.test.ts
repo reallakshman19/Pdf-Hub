@@ -30,6 +30,7 @@ function state(bytes: Uint8Array) {
   return {
     bytes,
     pageCount: 1,
+    pageGraph: null,
     documentKey: 'doc',
     selectedPages: [1],
     currentPage: 1,

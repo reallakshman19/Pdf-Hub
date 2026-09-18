@@ -75,6 +75,32 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   },
 }));
 
+const pageGraphMocks = vi.hoisted(() => ({
+  buildPageGraphFromPdfBytes: vi.fn(),
+}));
+
+vi.mock('@/core/pages/pageGraphAdmission', () => ({
+  buildPageGraphFromPdfBytes: pageGraphMocks.buildPageGraphFromPdfBytes,
+}));
+
+function pageGraph(
+  count: number,
+  documentKey = 'test-doc',
+  size = { width: 612, height: 792 },
+) {
+  return {
+    pages: Array.from({ length: count }, (_, index) => ({
+      pageId: `${documentKey}::stable::${index + 1}`,
+      documentKey,
+      originalPageNumber: index + 1,
+      currentIndex: index,
+      width: size.width,
+      height: size.height,
+      rotation: 0 as const,
+    })),
+  };
+}
+
 async function execute(
   draft: PdfCommandDraft,
   options?: {
@@ -148,9 +174,13 @@ describe('canonical command dispatch', () => {
       fileName: 'test.pdf',
       bytes: new Uint8Array([1, 1, 1]),
       pageCount: 3,
+      pageGraph: pageGraph(3),
     });
     pdfMocks.countPages.mockResolvedValue(3);
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
+    pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
+      async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
+    );
   });
 
   it('pushes canonical history and updates session for ROTATE_PAGES', async () => {
@@ -167,6 +197,12 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack[0]?.command.source).toBe('toolbar');
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2, 2, 2]));
     expect(useSessionStore.getState().documentKey).toBe('mock-hash-3');
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      rotation: 90,
+      documentKey: 'mock-hash-3',
+    });
+    expect(pdfMocks.getPageSize).not.toHaveBeenCalled();
   });
 
   it('does not mutate any store when annotation persistence fails', async () => {
@@ -213,6 +249,9 @@ describe('canonical command dispatch', () => {
   it('splits pages and returns extracted artifact', async () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(2);
 
     const result = await execute({
       type: 'SPLIT_PAGES',
@@ -223,12 +262,21 @@ describe('canonical command dispatch', () => {
     expect(result.mutated).toBe(true);
     expect(result.artifacts?.[0]?.bytes).toEqual(new Uint8Array([7, 7, 7]));
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([4, 4, 4]));
+    expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
+      'test-doc::stable::2',
+      'test-doc::stable::3',
+    ]);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 
   it('applies macro output through an out-of-band binary resource', async () => {
     const nextBytes = new Uint8Array([5, 5, 5]);
-    pdfMocks.countPages.mockResolvedValue(4);
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
+    pageGraphMocks.buildPageGraphFromPdfBytes.mockResolvedValueOnce(
+      pageGraph(4, 'macro-output'),
+    );
 
     const result = await execute(
       {
@@ -259,6 +307,10 @@ describe('canonical command dispatch', () => {
     expect(result.mutated).toBe(true);
     expect(result.nextPageCount).toBe(4);
     expect(useSessionStore.getState().selectedPages).toEqual([2]);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(4);
+    expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe(
+      'macro-output::stable::1',
+    );
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Macro run');
     expect(
       JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
@@ -335,9 +387,18 @@ describe('canonical command dispatch', () => {
       new Uint8Array([1, 1, 1]),
       [2, 1, 0],
     );
+    expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
+      'test-doc::stable::3',
+      'test-doc::stable::2',
+      'test-doc::stable::1',
+    ]);
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(6);
     const donor = await admitDonor('INSERT_PAGES');
     pdfMocks.insertAt.mockResolvedValue(new Uint8Array([1, 9, 1]));
 
@@ -360,6 +421,12 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(true);
     expect(pdfMocks.insertAt).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(6);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.slice(1, 4).every(
+        (page) => page.pageId.includes('::insert::'),
+      ),
+    ).toBe(true);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
     expect(
       JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
@@ -401,6 +468,11 @@ describe('canonical command dispatch', () => {
   });
 
   it('preserves admitted merge order and dispatches the mutation once', async () => {
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(9);
     const firstBytes = new TextEncoder().encode('%PDF-1.7\nfirst');
     const secondBytes = new TextEncoder().encode('%PDF-1.7\nsecond');
     const admitted = await admitDonorPdfFiles(
@@ -455,11 +527,20 @@ describe('canonical command dispatch', () => {
     ]);
     expect(pdfMocks.merge).toHaveBeenCalledTimes(1);
     expect(pdfMocks.merge.mock.calls[0]?.[1]).toHaveLength(2);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(9);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.slice(3).every(
+        (page) => page.pageId.includes('::merge::'),
+      ),
+    ).toBe(true);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 
   it('replaces a page from an admitted donor exactly once', async () => {
     const donor = await admitDonor('REPLACE_PAGE');
+    pageGraphMocks.buildPageGraphFromPdfBytes.mockResolvedValueOnce(
+      pageGraph(3, 'donor-replace', { width: 700, height: 900 }),
+    );
     pdfMocks.replacePage.mockResolvedValue(new Uint8Array([4, 4, 4]));
 
     const result = await execute(
@@ -483,11 +564,19 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(true);
     expect(pdfMocks.replacePage).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      width: 700,
+      height: 900,
+    });
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 
   it('inserts blank pages', async () => {
     pdfMocks.insertBlankPage.mockResolvedValue(new Uint8Array([1, 0, 1]));
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
 
     const result = await execute({
       type: 'INSERT_BLANK_PAGE',
@@ -499,6 +588,54 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(true);
     expect(pdfMocks.insertBlankPage).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(4);
+    expect(useSessionStore.getState().pageGraph?.pages[1]).toMatchObject({
+      originalPageNumber: 0,
+      width: 595,
+      height: 842,
+    });
+    expect(useSessionStore.getState().pageGraph?.pages[1]?.pageId).toContain('::blank::1');
+  });
+
+  it('duplicates pages with new stable identities immediately after the source', async () => {
+    pdfMocks.duplicatePages.mockResolvedValue(new Uint8Array([8, 8, 8]));
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
+
+    const result = await execute({
+      type: 'DUPLICATE_PAGES',
+      payload: { pageIndices: [1] },
+    });
+
+    expect(result.success).toBe(true);
+    expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
+      'test-doc::stable::1',
+      'test-doc::stable::2',
+      expect.stringContaining('::duplicate::1'),
+      'test-doc::stable::3',
+    ]);
+  });
+
+  it('uses one permutation for single-page reorder bytes, overlays, and PageGraph', async () => {
+    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([6, 6, 6]));
+
+    const result = await execute({
+      type: 'REORDER_PAGES',
+      payload: { fromIndex: 0, toIndex: 2 },
+    });
+
+    expect(result.success).toBe(true);
+    expect(pdfMocks.movePage).not.toHaveBeenCalled();
+    expect(pdfMocks.reorderPages).toHaveBeenCalledWith(
+      new Uint8Array([1, 1, 1]),
+      [1, 0, 2],
+    );
+    expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
+      'test-doc::stable::2',
+      'test-doc::stable::1',
+      'test-doc::stable::3',
+    ]);
   });
 
   it('adds header/footer text', async () => {

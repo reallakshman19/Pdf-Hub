@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { PdfAnnotation } from '../annotations/types';
 import type { PdfCommand } from '../commands/types';
+import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import type { WriterElementV2 } from '../writer-v2/types';
 import { useHistoryStore } from './store';
@@ -58,6 +59,7 @@ export function recordStateTransaction(
   const baseState = {
     bytes: sharedBytes,
     pageCount: session.pageCount,
+    pageGraph: session.pageGraph ? clonePageGraph(session.pageGraph) : null,
     documentKey: session.documentKey,
     selectedPages: [...session.selectedPages],
     currentPage: session.viewState.currentPage,
