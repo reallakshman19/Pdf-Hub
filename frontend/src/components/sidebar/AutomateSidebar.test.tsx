@@ -8,6 +8,8 @@ import { upsertCustomMacroRecipe } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { AutomateSidebar } from './AutomateSidebar';
 
+const mockCommandExecute = vi.hoisted(() => vi.fn());
+
 vi.mock('@/core/macro/sessionRunner', () => ({
   runMacroRecipeAgainstSession: vi.fn().mockResolvedValue({
     success: true,
