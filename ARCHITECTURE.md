@@ -290,7 +290,7 @@ Identity semantics:
 
 Undo/redo restores the exact PageGraph snapshot with the corresponding byte revision.
 
-`APPLY_WORKING_COPY` remains an opaque whole-document boundary: because the macro output does not yet expose structural intent as canonical page commands, PDF Hub rebuilds a fresh PageGraph for that output. Phase 5H will tighten Automate/API identity semantics once persistent PageId selectors are exposed.
+`APPLY_WORKING_COPY` remains an opaque whole-document boundary for legacy multi-step macro recipes: because those recipes do not yet expose structural intent as canonical page commands, PDF Hub rebuilds a fresh PageGraph for their output. PageLabels automation does not extend this seam; it uses a direct canonical `SET_PAGE_LABELS` task instead. General macro PageId continuity remains future command-compilation work.
 
 Rotation remapping uses PageGraph page metrics rather than reparsing the PDF once per selected page.
 
@@ -444,3 +444,21 @@ On an unlabeled document, adding the first restart after physical page 1 seeds a
 For imported PDFs where PDF.js can resolve labels but the original compact PageLabel range dictionaries have not been reconstructed, the dialog warns that applying a restart replaces that imported scheme with a canonical PDF Hub configuration.
 
 Page Labels UI never calls the low-level PDF writer directly and never uses header/footer drawing commands. All mutations flow through `SET_PAGE_LABELS → CommandBus → DocumentTransaction`.
+
+
+### PageLabels Automate and headless API compatibility
+
+PageLabels now has two non-Organize integration surfaces, both using the existing canonical command contract.
+
+**Automate:** Quick Actions includes a task-level Logical Page Labels card. It reuses the same PageLabels dialog as Organize and dispatches `SET_PAGE_LABELS` through `CommandBus` with source `macro-runner`. It is intentionally **not** a new macro DSL operation. The current legacy macro executor can still collapse structural recipes into an opaque `APPLY_WORKING_COPY`, so embedding stable PageId ranges inside that DSL would imply identity guarantees it cannot yet provide.
+
+**Headless/API:** `PDFHubHeadless` now exposes:
+- `inspectDocument(bytes)` → documentKey + PageGraph/PageIds for those exact bytes
+- `executeCommand(bytes, draft)` → executes the canonical `SET_PAGE_LABELS` draft
+- existing `execute(bytes, recipe)` → legacy macro entrypoint, unchanged
+
+The headless command type is an `Extract<PdfCommandDraft, { type: 'SET_PAGE_LABELS' }>`; there is no parallel PageLabels request model. The API and session dispatch share `executePageLabelCommandMutation`, which owns PageLabel domain validation, derived PageGraph labels, and the PDF writer call.
+
+Headless PageIds are derived during inspection from the exact source-byte document hash. After a successful mutation the PDF bytes/documentKey change, so integrations must inspect the new bytes again before constructing another PageId-anchored command.
+
+This is a narrow integration bridge, not the final public SDK. The later SDK phase should generalize the same canonical command/session model rather than layering a second API contract over it.
