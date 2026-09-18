@@ -160,7 +160,7 @@ describe('MacroBatchRunPanel', () => {
     await waitFor(() => {
       expect(fileMocks.downloadBytes).toHaveBeenCalledWith(
         new Uint8Array([9, 8, 7]),
-        'drawing-review-current-page.pdf',
+        '001-drawing-review-current-page.pdf',
       );
     });
 
