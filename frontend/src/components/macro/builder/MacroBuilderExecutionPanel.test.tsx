@@ -138,6 +138,55 @@ describe('MacroBuilderExecutionPanel', () => {
     });
   });
 
+  it('requires Test Run for destructive workflows and invalidates preview after edits', async () => {
+    const destructiveRecipe: MacroRecipe = {
+      id: 'destructive-builder',
+      name: 'Destructive Builder',
+      steps: [
+        {
+          op: 'remove_pages',
+          selector: { mode: 'selected' },
+        },
+      ],
+    };
+
+    const { rerender } = render(
+      <MacroBuilderExecutionPanel
+        recipe={destructiveRecipe}
+        validationValid
+      />,
+    );
+
+    expect(screen.getByTestId('macro-builder-preview-required')).toBeInTheDocument();
+    expect(screen.getByTestId('macro-builder-run')).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('macro-builder-test-run'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('macro-builder-run')).not.toBeDisabled();
+    });
+
+    rerender(
+      <MacroBuilderExecutionPanel
+        recipe={{
+          ...destructiveRecipe,
+          steps: [
+            ...destructiveRecipe.steps,
+            {
+              op: 'insert_blank_page',
+              position: { mode: 'end' },
+              size: 'a4',
+              count: 1,
+            },
+          ],
+        }}
+        validationValid
+      />,
+    );
+
+    expect(screen.getByTestId('macro-builder-run')).toBeDisabled();
+  });
+
   it('blocks Run when preflight reports an error', async () => {
     validateMock.mockResolvedValueOnce({
       isValid: false,
