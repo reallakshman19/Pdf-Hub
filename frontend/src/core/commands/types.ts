@@ -1,4 +1,5 @@
 import type { AdmittedDonorPdf } from '@/core/admission/donorPdf';
+import type { PageLabelRange } from '@/core/pages/types';
 
 export type PdfCommandSource =
   | 'toolbar'
@@ -115,6 +116,10 @@ export type MergePdfCommand = PdfCommandBase<
   'MERGE_PDF',
   { donorResourceIds: string[] }
 >;
+export type SetPageLabelsCommand = PdfCommandBase<
+  'SET_PAGE_LABELS',
+  { ranges: PageLabelRange[] }
+>;
 export type AddHeaderFooterTextCommand = PdfCommandBase<
   'ADD_HEADER_FOOTER_TEXT',
   { pageIndices: number[]; options: HeaderFooterCommandOptions }
@@ -159,6 +164,7 @@ export type PdfCommand =
   | ReplacePageCommand
   | DuplicatePagesCommand
   | MergePdfCommand
+  | SetPageLabelsCommand
   | AddHeaderFooterTextCommand
   | DrawTextOnPagesCommand
   | DrawRedactionBoxCommand

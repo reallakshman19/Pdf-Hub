@@ -84,8 +84,16 @@ const pageGraphMocks = vi.hoisted(() => ({
   buildPageGraphFromPdfBytes: vi.fn(),
 }));
 
+const pageLabelWriterMocks = vi.hoisted(() => ({
+  writePdfPageLabels: vi.fn(),
+}));
+
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
   buildPageGraphFromPdfBytes: pageGraphMocks.buildPageGraphFromPdfBytes,
+}));
+
+vi.mock('@/core/pages/pdfPageLabelWriter', () => ({
+  writePdfPageLabels: pageLabelWriterMocks.writePdfPageLabels,
 }));
 
 function pageGraph(
@@ -234,6 +242,12 @@ describe('canonical command dispatch', () => {
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
+    );
+    pageLabelWriterMocks.writePdfPageLabels.mockImplementation(
+      async (bytes: Uint8Array, _graph: unknown, ranges: unknown[]) => ({
+        bytes,
+        rangeCount: ranges.length,
+      }),
     );
   });
 
@@ -878,6 +892,105 @@ describe('canonical command dispatch', () => {
       pageIndex: 0,
     });
     expect(useWriterV2Store.getState().elements[0]?.pageId).toBeUndefined();
+  });
+
+  it('sets and clears logical PageLabels through canonical history', async () => {
+    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+      bytes: new Uint8Array([9, 9, 9]),
+      rangeCount: 3,
+    });
+
+    const setResult = await execute({
+      type: 'SET_PAGE_LABELS',
+      payload: {
+        ranges: [
+          { startPageId: 'test-doc::stable::1', prefix: 'Cover' },
+          { startPageId: 'test-doc::stable::2', style: 'roman-lower' },
+          { startPageId: 'test-doc::stable::3', style: 'decimal' },
+        ],
+      },
+    });
+
+    expect(setResult.success).toBe(true);
+    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([
+      { startPageId: 'test-doc::stable::1', prefix: 'Cover' },
+      { startPageId: 'test-doc::stable::2', style: 'roman-lower' },
+      { startPageId: 'test-doc::stable::3', style: 'decimal' },
+    ]);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
+    ).toEqual(['Cover', 'i', '1']);
+    expect(useHistoryStore.getState().undoStack[0]?.command.type).toBe(
+      'SET_PAGE_LABELS',
+    );
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toBeUndefined();
+    expect(
+      useSessionStore.getState().pageGraph?.pages.every(
+        (page) => page.logicalLabel === undefined,
+      ),
+    ).toBe(true);
+
+    await expect(applyRedo()).resolves.toBe(true);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
+    ).toEqual(['Cover', 'i', '1']);
+
+    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+      bytes: new Uint8Array([8, 8, 8]),
+      rangeCount: 0,
+    });
+    const clearResult = await execute({
+      type: 'SET_PAGE_LABELS',
+      payload: { ranges: [] },
+    });
+    expect(clearResult.success).toBe(true);
+    expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([]);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.every(
+        (page) => page.logicalLabel === undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it('preserves canonical PageLabel ranges through explicit reorder and reserializes them', async () => {
+    useSessionStore.getState().setPageGraph({
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['Cover', 'i', '1'][index],
+      })),
+      pageLabelRanges: [
+        { startPageId: 'test-doc::stable::1', prefix: 'Cover' },
+        { startPageId: 'test-doc::stable::2', style: 'roman-lower' },
+        { startPageId: 'test-doc::stable::3', style: 'decimal' },
+      ],
+    });
+    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([6, 6, 6]));
+    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+      bytes: new Uint8Array([7, 7, 7]),
+      rangeCount: 3,
+    });
+
+    const result = await execute({
+      type: 'REORDER_PAGES_BY_ORDER',
+      payload: { order: [2, 1, 0] },
+    });
+
+    expect(result.success).toBe(true);
+    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([7, 7, 7]),
+    );
+    expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
+      'test-doc::stable::3',
+      'test-doc::stable::2',
+      'test-doc::stable::1',
+    ]);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
+    ).toEqual(['1', 'i', 'Cover']);
   });
 
   it('adds header/footer text', async () => {

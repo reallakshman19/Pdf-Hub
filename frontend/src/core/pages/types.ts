@@ -10,6 +10,40 @@ export type PageId = string;
 
 export type PageRotation = 0 | 90 | 180 | 270;
 
+export type PageLabelStyle =
+  | 'decimal'
+  | 'roman-lower'
+  | 'roman-upper'
+  | 'letters-lower'
+  | 'letters-upper';
+
+export interface PageLabelRange {
+  /** Stable page identity where this logical-label range begins. */
+  startPageId: PageId;
+  /** Omit style for prefix-only labels such as "Cover". */
+  style?: PageLabelStyle;
+  prefix?: string;
+  /** Positive starting value for styled ranges. Defaults to 1. */
+  startNumber?: number;
+}
+
+export type PageLabelStyle =
+  | 'decimal'
+  | 'roman-lower'
+  | 'roman-upper'
+  | 'letters-lower'
+  | 'letters-upper';
+
+export interface PageLabelRange {
+  /** Stable page identity where this label range begins. */
+  startPageId: PageId;
+  /** Omit for prefix-only labels. */
+  style?: PageLabelStyle;
+  prefix?: string;
+  /** Positive start value; defaults to 1 when style is present. */
+  startNumber?: number;
+}
+
 /**
  * Canonical page entity used by the future PageGraph/session model.
  *
@@ -52,6 +86,12 @@ export interface PageNode {
 
 export interface PageGraph<TPage extends PageNode = PageNode> {
   pages: TPage[];
+  /**
+   * Canonical PDF Hub labeling rules. Undefined means no canonical range model
+   * has been established (for example, third-party labels read only as resolved
+   * strings). [] means the document is explicitly configured with no PageLabels.
+   */
+  pageLabelRanges?: PageLabelRange[];
 }
 
 /**

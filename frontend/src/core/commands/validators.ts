@@ -124,6 +124,62 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       );
       break;
 
+    case 'SET_PAGE_LABELS': {
+      if (!Array.isArray(command.payload.ranges)) {
+        errors.push('payload.ranges must be an array.');
+        break;
+      }
+      const starts = new Set<string>();
+      const styles = new Set([
+        'decimal',
+        'roman-lower',
+        'roman-upper',
+        'letters-lower',
+        'letters-upper',
+      ]);
+      command.payload.ranges.forEach((range, index) => {
+        requireNonEmpty(
+          range.startPageId,
+          `payload.ranges.${index}.startPageId`,
+          errors,
+        );
+        if (starts.has(range.startPageId)) {
+          errors.push(
+            `payload.ranges cannot contain duplicate startPageId ${range.startPageId}.`,
+          );
+        }
+        starts.add(range.startPageId);
+
+        if (range.style !== undefined && !styles.has(range.style)) {
+          errors.push(
+            `payload.ranges.${index}.style is not a supported PageLabel style.`,
+          );
+        }
+        if (
+          range.startNumber !== undefined
+          && (!Number.isInteger(range.startNumber) || range.startNumber < 1)
+        ) {
+          errors.push(
+            `payload.ranges.${index}.startNumber must be an integer >= 1.`,
+          );
+        }
+        if (range.startNumber !== undefined && range.style === undefined) {
+          errors.push(
+            `payload.ranges.${index}.startNumber requires a numbering style.`,
+          );
+        }
+        if (
+          range.style === undefined
+          && (!range.prefix || range.prefix.length === 0)
+        ) {
+          errors.push(
+            `payload.ranges.${index} must define a style or non-empty prefix.`,
+          );
+        }
+      });
+      break;
+    }
+
     case 'ADD_HEADER_FOOTER_TEXT':
       validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
       requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
