@@ -196,6 +196,8 @@ async function applyMutation(
   beforeBytes: Uint8Array,
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
+  nextSelectedPages?: number[],
+  nextCurrentPage?: number,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return commitDocumentMutation({
     command,
@@ -203,6 +205,8 @@ async function applyMutation(
     beforeBytes,
     afterBytes,
     nextAnnotations,
+    nextSelectedPages,
+    nextCurrentPage,
   });
 }
 
@@ -500,10 +504,13 @@ export async function dispatchPdfCommand(
         if (!nextBytes) {
           return commandError(command, 'RESOURCE_MISSING', 'The working-copy binary resource is unavailable.');
         }
-        const result = await applyMutation(command, context.workingBytes, nextBytes);
-        if (command.payload.selectedPages) {
-          useSessionStore.getState().setSelectedPages(command.payload.selectedPages);
-        }
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          undefined,
+          command.payload.selectedPages,
+        );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });
         return commandSuccess(
           command,
