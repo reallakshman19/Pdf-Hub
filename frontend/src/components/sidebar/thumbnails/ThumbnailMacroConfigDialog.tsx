@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import type { DocumentCommand } from '@/core/commands/types';
 import { VISUAL_MASK_WARNING } from '@/core/redaction/capability';
 
-export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'watermark' | 'redaction';
+export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'watermark' | 'visualMask';
 
 interface ThumbnailMacroConfigDialogProps {
   kind: ThumbnailMacroKind;
@@ -18,7 +18,7 @@ const TITLES: Record<ThumbnailMacroKind, string> = {
   fileHeader: 'Add File Header',
   textStamp: 'Batch Text Stamp',
   watermark: 'Diagonal Watermark',
-  redaction: 'Visual Mask (Not Secure Redaction)',
+  visualMask: 'Visual Mask',
 };
 
 const ALIGN_OPTIONS = ['left', 'center', 'right'] as const;
@@ -81,7 +81,7 @@ const DEFAULTS: Record<
     y: 300,
     rotation: 45,
   },
-  redaction: {
+  visualMask: {
     text: '',
     align: 'left',
     fontSize: 0,
@@ -110,7 +110,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
 
   const isHeaderFooter = kind === 'pageNumbers' || kind === 'fileHeader';
   const isWatermark = kind === 'watermark';
-  const isRedaction = kind === 'redaction';
+  const isVisualMask = kind === 'visualMask';
   const pageCount = pageIndices.length;
 
   const [rotation, setRotation] = React.useState(defaults.rotation ?? 0);
@@ -144,7 +144,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
       return;
     }
 
-    if (isRedaction) {
+    if (isVisualMask) {
       const command: DocumentCommand = {
         type: 'DRAW_REDACTION_BOX',
         pageIndices,
@@ -186,10 +186,10 @@ export const ThumbnailMacroConfigDialog: React.FC<
           Applies to {pageCount} selected page{pageCount === 1 ? '' : 's'}.
           {isHeaderFooter && ' Use {page}, {pages}, {file}, {date} as tokens.'}
           {isWatermark && ' Large diagonal text stamped across each page.'}
-          {isRedaction && ' Draws an opaque rectangle over content.'}
+          {isVisualMask && ' Draws an opaque rectangle over content.'}
         </p>
 
-        {isRedaction && (
+        {isVisualMask && (
           <div
             role="alert"
             className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
@@ -198,7 +198,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
           </div>
         )}
 
-        {!isRedaction && (
+        {!isVisualMask && (
           <Field label="Text">
             <input
               type="text"
@@ -209,7 +209,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
           </Field>
         )}
 
-        {!isRedaction && (
+        {!isVisualMask && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Alignment">
               <select
@@ -237,15 +237,15 @@ export const ThumbnailMacroConfigDialog: React.FC<
           </div>
         )}
 
-        <div className={isRedaction ? '' : 'grid grid-cols-2 gap-3'}>
-          <Field label={isRedaction ? 'Mask color' : 'Color'}>
+        <div className={isVisualMask ? '' : 'grid grid-cols-2 gap-3'}>
+          <Field label={isVisualMask ? 'Mask color' : 'Color'}>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={color}
                 onChange={(event) => setColor(event.target.value)}
                 className="h-8 w-10 rounded border border-slate-300 dark:border-slate-700 bg-transparent"
-                aria-label={isRedaction ? 'Mask color' : 'Color'}
+                aria-label={isVisualMask ? 'Mask color' : 'Color'}
               />
               <input
                 type="text"
@@ -255,7 +255,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
               />
             </div>
           </Field>
-          {!isRedaction && (
+          {!isVisualMask && (
             <Field label={`Opacity (${opacity.toFixed(2)})`}>
               <input
                 type="range"
@@ -316,7 +316,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
           </Field>
         )}
 
-        {isRedaction && (
+        {isVisualMask && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Width (pt)">
               <input
@@ -349,9 +349,9 @@ export const ThumbnailMacroConfigDialog: React.FC<
             variant="primary"
             size="sm"
             onClick={handleApply}
-            disabled={!isRedaction && !text.trim()}
+            disabled={!isVisualMask && !text.trim()}
           >
-            {isRedaction ? 'Apply Visual Mask' : 'Apply'}
+            {isVisualMask ? 'Apply Visual Mask' : 'Apply'}
           </Button>
         </div>
       </div>
