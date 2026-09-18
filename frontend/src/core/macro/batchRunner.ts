@@ -19,12 +19,21 @@ import { log } from '@/core/logger/service';
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
 
+export interface BatchOutputArtifact {
+  readonly inputIndex: number;
+  readonly fileName: string;
+  readonly bytes: Uint8Array;
+}
+
 export interface BatchRunOptions {
   readonly sources: readonly PickedPdfFileSource[];
   readonly recipe: MacroRecipe;
   readonly continueOnError: boolean;
   readonly donorFiles?: Record<string, Uint8Array>;
   readonly abortSignal?: AbortSignal;
+  readonly onOutput?: (
+    output: BatchOutputArtifact,
+  ) => void | Promise<void>;
 }
 
 interface BatchFileRecordBase {
@@ -296,6 +305,12 @@ async function executeValidatedBatchPdf(
   }
 
   const outputBytes = execution.finalBytes.byteLength;
+  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
+  await options.onOutput?.({
+    inputIndex: input.inputIndex,
+    fileName: input.fileName,
+    bytes: execution.finalBytes,
+  });
   throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before recording success`);
   return freezeRecord({
     inputIndex: input.inputIndex,
