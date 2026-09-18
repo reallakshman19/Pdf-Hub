@@ -16,8 +16,6 @@ import type {
   PageNode,
 } from './types';
 
-type PdfLibModule = typeof import('pdf-lib');
-
 export interface PdfPageLabelWriteResult {
   bytes: Uint8Array;
   rangeCount: number;
@@ -130,26 +128,4 @@ function pdfStyleName(style: PageLabelStyle | undefined): string | null {
     default:
       return null;
   }
-}
-
-export function decodePageLabelDictionaryForTests(
-  dict: import('pdf-lib').PDFDict,
-  lib: PdfLibModule,
-): {
-  style?: string;
-  prefix?: string;
-  startNumber?: number;
-} {
-  const style = dict.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.asString();
-  const prefix =
-    dict.lookupMaybe(lib.PDFName.of('P'), lib.PDFString)?.decodeText()
-    ?? dict.lookupMaybe(lib.PDFName.of('P'), lib.PDFHexString)?.decodeText();
-  const startNumber =
-    dict.lookupMaybe(lib.PDFName.of('St'), lib.PDFNumber)?.asNumber();
-
-  return {
-    ...(style ? { style } : {}),
-    ...(prefix !== undefined ? { prefix } : {}),
-    ...(startNumber !== undefined ? { startNumber } : {}),
-  };
 }
