@@ -30,6 +30,18 @@ export function clonePageGraph<TPage extends PageNode>(
   return createPageGraph(graph.pages);
 }
 
+export function rekeyPageGraph<TPage extends PageNode>(
+  graph: PageGraph<TPage>,
+  documentKey: string,
+): PageGraph<TPage> {
+  return createPageGraph(
+    graph.pages.map((page) => ({
+      ...page,
+      documentKey,
+    } as TPage)),
+  );
+}
+
 export function validatePageGraph(
   graph: PageGraph<PageNode>,
 ): PageGraphValidationResult {
