@@ -310,3 +310,20 @@ Boundary rules:
 - native PDF serialization still uses physical page placement; PageId is application identity and is reconstructed from PageGraph on reopen
 
 `APPLY_WORKING_COPY` is still an opaque compatibility boundary and rebinds annotations by their current physical page number onto the rebuilt output PageGraph.
+
+
+### Writer V2 PageId anchors
+
+PDF-overlay Writer V2 elements use `pageId` as canonical page identity. Their zero-based `pageIndex` remains a derived render/export coordinate during migration.
+
+Rules:
+- legacy persisted Writer elements are upgraded from pageIndex to PageId when a PDF-overlay session hydrates
+- placement/add/update paths normalize PageId against the active PageGraph
+- explicit pageIndex retargeting resolves a new PageId; generic Writer patches cannot set PageId directly
+- structural PDF commands preserve/re-resolve Writer elements by PageId
+- duplicate-page copies Writer elements onto the new duplicate PageId
+- replace-page preserves the PageNode identity but retains existing behavior of removing Writer content attached to the replaced page content
+- opaque `APPLY_WORKING_COPY` rebinds PDF-overlay Writer elements by current pageIndex onto the rebuilt PageGraph
+- persisted/autosaved PDF-overlay Writer state is normalized before storage
+
+Standalone blank Writer documents deliberately remain pageIndex-based. PDF structural commands and history restoration do not impose PDF PageIds on blank-document elements.
