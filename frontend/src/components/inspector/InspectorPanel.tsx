@@ -9,6 +9,7 @@ import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
 import { v4 as uuidv4 } from 'uuid';
 import type { ReviewReply, ReviewStatus } from '@/core/review/types';
+import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 
@@ -91,7 +92,7 @@ export const InspectorPanel: React.FC = () => {
   const tabs = [
     { id: 'properties', icon: Settings, label: 'Properties' },
     { id: 'style', icon: Palette, label: 'Style' },
-    { id: 'history', icon: Info, label: 'History' },
+    { id: 'history', icon: Info, label: 'Metadata' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
   ] as const;
 
@@ -304,7 +305,7 @@ const ReviewTab: React.FC<{
       <Section title="Review Status">
         <LabeledSelect
           label="Status"
-          value={activeAnnotation.data.review?.status || 'open'}
+          value={getAnnotationReviewStatus(activeAnnotation)}
           onChange={(value) => {
             updateAnnotation(activeAnnotation.id, {
               data: {
@@ -536,11 +537,7 @@ const PropertiesTab: React.FC<{
 
       <LabeledSelect
         label="Review Status"
-        value={
-          typeof annotation.data.reviewStatus === 'string'
-            ? annotation.data.reviewStatus
-            : 'open'
-        }
+        value={getAnnotationReviewStatus(annotation)}
         onChange={(value) =>
           setReviewStatusForSelection(value as 'open' | 'resolved' | 'rejected')
         }
