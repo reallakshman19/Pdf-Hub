@@ -104,7 +104,7 @@ export const AutomateSidebar: React.FC = () => {
   };
 
   const runRecipe = async (recipe: MacroRecipe) => {
-    if (!workingBytes || runningRecipeId || generationBusy) return;
+    if (!workingBytes || runningRecipeId || generationBusy || specializedOpen) return;
 
     abortRef.current?.abort('Superseded by another workflow');
     const controller = new AbortController();
@@ -251,7 +251,7 @@ export const AutomateSidebar: React.FC = () => {
           <>
             <GenerateDocumentQuickAction
               open={generatorOpen}
-              disabled={runningRecipeId !== null || generationBusy}
+              disabled={runningRecipeId !== null || generationBusy || specializedOpen}
               outputs={generatedOutputs}
               onToggle={() => setGeneratorOpen((value) => !value)}
               onBusyChange={setGenerationBusy}
@@ -271,7 +271,13 @@ export const AutomateSidebar: React.FC = () => {
               actions={quickActions}
               hasDocument={Boolean(workingBytes)}
               selectedPageCount={selectedPages.length}
-              runningRecipeId={generationBusy ? '__generate__' : runningRecipeId}
+              runningRecipeId={
+                generationBusy
+                  ? '__generate__'
+                  : specializedOpen
+                    ? '__specialized__'
+                    : runningRecipeId
+              }
               onRun={(recipe) => void runRecipe(recipe)}
               onCustomize={(item) => openBuilder(`builtin:${item.id}`)}
             />
@@ -282,7 +288,13 @@ export const AutomateSidebar: React.FC = () => {
           <WorkflowLibrary
             recipes={customRecipes}
             hasDocument={Boolean(workingBytes)}
-            runningRecipeId={generationBusy ? '__generate__' : runningRecipeId}
+            runningRecipeId={
+              generationBusy
+                ? '__generate__'
+                : specializedOpen
+                  ? '__specialized__'
+                  : runningRecipeId
+            }
             onRun={(recipe) => void runRecipe(recipe)}
             onEdit={(recipe) => openBuilder(`custom:${recipe.id}`)}
             onDuplicate={duplicateRecipe}
@@ -301,7 +313,14 @@ export const AutomateSidebar: React.FC = () => {
         <details
           className="mt-4 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
           open={specializedOpen}
-          onToggle={(event) => setSpecializedOpen(event.currentTarget.open)}
+          onToggle={(event) => {
+            const nextOpen = event.currentTarget.open;
+            if (nextOpen && (generationBusy || runningRecipeId !== null)) {
+              setSpecializedOpen(false);
+              return;
+            }
+            setSpecializedOpen(nextOpen);
+          }}
         >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Wrench className="h-3.5 w-3.5" />
