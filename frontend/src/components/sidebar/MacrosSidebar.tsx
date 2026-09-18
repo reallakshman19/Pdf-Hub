@@ -123,6 +123,7 @@ export const MacrosSidebar: React.FC = () => {
   const [generationLogs, setGenerationLogs] = React.useState<string[]>([]);
   const [generationError, setGenerationError] = React.useState<string | null>(null);
   const [presetRunnerBusy, setPresetRunnerBusy] = React.useState(false);
+  const [expertBusy, setExpertBusy] = React.useState(false);
   const [outputQueue, setOutputQueue] = React.useState<MacroOutputQueueItem[]>([]);
   const overrides = React.useMemo(
     () =>
@@ -351,7 +352,7 @@ export const MacrosSidebar: React.FC = () => {
           className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
           value={selectedGenerationId}
           onChange={(e) => handleGenerationTemplateChange(e.target.value)}
-          disabled={generationRunning || presetRunnerBusy}
+          disabled={generationRunning || presetRunnerBusy || expertBusy}
         >
           {GENERATION_TEMPLATES.map((template) => (
             <option key={template.id} value={template.id}>
@@ -418,7 +419,7 @@ export const MacrosSidebar: React.FC = () => {
           type="button"
           variant="ghost"
           onClick={resetGenerationValues}
-          disabled={generationRunning || presetRunnerBusy || !selectedGenerationTemplate}
+          disabled={generationRunning || presetRunnerBusy || expertBusy || !selectedGenerationTemplate}
           className="w-full justify-center text-xs"
         >
           Reset Fields
@@ -426,7 +427,7 @@ export const MacrosSidebar: React.FC = () => {
 
         <Button
           onClick={handleGenerate}
-          disabled={generationRunning || presetRunnerBusy || !selectedGenerationTemplate}
+          disabled={generationRunning || presetRunnerBusy || expertBusy || !selectedGenerationTemplate}
           className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
         >
           {generationRunning ? 'Generating...' : 'Generate PDF'}
@@ -472,7 +473,7 @@ export const MacrosSidebar: React.FC = () => {
             className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
             value={selectedRecipeId}
             onChange={(e) => setSelectedRecipeId(e.target.value)}
-            disabled={generationRunning || presetRunnerBusy || !workingBytes}
+            disabled={generationRunning || presetRunnerBusy || expertBusy || !workingBytes}
           >
             <optgroup label="Built-ins">
               {BUILTIN_RECIPES.map((recipe) => (
@@ -803,7 +804,7 @@ export const MacrosSidebar: React.FC = () => {
 
       <MacroPresetExecutionPanel
         recipe={effectiveRecipe}
-        disabled={generationRunning}
+        disabled={generationRunning || expertBusy}
         onBusyChange={setPresetRunnerBusy}
         onSavePreset={saveCurrentPreset}
         onReset={resetPanel}
@@ -826,6 +827,7 @@ export const MacrosSidebar: React.FC = () => {
       <MacroExpertWorkspace
         selectedRecipe={selectedRecipe}
         disabled={generationRunning || presetRunnerBusy}
+        onBusyChange={setExpertBusy}
         onOutputsProduced={(outputs) => {
           setOutputQueue((current) => [
             ...current,
