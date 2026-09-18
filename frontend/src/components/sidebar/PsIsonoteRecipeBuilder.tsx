@@ -137,7 +137,13 @@ function verificationFailureMessage(verification: PsIsonoteVerificationResult): 
     : 'Output verification failed.';
 }
 
-export const PsIsonoteRecipeBuilder: React.FC = () => {
+export interface PsIsonoteRecipeBuilderProps {
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
+  onBusyChange,
+}) => {
   const {
     workingBytes,
     documentKey,
@@ -172,6 +178,15 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [isPackaging, setIsPackaging] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  const workflowBusy = isScanning || isRunning || isPackaging;
+
+  React.useEffect(() => {
+    onBusyChange?.(workflowBusy);
+    return () => {
+      if (workflowBusy) onBusyChange?.(false);
+    };
+  }, [onBusyChange, workflowBusy]);
 
   const parsedState = React.useMemo(() => parseSource(sourceText), [sourceText]);
   const selectedPagesKey = selectedPages.join(',');
@@ -332,6 +347,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   }, [clearRunArtifacts]);
 
   const handlePreview = async () => {
+    onBusyChange?.(true);
     setIsScanning(true);
     setError(null);
     setMessage(null);
@@ -352,10 +368,12 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       setError(scanError instanceof Error ? scanError.message : String(scanError));
     } finally {
       setIsScanning(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleAnnotate = async () => {
+    onBusyChange?.(true);
     setIsRunning(true);
     setError(null);
     setMessage(null);
@@ -455,11 +473,13 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       setError(failureMessage);
     } finally {
       setIsRunning(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleEvidencePackage = async () => {
     if (!auditReport || !auditArtifact || !parsedState.result) return;
+    onBusyChange?.(true);
     setIsPackaging(true);
     setError(null);
     try {
@@ -478,6 +498,7 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
       setError(packageError instanceof Error ? packageError.message : String(packageError));
     } finally {
       setIsPackaging(false);
+      onBusyChange?.(false);
     }
   };
 

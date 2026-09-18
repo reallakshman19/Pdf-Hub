@@ -27,7 +27,14 @@ function summarizeStep(step: MacroStep): string {
   if (step.op === 'header_footer_text') return `${step.zone} · ${step.align} · "${step.text}"`;
   if (step.op === 'insert_blank_page') {
     const pos = step.position;
-    const posStr = pos.mode === 'before' || pos.mode === 'after' ? `${pos.mode} page ${pos.page}` : pos.mode;
+    const posStr =
+      pos.mode === 'before' || pos.mode === 'after'
+        ? `${pos.mode} page ${pos.page}`
+        : pos.mode === 'before-current'
+          ? 'before current page'
+          : pos.mode === 'after-current'
+            ? 'after current page'
+            : pos.mode;
     return `${posStr} · ${typeof step.size === 'string' ? step.size : 'custom'}`;
   }
   if (step.op === 'replace_page') return `page ${step.targetPage} ← donor p${step.donorPage}`;
