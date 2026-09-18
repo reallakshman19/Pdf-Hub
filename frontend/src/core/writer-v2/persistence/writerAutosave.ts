@@ -149,10 +149,13 @@ export async function recoverWriterDraftForCurrentDocument(
   });
 
   const hydratedElements = useWriterV2Store.getState().elements;
-  if (hydratedElements.some((element, index) =>
-    element.pageId !== document.elements[index]?.pageId
-    || element.pageIndex !== document.elements[index]?.pageIndex
-  )) {
+  const anchorsChanged =
+    hydratedElements.length !== document.elements.length
+    || hydratedElements.some((element, index) =>
+      element.pageId !== document.elements[index]?.pageId
+      || element.pageIndex !== document.elements[index]?.pageIndex
+    );
+  if (anchorsChanged) {
     await persistence.saveDocument(
       createWriterDocumentRecord(
         documentFingerprint,
