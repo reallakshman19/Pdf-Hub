@@ -153,6 +153,27 @@ describe('MacroExpertWorkspace', () => {
     expect(runMock).not.toHaveBeenCalled();
   });
 
+  it('reports busy state across expert preflight and execution', async () => {
+    const onBusyChange = vi.fn();
+
+    render(
+      <MacroExpertWorkspace
+        selectedRecipe={safeRecipe}
+        onBusyChange={onBusyChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('macro-expert-run'));
+
+    await waitFor(() => {
+      expect(onBusyChange).toHaveBeenCalledWith(true);
+    });
+
+    await waitFor(() => {
+      expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
   it('hands generated output files back to the parent queue', async () => {
     const onOutputsProduced = vi.fn();
     runMock.mockResolvedValueOnce({
