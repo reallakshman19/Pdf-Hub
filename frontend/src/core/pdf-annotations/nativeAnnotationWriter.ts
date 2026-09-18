@@ -184,6 +184,7 @@ function registerNativeAnnotation(
   if (annotation.data.review) {
     base.StateModel = 'Review';
     base.State = reviewStateName(annotation.data.review.status);
+    base.PDFHubReviewStatus = lib.PDFString.of(annotation.data.review.status);
   }
 
   addSubtypeFields(base, annotation, geometry, stroke, fill, opacity, borderWidth, lib);
