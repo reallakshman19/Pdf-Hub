@@ -10,9 +10,6 @@ import {
   AlertCircle,
   CheckCircle,
   Eye,
-  FileCode2,
-  Rows3,
-  Code2,
   Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -23,12 +20,6 @@ import { error as logError } from '@/core/logger/service';
 import { BUILTIN_MACROS } from '@/core/macro/builtins';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { validateRecipeBeforeRun, type PreflightReport } from '@/core/macro/validation/validator';
-import { macroValidator } from '@/core/macro/validator';
-import {
-  DEFAULT_MACRO_RESOURCE_LIMITS,
-  parseBoundedJson,
-  parseMacroRecipeJson,
-} from '@/core/macro/resourceBudget';
 import { usePresetsStore } from '@/core/macro/store/presets';
 import { ImageIcon } from 'lucide-react';
 import type {
@@ -45,6 +36,7 @@ import {
 import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
 import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
+import { MacroExpertWorkspace } from '@/components/macro/advanced/MacroExpertWorkspace';
 
 function resolveFieldDefault(field: GenerationField): string {
   const raw = field.defaultValue ?? '';
@@ -84,118 +76,6 @@ interface OutputQueueItem extends MacroOutputFile {
 }
 
 const BUILTIN_RECIPES: MacroRecipe[] = Object.values(BUILTIN_MACROS);
-const DEFAULT_EXPERT_RECIPE = BUILTIN_RECIPES[0] ?? null;
-
-// ─── RecipeStepTable ─────────────────────────────────────────────────────────
-
-function summarizeSelector(selector: unknown): string {
-  if (!selector || typeof selector !== 'object') return '';
-  const s = selector as Record<string, unknown>;
-  if (s.mode === 'all') return 'all pages';
-  if (s.mode === 'current') return 'current page';
-  if (s.mode === 'selected') return 'selected pages';
-  if (s.mode === 'odd') return 'odd pages';
-  if (s.mode === 'even') return 'even pages';
-  if (s.mode === 'range') return `p${String(s.from)}–${String(s.to)}`;
-  if (s.mode === 'list' && Array.isArray(s.pages)) return `p${(s.pages as number[]).join(',')}`;
-  return JSON.stringify(selector);
-}
-
-function summarizePosition(position: unknown): string {
-  if (!position || typeof position !== 'object') return '';
-  const p = position as Record<string, unknown>;
-  if (p.mode === 'start') return 'at start';
-  if (p.mode === 'end') return 'at end';
-  if (p.mode === 'before') return `before p${String(p.page)}`;
-  if (p.mode === 'after') return `after p${String(p.page)}`;
-  return JSON.stringify(position);
-}
-
-function summarizeStepParams(step: Record<string, unknown>): string {
-  const parts: string[] = [];
-  if (step.selector) parts.push(summarizeSelector(step.selector));
-  if (step.position) parts.push(summarizePosition(step.position));
-  if (typeof step.degrees === 'number') parts.push(`${String(step.degrees)}°`);
-  if (typeof step.text === 'string') parts.push(`"${step.text.slice(0, 30)}${step.text.length > 30 ? '…' : ''}"`);
-  if (typeof step.outputName === 'string') parts.push(`→ ${step.outputName}`);
-  if (typeof step.count === 'number') parts.push(`×${String(step.count)}`);
-  if (typeof step.atIndex === 'number') parts.push(`at index ${String(step.atIndex)}`);
-  if (typeof step.zone === 'string') parts.push(String(step.zone));
-  if (typeof step.align === 'string') parts.push(String(step.align));
-  if (typeof step.size === 'string') parts.push(String(step.size));
-  if (typeof step.title === 'string') parts.push(`"${step.title.slice(0, 20)}"`);
-  if (Array.isArray(step.blocks)) parts.push(`${String(step.blocks.length)} blocks`);
-  if (Array.isArray(step.order)) parts.push(`[${(step.order as number[]).join(',')}]`);
-  if (Array.isArray(step.donorFileIds)) parts.push(`${String(step.donorFileIds.length)} files`);
-  if (typeof step.donorFileId === 'string') parts.push(`donor: ${step.donorFileId.slice(0, 12)}`);
-  return parts.join(' · ') || '—';
-}
-
-function RecipeStepTable({ json }: { json: string }) {
-  let steps: Array<Record<string, unknown>> = [];
-  let parseError: string | null = null;
-
-  try {
-    const parsed = parseBoundedJson(json, {
-      maxBytes: DEFAULT_MACRO_RESOURCE_LIMITS.maxRecipeJsonBytes,
-      label: 'expert macro preview JSON',
-    }) as { steps?: unknown };
-    if (Array.isArray(parsed.steps)) {
-      steps = parsed.steps as Array<Record<string, unknown>>;
-    } else {
-      parseError = 'No steps array found';
-    }
-  } catch (e) {
-    parseError = e instanceof Error ? e.message : 'Invalid JSON';
-  }
-
-  if (parseError) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-        {parseError}
-      </div>
-    );
-  }
-
-  if (steps.length === 0) {
-    return (
-      <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 text-xs text-slate-500 text-center">
-        No steps defined
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="bg-slate-100 dark:bg-slate-800">
-            <th className="px-1.5 py-1 text-left font-semibold text-slate-500 dark:text-slate-400 w-6">#</th>
-            <th className="px-1.5 py-1 text-left font-semibold text-slate-500 dark:text-slate-400">Operation</th>
-            <th className="px-1.5 py-1 text-left font-semibold text-slate-500 dark:text-slate-400">Parameters</th>
-          </tr>
-        </thead>
-        <tbody>
-          {steps.map((step, i) => (
-            <tr
-              key={i}
-              className={`border-t border-slate-100 dark:border-slate-800 ${i % 2 === 1 ? 'bg-slate-50 dark:bg-slate-900' : 'bg-white dark:bg-slate-950'}`}
-            >
-              <td className="px-1.5 py-1 text-slate-400 dark:text-slate-600 font-mono">{i + 1}</td>
-              <td className="px-1.5 py-1 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                {typeof step.op === 'string' ? step.op.replace(/_/g, ' ') : '?'}
-              </td>
-              <td className="px-1.5 py-1 text-slate-500 dark:text-slate-400 break-all">
-                {summarizeStepParams(step)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ─── MacrosSidebar ───────────────────────────────────────────────────────────
 
 export const MacrosSidebar: React.FC = () => {
@@ -253,24 +133,10 @@ export const MacrosSidebar: React.FC = () => {
   const [outputQueue, setOutputQueue] = React.useState<OutputQueueItem[]>([]);
   const [preflightReport, setPreflightReport] = React.useState<PreflightReport | null>(null);
   const [isDryRunning, setIsDryRunning] = React.useState(false);
-  const [expertRecipeJson, setExpertRecipeJson] = React.useState<string>(
-    DEFAULT_EXPERT_RECIPE ? JSON.stringify(DEFAULT_EXPERT_RECIPE, null, 2) : '',
-  );
-  const [expertRecipeName, setExpertRecipeName] = React.useState<string>(
-    DEFAULT_EXPERT_RECIPE ? `${DEFAULT_EXPERT_RECIPE.name} (Expert)` : 'Expert Preset',
-  );
-  const [expertPreflightReport, setExpertPreflightReport] = React.useState<PreflightReport | null>(null);
-  const [expertLogs, setExpertLogs] = React.useState<string[]>([]);
-  const [expertRunError, setExpertRunError] = React.useState<string | null>(null);
-  const [isExpertDryRunning, setIsExpertDryRunning] = React.useState(false);
-  const [isExpertRunning, setIsExpertRunning] = React.useState(false);
-  const [recipeViewMode, setRecipeViewMode] = React.useState<'table' | 'json'>('table');
   const runAbortControllerRef = React.useRef<AbortController | null>(null);
-  const expertAbortControllerRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => () => {
     runAbortControllerRef.current?.abort('Macro panel unmounted');
-    expertAbortControllerRef.current?.abort('Macro panel unmounted');
   }, []);
   const overrides = React.useMemo(
     () =>
@@ -469,157 +335,6 @@ export const MacrosSidebar: React.FC = () => {
     }
 
     setOutputQueue([]);
-  };
-
-  const buildValidationContext = React.useCallback(() => ({
-    pageCount: Math.max(1, pageCount),
-    selectedPages: useSessionStore.getState().selectedPages,
-    currentPage: viewState.currentPage,
-    fileName: fileName ?? 'document.pdf',
-    donorFiles: {},
-    now: new Date(),
-  }), [fileName, pageCount, viewState.currentPage]);
-
-  const loadSelectedRecipeIntoExpert = () => {
-    if (!selectedRecipe) {
-      return;
-    }
-    setExpertRecipeName(`${selectedRecipe.name} (Expert)`);
-    setExpertRecipeJson(JSON.stringify(selectedRecipe, null, 2));
-    setExpertPreflightReport(null);
-    setExpertLogs([]);
-    setExpertRunError(null);
-  };
-
-  const parseExpertRecipe = (): MacroRecipe => {
-    const raw = expertRecipeJson.trim();
-    if (raw.length === 0) {
-      throw new Error('Expert recipe JSON is empty.');
-    }
-
-    const parsed: unknown = parseMacroRecipeJson(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('Recipe JSON must be an object.');
-    }
-
-    const candidate = parsed as {
-      id?: unknown;
-      name?: unknown;
-      steps?: unknown;
-      dryRun?: unknown;
-    };
-
-    if (typeof candidate.id !== 'string' || candidate.id.trim().length === 0) {
-      throw new Error('Recipe field "id" is required.');
-    }
-    if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
-      throw new Error('Recipe field "name" is required.');
-    }
-    if (!Array.isArray(candidate.steps)) {
-      throw new Error('Recipe field "steps" must be an array.');
-    }
-
-    const recipe = candidate as MacroRecipe;
-    const validation = macroValidator.validate(recipe);
-    if (!validation.valid) {
-      const details = validation.errors
-        .map((error) => `Step ${error.stepIndex + 1} (${error.op}) ${error.field}: ${error.message}`)
-        .join('\n');
-      throw new Error(`Recipe schema validation failed.\n${details}`);
-    }
-
-    return recipe;
-  };
-
-  const runExpertDryRun = async () => {
-    setExpertRunError(null);
-    setExpertPreflightReport(null);
-    setExpertLogs([]);
-    setIsExpertDryRunning(true);
-
-    try {
-      const parsed = parseExpertRecipe();
-      const dryRunRecipe: MacroRecipe = {
-        ...parsed,
-        dryRun: true,
-      };
-      const report = await validateRecipeBeforeRun(dryRunRecipe, buildValidationContext());
-      setExpertPreflightReport(report);
-      setExpertLogs(report.dryRunLogs);
-    } catch (err) {
-      setExpertRunError(String(err));
-    } finally {
-      setIsExpertDryRunning(false);
-    }
-  };
-
-  const runExpertRecipe = async () => {
-    if (!workingBytes) return;
-
-    expertAbortControllerRef.current?.abort('Superseded by a new expert macro run');
-    const controller = new AbortController();
-    expertAbortControllerRef.current = controller;
-    setExpertRunError(null);
-    setExpertPreflightReport(null);
-    setExpertLogs([]);
-    setIsExpertRunning(true);
-
-    try {
-      const parsed = parseExpertRecipe();
-      const report = await validateRecipeBeforeRun(parsed, buildValidationContext());
-      setExpertPreflightReport(report);
-      if (!report.isValid) {
-        setExpertRunError('Preflight failed. Fix recipe errors before running.');
-        return;
-      }
-
-      const result = await runMacroRecipeAgainstSession(parsed, {
-        saveOutputs: false,
-        abortSignal: controller.signal,
-      });
-      setExpertLogs(result.logs);
-      if (result.status === 'cancelled') return;
-      if (result.status === 'timed-out') {
-        setExpertRunError('Expert macro timed out. The document was restored and late results were discarded.');
-        return;
-      }
-      if (result.status === 'failed') {
-        setExpertRunError(result.logs.at(-1) ?? 'Expert macro execution failed.');
-        return;
-      }
-      if (result.outputFiles.length > 0) {
-        setOutputQueue((current) => [
-          ...current,
-          ...result.outputFiles.map((output) => ({ id: uuidv4(), ...output })),
-        ]);
-      }
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      const message = String(err);
-      setExpertRunError(message);
-      logError('macro', 'Expert macro execution failed', { error: message });
-    } finally {
-      if (expertAbortControllerRef.current === controller) expertAbortControllerRef.current = null;
-      setIsExpertRunning(false);
-    }
-  };
-
-  const cancelExpertRecipe = () => {
-    expertAbortControllerRef.current?.abort('Cancelled by user');
-  };
-
-  const saveExpertPreset = () => {
-    try {
-      const parsed = parseExpertRecipe();
-      const nextName = expertRecipeName.trim();
-      savePreset({
-        ...parsed,
-        name: nextName.length > 0 ? nextName : parsed.name,
-      });
-      setExpertRunError(null);
-    } catch (err) {
-      setExpertRunError(String(err));
-    }
   };
 
   const updateGenerationValue = (key: string, value: string) => {
@@ -1336,144 +1051,19 @@ export const MacrosSidebar: React.FC = () => {
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <FileCode2 className="w-4 h-4" />
-            Expert JSON Builder
-          </div>
-          <Button variant="ghost" size="sm" onClick={loadSelectedRecipeIntoExpert} disabled={!selectedRecipe}>
-            <Code2 className="w-3.5 h-3.5 mr-1" />
-            Load Selected
-          </Button>
-        </div>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            Preset Name
-          </span>
-          <input
-            type="text"
-            value={expertRecipeName}
-            onChange={(event) => setExpertRecipeName(event.target.value)}
-            className="w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
-            placeholder="Expert preset name"
-          />
-        </label>
-
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Recipe Steps
-            </span>
-            <div className="flex items-center gap-0.5 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <button
-                type="button"
-                title="Table view"
-                onClick={() => setRecipeViewMode('table')}
-                className={`px-1.5 py-0.5 flex items-center gap-0.5 text-[10px] transition-colors ${recipeViewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-100'}`}
-              >
-                <Rows3 className="w-3 h-3" /> Table
-              </button>
-              <button
-                type="button"
-                title="JSON view"
-                onClick={() => setRecipeViewMode('json')}
-                className={`px-1.5 py-0.5 flex items-center gap-0.5 text-[10px] transition-colors ${recipeViewMode === 'json' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-100'}`}
-              >
-                <Code2 className="w-3 h-3" /> JSON
-              </button>
-            </div>
-          </div>
-
-          {recipeViewMode === 'table' ? (
-            <RecipeStepTable json={expertRecipeJson} />
-          ) : (
-            <textarea
-              value={expertRecipeJson}
-              onChange={(event) => setExpertRecipeJson(event.target.value)}
-              className="w-full min-h-[220px] rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-2 text-xs font-mono"
-              spellCheck={false}
-            />
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void runExpertDryRun()}
-            disabled={isExpertDryRunning || isExpertRunning || isRunning}
-          >
-            {isExpertDryRunning ? (
-              <RotateCw className="w-3.5 h-3.5 mr-1 animate-spin" />
-            ) : (
-              <Eye className="w-3.5 h-3.5 mr-1" />
-            )}
-            Validate + Dry Run
-          </Button>
-          {isExpertRunning ? (
-            <Button variant="secondary" size="sm" onClick={cancelExpertRecipe} className="text-red-600">
-              <Square className="w-3.5 h-3.5 mr-1" />
-              Cancel Expert
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => void runExpertRecipe()}
-              disabled={isExpertDryRunning || isRunning}
-            >
-              <Play className="w-3.5 h-3.5 mr-1" />
-              Run Expert
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={saveExpertPreset}
-            disabled={isExpertRunning || isExpertDryRunning}
-          >
-            <Save className="w-3.5 h-3.5 mr-1" />
-            Save Preset
-          </Button>
-        </div>
-
-        {expertPreflightReport && (
-          <div className={`p-2 rounded text-xs ${expertPreflightReport.isValid ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-            <div className="flex items-center gap-1 font-semibold mb-1">
-              {expertPreflightReport.isValid ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-              {expertPreflightReport.isValid ? 'Expert preflight passed' : 'Expert preflight failed'}
-            </div>
-            {expertPreflightReport.errors.length > 0 && (
-              <ul className="list-disc pl-4 space-y-0.5 mt-1">
-                {expertPreflightReport.errors.map((errorLine, index) => <li key={index}>{errorLine}</li>)}
-              </ul>
-            )}
-            {expertPreflightReport.warnings.length > 0 && (
-              <ul className="list-disc pl-4 space-y-0.5 mt-1 text-amber-600 dark:text-amber-400">
-                {expertPreflightReport.warnings.map((warningLine, index) => <li key={index}>{warningLine}</li>)}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {expertRunError && (
-          <div className="rounded-md border border-red-300 bg-red-50 text-red-700 px-2 py-1 text-xs whitespace-pre-wrap">
-            {expertRunError}
-          </div>
-        )}
-
-        <div className="space-y-1 max-h-40 overflow-auto rounded-md border border-slate-200 dark:border-slate-800 p-2">
-          {expertLogs.length === 0 && (
-            <div className="text-xs text-slate-500">No expert run logs yet.</div>
-          )}
-          {expertLogs.map((line, index) => (
-            <div key={`expert-${index}-${line}`} className="text-xs text-slate-600 dark:text-slate-300">
-              {line}
-            </div>
-          ))}
-        </div>
-      </section>
+      <MacroExpertWorkspace
+        selectedRecipe={selectedRecipe}
+        disabled={isRunning || isDryRunning}
+        onOutputsProduced={(outputs) => {
+          setOutputQueue((current) => [
+            ...current,
+            ...outputs.map((output) => ({
+              id: uuidv4(),
+              ...output,
+            })),
+          ]);
+        }}
+      />
     </div>
   );
 };
