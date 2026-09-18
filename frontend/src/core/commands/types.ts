@@ -161,6 +161,13 @@ export type PdfCommandOfType<TType extends PdfCommandType> = Extract<
 export type PdfCommandPayload<TType extends PdfCommandType> =
   PdfCommandOfType<TType>['payload'];
 
+export type PdfCommandDraft = {
+  [TType in PdfCommandType]: {
+    type: TType;
+    payload: PdfCommandPayload<TType>;
+  };
+}[PdfCommandType];
+
 export interface CreatePdfCommandInput<TType extends PdfCommandType> {
   type: TType;
   source: PdfCommandSource;
