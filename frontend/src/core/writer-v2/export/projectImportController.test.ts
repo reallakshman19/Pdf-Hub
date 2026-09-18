@@ -10,6 +10,7 @@ import { useWriterV2Store } from '../writerV2Store';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   exportPdfHubWriterProject,
@@ -23,6 +24,25 @@ import {
   type StandaloneWriterProjectOperation,
   type StagedWriterProjectImport,
 } from './projectImportController';
+
+
+vi.mock('@/core/pages/pageGraphAdmission', () => ({
+  buildPageGraphFromPdfBytes: vi.fn(),
+}));
+
+function mockPageGraph(documentKey: string) {
+  return {
+    pages: [{
+      pageId: `${documentKey}::page::1`,
+      documentKey,
+      originalPageNumber: 1,
+      currentIndex: 0,
+      width: 612,
+      height: 792,
+      rotation: 0 as const,
+    }],
+  };
+}
 
 async function onePagePdfBytes(): Promise<Uint8Array> {
   const document = await PDFDocument.create();
@@ -169,6 +189,9 @@ function stateSnapshot() {
 
 describe('atomic standalone Writer project import', () => {
   beforeEach(() => {
+    vi.mocked(buildPageGraphFromPdfBytes).mockImplementation(
+      async (_bytes, documentKey) => mockPageGraph(documentKey),
+    );
     useSessionStore.getState().clearDocument();
     useWriterV2Store.getState().clearWriterV2();
     useEditorStore.getState().setActiveMode('annotate');
@@ -195,6 +218,13 @@ describe('atomic standalone Writer project import', () => {
     expect(result.documentFingerprint).toBe('doc-1');
     expect(useSessionStore.getState().documentKey).toBe('doc-1');
     expect(useSessionStore.getState().pageCount).toBe(1);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(1);
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'doc-1::page::1',
+      currentIndex: 0,
+      width: 612,
+      height: 792,
+    });
     expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('doc-1');
     expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
     expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');

@@ -90,4 +90,111 @@ describe('Session Store', () => {
     expect(useSessionStore.getState().originalBytes).toBe(committedBytes);
     expect(useSessionStore.getState().workingBytes).toBe(committedBytes);
   });
+
+  it('stores a real PageGraph on open and clears it with the document', () => {
+    const pageGraph = {
+      pages: [{
+        pageId: 'doc-page-1',
+        documentKey: 'doc-graph',
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0 as const,
+      }],
+    };
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-graph',
+      fileName: 'graph.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph,
+    });
+
+    expect(useSessionStore.getState().pageGraph).toEqual(pageGraph);
+
+    useSessionStore.getState().clearDocument();
+
+    expect(useSessionStore.getState().pageGraph).toBeNull();
+    expect(useSessionStore.getState().pageCount).toBe(0);
+  });
+
+  it('invalidates PageGraph on legacy working-copy mutation until structural commands become graph-aware', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-graph',
+      fileName: 'graph.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'doc-graph',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    useSessionStore.getState().replaceWorkingCopy(new Uint8Array([2]), 1);
+
+    expect(useSessionStore.getState().pageGraph).toBeNull();
+  });
+
+  it('preserves PageId and rekeys PageGraph metadata on non-structural committed save', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-before',
+      fileName: 'graph.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'doc-before',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    useSessionStore.getState().commitWorkingCopy({
+      bytes: new Uint8Array([2]),
+      pageCount: 1,
+      documentKey: 'doc-after',
+    });
+
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'stable-page',
+      documentKey: 'doc-after',
+    });
+  });
+
+  it('rejects an opening payload whose PageGraph count disagrees with pageCount', () => {
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-invalid',
+        fileName: 'invalid.pdf',
+        bytes: new Uint8Array([1]),
+        pageCount: 2,
+        pageGraph: {
+          pages: [{
+            pageId: 'only-page',
+            documentKey: 'doc-invalid',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          }],
+        },
+      }),
+    ).toThrow(/PageGraph count 1 does not match pageCount 2/);
+  });
+
 });

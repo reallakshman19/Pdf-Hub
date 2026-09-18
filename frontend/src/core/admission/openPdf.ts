@@ -1,11 +1,12 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
 import { log, error as logError, warn } from '@/core/logger/service';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
+import type { PageGraph, PageNode } from '@/core/pages/types';
 import type { OpenDocumentPayload } from '@/core/session/store';
 import { useSessionStore } from '@/core/session/store';
 import { sortAdmissionDiagnostics } from './diagnostics';
@@ -31,6 +32,7 @@ export interface OpenedPdfDocument {
   readonly fileName: string;
   readonly bytes: Uint8Array;
   readonly pageCount: number;
+  readonly pageGraph: PageGraph<PageNode>;
   readonly saveHandle: FileSystemFileHandle | null;
 }
 
@@ -38,6 +40,7 @@ export interface OpenPdfFileOptions {
   readonly signal?: AbortSignal;
   readonly saveHandle?: FileSystemFileHandle | null;
   readonly commit?: (payload: OpenDocumentPayload) => void;
+  readonly buildPageGraph?: typeof buildPageGraphFromPdfBytes;
 }
 
 export const PRIMARY_PDF_OPEN_POLICY = createAdmissionPolicy({
@@ -132,9 +135,16 @@ export async function admitAndOpenPdfFile(
       return reject('REJECTED_INVALID_FORMAT', source, measurements, diagnostics);
     }
 
-    let pageCount: number;
+    const documentKey = await raceWithAbort(
+      FileAdapter.hashBytes(bytes),
+      options.signal,
+      'open PDF: hash document',
+    );
+
+    let pageGraph: PageGraph<PageNode>;
     try {
-      pageCount = await PdfEditAdapter.countPages(bytes, { signal: options.signal });
+      const buildPageGraph = options.buildPageGraph ?? buildPageGraphFromPdfBytes;
+      pageGraph = await buildPageGraph(bytes, documentKey, options.signal);
     } catch (error) {
       if (isOperationCancelledError(error)) throw error;
       diagnostics.push({
@@ -146,6 +156,7 @@ export async function admitAndOpenPdfFile(
       return reject('REJECTED_INVALID_FORMAT', source, measurements, diagnostics);
     }
 
+    const pageCount = pageGraph.pages.length;
     measurements.push({
       metric: 'PDF_PAGE_COUNT',
       actual: pageCount,
@@ -160,12 +171,6 @@ export async function admitAndOpenPdfFile(
       });
       return reject('REJECTED_INVALID_FORMAT', source, measurements, diagnostics);
     }
-
-    const documentKey = await raceWithAbort(
-      FileAdapter.hashBytes(bytes),
-      options.signal,
-      'open PDF: hash document',
-    );
 
     assertAdmissionCommitAllowed(options.signal, 'open admitted PDF');
     if (generation !== latestOpenGeneration) {
@@ -184,6 +189,7 @@ export async function admitAndOpenPdfFile(
       fileName: file.name,
       bytes,
       pageCount,
+      pageGraph,
       saveHandle,
     };
     const commit = options.commit ?? useSessionStore.getState().openDocument;
@@ -195,6 +201,7 @@ export async function admitAndOpenPdfFile(
       fileName: file.name,
       bytes,
       pageCount,
+      pageGraph,
       saveHandle,
     });
     const evidence = createEvidence(measurements, diagnostics);

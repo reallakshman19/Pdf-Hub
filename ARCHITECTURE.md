@@ -253,3 +253,22 @@ Writer V2 keeps its local undo stack only for standalone `blankDocument` authori
 Execution-only binary resources remain out-of-band so command/history records stay serializable.
 
 See `Docs/OPERATION_CONTRACT.md` for the authoritative operation invariants. The Phase 4 static audit prevents the retired duplicate command registry/store and subsystem-local PDF history from returning.
+
+
+## Stable page identity foundation
+
+Document sessions now carry a `PageGraph` when a PDF is admitted through a production open path.
+
+Each `PageNode` separates:
+- stable `pageId`
+- mutable zero-based `currentIndex`
+- source page number
+- PDF-point dimensions
+- page rotation
+- future logical `/PageLabels` value
+
+Primary PDF admission builds the initial graph from PDF.js page metrics. The session layer stores the graph but does not depend on PDF.js.
+
+Until structural commands become PageGraph-aware in Phase 5C, legacy `replaceWorkingCopy(...)` invalidates `pageGraph` instead of retaining stale page identity data. Non-structural committed saves preserve PageIds and rekey the graph metadata when the content hash/document key changes.
+
+`pageCount` remains a compatibility field during migration; when PageGraph is present, its page count must agree with `pageGraph.pages.length`.

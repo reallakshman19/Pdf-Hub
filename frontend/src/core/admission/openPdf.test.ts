@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import {
   admitAndOpenPdfFile,
   PRIMARY_PDF_OPEN_POLICY,
 } from './openPdf';
+import type { PageGraph, PageNode } from '@/core/pages/types';
 
 function createFile(
   bytes: Uint8Array,
@@ -28,6 +28,21 @@ function createDeferred<T>(): {
     resolve = nextResolve;
   });
   return { promise, resolve };
+}
+
+
+function pageGraph(count: number, documentKey = 'sha256:fixture'): PageGraph<PageNode> {
+  return {
+    pages: Array.from({ length: count }, (_, index) => ({
+      pageId: `${documentKey}::page::${index + 1}`,
+      documentKey,
+      originalPageNumber: index + 1,
+      currentIndex: index,
+      width: 595,
+      height: 842,
+      rotation: 0 as const,
+    })),
+  };
 }
 
 function pdfHeaderBytes(): Uint8Array {
@@ -76,27 +91,33 @@ describe('primary PDF admission coordinator', () => {
     expect(commit).not.toHaveBeenCalled();
   });
 
-  it('rejects a missing PDF signature before page parsing and hashing', async () => {
+  it('rejects a missing PDF signature before PageGraph parsing and hashing', async () => {
     const file = createFile(new TextEncoder().encode('not a PDF'));
-    const countPages = vi.spyOn(PdfEditAdapter, 'countPages');
     const hashBytes = vi.spyOn(FileAdapter, 'hashBytes');
+    const buildPageGraph = vi.fn();
     const commit = vi.fn();
 
-    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP', { commit });
+    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP', {
+      commit,
+      buildPageGraph,
+    });
 
     expect(result.outcome).toBe('REJECTED_INVALID_FORMAT');
-    expect(countPages).not.toHaveBeenCalled();
+    expect(buildPageGraph).not.toHaveBeenCalled();
     expect(hashBytes).not.toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalled();
   });
 
   it('commits one accepted PDF exactly once', async () => {
     const file = createFile(pdfHeaderBytes());
-    vi.spyOn(PdfEditAdapter, 'countPages').mockResolvedValue(3);
     vi.spyOn(FileAdapter, 'hashBytes').mockResolvedValue('sha256:fixture');
+    const buildPageGraph = vi.fn().mockResolvedValue(pageGraph(3));
     const commit = vi.fn();
 
-    const result = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', { commit });
+    const result = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
+      commit,
+      buildPageGraph,
+    });
 
     expect(result.outcome).toBe('ACCEPTED');
     expect(commit).toHaveBeenCalledTimes(1);
@@ -105,6 +126,7 @@ describe('primary PDF admission coordinator', () => {
       fileName: 'sample.pdf',
       bytes: expect.any(Uint8Array),
       pageCount: 3,
+      pageGraph: pageGraph(3),
       saveHandle: null,
     });
     expect(result.evidence.measurements).toEqual([
@@ -122,23 +144,25 @@ describe('primary PDF admission coordinator', () => {
     ]);
   });
 
-  it('does not commit when parsing fails', async () => {
+  it('does not commit when PageGraph parsing fails', async () => {
     const file = createFile(pdfHeaderBytes());
-    vi.spyOn(PdfEditAdapter, 'countPages').mockRejectedValue(new Error('broken xref'));
-    const hashBytes = vi.spyOn(FileAdapter, 'hashBytes');
+    vi.spyOn(FileAdapter, 'hashBytes').mockResolvedValue('sha256:broken');
+    const buildPageGraph = vi.fn().mockRejectedValue(new Error('broken xref'));
     const commit = vi.fn();
 
-    const result = await admitAndOpenPdfFile(file, 'WORKSPACE_PICKER', { commit });
+    const result = await admitAndOpenPdfFile(file, 'WORKSPACE_PICKER', {
+      commit,
+      buildPageGraph,
+    });
 
     expect(result.outcome).toBe('REJECTED_INVALID_FORMAT');
-    expect(hashBytes).not.toHaveBeenCalled();
+    expect(buildPageGraph).toHaveBeenCalledTimes(1);
     expect(commit).not.toHaveBeenCalled();
   });
 
   it('does not commit when cancellation arrives before the final checkpoint', async () => {
     const file = createFile(pdfHeaderBytes());
     const controller = new AbortController();
-    vi.spyOn(PdfEditAdapter, 'countPages').mockResolvedValue(1);
     vi.spyOn(FileAdapter, 'hashBytes').mockImplementation(async () => {
       controller.abort('superseded');
       return 'sha256:cancelled';
@@ -148,6 +172,7 @@ describe('primary PDF admission coordinator', () => {
     const result = await admitAndOpenPdfFile(file, 'WORKSPACE_PICKER', {
       signal: controller.signal,
       commit,
+      buildPageGraph: vi.fn().mockResolvedValue(pageGraph(1, 'sha256:cancelled')),
     });
 
     expect(result.outcome).toBe('CANCELLED');
@@ -157,23 +182,22 @@ describe('primary PDF admission coordinator', () => {
   it('suppresses a late result after a newer open operation starts', async () => {
     const firstFile = createFile(pdfHeaderBytes(), { name: 'first.pdf' });
     const secondFile = createFile(pdfHeaderBytes(), { name: 'second.pdf' });
-    const firstCount = createDeferred<number>();
-    vi.spyOn(PdfEditAdapter, 'countPages')
-      .mockImplementationOnce(() => firstCount.promise)
-      .mockResolvedValueOnce(2);
+    const firstGraph = createDeferred<PageGraph<PageNode>>();
     vi.spyOn(FileAdapter, 'hashBytes')
-      .mockResolvedValueOnce('sha256:second')
-      .mockResolvedValueOnce('sha256:first');
+      .mockResolvedValueOnce('sha256:first')
+      .mockResolvedValueOnce('sha256:second');
     const firstCommit = vi.fn();
     const secondCommit = vi.fn();
 
     const firstResultPromise = admitAndOpenPdfFile(firstFile, 'LANDING_DROP', {
       commit: firstCommit,
+      buildPageGraph: () => firstGraph.promise,
     });
     const secondResult = await admitAndOpenPdfFile(secondFile, 'TOOLBAR_PICKER', {
       commit: secondCommit,
+      buildPageGraph: vi.fn().mockResolvedValue(pageGraph(2, 'sha256:second')),
     });
-    firstCount.resolve(1);
+    firstGraph.resolve(pageGraph(1, 'sha256:first'));
     const firstResult = await firstResultPromise;
 
     expect(secondResult.outcome).toBe('ACCEPTED');

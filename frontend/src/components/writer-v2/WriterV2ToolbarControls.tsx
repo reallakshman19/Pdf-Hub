@@ -1,9 +1,9 @@
 import React from 'react';
-import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useEditorStore } from '@/core/editor/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
 import { exportCurrentWriterProject } from '@/core/writer-v2/export/exportCurrentWriterProject';
@@ -317,13 +317,16 @@ export const WriterV2ToolbarControls: React.FC = () => {
           );
           return;
         }
-        const { PDFDocument } = await pdfLib();
-        const pdf = await PDFDocument.load(imported.originalPdfBytes);
+        const pageGraph = await buildPageGraphFromPdfBytes(
+          imported.originalPdfBytes,
+          imported.documentFingerprint,
+        );
         openDocument({
           documentKey: imported.documentFingerprint,
           fileName: file.name,
           bytes: imported.originalPdfBytes,
-          pageCount: pdf.getPageCount(),
+          pageCount: pageGraph.pages.length,
+          pageGraph,
         });
         completeSaveOperation('Editable Writer project imported.');
       } catch (error) {
