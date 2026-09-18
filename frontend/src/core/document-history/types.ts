@@ -1,6 +1,7 @@
 import type { PdfAnnotation } from '../annotations/types';
 import type { WriterElementV2 } from '../writer-v2/types';
 import type { PdfCommand } from '../commands/types';
+import type { PageGraph, PageNode } from '../pages/types';
 
 export interface WriterHistoryState {
   elements: WriterElementV2[];
@@ -11,6 +12,7 @@ export interface WriterHistoryState {
 export interface HistoryState {
   bytes: Uint8Array;
   pageCount: number;
+  pageGraph: PageGraph<PageNode> | null;
   documentKey?: string | null;
   selectedPages: number[];
   currentPage: number;
