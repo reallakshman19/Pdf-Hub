@@ -21,11 +21,21 @@ vi.mock('@/core/macro/sessionRunner', () => ({
 }));
 
 vi.mock('./PsIsonoteRecipeBuilder', () => ({
-  PsIsonoteRecipeBuilder: () => <div data-testid="ps-specialized-workflow">PS workflow</div>,
-}));
-
-vi.mock('./MacrosSidebar', () => ({
-  MacrosSidebar: () => <div data-testid="legacy-macro-tools">Legacy macro tools</div>,
+  PsIsonoteRecipeBuilder: ({
+    onBusyChange,
+  }: {
+    onBusyChange?: (busy: boolean) => void;
+  }) => (
+    <div data-testid="ps-specialized-workflow">
+      PS workflow
+      <button type="button" onClick={() => onBusyChange?.(true)}>
+        Start PS work
+      </button>
+      <button type="button" onClick={() => onBusyChange?.(false)}>
+        Finish PS work
+      </button>
+    </div>
+  ),
 }));
 
 const runMock = vi.mocked(runMacroRecipeAgainstSession);
@@ -57,8 +67,13 @@ describe('AutomateSidebar', () => {
     expect(screen.getByText('Footer Page Numbers')).toBeInTheDocument();
     expect(screen.getByText('Rotate Selected Pages 90°')).toBeInTheDocument();
 
+    expect(screen.getByTestId('automate-generate-document')).toBeInTheDocument();
+    expect(screen.getByTestId('automate-batch-run')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeInTheDocument();
+
     expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
-    expect(screen.queryByTestId('legacy-macro-tools')).toBeNull();
+    expect(screen.queryByText('Advanced macro tools')).toBeNull();
     expect(screen.queryByText('Macro Panel')).toBeNull();
     expect(screen.queryByText('Built-ins')).toBeNull();
   });
@@ -165,13 +180,110 @@ describe('AutomateSidebar', () => {
     expect(useEditorStore.getState().macroBuilderSource).toBe('custom:destructive-workflow');
   });
 
-  it('mounts specialized and legacy tools only after their disclosure is opened', () => {
+  it('opens Generate Document directly from Quick Actions', () => {
     render(<AutomateSidebar />);
+
+    expect(screen.queryByTestId('macro-generate-document')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generator' }));
+
+    expect(screen.getByTestId('macro-generate-document')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close Generator' })).toBeInTheDocument();
+  });
+
+  it('locks standard workflow launches while Specialized workflows is open', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+
+    const quickAction = screen.getByText('Footer Page Numbers').closest('article');
+    expect(quickAction).not.toBeNull();
+    expect(
+      within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+
+    expect(
+      within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
+    ).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).not.toBeDisabled();
+  });
+
+  it('keeps Generate Document mounted by locking Automate tabs while generation runs', async () => {
+    type SessionRunResult = Awaited<
+      ReturnType<typeof runMacroRecipeAgainstSession>
+    >;
+    let resolveGeneration: ((value: SessionRunResult) => void) | undefined;
+
+    runMock.mockImplementationOnce(
+      () =>
+        new Promise<SessionRunResult>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generator' }));
+    fireEvent.click(screen.getByTestId('macro-generate-run'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'My Workflows' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Close Generator' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+
+    resolveGeneration?.({
+      success: true,
+      status: 'success',
+      outputFiles: [],
+      logs: ['generated'],
+      finalBytes: new Uint8Array([4, 5, 6]),
+      selectedPages: [],
+      stepResults: [],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'My Workflows' })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Build' })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Close Generator' })).not.toBeDisabled();
+    });
+  });
+
+  it('keeps Specialized workflows mounted and navigation locked while specialized work is active', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    fireEvent.click(screen.getByRole('button', { name: 'Start PS work' }));
+
+    expect(screen.getByRole('button', { name: 'My Workflows' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
 
     fireEvent.click(screen.getByText('Specialized workflows'));
     expect(screen.getByTestId('ps-specialized-workflow')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Advanced macro tools'));
-    expect(screen.getByTestId('legacy-macro-tools')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Finish PS work' }));
+    expect(screen.getByRole('button', { name: 'My Workflows' })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+  });
+
+  it('keeps specialized workflows available without restoring the legacy Advanced surface', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+
+    expect(screen.getByTestId('ps-specialized-workflow')).toBeInTheDocument();
+    expect(screen.queryByText('Advanced macro tools')).toBeNull();
+    expect(screen.queryByText('Legacy macro tools')).toBeNull();
   });
 });

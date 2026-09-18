@@ -76,11 +76,23 @@ function pageCountEffect(newCount: number): SideEffect {
 function resolveInsertIndexForPosition(
   position: Extract<MacroStep, { op: 'add_content_page' }>['position'],
   pageCount: number,
+  currentPage: number | undefined,
 ): number {
   if (position.mode === 'start') return 0;
   if (position.mode === 'end') return pageCount;
   if (position.mode === 'before') return Math.max(0, Math.min(position.page - 1, pageCount));
   if (position.mode === 'after') return Math.max(0, Math.min(position.page, pageCount));
+
+  const current = Math.max(
+    1,
+    Math.min(currentPage ?? 1, Math.max(1, pageCount)),
+  );
+  if (position.mode === 'before-current') {
+    return Math.max(0, Math.min(current - 1, pageCount));
+  }
+  if (position.mode === 'after-current') {
+    return Math.max(0, Math.min(current, pageCount));
+  }
 
   return pageCount;
 }
@@ -179,7 +191,11 @@ async function executeAddContentPage(
       blocks: step.blocks,
     });
 
-    const insertIndex = resolveInsertIndexForPosition(step.position, state.pageCount);
+    const insertIndex = resolveInsertIndexForPosition(
+      step.position,
+      state.pageCount,
+      ctx.currentPage,
+    );
     const updatedBytes = await PdfEditAdapter.insertAt(
       state.workingBytes,
       pagePdf,
@@ -220,7 +236,11 @@ async function executeAddImageHeaderPage(
       bodyMarkdown: step.bodyMarkdown,
     });
 
-    const insertIndex = resolveInsertIndexForPosition(step.position, state.pageCount);
+    const insertIndex = resolveInsertIndexForPosition(
+      step.position,
+      state.pageCount,
+      ctx.currentPage,
+    );
     const updatedBytes = await PdfEditAdapter.insertAt(
       state.workingBytes,
       pagePdf,
