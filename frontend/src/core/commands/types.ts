@@ -7,6 +7,8 @@ export type PdfCommandSource =
   | 'shortcut'
   | 'api'
   | 'ai'
+  | 'annotation-store'
+  | 'writer-store'
   | 'system';
 
 export type PdfCommandRisk =
@@ -125,6 +127,15 @@ export type DrawRedactionBoxCommand = PdfCommandBase<
   'DRAW_REDACTION_BOX',
   { pageIndices: number[]; options: RedactionBoxCommandOptions }
 >;
+export type AnnotationChangeCommand = PdfCommandBase<
+  'ANNOTATION_CHANGE',
+  { action: string; annotationIds: string[] }
+>;
+export type WriterChangeCommand = PdfCommandBase<
+  'WRITER_CHANGE',
+  { action: string; elementIds: string[] }
+>;
+
 export type ApplyWorkingCopyCommand = PdfCommandBase<
   'APPLY_WORKING_COPY',
   {
@@ -151,6 +162,8 @@ export type PdfCommand =
   | AddHeaderFooterTextCommand
   | DrawTextOnPagesCommand
   | DrawRedactionBoxCommand
+  | AnnotationChangeCommand
+  | WriterChangeCommand
   | ApplyWorkingCopyCommand;
 
 export type PdfCommandType = PdfCommand['type'];
