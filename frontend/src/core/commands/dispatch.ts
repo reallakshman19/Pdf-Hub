@@ -524,16 +524,24 @@ export async function dispatchPdfCommand(
           return commandError(command, 'RESOURCE_MISSING', 'The admitted donor resource is unavailable.');
         }
         assertDonorCommandCurrent(context, input, 'insert donor pages: before mutation');
-        inspectAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
-        const [resolved] = consumeAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
+        const [inspected] = inspectAdmittedDonorPdfs(
+          'INSERT_PAGES',
+          [donor],
+          context.documentKey,
+        );
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
         const insertedNodes = await buildImportedDonorNodes(
-          resolved,
+          inspected,
           context,
           command,
           'insert',
           0,
           input.signal,
+        );
+        const [resolved] = consumeAdmittedDonorPdfs(
+          'INSERT_PAGES',
+          [donor],
+          context.documentKey,
         );
         const nextPageGraph = insertPagesIntoGraph(
           pageGraph,
@@ -625,22 +633,26 @@ export async function dispatchPdfCommand(
             'The selected donor page is outside the admitted donor page range.',
           );
         }
-        const [resolved] = consumeAdmittedDonorPdfs('REPLACE_PAGE', [donor], context.documentKey);
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
         const donorGraph = await buildPageGraphFromPdfBytes(
-          resolved.bytes,
-          `${context.documentKey}::donor::${command.id}::${resolved.inputIndex}`,
+          inspected.bytes,
+          `${context.documentKey}::donor::${command.id}::${inspected.inputIndex}`,
           input.signal,
         );
-        if (donorGraph.pages.length !== resolved.pageCount) {
+        if (donorGraph.pages.length !== inspected.pageCount) {
           throw new Error(
-            `Donor PageGraph count ${donorGraph.pages.length} does not match admitted page count ${resolved.pageCount}`,
+            `Donor PageGraph count ${donorGraph.pages.length} does not match admitted page count ${inspected.pageCount}`,
           );
         }
         const replacementNode = donorGraph.pages[donorPageIndex];
         if (!replacementNode) {
           return commandError(command, 'VALIDATION_FAILED', 'The donor PageGraph does not contain the selected page.');
         }
+        const [resolved] = consumeAdmittedDonorPdfs(
+          'REPLACE_PAGE',
+          [donor],
+          context.documentKey,
+        );
         const nextPageGraph = replacePageGraphContent(
           pageGraph,
           atIndex,
@@ -718,11 +730,14 @@ export async function dispatchPdfCommand(
           return commandError(command, 'RESOURCE_MISSING', 'No admitted donor resources were provided for merge.');
         }
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before mutation');
-        inspectAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
-        const donors = consumeAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
+        const inspectedDonors = inspectAdmittedDonorPdfs(
+          'MERGE_PDF',
+          donorRefs,
+          context.documentKey,
+        );
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
         const importedNodes: PageNode[] = [];
-        for (const donor of donors) {
+        for (const donor of inspectedDonors) {
           const nodes = await buildImportedDonorNodes(
             donor,
             context,
@@ -733,6 +748,11 @@ export async function dispatchPdfCommand(
           );
           importedNodes.push(...nodes);
         }
+        const donors = consumeAdmittedDonorPdfs(
+          'MERGE_PDF',
+          donorRefs,
+          context.documentKey,
+        );
         const nextPageGraph = insertPagesIntoGraph(
           pageGraph,
           pageGraph.pages.length,
