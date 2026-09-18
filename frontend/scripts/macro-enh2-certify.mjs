@@ -30,6 +30,7 @@ const commands = [
       'src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx',
       'src/components/macro/advanced/MacroExpertWorkspace.test.tsx',
       'src/components/macro/advanced/MacroOutputQueue.test.tsx',
+      'src/components/macro/advanced/MacroPresetExecutionPanel.test.tsx',
       'src/components/macro/builder/MacroStepEditor.slice9.test.tsx',
       'src/components/macro/builder/MacroNestedBranchEditor.slice10.test.tsx',
       'src/pages/MacroBuilderPage.slice11.test.tsx',
