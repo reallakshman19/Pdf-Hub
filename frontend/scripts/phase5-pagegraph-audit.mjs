@@ -92,6 +92,61 @@ void historyTypes;
 void historyRestore;
 void documentTransaction;
 
+const annotationTypes = requireContains('src/core/annotations/types.ts', [
+  'pageId?: PageId',
+  'pageNumber: number',
+]);
+
+const annotationStore = requireContains('src/core/annotations/store.ts', [
+  'normalizeAnnotationPageAnchors',
+  'annotationForTargetPage',
+]);
+
+const annotationAnchors = requireContains('src/core/annotations/pageAnchor.ts', [
+  'normalizeAnnotationPageAnchors',
+  'reanchorAnnotationsAfterPageGraphChange',
+  'duplicateAnnotationsByPageGraph',
+  'rebindAnnotationsByPageNumber',
+]);
+
+const reviewTypes = requireContains('src/core/review/types.ts', [
+  'pageId?: PageId',
+]);
+
+const historyTransactions = requireContains(
+  'src/core/document-history/transactions.ts',
+  ['normalizeAnnotationPageAnchors(state.annotations, state.pageGraph)'],
+);
+
+for (const retiredToken of [
+  'remapAfterDelete(',
+  'remapAfterDuplicate(',
+  'remapAfterInsert(',
+  'remapAfterReorder(',
+]) {
+  if (commandDispatch.includes(retiredToken)) {
+    failures.push(
+      `structural annotation remapping must be PageId-first; dispatch still contains ${retiredToken}`,
+    );
+  }
+}
+
+const setPageGraphIndex = documentTransaction.indexOf('setPageGraph(');
+const setAnnotationsIndex = documentTransaction.indexOf('setAnnotations(annotationsToPersist)');
+if (
+  setPageGraphIndex < 0
+  || setAnnotationsIndex < 0
+  || setPageGraphIndex > setAnnotationsIndex
+) {
+  failures.push('document transaction must establish target PageGraph before annotation hydration');
+}
+
+void annotationTypes;
+void annotationStore;
+void annotationAnchors;
+void reviewTypes;
+void historyTransactions;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
