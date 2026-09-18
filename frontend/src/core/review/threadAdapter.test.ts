@@ -122,16 +122,15 @@ describe('ReviewThread adapter', () => {
   });
 
   it('projects PageId into the review thread anchor when available', () => {
-    const annotation = {
-      ...baseAnnotation,
+    const anchored = {
+      ...annotation('comment-page-id', 'comment', { text: 'Anchored review' }),
       pageId: 'stable-page-7',
-      pageNumber: 3,
     };
 
-    const thread = reviewThreadFromAnnotation(annotation);
+    const thread = reviewThreadFromAnnotation(anchored);
 
     expect(thread?.anchor).toMatchObject({
-      annotationId: annotation.id,
+      annotationId: anchored.id,
       pageId: 'stable-page-7',
       pageNumber: 3,
     });
