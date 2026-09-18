@@ -10,72 +10,102 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+
 import { OcrPanel } from '../OcrPanel';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import type { WriterElementV2 } from '@/core/writer-v2/types';
 
-describe('OcrPanel', () => {
+const pageInputs = [
+  {
+    pageIndex: 0,
+    imageBytes: new Uint8Array([1, 2, 3]),
+    width: 595,
+    height: 842,
+    imageCount: 1,
+  },
+  {
+    pageIndex: 1,
+    imageBytes: new Uint8Array([4, 5, 6]),
+    width: 595,
+    height: 842,
+    imageCount: 1,
+  },
+];
+
+describe('OcrPanel primary workflow', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
   });
 
-  const renderPanelWithRegionTools = async (panel: Parameters<typeof render>[0]) => {
-    render(panel);
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-tool')).toBeTruthy();
-    });
-  };
-
-  it('renders OCR workspace shell', () => {
+  it('starts with page scope + recognition and keeps review/export out of the empty state', () => {
     render(
       <OcrPanel
         documentFingerprint="doc-panel"
         selectedPageIndexes={[0]}
+        pageCount={2}
+        pages={pageInputs}
       />,
     );
 
     expect(screen.getByTestId('ocr-panel')).toBeTruthy();
-    expect(screen.getByTestId('ocr-run-section')).toBeTruthy();
-    expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
-    expect(screen.getByTestId('ocr-export-section')).toBeTruthy();
-    expect(screen.getByTestId('ocr-project-section')).toBeTruthy();
-    expect(screen.getByTestId('ocr-diagnostics-section')).toBeTruthy();
-    expect(screen.getByTestId('run-ocr-button')).toBeTruthy();
+    expect(screen.getByTestId('ocr-page-scope')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
+    expect(screen.queryByTestId('ocr-review-section')).toBeNull();
+    expect(screen.queryByTestId('ocr-export-section')).toBeNull();
+
+    const runSettings = screen.getByTestId('ocr-run-advanced-settings') as HTMLDetailsElement;
+    const advancedWorkflow = screen.getByTestId('ocr-advanced-workflow') as HTMLDetailsElement;
+
+    expect(runSettings.open).toBe(false);
+    expect(advancedWorkflow.open).toBe(false);
   });
 
-  it('updates OCR settings through panel controls', () => {
+  it('disables recognition when no real PDF or raster source exists', () => {
+    render(
+      <OcrPanel
+        documentFingerprint="doc-no-source"
+        pageCount={2}
+      />,
+    );
+
+    expect(screen.getByTestId('run-ocr-button')).toBeDisabled();
+  });
+
+  it('keeps engine and execution controls behind OCR settings', () => {
     render(
       <OcrPanel
         documentFingerprint="doc-settings"
         selectedPageIndexes={[0]}
+        pageCount={2}
+        pages={pageInputs}
       />,
     );
 
-    const engineSelect = screen.getByTestId('ocr-engine-select');
+    const settings = screen.getByTestId('ocr-run-advanced-settings') as HTMLDetailsElement;
+    expect(settings.open).toBe(false);
 
-    fireEvent.change(engineSelect, {
-      target: {
-        value: 'tesseract-js',
-      },
+    fireEvent.click(screen.getByText('OCR settings'));
+
+    expect(settings.open).toBe(true);
+    expect(screen.getByTestId('ocr-engine-select')).toBeTruthy();
+    expect(screen.getByTestId('ocr-pipeline-mode-panel')).toBeTruthy();
+    expect(screen.getByTestId('ocr-execution-settings')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('ocr-engine-select'), {
+      target: { value: 'tesseract-js' },
     });
-
-    const forceCheckbox = screen.getByLabelText(
-      'Force OCR even if embedded text exists',
-    );
-
-    fireEvent.click(forceCheckbox);
+    fireEvent.click(screen.getByLabelText('Force OCR even if embedded text exists'));
 
     expect(useOcrStore.getState().engineId).toBe('tesseract-js');
     expect(useOcrStore.getState().forceOcr).toBe(true);
   });
 
-  it('runs mock OCR and displays result summary', async () => {
+  it('runs recognition then reveals review and searchable-PDF actions', async () => {
     render(
       <OcrPanel
         documentFingerprint="doc-run"
         selectedPageIndexes={[0]}
+        pageCount={2}
+        pages={pageInputs}
       />,
     );
 
@@ -85,16 +115,21 @@ describe('OcrPanel', () => {
       expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
     });
 
+    expect(screen.getByTestId('ocr-run-status').textContent).toMatch(/OCR complete/i);
+    expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
     expect(screen.getByTestId('ocr-result-summary')).toBeTruthy();
-    expect(screen.getByText('Words')).toBeTruthy();
-    expect(useOcrStore.getState().correctedResult?.pages[0].status).toBe('success');
+    expect(screen.getByTestId('ocr-export-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-searchable-pdf-export-button')).toBeTruthy();
+    expect(screen.getByTestId('clear-ocr-button')).toBeTruthy();
   });
 
-  it('supports OCR search after running OCR', async () => {
+  it('supports OCR search and correction after recognition', async () => {
     render(
       <OcrPanel
-        documentFingerprint="doc-search-panel"
+        documentFingerprint="doc-review"
         selectedPageIndexes={[0]}
+        pageCount={1}
+        pages={[pageInputs[0]]}
       />,
     );
 
@@ -105,396 +140,94 @@ describe('OcrPanel', () => {
     });
 
     const searchInput = screen.getByPlaceholderText('Search OCR result');
-
-    fireEvent.change(searchInput, {
-      target: {
-        value: 'writer',
-      },
-    });
+    fireEvent.change(searchInput, { target: { value: 'writer' } });
 
     await waitFor(() => {
       expect(screen.getAllByTestId('ocr-search-match').length).toBeGreaterThan(0);
     });
+
+    fireEvent.click(screen.getByText('P1pe'));
+    expect(screen.getByTestId('ocr-correction-panel')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('ocr-correction-input'), {
+      target: { value: 'Pipe' },
+    });
+    fireEvent.click(screen.getByTestId('ocr-correction-save'));
+
+    expect(useOcrStore.getState().corrections[0]?.correctedText).toBe('Pipe');
   });
 
-  it('clears OCR state from panel', async () => {
+  it('reset returns the UI to the recognition start state', async () => {
     render(
       <OcrPanel
-        documentFingerprint="doc-clear"
+        documentFingerprint="doc-reset"
         selectedPageIndexes={[0]}
+        pageCount={1}
+        pages={[pageInputs[0]]}
       />,
     );
 
     fireEvent.click(screen.getByTestId('run-ocr-button'));
 
     await waitFor(() => {
-      expect(useOcrStore.getState().searchIndex).not.toBeNull();
+      expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByTestId('clear-ocr-button'));
 
-    expect(useOcrStore.getState().result).toBeNull();
-    expect(useOcrStore.getState().searchIndex).toBeNull();
-    expect(screen.getByTestId('ocr-review-empty')).toBeTruthy();
+    expect(useOcrStore.getState().correctedResult).toBeNull();
+    expect(screen.queryByTestId('ocr-review-section')).toBeNull();
+    expect(screen.queryByTestId('ocr-export-section')).toBeNull();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
   });
 
-  it('can run placeholder OCR without selected pages', async () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-placeholder"
-        pageCount={2}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
-
-    expect(useOcrStore.getState().correctedResult?.pages).toHaveLength(2);
-  });
-
-  it('shows confidence legend and low-confidence queue after OCR run', async () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-confidence-panel"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
-
-    expect(screen.getByTestId('ocr-confidence-legend')).toBeTruthy();
-    expect(screen.getByTestId('ocr-low-confidence-panel')).toBeTruthy();
-    expect(screen.getByText('P1pe')).toBeTruthy();
-
-    fireEvent.click(screen.getByText('P1pe'));
-
-    const lowConfidenceItems = screen.getAllByTestId('ocr-low-confidence-item');
-
-    expect(lowConfidenceItems.length).toBeGreaterThan(0);
-  });
-
-  it('allows low-confidence OCR word correction from panel', async () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-correction-panel"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
-
-    fireEvent.click(screen.getByText('P1pe'));
-
-    expect(screen.getByTestId('ocr-correction-panel')).toBeTruthy();
-    expect(screen.getByTestId('ocr-correction-input')).toHaveValue('P1pe');
-
-    fireEvent.change(screen.getByTestId('ocr-correction-input'), {
-      target: {
-        value: 'Pipe',
+  it('shows stored real-document regions without exposing a synthetic region tool', () => {
+    useOcrStore.getState().addOcrRegion({
+      id: 'region-real-document',
+      documentFingerprint: 'doc-region',
+      pageIndex: 0,
+      mode: 'table',
+      bbox: {
+        x: 60,
+        y: 100,
+        width: 240,
+        height: 120,
       },
     });
 
-    fireEvent.click(screen.getByTestId('ocr-correction-save'));
-
-    expect(useOcrStore.getState().corrections).toHaveLength(1);
-    expect(useOcrStore.getState().corrections[0].correctedText).toBe('Pipe');
-
-    const correctedMatches = useOcrStore.getState().searchOcr({
-      text: 'pipe',
-      source: 'ocrCorrection',
-    });
-
-    expect(correctedMatches.length).toBeGreaterThan(0);
-  });
-
-  it('adds and deletes OCR region from panel', async () => {
-    await renderPanelWithRegionTools(
+    render(
       <OcrPanel
-        documentFingerprint="doc-region-panel"
+        documentFingerprint="doc-region"
         selectedPageIndexes={[0]}
+        pageCount={1}
+        pages={[pageInputs[0]]}
       />,
     );
 
-    expect(screen.getByTestId('ocr-region-tool')).toBeTruthy();
+    expect(screen.getByTestId('ocr-review-section')).toBeTruthy();
     expect(screen.getByTestId('ocr-region-list-panel')).toBeTruthy();
-    expect(screen.getByTestId('ocr-region-count').textContent).toBe('0');
-
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'table',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-
-    expect(useOcrStore.getState().regions).toHaveLength(1);
-    expect(useOcrStore.getState().regions[0].mode).toBe('table');
-    expect(screen.getByTestId('ocr-region-count').textContent).toBe('1');
-
-    fireEvent.click(screen.getByTestId('ocr-region-delete'));
-
-    expect(useOcrStore.getState().regions).toHaveLength(0);
-    expect(screen.getByTestId('ocr-region-count').textContent).toBe('0');
+    expect(screen.getByText('Selected area on document')).toBeTruthy();
+    expect(screen.queryByTestId('ocr-region-tool')).toBeNull();
+    expect(screen.queryByTestId('ocr-region-canvas')).toBeNull();
   });
 
-  it('runs selected OCR region and creates Writer element callback result', async () => {
-    await renderPanelWithRegionTools(
-      <OcrPanel
-        documentFingerprint="doc-region-action-panel"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'text',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-
-    expect(useOcrStore.getState().regions).toHaveLength(1);
-
-    fireEvent.click(screen.getByTestId('ocr-region-run'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
-    });
-
-    fireEvent.change(screen.getByTestId('ocr-region-output-mode'), {
-      target: {
-        value: 'richTextBox',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-convert'));
-
-    expect(screen.getByTestId('ocr-region-writer-created')).toBeTruthy();
-    expect(screen.getByText('Region created Writer element: richTextBox')).toBeTruthy();
-  });
-
-  it('reviews and accepts OCR table from region OCR result', async () => {
-    useOcrStore.getState().setOcrProfileId('table-heavy');
-
-    await renderPanelWithRegionTools(
-      <OcrPanel
-        documentFingerprint="doc-table-review-panel"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'table',
-      },
-    });
-
-    fireEvent.change(screen.getByTestId('ocr-region-y'), {
-      target: {
-        value: '460',
-      },
-    });
-
-    fireEvent.change(screen.getByTestId('ocr-region-height'), {
-      target: {
-        value: '220',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-
-    fireEvent.click(screen.getByTestId('ocr-region-run'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-table-review-panel')).toBeTruthy();
-    });
-
-    fireEvent.change(screen.getByDisplayValue('Valve'), {
-      target: {
-        value: 'Gate Valve',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-table-accept'));
-
-    expect(screen.getByTestId('ocr-table-accepted-summary')).toBeTruthy();
-    expect(screen.getByText('OCR table accepted: 2 rows × 2 columns')).toBeTruthy();
-  });
-
-  it('queues OCR region Writer element and inserts through callback', async () => {
-    const insertedElements: WriterElementV2[] = [];
-
-    await renderPanelWithRegionTools(
-      <OcrPanel
-        documentFingerprint="doc-writer-insert-panel"
-        selectedPageIndexes={[0]}
-        onInsertWriterElements={(elements) => {
-          insertedElements.push(...elements);
-        }}
-      />,
-    );
-
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'text',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-    fireEvent.click(screen.getByTestId('ocr-region-run'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
-    });
-
-    fireEvent.change(screen.getByTestId('ocr-region-output-mode'), {
-      target: {
-        value: 'richTextBox',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-convert'));
-
-    expect(screen.getByTestId('ocr-writer-insert-panel')).toBeTruthy();
-    expect(screen.getByTestId('ocr-writer-insert-count').textContent).toBe('1/1');
-
-    fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
-
-    expect(insertedElements).toHaveLength(1);
-    expect(insertedElements[0].type).toBe('richTextBox');
-    expect(screen.getByTestId('ocr-writer-inserted-summary')).toBeTruthy();
-    expect(screen.getByText('Inserted 1 OCR Writer element(s).')).toBeTruthy();
-  });
-
-  it('still runs placeholder OCR when pdfBytes are not supplied', async () => {
+  it('keeps project restore and diagnostics under Advanced and troubleshooting', () => {
     render(
       <OcrPanel
-        documentFingerprint="doc-no-pdfbytes"
+        documentFingerprint="doc-advanced"
         selectedPageIndexes={[0]}
+        pageCount={1}
+        pages={[pageInputs[0]]}
       />,
     );
 
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
+    const advanced = screen.getByTestId('ocr-advanced-workflow') as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
 
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
+    fireEvent.click(screen.getByText('Advanced and troubleshooting'));
 
-    expect(useOcrStore.getState().correctedResult?.pages[0].status).toBe('success');
-  });
-
-  it('region OCR still works through fallback resolver when pdfBytes are not supplied', async () => {
-    await renderPanelWithRegionTools(
-      <OcrPanel
-        documentFingerprint="doc-region-fallback-raster"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
-    fireEvent.click(screen.getByTestId('ocr-region-run'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-result-preview')).toBeTruthy();
-    });
-
-    expect(screen.getByText(/Region OCR completed/)).toBeTruthy();
-  });
-
-  it('shows OCR execution settings and applies page limit diagnostics', async () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-execution-policy"
-        pageCount={3}
-      />,
-    );
-
-    fireEvent.change(screen.getByTestId('ocr-execution-max-pages'), {
-      target: {
-        value: '1',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-run-execution-diagnostics')).toBeTruthy();
-    });
-
-    expect(screen.getAllByText(/OCR job limited to 1 page/).length).toBeGreaterThan(0);
-
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
-
-    expect(useOcrStore.getState().correctedResult?.pages).toHaveLength(1);
-  });
-
-  it('shows cancel control while OCR is running', () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-cancel-control"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    expect(screen.queryByTestId('ocr-execution-cancel')).toBeNull();
-  });
-
-  it('changes OCR pipeline mode', () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-pipeline-panel"
-        selectedPageIndexes={[0]}
-      />,
-    );
-
-    expect(screen.getByTestId('ocr-pipeline-mode-panel')).toBeTruthy();
-
-    fireEvent.change(screen.getByTestId('ocr-pipeline-mode-select'), {
-      target: {
-        value: 'worker-ocr',
-      },
-    });
-
-    expect(screen.getByTestId('ocr-pipeline-mode-select')).toHaveValue('worker-ocr');
-  });
-
-  it('shows pre-batch pipeline planning diagnostics during OCR run', async () => {
-    render(
-      <OcrPanel
-        documentFingerprint="doc-pipeline-batch-plan"
-        pageCount={2}
-      />,
-    );
-
-    fireEvent.change(screen.getByTestId('ocr-pipeline-mode-select'), {
-      target: {
-        value: 'main',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('run-ocr-button'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ocr-diagnostics-message-list')).toBeTruthy();
-    });
-
-    expect(screen.getByTestId('ocr-diagnostics-message-list').textContent).toContain('OCR pipeline');
-
-    await waitFor(() => {
-      expect(useOcrStore.getState().jobs[0]?.status).toBe('completed');
-    });
+    expect(advanced.open).toBe(true);
+    expect(screen.getByTestId('ocr-project-section')).toBeTruthy();
+    expect(screen.getByTestId('ocr-diagnostics-section')).toBeTruthy();
   });
 });
