@@ -1,3 +1,5 @@
+import type { PageId } from '../pages/types';
+
 export type WriterElementKind =
   | 'richTextBox'
   | 'textCallout'
@@ -285,6 +287,15 @@ export interface WriterTableData {
 export interface WriterElementV2 {
   id: string;
   documentFingerprint: string;
+  /**
+   * Canonical page identity for PDF-overlay sessions.
+   * Blank Writer documents intentionally keep pageIndex-only semantics.
+   */
+  pageId?: PageId;
+  /**
+   * Zero-based compatibility/render position. In PDF-overlay mode this is
+   * derived from PageGraph when pageId is available.
+   */
   pageIndex: number;
 
   type: WriterElementKind;
