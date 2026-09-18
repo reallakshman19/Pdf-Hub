@@ -28,7 +28,7 @@ describe('MacroRecipeBuilder slice 8', () => {
   it('renders builder shell with identity fields and validation', () => {
     render(<MacroRecipeBuilder />);
 
-    expect(screen.getByRole('region', { name: 'Macro recipe builder' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Workflow builder' })).toBeInTheDocument();
     expect(screen.getByLabelText('Workflow Name')).toBeInTheDocument();
     expect(screen.queryByLabelText('Workflow ID')).not.toBeVisible();
     expect(screen.getByText(/Recipe must contain at least one step/)).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('MacroRecipeBuilder slice 8', () => {
   it('marks root with data-macro-builder for writer paste isolation', () => {
     render(<MacroRecipeBuilder />);
 
-    expect(screen.getByRole('region', { name: 'Macro recipe builder' })).toHaveAttribute(
+    expect(screen.getByRole('region', { name: 'Workflow builder' })).toHaveAttribute(
       'data-macro-builder',
       'true',
     );
