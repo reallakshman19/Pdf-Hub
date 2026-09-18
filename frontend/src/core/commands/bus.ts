@@ -1,11 +1,13 @@
 import { dispatchPdfCommand } from './dispatch';
+import {
+  enqueueDocumentOperation,
+  resetDocumentOperationQueueForTests,
+} from './documentOperationQueue';
 import { validateCommand } from './validators';
 import type {
   CommandExecutionInput,
   CommandResult,
 } from './types';
-
-let executionTail: Promise<unknown> = Promise.resolve();
 
 function validationFailure(
   input: CommandExecutionInput,
@@ -40,12 +42,10 @@ async function executeNow(
 
 export const commandBus = {
   execute(input: CommandExecutionInput): Promise<CommandResult> {
-    const run = executionTail.then(() => executeNow(input));
-    executionTail = run.catch(() => undefined);
-    return run;
+    return enqueueDocumentOperation(() => executeNow(input));
   },
 };
 
 export function resetCommandBusForTests(): void {
-  executionTail = Promise.resolve();
+  resetDocumentOperationQueueForTests();
 }
