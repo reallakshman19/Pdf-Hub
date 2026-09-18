@@ -24,10 +24,6 @@ vi.mock('./PsIsonoteRecipeBuilder', () => ({
   PsIsonoteRecipeBuilder: () => <div data-testid="ps-specialized-workflow">PS workflow</div>,
 }));
 
-vi.mock('./MacrosSidebar', () => ({
-  MacrosSidebar: () => <div data-testid="legacy-macro-tools">Legacy macro tools</div>,
-}));
-
 const runMock = vi.mocked(runMacroRecipeAgainstSession);
 
 describe('AutomateSidebar', () => {
@@ -57,8 +53,11 @@ describe('AutomateSidebar', () => {
     expect(screen.getByText('Footer Page Numbers')).toBeInTheDocument();
     expect(screen.getByText('Rotate Selected Pages 90°')).toBeInTheDocument();
 
+    expect(screen.getByTestId('automate-generate-document')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Generator' })).toBeInTheDocument();
+
     expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
-    expect(screen.queryByTestId('legacy-macro-tools')).toBeNull();
+    expect(screen.queryByText('Advanced macro tools')).toBeNull();
     expect(screen.queryByText('Macro Panel')).toBeNull();
     expect(screen.queryByText('Built-ins')).toBeNull();
   });
@@ -165,13 +164,24 @@ describe('AutomateSidebar', () => {
     expect(useEditorStore.getState().macroBuilderSource).toBe('custom:destructive-workflow');
   });
 
-  it('mounts specialized and legacy tools only after their disclosure is opened', () => {
+  it('opens Generate Document directly from Quick Actions', () => {
+    render(<AutomateSidebar />);
+
+    expect(screen.queryByTestId('macro-generate-document')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generator' }));
+
+    expect(screen.getByTestId('macro-generate-document')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close Generator' })).toBeInTheDocument();
+  });
+
+  it('keeps specialized workflows available without restoring the legacy Advanced surface', () => {
     render(<AutomateSidebar />);
 
     fireEvent.click(screen.getByText('Specialized workflows'));
-    expect(screen.getByTestId('ps-specialized-workflow')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Advanced macro tools'));
-    expect(screen.getByTestId('legacy-macro-tools')).toBeInTheDocument();
+    expect(screen.getByTestId('ps-specialized-workflow')).toBeInTheDocument();
+    expect(screen.queryByText('Advanced macro tools')).toBeNull();
+    expect(screen.queryByText('Legacy macro tools')).toBeNull();
   });
 });
