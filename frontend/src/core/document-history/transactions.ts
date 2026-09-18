@@ -38,11 +38,20 @@ function restoreHistoryState(state: HistoryState): void {
   );
 
   if (state.writer) {
+    const writerElements =
+      state.writer.documentMode === 'blankDocument'
+        ? state.writer.elements.map((element) => ({
+            ...element,
+            rect: { ...element.rect },
+            style: { ...element.style },
+          }))
+        : normalizeWriterPageAnchors(
+            state.writer.elements,
+            state.pageGraph,
+          );
+
     useWriterV2Store.setState({
-      elements: normalizeWriterPageAnchors(
-        state.writer.elements,
-        state.pageGraph,
-      ),
+      elements: writerElements,
       selectedIds: [...state.writer.selectedIds],
       activeId: state.writer.activeId,
       undoStack: [],
