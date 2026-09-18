@@ -21,7 +21,21 @@ vi.mock('@/core/macro/sessionRunner', () => ({
 }));
 
 vi.mock('./PsIsonoteRecipeBuilder', () => ({
-  PsIsonoteRecipeBuilder: () => <div data-testid="ps-specialized-workflow">PS workflow</div>,
+  PsIsonoteRecipeBuilder: ({
+    onBusyChange,
+  }: {
+    onBusyChange?: (busy: boolean) => void;
+  }) => (
+    <div data-testid="ps-specialized-workflow">
+      PS workflow
+      <button type="button" onClick={() => onBusyChange?.(true)}>
+        Start PS work
+      </button>
+      <button type="button" onClick={() => onBusyChange?.(false)}>
+        Finish PS work
+      </button>
+    </div>
+  ),
 }));
 
 const runMock = vi.mocked(runMacroRecipeAgainstSession);
@@ -242,6 +256,25 @@ describe('AutomateSidebar', () => {
       expect(screen.getByRole('button', { name: 'Build' })).not.toBeDisabled();
       expect(screen.getByRole('button', { name: 'Close Generator' })).not.toBeDisabled();
     });
+  });
+
+  it('keeps Specialized workflows mounted and navigation locked while specialized work is active', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    fireEvent.click(screen.getByRole('button', { name: 'Start PS work' }));
+
+    expect(screen.getByRole('button', { name: 'My Workflows' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    expect(screen.getByTestId('ps-specialized-workflow')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish PS work' }));
+    expect(screen.getByRole('button', { name: 'My Workflows' })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
   });
 
   it('keeps specialized workflows available without restoring the legacy Advanced surface', () => {
