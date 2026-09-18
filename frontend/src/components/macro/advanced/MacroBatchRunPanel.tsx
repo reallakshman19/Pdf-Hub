@@ -42,6 +42,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
     const controller = new AbortController();
     abortRef.current?.abort('Superseded by a new batch workflow');
     abortRef.current = controller;
+    onBusyChange?.(true);
     setIsRunning(true);
     setActiveRecipeName(recipe.name);
 
@@ -107,6 +108,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
       }
       setIsRunning(false);
       setActiveRecipeName(null);
+      onBusyChange?.(false);
     }
   };
 
