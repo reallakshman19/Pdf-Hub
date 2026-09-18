@@ -425,6 +425,8 @@ function validateInsertPosition(
   if (
     typed.mode !== 'before' &&
     typed.mode !== 'after' &&
+    typed.mode !== 'before-current' &&
+    typed.mode !== 'after-current' &&
     typed.mode !== 'start' &&
     typed.mode !== 'end'
   ) {

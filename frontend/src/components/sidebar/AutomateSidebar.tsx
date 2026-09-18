@@ -1,10 +1,11 @@
 import React from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import {
   Copy,
   Download,
+  FilePlus2,
   Play,
   Plus,
-  Settings2,
   Sparkles,
   Trash2,
   Wrench,
@@ -29,10 +30,15 @@ import {
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { validateRecipeBeforeRun } from '@/core/macro/validation/validator';
 import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
-import type { MacroRecipe } from '@/core/macro/types';
+import type { MacroOutputFile, MacroRecipe } from '@/core/macro/types';
 import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
-import { MacrosSidebar } from './MacrosSidebar';
+import { MacroBatchRunPanel } from '@/components/macro/advanced/MacroBatchRunPanel';
+import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
+import {
+  MacroOutputQueue,
+  type MacroOutputQueueItem,
+} from '@/components/macro/advanced/MacroOutputQueue';
 
 type AutomateTab = 'quick' | 'workflows' | 'build';
 
@@ -79,7 +85,11 @@ export const AutomateSidebar: React.FC = () => {
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
   const [runningRecipeId, setRunningRecipeId] = React.useState<string | null>(null);
   const [specializedOpen, setSpecializedOpen] = React.useState(false);
-  const [advancedOpen, setAdvancedOpen] = React.useState(false);
+  const [specializedBusy, setSpecializedBusy] = React.useState(false);
+  const [generatorOpen, setGeneratorOpen] = React.useState(false);
+  const [generationBusy, setGenerationBusy] = React.useState(false);
+  const [batchBusy, setBatchBusy] = React.useState(false);
+  const [generatedOutputs, setGeneratedOutputs] = React.useState<MacroOutputQueueItem[]>([]);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(
@@ -97,7 +107,13 @@ export const AutomateSidebar: React.FC = () => {
   };
 
   const runRecipe = async (recipe: MacroRecipe) => {
-    if (!workingBytes || runningRecipeId) return;
+    if (
+      !workingBytes
+      || runningRecipeId
+      || generationBusy
+      || batchBusy
+      || specializedOpen
+    ) return;
 
     abortRef.current?.abort('Superseded by another workflow');
     const controller = new AbortController();
@@ -218,18 +234,21 @@ export const AutomateSidebar: React.FC = () => {
       <div className="grid grid-cols-3 gap-1 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
         <AutomateTabButton
           active={tab === 'quick'}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('quick')}
         >
           Quick Actions
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'workflows'}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('workflows')}
         >
           My Workflows
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'build'}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('build')}
         >
           Build
@@ -238,21 +257,72 @@ export const AutomateSidebar: React.FC = () => {
 
       <div className="flex-1 overflow-auto p-3">
         {tab === 'quick' ? (
-          <QuickActions
-            actions={quickActions}
-            hasDocument={Boolean(workingBytes)}
-            selectedPageCount={selectedPages.length}
-            runningRecipeId={runningRecipeId}
-            onRun={(recipe) => void runRecipe(recipe)}
-            onCustomize={(item) => openBuilder(`builtin:${item.id}`)}
-          />
+          <>
+            <GenerateDocumentQuickAction
+              open={generatorOpen}
+              disabled={
+                runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
+              outputs={generatedOutputs}
+              onToggle={() => setGeneratorOpen((value) => !value)}
+              onBusyChange={setGenerationBusy}
+              onOutputsProduced={(outputs) => {
+                setGeneratedOutputs((current) => [
+                  ...current,
+                  ...outputs.map((output) => ({
+                    id: uuidv4(),
+                    ...output,
+                  })),
+                ]);
+              }}
+              onOutputsChange={setGeneratedOutputs}
+            />
+
+            <MacroBatchRunPanel
+              disabled={
+                runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
+              onBusyChange={setBatchBusy}
+            />
+
+            <QuickActions
+              actions={quickActions}
+              hasDocument={Boolean(workingBytes)}
+              selectedPageCount={selectedPages.length}
+              runningRecipeId={
+                generationBusy
+                  ? '__generate__'
+                  : batchBusy
+                    ? '__batch__'
+                    : specializedOpen
+                      ? '__specialized__'
+                      : runningRecipeId
+              }
+              onRun={(recipe) => void runRecipe(recipe)}
+              onCustomize={(item) => openBuilder(`builtin:${item.id}`)}
+            />
+          </>
         ) : null}
 
         {tab === 'workflows' ? (
           <WorkflowLibrary
             recipes={customRecipes}
             hasDocument={Boolean(workingBytes)}
-            runningRecipeId={runningRecipeId}
+            runningRecipeId={
+              generationBusy
+                ? '__generate__'
+                : batchBusy
+                  ? '__batch__'
+                  : specializedOpen
+                    ? '__specialized__'
+                    : runningRecipeId
+            }
             onRun={(recipe) => void runRecipe(recipe)}
             onEdit={(recipe) => openBuilder(`custom:${recipe.id}`)}
             onDuplicate={duplicateRecipe}
@@ -271,7 +341,24 @@ export const AutomateSidebar: React.FC = () => {
         <details
           className="mt-4 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
           open={specializedOpen}
-          onToggle={(event) => setSpecializedOpen(event.currentTarget.open)}
+          onToggle={(event) => {
+            const nextOpen = event.currentTarget.open;
+            if (
+              (
+                nextOpen
+                && (
+                  generationBusy
+                  || batchBusy
+                  || runningRecipeId !== null
+                )
+              )
+              || (!nextOpen && specializedBusy)
+            ) {
+              setSpecializedOpen(specializedBusy);
+              return;
+            }
+            setSpecializedOpen(nextOpen);
+          }}
         >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Wrench className="h-3.5 w-3.5" />
@@ -279,37 +366,90 @@ export const AutomateSidebar: React.FC = () => {
           </summary>
           {specializedOpen ? (
             <div className="border-t border-slate-100 dark:border-slate-800">
-              <PsIsonoteRecipeBuilder />
+              <PsIsonoteRecipeBuilder onBusyChange={setSpecializedBusy} />
             </div>
           ) : null}
         </details>
 
-        <details
-          className="mt-2 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
-          open={advancedOpen}
-          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-        >
-          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-            <Settings2 className="h-3.5 w-3.5" />
-            Advanced macro tools
-          </summary>
-          {advancedOpen ? (
-            <div className="border-t border-slate-100 dark:border-slate-800">
-              <MacrosSidebar />
-            </div>
-          ) : null}
-        </details>
+
       </div>
     </div>
   );
 };
 
+function GenerateDocumentQuickAction({
+  open,
+  disabled,
+  outputs,
+  onToggle,
+  onBusyChange,
+  onOutputsProduced,
+  onOutputsChange,
+}: {
+  open: boolean;
+  disabled: boolean;
+  outputs: MacroOutputQueueItem[];
+  onToggle: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onOutputsProduced: (outputs: MacroOutputFile[]) => void;
+  onOutputsChange: (outputs: MacroOutputQueueItem[]) => void;
+}) {
+  return (
+    <section
+      className="mb-4"
+      aria-label="Generate document"
+      data-testid="automate-generate-document"
+    >
+      <article className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
+        <div className="flex items-start gap-2">
+          <FilePlus2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-blue-950 dark:text-blue-100">
+              Generate Document
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-blue-800 dark:text-blue-200">
+              Create a document from a reusable template and save the generated PDF.
+            </p>
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="mt-3 h-7 text-xs"
+          onClick={onToggle}
+          disabled={disabled}
+        >
+          {open ? 'Close Generator' : 'Open Generator'}
+        </Button>
+      </article>
+
+      {open ? (
+        <div className="mt-2 space-y-2">
+          <MacroGenerateDocumentPanel
+            disabled={disabled}
+            onBusyChange={onBusyChange}
+            onOutputsProduced={onOutputsProduced}
+          />
+          <MacroOutputQueue
+            outputs={outputs}
+            onChange={onOutputsChange}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function AutomateTabButton({
   active,
+  disabled = false,
   children,
   onClick,
 }: {
   active: boolean;
+  disabled?: boolean;
   children: React.ReactNode;
   onClick: () => void;
 }) {
@@ -317,12 +457,13 @@ function AutomateTabButton({
     <button
       type="button"
       className={[
-        'rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors',
+        'rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? 'bg-blue-600 text-white'
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
       ].join(' ')}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>

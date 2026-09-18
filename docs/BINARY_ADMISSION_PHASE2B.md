@@ -2,9 +2,17 @@
 
 ## Scope
 
-Phase 2B covers the production batch route from `ToolbarOrganize` through
-`runMacroBatch(...)` and the downloaded JSON report. It does not add transformed
-PDF export, ZIP output, a new results UI, new macro operations, or new limits.
+Phase 2B originally established the source-admission and bounded-retention
+contract for batch macro execution.
+
+As of the Phase 3 Automate consolidation, the production entry point has moved
+from `ToolbarOrganize` to
+`components/macro/advanced/MacroBatchRunPanel.tsx` under **Automate**.
+`runMacroBatch(...)` still returns a metadata-only JSON report, but it now also
+accepts an optional sequential `onOutput` callback. The Automate batch panel
+uses that callback to download each transformed PDF immediately as its input
+finishes; output PDF bytes are not retained in the report or accumulated across
+the batch.
 
 ## Baseline
 
@@ -23,6 +31,7 @@ picked file sources in picker order
 → sequential read of one current file
 → PDF signature and positive page-count validation
 → one existing macro execution
+→ sequential transformed-PDF handoff through onOutput
 → metadata-only result record
 → release current input and output references
 → next file
@@ -73,10 +82,12 @@ limits and are not applied to independent batch inputs.
 `Promise.all` over reads and does not create a complete batch byte collection.
 Only the current file's input bytes enter page counting and `executeMacroRecipe`.
 
-Per-file input bytes, macro final bytes, and macro output-file bytes remain local
-to the current iteration. The runner records output byte length and logs, then
-returns only metadata. Completed PDF payloads are not retained in report records,
-UI state, stores, or caches.
+Per-file input bytes and macro final bytes remain local to the current
+iteration. After a successful execution, `runMacroBatch(...)` may hand the
+current transformed PDF to the caller through `onOutput`; the Automate UI
+downloads that PDF immediately. The runner then records output byte length and
+logs and returns only metadata. Completed PDF payloads are not retained in
+report records, stores, or cross-file batch collections.
 
 ## Report contract
 
@@ -98,9 +109,14 @@ failure records and processing continues with the next source. With
 marked `not-run` without being read.
 
 Cancellation checkpoints exist before and after reads, page counting, macro
-execution, success recording, and advancing to the next source. Abort racing
-suppresses late browser reads and late macro completions so they cannot create
-success records or start later work.
+execution, output handoff, success recording, and advancing to the next source.
+Abort racing suppresses late browser reads and late macro completions so they
+cannot create success records or start later work.
+
+A successful `onOutput` handoff is the per-file commit boundary. If cancellation
+arrives after that handoff, the current input remains a success and later inputs
+are marked `not-run`; the runner does not append a duplicate cancelled record
+for the already-delivered PDF.
 
 ## Preserved macro authority
 
@@ -122,14 +138,17 @@ Overlay V2. Certification includes lint, strict TypeScript, the complete Vitest
 suite, static audit, production builds, release gating, and E2E smoke coverage.
 Temporary diagnostic or bootstrap workflows are not part of the final diff.
 
-## Deferred
+## Phase 3 extension and remaining deferred work
 
-The following remain outside Phase 2B:
+Phase 3 resolves the original transformed-output deferral by handing each
+successful transformed PDF to the Automate UI sequentially. This does **not**
+change the metadata-only report contract or introduce an aggregate in-memory
+output collection.
 
-- transformed PDF saving;
+The following remain deferred:
+
 - batch output ZIP generation;
-- a new batch-results UI;
+- a dedicated batch-results workspace beyond the downloaded JSON report;
 - ordinary donor-command changes;
 - Writer, OCR, image, archive, and structured-text admission;
-- global memory or history policy;
-- Phase 3 and later work.
+- global memory or history policy.
