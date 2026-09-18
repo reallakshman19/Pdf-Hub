@@ -138,7 +138,7 @@ export function MacroRecipeBuilder({
     <section
       data-macro-builder="true"
       className="macro-recipe-builder"
-      aria-label="Macro recipe builder"
+      aria-label="Workflow builder"
       style={{
         display: 'grid',
         gridTemplateColumns: '280px minmax(320px, 1fr) 380px',
