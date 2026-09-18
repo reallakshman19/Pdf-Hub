@@ -29,6 +29,7 @@ function forbidMarkers(file, markers) {
 requireMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   '<MacroExpertWorkspace',
   '<MacroOutputQueue',
+  '<MacroPresetExecutionPanel',
   'onOutputsProduced',
 ]);
 
@@ -42,6 +43,10 @@ forbidMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   'saveExpertPreset',
   'const saveOutput =',
   'const saveAllOutputs =',
+  'validateRecipeBeforeRun',
+  'runAbortControllerRef',
+  'runSelectedMacro',
+  'preflightReport',
   "from '@/adapters/file/FileAdapter'",
 ]);
 
@@ -63,14 +68,24 @@ requireMarkers('src/components/macro/advanced/MacroOutputQueue.tsx', [
   'onError',
 ]);
 
+requireMarkers('src/components/macro/advanced/MacroPresetExecutionPanel.tsx', [
+  'Test and run',
+  'Test Run',
+  'analyzeMacroWorkflowRisk',
+  'lastTestedSignature',
+  'dryRun: true',
+  'dryRun: false',
+  'onOutputsProduced',
+]);
+
 const sidebarSize = Buffer.byteLength(
   read('src/components/sidebar/MacrosSidebar.tsx'),
   'utf8',
 );
 
-if (sidebarSize >= 50_000) {
+if (sidebarSize >= 40_000) {
   failures.push(
-    `src/components/sidebar/MacrosSidebar.tsx: expected decomposition below 50 KB, found ${sidebarSize} bytes`,
+    `src/components/sidebar/MacrosSidebar.tsx: expected decomposition below 40 KB, found ${sidebarSize} bytes`,
   );
 }
 
