@@ -10,6 +10,7 @@ import { useWriterV2Store } from '../writerV2Store';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   exportPdfHubWriterProject,
@@ -23,6 +24,21 @@ import {
   type StandaloneWriterProjectOperation,
   type StagedWriterProjectImport,
 } from './projectImportController';
+
+
+vi.mock('@/core/pages/pageGraphAdmission', () => ({
+  buildPageGraphFromPdfBytes: vi.fn(async (_bytes: Uint8Array, documentKey: string) => ({
+    pages: [{
+      pageId: `${documentKey}::page::1`,
+      documentKey,
+      originalPageNumber: 1,
+      currentIndex: 0,
+      width: 612,
+      height: 792,
+      rotation: 0 as const,
+    }],
+  })),
+}));
 
 async function onePagePdfBytes(): Promise<Uint8Array> {
   const document = await PDFDocument.create();
@@ -176,6 +192,7 @@ describe('atomic standalone Writer project import', () => {
   });
 
   afterEach(() => {
+    vi.mocked(buildPageGraphFromPdfBytes).mockClear();
     vi.restoreAllMocks();
   });
 
