@@ -94,6 +94,17 @@ requireMarkers('src/components/dialogs/BatchRunDialog.tsx', [
   'usesSelectedPageSelector',
 ]);
 
+requireMarkers('src/components/sidebar/PsIsonoteRecipeBuilder.tsx', [
+  'onBusyChange',
+  'workflowBusy',
+  'isScanning || isRunning || isPackaging',
+]);
+
+requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
+  'specializedBusy',
+  'onBusyChange={setSpecializedBusy}',
+]);
+
 requireMarkers('src/core/macro/recipes/builtInRecipes.ts', [
   "'header-file-name-selected'",
   "'file-date-page-footer-selected'",
