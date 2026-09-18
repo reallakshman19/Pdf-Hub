@@ -89,12 +89,41 @@ describe('OcrPanelWriterConnected', () => {
     });
   });
 
+  const pageInput = {
+    pageIndex: 0,
+    imageBytes: new Uint8Array([1, 2, 3]),
+    width: 595,
+    height: 842,
+    imageCount: 1,
+  };
+
   const revealConnectedRegionTools = async () => {
     fireEvent.click(screen.getByTestId('run-ocr-button'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('ocr-region-add')).toBeTruthy();
+      expect(screen.getByTestId('ocr-region-document-guidance')).toBeTruthy();
     });
+  };
+
+  const addAndSelectRegion = async (documentFingerprint: string) => {
+    useOcrStore.getState().addOcrRegion({
+      id: `region-${documentFingerprint}`,
+      documentFingerprint,
+      pageIndex: 0,
+      mode: 'text',
+      bbox: {
+        x: 72,
+        y: 100,
+        width: 180,
+        height: 60,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-region-select')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('ocr-region-select'));
   };
 
   it('renders connected OCR panel', () => {
@@ -144,18 +173,13 @@ describe('OcrPanelWriterConnected', () => {
       <OcrPanelWriterConnected
         documentFingerprint="writer-connected-doc"
         selectedPageIndexes={[0]}
+        pages={[pageInput]}
       />,
     );
 
     await revealConnectedRegionTools();
+    await addAndSelectRegion('writer-connected-doc');
 
-    fireEvent.change(screen.getByTestId('ocr-region-mode'), {
-      target: {
-        value: 'text',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
     fireEvent.click(screen.getByTestId('ocr-region-run'));
 
     await waitFor(() => {
@@ -187,12 +211,12 @@ describe('OcrPanelWriterConnected', () => {
 
   it('uses writer store current document fingerprint when prop is omitted', async () => {
     render(
-      <OcrPanelWriterConnected selectedPageIndexes={[0]} />,
+      <OcrPanelWriterConnected selectedPageIndexes={[0]} pages={[pageInput]} />,
     );
 
     await revealConnectedRegionTools();
+    await addAndSelectRegion('writer-connected-doc');
 
-    fireEvent.click(screen.getByTestId('ocr-region-add'));
     fireEvent.click(screen.getByTestId('ocr-region-run'));
 
     await waitFor(() => {
