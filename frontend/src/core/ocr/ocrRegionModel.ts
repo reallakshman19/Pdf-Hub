@@ -1,4 +1,5 @@
 import type { PdfRect } from '../writer-v2/types';
+import type { PageId } from '../pages/types';
 import type {
   OcrAnyBlock,
   OcrDiagnostic,
@@ -15,6 +16,7 @@ export type OcrRegionMode =
 export interface OcrRegion {
   id: string;
   documentFingerprint: string;
+  pageId?: PageId;
   pageIndex: number;
   bbox: PdfRect;
   mode: OcrRegionMode;
@@ -25,6 +27,7 @@ export interface OcrRegion {
 export interface CreateOcrRegionInput {
   id: string;
   documentFingerprint: string;
+  pageId?: PageId;
   pageIndex: number;
   bbox: PdfRect;
   mode: OcrRegionMode;
@@ -53,6 +56,7 @@ export function createOcrRegion(
   return {
     id: input.id,
     documentFingerprint: input.documentFingerprint,
+    ...(input.pageId ? { pageId: input.pageId } : {}),
     pageIndex: input.pageIndex,
     bbox: normalizeRect(input.bbox),
     mode: input.mode,

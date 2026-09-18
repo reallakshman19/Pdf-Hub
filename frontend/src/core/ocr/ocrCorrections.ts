@@ -1,4 +1,5 @@
 import type { PdfRect } from '../writer-v2/types';
+import type { PageId } from '../pages/types';
 import type {
   OcrDocumentResult,
   OcrDiagnostic,
@@ -18,6 +19,7 @@ export type OcrCorrectionTargetType =
 export interface OcrCorrection {
   id: string;
   documentFingerprint: string;
+  pageId?: PageId;
   pageIndex: number;
   targetId: string;
   targetType: OcrCorrectionTargetType;
@@ -31,6 +33,7 @@ export interface OcrCorrection {
 export interface CreateOcrCorrectionInput {
   id: string;
   documentFingerprint: string;
+  pageId?: PageId;
   pageIndex: number;
   targetId: string;
   targetType: OcrCorrectionTargetType;
@@ -77,6 +80,7 @@ export function createOcrCorrection(
   return {
     id: input.id,
     documentFingerprint: input.documentFingerprint,
+    ...(input.pageId ? { pageId: input.pageId } : {}),
     pageIndex: input.pageIndex,
     targetId: input.targetId,
     targetType: input.targetType,

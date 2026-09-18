@@ -2,6 +2,7 @@ import type { PdfAnnotation } from '../annotations/types';
 import type { WriterDocumentMode, WriterElementV2 } from '../writer-v2/types';
 import type { PdfCommand } from '../commands/types';
 import type { PageGraph, PageNode } from '../pages/types';
+import type { OcrPageAnchoredState } from '../ocr/ocrPageAnchor';
 
 export interface WriterHistoryState {
   /** Distinguishes PDF-overlay PageId semantics from standalone blank paging. */
@@ -20,6 +21,7 @@ export interface HistoryState {
   currentPage: number;
   annotations: PdfAnnotation[];
   writer?: WriterHistoryState;
+  ocr?: OcrPageAnchoredState;
 }
 
 export interface Transaction {

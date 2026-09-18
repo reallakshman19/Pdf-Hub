@@ -186,6 +186,7 @@ function ocrRegionResultToTextElement(
   const element: WriterElementV2 = {
     id: `ocr-${type}-${regionResult.region.id}`,
     documentFingerprint: regionResult.region.documentFingerprint,
+    ...(regionResult.region.pageId ? { pageId: regionResult.region.pageId } : {}),
     pageIndex: regionResult.region.pageIndex,
     type,
     rect: regionResult.region.bbox,

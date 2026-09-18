@@ -3,7 +3,9 @@ import type { OcrJob } from './ocrJobTypes';
 import type {
   OcrDocumentResult,
   OcrPageResult,
+  OcrReviewFocus,
 } from './types';
+export type { OcrReviewFocus } from './types';
 import type { OcrProfileId } from './ocrProfiles';
 import type {
   OcrCorrection,
@@ -42,16 +44,11 @@ import {
   summarizeOcrDocumentConfidence,
 } from './ocrConfidence';
 import type { PdfRect } from '../writer-v2/types';
-
-export interface OcrReviewFocus {
-  documentFingerprint: string;
-  pageIndex: number;
-  bbox: PdfRect;
-  targetId: string;
-  source: 'lowConfidence' | 'search' | 'region';
-  label?: string;
-  requestedAt: number;
-}
+import { useSessionStore } from '../session/store';
+import {
+  normalizeOcrPageAnchoredState,
+  pageIdForOcrPageIndex,
+} from './ocrPageAnchor';
 
 export interface OcrStoreDerivedState {
   correctedResult: OcrDocumentResult | null;
@@ -185,6 +182,14 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   applyOcrJobSnapshot: (snapshot) => {
     const previous = get();
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+    if (
+      activeDocumentKey
+      && snapshot.job.documentFingerprint
+      && snapshot.job.documentFingerprint !== activeDocumentKey
+    ) {
+      return;
+    }
     const jobs = upsertJob(previous.jobs, snapshot.job);
 
     const nextState: OcrStoreState = {
@@ -202,6 +207,15 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   setOcrResult: (result) => {
     const previous = get();
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+
+    if (
+      result
+      && activeDocumentKey
+      && result.documentFingerprint !== activeDocumentKey
+    ) {
+      return;
+    }
 
     const nextState: OcrStoreState = {
       ...previous,
@@ -301,9 +315,14 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       return null;
     }
 
+    const pageId = pageIdForOcrPageIndex(
+      useSessionStore.getState().pageGraph,
+      input.pageIndex,
+    );
     const region = createOcrRegion({
       id: input.id,
       documentFingerprint,
+      ...(pageId ? { pageId } : {}),
       pageIndex: input.pageIndex,
       bbox: input.bbox,
       mode: input.mode,
@@ -364,9 +383,17 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   focusOcrTarget: (focus) => {
+    const pageId =
+      focus.pageId
+      ?? pageIdForOcrPageIndex(
+        useSessionStore.getState().pageGraph,
+        focus.pageIndex,
+      );
+
     set({
       reviewFocus: {
         ...focus,
+        ...(pageId ? { pageId } : {}),
         requestedAt: Date.now(),
       },
     });
@@ -442,14 +469,26 @@ export function createInitialOcrStoreState(): OcrStoreState {
 export function recomputeOcrDerivedState(
   state: OcrStoreState,
 ): OcrStoreState {
-  const correctedResult = state.result
-    ? applyOcrCorrectionsToDocument(state.result, state.corrections)
+  const anchored = normalizeOcrPageAnchoredState(
+    {
+      documentFingerprint: state.documentFingerprint,
+      result: state.result,
+      corrections: state.corrections,
+      regions: state.regions,
+      selectedPageIndexes: state.selectedPageIndexes,
+      reviewFocus: state.reviewFocus,
+    },
+    useSessionStore.getState().pageGraph,
+  );
+
+  const correctedResult = anchored.result
+    ? applyOcrCorrectionsToDocument(anchored.result, anchored.corrections)
     : null;
 
   const searchIndex = correctedResult
     ? buildOcrSearchIndex({
         document: correctedResult,
-        corrections: state.corrections,
+        corrections: anchored.corrections,
       })
     : null;
 
@@ -463,6 +502,7 @@ export function recomputeOcrDerivedState(
 
   return {
     ...state,
+    ...anchored,
     correctedResult,
     searchIndex,
     confidenceSummary,

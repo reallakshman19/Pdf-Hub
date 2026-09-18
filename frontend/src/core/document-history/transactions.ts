@@ -7,6 +7,11 @@ import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { normalizeWriterPageAnchors } from '../writer-v2/writerPageAnchor';
+import {
+  cloneOcrPageAnchoredState,
+  normalizeOcrPageAnchoredState,
+} from '../ocr/ocrPageAnchor';
+import { recomputeOcrDerivedState, useOcrStore } from '../ocr/ocrStore';
 import { useHistoryStore } from './store';
 import type { HistoryState, Transaction } from './types';
 
@@ -59,6 +64,24 @@ function restoreHistoryState(state: HistoryState): void {
       dirty: true,
       editingId: null,
     });
+  }
+
+  if (state.ocr) {
+    const currentOcr = useOcrStore.getState();
+    const restoredOcr = normalizeOcrPageAnchoredState(
+      cloneOcrPageAnchoredState(state.ocr),
+      state.pageGraph,
+    );
+    useOcrStore.setState(
+      recomputeOcrDerivedState({
+        ...currentOcr,
+        ...restoredOcr,
+        activeJobId: null,
+        jobs: [],
+        dirty: true,
+        lastUpdatedAt: new Date().toISOString(),
+      }),
+    );
   }
 
   documentBus.emit({ type: 'DOCUMENT_REPLACED' });

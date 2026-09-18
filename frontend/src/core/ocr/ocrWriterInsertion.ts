@@ -196,6 +196,7 @@ export function createReviewedOcrTableWriterElement(
   return {
     id: `ocr-tableBox-${input.region.id}`,
     documentFingerprint: input.documentFingerprint,
+    ...(input.region.pageId ? { pageId: input.region.pageId } : {}),
     pageIndex: input.region.pageIndex,
     type: 'tableBox',
     rect: input.region.bbox,

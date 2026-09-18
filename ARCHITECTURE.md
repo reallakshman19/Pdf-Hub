@@ -327,3 +327,29 @@ Rules:
 - persisted/autosaved PDF-overlay Writer state is normalized before storage
 
 Standalone blank Writer documents deliberately remain pageIndex-based. PDF structural commands and history restoration do not impose PDF PageIds on blank-document elements.
+
+
+### OCR PageId anchors
+
+Page-scoped OCR state now uses stable `PageId` as its canonical PDF page identity while retaining zero-based `pageIndex` as an execution/render coordinate.
+
+The anchored OCR transaction state includes:
+- OCR page results and nested words/lines/blocks
+- corrections
+- OCR regions
+- review focus
+- selected OCR pages
+
+Structural semantics:
+- reorder/insert/merge: existing OCR follows its PageId and receives the new physical pageIndex
+- delete/split: OCR attached to removed PageIds is removed
+- rotate: OCR geometry is rotated in bottom-left PDF coordinates and page dimensions are updated
+- duplicate: the original page retains OCR; the newly duplicated page is intentionally unprocessed rather than cloning OCR target IDs
+- replace-page: the stable PageId survives, but OCR for the replaced content is invalidated
+- opaque `APPLY_WORKING_COPY`: OCR may rebind by physical index only when page count is unchanged; page-count-changing opaque output clears OCR
+
+Every committed PDF mutation rekeys bound OCR state to the new document revision. Active OCR jobs are cleared at commit, and stale job/direct-result writes whose fingerprint no longer matches the active document are ignored.
+
+Document history snapshots and restores OCR together with bytes/PageGraph so structural undo/redo restores the matching OCR page state.
+
+Current Phase 5 history is still snapshot-based. OCR state therefore contributes additional memory pressure even though the retained-byte budget currently accounts primarily for PDF bytes. Delta/checkpoint history remains a later large-document architecture task rather than being expanded inside this PageId migration.

@@ -1,4 +1,5 @@
 import type { OcrDocumentResult, OcrPageResult, OcrWord } from './types';
+import type { PageId } from '../pages/types';
 
 export type OcrConfidenceBand =
   | 'high'
@@ -22,6 +23,7 @@ export interface OcrConfidenceSummary {
 }
 
 export interface OcrLowConfidenceWord {
+  pageId?: PageId;
   pageIndex: number;
   word: OcrWord;
   band: OcrConfidenceBand;
@@ -97,6 +99,7 @@ export function collectLowConfidenceWords(
     for (const word of words) {
       if (word.confidence < threshold) {
         result.push({
+          ...(page.pageId ? { pageId: page.pageId } : {}),
           pageIndex: page.pageIndex ?? (page.pageNumber - 1),
           word,
           band: getOcrConfidenceBand(word.confidence),

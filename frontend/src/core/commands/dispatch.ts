@@ -53,6 +53,7 @@ import {
 import {
   commitDocumentMutation,
   isDocumentMutationTransactionError,
+  type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
 import type {
   CommandArtifact,
@@ -302,6 +303,7 @@ async function applyMutation(
   nextSelectedPages?: number[],
   nextCurrentPage?: number,
   nextPageGraph?: PageGraph<PageNode> | null,
+  ocrPagePolicy?: OcrPageMutationPolicy,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return commitDocumentMutation({
     command,
@@ -313,6 +315,7 @@ async function applyMutation(
     nextSelectedPages,
     nextCurrentPage,
     nextPageGraph,
+    ocrPagePolicy,
   });
 }
 
@@ -754,6 +757,9 @@ export async function dispatchPdfCommand(
           undefined,
           undefined,
           nextPageGraph,
+          targetPageId
+            ? { invalidatePageIds: [targetPageId] }
+            : undefined,
         );
         return commandSuccess(command, true, 'Page replaced', result.nextBytes, result.nextPageCount);
       }
@@ -983,6 +989,10 @@ export async function dispatchPdfCommand(
           command.payload.selectedPages,
           undefined,
           rebuiltPageGraph,
+          {
+            rebindByPageIndex: true,
+            clearIfPageCountChanged: true,
+          },
         );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });
         return commandSuccess(
