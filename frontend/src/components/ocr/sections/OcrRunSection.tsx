@@ -13,6 +13,9 @@ export interface OcrRunSectionProps {
   batchQueue?: React.ReactNode;
   runControls?: React.ReactNode;
   executionDiagnostics?: React.ReactNode;
+  pageScopeControls?: React.ReactNode;
+  progress?: React.ReactNode;
+  statusMessage?: React.ReactNode;
   errorMessage?: string | null;
 }
 
@@ -24,27 +27,41 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
   batchQueue,
   runControls,
   executionDiagnostics,
+  pageScopeControls,
+  progress,
+  statusMessage,
   errorMessage,
 }) => {
   const hasAdvancedSettings = Boolean(
     engineControls || pipelineMode || workerMode || executionSettings || executionDiagnostics || batchQueue,
   );
-  const [advancedOpen, setAdvancedOpen] = React.useState(Boolean(executionDiagnostics));
-
-  React.useEffect(() => {
-    if (executionDiagnostics) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- diagnostics arriving after the run plan should reveal advanced execution notes immediately
-      setAdvancedOpen(true);
-    }
-  }, [executionDiagnostics]);
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   return (
     <OcrSectionShell
-      title="Start OCR"
-      description="Run OCR first. Fine-tune settings only when a document needs it."
+      title="Recognize text"
+      description="Choose which pages to process. Review uncertain text after recognition."
       icon={<PlayCircle className="h-4 w-4 text-emerald-600" />}
       testId="ocr-run-section"
     >
+      {pageScopeControls ? (
+        <div data-testid="ocr-run-page-scope">
+          <div className="mb-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            Pages
+          </div>
+          {pageScopeControls}
+        </div>
+      ) : null}
+
+      {statusMessage ? (
+        <div
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"
+          data-testid="ocr-run-status"
+        >
+          {statusMessage}
+        </div>
+      ) : null}
+
       {runControls ? (
         <div
           className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-3 dark:border-emerald-900 dark:bg-emerald-950/30"
@@ -53,16 +70,22 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-                Recommended settings
+                Ready to recognize
               </div>
               <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                OCR will create searchable text and review tools.
+                Recognition runs locally and keeps the PDF on this device.
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
               {runControls}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {progress ? (
+        <div data-testid="ocr-run-progress">
+          {progress}
         </div>
       ) : null}
 
@@ -87,9 +110,9 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
         >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Settings2 className="h-3.5 w-3.5" />
-            Advanced OCR settings
+            OCR settings
             <span className="font-normal text-slate-500 dark:text-slate-400">
-              engine, pages, memory, timeout, pipeline
+              engine, quality, performance
             </span>
           </summary>
           <div className="space-y-3 border-t border-slate-100 p-3 dark:border-slate-800">

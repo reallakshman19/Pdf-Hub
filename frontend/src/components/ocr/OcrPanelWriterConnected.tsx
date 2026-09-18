@@ -18,6 +18,7 @@ export interface OcrPanelWriterConnectedProps {
   documentFingerprint?: string | null;
   selectedPageIndexes?: number[];
   pageCount?: number;
+  currentPageIndex?: number;
   pages?: OcrJobRunnerPageInput[];
   pdfBytes?: Uint8Array | null;
   onSearchablePdfExported?: (bytes: Uint8Array) => void;
@@ -40,6 +41,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const sessionPageCount = useSessionStore((state) => state.pageCount);
   const selectedPages = useSessionStore((state) => state.selectedPages);
+  const currentPageNumber = useSessionStore((state) => state.viewState.currentPage);
 
   const ocrPdfSource = React.useMemo(() => getOcrPdfSourceFromSessionState({
     documentKey,
@@ -57,6 +59,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
   const effectivePdfBytes = props.pdfBytes ?? ocrPdfSource.pdfBytes;
   const effectiveSelectedPageIndexes = props.selectedPageIndexes ?? ocrPdfSource.selectedPageIndexes;
   const effectivePageCount = props.pageCount ?? ocrPdfSource.pageCount ?? 1;
+  const effectiveCurrentPageIndex = props.currentPageIndex ?? Math.max(0, currentPageNumber - 1);
   const effectiveHasPdfBytes = Boolean(effectivePdfBytes);
   const effectiveSelectedPageCount = effectiveSelectedPageIndexes.length;
 
@@ -86,7 +89,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
       <OcrAssistantShell
         header={<OcrHeaderSummary fileName={headerSummary.fileName} documentFingerprint={headerSummary.documentFingerprint} hasPdfBytes={headerSummary.hasPdfBytes} bytesSource={headerSummary.bytesSource} pageCount={headerSummary.pageCount} selectedPageCount={headerSummary.selectedPageCount} />}
         writerStatus={lastInsertSummary ? <WriterStatus message={lastInsertSummary} /> : null}
-        main={<OcrPanel documentFingerprint={effectiveDocumentFingerprint} selectedPageIndexes={effectiveSelectedPageIndexes} pageCount={effectivePageCount} pages={props.pages} pdfBytes={effectivePdfBytes} onSearchablePdfExported={props.onSearchablePdfExported} onInsertWriterElements={insertIntoWriter} />}
+        main={<OcrPanel documentFingerprint={effectiveDocumentFingerprint} selectedPageIndexes={effectiveSelectedPageIndexes} pageCount={effectivePageCount} currentPageIndex={effectiveCurrentPageIndex} pages={props.pages} pdfBytes={effectivePdfBytes} onSearchablePdfExported={props.onSearchablePdfExported} onInsertWriterElements={insertIntoWriter} />}
         sourceDefaultOpen={!headerSummary.hasPdfBytes || sourceWarnings.length > 0}
         sourceDetails={<SourceDetails summary={headerSummary} warnings={sourceWarnings.map((item) => item.message)} />}
       />

@@ -247,6 +247,37 @@ describe('ocrStore', () => {
     expect(useOcrStore.getState().getOcrPageResult(99)).toBeNull();
   });
 
+  it('publishes and clears a document focus target for OCR review', () => {
+    const store = useOcrStore.getState();
+
+    store.focusOcrTarget({
+      documentFingerprint: 'doc-focus',
+      pageIndex: 2,
+      bbox: {
+        x: 100,
+        y: 200,
+        width: 50,
+        height: 16,
+      },
+      targetId: 'word-focus',
+      source: 'lowConfidence',
+      label: 'PROCESS',
+    });
+
+    const focus = useOcrStore.getState().reviewFocus;
+    expect(focus).toMatchObject({
+      documentFingerprint: 'doc-focus',
+      pageIndex: 2,
+      targetId: 'word-focus',
+      source: 'lowConfidence',
+      label: 'PROCESS',
+    });
+    expect(focus?.requestedAt).toEqual(expect.any(Number));
+
+    store.clearOcrFocus();
+    expect(useOcrStore.getState().reviewFocus).toBeNull();
+  });
+
   it('marks OCR state persisted and clears OCR state', async () => {
     const document = await createMockDocument();
 

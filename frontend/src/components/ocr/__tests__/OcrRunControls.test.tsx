@@ -74,6 +74,7 @@ describe('OCR run workflow controls', () => {
   it('renders run actions and disables unsafe actions while running', () => {
     const onRun = vi.fn();
     const onClear = vi.fn();
+    const onCancel = vi.fn();
 
     const { rerender } = render(
       <OcrRunActions
@@ -94,6 +95,7 @@ describe('OCR run workflow controls', () => {
         running
         onRun={onRun}
         onClear={onClear}
+        onCancel={onCancel}
       />,
     );
 
@@ -102,7 +104,23 @@ describe('OCR run workflow controls', () => {
 
     expect(runButton.disabled).toBe(true);
     expect(clearButton.disabled).toBe(true);
-    expect(screen.getByText('Running')).toBeTruthy();
+    expect(screen.getByText('Recognizing')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('cancel-ocr-button'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports disabling recognition when no document source is available', () => {
+    render(
+      <OcrRunActions
+        running={false}
+        runDisabled
+        onRun={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+
+    const runButton = screen.getByTestId('run-ocr-button') as HTMLButtonElement;
+    expect(runButton.disabled).toBe(true);
   });
 
   it('supports explicitly disabling clear when not running', () => {

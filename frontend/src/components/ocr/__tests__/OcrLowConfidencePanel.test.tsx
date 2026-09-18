@@ -33,6 +33,8 @@ describe('OcrLowConfidencePanel', () => {
     expect(screen.getByText('P1pe')).toBeTruthy();
     expect(screen.getByText('Supp0rt')).toBeTruthy();
     expect(screen.getByTestId('ocr-low-confidence-count').textContent).toBe('2');
+    expect(screen.getAllByText('Page 1 · show in document')).toHaveLength(2);
+    expect(screen.queryByText(/x 72/i)).toBeNull();
   });
 
   it('calls onSelectWord when item clicked', () => {

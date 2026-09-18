@@ -7,6 +7,7 @@ import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { useSearchStore } from '@/core/search/store';
 import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
@@ -201,7 +202,7 @@ const ThumbnailSidebar: React.FC = () => {
   const unresolvedCountByPage = React.useMemo(() => {
     const counts: Record<number, number> = {};
     annotations.forEach((annotation) => {
-      const status = annotation.data.review?.status;
+      const status = getAnnotationReviewStatus(annotation);
       if (status === 'resolved') return;
       counts[annotation.pageNumber] = (counts[annotation.pageNumber] ?? 0) + 1;
     });

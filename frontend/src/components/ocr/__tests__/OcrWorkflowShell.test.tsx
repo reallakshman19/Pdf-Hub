@@ -57,13 +57,13 @@ describe('OCR professional workflow shell', () => {
 
     expect(screen.getAllByTestId('ocr-assistant-shell')).toHaveLength(1);
     expect(screen.getByTestId('ocr-header-summary')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /run ocr/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(within(summary).getByText('ocr-shell.pdf')).toBeTruthy();
+    expect(screen.getByText('ocr-shell.pdf')).toBeTruthy();
     expect(within(summary).getByText('working')).toBeTruthy();
     expect(within(summary).getByText('2')).toBeTruthy();
-    expect(within(summary).getByText('1')).toBeTruthy();
+    expect(within(summary).getByText('1 selected')).toBeTruthy();
 
     const source = screen.getByTestId('ocr-source-panel') as HTMLDetailsElement;
 
@@ -72,7 +72,7 @@ describe('OCR professional workflow shell', () => {
     expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
   });
 
-  it('shows ready header when pdfBytes are supplied without a session document', () => {
+  it('shows source context without duplicating workflow state in the header', () => {
     render(
       <OcrPanelWriterConnected
         documentFingerprint="prop-doc"
@@ -84,8 +84,9 @@ describe('OCR professional workflow shell', () => {
 
     const summary = screen.getByTestId('ocr-unified-summary');
 
-    expect(screen.getByText(/Ready for OCR/i)).toBeTruthy();
+    expect(screen.getByText('prop-doc')).toBeTruthy();
     expect(within(summary).getByText('direct input')).toBeTruthy();
+    expect(screen.queryByTestId('ocr-header-next-action')).toBeNull();
     expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();
   });
 
