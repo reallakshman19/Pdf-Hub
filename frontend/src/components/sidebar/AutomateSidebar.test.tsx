@@ -196,23 +196,16 @@ describe('AutomateSidebar', () => {
   });
 
   it('keeps Generate Document mounted by locking Automate tabs while generation runs', async () => {
-    let resolveGeneration:
-      | ((value: {
-          success: boolean;
-          status: string;
-          outputFiles: [];
-          logs: string[];
-          finalBytes: Uint8Array;
-          selectedPages: number[];
-          stepResults: [];
-        }) => void)
-      | undefined;
+    type SessionRunResult = Awaited<
+      ReturnType<typeof runMacroRecipeAgainstSession>
+    >;
+    let resolveGeneration: ((value: SessionRunResult) => void) | undefined;
 
     runMock.mockImplementationOnce(
       () =>
-        new Promise((resolve) => {
+        new Promise<SessionRunResult>((resolve) => {
           resolveGeneration = resolve;
-        }) as ReturnType<typeof runMacroRecipeAgainstSession>,
+        }),
     );
 
     render(<AutomateSidebar />);
@@ -225,6 +218,9 @@ describe('AutomateSidebar', () => {
       expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Close Generator' })).toBeDisabled();
     });
+
+    fireEvent.click(screen.getByText('Specialized workflows'));
+    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
 
     resolveGeneration?.({
       success: true,
