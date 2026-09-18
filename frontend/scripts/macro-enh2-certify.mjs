@@ -28,6 +28,8 @@ const commands = [
       'src/core/macro/builder/recipeBuilderState.slice7.test.ts',
       'src/components/macro/builder/MacroRecipeBuilder.slice8.test.tsx',
       'src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx',
+      'src/components/macro/advanced/MacroExpertWorkspace.test.tsx',
+      'src/components/macro/advanced/MacroOutputQueue.test.tsx',
       'src/components/macro/builder/MacroStepEditor.slice9.test.tsx',
       'src/components/macro/builder/MacroNestedBranchEditor.slice10.test.tsx',
       'src/pages/MacroBuilderPage.slice11.test.tsx',
@@ -46,6 +48,11 @@ const commands = [
     name: 'automate-phase3-audit',
     command: 'node',
     args: ['scripts/automate-phase3-audit.mjs'],
+  },
+  {
+    name: 'automate-phase3-decomposition-audit',
+    command: 'node',
+    args: ['scripts/automate-phase3-decomposition-audit.mjs'],
   },
   {
     name: 'audit-no-placeholders',
