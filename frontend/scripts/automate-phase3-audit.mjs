@@ -55,8 +55,26 @@ requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
   'My Workflows',
   'Build',
   'Specialized workflows',
-  'Advanced macro tools',
+  'Generate Document',
+  'MacroGenerateDocumentPanel',
+  'MacroOutputQueue',
   'setMacroBuilderSource',
+]);
+
+forbidMarkers('src/components/sidebar/AutomateSidebar.tsx', [
+  'Advanced macro tools',
+  'MacrosSidebar',
+  'MacroExpertWorkspace',
+  'MacroPresetExecutionPanel',
+  'MacroPresetParameters',
+]);
+
+requireMarkers('src/core/macro/recipes/builtInRecipes.ts', [
+  "'header-file-name-selected'",
+  "'file-date-page-footer-selected'",
+  "'review-copy-selected'",
+  "'review-pack-header-footer'",
+  "'insert-blank-after-current'",
 ]);
 
 requireMarkers('src/components/macro/builder/MacroRecipeBuilder.tsx', [
