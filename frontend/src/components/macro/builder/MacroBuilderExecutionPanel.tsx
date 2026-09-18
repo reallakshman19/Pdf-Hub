@@ -85,6 +85,8 @@ export function MacroBuilderExecutionPanel({
     if (!canTest) return;
     setStatus('testing');
     setMessage(null);
+    setPreflight(null);
+    setPreflightSignature(recipeSignature);
     setLogs([]);
 
     try {
@@ -124,6 +126,8 @@ export function MacroBuilderExecutionPanel({
 
     setStatus('testing');
     setMessage(null);
+    setPreflight(null);
+    setPreflightSignature(recipeSignature);
     setLogs([]);
 
     try {
