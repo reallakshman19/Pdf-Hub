@@ -92,6 +92,24 @@ describe('MacroStepEditor slice 9', () => {
     expect(json).toContain('"page": 3');
   });
 
+  it('edits insert position to after current without a numeric page', () => {
+    render(<MacroRecipeBuilder />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Insert Blank Page' }));
+
+    fireEvent.change(screen.getByLabelText('Insert Position Mode'), {
+      target: { value: 'after-current' },
+    });
+
+    expect(screen.queryByLabelText('Insert Position Page')).toBeNull();
+
+    exportSource();
+
+    const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
+    expect(json).toContain('"mode": "after-current"');
+    expect(json).not.toContain('"page":');
+  });
+
   it('edits text and validates invalid font size', () => {
     render(<MacroRecipeBuilder />);
 
