@@ -8,6 +8,7 @@ import {
   type PreflightReport,
 } from '@/core/macro/validation/validator';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
 
 export interface MacroBuilderExecutionPanelProps {
   recipe: MacroRecipe;
@@ -24,7 +25,12 @@ export function MacroBuilderExecutionPanel({
   const selectedPages = useSessionStore((state) => state.selectedPages);
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
 
+  const recipeSignature = React.useMemo(() => JSON.stringify(recipe), [recipe]);
+  const riskAnalysis = React.useMemo(() => analyzeMacroWorkflowRisk(recipe), [recipe]);
+
   const [preflight, setPreflight] = React.useState<PreflightReport | null>(null);
+  const [preflightSignature, setPreflightSignature] = React.useState<string | null>(null);
+  const [lastTestedRecipeSignature, setLastTestedRecipeSignature] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<'idle' | 'testing' | 'running' | 'success' | 'error'>('idle');
   const [message, setMessage] = React.useState<string | null>(null);
   const [logs, setLogs] = React.useState<string[]>([]);
@@ -35,7 +41,13 @@ export function MacroBuilderExecutionPanel({
   }, []);
 
   const hasDocument = Boolean(workingBytes && fileName);
-  const canExecute = validationValid && hasDocument && status !== 'testing' && status !== 'running';
+  const busy = status === 'testing' || status === 'running';
+  const canTest = validationValid && hasDocument && !busy;
+  const previewSatisfied =
+    riskAnalysis.risk === 'safe'
+    || lastTestedRecipeSignature === recipeSignature;
+  const canRun = validationValid && hasDocument && !busy && previewSatisfied;
+  const assessmentCurrent = preflightSignature === recipeSignature;
 
   const buildPreflight = React.useCallback(async (): Promise<PreflightReport | null> => {
     if (!fileName || !validationValid) return null;
@@ -56,6 +68,7 @@ export function MacroBuilderExecutionPanel({
     );
 
     setPreflight(report);
+    setPreflightSignature(recipeSignature);
     setLogs(report.dryRunLogs);
     return report;
   }, [
@@ -64,11 +77,12 @@ export function MacroBuilderExecutionPanel({
     pageCount,
     recipe,
     selectedPages,
+    recipeSignature,
     validationValid,
   ]);
 
   const handleTestRun = async () => {
-    if (!canExecute) return;
+    if (!canTest) return;
     setStatus('testing');
     setMessage(null);
     setLogs([]);
@@ -81,12 +95,19 @@ export function MacroBuilderExecutionPanel({
         return;
       }
 
-      setStatus(report.isValid ? 'idle' : 'error');
-      setMessage(
-        report.isValid
-          ? 'Test Run complete. Review the impact summary before running.'
-          : 'Test Run found blocking issues.',
-      );
+      if (report.isValid) {
+        setLastTestedRecipeSignature(recipeSignature);
+        setStatus('idle');
+        setMessage(
+          riskAnalysis.risk === 'preview-required'
+            ? 'Test Run complete. Destructive page changes are previewed and Run is now enabled.'
+            : 'Test Run complete. Review the impact summary before running.',
+        );
+      } else {
+        setLastTestedRecipeSignature(null);
+        setStatus('error');
+        setMessage('Test Run found blocking issues.');
+      }
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : String(error));
@@ -94,7 +115,12 @@ export function MacroBuilderExecutionPanel({
   };
 
   const handleRun = async () => {
-    if (!canExecute) return;
+    if (riskAnalysis.risk === 'preview-required' && !previewSatisfied) {
+      setStatus('error');
+      setMessage('Test Run this workflow before running destructive page changes.');
+      return;
+    }
+    if (!canRun) return;
 
     setStatus('testing');
     setMessage(null);
@@ -190,6 +216,16 @@ export function MacroBuilderExecutionPanel({
         ) : null}
       </div>
 
+      {riskAnalysis.risk === 'preview-required' ? (
+        <div
+          className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+          data-testid="macro-builder-preview-required"
+        >
+          <strong>Preview required.</strong>{' '}
+          This workflow removes, replaces, splits, or reorders pages. Run is enabled only after a successful Test Run of the current workflow.
+        </div>
+      ) : null}
+
       {!hasDocument ? (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           Open a PDF to test or run this workflow.
@@ -202,7 +238,7 @@ export function MacroBuilderExecutionPanel({
           variant="secondary"
           size="sm"
           onClick={() => void handleTestRun()}
-          disabled={!canExecute}
+          disabled={!canTest}
           data-testid="macro-builder-test-run"
         >
           <FlaskConical className="mr-1 h-3.5 w-3.5" />
@@ -213,7 +249,7 @@ export function MacroBuilderExecutionPanel({
           type="button"
           size="sm"
           onClick={() => void handleRun()}
-          disabled={!canExecute}
+          disabled={!canRun}
           data-testid="macro-builder-run"
         >
           <Play className="mr-1 h-3.5 w-3.5" />
@@ -234,7 +270,7 @@ export function MacroBuilderExecutionPanel({
         ) : null}
       </div>
 
-      {message ? (
+      {message && assessmentCurrent ? (
         <p
           className="mt-3 text-xs text-slate-700 dark:text-slate-300"
           role="status"
@@ -243,11 +279,11 @@ export function MacroBuilderExecutionPanel({
         </p>
       ) : null}
 
-      {preflight ? (
+      {preflight && assessmentCurrent ? (
         <WorkflowPreflight report={preflight} />
       ) : null}
 
-      {logs.length > 0 ? (
+      {logs.length > 0 && assessmentCurrent ? (
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">
             Run details
