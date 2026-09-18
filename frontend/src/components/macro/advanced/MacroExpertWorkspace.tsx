@@ -176,6 +176,7 @@ export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
 
     setRunError(null);
     setLogs([]);
+    setIsRunning(true);
 
     try {
       const parsed = parseExpertRecipe(recipeJson);
@@ -211,7 +212,6 @@ export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
       abortRef.current?.abort('Superseded by a new expert workflow run');
       const controller = new AbortController();
       abortRef.current = controller;
-      setIsRunning(true);
 
       const result = await runMacroRecipeAgainstSession(
         {
