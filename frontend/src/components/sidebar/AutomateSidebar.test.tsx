@@ -132,6 +132,7 @@ describe('AutomateSidebar', () => {
         }),
       );
     });
+    expect(runMock).not.toHaveBeenCalled();
   });
 
   it('disables selection-dependent quick actions until pages are selected', () => {
