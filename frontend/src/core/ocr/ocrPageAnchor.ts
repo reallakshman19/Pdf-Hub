@@ -162,6 +162,8 @@ export function reanchorOcrPageStateAfterPageGraphChange(
               page.pageId,
               nextIndex,
               rotationDelta,
+              effectivePageWidth(beforeNode ?? afterNode!),
+              effectivePageHeight(beforeNode ?? afterNode!),
             ),
           ];
         }),
@@ -344,9 +346,17 @@ function transformOcrPageResult(
   pageId: PageId,
   pageIndex: number,
   rotationDelta: number,
+  fallbackWidth = 0,
+  fallbackHeight = 0,
 ): OcrPageResult {
-  const width = page.width ?? 0;
-  const height = page.height ?? 0;
+  const width =
+    typeof page.width === 'number' && page.width > 0
+      ? page.width
+      : fallbackWidth;
+  const height =
+    typeof page.height === 'number' && page.height > 0
+      ? page.height
+      : fallbackHeight;
   const rotateRect = (rect: PdfRect) =>
     transformRectForRotation(rect, width, height, rotationDelta);
   const swapsDimensions = rotationDelta === 90 || rotationDelta === 270;
@@ -401,10 +411,7 @@ function transformOcrPageResult(
     pageNumber: pageIndex + 1,
     width: swapsDimensions ? height : width,
     height: swapsDimensions ? width : height,
-    orientationDeg:
-      typeof page.orientationDeg === 'number'
-        ? normalizeDegrees(page.orientationDeg + rotationDelta)
-        : page.orientationDeg,
+    orientationDeg: page.orientationDeg,
     words,
     lines,
     blocks,
