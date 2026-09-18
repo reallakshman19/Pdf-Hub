@@ -466,6 +466,17 @@ if (pageLabelsDialog.includes('drawText') || pageLabelsDialog.includes('ADD_HEAD
   failures.push('PageLabels dialog must not conflate logical labels with printed page content');
 }
 
+for (const [relativePath, source] of [
+  ['src/components/dialogs/PageLabelsDialog.tsx', pageLabelsDialog],
+  ['src/components/toolbar/ToolbarOrganize.tsx', organizeToolbar],
+]) {
+  if (source.includes('pdfPageLabelWriter') || source.includes('writePdfPageLabels')) {
+    failures.push(
+      `${relativePath} must mutate PageLabels through SET_PAGE_LABELS, not the low-level writer`,
+    );
+  }
+}
+
 void pageLabelEditing;
 void pageLabelsDialog;
 void organizeToolbar;
