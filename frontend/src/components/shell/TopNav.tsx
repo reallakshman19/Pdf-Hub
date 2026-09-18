@@ -36,7 +36,6 @@ export const TopNav: React.FC = () => {
     setSidebarTab,
     setLeftPanelWidth,
     leftPanelWidth,
-    setMacroBuilderOpen,
     mobileDrawerOpen,
     setMobileDrawerOpen,
     activeMode,
@@ -45,7 +44,6 @@ export const TopNav: React.FC = () => {
     setSidebarTab: state.setSidebarTab,
     setLeftPanelWidth: state.setLeftPanelWidth,
     leftPanelWidth: state.leftPanelWidth,
-    setMacroBuilderOpen: state.setMacroBuilderOpen,
     mobileDrawerOpen: state.mobileDrawerOpen,
     setMobileDrawerOpen: state.setMobileDrawerOpen,
     activeMode: state.activeMode,
@@ -83,7 +81,7 @@ export const TopNav: React.FC = () => {
     { id: 'draw',     icon: PenTool,       label: 'Draw' },
     { id: 'write',    icon: Type,          label: 'Write' },
     { id: 'organize', icon: Layers,        label: 'Organize' },
-    { id: 'generate', icon: Sparkles,      label: 'Generate', ai: true },
+    { id: 'generate', icon: Sparkles,      label: 'Automate', ai: true },
   ];
   const addToast = useToastStore((state) => state.addToast);
   const capabilities = useCapabilities();
@@ -431,13 +429,6 @@ export const TopNav: React.FC = () => {
               {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </Button>
           </Tooltip>
-          {capabilities.hasMacroConsole && (
-            <Tooltip content="Open macro builder">
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => setMacroBuilderOpen(true)}>
-                <Wand2 className="w-3.5 h-3.5" />
-              </Button>
-            </Tooltip>
-          )}
           <Tooltip content="Open settings">
             <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => setSettingsOpen(true)}>
               <Settings className="w-3.5 h-3.5" />
@@ -462,7 +453,12 @@ export const TopNav: React.FC = () => {
         onClose={() => setPaletteOpen(false)}
         onToggleTheme={toggleDarkMode}
         canOpenMacroBuilder={capabilities.hasMacroConsole}
-        onOpenMacroBuilder={() => { setPaletteOpen(false); setMacroBuilderOpen(true); }}
+        onOpenMacroBuilder={() => {
+          setPaletteOpen(false);
+          setActiveMode('generate');
+          setSidebarTab('macros');
+          if (leftPanelWidth < 1) setLeftPanelWidth(20);
+        }}
       />
     </>
   );
@@ -579,7 +575,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onTogg
     { icon: Highlighter,  label: 'Highlight selection', hint: 'H',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
     { icon: MessageSquare,label: 'Add sticky note',     hint: 'N',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
     ...(canOpenMacroBuilder
-      ? [{ icon: Wand2, label: 'Open Macro Builder', hint: '⌘M', section: 'Generate', action: onOpenMacroBuilder }]
+      ? [{ icon: Wand2, label: 'Open Automate', hint: '⌘M', section: 'Automate', action: onOpenMacroBuilder }]
       : []),
     { icon: Moon,         label: 'Toggle dark mode',    section: 'View', action: () => { onClose(); onToggleTheme(); } },
   ];
