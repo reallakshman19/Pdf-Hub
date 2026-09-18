@@ -91,10 +91,23 @@ for (const file of [
 requireMarkers('src/components/shell/TopNav.tsx', [
   "label: 'Automate'",
   "label: 'Open Automate'",
+  "setSidebarTab('macros')",
+]);
+
+forbidMarkers('src/components/shell/CtxBar.tsx', [
+  '<ToolbarMacro />',
+  "from '@/components/toolbar/ToolbarMacro'",
 ]);
 
 requireMarkers('src/components/shell/ModeBar.tsx', [
   "label: 'Automate'",
+  "setSidebarTab('macros')",
+  'setMobileDrawerOpen(true)',
+]);
+
+requireMarkers('src/components/shell/LeftRail.tsx', [
+  "label: 'Automate'",
+  "if (id === 'macros') setActiveMode('generate')",
 ]);
 
 if (failures.length > 0) {
