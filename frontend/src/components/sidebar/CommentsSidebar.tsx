@@ -16,10 +16,8 @@ import {
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
-import {
-  getAnnotationReviewStatus,
-  isReviewConversationAnnotation,
-} from '@/core/review/annotationReview';
+import { reviewThreadsFromAnnotations } from '@/core/review/threadAdapter';
+import type { ReviewThread } from '@/core/review/types';
 import { exportReviewSummary, formatReviewSummaryText } from '@/core/review/export';
 import { downloadBlob } from '@/core/document/download';
 import { Badge } from '@/components/ui/Badge';
@@ -47,29 +45,44 @@ export const CommentsSidebar: React.FC = () => {
     setFilterStatus: state.setFilterStatus,
   })));
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
 
-  const reviewAnnotations = useMemo(
-    () => annotations.filter(isReviewConversationAnnotation),
+  const threads = useMemo(
+    () => reviewThreadsFromAnnotations(annotations),
     [annotations],
   );
 
-  const filteredAnnotations = useMemo(() => {
-    return reviewAnnotations.filter((annotation) => {
-      if (filterStatus === 'all') return true;
-      return getAnnotationReviewStatus(annotation) === filterStatus;
-    });
-  }, [reviewAnnotations, filterStatus]);
+  const annotationById = useMemo(
+    () => new Map(annotations.map((annotation) => [annotation.id, annotation])),
+    [annotations],
+  );
 
-  const groupedAnnotations = useMemo(() => {
-    const groups: Record<number, typeof annotations> = {};
-    for (const annotation of filteredAnnotations) {
-      if (!groups[annotation.pageNumber]) groups[annotation.pageNumber] = [];
-      groups[annotation.pageNumber].push(annotation);
+  const filteredThreads = useMemo(() => {
+    if (filterStatus === 'all') return threads;
+    return threads.filter((thread) => thread.status === filterStatus);
+  }, [threads, filterStatus]);
+
+  const groupedThreads = useMemo(() => {
+    const groups = new Map<number, ReviewThread[]>();
+
+    for (const thread of filteredThreads) {
+      const pageNumber = thread.anchor.pageNumber;
+      const pageThreads = groups.get(pageNumber) ?? [];
+      pageThreads.push(thread);
+      groups.set(pageNumber, pageThreads);
     }
+
     return groups;
-  }, [filteredAnnotations]);
+  }, [filteredThreads]);
+
+  const reviewAnnotations = useMemo(
+    () => threads.flatMap((thread) => {
+      const annotation = annotationById.get(thread.anchor.annotationId);
+      return annotation ? [annotation] : [];
+    }),
+    [threads, annotationById],
+  );
 
   const handleExportJson = () => {
     const summary = exportReviewSummary(reviewAnnotations);
@@ -84,21 +97,21 @@ export const CommentsSidebar: React.FC = () => {
     downloadBlob(blob, `review-summary-${summary.generatedAt}.txt`);
   };
 
-  const focusThread = (annotationId: string, pageNumber: number) => {
-    setActiveAnnotationId(annotationId);
-    setPage(pageNumber);
-    setExpandedId((current) => current === annotationId ? null : annotationId);
+  const focusThread = (thread: ReviewThread) => {
+    setActiveAnnotationId(thread.anchor.annotationId);
+    setPage(thread.anchor.pageNumber);
+    setExpandedThreadId((current) => current === thread.id ? null : thread.id);
     setReplyDraft('');
   };
 
-  const submitReply = (annotationId: string) => {
+  const submitReply = (thread: ReviewThread) => {
     const value = replyDraft.trim();
     if (!value) return;
-    addReviewReply(annotationId, value);
+    addReviewReply(thread.anchor.annotationId, value);
     setReplyDraft('');
   };
 
-  if (reviewAnnotations.length === 0) {
+  if (threads.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 text-center">
@@ -116,21 +129,17 @@ export const CommentsSidebar: React.FC = () => {
     );
   }
 
-  const sortedPages = Object.keys(groupedAnnotations)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const sortedPages = Array.from(groupedThreads.keys()).sort((a, b) => a - b);
 
   return (
     <div className="flex flex-col h-full">
-      <div
-        className="flex items-center gap-2 border-b border-slate-200 bg-white px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950"
-      >
+      <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-950">
         <MessageSquare size={14} className="text-slate-500" />
         <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
           Comments
         </span>
         <span className="ml-auto text-[11px] text-slate-500">
-          {reviewAnnotations.length}
+          {threads.length}
         </span>
       </div>
 
@@ -190,52 +199,45 @@ export const CommentsSidebar: React.FC = () => {
             </h4>
 
             <div className="space-y-2">
-              {groupedAnnotations[pageNumber]
+              {(groupedThreads.get(pageNumber) ?? [])
                 .slice()
                 .sort((a, b) => b.updatedAt - a.updatedAt)
-                .map((annotation) => {
-                  const selected = annotation.id === activeAnnotationId;
-                  const expanded = annotation.id === expandedId;
-                  const review = annotation.data.review;
-                  const status = getAnnotationReviewStatus(annotation);
-                  const title =
-                    review?.title?.trim()
-                    || (typeof annotation.data.text === 'string' && annotation.data.text.trim()
-                      ? annotation.data.text
-                      : annotation.type.replaceAll('-', ' '));
-                  const author =
-                    review?.author
-                    || (typeof annotation.data.author === 'string' ? annotation.data.author : 'Unknown');
-                  const replies = review?.replies ?? [];
+                .map((thread) => {
+                  const selected = thread.anchor.annotationId === activeAnnotationId;
+                  const expanded = thread.id === expandedThreadId;
+                  const replyCount = Math.max(
+                    0,
+                    thread.messages.length - (thread.messages[0]?.id.endsWith(':root') ? 1 : 0),
+                  );
 
                   return (
                     <article
-                      key={annotation.id}
+                      key={thread.id}
                       className={`rounded-lg border transition-colors ${
                         selected
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
                           : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950'
                       }`}
-                      data-testid={`review-thread-${annotation.id}`}
+                      data-testid={`review-thread-${thread.anchor.annotationId}`}
                     >
                       <button
                         type="button"
                         className="w-full p-3 text-left"
-                        onClick={() => focusThread(annotation.id, annotation.pageNumber)}
+                        onClick={() => focusThread(thread)}
                         aria-expanded={expanded}
                       >
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <div className="flex min-w-0 items-center gap-2">
                             <Badge className="text-[10px] px-1.5 py-0 h-4 uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-none">
-                              {annotation.type}
+                              {thread.anchor.annotationType}
                             </Badge>
-                            <StatusIcon status={status} />
+                            <StatusIcon status={thread.status} />
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                            {replies.length > 0 ? (
+                            {replyCount > 0 ? (
                               <span className="flex items-center gap-0.5">
                                 <MessageSquare className="w-3 h-3" />
-                                {replies.length}
+                                {replyCount}
                               </span>
                             ) : null}
                             {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -243,40 +245,45 @@ export const CommentsSidebar: React.FC = () => {
                         </div>
 
                         <div className="text-sm font-medium text-slate-800 dark:text-slate-100 line-clamp-2 leading-relaxed">
-                          {title}
+                          {thread.title}
                         </div>
 
                         <div className="mt-2 text-[10px] text-slate-500 truncate">
-                          {author} · {status}
+                          {thread.author} · {thread.status}
                         </div>
                       </button>
 
                       {expanded ? (
                         <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-                          {replies.length > 0 ? (
+                          {thread.messages.length > 0 ? (
                             <div className="mb-3 space-y-2">
-                              {replies.map((reply) => (
+                              {thread.messages.map((message, index) => (
                                 <div
-                                  key={reply.id}
-                                  className="rounded-md bg-slate-100 px-2.5 py-2 text-xs dark:bg-slate-900"
+                                  key={message.id}
+                                  className={[
+                                    'rounded-md px-2.5 py-2 text-xs',
+                                    index === 0 && message.id.endsWith(':root')
+                                      ? 'border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950'
+                                      : 'bg-slate-100 dark:bg-slate-900',
+                                  ].join(' ')}
                                 >
                                   <div className="mb-1 flex items-center justify-between gap-2">
                                     <span className="font-medium text-slate-700 dark:text-slate-200">
-                                      {reply.author}
+                                      {message.author}
                                     </span>
                                     <span className="text-[10px] text-slate-500">
-                                      {new Date(reply.createdAt).toLocaleString()}
+                                      {new Date(message.createdAt).toLocaleString()}
                                     </span>
                                   </div>
                                   <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">
-                                    {reply.content}
+                                    {message.content}
                                   </p>
                                 </div>
                               ))}
                             </div>
                           ) : (
                             <div className="mb-3 text-xs italic text-slate-500">
-                              No replies yet.
+                              No messages yet.
                             </div>
                           )}
 
@@ -288,7 +295,7 @@ export const CommentsSidebar: React.FC = () => {
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter') {
                                   event.preventDefault();
-                                  submitReply(annotation.id);
+                                  submitReply(thread);
                                 }
                               }}
                               placeholder="Reply to this thread…"
@@ -298,7 +305,7 @@ export const CommentsSidebar: React.FC = () => {
                             <Button
                               size="icon"
                               className="h-8 w-8 shrink-0"
-                              onClick={() => submitReply(annotation.id)}
+                              onClick={() => submitReply(thread)}
                               disabled={!replyDraft.trim()}
                               title="Send reply"
                             >
@@ -307,13 +314,13 @@ export const CommentsSidebar: React.FC = () => {
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {status === 'open' ? (
+                            {thread.status === 'open' ? (
                               <>
                                 <Button
                                   variant="secondary"
                                   size="sm"
                                   className="h-7 text-xs"
-                                  onClick={() => setReviewStatus(annotation.id, 'resolved')}
+                                  onClick={() => setReviewStatus(thread.anchor.annotationId, 'resolved')}
                                 >
                                   <CheckCircle2 className="mr-1 h-3 w-3" />
                                   Resolve
@@ -322,7 +329,7 @@ export const CommentsSidebar: React.FC = () => {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 text-xs text-red-600"
-                                  onClick={() => setReviewStatus(annotation.id, 'rejected')}
+                                  onClick={() => setReviewStatus(thread.anchor.annotationId, 'rejected')}
                                 >
                                   <XCircle className="mr-1 h-3 w-3" />
                                   Reject
@@ -333,7 +340,7 @@ export const CommentsSidebar: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 text-xs"
-                                onClick={() => setReviewStatus(annotation.id, 'open')}
+                                onClick={() => setReviewStatus(thread.anchor.annotationId, 'open')}
                               >
                                 <RotateCcw className="mr-1 h-3 w-3" />
                                 Reopen
