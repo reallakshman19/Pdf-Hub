@@ -56,7 +56,7 @@ export const MacroBuilderDrawer: React.FC = () => {
   }
 
   function closeBuilder(): void {
-    closeBuilder();
+    setMacroBuilderOpen(false);
     setMacroBuilderSource(null);
   }
 
