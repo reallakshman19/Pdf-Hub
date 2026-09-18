@@ -280,8 +280,10 @@ function orderFromGraphs(
 function pageGraphHasLogicalLabelMetadata(
   graph: PageGraph<PageNode>,
 ): boolean {
-  return graph.pageLabelRanges !== undefined
-    || graph.pages.some((page) => page.logicalLabel !== undefined);
+  return Boolean(
+    (graph.pageLabelRanges && graph.pageLabelRanges.length > 0)
+    || graph.pages.some((page) => page.logicalLabel !== undefined),
+  );
 }
 
 function reconcilePageLabelsAfterStructuralChange(
