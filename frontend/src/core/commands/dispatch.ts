@@ -369,8 +369,8 @@ export async function dispatchPdfCommand(
       case 'REORDER_PAGES': {
         const { fromIndex, toIndex } = command.payload;
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        if (!pageGraph.pages[fromIndex] || !pageGraph.pages[toIndex]) {
-          return commandError(command, 'VALIDATION_FAILED', 'The source or target page index is invalid.');
+        if (!pageGraph.pages[fromIndex]) {
+          return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
         }
         const nextPageGraph = movePageGraphBeforeOriginalTarget(
           pageGraph,
