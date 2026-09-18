@@ -1,9 +1,11 @@
 import type { PdfAnnotation } from '../annotations/types';
-import type { WriterElementV2 } from '../writer-v2/types';
+import type { WriterDocumentMode, WriterElementV2 } from '../writer-v2/types';
 import type { PdfCommand } from '../commands/types';
 import type { PageGraph, PageNode } from '../pages/types';
 
 export interface WriterHistoryState {
+  /** Distinguishes PDF-overlay PageId semantics from standalone blank paging. */
+  documentMode?: WriterDocumentMode;
   elements: WriterElementV2[];
   selectedIds: string[];
   activeId: string | null;
