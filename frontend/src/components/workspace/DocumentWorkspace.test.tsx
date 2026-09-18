@@ -83,6 +83,7 @@ describe('DocumentWorkspace', () => {
       workingBytes: new Uint8Array([1, 2, 3]),
       documentKey: 'test-doc',
       viewState: {
+        currentPageId: null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'manual',
@@ -123,6 +124,7 @@ describe('DocumentWorkspace', () => {
       documentKey: 'test-doc',
       pageCount: 2,
       viewState: {
+        currentPageId: null,
         currentPage: 2,
         zoom: 100,
         fitMode: 'manual',
@@ -143,6 +145,7 @@ describe('DocumentWorkspace', () => {
       documentKey: 'test-doc',
       pageCount: 2,
       viewState: {
+        currentPageId: null,
         currentPage: 2,
         zoom: 100,
         fitMode: 'manual',
@@ -162,6 +165,7 @@ describe('DocumentWorkspace', () => {
       workingBytes: new Uint8Array([1, 2, 3]),
       documentKey: 'test-doc',
       viewState: {
+        currentPageId: null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'manual',
@@ -195,6 +199,7 @@ describe('DocumentWorkspace', () => {
       workingBytes: new Uint8Array([1, 2, 3]),
       documentKey: 'test-doc',
       viewState: {
+        currentPageId: null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'width',
