@@ -513,7 +513,13 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const reorderedBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          reorderedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
