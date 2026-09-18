@@ -30,6 +30,7 @@ requireMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   '<MacroExpertWorkspace',
   '<MacroOutputQueue',
   '<MacroPresetExecutionPanel',
+  '<MacroGenerateDocumentPanel',
   'onOutputsProduced',
 ]);
 
@@ -47,6 +48,12 @@ forbidMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   'runAbortControllerRef',
   'runSelectedMacro',
   'preflightReport',
+  'GENERATION_TEMPLATES',
+  'buildGenerationRecipe',
+  'brandImageDataUrl',
+  'selectedGenerationId',
+  'generationLogs',
+  'generationError',
   "from '@/adapters/file/FileAdapter'",
 ]);
 
@@ -78,14 +85,23 @@ requireMarkers('src/components/macro/advanced/MacroPresetExecutionPanel.tsx', [
   'onOutputsProduced',
 ]);
 
+requireMarkers('src/components/macro/advanced/MacroGenerateDocumentPanel.tsx', [
+  'Generate Document',
+  'GENERATION_TEMPLATES',
+  'buildGenerationRecipe',
+  'dryRun: false',
+  'onBusyChange',
+  'onOutputsProduced',
+]);
+
 const sidebarSize = Buffer.byteLength(
   read('src/components/sidebar/MacrosSidebar.tsx'),
   'utf8',
 );
 
-if (sidebarSize >= 40_000) {
+if (sidebarSize >= 30_000) {
   failures.push(
-    `src/components/sidebar/MacrosSidebar.tsx: expected decomposition below 40 KB, found ${sidebarSize} bytes`,
+    `src/components/sidebar/MacrosSidebar.tsx: expected decomposition below 30 KB, found ${sidebarSize} bytes`,
   );
 }
 
