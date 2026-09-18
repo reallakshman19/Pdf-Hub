@@ -85,6 +85,7 @@ export const AutomateSidebar: React.FC = () => {
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
   const [runningRecipeId, setRunningRecipeId] = React.useState<string | null>(null);
   const [specializedOpen, setSpecializedOpen] = React.useState(false);
+  const [specializedBusy, setSpecializedBusy] = React.useState(false);
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
   const [generationBusy, setGenerationBusy] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
@@ -233,21 +234,21 @@ export const AutomateSidebar: React.FC = () => {
       <div className="grid grid-cols-3 gap-1 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
         <AutomateTabButton
           active={tab === 'quick'}
-          disabled={generationBusy || batchBusy}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('quick')}
         >
           Quick Actions
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'workflows'}
-          disabled={generationBusy || batchBusy}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('workflows')}
         >
           My Workflows
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'build'}
-          disabled={generationBusy || batchBusy}
+          disabled={generationBusy || batchBusy || specializedBusy}
           onClick={() => setTab('build')}
         >
           Build
@@ -343,14 +344,17 @@ export const AutomateSidebar: React.FC = () => {
           onToggle={(event) => {
             const nextOpen = event.currentTarget.open;
             if (
-              nextOpen
-              && (
-                generationBusy
-                || batchBusy
-                || runningRecipeId !== null
+              (
+                nextOpen
+                && (
+                  generationBusy
+                  || batchBusy
+                  || runningRecipeId !== null
+                )
               )
+              || (!nextOpen && specializedBusy)
             ) {
-              setSpecializedOpen(false);
+              setSpecializedOpen(specializedBusy);
               return;
             }
             setSpecializedOpen(nextOpen);
@@ -362,7 +366,7 @@ export const AutomateSidebar: React.FC = () => {
           </summary>
           {specializedOpen ? (
             <div className="border-t border-slate-100 dark:border-slate-800">
-              <PsIsonoteRecipeBuilder />
+              <PsIsonoteRecipeBuilder onBusyChange={setSpecializedBusy} />
             </div>
           ) : null}
         </details>
