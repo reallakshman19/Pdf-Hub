@@ -28,6 +28,7 @@ import {
 } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { validateRecipeBeforeRun } from '@/core/macro/validation/validator';
+import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
 import type { MacroRecipe } from '@/core/macro/types';
 import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
@@ -472,7 +473,11 @@ function WorkflowLibrary({
       </div>
 
       <div className="space-y-2">
-        {recipes.map((recipe) => (
+        {recipes.map((recipe) => {
+          const requiresPreview =
+            analyzeMacroWorkflowRisk(recipe).risk === 'preview-required';
+
+          return (
           <article
             key={recipe.id}
             className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
@@ -489,10 +494,20 @@ function WorkflowLibrary({
                 size="sm"
                 className="h-7 text-xs"
                 disabled={!hasDocument || runningRecipeId !== null}
-                onClick={() => onRun(recipe)}
+                onClick={() => {
+                  if (requiresPreview) {
+                    onEdit(recipe);
+                    return;
+                  }
+                  onRun(recipe);
+                }}
               >
                 <Play className="mr-1 h-3 w-3" />
-                {runningRecipeId === recipe.id ? 'Running…' : 'Run'}
+                {runningRecipeId === recipe.id
+                  ? 'Running…'
+                  : requiresPreview
+                    ? 'Review & Run'
+                    : 'Run'}
               </Button>
               <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => onEdit(recipe)}>
                 Edit
@@ -508,7 +523,8 @@ function WorkflowLibrary({
               </Button>
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
