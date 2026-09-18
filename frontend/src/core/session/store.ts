@@ -123,13 +123,16 @@ function resolveNavigationForGraph(
   const priorSelectedIds =
     state.selectedPageIds.length > 0
       ? state.selectedPageIds
-      : pageIdsForNumbers(state.pageGraph, state.selectedPages);
+      : pageIdsForNumbers(state.pageGraph ?? pageGraph, state.selectedPages);
   const selectedPageIds = normalizedPageIds(pageGraph, priorSelectedIds);
   const selectedPages = pageNumbersForIds(pageGraph, selectedPageIds);
 
   const priorCurrentId =
     state.viewState.currentPageId
-    ?? pageIdForNumber(state.pageGraph, state.viewState.currentPage);
+    ?? pageIdForNumber(
+      state.pageGraph ?? pageGraph,
+      state.viewState.currentPage,
+    );
   const preservedCurrentPage = pageNumberForId(pageGraph, priorCurrentId);
   const currentPage =
     preservedCurrentPage
@@ -418,7 +421,10 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
 
   toggleSelectedPage: (page) =>
     set((state) => {
-      const pageNumber = clampPage(page, state.pageCount);
+      if (!Number.isInteger(page) || page < 1 || page > state.pageCount) {
+        return {};
+      }
+      const pageNumber = page;
       const pageId = pageIdForNumber(state.pageGraph, pageNumber);
 
       if (!pageId) {
