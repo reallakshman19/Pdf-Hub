@@ -115,6 +115,29 @@ describe('macro validator slice 4', () => {
     expect(result.errors.some((error) => error.field.includes('selector.pages.1'))).toBe(true);
   });
 
+  it('accepts explicit current-page insert positions', () => {
+    const result = validate({
+      id: 'current-insert',
+      name: 'Current Insert',
+      steps: [
+        {
+          op: 'insert_blank_page',
+          position: { mode: 'after-current' },
+          size: 'match-current',
+          count: 1,
+        },
+        {
+          op: 'add_content_page',
+          position: { mode: 'before-current' },
+          blocks: [],
+        },
+      ],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
   it('rejects invalid numeric fields', () => {
     const result = validate({
       id: 'bad-numeric',
