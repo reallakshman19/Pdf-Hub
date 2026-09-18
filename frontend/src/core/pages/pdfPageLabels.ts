@@ -6,8 +6,6 @@ import {
   throwIfAborted,
 } from '../cancellation/operationCancellation';
 import { warn } from '../logger/service';
-import { createPageGraph } from './pageGraph';
-import type { PageGraph, PageNode } from './types';
 
 /**
  * Reads resolved logical page labels from PDF.js.
@@ -56,30 +54,4 @@ export async function readResolvedPdfPageLabels(
     });
     return null;
   }
-}
-
-/**
- * Attaches already-resolved logical labels to PageGraph without changing
- * stable PageIds or physical order.
- */
-export function applyResolvedPdfPageLabels<TPage extends PageNode>(
-  graph: PageGraph<TPage>,
-  labels: readonly string[] | null,
-): PageGraph<TPage> {
-  if (!labels || labels.length !== graph.pages.length) {
-    return createPageGraph(
-      graph.pages.map((page) => {
-        const next = { ...page };
-        delete next.logicalLabel;
-        return next;
-      }),
-    );
-  }
-
-  return createPageGraph(
-    graph.pages.map((page, index) => ({
-      ...page,
-      logicalLabel: labels[index] ?? '',
-    })),
-  );
 }
