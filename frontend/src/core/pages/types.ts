@@ -18,6 +18,23 @@ export type PageLabelStyle =
   | 'letters-upper';
 
 export interface PageLabelRange {
+  /** Stable page identity where this logical-label range begins. */
+  startPageId: PageId;
+  /** Omit style for prefix-only labels such as "Cover". */
+  style?: PageLabelStyle;
+  prefix?: string;
+  /** Positive starting value for styled ranges. Defaults to 1. */
+  startNumber?: number;
+}
+
+export type PageLabelStyle =
+  | 'decimal'
+  | 'roman-lower'
+  | 'roman-upper'
+  | 'letters-lower'
+  | 'letters-upper';
+
+export interface PageLabelRange {
   /** Stable page identity where this label range begins. */
   startPageId: PageId;
   /** Omit for prefix-only labels. */
