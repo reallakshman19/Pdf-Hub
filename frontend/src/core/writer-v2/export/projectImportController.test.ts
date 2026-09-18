@@ -212,6 +212,13 @@ describe('atomic standalone Writer project import', () => {
     expect(result.documentFingerprint).toBe('doc-1');
     expect(useSessionStore.getState().documentKey).toBe('doc-1');
     expect(useSessionStore.getState().pageCount).toBe(1);
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(1);
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'doc-1::page::1',
+      currentIndex: 0,
+      width: 612,
+      height: 792,
+    });
     expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('doc-1');
     expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
     expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');
