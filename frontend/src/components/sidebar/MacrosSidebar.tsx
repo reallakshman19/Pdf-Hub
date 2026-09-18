@@ -189,9 +189,14 @@ export const MacrosSidebar: React.FC = () => {
       ...current,
       [selectedRecipe.id]: createDefaultOverrides(selectedRecipe, Math.max(1, pageCount)),
     }));
-    setRunLogs([]);
-    setRunError(null);
     setOutputQueue([]);
+  };
+
+  const saveCurrentPreset = (recipe: MacroRecipe) => {
+    savePreset({
+      ...recipe,
+      name: `${selectedRecipe?.name ?? recipe.name} (Custom)`,
+    });
   };
 
   const updateGenerationValue = (key: string, value: string) => {
