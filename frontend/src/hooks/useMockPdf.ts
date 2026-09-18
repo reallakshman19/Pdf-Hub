@@ -11,8 +11,8 @@ import { useState, useCallback } from 'react';
 import { generateMockPdf } from '@/core/mock/mockPdfGenerator';
 import { useSessionStore } from '@/core/session/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { log, error as logError } from '@/core/logger/service';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 
 export function useMockPdf(): { openMockPdf: () => Promise<void>; loading: boolean } {
   const [loading, setLoading] = useState(false);
@@ -24,16 +24,16 @@ export function useMockPdf(): { openMockPdf: () => Promise<void>; loading: boole
       log('session', 'Generating mock benchmark PDF');
       const bytes = await generateMockPdf();
       const safeBytes = new Uint8Array(bytes);
-      const [pageCount, documentKey] = await Promise.all([
-        PdfEditAdapter.countPages(safeBytes),
-        FileAdapter.hashBytes(safeBytes),
-      ]);
+      const documentKey = await FileAdapter.hashBytes(safeBytes);
+      const pageGraph = await buildPageGraphFromPdfBytes(safeBytes, documentKey);
+      const pageCount = pageGraph.pages.length;
 
       openDocument({
         documentKey,
         fileName: 'doccraft-benchmark.pdf',
         bytes: safeBytes,
         pageCount,
+        pageGraph,
       });
 
       log('session', 'Mock benchmark PDF opened', { pageCount, documentKey });
