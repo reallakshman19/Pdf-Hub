@@ -1,46 +1,27 @@
 import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Sparkles,
   Trash2,
   Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
-import { error as logError } from '@/core/logger/service';
 import { BUILTIN_MACROS } from '@/core/macro/builtins';
-import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { usePresetsStore } from '@/core/macro/store/presets';
-import { ImageIcon } from 'lucide-react';
 import type {
-  MacroOutputFile,
   MacroRecipe,
   MacroStep,
   PageSelector,
 } from '@/core/macro/types';
 
-import {
-  GENERATION_TEMPLATES,
-  getGenerationTemplateById,
-} from '@/core/macro/generateDocument/generationRecipes';
-import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
-import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
-import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
 import { MacroExpertWorkspace } from '@/components/macro/advanced/MacroExpertWorkspace';
+import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
 import { MacroPresetExecutionPanel } from '@/components/macro/advanced/MacroPresetExecutionPanel';
 import {
   MacroOutputQueue,
   type MacroOutputQueueItem,
 } from '@/components/macro/advanced/MacroOutputQueue';
-
-function resolveFieldDefault(field: GenerationField): string {
-  const raw = field.defaultValue ?? '';
-  if (field.type === 'date' && /^\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}$/.test(raw.trim())) {
-    return new Date().toISOString().slice(0, 10);
-  }
-  return raw;
-}
 
 type SelectorMode = 'selected' | 'current' | 'all' | 'range';
 type BlankPlacement = 'before' | 'after';
@@ -71,11 +52,10 @@ const BUILTIN_RECIPES: MacroRecipe[] = Object.values(BUILTIN_MACROS);
 // ─── MacrosSidebar ───────────────────────────────────────────────────────────
 
 export const MacrosSidebar: React.FC = () => {
-  const { workingBytes, pageCount, viewState, fileName } = useSessionStore(useShallow((state) => ({
+  const { workingBytes, pageCount, viewState } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     pageCount: state.pageCount,
     viewState: state.viewState,
-    fileName: state.fileName,
   })));
   const { savedPresets, savePreset, deletePreset } = usePresetsStore();
 
@@ -90,38 +70,10 @@ export const MacrosSidebar: React.FC = () => {
     [selectedRecipeId, allRecipes],
   );
 
-  const [brandImageDataUrl, setBrandImageDataUrl] = React.useState<string>('');
-  const [selectedGenerationId, setSelectedGenerationId] = React.useState<string>(
-    GENERATION_TEMPLATES[0]?.id ?? '',
-  );
-  const [generationValues, setGenerationValues] = React.useState<Record<string, string>>(() => {
-    const template = getGenerationTemplateById(GENERATION_TEMPLATES[0]?.id ?? '');
-    if (!template) return {};
-    return Object.fromEntries(template.fields.map((f) => [f.key, resolveFieldDefault(f)]));
-  });
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const selectedGenerationTemplate = React.useMemo(
-    () => getGenerationTemplateById(selectedGenerationId),
-    [selectedGenerationId],
-  );
-
-  const handleGenerationTemplateChange = (newId: string) => {
-    setSelectedGenerationId(newId);
-    const template = getGenerationTemplateById(newId);
-    if (template) {
-      setGenerationValues(Object.fromEntries(template.fields.map((f) => [f.key, resolveFieldDefault(f)])));
-    } else {
-      setGenerationValues({});
-    }
-  };
-
   const [overridesByRecipe, setOverridesByRecipe] = React.useState<
     Record<string, RecipeOverrides>
   >({});
-  const [generationRunning, setGenerationRunning] = React.useState(false);
-  const [generationLogs, setGenerationLogs] = React.useState<string[]>([]);
-  const [generationError, setGenerationError] = React.useState<string | null>(null);
+  const [generationBusy, setGenerationBusy] = React.useState(false);
   const [presetRunnerBusy, setPresetRunnerBusy] = React.useState(false);
   const [expertBusy, setExpertBusy] = React.useState(false);
   const [outputQueue, setOutputQueue] = React.useState<MacroOutputQueueItem[]>([]);
@@ -191,82 +143,6 @@ export const MacrosSidebar: React.FC = () => {
     });
   };
 
-  const updateGenerationValue = (key: string, value: string) => {
-    setGenerationValues((current) => ({
-      ...current,
-      [key]: value,
-    }));
-  };
-
-  const resetGenerationValues = React.useCallback(() => {
-    if (!selectedGenerationTemplate) {
-      setGenerationValues({});
-      return;
-    }
-    setGenerationValues(
-      Object.fromEntries(
-        selectedGenerationTemplate.fields.map((field) => [field.key, resolveFieldDefault(field)]),
-      ),
-    );
-  }, [selectedGenerationTemplate]);
-
-  const renderGenerationField = (field: GenerationField) => {
-    const value = generationValues[field.key] ?? resolveFieldDefault(field);
-
-    const baseClassName =
-      'w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5';
-
-    if (field.type === 'textarea') {
-      return (
-        <textarea
-          className={`${baseClassName} min-h-[72px]`}
-          value={value}
-          required={field.required}
-          onChange={(event) => updateGenerationValue(field.key, event.target.value)}
-        />
-      );
-    }
-
-    if (field.type === 'date') {
-      return (
-        <input
-          type="date"
-          className={baseClassName}
-          value={value}
-          required={field.required}
-          onChange={(event) => updateGenerationValue(field.key, event.target.value)}
-        />
-      );
-    }
-
-    if (field.type === 'select') {
-      return (
-        <select
-          className={baseClassName}
-          value={value}
-          required={field.required}
-          onChange={(event) => updateGenerationValue(field.key, event.target.value)}
-        >
-          {(field.options ?? []).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      );
-    }
-
-    return (
-      <input
-        type="text"
-        className={baseClassName}
-        value={value}
-        required={field.required}
-        onChange={(event) => updateGenerationValue(field.key, event.target.value)}
-      />
-    );
-  };
-
   if (!workingBytes) {
     return (
       <div className="p-4">
@@ -277,189 +153,21 @@ export const MacrosSidebar: React.FC = () => {
     );
   }
 
-  const handleGenerate = async () => {
-    const generationTemplate = getGenerationTemplateById(selectedGenerationId);
-
-    if (!generationTemplate) {
-      setGenerationError('Generate Document template was not found.');
-      return;
-    }
-
-    setGenerationRunning(true);
-    setGenerationError(null);
-    setGenerationLogs([]);
-
-    try {
-      const finalRecipe = buildGenerationRecipe({
-        template: generationTemplate,
-        values: generationValues,
-        fileName: fileName ?? 'document.pdf',
-        pageCount: Math.max(1, pageCount),
-        now: new Date(),
-        brandImageDataUrl: brandImageDataUrl || null,
-      });
-
-      const result = await runMacroRecipeAgainstSession(finalRecipe, {
-        saveOutputs: false,
-      });
-
-      if (!result.success) {
-        setGenerationError(result.logs?.at(-1) ?? 'Generate Document failed.');
-        return;
-      }
-
-      setGenerationLogs(result.logs ?? []);
-
-      const generatedOutputs: MacroOutputFile[] = result.outputFiles.length > 0
-        ? result.outputFiles
-        : [
-            {
-              name: buildGeneratedDocumentOutputName(generationTemplate),
-              bytes: result.finalBytes,
-            },
-          ];
-
-      setOutputQueue((current) => [
-        ...current,
-        ...generatedOutputs.map((output) => ({
-          id: uuidv4(),
-          ...output,
-        })),
-      ]);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setGenerationError(message);
-      logError('macro', 'Failed to generate document', { error: message });
-    } finally {
-      setGenerationRunning(false);
-    }
-  };
-
   return (
     <div className="p-3 space-y-4">
-      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <Sparkles className="w-4 h-4" />
-          Generate Document
-        </div>
-
-        <label className="sr-only" htmlFor="generate-document-template">
-          Generate Document Template
-        </label>
-        <select
-          id="generate-document-template"
-          aria-label="Generate Document Template"
-          className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
-          value={selectedGenerationId}
-          onChange={(e) => handleGenerationTemplateChange(e.target.value)}
-          disabled={generationRunning || presetRunnerBusy || expertBusy}
-        >
-          {GENERATION_TEMPLATES.map((template) => (
-            <option key={template.id} value={template.id}>
-              {template.name}
-            </option>
-          ))}
-        </select>
-
-        {selectedGenerationTemplate && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            {selectedGenerationTemplate.description}
-          </p>
-        )}
-
-        <p className="text-[11px] text-slate-400 dark:text-slate-500">
-          {GENERATION_TEMPLATES.length} templates available. Fields update when the template changes.
-        </p>
-
-        {selectedGenerationId === 'branded_cover_page' && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Brand / Header Image
-            </span>
-            <div
-              className="w-full h-24 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors relative overflow-hidden"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {brandImageDataUrl ? (
-                <img src={brandImageDataUrl} className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-center text-slate-400 text-xs">
-                  <ImageIcon className="w-6 h-6 mx-auto mb-1" />
-                  No image selected — using placeholder.
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = () => setBrandImageDataUrl(reader.result as string);
-                  reader.readAsDataURL(file);
-                }}
-              />
-            </div>
-          </label>
-        )}
-
-        {selectedGenerationTemplate?.fields.map((field) => (
-          <label key={field.key} className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              {field.label}
-              {field.required ? ' *' : ''}
-            </span>
-            {renderGenerationField(field)}
-          </label>
-        ))}
-
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={resetGenerationValues}
-          disabled={generationRunning || presetRunnerBusy || expertBusy || !selectedGenerationTemplate}
-          className="w-full justify-center text-xs"
-        >
-          Reset Fields
-        </Button>
-
-        <Button
-          onClick={handleGenerate}
-          disabled={generationRunning || presetRunnerBusy || expertBusy || !selectedGenerationTemplate}
-          className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-        >
-          {generationRunning ? 'Generating...' : 'Generate PDF'}
-        </Button>
-
-        {generationError ? (
-          <div
-            className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700"
-            role="alert"
-          >
-            {generationError}
-          </div>
-        ) : null}
-
-        {generationLogs.length > 0 ? (
-          <details>
-            <summary className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">
-              Generation details
-            </summary>
-            <div className="mt-2 max-h-32 space-y-1 overflow-auto rounded-md border border-slate-200 p-2 dark:border-slate-800">
-              {generationLogs.map((line, index) => (
-                <div
-                  key={`generation-${index}-${line}`}
-                  className="text-xs text-slate-600 dark:text-slate-300"
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          </details>
-        ) : null}
-      </section>
+      <MacroGenerateDocumentPanel
+        disabled={presetRunnerBusy || expertBusy}
+        onBusyChange={setGenerationBusy}
+        onOutputsProduced={(outputs) => {
+          setOutputQueue((current) => [
+            ...current,
+            ...outputs.map((output) => ({
+              id: uuidv4(),
+              ...output,
+            })),
+          ]);
+        }}
+      />
 
       <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -473,7 +181,7 @@ export const MacrosSidebar: React.FC = () => {
             className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
             value={selectedRecipeId}
             onChange={(e) => setSelectedRecipeId(e.target.value)}
-            disabled={generationRunning || presetRunnerBusy || expertBusy || !workingBytes}
+            disabled={generationBusy || presetRunnerBusy || expertBusy || !workingBytes}
           >
             <optgroup label="Built-ins">
               {BUILTIN_RECIPES.map((recipe) => (
@@ -804,7 +512,7 @@ export const MacrosSidebar: React.FC = () => {
 
       <MacroPresetExecutionPanel
         recipe={effectiveRecipe}
-        disabled={generationRunning || expertBusy}
+        disabled={generationBusy || expertBusy}
         onBusyChange={setPresetRunnerBusy}
         onSavePreset={saveCurrentPreset}
         onReset={resetPanel}
@@ -826,7 +534,7 @@ export const MacrosSidebar: React.FC = () => {
 
       <MacroExpertWorkspace
         selectedRecipe={selectedRecipe}
-        disabled={generationRunning || presetRunnerBusy}
+        disabled={generationBusy || presetRunnerBusy}
         onBusyChange={setExpertBusy}
         onOutputsProduced={(outputs) => {
           setOutputQueue((current) => [
