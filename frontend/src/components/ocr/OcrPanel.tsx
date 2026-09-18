@@ -101,6 +101,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   );
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- document changes reset the user-facing page scope to the active selection.
     setPageScope(selectedPageIndexes.length > 0 ? 'selected' : 'all');
   }, [documentFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
