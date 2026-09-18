@@ -4,8 +4,8 @@ import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import {
   buildPageGraphFromPdfBytes,
   createInitialPageId,
-  rekeyPageGraph,
 } from './pageGraphAdmission';
+import { rekeyPageGraph } from './pageGraph';
 
 afterEach(() => {
   vi.restoreAllMocks();
