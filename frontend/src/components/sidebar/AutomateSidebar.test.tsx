@@ -54,7 +54,9 @@ describe('AutomateSidebar', () => {
     expect(screen.getByText('Rotate Selected Pages 90°')).toBeInTheDocument();
 
     expect(screen.getByTestId('automate-generate-document')).toBeInTheDocument();
+    expect(screen.getByTestId('automate-batch-run')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Generator' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeInTheDocument();
 
     expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
     expect(screen.queryByText('Advanced macro tools')).toBeNull();
@@ -186,6 +188,7 @@ describe('AutomateSidebar', () => {
       within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
     ).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Open Generator' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeDisabled();
 
     fireEvent.click(screen.getByText('Specialized workflows'));
 
@@ -193,6 +196,7 @@ describe('AutomateSidebar', () => {
       within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),
     ).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Open Generator' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose Workflow' })).not.toBeDisabled();
   });
 
   it('keeps Generate Document mounted by locking Automate tabs while generation runs', async () => {
@@ -217,6 +221,7 @@ describe('AutomateSidebar', () => {
       expect(screen.getByRole('button', { name: 'My Workflows' })).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Close Generator' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Choose Workflow' })).toBeDisabled();
     });
 
     fireEvent.click(screen.getByText('Specialized workflows'));
