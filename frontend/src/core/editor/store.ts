@@ -16,6 +16,7 @@ export interface EditorActions {
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
   setMacroBuilderOpen: (open: boolean) => void;
+  setMacroBuilderSource: (source: string | null) => void;
   setMobileDrawerOpen: (open: boolean) => void;
   setMobileSheetOpen: (open: boolean) => void;
 }
@@ -28,6 +29,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   leftPanelWidth: 20,
   rightPanelWidth: 18,
   macroBuilderOpen: false,
+  macroBuilderSource: null,
   mobileDrawerOpen: false,
   mobileSheetOpen: false,
   setActiveTool: (activeTool) => set({
@@ -39,6 +41,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   setLeftPanelWidth: (leftPanelWidth) => set({ leftPanelWidth }),
   setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
   setMacroBuilderOpen: (macroBuilderOpen) => set({ macroBuilderOpen }),
+  setMacroBuilderSource: (macroBuilderSource) => set({ macroBuilderSource }),
   setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
   setMobileSheetOpen: (mobileSheetOpen) => set({ mobileSheetOpen }),
 }));
