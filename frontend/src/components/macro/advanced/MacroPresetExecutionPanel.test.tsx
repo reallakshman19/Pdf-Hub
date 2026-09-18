@@ -134,6 +134,27 @@ describe('MacroPresetExecutionPanel', () => {
     expect(runMock).not.toHaveBeenCalled();
   });
 
+  it('reports busy state across preflight and execution', async () => {
+    const onBusyChange = vi.fn();
+
+    render(
+      <MacroPresetExecutionPanel
+        recipe={safeRecipe}
+        onBusyChange={onBusyChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('macro-preset-run'));
+
+    await waitFor(() => {
+      expect(onBusyChange).toHaveBeenCalledWith(true);
+    });
+
+    await waitFor(() => {
+      expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
   it('hands output files to the shared parent queue', async () => {
     const onOutputsProduced = vi.fn();
     runMock.mockResolvedValueOnce({
