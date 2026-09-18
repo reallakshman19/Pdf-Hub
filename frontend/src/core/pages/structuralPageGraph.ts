@@ -43,7 +43,7 @@ export function reorderPageGraphByOrder(
     return page;
   });
 
-  return createPageGraph(reordered);
+  return createPageGraph(reordered, graph.pageLabelRanges);
 }
 
 /**
@@ -70,7 +70,7 @@ export function movePageGraphBeforeOriginalTarget(
     ...remaining.slice(0, at),
     moving,
     ...remaining.slice(at),
-  ]);
+  ], graph.pageLabelRanges);
 }
 
 export function importedPageNodes(
@@ -133,6 +133,7 @@ export function replacePageGraphContent(
           }
         : page,
     ),
+    graph.pageLabelRanges,
   );
 }
 
