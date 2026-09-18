@@ -115,7 +115,11 @@ const reviewTypes = requireContains('src/core/review/types.ts', [
 
 const historyTransactions = requireContains(
   'src/core/document-history/transactions.ts',
-  ['normalizeAnnotationPageAnchors(state.annotations, state.pageGraph)'],
+  [
+    'const annotations = normalizeAnnotationPageAnchors(',
+    'saveAnnotations(state.documentKey, annotations)',
+    'normalizeAnnotationPageAnchors(state.annotations, state.pageGraph)',
+  ],
 );
 
 for (const retiredToken of [
