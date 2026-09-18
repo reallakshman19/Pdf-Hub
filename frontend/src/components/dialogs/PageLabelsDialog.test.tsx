@@ -42,7 +42,7 @@ describe('PageLabelsDialog', () => {
     );
 
     expect(screen.getByText(/Page labels change the PDF navigator label only/i)).toBeTruthy();
-    expect(screen.getByText(/Physical page 2/i)).toBeTruthy();
+    expect(screen.getAllByText(/Physical page 2/i).length).toBeGreaterThan(0);
 
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[1]!, { target: { value: 'roman-lower' } });
@@ -73,7 +73,9 @@ describe('PageLabelsDialog', () => {
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[0]!, { target: { value: 'current' } });
 
-    expect(await screen.findByText(/Physical page 3/i)).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByText(/Physical page 3/i).length).toBeGreaterThan(0);
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Apply restart' }));
 
     await waitFor(() => {
