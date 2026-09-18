@@ -429,8 +429,20 @@ function assertRunWorkflowReady() {
 function assertReviewWorkspaceReady() {
   assertContains(
     'src/components/ocr/workflow/OcrReviewWorkspace.tsx',
-    ['OcrResultSummary', 'OcrSearchMiniPanel', 'OcrLowConfidencePanel', 'OcrCorrectionPanel', 'OcrRegionTool', 'OcrRegionActionPanel', 'OcrTableReviewPanel', 'OcrWriterInsertPanel'],
+    ['OcrResultSummary', 'OcrSearchMiniPanel', 'OcrLowConfidencePanel', 'OcrCorrectionPanel', 'ocr-region-document-guidance', 'focusOcrTarget', 'OcrRegionActionPanel', 'OcrTableReviewPanel', 'OcrWriterInsertPanel'],
     'OCR_REVIEW_WORKSPACE_READY',
+  );
+
+  assertNotContains(
+    'src/components/ocr/workflow/OcrReviewWorkspace.tsx',
+    ['OcrRegionTool', 'pageWidth={595}', 'pageHeight={842}', 'viewportWidth={240}', 'viewportHeight={340}'],
+    'OCR_REVIEW_WORKSPACE_NO_SYNTHETIC_REGION_CANVAS',
+  );
+
+  assertContains(
+    'src/components/writer/WriterOverlay.tsx',
+    ['ocr-document-region-mode-picker', 'addOcrRegion', 'focusOcrTarget', "(['text', 'table', 'note'] as const)"],
+    'OCR_REGION_SELECTION_USES_REAL_DOCUMENT',
   );
 
   assertContains(
