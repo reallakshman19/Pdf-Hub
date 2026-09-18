@@ -179,50 +179,58 @@ export const OcrSearchablePdfExportPanel: React.FC<OcrSearchablePdfExportPanelPr
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
-        <label className="text-xs text-slate-600 dark:text-slate-300">
-          Layer mode
-          <select
-            className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-            value={layerMode}
-            data-testid="ocr-searchable-layer-mode"
-            onChange={(event) =>
-              setLayerMode(event.currentTarget.value as 'word' | 'line')
-            }
-          >
-            <option value="word">Word-level text layer</option>
-            <option value="line">Line-level text layer</option>
-          </select>
-        </label>
+      <details
+        className="rounded border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+        data-testid="ocr-searchable-advanced-settings"
+      >
+        <summary className="cursor-pointer px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+          Searchable PDF settings
+        </summary>
+        <div className="grid grid-cols-1 gap-2 border-t border-slate-200 p-2 dark:border-slate-800">
+          <label className="text-xs text-slate-600 dark:text-slate-300">
+            Text layer detail
+            <select
+              className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950"
+              value={layerMode}
+              data-testid="ocr-searchable-layer-mode"
+              onChange={(event) =>
+                setLayerMode(event.currentTarget.value as 'word' | 'line')
+              }
+            >
+              <option value="word">Word-level</option>
+              <option value="line">Line-level</option>
+            </select>
+          </label>
 
-        <label className="text-xs text-slate-600 dark:text-slate-300">
-          Minimum confidence
-          <input
-            className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={minConfidence}
-            data-testid="ocr-searchable-min-confidence"
-            onChange={(event) =>
-              setMinConfidence(Number(event.currentTarget.value))
-            }
-          />
-        </label>
+          <label className="text-xs text-slate-600 dark:text-slate-300">
+            Minimum confidence
+            <input
+              className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={minConfidence}
+              data-testid="ocr-searchable-min-confidence"
+              onChange={(event) =>
+                setMinConfidence(Number(event.currentTarget.value))
+              }
+            />
+          </label>
 
-        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <input
-            type="checkbox"
-            checked={debugVisible}
-            data-testid="ocr-searchable-debug-visible"
-            onChange={(event) =>
-              setDebugVisible(event.currentTarget.checked)
-            }
-          />
-          Debug visible text layer
-        </label>
-      </div>
+          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={debugVisible}
+              data-testid="ocr-searchable-debug-visible"
+              onChange={(event) =>
+                setDebugVisible(event.currentTarget.checked)
+              }
+            />
+            Show OCR text layer for diagnostics
+          </label>
+        </div>
+      </details>
 
       {message ? (
         <p
