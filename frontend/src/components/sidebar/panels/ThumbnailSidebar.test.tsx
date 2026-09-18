@@ -37,8 +37,10 @@ vi.mock('@/core/search/store', () => ({
   useSearchStore: vi.fn(),
 }));
 
-vi.mock('@/core/commands/dispatch', () => ({
-  dispatchCommand: vi.fn().mockResolvedValue({ success: true, mutated: true }),
+vi.mock('@/core/commands/bus', () => ({
+  commandBus: {
+    execute: vi.fn().mockResolvedValue({ success: true, mutated: true }),
+  },
 }));
 
 vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
