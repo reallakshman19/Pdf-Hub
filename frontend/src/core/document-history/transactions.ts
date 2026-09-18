@@ -3,6 +3,7 @@ import { useAnnotationStore } from '../annotations/store';
 import { enqueueDocumentOperation } from '../commands/documentOperationQueue';
 import { documentBus } from '../events/bus';
 import { useSessionStore } from '../session/store';
+import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { useHistoryStore } from './store';
 import type { HistoryState, Transaction } from './types';
 
@@ -23,6 +24,23 @@ function restoreHistoryState(state: HistoryState): void {
   useSessionStore.getState().setSelectedPages(state.selectedPages);
   useSessionStore.getState().setPage(state.currentPage);
   useAnnotationStore.getState().setAnnotations([...state.annotations]);
+
+  if (state.writer) {
+    useWriterV2Store.setState({
+      elements: state.writer.elements.map((element) => ({
+        ...element,
+        rect: { ...element.rect },
+        style: { ...element.style },
+      })),
+      selectedIds: [...state.writer.selectedIds],
+      activeId: state.writer.activeId,
+      undoStack: [],
+      redoStack: [],
+      dirty: true,
+      editingId: null,
+    });
+  }
+
   documentBus.emit({ type: 'DOCUMENT_REPLACED' });
 }
 
