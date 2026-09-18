@@ -31,13 +31,14 @@ import {
 } from '@/core/pages/structuralPageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 import {
-  remapAfterDelete,
-  remapAfterDuplicate,
-  remapAfterInsert,
-  remapAfterReorder,
-  remapAfterRotate,
-} from '@/core/annotations/pageRemapper';
+  duplicateAnnotationsByPageGraph,
+  normalizeAnnotationPageAnchors,
+  reanchorAnnotationsAfterPageGraphChange,
+  rebindAnnotationsByPageNumber,
+  removeAnnotationsAnchoredToPageIds,
+} from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
@@ -339,18 +340,23 @@ export async function dispatchPdfCommand(
           if (!page) throw new Error(`PageGraph is missing page index ${idx}`);
           return { pageIndex: idx, angle, width: page.width, height: page.height };
         });
-        const nextAnnotations = remapAfterRotate(
-          useAnnotationStore.getState().annotations,
-          rotations,
-        );
-        const nextWriterElements = remapWriterAfterRotate(
-          useWriterV2Store.getState().elements,
-          rotations,
-        );
         const nextPageGraph = rotatePagesInGraph(
           pageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
           angle,
+        );
+        const anchoredAnnotations = normalizeAnnotationPageAnchors(
+          useAnnotationStore.getState().annotations,
+          pageGraph,
+        );
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
+          remapAfterRotate(anchoredAnnotations, rotations),
+          pageGraph,
+          nextPageGraph,
+        );
+        const nextWriterElements = remapWriterAfterRotate(
+          useWriterV2Store.getState().elements,
+          rotations,
         );
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
         const result = await applyMutation(
@@ -378,9 +384,10 @@ export async function dispatchPdfCommand(
           toIndex,
         );
         const order = orderFromGraphs(pageGraph, nextPageGraph);
-        const nextAnnotations = remapAfterReorder(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          order,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterReorder(
           useWriterV2Store.getState().elements,
@@ -407,9 +414,10 @@ export async function dispatchPdfCommand(
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
         const nextPageGraph = reorderPageGraphByOrder(pageGraph, order);
-        const nextAnnotations = remapAfterReorder(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          order,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterReorder(
           useWriterV2Store.getState().elements,
@@ -455,9 +463,10 @@ export async function dispatchPdfCommand(
           pageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
         );
-        const nextAnnotations = remapAfterDelete(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          pageIndices,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterDelete(
           useWriterV2Store.getState().elements,
@@ -496,9 +505,10 @@ export async function dispatchPdfCommand(
           pageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
         );
-        const nextAnnotations = remapAfterDelete(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          pageIndices,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterDelete(
           useWriterV2Store.getState().elements,
@@ -548,10 +558,10 @@ export async function dispatchPdfCommand(
           command.payload.atIndex,
           insertedNodes,
         );
-        const nextAnnotations = remapAfterInsert(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          command.payload.atIndex,
-          resolved.pageCount,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterInsert(
           useWriterV2Store.getState().elements,
@@ -590,10 +600,10 @@ export async function dispatchPdfCommand(
             height: size.height,
           })],
         );
-        const nextAnnotations = remapAfterInsert(
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
-          atIndex,
-          1,
+          pageGraph,
+          nextPageGraph,
         );
         const nextWriterElements = remapWriterAfterInsert(
           useWriterV2Store.getState().elements,
@@ -658,11 +668,19 @@ export async function dispatchPdfCommand(
           atIndex,
           replacementNode,
         );
-        const nextAnnotations = remapAfterInsert(
-          remapAfterDelete(useAnnotationStore.getState().annotations, [atIndex]),
-          atIndex,
-          1,
-        );
+        const targetPageId = pageGraph.pages[atIndex]?.pageId;
+        const nextAnnotations = targetPageId
+          ? removeAnnotationsAnchoredToPageIds(
+              useAnnotationStore.getState().annotations,
+              pageGraph,
+              nextPageGraph,
+              [targetPageId],
+            )
+          : reanchorAnnotationsAfterPageGraphChange(
+              useAnnotationStore.getState().annotations,
+              pageGraph,
+              nextPageGraph,
+            );
         const nextWriterElements = remapWriterAfterInsert(
           remapWriterAfterDelete(
             useWriterV2Store.getState().elements,
@@ -702,9 +720,11 @@ export async function dispatchPdfCommand(
           pageIdsAtIndices(pageGraph, pageIndices),
           (_source, ordinal) => createDuplicatePageId(command.id, ordinal),
         );
-        const nextAnnotations = remapAfterDuplicate(
+        const nextAnnotations = duplicateAnnotationsByPageGraph(
           useAnnotationStore.getState().annotations,
-          pageIndices,
+          pageGraph,
+          nextPageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
         );
         const nextWriterElements = remapWriterAfterDuplicate(
           useWriterV2Store.getState().elements,
@@ -758,6 +778,11 @@ export async function dispatchPdfCommand(
           pageGraph.pages.length,
           importedNodes,
         );
+        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
+          useAnnotationStore.getState().annotations,
+          pageGraph,
+          nextPageGraph,
+        );
         const nextBytes = await PdfEditAdapter.merge(
           context.workingBytes,
           donors.map((donor) => donor.bytes),
@@ -767,7 +792,7 @@ export async function dispatchPdfCommand(
           command,
           context.workingBytes,
           nextBytes,
-          undefined,
+          nextAnnotations,
           undefined,
           undefined,
           undefined,
@@ -876,11 +901,15 @@ export async function dispatchPdfCommand(
           `${context.documentKey}::working-copy::${command.id}`,
           input.signal,
         );
+        const nextAnnotations = rebindAnnotationsByPageNumber(
+          useAnnotationStore.getState().annotations,
+          rebuiltPageGraph,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
           nextBytes,
-          undefined,
+          nextAnnotations,
           undefined,
           command.payload.selectedPages,
           undefined,

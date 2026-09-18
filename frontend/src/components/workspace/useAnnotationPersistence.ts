@@ -32,7 +32,9 @@ export function useAnnotationPersistence({
       const stored = await loadAnnotations(documentKey);
       if (stored.length > 0) {
         setAnnotations(stored);
-        setRestoredCount(stored.length);
+        const hydrated = useAnnotationStore.getState().annotations;
+        setRestoredCount(hydrated.length);
+        await saveAnnotations(documentKey, hydrated);
         return;
       }
 
@@ -43,10 +45,11 @@ export function useAnnotationPersistence({
 
       const imported = await readNativePdfAnnotations(workingBytes);
       setAnnotations(imported.annotations);
-      setRestoredCount(imported.importedCount);
+      const hydrated = useAnnotationStore.getState().annotations;
+      setRestoredCount(hydrated.length);
 
-      if (imported.annotations.length > 0) {
-        await saveAnnotations(documentKey, imported.annotations);
+      if (hydrated.length > 0) {
+        await saveAnnotations(documentKey, hydrated);
       }
     };
     void loadStored();

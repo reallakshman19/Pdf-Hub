@@ -1,4 +1,5 @@
 import type { ReviewMetadata } from '../review/types';
+import type { PageId } from '../pages/types';
 export type { ReviewStatus } from '../review/types';
 
 import type { AnnotationType } from './annotationTypes';
@@ -86,6 +87,17 @@ export interface AnnotationData extends Record<string, unknown> {
 export interface PdfAnnotation {
   id: string;
   type: AnnotationType;
+  /**
+   * Canonical page identity for PDF-backed sessions.
+   *
+   * Optional during migration so legacy persisted/native annotations can be
+   * hydrated by pageNumber and upgraded at the session boundary.
+   */
+  pageId?: PageId;
+  /**
+   * One-based compatibility/render position derived from PageGraph when pageId
+   * is available. Do not treat this as persistent identity.
+   */
   pageNumber: number;
   rect: Rect;
   data: AnnotationData;

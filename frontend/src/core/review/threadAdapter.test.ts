@@ -120,4 +120,20 @@ describe('ReviewThread adapter', () => {
       'This note needs a concise title generated from its text content.',
     );
   });
+
+  it('projects PageId into the review thread anchor when available', () => {
+    const anchored = {
+      ...annotation('comment-page-id', 'comment', { text: 'Anchored review' }),
+      pageId: 'stable-page-7',
+    };
+
+    const thread = reviewThreadFromAnnotation(anchored);
+
+    expect(thread?.anchor).toMatchObject({
+      annotationId: anchored.id,
+      pageId: 'stable-page-7',
+      pageNumber: 3,
+    });
+  });
+
 });

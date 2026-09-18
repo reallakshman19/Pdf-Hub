@@ -47,6 +47,7 @@ export function reviewThreadFromAnnotation(
     id: `review:${annotation.id}`,
     anchor: {
       annotationId: annotation.id,
+      ...(annotation.pageId ? { pageId: annotation.pageId } : {}),
       pageNumber: annotation.pageNumber,
       annotationType: annotation.type,
     },

@@ -372,6 +372,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('reorders pages by explicit order', async () => {
+    useAnnotationStore.getState().setAnnotations([
+      { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
+    ]);
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
     const result = await execute(
@@ -392,6 +395,11 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::2',
       'test-doc::stable::1',
     ]);
+    expect(useAnnotationStore.getState().annotations[0]).toMatchObject({
+      id: 'page-one-note',
+      pageId: 'test-doc::stable::1',
+      pageNumber: 3,
+    });
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
@@ -598,6 +606,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('duplicates pages with new stable identities immediately after the source', async () => {
+    useAnnotationStore.getState().setAnnotations([
+      { ...TEST_ANNOTATION, id: 'duplicate-note', pageNumber: 2 },
+    ]);
     pdfMocks.duplicatePages.mockResolvedValue(new Uint8Array([8, 8, 8]));
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
@@ -615,6 +626,17 @@ describe('canonical command dispatch', () => {
       expect.stringContaining('::duplicate::1'),
       'test-doc::stable::3',
     ]);
+    expect(useAnnotationStore.getState().annotations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'duplicate-note',
+        pageId: 'test-doc::stable::2',
+        pageNumber: 2,
+      }),
+      expect.objectContaining({
+        pageId: expect.stringContaining('::duplicate::1'),
+        pageNumber: 3,
+      }),
+    ]));
   });
 
   it('uses one permutation for single-page reorder bytes, overlays, and PageGraph', async () => {

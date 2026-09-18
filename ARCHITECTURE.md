@@ -293,3 +293,20 @@ Undo/redo restores the exact PageGraph snapshot with the corresponding byte revi
 `APPLY_WORKING_COPY` remains an opaque whole-document boundary: because the macro output does not yet expose structural intent as canonical page commands, PDF Hub rebuilds a fresh PageGraph for that output. Phase 5H will tighten Automate/API identity semantics once persistent PageId selectors are exposed.
 
 Rotation remapping uses PageGraph page metrics rather than reparsing the PDF once per selected page.
+
+
+### Annotation and review PageId anchors
+
+PDF-backed annotations now use `pageId` as canonical page identity. The existing one-based `pageNumber` remains during migration as a derived rendering/navigation coordinate.
+
+Boundary rules:
+- legacy IndexedDB/native-PDF annotations may arrive with only `pageNumber`
+- annotation hydration upgrades them to the active PageGraph PageId
+- structural page commands preserve/re-resolve annotations by PageId
+- deleting a page removes annotations anchored to that PageId
+- duplicating a page copies its annotations onto the duplicate PageId
+- replacing page content preserves the page node identity but retains the existing product behavior of removing annotations attached to replaced content
+- ReviewThread anchors project the annotation PageId
+- native PDF serialization still uses physical page placement; PageId is application identity and is reconstructed from PageGraph on reopen
+
+`APPLY_WORKING_COPY` is still an opaque compatibility boundary and rebinds annotations by their current physical page number onto the rebuilt output PageGraph.
