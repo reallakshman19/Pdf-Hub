@@ -112,19 +112,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
 
   const selectedRegionPageInput = React.useMemo(() => {
     if (!selectedRegion) return null;
-
-    const existing = pages?.find((page) => page.pageIndex === selectedRegion.pageIndex);
-
-    if (existing) return existing;
-
-    return {
-      pageIndex: selectedRegion.pageIndex,
-      imageBytes: new Uint8Array([1, 2, 3]),
-      width: 595,
-      height: 842,
-      imageCount: 1,
-      region: selectedRegion.bbox,
-    };
+    return pages?.find((page) => page.pageIndex === selectedRegion.pageIndex) ?? null;
   }, [
     pages,
     selectedRegion,
@@ -314,7 +302,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
             region={selectedRegion}
             pageInput={selectedRegionPageInput}
             resolvePageInput={
-              selectedRegion
+              selectedRegion && (pdfBytes || selectedRegionPageInput)
                 ? async (region) => {
                     const resolved = await resolveOcrRegionPageInput({
                       region,
