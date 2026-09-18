@@ -2,7 +2,10 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { MacroRecipeBuilder } from './builder/MacroRecipeBuilder';
 import { findBuiltInMacroRecipe, getBuiltInMacroRecipes } from '@/core/macro/recipes/builtInRecipes';
-import { loadCustomMacroRecipes } from '@/core/macro/recipes/recipeStorage';
+import {
+  loadCustomMacroRecipes,
+  subscribeCustomMacroRecipeChanges,
+} from '@/core/macro/recipes/recipeStorage';
 import type { MacroRecipe } from '@/core/macro/types';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
@@ -44,6 +47,11 @@ export const MacroBuilderDrawer: React.FC = () => {
       setActiveRecipe(found ? cloneRecipe(found) : undefined);
     }
   }, [customRecipes]);
+
+  React.useEffect(
+    () => subscribeCustomMacroRecipeChanges(setCustomRecipes),
+    [],
+  );
 
   React.useEffect(() => {
     if (!macroBuilderOpen) return;
@@ -102,14 +110,14 @@ export const MacroBuilderDrawer: React.FC = () => {
               onChange={(e) => handleLoadSelected(e.target.value)}
               className="text-xs border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="new">New blank recipe</option>
-              <optgroup label="Built-in Recipes">
+              <option value="new">New workflow</option>
+              <optgroup label="Templates">
                 {builtIns.map((item) => (
                   <option key={item.id} value={`builtin:${item.id}`}>{item.name}</option>
                 ))}
               </optgroup>
               {customRecipes.length > 0 && (
-                <optgroup label="Custom Recipes">
+                <optgroup label="My Workflows">
                   {customRecipes.map((r) => (
                     <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>
                   ))}
