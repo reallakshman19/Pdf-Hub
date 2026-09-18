@@ -5,6 +5,7 @@ import {
   getBuiltInMacroRecipes,
   isRunnerSafeBuiltInRecipe,
 } from '@/core/macro/recipes/builtInRecipes';
+import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
 import type { MacroRecipe } from '@/core/macro/types';
 
 interface Props {
@@ -24,6 +25,11 @@ export const BatchRunDialog: React.FC<Props> = ({
     () =>
       getBuiltInMacroRecipes()
         .filter(isRunnerSafeBuiltInRecipe)
+        .filter(
+          (item) =>
+            analyzeMacroWorkflowRisk(item.recipe).risk !== 'preview-required',
+        )
+        .filter((item) => !usesSelectedPageSelector(item.recipe))
         .map((item) => item.recipe),
     [],
   );
@@ -65,7 +71,7 @@ export const BatchRunDialog: React.FC<Props> = ({
 
         <p className="text-xs text-slate-500 dark:text-slate-400">
           The selected workflow runs independently against each PDF you choose.
-          Donor-file workflows are excluded from batch processing.
+          Destructive, donor-file, and selected-page workflows are excluded from batch processing.
         </p>
 
         <div className="mt-4 flex justify-end space-x-2">
@@ -84,3 +90,30 @@ export const BatchRunDialog: React.FC<Props> = ({
     </Modal>
   );
 };
+
+
+function usesSelectedPageSelector(recipe: MacroRecipe): boolean {
+  return containsSelectedSelector(recipe.steps);
+}
+
+function containsSelectedSelector(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsSelectedSelector(item));
+  }
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const selector = record.selector;
+  if (
+    selector
+    && typeof selector === 'object'
+    && !Array.isArray(selector)
+    && (selector as { mode?: unknown }).mode === 'selected'
+  ) {
+    return true;
+  }
+
+  return Object.values(record).some((item) => containsSelectedSelector(item));
+}
