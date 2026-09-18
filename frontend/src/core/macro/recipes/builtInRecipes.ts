@@ -351,7 +351,7 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
       steps: [
         {
           op: 'insert_blank_page',
-          position: { mode: 'after', page: 1 },
+          position: { mode: 'after-current' },
           size: 'match-current',
           count: 1,
         },
