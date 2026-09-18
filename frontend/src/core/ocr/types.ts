@@ -1,4 +1,5 @@
 import type { PdfRect } from '../writer-v2/types';
+import type { PageId } from '../pages/types';
 import type { OcrJob } from './ocrJobTypes';
 
 export type { OcrJob };
@@ -79,6 +80,7 @@ export type OcrDiagnosticCode =
 
 export interface OcrDiagnostic {
   level: OcrDiagnosticLevel;
+  pageId?: PageId;
   code: OcrDiagnosticCode;
   message: string;
   pageIndex?: number;
@@ -87,6 +89,7 @@ export interface OcrDiagnostic {
 
 export interface OcrWord {
   id: string;
+  pageId?: PageId;
   pageIndex: number;
   text: string;
   normalizedText: string;
@@ -98,6 +101,7 @@ export interface OcrWord {
 
 export interface OcrLine {
   id: string;
+  pageId?: PageId;
   pageIndex: number;
   text: string;
   confidence: number;
@@ -111,6 +115,7 @@ export interface OcrLine {
 
 export interface OcrBaseBlock {
   id: string;
+  pageId?: PageId;
   pageIndex?: number;
   bbox?: PdfRect;
   text?: string;
@@ -152,6 +157,9 @@ export type OcrAnyBlock = OcrBlock | OcrTableBlock;
 
 export interface OcrPageResult {
   status: OcrPageStatus;
+  /** Canonical PDF page identity; optional for legacy/engine output. */
+  pageId?: PageId;
+  /** Zero-based execution/render coordinate derived from PageGraph. */
   pageIndex?: number;
   pageType?: OcrPageType;
   orientationDeg?: number;
@@ -168,6 +176,17 @@ export interface OcrPageResult {
   language?: string;
   warnings?: string[];
   confidence?: number;
+}
+
+export interface OcrReviewFocus {
+  documentFingerprint: string;
+  pageId?: PageId;
+  pageIndex: number;
+  bbox: PdfRect;
+  targetId: string;
+  source: 'lowConfidence' | 'search' | 'region';
+  label?: string;
+  requestedAt: number;
 }
 
 export interface OcrDocumentResult {
