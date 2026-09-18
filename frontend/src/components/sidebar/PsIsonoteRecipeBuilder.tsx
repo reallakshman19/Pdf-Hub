@@ -347,6 +347,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
   }, [clearRunArtifacts]);
 
   const handlePreview = async () => {
+    onBusyChange?.(true);
     setIsScanning(true);
     setError(null);
     setMessage(null);
@@ -367,10 +368,12 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
       setError(scanError instanceof Error ? scanError.message : String(scanError));
     } finally {
       setIsScanning(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleAnnotate = async () => {
+    onBusyChange?.(true);
     setIsRunning(true);
     setError(null);
     setMessage(null);
@@ -470,11 +473,13 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
       setError(failureMessage);
     } finally {
       setIsRunning(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleEvidencePackage = async () => {
     if (!auditReport || !auditArtifact || !parsedState.result) return;
+    onBusyChange?.(true);
     setIsPackaging(true);
     setError(null);
     try {
@@ -493,6 +498,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
       setError(packageError instanceof Error ? packageError.message : String(packageError));
     } finally {
       setIsPackaging(false);
+      onBusyChange?.(false);
     }
   };
 
