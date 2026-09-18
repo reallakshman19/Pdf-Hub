@@ -96,7 +96,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       clearSelection();
     }
 
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
 
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
@@ -119,7 +119,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!marqueeStart || !marqueeCurrent) return;
 
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
 
     // If it was just a tiny click movement, don't trigger selection box logic
     const dx = Math.abs(marqueeCurrent.x - marqueeStart.x);
@@ -289,6 +289,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       }}
     >
       <div
+        data-testid="writer-overlay-capture"
         style={{
           position: 'absolute',
           inset: 0,
