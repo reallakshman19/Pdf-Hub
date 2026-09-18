@@ -43,8 +43,9 @@ export interface PageNode {
   rotation: PageRotation;
 
   /**
-   * Resolved logical PDF page label.  This is metadata from /PageLabels and
-   * does not draw visible numbering on the page.
+   * Resolved logical PDF page label for the current physical position.
+   * This is metadata from /PageLabels, not stable identity, and does not draw
+   * visible numbering on the page.
    */
   logicalLabel?: string;
 }
