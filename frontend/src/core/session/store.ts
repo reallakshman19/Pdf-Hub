@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { rekeyPageGraph } from '../pages/pageGraphAdmission';
+import type { PageGraph, PageNode } from '../pages/types';
 import type { DocumentSession, FitMode, ViewMode } from './types';
 
 export interface OpenDocumentPayload {
@@ -6,6 +8,7 @@ export interface OpenDocumentPayload {
   fileName: string;
   bytes: Uint8Array;
   pageCount: number;
+  pageGraph?: PageGraph<PageNode>;
   saveHandle?: FileSystemFileHandle | null;
 }
 
@@ -17,6 +20,7 @@ export interface CommitWorkingCopyPayload {
 
 export interface SessionActions {
   setDocumentKey: (documentKey: string | null) => void;
+  setPageGraph: (pageGraph: PageGraph<PageNode> | null) => void;
   openDocument: (payload: OpenDocumentPayload) => void;
   replaceWorkingCopy: (bytes: Uint8Array, pageCount: number) => void;
   commitWorkingCopy: (payload: CommitWorkingCopyPayload) => void;
@@ -67,6 +71,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
   originalBytes: null,
   workingBytes: null,
   pageCount: 0,
+  pageGraph: null,
   isDirty: false,
   isDocumentDirty: false,
   isReviewDirty: false,
@@ -87,9 +92,47 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
     pendingCount: 0,
   },
 
-  setDocumentKey: (documentKey) => set({ documentKey }),
+  setDocumentKey: (documentKey) =>
+    set((state) => ({
+      documentKey,
+      pageGraph:
+        state.pageGraph && documentKey
+          ? rekeyPageGraph(state.pageGraph, documentKey)
+          : documentKey
+            ? state.pageGraph
+            : null,
+    })),
 
-  openDocument: ({ documentKey, fileName, bytes, pageCount, saveHandle = null }) => {
+  setPageGraph: (pageGraph) =>
+    set((state) => {
+      if (!pageGraph) {
+        return { pageGraph: null };
+      }
+      const pageCount = pageGraph.pages.length;
+      return {
+        pageGraph,
+        pageCount,
+        selectedPages: validSelectedPages(state.selectedPages, pageCount),
+        viewState: {
+          ...state.viewState,
+          currentPage: clampPage(state.viewState.currentPage, pageCount),
+        },
+      };
+    }),
+
+  openDocument: ({
+    documentKey,
+    fileName,
+    bytes,
+    pageCount,
+    pageGraph,
+    saveHandle = null,
+  }) => {
+    if (pageGraph && pageGraph.pages.length !== pageCount) {
+      throw new Error(
+        `OpenDocument PageGraph count ${pageGraph.pages.length} does not match pageCount ${pageCount}`,
+      );
+    }
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
     return set({
       documentKey,
@@ -97,7 +140,8 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       originalBytes: bytes,
       workingBytes: bytes,
       pageCount,
-      isDirty: false,
+      pageGraph: pageGraph ?? null,
+      isDirty: false;
       isDocumentDirty: false,
       isReviewDirty: false,
       isSessionDirty: false,
@@ -125,6 +169,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
     return set((state) => ({
       workingBytes: bytes,
       pageCount,
+      pageGraph: null,
       isDirty: true,
       isDocumentDirty: true,
       isSessionDirty: true,
@@ -147,6 +192,15 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       originalBytes: bytes,
       workingBytes: bytes,
       pageCount,
+      pageGraph:
+        state.pageGraph && state.pageGraph.pages.length === pageCount
+          ? rekeyPageGraph(
+              state.pageGraph,
+              documentKey === undefined
+                ? state.documentKey ?? state.pageGraph.pages[0]?.documentKey ?? ''
+                : documentKey ?? state.pageGraph.pages[0]?.documentKey ?? '',
+            )
+          : null,
       isDirty: false,
       isDocumentDirty: false,
       isReviewDirty: false,
@@ -244,7 +298,8 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       originalBytes: null,
       workingBytes: null,
       pageCount: 0,
-      isDirty: false,
+      pageGraph: null,
+      isDirty: false;
       isDocumentDirty: false,
       isReviewDirty: false,
       isSessionDirty: false,
