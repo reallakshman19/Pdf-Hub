@@ -1,4 +1,5 @@
 import {
+  AnnotationMode,
   getDocument,
   GlobalWorkerOptions,
   type PageViewport,
@@ -293,7 +294,7 @@ export class PdfRendererAdapter {
               }
             ).getOptionalContentConfig()
           : undefined,
-      annotationMode: options.annotationMode,
+      annotationMode: options.annotationMode ?? AnnotationMode.DISABLE,
     });
 
     let cancelled = false;
@@ -398,6 +399,7 @@ export class PdfRendererAdapter {
         canvas,
         canvasContext: context,
         viewport: scaledViewport,
+        annotationMode: AnnotationMode.DISABLE,
       });
       await raceWithAbort(
         renderTask.promise,

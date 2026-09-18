@@ -13,6 +13,7 @@ import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
+import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { useAnnotationPersistence } from './useAnnotationPersistence';
@@ -297,6 +298,7 @@ export const DocumentWorkspace: React.FC = () => {
   useAnnotationPersistence({
     documentKey,
     pdfDoc,
+    workingBytes,
     annotations,
     setAnnotations,
     setRestoredCount,
@@ -436,7 +438,7 @@ export const DocumentWorkspace: React.FC = () => {
   const sortedVisibleAnnotations = React.useMemo(
     () =>
       annotations
-        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
+        .filter((annotation) => !hideResolved || getAnnotationReviewStatus(annotation) !== 'resolved')
         .slice()
         .sort((a, b) => {
           if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;

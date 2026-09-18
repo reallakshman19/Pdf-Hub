@@ -3,6 +3,7 @@ import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { PlacedElement } from '@/core/writer/types';
+import { writeNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationWriter';
 
 export interface ComposeCommittedPdfInput {
   baseBytes: Uint8Array;
@@ -22,18 +23,10 @@ export interface ComposeCommittedPdfResult {
 }
 
 /**
- * Creates the exact PDF bytes that should be written to disk for Save/Export.
+ * Creates a flattened PDF copy for explicit export/recovery workflows.
  *
- * Contract:
- * 1. Start from current working PDF bytes.
- * 2. Bake writer/page-builder elements first.
- * 3. Flatten annotations second so review markup remains visually above writer content.
- * 4. Recount pages from final bytes.
- * 5. Hash final bytes for the next durable documentKey.
- *
- * This function is intentionally pure from app-state perspective:
- * it does not mutate session store, annotation store, writer store, file handles,
- * dirty flags, or UI state.
+ * This path intentionally burns application annotations into page content.
+ * Normal Save must use composeEditablePdf() instead.
  */
 export async function composeCommittedPdf(
   input: ComposeCommittedPdfInput,
@@ -63,6 +56,58 @@ export async function composeCommittedPdf(
 
   return {
     bytes: new Uint8Array(nextBytes.buffer as ArrayBuffer, nextBytes.byteOffset, nextBytes.byteLength),
+    pageCount,
+    documentKey,
+    committedAnnotationCount: annotations.length,
+    committedWriterElementCount: writerElements.length,
+    hadAnnotations: annotations.length > 0,
+    hadWriterElements: writerElements.length > 0,
+    writerExportWarnings,
+  };
+}
+
+/**
+ * Creates the bytes for normal Save / Save As.
+ *
+ * Writer elements are committed as document content, while annotations are
+ * serialized as editable native PDF /Annot objects.
+ */
+export async function composeEditablePdf(
+  input: ComposeCommittedPdfInput,
+): Promise<ComposeCommittedPdfResult> {
+  const annotations = Array.isArray(input.annotations) ? input.annotations : [];
+  const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
+
+  let nextBytes = new Uint8Array(input.baseBytes);
+  const writerExportWarnings: WriterExportWarning[] = [];
+
+  if (writerElements.length > 0) {
+    const rawBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+      preferSemantic: true,
+      allowRasterFallback: true,
+      collectWarnings: (warnings) => writerExportWarnings.push(...warnings),
+    });
+    nextBytes = new Uint8Array(
+      rawBytes.buffer as ArrayBuffer,
+      rawBytes.byteOffset,
+      rawBytes.byteLength,
+    );
+  }
+
+  if (annotations.length > 0) {
+    const native = await writeNativePdfAnnotations(nextBytes, annotations);
+    nextBytes = native.bytes;
+  }
+
+  const pageCount = await PdfEditAdapter.countPages(nextBytes);
+  const documentKey = await FileAdapter.hashBytes(nextBytes);
+
+  return {
+    bytes: new Uint8Array(
+      nextBytes.buffer as ArrayBuffer,
+      nextBytes.byteOffset,
+      nextBytes.byteLength,
+    ),
     pageCount,
     documentKey,
     committedAnnotationCount: annotations.length,

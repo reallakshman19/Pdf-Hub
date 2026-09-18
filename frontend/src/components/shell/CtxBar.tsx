@@ -4,7 +4,7 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info,
+  Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
@@ -142,6 +142,22 @@ const ViewSection: React.FC = () => {
   );
 };
 
+const ANNOTATE_MORE_TOOLS: Array<{
+  id: ActiveTool | 'ocr-region';
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}> = [
+  { id: 'underline', label: 'Underline', icon: UnderlineIcon, description: 'Underline selected text' },
+  { id: 'strikeout', label: 'Strikeout', icon: Strikethrough, description: 'Strike through selected text' },
+  { id: 'squiggly', label: 'Squiggly', icon: Activity, description: 'Add a squiggly underline' },
+  { id: 'sticky-note', label: 'Sticky Note', icon: MessageSquare, description: 'Place a compact note on the page' },
+  { id: 'callout', label: 'Callout', icon: MessageSquareDot, description: 'Place a callout with leader line' },
+  { id: 'stamp', label: 'Stamp', icon: Stamp, description: 'Place a document stamp' },
+  { id: 'redaction', label: 'Visual Mask', icon: Square, description: 'Cover content visually; not secure redaction' },
+  { id: 'ocr-region', label: 'OCR Area', icon: ScanText, description: 'Recognize a selected page region' },
+];
+
 const AnnotateSection: React.FC = () => {
   const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
@@ -152,11 +168,15 @@ const AnnotateSection: React.FC = () => {
     hideResolved: state.hideResolved,
     setHideResolved: state.setHideResolved,
   })));
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const moreRef = React.useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
 
   const handleToolClick = (tool: ActiveTool) => {
     if (isToolDisabled(tool)) return;
     setWriterActiveTool('select');
     setActiveTool(activeTool === tool ? 'select' : tool);
+    setMoreOpen(false);
   };
 
   const handleOcrClick = () => {
@@ -166,30 +186,122 @@ const AnnotateSection: React.FC = () => {
       setActiveTool('select');
       setWriterActiveTool('ocr-region');
     }
+    setMoreOpen(false);
   };
+
+  React.useLayoutEffect(() => {
+    if (!moreOpen || !moreRef.current) return;
+    const rect = moreRef.current.getBoundingClientRect();
+    const width = 238;
+    setMenuPosition({
+      top: rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+    });
+  }, [moreOpen]);
+
+  React.useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (moreRef.current?.contains(target)) return;
+      const menu = document.querySelector('[data-annotate-more-menu="true"]');
+      if (menu?.contains(target)) return;
+      setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [moreOpen]);
+
+  const secondaryActive =
+    writerActiveTool === 'ocr-region'
+    || ANNOTATE_MORE_TOOLS.some((item) => item.id !== 'ocr-region' && item.id === activeTool);
 
   return (
     <>
-      <CtxLabel first>Markup</CtxLabel>
-      <CtxBtn icon={Highlighter} label="Highlight" active={activeTool === 'highlight'} onClick={() => handleToolClick('highlight')} />
-      <CtxBtn icon={UnderlineIcon} label="Underline" active={activeTool === 'underline'} onClick={() => handleToolClick('underline')} />
-      <CtxBtn icon={Strikethrough} label="Strikeout" active={activeTool === 'strikeout'} onClick={() => handleToolClick('strikeout')} />
-      <CtxBtn icon={Activity} label="Squiggly" active={activeTool === 'squiggly'} disabled={isToolDisabled('squiggly')} title={getToolDisabledReason('squiggly') ?? 'Squiggly'} onClick={() => handleToolClick('squiggly')} />
-      <CtxSep />
-      <CtxLabel>Notes</CtxLabel>
-      <CtxBtn icon={MessageSquare} label="Sticky Note" active={activeTool === 'sticky-note'} onClick={() => handleToolClick('sticky-note')} />
-      <CtxBtn icon={MessageCircle} label="Comment" active={activeTool === 'comment'} onClick={() => handleToolClick('comment')} />
-      <CtxBtn icon={MessageSquareDot} label="Callout" active={activeTool === 'callout'} onClick={() => handleToolClick('callout')} />
-      <CtxSep />
-      <CtxLabel>Mark</CtxLabel>
-      <CtxBtn icon={Stamp} label="Stamp" active={activeTool === 'stamp'} disabled={isToolDisabled('stamp')} title={getToolDisabledReason('stamp') ?? 'Stamp'} onClick={() => handleToolClick('stamp')} />
-      <CtxBtn icon={Square} label="Redact" active={activeTool === 'redaction'} onClick={() => handleToolClick('redaction')} />
-      <CtxSep />
-      <CtxLabel>Auto</CtxLabel>
-      <CtxBtn icon={ScanText} label="OCR Region" active={writerActiveTool === 'ocr-region'} onClick={handleOcrClick} />
+      <CtxLabel first>Review</CtxLabel>
+      <CtxBtn
+        icon={Highlighter}
+        label="Highlight"
+        active={activeTool === 'highlight'}
+        onClick={() => handleToolClick('highlight')}
+      />
+      <CtxBtn
+        icon={MessageCircle}
+        label="Comment"
+        active={activeTool === 'comment'}
+        onClick={() => handleToolClick('comment')}
+      />
+
+      <div ref={moreRef} className="relative shrink-0">
+        <CtxBtn
+          icon={MoreHorizontal}
+          label="More"
+          active={secondaryActive || moreOpen}
+          title="More annotation tools"
+          onClick={() => setMoreOpen((open) => !open)}
+        />
+      </div>
+
+      {moreOpen && (
+        <div
+          data-annotate-more-menu="true"
+          role="menu"
+          aria-label="More annotation tools"
+          className="fixed z-[10000] w-[238px] rounded-lg border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+        >
+          {ANNOTATE_MORE_TOOLS.map((item) => {
+            const Icon = item.icon;
+            const isOcr = item.id === 'ocr-region';
+            const active = isOcr
+              ? writerActiveTool === 'ocr-region'
+              : activeTool === item.id;
+            const disabled = !isOcr && isToolDisabled(item.id as ActiveTool);
+            const disabledReason = !isOcr
+              ? getToolDisabledReason(item.id as ActiveTool)
+              : null;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                disabled={disabled}
+                title={disabledReason ?? item.description}
+                onClick={() => {
+                  if (isOcr) handleOcrClick();
+                  else handleToolClick(item.id as ActiveTool);
+                }}
+                className={[
+                  'flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors',
+                  disabled
+                    ? 'cursor-not-allowed opacity-40'
+                    : active
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                      : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800',
+                ].join(' ')}
+              >
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{item.label}</span>
+                  <span className="block text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                    {disabledReason ?? item.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <CtxSep />
       <CtxLabel>Visibility</CtxLabel>
-      <CtxBtn icon={hideResolved ? EyeOff : Eye} label={hideResolved ? 'Resolved (hidden)' : 'Resolved'} active={hideResolved} onClick={() => setHideResolved(!hideResolved)} />
+      <CtxBtn
+        icon={hideResolved ? EyeOff : Eye}
+        label={hideResolved ? 'Show resolved' : 'Hide resolved'}
+        active={hideResolved}
+        onClick={() => setHideResolved(!hideResolved)}
+      />
     </>
   );
 };
