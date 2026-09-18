@@ -2,7 +2,6 @@ import type {
   PageGraph,
   PageId,
   PageLabelRange,
-  PageLabelRange,
   PageNode,
   PageRotation,
 } from './types';
