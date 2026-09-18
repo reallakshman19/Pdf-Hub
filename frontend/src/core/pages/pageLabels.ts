@@ -42,6 +42,11 @@ export function validatePageLabelRanges(
     ) {
       errors.push(`PageLabel range ${range.startPageId} has invalid startNumber`);
     }
+    if (range.startNumber !== undefined && range.style === undefined) {
+      errors.push(
+        `PageLabel range ${range.startPageId} cannot set startNumber without a style`,
+      );
+    }
 
     if (
       range.style === undefined
