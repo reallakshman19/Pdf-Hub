@@ -166,7 +166,5 @@ export const useKeyboardShortcuts = () => {
     duplicateSelection,
     deleteSelection,
     clearSelection,
-    undo,
-    redo,
   ]);
 };
