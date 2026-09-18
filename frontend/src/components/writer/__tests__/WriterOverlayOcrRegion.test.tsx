@@ -57,7 +57,7 @@ describe('WriterOverlay OCR area selection', () => {
     expect(screen.getByTestId('ocr-document-region-mode-picker')).toBeTruthy();
     expect(useOcrStore.getState().regions).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Text' }));
+    fireEvent.click(screen.getByRole('button', { name: /text/i }));
 
     const [region] = useOcrStore.getState().regions;
 
