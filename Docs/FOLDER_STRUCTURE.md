@@ -1,3 +1,7 @@
+> **Historical document — not authoritative.**
+>
+> This file describes the former DocCraft server-first/FastAPI layout. The current product is local-first/browser-based. Use the root `ARCHITECTURE.md` and roadmap issue #167 for current architecture and module direction.
+
 # DocCraft — Folder Structure (v2)
 
 > Changes from v1:
