@@ -152,6 +152,12 @@ export async function commitDocumentMutation(
 
   try {
     useSessionStore.getState().replaceWorkingCopy(input.afterBytes, afterPageCount);
+    useSessionStore.getState().setDocumentKey(nextDocumentKey);
+    useSessionStore.getState().setPageGraph(
+      pageGraphForCommit
+        ? rekeyPageGraph(pageGraphForCommit, nextDocumentKey)
+        : null,
+    );
 
     if (input.nextAnnotations) {
       useAnnotationStore.getState().setAnnotations(input.nextAnnotations);
@@ -178,13 +184,6 @@ export async function commitDocumentMutation(
         editingId: null,
       });
     }
-
-    useSessionStore.getState().setDocumentKey(nextDocumentKey);
-    useSessionStore.getState().setPageGraph(
-      pageGraphForCommit
-        ? rekeyPageGraph(pageGraphForCommit, nextDocumentKey)
-        : null,
-    );
 
     if (input.nextSelectedPages) {
       useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
