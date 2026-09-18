@@ -419,7 +419,7 @@ function AutomateTabButton({
     <button
       type="button"
       className={[
-        'rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors',
+        'rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? 'bg-blue-600 text-white'
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
