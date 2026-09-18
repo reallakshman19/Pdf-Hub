@@ -6,6 +6,7 @@ import { documentBus } from '../events/bus';
 import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
+import { normalizeWriterPageAnchors } from '../writer-v2/writerPageAnchor';
 import { useHistoryStore } from './store';
 import type { HistoryState, Transaction } from './types';
 
@@ -38,11 +39,10 @@ function restoreHistoryState(state: HistoryState): void {
 
   if (state.writer) {
     useWriterV2Store.setState({
-      elements: state.writer.elements.map((element) => ({
-        ...element,
-        rect: { ...element.rect },
-        style: { ...element.style },
-      })),
+      elements: normalizeWriterPageAnchors(
+        state.writer.elements,
+        state.pageGraph,
+      ),
       selectedIds: [...state.writer.selectedIds],
       activeId: state.writer.activeId,
       undoStack: [],
