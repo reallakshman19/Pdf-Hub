@@ -4,10 +4,12 @@ import { runMacroRecipeAgainstSession } from './sessionRunner';
 import { useSessionStore } from '@/core/session/store';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 
-const dispatchCommand = vi.fn();
+const commandExecute = vi.fn();
 
-vi.mock('@/core/commands/dispatch', () => ({
-  dispatchCommand,
+vi.mock('@/core/commands/bus', () => ({
+  commandBus: {
+    execute: commandExecute,
+  },
 }));
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
@@ -42,6 +44,7 @@ describe('sessionRunner slice 12', () => {
 
     useSessionStore.setState({
       workingBytes: new Uint8Array([1, 2, 3]),
+      documentKey: 'sample-doc',
       pageCount: 1,
       selectedPages: [1],
       fileName: 'sample.pdf',
@@ -62,20 +65,38 @@ describe('sessionRunner slice 12', () => {
     expect(result.success).toBe(true);
     expect(result.finalBytes).toEqual(new Uint8Array([1, 2, 3]));
     expect(PdfEditAdapter.rotatePages).not.toHaveBeenCalled();
-    expect(dispatchCommand).not.toHaveBeenCalled();
+    expect(commandExecute).not.toHaveBeenCalled();
   });
 
-  it('normal run dispatches successful result', async () => {
+  it('normal run commits successful result through the canonical command bus', async () => {
+    commandExecute.mockResolvedValueOnce({
+      success: true,
+      mutated: true,
+      message: 'ok',
+    });
+
     const result = await runMacroRecipeAgainstSession(recipe);
 
     expect(result.success).toBe(true);
     expect(PdfEditAdapter.rotatePages).toHaveBeenCalled();
-    expect(dispatchCommand).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'macro-runner',
+    expect(commandExecute).toHaveBeenCalledWith(expect.objectContaining({
       command: expect.objectContaining({
-        type: 'REPLACE_WORKING_COPY',
-        nextBytes: new Uint8Array([9, 9, 9]),
+        type: 'APPLY_WORKING_COPY',
+        source: 'macro-runner',
+        documentKey: 'sample-doc',
+        payload: expect.objectContaining({
+          binaryResourceId: 'macro:final-bytes',
+          macro: expect.objectContaining({
+            recipeId: 'rotate',
+            recipeName: 'Rotate',
+          }),
+        }),
       }),
+      resources: {
+        binaries: {
+          'macro:final-bytes': new Uint8Array([9, 9, 9]),
+        },
+      },
     }));
   });
 
@@ -96,6 +117,6 @@ describe('sessionRunner slice 12', () => {
     const result = await runMacroRecipeAgainstSession(failedRecipe);
 
     expect(result.success).toBe(false);
-    expect(dispatchCommand).not.toHaveBeenCalled();
+    expect(commandExecute).not.toHaveBeenCalled();
   });
 });
