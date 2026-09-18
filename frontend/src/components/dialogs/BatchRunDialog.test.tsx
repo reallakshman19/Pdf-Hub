@@ -37,6 +37,7 @@ describe('BatchRunDialog', () => {
 
     expect(screen.queryByText('Rotate Selected Pages 90°')).toBeNull();
     expect(screen.queryByText('Extract Selected Pages')).toBeNull();
+    expect(screen.queryByText('Split Selected Pages')).toBeNull();
     expect(screen.queryByText('Remove Selected Pages')).toBeNull();
     expect(screen.queryByText('Merge Two Donor Files')).toBeNull();
     expect(screen.queryByText('Replace First Page from Donor')).toBeNull();
