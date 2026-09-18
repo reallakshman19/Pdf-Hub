@@ -198,7 +198,7 @@ export function duplicatePagesInGraph<TPage extends PageNode>(
       ...page,
       pageId: duplicateId,
       originalPageNumber: page.originalPageNumber,
-    });
+    } as TPage);
   }
 
   return createPageGraph(next);
@@ -219,7 +219,7 @@ export function rotatePagesInGraph<TPage extends PageNode>(
       rotation: selected.has(page.pageId)
         ? normalizePageRotation(page.rotation + normalizedAngle)
         : page.rotation,
-    })),
+    } as TPage)),
   );
 }
 
