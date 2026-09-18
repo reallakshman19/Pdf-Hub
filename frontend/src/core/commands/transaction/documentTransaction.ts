@@ -5,6 +5,8 @@ import { saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
+import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
+import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
@@ -33,6 +35,7 @@ export interface CommitDocumentMutationInput {
   nextWriterElements?: WriterElementV2[];
   nextSelectedPages?: number[];
   nextCurrentPage?: number;
+  nextPageGraph?: PageGraph<PageNode> | null;
 }
 
 export interface CommittedDocumentMutation {
@@ -90,6 +93,22 @@ export async function commitDocumentMutation(
     throw toTransactionError('prepare', 'Unable to prepare document mutation', error);
   }
 
+  const sessionSnapshot = useSessionStore.getState();
+  const pageGraphForCommit =
+    input.nextPageGraph === undefined
+      ? sessionSnapshot.pageGraph
+      : input.nextPageGraph;
+
+  if (
+    pageGraphForCommit
+    && pageGraphForCommit.pages.length !== afterPageCount
+  ) {
+    throw new DocumentMutationTransactionError(
+      'prepare',
+      `PageGraph count ${pageGraphForCommit.pages.length} does not match mutated PDF page count ${afterPageCount}`,
+    );
+  }
+
   const annotationState = useAnnotationStore.getState();
   const annotationsToPersist = input.nextAnnotations ?? annotationState.annotations;
 
@@ -103,7 +122,6 @@ export async function commitDocumentMutation(
     );
   }
 
-  const sessionSnapshot = useSessionStore.getState();
   const annotationSnapshot = {
     annotations: [...annotationState.annotations],
     activeAnnotationId: annotationState.activeAnnotationId,
@@ -162,6 +180,11 @@ export async function commitDocumentMutation(
     }
 
     useSessionStore.getState().setDocumentKey(nextDocumentKey);
+    useSessionStore.getState().setPageGraph(
+      pageGraphForCommit
+        ? rekeyPageGraph(pageGraphForCommit, nextDocumentKey)
+        : null,
+    );
 
     if (input.nextSelectedPages) {
       useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
@@ -184,6 +207,9 @@ export async function commitDocumentMutation(
       before: {
         bytes: beforeHistoryBytes,
         pageCount: beforePageCount,
+        pageGraph: sessionSnapshot.pageGraph
+          ? clonePageGraph(sessionSnapshot.pageGraph)
+          : null,
         documentKey: sessionSnapshot.documentKey,
         selectedPages: [...sessionSnapshot.selectedPages],
         currentPage: sessionSnapshot.viewState.currentPage,
@@ -193,6 +219,9 @@ export async function commitDocumentMutation(
       after: {
         bytes: new Uint8Array(input.afterBytes),
         pageCount: afterPageCount,
+        pageGraph: sessionAfter.pageGraph
+          ? clonePageGraph(sessionAfter.pageGraph)
+          : null,
         documentKey: nextDocumentKey,
         selectedPages: [...sessionAfter.selectedPages],
         currentPage: sessionAfter.viewState.currentPage,
