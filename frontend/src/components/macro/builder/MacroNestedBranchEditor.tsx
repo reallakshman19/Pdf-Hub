@@ -203,9 +203,8 @@ function BranchPanel({
                     }}
                   >
                     <strong>
-                      {index + 1}. {presentation?.label ?? step.op}
+                      {index + 1}. {presentation?.label ?? 'Workflow step'}
                     </strong>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{step.op}</div>
                   </button>
 
                   <div style={{ display: 'flex', gap: 4 }}>
