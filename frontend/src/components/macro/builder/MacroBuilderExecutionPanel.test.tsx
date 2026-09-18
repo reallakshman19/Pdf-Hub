@@ -128,7 +128,7 @@ describe('MacroBuilderExecutionPanel', () => {
         dryRun: false,
       }),
       expect.objectContaining({
-        saveOutputs: false,
+        saveOutputs: true,
         abortSignal: expect.any(AbortSignal),
       }),
     );
