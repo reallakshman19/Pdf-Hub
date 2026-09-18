@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName } from 'pdf-lib';
+import { PDFDocument, PDFHexString, PDFName, PDFString } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
 import type { PdfAnnotation } from '@/core/annotations/types';
@@ -100,9 +100,9 @@ describe('readNativePdfAnnotations', () => {
         Type: 'Annot',
         Subtype: 'Text',
         Rect: [20, 300, 40, 320],
-        Contents: doc.context.obj('External note'),
-        T: doc.context.obj('External reviewer'),
-        NM: doc.context.obj('external-note-1'),
+        Contents: PDFHexString.fromText('External note'),
+        T: PDFHexString.fromText('External reviewer'),
+        NM: PDFString.of('external-note-1'),
         F: 4,
       }),
     );
