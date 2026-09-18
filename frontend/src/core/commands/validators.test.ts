@@ -41,6 +41,15 @@ describe('SET_PAGE_LABELS validation', () => {
     expect(result.errors.some((message) => message.includes('integer >= 1'))).toBe(true);
   });
 
+  it('rejects startNumber when no numbering style is present', () => {
+    const result = validateCommand(command([
+      { startPageId: 'p1', prefix: 'SEC-', startNumber: 3 },
+    ]));
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((message) => message.includes('requires a numbering style'))).toBe(true);
+  });
+
   it('rejects a range with neither numbering style nor prefix', () => {
     const result = validateCommand(command([
       { startPageId: 'p1' },
