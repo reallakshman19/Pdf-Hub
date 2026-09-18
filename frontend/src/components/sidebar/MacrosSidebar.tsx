@@ -36,6 +36,7 @@ import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenera
 import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
 import { MacroExpertWorkspace } from '@/components/macro/advanced/MacroExpertWorkspace';
+import { MacroPresetExecutionPanel } from '@/components/macro/advanced/MacroPresetExecutionPanel';
 import {
   MacroOutputQueue,
   type MacroOutputQueueItem,
@@ -126,17 +127,11 @@ export const MacrosSidebar: React.FC = () => {
   const [overridesByRecipe, setOverridesByRecipe] = React.useState<
     Record<string, RecipeOverrides>
   >({});
-  const [isRunning, setIsRunning] = React.useState(false);
-  const [runLogs, setRunLogs] = React.useState<string[]>([]);
-  const [runError, setRunError] = React.useState<string | null>(null);
+  const [generationRunning, setGenerationRunning] = React.useState(false);
+  const [generationLogs, setGenerationLogs] = React.useState<string[]>([]);
+  const [generationError, setGenerationError] = React.useState<string | null>(null);
+  const [presetRunnerBusy, setPresetRunnerBusy] = React.useState(false);
   const [outputQueue, setOutputQueue] = React.useState<MacroOutputQueueItem[]>([]);
-  const [preflightReport, setPreflightReport] = React.useState<PreflightReport | null>(null);
-  const [isDryRunning, setIsDryRunning] = React.useState(false);
-  const runAbortControllerRef = React.useRef<AbortController | null>(null);
-
-  React.useEffect(() => () => {
-    runAbortControllerRef.current?.abort('Macro panel unmounted');
-  }, []);
   const overrides = React.useMemo(
     () =>
       selectedRecipe
