@@ -55,8 +55,63 @@ requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
   'My Workflows',
   'Build',
   'Specialized workflows',
-  'Advanced macro tools',
+  'Generate Document',
+  'MacroGenerateDocumentPanel',
+  'MacroBatchRunPanel',
+  'Batch Process PDFs',
+  'MacroOutputQueue',
   'setMacroBuilderSource',
+]);
+
+forbidMarkers('src/components/sidebar/AutomateSidebar.tsx', [
+  'Advanced macro tools',
+  'MacrosSidebar',
+  'MacroExpertWorkspace',
+  'MacroPresetExecutionPanel',
+  'MacroPresetParameters',
+]);
+
+forbidMarkers('src/components/toolbar/ToolbarOrganize.tsx', [
+  'Batch Run Recipe',
+  'BatchRunDialog',
+  'runMacroBatch',
+  'BUILTIN_MACROS',
+]);
+
+requireMarkers('src/components/macro/advanced/MacroBatchRunPanel.tsx', [
+  'Batch Process PDFs',
+  'FileAdapter.pickPdfFileSources(true)',
+  'runMacroBatch({',
+  'onOutput:',
+  'FileAdapter.downloadBytes',
+  'onBusyChange',
+]);
+
+requireMarkers('src/components/dialogs/BatchRunDialog.tsx', [
+  'getBuiltInMacroRecipes',
+  'isRunnerSafeBuiltInRecipe',
+  'analyzeMacroWorkflowRisk',
+  'usesSelectedPageSelector',
+]);
+
+requireMarkers('src/components/sidebar/PsIsonoteRecipeBuilder.tsx', [
+  'onBusyChange',
+  'workflowBusy',
+  'isScanning || isRunning || isPackaging',
+]);
+
+requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
+  'specializedBusy',
+  'onBusyChange={setSpecializedBusy}',
+]);
+
+requireMarkers('src/core/macro/recipes/builtInRecipes.ts', [
+  "'header-file-name-selected'",
+  "'file-date-page-footer-selected'",
+  "'review-copy-selected'",
+  "'review-pack-header-footer'",
+  "'insert-blank-after-current'",
+  "position: { mode: 'after-current' }",
 ]);
 
 requireMarkers('src/components/macro/builder/MacroRecipeBuilder.tsx', [

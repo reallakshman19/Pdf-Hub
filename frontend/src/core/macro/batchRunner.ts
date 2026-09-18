@@ -19,12 +19,21 @@ import { log } from '@/core/logger/service';
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
 
+export interface BatchOutputArtifact {
+  readonly inputIndex: number;
+  readonly fileName: string;
+  readonly bytes: Uint8Array;
+}
+
 export interface BatchRunOptions {
   readonly sources: readonly PickedPdfFileSource[];
   readonly recipe: MacroRecipe;
   readonly continueOnError: boolean;
   readonly donorFiles?: Record<string, Uint8Array>;
   readonly abortSignal?: AbortSignal;
+  readonly onOutput?: (
+    output: BatchOutputArtifact,
+  ) => void | Promise<void>;
 }
 
 interface BatchFileRecordBase {
@@ -140,7 +149,19 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
           nextInputIndex += 1;
           break;
         }
-        throwIfAborted(options.abortSignal, `batch input ${nextInputIndex}: before advancing`);
+        if (options.abortSignal?.aborted) {
+          cancelled = true;
+          outcome = 'cancelled';
+          diagnostics.push({
+            severity: 'info',
+            code: 'ADMISSION_CANCELLED',
+            phase: 'COMMIT',
+            inputIndex: nextInputIndex,
+            message: 'Batch execution was cancelled after the current input was recorded.',
+          });
+          nextInputIndex += 1;
+          break;
+        }
         continue;
       }
 
@@ -177,7 +198,19 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
           break;
         }
       }
-      throwIfAborted(options.abortSignal, `batch input ${nextInputIndex}: before advancing`);
+      if (options.abortSignal?.aborted) {
+        cancelled = true;
+        outcome = 'cancelled';
+        diagnostics.push({
+          severity: 'info',
+          code: 'ADMISSION_CANCELLED',
+          phase: 'COMMIT',
+          inputIndex: nextInputIndex,
+          message: 'Batch execution was cancelled after the current input was recorded.',
+        });
+        nextInputIndex += 1;
+        break;
+      }
     } catch (error) {
       if (isOperationCancelledError(error)) {
         cancelled = true;
@@ -296,7 +329,12 @@ async function executeValidatedBatchPdf(
   }
 
   const outputBytes = execution.finalBytes.byteLength;
-  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before recording success`);
+  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
+  await options.onOutput?.({
+    inputIndex: input.inputIndex,
+    fileName: input.fileName,
+    bytes: execution.finalBytes,
+  });
   return freezeRecord({
     inputIndex: input.inputIndex,
     fileName: input.fileName,

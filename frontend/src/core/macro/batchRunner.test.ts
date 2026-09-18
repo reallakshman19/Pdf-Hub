@@ -302,6 +302,39 @@ describe('runMacroBatch', () => {
     });
   });
 
+  it('hands off successful output bytes without retaining them in the report', async () => {
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(
+      successResult(321, ['done']),
+    );
+    const outputs: Array<{
+      inputIndex: number;
+      fileName: string;
+      bytes: Uint8Array;
+    }> = [];
+
+    const report = await runMacroBatch({
+      sources: [createSource('valid.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: (output) => {
+        outputs.push(output);
+      },
+    });
+
+    expect(outputs).toHaveLength(1);
+    expect(outputs[0]).toMatchObject({
+      inputIndex: 0,
+      fileName: 'valid.pdf',
+    });
+    expect(outputs[0]?.bytes).toBeInstanceOf(Uint8Array);
+    expect(outputs[0]?.bytes.byteLength).toBe(321);
+    expect(containsBinary(report)).toBe(false);
+    expect(report.records[0]).toMatchObject({
+      status: 'success',
+      outputBytes: 321,
+    });
+  });
+
   it('continues after macro failure when continueOnError is true', async () => {
     macroMocks.executeMacroRecipe
       .mockResolvedValueOnce(failureResult('first failed'))
@@ -354,6 +387,32 @@ describe('runMacroBatch', () => {
     expect(report.outcome).toBe('cancelled');
     expect(secondRead).not.toHaveBeenCalled();
     expect(report.records.map((record) => record.status)).toEqual(['cancelled', 'not-run']);
+  });
+
+  it('keeps a handed-off output successful when cancellation happens at its commit boundary', async () => {
+    const controller = new AbortController();
+    const second = createSource('second.pdf');
+    const secondRead = vi.spyOn(second.file, 'arrayBuffer');
+
+    const report = await runMacroBatch({
+      sources: [createSource('first.pdf'), second],
+      recipe: RECIPE,
+      continueOnError: true,
+      abortSignal: controller.signal,
+      onOutput: () => {
+        controller.abort('stop after first output');
+      },
+    });
+
+    expect(report.outcome).toBe('cancelled');
+    expect(secondRead).not.toHaveBeenCalled();
+    expect(report.records.map((record) => record.status)).toEqual([
+      'success',
+      'not-run',
+    ]);
+    expect(
+      report.records.filter((record) => record.inputIndex === 0),
+    ).toHaveLength(1);
   });
 
   it('cancellation during page counting prevents macro execution', async () => {

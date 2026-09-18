@@ -256,6 +256,35 @@ describe('page-ops slice 2', () => {
     );
   });
 
+  it('insert_blank_page resolves after-current against the live current page', async () => {
+    const context = ctx();
+    context.currentPage = 2;
+
+    const result = await macroRegistry.execute(
+      {
+        op: 'insert_blank_page',
+        position: {
+          mode: 'after-current',
+        },
+        size: 'match-current',
+        count: 1,
+      },
+      context,
+      state(),
+    );
+
+    expect(result.status).toBe('success');
+    expect(PdfEditAdapter.getPageSize).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      1,
+    );
+    expect(PdfEditAdapter.insertBlankPage).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      2,
+      { width: 595, height: 842 },
+    );
+  });
+
   it('replace_page errors with no side effects when donor file is missing', async () => {
     const result = await macroRegistry.execute(
       {

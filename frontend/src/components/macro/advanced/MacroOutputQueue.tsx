@@ -21,11 +21,14 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
   onChange,
   onError,
 }) => {
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+
   const saveOutput = async (id: string) => {
     const output = outputs.find((item) => item.id === id);
     if (!output) return;
 
     try {
+      setSaveError(null);
       await FileAdapter.savePdfBytes(output.bytes, output.name, null);
       onChange(outputs.filter((item) => item.id !== id));
     } catch (error) {
@@ -34,11 +37,13 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
         outputName: output.name,
         error: message,
       });
+      setSaveError(message);
       onError?.(message);
     }
   };
 
   const saveAllOutputs = async () => {
+    setSaveError(null);
     for (const output of outputs) {
       try {
         await FileAdapter.savePdfBytes(output.bytes, output.name, null);
@@ -48,6 +53,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
           outputName: output.name,
           error: message,
         });
+        setSaveError(message);
         onError?.(message);
         return;
       }
@@ -90,6 +96,15 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       {outputs.length === 0 ? (
         <div className="text-xs text-slate-500">
           No generated output files.
+        </div>
+      ) : null}
+
+      {saveError ? (
+        <div
+          className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700"
+          role="alert"
+        >
+          {saveError}
         </div>
       ) : null}
 
