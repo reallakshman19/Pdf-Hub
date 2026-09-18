@@ -220,6 +220,18 @@ function resolveDonors(
   return donors;
 }
 
+function activePdfOverlayWriterElements(): WriterElementV2[] | null {
+  const writer = useWriterV2Store.getState();
+  if (writer.documentMeta?.mode === 'blankDocument') return null;
+  if (
+    writer.documentMeta?.mode === 'pdfOverlay'
+    || (!writer.documentMeta && Boolean(useSessionStore.getState().pageGraph))
+  ) {
+    return writer.elements;
+  }
+  return null;
+}
+
 async function resolveStructuralPageGraph(
   context: ResolvedCommandContext,
   input: CommandExecutionInput,
@@ -355,15 +367,17 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const anchoredWriterElements = normalizeWriterPageAnchors(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-        );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          remapWriterAfterRotate(anchoredWriterElements, rotations),
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              remapWriterAfterRotate(
+                normalizeWriterPageAnchors(writerElements, pageGraph),
+                rotations,
+              ),
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
         const result = await applyMutation(
           command,
@@ -395,11 +409,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
         const result = await applyMutation(
           command,
@@ -426,11 +443,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
         const result = await applyMutation(
           command,
@@ -476,11 +496,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
         const result = await applyMutation(
           command,
@@ -519,11 +542,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
         const result = await applyMutation(
           command,
@@ -573,11 +599,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
           resolved.bytes,
@@ -615,11 +644,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.insertBlankPage(context.workingBytes, atIndex, size);
         const result = await applyMutation(
           command,
@@ -691,18 +723,21 @@ export async function dispatchPdfCommand(
               pageGraph,
               nextPageGraph,
             );
-        const nextWriterElements = targetPageId
-          ? removeWriterElementsAnchoredToPageIds(
-              useWriterV2Store.getState().elements,
-              pageGraph,
-              nextPageGraph,
-              [targetPageId],
-            )
-          : reanchorWriterElementsAfterPageGraphChange(
-              useWriterV2Store.getState().elements,
-              pageGraph,
-              nextPageGraph,
-            );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? targetPageId
+            ? removeWriterElementsAnchoredToPageIds(
+                writerElements,
+                pageGraph,
+                nextPageGraph,
+                [targetPageId],
+              )
+            : reanchorWriterElementsAfterPageGraphChange(
+                writerElements,
+                pageGraph,
+                nextPageGraph,
+              )
+          : undefined;
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
           atIndex,
@@ -740,12 +775,15 @@ export async function dispatchPdfCommand(
           nextPageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
         );
-        const nextWriterElements = duplicateWriterElementsByPageGraph(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? duplicateWriterElementsByPageGraph(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+              pageIdsAtIndices(pageGraph, pageIndices),
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
         const result = await applyMutation(
           command,
@@ -799,11 +837,14 @@ export async function dispatchPdfCommand(
           pageGraph,
           nextPageGraph,
         );
-        const nextWriterElements = reanchorWriterElementsAfterPageGraphChange(
-          useWriterV2Store.getState().elements,
-          pageGraph,
-          nextPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? reanchorWriterElementsAfterPageGraphChange(
+              writerElements,
+              pageGraph,
+              nextPageGraph,
+            )
+          : undefined;
         const nextBytes = await PdfEditAdapter.merge(
           context.workingBytes,
           donors.map((donor) => donor.bytes),
@@ -926,10 +967,13 @@ export async function dispatchPdfCommand(
           useAnnotationStore.getState().annotations,
           rebuiltPageGraph,
         );
-        const nextWriterElements = rebindWriterElementsByPageIndex(
-          useWriterV2Store.getState().elements,
-          rebuiltPageGraph,
-        );
+        const writerElements = activePdfOverlayWriterElements();
+        const nextWriterElements = writerElements
+          ? rebindWriterElementsByPageIndex(
+              writerElements,
+              rebuiltPageGraph,
+            )
+          : undefined;
         const result = await applyMutation(
           command,
           context.workingBytes,
