@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import { documentBus } from '../events/bus';
 import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate, remapAfterDuplicate } from './pageRemapper';
 import { useSessionStore } from '../session/store';
-import { normalizeAnnotationReview, normalizeAnnotationReviews, withAnnotationReviewStatus } from '../review/annotationReview';
+import {
+  normalizeAnnotationReview,
+  normalizeAnnotationReviews,
+  withAnnotationReviewReply,
+  withAnnotationReviewStatus,
+} from '../review/annotationReview';
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -50,6 +55,8 @@ interface AnnotationActions {
   alignSelection: (mode: AlignMode) => void;
   distributeSelection: (mode: DistributeMode) => void;
   setReviewStatusForSelection: (status: ReviewStatus) => void;
+  setReviewStatus: (id: string, status: ReviewStatus) => void;
+  addReviewReply: (id: string, content: string, author?: string) => void;
   toggleLockSelection: () => void;
   updateStyleForSelection: (stylePatch: Partial<AnnotationStyle>) => void;
 }
@@ -505,6 +512,42 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       );
 
       return snapshot(state, nextAnnotations);
+    }),
+
+  setReviewStatus: (id, status) =>
+    set((state) => {
+      const annotation = state.annotations.find((item) => item.id === id);
+      if (!annotation) return state;
+
+      const updatedAt = Date.now();
+      const nextAnnotations = state.annotations.map((item) =>
+        item.id === id ? withAnnotationReviewStatus(item, status, updatedAt) : item,
+      );
+
+      return snapshot(state, nextAnnotations, state.selectedAnnotationIds, state.activeAnnotationId);
+    }),
+
+  addReviewReply: (id, content, author = 'Current User') =>
+    set((state) => {
+      const trimmed = content.trim();
+      if (!trimmed) return state;
+
+      const annotation = state.annotations.find((item) => item.id === id);
+      if (!annotation) return state;
+
+      const updatedAt = Date.now();
+      const nextAnnotations = state.annotations.map((item) =>
+        item.id === id
+          ? withAnnotationReviewReply(item, {
+              id: uuidv4(),
+              author,
+              content: trimmed,
+              createdAt: updatedAt,
+            }, updatedAt)
+          : item,
+      );
+
+      return snapshot(state, nextAnnotations, state.selectedAnnotationIds, state.activeAnnotationId);
     }),
 
   toggleLockSelection: () =>

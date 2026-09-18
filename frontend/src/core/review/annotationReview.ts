@@ -1,5 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
-import type { ReviewMetadata, ReviewStatus } from './types';
+import type { ReviewMetadata, ReviewReply, ReviewStatus } from './types';
 
 function isReviewStatus(value: unknown): value is ReviewStatus {
   return value === 'open' || value === 'resolved' || value === 'rejected';
@@ -103,6 +103,36 @@ export function withAnnotationReviewStatus(
     data: {
       ...dataWithoutLegacy,
       review: buildReviewMetadata(annotation, status, updatedAt),
+    },
+    updatedAt,
+  };
+}
+
+
+export function isReviewConversationAnnotation(annotation: PdfAnnotation): boolean {
+  return Boolean(annotation.data.review)
+    || annotation.type === 'comment'
+    || annotation.type === 'sticky-note'
+    || annotation.type === 'callout';
+}
+
+export function withAnnotationReviewReply(
+  annotation: PdfAnnotation,
+  reply: ReviewReply,
+  updatedAt: number = Date.now(),
+): PdfAnnotation {
+  const status = getAnnotationReviewStatus(annotation);
+  const currentReview = buildReviewMetadata(annotation, status, updatedAt);
+
+  return {
+    ...annotation,
+    data: {
+      ...annotation.data,
+      review: {
+        ...currentReview,
+        replies: [...currentReview.replies, reply],
+        updatedAt,
+      },
     },
     updatedAt,
   };

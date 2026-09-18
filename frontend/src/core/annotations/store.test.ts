@@ -110,6 +110,29 @@ describe('annotation store', () => {
     expect(Object.prototype.hasOwnProperty.call(annotation.data, 'reviewStatus')).toBe(false);
   });
 
+  it('focused review actions update one annotation and append trimmed replies', () => {
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([
+      baseAnnotation('a1', 1, 10, 10),
+      baseAnnotation('a2', 1, 20, 20),
+    ]);
+
+    store.setReviewStatus('a1', 'resolved');
+    store.addReviewReply('a1', '  Confirmed against source.  ', 'Reviewer');
+
+    const state = useAnnotationStore.getState();
+    const first = state.annotations.find((annotation) => annotation.id === 'a1');
+    const second = state.annotations.find((annotation) => annotation.id === 'a2');
+
+    expect(first?.data.review?.status).toBe('resolved');
+    expect(first?.data.review?.replies).toHaveLength(1);
+    expect(first?.data.review?.replies[0]).toMatchObject({
+      author: 'Reviewer',
+      content: 'Confirmed against source.',
+    });
+    expect(second?.data.review).toBeUndefined();
+  });
+
   it('copySelection + pasteClipboard clones and offsets geometry including callout points', () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
     const store = useAnnotationStore.getState();
