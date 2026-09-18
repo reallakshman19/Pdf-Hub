@@ -11,7 +11,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useWriterStore } from '@/core/writer/store';
-import { composeCommittedPdf } from '@/core/document/commitPipeline';
+import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useShallow } from 'zustand/react/shallow';
@@ -43,9 +43,8 @@ export const ToolbarFile: React.FC = () => {
     failSaveOperation: state.failSaveOperation,
   })));
 
-  const { annotations, setAnnotations } = useAnnotationStore(useShallow((state) => ({
+  const { annotations } = useAnnotationStore(useShallow((state) => ({
     annotations: state.annotations,
-    setAnnotations: state.setAnnotations,
   })));
   const addToast = useToastStore((state) => state.addToast);
 
@@ -54,21 +53,30 @@ export const ToolbarFile: React.FC = () => {
     (state) => state.clearElementsAfterCommit,
   );
 
-  const buildCommittedPdf = async () => {
+  const requireWorkingPdf = () => {
     if (!workingBytes) {
       throw new Error('No working PDF is loaded');
     }
-    return composeCommittedPdf({
-      baseBytes: workingBytes,
+    return workingBytes;
+  };
+
+  const buildEditablePdf = async () =>
+    composeEditablePdf({
+      baseBytes: requireWorkingPdf(),
       annotations,
       writerElements,
     });
-  };
 
-  const clearCommittedOverlays = async (nextDocumentKey: string) => {
+  const buildFlattenedPdf = async () =>
+    composeCommittedPdf({
+      baseBytes: requireWorkingPdf(),
+      annotations,
+      writerElements,
+    });
+
+  const persistSavedOverlayState = async (nextDocumentKey: string) => {
     if (annotations.length > 0) {
-      setAnnotations([]);
-      await saveAnnotations(nextDocumentKey, []);
+      await saveAnnotations(nextDocumentKey, annotations);
     }
     if (writerElements.length > 0) {
       clearWriterElementsAfterCommit();
@@ -110,14 +118,15 @@ export const ToolbarFile: React.FC = () => {
       return;
     }
     try {
-      beginSaveOperation('Committing annotations and writer elements…');
-      const { bytes, pageCount, documentKey } = await buildCommittedPdf();
+      beginSaveOperation('Saving editable annotations and document content…');
+      const { bytes, pageCount, documentKey } = await buildEditablePdf();
+      await saveAnnotations(documentKey, annotations);
       const nextHandle = await FileAdapter.savePdfBytes(bytes, fileName, saveHandle);
       if (nextHandle) {
         setSaveHandle(nextHandle);
       }
       commitWorkingCopy({ bytes, pageCount, documentKey });
-      await clearCommittedOverlays(documentKey);
+      await persistSavedOverlayState(documentKey);
       completeSaveOperation(`Saved ${fileName}`);
       recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
       addToast({
@@ -131,13 +140,14 @@ export const ToolbarFile: React.FC = () => {
           error: String(err),
         });
         try {
-          const { bytes, pageCount, documentKey } = await buildCommittedPdf();
+          const { bytes, pageCount, documentKey } = await buildEditablePdf();
+          await saveAnnotations(documentKey, annotations);
           const nextHandle = await FileAdapter.savePdfBytes(bytes, fileName, null);
           if (nextHandle) {
             setSaveHandle(nextHandle);
           }
           commitWorkingCopy({ bytes, pageCount, documentKey });
-          await clearCommittedOverlays(documentKey);
+          await persistSavedOverlayState(documentKey);
           completeSaveOperation(`Saved ${fileName}`);
           recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
           addToast({
@@ -176,7 +186,7 @@ export const ToolbarFile: React.FC = () => {
     }
     try {
       beginExportOperation('Building flattened export…');
-      const { bytes } = await buildCommittedPdf();
+      const { bytes } = await buildFlattenedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-review.pdf';
       await FileAdapter.savePdfBytes(bytes, exportName, null);
       completeSaveOperation(`Exported ${exportName}`);
@@ -209,7 +219,7 @@ export const ToolbarFile: React.FC = () => {
     }
     try {
       beginExportOperation('Building flattened export…');
-      const { bytes } = await buildCommittedPdf();
+      const { bytes } = await buildFlattenedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-annotated.pdf';
       await FileAdapter.savePdfBytes(bytes, exportName, null);
       completeSaveOperation(`Exported ${exportName}`);
