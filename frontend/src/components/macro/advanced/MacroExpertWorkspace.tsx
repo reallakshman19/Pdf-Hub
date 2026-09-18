@@ -39,12 +39,14 @@ import { useSessionStore } from '@/core/session/store';
 export interface MacroExpertWorkspaceProps {
   selectedRecipe?: MacroRecipe;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   onOutputsProduced?: (outputs: MacroOutputFile[]) => void;
 }
 
 export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
   selectedRecipe,
   disabled = false,
+  onBusyChange,
   onOutputsProduced,
 }) => {
   const {
@@ -78,6 +80,14 @@ export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
   const [isDryRunning, setIsDryRunning] = React.useState(false);
   const [isRunning, setIsRunning] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
+  const busy = isDryRunning || isRunning;
+
+  React.useEffect(() => {
+    onBusyChange?.(busy);
+    return () => {
+      if (busy) onBusyChange?.(false);
+    };
+  }, [busy, onBusyChange]);
 
   React.useEffect(() => () => {
     abortRef.current?.abort('Expert workflow closed');
