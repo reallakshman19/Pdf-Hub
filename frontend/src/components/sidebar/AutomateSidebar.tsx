@@ -27,6 +27,7 @@ import {
   upsertCustomMacroRecipe,
 } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { validateRecipeBeforeRun } from '@/core/macro/validation/validator';
 import type { MacroRecipe } from '@/core/macro/types';
 import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
@@ -43,7 +44,19 @@ const QUICK_ACTION_IDS = [
 ] as const;
 
 export const AutomateSidebar: React.FC = () => {
-  const workingBytes = useSessionStore((state) => state.workingBytes);
+  const {
+    workingBytes,
+    fileName,
+    pageCount,
+    selectedPages,
+    currentPage,
+  } = useSessionStore(useShallow((state) => ({
+    workingBytes: state.workingBytes,
+    fileName: state.fileName,
+    pageCount: state.pageCount,
+    selectedPages: state.selectedPages,
+    currentPage: state.viewState.currentPage,
+  })));
   const addToast = useToastStore((state) => state.addToast);
   const {
     setMacroBuilderOpen,
@@ -91,13 +104,39 @@ export const AutomateSidebar: React.FC = () => {
     setRunningRecipeId(recipe.id);
 
     try {
+      if (!fileName) return;
+
+      const preflight = await validateRecipeBeforeRun(
+        {
+          ...recipe,
+          dryRun: true,
+        },
+        {
+          pageCount: Math.max(1, pageCount),
+          selectedPages,
+          currentPage,
+          fileName,
+          donorFiles: {},
+          now: new Date(),
+        },
+      );
+
+      if (!preflight.isValid) {
+        addToast({
+          type: 'error',
+          title: 'Workflow Needs Attention',
+          message: preflight.errors[0] ?? 'Fix the workflow before running it.',
+        });
+        return;
+      }
+
       const result = await runMacroRecipeAgainstSession(
         {
           ...recipe,
           dryRun: false,
         },
         {
-          saveOutputs: false,
+          saveOutputs: true,
           abortSignal: controller.signal,
         },
       );
