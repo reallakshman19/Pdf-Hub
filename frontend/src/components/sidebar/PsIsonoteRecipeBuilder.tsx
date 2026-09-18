@@ -137,7 +137,13 @@ function verificationFailureMessage(verification: PsIsonoteVerificationResult): 
     : 'Output verification failed.';
 }
 
-export const PsIsonoteRecipeBuilder: React.FC = () => {
+export interface PsIsonoteRecipeBuilderProps {
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
+  onBusyChange,
+}) => {
   const {
     workingBytes,
     documentKey,
@@ -172,6 +178,15 @@ export const PsIsonoteRecipeBuilder: React.FC = () => {
   const [isPackaging, setIsPackaging] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  const workflowBusy = isScanning || isRunning || isPackaging;
+
+  React.useEffect(() => {
+    onBusyChange?.(workflowBusy);
+    return () => {
+      if (workflowBusy) onBusyChange?.(false);
+    };
+  }, [onBusyChange, workflowBusy]);
 
   const parsedState = React.useMemo(() => parseSource(sourceText), [sourceText]);
   const selectedPagesKey = selectedPages.join(',');
