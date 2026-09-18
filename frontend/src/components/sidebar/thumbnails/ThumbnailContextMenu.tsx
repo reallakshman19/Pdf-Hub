@@ -311,9 +311,9 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-amber-700 dark:text-amber-300"
-        onClick={() => setConfigKind('redaction')}
+        onClick={() => setConfigKind('visualMask')}
       >
-        Visual Mask (Not Secure Redaction)...
+        Visual Mask...
       </button>
 
       <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
