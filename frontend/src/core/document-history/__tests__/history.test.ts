@@ -44,6 +44,17 @@ function historyState(
   return {
     bytes,
     pageCount,
+    pageGraph: {
+      pages: Array.from({ length: pageCount }, (_, index) => ({
+        pageId: `${documentKey}::stable::${index + 1}`,
+        documentKey,
+        originalPageNumber: index + 1,
+        currentIndex: index,
+        width: 595,
+        height: 842,
+        rotation: 0 as const,
+      })),
+    },
     documentKey,
     selectedPages: [1],
     currentPage: 1,
@@ -109,6 +120,10 @@ describe('Document History', () => {
       new Uint8Array([1, 2, 3]),
     );
     expect(useSessionStore.getState().documentKey).toBe('before');
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'before::stable::1',
+      documentKey: 'before',
+    });
     expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('before', []);
 
     await expect(applyRedo()).resolves.toBe(true);
@@ -116,6 +131,10 @@ describe('Document History', () => {
       new Uint8Array([4, 5, 6]),
     );
     expect(useSessionStore.getState().documentKey).toBe('after');
+    expect(useSessionStore.getState().pageGraph?.pages[0]).toMatchObject({
+      pageId: 'after::stable::1',
+      documentKey: 'after',
+    });
     expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('after', []);
   });
 
