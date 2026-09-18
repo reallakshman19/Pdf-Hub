@@ -192,4 +192,91 @@ describe('annotation store', () => {
     ]);
   });
 
+
+  it('upgrades legacy pageNumber annotations to PageId when a PageGraph session is active', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-anchors',
+      fileName: 'anchors.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 2,
+      pageGraph: {
+        pages: [
+          {
+            pageId: 'page-a',
+            documentKey: 'doc-anchors',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+          {
+            pageId: 'page-b',
+            documentKey: 'doc-anchors',
+            originalPageNumber: 2,
+            currentIndex: 1,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+        ],
+      },
+    });
+
+    useAnnotationStore.getState().setAnnotations([
+      baseAnnotation('legacy', 2, 10, 20),
+    ]);
+
+    expect(useAnnotationStore.getState().annotations[0]).toMatchObject({
+      id: 'legacy',
+      pageId: 'page-b',
+      pageNumber: 2,
+    });
+  });
+
+  it('retargets pasted annotations to the destination PageId', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-paste',
+      fileName: 'paste.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 2,
+      pageGraph: {
+        pages: [
+          {
+            pageId: 'page-1',
+            documentKey: 'doc-paste',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+          {
+            pageId: 'page-2',
+            documentKey: 'doc-paste',
+            originalPageNumber: 2,
+            currentIndex: 1,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+        ],
+      },
+    });
+
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([baseAnnotation('copy-me', 1, 10, 20)]);
+    store.setSelection(['copy-me']);
+    store.copySelection();
+    store.pasteClipboard(2);
+
+    const pasted = useAnnotationStore.getState().annotations.find(
+      (annotation) => annotation.id !== 'copy-me',
+    );
+    expect(pasted).toMatchObject({
+      pageId: 'page-2',
+      pageNumber: 2,
+    });
+  });
+
 });
