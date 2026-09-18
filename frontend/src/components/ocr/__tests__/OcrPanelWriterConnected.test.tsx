@@ -107,6 +107,8 @@ describe('OcrPanelWriterConnected', () => {
 
     expect(screen.getByTestId('ocr-panel-writer-connected')).toBeTruthy();
     expect(screen.getByTestId('ocr-panel')).toBeTruthy();
+    expect(screen.queryByTestId('ocr-demo-fixtures')).toBeNull();
+    expect(screen.queryByTestId('ocr-advanced-panel')).toBeNull();
   });
 
   it('keeps the browser workflow compact and non-nested', () => {
