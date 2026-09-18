@@ -7,6 +7,10 @@ import {
   createPageGraph,
   isPageRotation,
 } from './pageGraph';
+import {
+  applyResolvedPdfPageLabels,
+  readResolvedPdfPageLabels,
+} from './pdfPageLabels';
 import type { PageGraph, PageId, PageNode, PageRotation } from './types';
 
 export async function buildPageGraphFromPdfBytes(
@@ -27,6 +31,10 @@ export async function buildPageGraphFromPdfBytes(
   );
 
   try {
+    const resolvedPageLabels = await readResolvedPdfPageLabels(
+      lease.doc,
+      signal,
+    );
     const pages: PageNode[] = [];
 
     for (let pageNumber = 1; pageNumber <= lease.doc.numPages; pageNumber += 1) {
@@ -60,7 +68,10 @@ export async function buildPageGraphFromPdfBytes(
       }
     }
 
-    return createPageGraph(pages);
+    return applyResolvedPdfPageLabels(
+      createPageGraph(pages),
+      resolvedPageLabels,
+    );
   } finally {
     await lease.release();
   }
