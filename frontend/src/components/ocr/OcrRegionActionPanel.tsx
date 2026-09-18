@@ -177,7 +177,7 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
           Mode: <span className="font-medium">{region.mode}</span>
         </div>
         <div>
-          Page {region.pageIndex + 1} · x {Math.round(region.bbox.x)}, y {Math.round(region.bbox.y)}, w {Math.round(region.bbox.width)}, h {Math.round(region.bbox.height)}
+          Page {region.pageIndex + 1} · selected directly on the document
         </div>
       </div>
 
