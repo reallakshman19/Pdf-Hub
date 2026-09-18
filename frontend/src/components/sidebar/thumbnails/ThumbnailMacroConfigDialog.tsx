@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import type { DocumentCommand } from '@/core/commands/types';
+import type { PdfCommandDraft } from '@/core/commands/types';
 import { VISUAL_MASK_WARNING } from '@/core/redaction/capability';
 
 export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'watermark' | 'visualMask';
@@ -10,7 +10,7 @@ interface ThumbnailMacroConfigDialogProps {
   kind: ThumbnailMacroKind;
   pageIndices: number[];
   onCancel: () => void;
-  onApply: (command: DocumentCommand, successMessage: string) => void;
+  onApply: (command: PdfCommandDraft, successMessage: string) => void;
 }
 
 const TITLES: Record<ThumbnailMacroKind, string> = {
@@ -119,10 +119,11 @@ export const ThumbnailMacroConfigDialog: React.FC<
 
   const handleApply = () => {
     if (isHeaderFooter) {
-      const command: DocumentCommand = {
+      const command: PdfCommandDraft = {
         type: 'ADD_HEADER_FOOTER_TEXT',
-        pageIndices,
-        options: {
+        payload: {
+          pageIndices,
+          options: {
           zone: kind === 'pageNumbers' ? 'footer' : 'header',
           text,
           align,
@@ -132,7 +133,8 @@ export const ThumbnailMacroConfigDialog: React.FC<
           color,
           opacity,
           pageNumberToken: kind === 'pageNumbers',
-          fileNameToken: kind === 'fileHeader',
+            fileNameToken: kind === 'fileHeader',
+          },
         },
       };
       onApply(
@@ -145,10 +147,12 @@ export const ThumbnailMacroConfigDialog: React.FC<
     }
 
     if (isVisualMask) {
-      const command: DocumentCommand = {
+      const command: PdfCommandDraft = {
         type: 'DRAW_REDACTION_BOX',
-        pageIndices,
-        options: { x, y, width, height, fillColor: color },
+        payload: {
+          pageIndices,
+          options: { x, y, width, height, fillColor: color },
+        },
       };
       onApply(
         command,
@@ -157,10 +161,11 @@ export const ThumbnailMacroConfigDialog: React.FC<
       return;
     }
 
-    const command: DocumentCommand = {
+    const command: PdfCommandDraft = {
       type: 'DRAW_TEXT_ON_PAGES',
-      pageIndices,
-      options: {
+      payload: {
+        pageIndices,
+        options: {
         text,
         x,
         y,
@@ -168,7 +173,8 @@ export const ThumbnailMacroConfigDialog: React.FC<
         color,
         opacity,
         align,
-        ...(isWatermark ? { rotation } : {}),
+          ...(isWatermark ? { rotation } : {}),
+        },
       },
     };
     onApply(
