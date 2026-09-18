@@ -113,3 +113,5 @@ The Phase 4 architecture audit enforces these boundaries.
 Stable `PageId`, PageGraph, PageLabels, large-file sources, mutation-engine abstraction, and the public SDK must build on this command/transaction contract rather than creating parallel mutation paths.
 
 Annotation/review page identity uses stable `PageId`. `pageNumber` is a derived one-based position for rendering/navigation and compatibility with native PDF page arrays; structural commands must not use it as durable identity.
+
+PDF-overlay Writer elements use stable `PageId` as page identity; `pageIndex` is derived for rendering/export. Blank Writer documents are not part of the PDF PageGraph and retain their independent page-index semantics.
