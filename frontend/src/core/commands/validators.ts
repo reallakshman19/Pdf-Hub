@@ -163,6 +163,11 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
             `payload.ranges.${index}.startNumber must be an integer >= 1.`,
           );
         }
+        if (range.startNumber !== undefined && range.style === undefined) {
+          errors.push(
+            `payload.ranges.${index}.startNumber requires a numbering style.`,
+          );
+        }
         if (
           range.style === undefined
           && (!range.prefix || range.prefix.length === 0)
