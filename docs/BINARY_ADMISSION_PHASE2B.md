@@ -109,9 +109,14 @@ failure records and processing continues with the next source. With
 marked `not-run` without being read.
 
 Cancellation checkpoints exist before and after reads, page counting, macro
-execution, success recording, and advancing to the next source. Abort racing
-suppresses late browser reads and late macro completions so they cannot create
-success records or start later work.
+execution, output handoff, success recording, and advancing to the next source.
+Abort racing suppresses late browser reads and late macro completions so they
+cannot create success records or start later work.
+
+A successful `onOutput` handoff is the per-file commit boundary. If cancellation
+arrives after that handoff, the current input remains a success and later inputs
+are marked `not-run`; the runner does not append a duplicate cancelled record
+for the already-delivered PDF.
 
 ## Preserved macro authority
 
