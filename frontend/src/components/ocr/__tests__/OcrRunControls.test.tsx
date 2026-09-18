@@ -109,6 +109,20 @@ describe('OCR run workflow controls', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('supports disabling recognition when no document source is available', () => {
+    render(
+      <OcrRunActions
+        running={false}
+        runDisabled
+        onRun={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+
+    const runButton = screen.getByTestId('run-ocr-button') as HTMLButtonElement;
+    expect(runButton.disabled).toBe(true);
+  });
+
   it('supports explicitly disabling clear when not running', () => {
     render(
       <OcrRunActions
