@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { rekeyPageGraph } from '../pages/pageGraph';
-import type { PageGraph, PageNode } from '../pages/types';
+import { pageIdAtPhysicalIndex, physicalIndexForPageId, rekeyPageGraph } from '../pages/pageGraph';
+import type { PageGraph, PageId, PageNode } from '../pages/types';
 import type { DocumentSession, FitMode, ViewMode } from './types';
 
 export interface OpenDocumentPayload {
@@ -25,6 +25,7 @@ export interface SessionActions {
   replaceWorkingCopy: (bytes: Uint8Array, pageCount: number) => void;
   commitWorkingCopy: (payload: CommitWorkingCopyPayload) => void;
   setPage: (pageNumber: number) => void;
+  setPageById: (pageId: PageId) => void;
   setZoom: (zoom: number) => void;
   setFitMode: (fitMode: FitMode) => void;
   setViewMode: (viewMode: ViewMode) => void;
@@ -39,6 +40,7 @@ export interface SessionActions {
   ) => void;
   setSaveHandle: (saveHandle: FileSystemFileHandle | null) => void;
   setSelectedPages: (pages: number[]) => void;
+  setSelectedPageIds: (pageIds: PageId[]) => void;
   toggleSelectedPage: (page: number) => void;
   clearSelectedPages: () => void;
   clearDocument: () => void;
@@ -65,6 +67,86 @@ function validSelectedPages(pages: number[], pageCount: number): number[] {
   return uniqSorted(pages.filter((page) => page >= 1 && page <= Math.max(1, pageCount)));
 }
 
+function pageIdForNumber(
+  pageGraph: PageGraph<PageNode> | null,
+  pageNumber: number,
+): PageId | null {
+  if (!pageGraph) return null;
+  return pageIdAtPhysicalIndex(pageGraph, pageNumber - 1);
+}
+
+function pageNumberForId(
+  pageGraph: PageGraph<PageNode> | null,
+  pageId: PageId | null,
+): number | null {
+  if (!pageGraph || !pageId) return null;
+  const index = physicalIndexForPageId(pageGraph, pageId);
+  return index >= 0 ? index + 1 : null;
+}
+
+function pageIdsForNumbers(
+  pageGraph: PageGraph<PageNode> | null,
+  pages: number[],
+): PageId[] {
+  if (!pageGraph) return [];
+  return validSelectedPages(pages, pageGraph.pages.length).flatMap((pageNumber) => {
+    const pageId = pageIdForNumber(pageGraph, pageNumber);
+    return pageId ? [pageId] : [];
+  });
+}
+
+function normalizedPageIds(
+  pageGraph: PageGraph<PageNode>,
+  pageIds: readonly PageId[],
+): PageId[] {
+  const selected = new Set(pageIds);
+  return pageGraph.pages
+    .map((page) => page.pageId)
+    .filter((pageId) => selected.has(pageId));
+}
+
+function pageNumbersForIds(
+  pageGraph: PageGraph<PageNode>,
+  pageIds: readonly PageId[],
+): number[] {
+  return normalizedPageIds(pageGraph, pageIds).flatMap((pageId) => {
+    const pageNumber = pageNumberForId(pageGraph, pageId);
+    return pageNumber === null ? [] : [pageNumber];
+  });
+}
+
+function resolveNavigationForGraph(
+  state: Pick<DocumentSession, 'pageGraph' | 'selectedPageIds' | 'selectedPages' | 'viewState'>,
+  pageGraph: PageGraph<PageNode>,
+) {
+  const pageCount = pageGraph.pages.length;
+  const priorSelectedIds =
+    state.selectedPageIds.length > 0
+      ? state.selectedPageIds
+      : pageIdsForNumbers(state.pageGraph, state.selectedPages);
+  const selectedPageIds = normalizedPageIds(pageGraph, priorSelectedIds);
+  const selectedPages = pageNumbersForIds(pageGraph, selectedPageIds);
+
+  const priorCurrentId =
+    state.viewState.currentPageId
+    ?? pageIdForNumber(state.pageGraph, state.viewState.currentPage);
+  const preservedCurrentPage = pageNumberForId(pageGraph, priorCurrentId);
+  const currentPage =
+    preservedCurrentPage
+    ?? clampPage(state.viewState.currentPage, pageCount);
+  const currentPageId =
+    preservedCurrentPage !== null
+      ? priorCurrentId
+      : pageIdForNumber(pageGraph, currentPage);
+
+  return {
+    selectedPageIds,
+    selectedPages,
+    currentPage,
+    currentPageId,
+  };
+}
+
 export const useSessionStore = create<DocumentSession & SessionActions>((set) => ({
   documentKey: null,
   fileName: null,
@@ -77,8 +159,10 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
   isReviewDirty: false,
   isSessionDirty: false,
   saveHandle: null,
+  selectedPageIds: [],
   selectedPages: [],
   viewState: {
+    currentPageId: null,
     currentPage: 1,
     zoom: 100,
     fitMode: 'manual',
@@ -108,14 +192,17 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       if (!pageGraph) {
         return { pageGraph: null };
       }
-      const pageCount = pageGraph.pages.length;
+
+      const navigation = resolveNavigationForGraph(state, pageGraph);
       return {
         pageGraph,
-        pageCount,
-        selectedPages: validSelectedPages(state.selectedPages, pageCount),
+        pageCount: pageGraph.pages.length,
+        selectedPageIds: navigation.selectedPageIds,
+        selectedPages: navigation.selectedPages,
         viewState: {
           ...state.viewState,
-          currentPage: clampPage(state.viewState.currentPage, pageCount),
+          currentPageId: navigation.currentPageId,
+          currentPage: navigation.currentPage,
         },
       };
     }),
@@ -146,9 +233,11 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       isReviewDirty: false,
       isSessionDirty: false,
       saveHandle,
+      selectedPageIds: [],
       selectedPages: [],
       lastOperation: undefined,
       viewState: {
+        currentPageId: pageGraph?.pages[0]?.pageId ?? null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'manual',
@@ -197,6 +286,15 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
             : state.pageGraph
           : null;
 
+      const navigation = nextPageGraph
+        ? resolveNavigationForGraph(state, nextPageGraph)
+        : {
+            selectedPageIds: state.selectedPageIds,
+            selectedPages: validSelectedPages(state.selectedPages, pageCount),
+            currentPageId: state.viewState.currentPageId,
+            currentPage: clampPage(state.viewState.currentPage, pageCount),
+          };
+
       return {
         documentKey: nextDocumentKey,
         originalBytes: bytes,
@@ -207,10 +305,12 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         isDocumentDirty: false,
         isReviewDirty: false,
         isSessionDirty: false,
-        selectedPages: validSelectedPages(state.selectedPages, pageCount),
+        selectedPageIds: navigation.selectedPageIds,
+        selectedPages: navigation.selectedPages,
         viewState: {
           ...state.viewState,
-          currentPage: clampPage(state.viewState.currentPage, pageCount),
+          currentPageId: navigation.currentPageId,
+          currentPage: navigation.currentPage,
         },
         saveState: {
           status: 'saved',
@@ -227,12 +327,29 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
   },
 
   setPage: (currentPage) =>
-    set((state) => ({
-      viewState: {
-        ...state.viewState,
-        currentPage: Math.max(1, Math.min(currentPage, Math.max(1, state.pageCount))),
-      },
-    })),
+    set((state) => {
+      const pageNumber = clampPage(currentPage, state.pageCount);
+      return {
+        viewState: {
+          ...state.viewState,
+          currentPageId: pageIdForNumber(state.pageGraph, pageNumber),
+          currentPage: pageNumber,
+        },
+      };
+    }),
+
+  setPageById: (pageId) =>
+    set((state) => {
+      const pageNumber = pageNumberForId(state.pageGraph, pageId);
+      if (pageNumber === null) return {};
+      return {
+        viewState: {
+          ...state.viewState,
+          currentPageId: pageId,
+          currentPage: pageNumber,
+        },
+      };
+    }),
 
   setZoom: (zoom) =>
     set((state) => ({
@@ -276,23 +393,58 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
   setSaveHandle: (saveHandle) => set({ saveHandle }),
 
   setSelectedPages: (pages) =>
-    set((state) => ({
-      selectedPages: uniqSorted(
-        pages.filter((page) => page >= 1 && page <= Math.max(1, state.pageCount)),
-      ),
-    })),
-
-  toggleSelectedPage: (page) =>
     set((state) => {
-      const exists = state.selectedPages.includes(page);
+      const selectedPages = validSelectedPages(pages, state.pageCount);
       return {
-        selectedPages: exists
-          ? state.selectedPages.filter((value) => value !== page)
-          : uniqSorted([...state.selectedPages, page]),
+        selectedPageIds: pageIdsForNumbers(state.pageGraph, selectedPages),
+        selectedPages,
       };
     }),
 
-  clearSelectedPages: () => set({ selectedPages: [] }),
+  setSelectedPageIds: (pageIds) =>
+    set((state) => {
+      if (!state.pageGraph) {
+        return {
+          selectedPageIds: Array.from(new Set(pageIds)),
+          selectedPages: [],
+        };
+      }
+      const selectedPageIds = normalizedPageIds(state.pageGraph, pageIds);
+      return {
+        selectedPageIds,
+        selectedPages: pageNumbersForIds(state.pageGraph, selectedPageIds),
+      };
+    }),
+
+  toggleSelectedPage: (page) =>
+    set((state) => {
+      const pageNumber = clampPage(page, state.pageCount);
+      const pageId = pageIdForNumber(state.pageGraph, pageNumber);
+
+      if (!pageId) {
+        const exists = state.selectedPages.includes(pageNumber);
+        return {
+          selectedPageIds: [],
+          selectedPages: exists
+            ? state.selectedPages.filter((value) => value !== pageNumber)
+            : uniqSorted([...state.selectedPages, pageNumber]),
+        };
+      }
+
+      const exists = state.selectedPageIds.includes(pageId);
+      const selectedPageIds = normalizedPageIds(
+        state.pageGraph!,
+        exists
+          ? state.selectedPageIds.filter((value) => value !== pageId)
+          : [...state.selectedPageIds, pageId],
+      );
+      return {
+        selectedPageIds,
+        selectedPages: pageNumbersForIds(state.pageGraph!, selectedPageIds),
+      };
+    }),
+
+  clearSelectedPages: () => set({ selectedPageIds: [], selectedPages: [] }),
 
   clearDocument: () =>
     set({
@@ -307,10 +459,12 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       isReviewDirty: false,
       isSessionDirty: false,
       saveHandle: null,
+      selectedPageIds: [],
       selectedPages: [],
       lastExportAction: undefined,
       lastOperation: undefined,
       viewState: {
+        currentPageId: null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'manual',
