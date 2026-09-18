@@ -74,10 +74,7 @@ export const ToolbarFile: React.FC = () => {
       writerElements,
     });
 
-  const persistSavedOverlayState = async (nextDocumentKey: string) => {
-    if (annotations.length > 0) {
-      await saveAnnotations(nextDocumentKey, annotations);
-    }
+  const clearCommittedWriterElements = () => {
     if (writerElements.length > 0) {
       clearWriterElementsAfterCommit();
     }
@@ -126,7 +123,7 @@ export const ToolbarFile: React.FC = () => {
         setSaveHandle(nextHandle);
       }
       commitWorkingCopy({ bytes, pageCount, documentKey });
-      await persistSavedOverlayState(documentKey);
+      clearCommittedWriterElements();
       completeSaveOperation(`Saved ${fileName}`);
       recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
       addToast({
@@ -147,7 +144,7 @@ export const ToolbarFile: React.FC = () => {
             setSaveHandle(nextHandle);
           }
           commitWorkingCopy({ bytes, pageCount, documentKey });
-          await persistSavedOverlayState(documentKey);
+          clearCommittedWriterElements();
           completeSaveOperation(`Saved ${fileName}`);
           recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', `Saved ${fileName}`);
           addToast({
