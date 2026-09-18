@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { rekeyPageGraph } from '../pages/pageGraphAdmission';
+import { rekeyPageGraph } from '../pages/pageGraph';
 import type { PageGraph, PageNode } from '../pages/types';
 import type { DocumentSession, FitMode, ViewMode } from './types';
 
