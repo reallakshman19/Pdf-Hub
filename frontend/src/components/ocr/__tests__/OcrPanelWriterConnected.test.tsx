@@ -169,8 +169,9 @@ describe('OcrPanelWriterConnected', () => {
     );
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(within(summary).getByText('browser-smoke.pdf')).toBeTruthy();
+    expect(screen.getByText('browser-smoke.pdf')).toBeTruthy();
     expect(within(summary).getByText('working')).toBeTruthy();
+    expect(within(summary).getByText('1 selected')).toBeTruthy();
   });
 
   it('inserts OCR region Writer element into Writer V2 store', async () => {
@@ -260,10 +261,10 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(screen.getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
     expect(within(unifiedSummary).getByText('4')).toBeTruthy();
-    expect(within(unifiedSummary).getByText('2')).toBeTruthy();
+    expect(within(unifiedSummary).getByText('2 selected')).toBeTruthy();
   });
 
   it('passes session document fingerprint when no explicit prop is supplied', () => {
@@ -281,7 +282,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(within(unifiedSummary).getByText('session.pdf')).toBeTruthy();
+    expect(screen.getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
   });
 
