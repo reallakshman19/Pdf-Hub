@@ -1,7 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { useSessionStore } from '../store';
 
+function graph(ids: string[], documentKey = 'doc-nav') {
+  return {
+    pages: ids.map((pageId, index) => ({
+      pageId,
+      documentKey,
+      originalPageNumber: index + 1,
+      currentIndex: index,
+      width: 595,
+      height: 842,
+      rotation: 0 as const,
+    })),
+  };
+}
+
 describe('Session Store', () => {
+  beforeEach(() => {
+    useSessionStore.getState().clearDocument();
+  });
   it('tracks dirty states and save actions', () => {
     const store = useSessionStore.getState();
     store.openDocument({
@@ -195,6 +212,179 @@ describe('Session Store', () => {
         },
       }),
     ).toThrow(/PageGraph count 1 does not match pageCount 2/);
+  });
+
+
+  it('derives current PageId from numeric navigation and resolves PageId back to page number', () => {
+    const pageGraph = graph(['p1', 'p2', 'p3']);
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph,
+    });
+
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p1',
+      currentPage: 1,
+    });
+
+    useSessionStore.getState().setPage(3);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p3',
+      currentPage: 3,
+    });
+
+    useSessionStore.getState().setPageById('p2');
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p2',
+      currentPage: 2,
+    });
+  });
+
+  it('derives selected PageIds from page numbers and page numbers from PageIds', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph: graph(['p1', 'p2', 'p3']),
+    });
+
+    useSessionStore.getState().setSelectedPages([3, 1]);
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p1', 'p3']);
+    expect(useSessionStore.getState().selectedPages).toEqual([1, 3]);
+
+    useSessionStore.getState().setSelectedPageIds(['p2', 'p1']);
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p1', 'p2']);
+    expect(useSessionStore.getState().selectedPages).toEqual([1, 2]);
+  });
+
+  it('keeps current and selected identity stable when PageGraph order changes', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph: graph(['p1', 'p2', 'p3']),
+    });
+    useSessionStore.getState().setPageById('p1');
+    useSessionStore.getState().setSelectedPageIds(['p1', 'p3']);
+
+    useSessionStore.getState().setPageGraph(graph(['p3', 'p2', 'p1']));
+
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p1',
+      currentPage: 3,
+    });
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p3', 'p1']);
+    expect(useSessionStore.getState().selectedPages).toEqual([1, 3]);
+  });
+
+  it('drops deleted selected IDs and falls current page back to the old physical position', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph: graph(['p1', 'p2', 'p3']),
+    });
+    useSessionStore.getState().setPageById('p2');
+    useSessionStore.getState().setSelectedPageIds(['p2', 'p3']);
+
+    useSessionStore.getState().setPageGraph(graph(['p1', 'p3']));
+
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p3']);
+    expect(useSessionStore.getState().selectedPages).toEqual([2]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p3',
+      currentPage: 2,
+    });
+  });
+
+  it('retains canonical navigation IDs while PageGraph is temporarily invalidated', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph: graph(['p1', 'p2', 'p3']),
+    });
+    useSessionStore.getState().setPageById('p2');
+    useSessionStore.getState().setSelectedPageIds(['p2']);
+
+    useSessionStore.getState().replaceWorkingCopy(new Uint8Array([2]), 3);
+
+    expect(useSessionStore.getState().pageGraph).toBeNull();
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p2']);
+    expect(useSessionStore.getState().viewState.currentPageId).toBe('p2');
+
+    useSessionStore.getState().setPageGraph(graph(['p3', 'p2', 'p1']));
+
+    expect(useSessionStore.getState().selectedPages).toEqual([2]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p2',
+      currentPage: 2,
+    });
+  });
+
+  it('preserves navigation PageIds across a non-structural committed save', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-before',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+      pageGraph: graph(['p1', 'p2', 'p3'], 'doc-before'),
+    });
+    useSessionStore.getState().setPageById('p3');
+    useSessionStore.getState().setSelectedPageIds(['p1', 'p3']);
+
+    useSessionStore.getState().commitWorkingCopy({
+      bytes: new Uint8Array([2]),
+      pageCount: 3,
+      documentKey: 'doc-after',
+    });
+
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p1', 'p3']);
+    expect(useSessionStore.getState().selectedPages).toEqual([1, 3]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'p3',
+      currentPage: 3,
+    });
+  });
+
+  it('hydrates canonical IDs when a legacy numeric session receives its PageGraph', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'legacy-nav',
+      fileName: 'legacy.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 3,
+    });
+    useSessionStore.getState().setPage(2);
+    useSessionStore.getState().setSelectedPages([1, 3]);
+
+    useSessionStore.getState().setPageGraph(graph(['p1', 'p2', 'p3'], 'legacy-nav'));
+
+    expect(useSessionStore.getState().viewState.currentPageId).toBe('p2');
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['p1', 'p3']);
+  });
+
+  it('clears canonical navigation IDs with the document', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-nav',
+      fileName: 'nav.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 2,
+      pageGraph: graph(['p1', 'p2']),
+    });
+    useSessionStore.getState().setPageById('p2');
+    useSessionStore.getState().setSelectedPageIds(['p2']);
+
+    useSessionStore.getState().clearDocument();
+
+    expect(useSessionStore.getState().selectedPageIds).toEqual([]);
+    expect(useSessionStore.getState().viewState.currentPageId).toBeNull();
   });
 
 });

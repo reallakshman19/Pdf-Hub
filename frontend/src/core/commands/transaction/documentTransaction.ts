@@ -317,7 +317,9 @@ export async function commitDocumentMutation(
           ? clonePageGraph(sessionSnapshot.pageGraph)
           : null,
         documentKey: sessionSnapshot.documentKey,
+        selectedPageIds: [...sessionSnapshot.selectedPageIds],
         selectedPages: [...sessionSnapshot.selectedPages],
+        currentPageId: sessionSnapshot.viewState.currentPageId,
         currentPage: sessionSnapshot.viewState.currentPage,
         annotations: [...annotationSnapshot.annotations],
         writer: writerBefore,
@@ -330,7 +332,9 @@ export async function commitDocumentMutation(
           ? clonePageGraph(sessionAfter.pageGraph)
           : null,
         documentKey: nextDocumentKey,
+        selectedPageIds: [...sessionAfter.selectedPageIds],
         selectedPages: [...sessionAfter.selectedPages],
+        currentPageId: sessionAfter.viewState.currentPageId,
         currentPage: sessionAfter.viewState.currentPage,
         annotations: [...annotationAfter.annotations],
         writer: writerAfter,

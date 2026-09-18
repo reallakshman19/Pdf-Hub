@@ -1,9 +1,12 @@
-import type { PageGraph, PageNode } from '../pages/types';
+import type { PageGraph, PageId, PageNode } from '../pages/types';
 
 export type FitMode = 'manual' | 'width' | 'page';
 export type ViewMode = 'continuous' | 'single' | 'two-page';
 
 export interface ViewState {
+  /** Canonical page identity when a PageGraph is available. */
+  currentPageId: PageId | null;
+  /** One-based compatibility/render position derived from currentPageId. */
   currentPage: number;
   zoom: number;
   fitMode: FitMode;
@@ -92,6 +95,9 @@ export interface DocumentSession {
   isDirty: boolean;
 
   saveHandle: FileSystemFileHandle | null;
+  /** Canonical selected-page identity for PDF-backed sessions. */
+  selectedPageIds: PageId[];
+  /** One-based compatibility/render positions derived from selectedPageIds. */
   selectedPages: number[];
   viewState: ViewState;
 

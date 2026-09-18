@@ -117,3 +117,5 @@ Annotation/review page identity uses stable `PageId`. `pageNumber` is a derived 
 PDF-overlay Writer elements use stable `PageId` as page identity; `pageIndex` is derived for rendering/export. Blank Writer documents are not part of the PDF PageGraph and retain their independent page-index semantics.
 
 OCR page-scoped state uses stable `PageId` as PDF page identity. `pageIndex` is derived for OCR execution/rendering. Structural PDF transactions must reanchor or invalidate OCR coherently and undo/redo must restore the OCR snapshot that belongs to the corresponding byte/PageGraph revision.
+
+Session current-page and selected-page identity use stable `PageId`. Numeric `currentPage` and `selectedPages` values are derived UI/engine compatibility coordinates. Structural transactions and history must preserve PageIds across reorder/insert operations and resolve numeric positions from the target PageGraph.

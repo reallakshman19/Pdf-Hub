@@ -46,9 +46,11 @@ describe('sessionRunner slice 12', () => {
       workingBytes: new Uint8Array([1, 2, 3]),
       documentKey: 'sample-doc',
       pageCount: 1,
+      selectedPageIds: [],
       selectedPages: [1],
       fileName: 'sample.pdf',
       viewState: {
+        currentPageId: null,
         currentPage: 1,
         zoom: 100,
         fitMode: 'width',

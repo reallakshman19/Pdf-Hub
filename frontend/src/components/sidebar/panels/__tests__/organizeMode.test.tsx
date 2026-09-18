@@ -7,7 +7,12 @@ import { useSessionStore } from '@/core/session/store';
 
 describe('Organize mode — page selection store behavior', () => {
   beforeEach(() => {
-    useSessionStore.setState({ selectedPages: [], pageCount: 5 });
+    useSessionStore.setState({
+      selectedPageIds: [],
+      selectedPages: [],
+      pageCount: 5,
+      pageGraph: null,
+    });
   });
 
   test('setSelectedPages replaces selection', () => {
@@ -23,7 +28,7 @@ describe('Organize mode — page selection store behavior', () => {
   });
 
   test('toggleSelectedPage removes page when already selected', () => {
-    useSessionStore.setState({ selectedPages: [2, 4] });
+    useSessionStore.setState({ selectedPageIds: [], selectedPages: [2, 4] });
     const { toggleSelectedPage } = useSessionStore.getState();
     toggleSelectedPage(2);
     expect(useSessionStore.getState().selectedPages).not.toContain(2);
@@ -31,7 +36,7 @@ describe('Organize mode — page selection store behavior', () => {
   });
 
   test('clearSelectedPages empties the selection', () => {
-    useSessionStore.setState({ selectedPages: [1, 2, 3] });
+    useSessionStore.setState({ selectedPageIds: [], selectedPages: [1, 2, 3] });
     const { clearSelectedPages } = useSessionStore.getState();
     clearSelectedPages();
     expect(useSessionStore.getState().selectedPages).toHaveLength(0);

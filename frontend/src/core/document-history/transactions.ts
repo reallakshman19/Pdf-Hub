@@ -36,8 +36,17 @@ function restoreHistoryState(state: HistoryState): void {
   useSessionStore.getState().setPageGraph(
     state.pageGraph ? clonePageGraph(state.pageGraph) : null,
   );
-  useSessionStore.getState().setSelectedPages(state.selectedPages);
-  useSessionStore.getState().setPage(state.currentPage);
+  if (state.selectedPageIds.length > 0) {
+    useSessionStore.getState().setSelectedPageIds(state.selectedPageIds);
+  } else {
+    useSessionStore.getState().setSelectedPages(state.selectedPages);
+  }
+
+  if (state.currentPageId) {
+    useSessionStore.getState().setPageById(state.currentPageId);
+  } else {
+    useSessionStore.getState().setPage(state.currentPage);
+  }
   useAnnotationStore.getState().setAnnotations(
     normalizeAnnotationPageAnchors(state.annotations, state.pageGraph),
   );

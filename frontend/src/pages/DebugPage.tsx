@@ -22,6 +22,7 @@ export const DebugPage: React.FC = () => {
     documentKey: state.documentKey,
     fileName: state.fileName,
     pageCount: state.pageCount,
+    selectedPageIds: state.selectedPageIds,
     selectedPages: state.selectedPages,
     isDirty: state.isDirty,
     viewState: state.viewState,
@@ -57,6 +58,7 @@ export const DebugPage: React.FC = () => {
       documentKey: sessionState.documentKey,
       fileName: sessionState.fileName,
       pageCount: sessionState.pageCount,
+      selectedPageIds: sessionState.selectedPageIds,
       selectedPages: sessionState.selectedPages,
       isDirty: sessionState.isDirty,
       viewState: sessionState.viewState,
@@ -206,9 +208,11 @@ interface StateTabProps {
     documentKey: string | null;
     fileName: string | null;
     pageCount: number;
+    selectedPageIds: string[];
     selectedPages: number[];
     isDirty: boolean;
     viewState: {
+      currentPageId: string | null;
       currentPage: number;
       zoom: number;
       fitMode: string;

@@ -32,7 +32,9 @@ function state(bytes: Uint8Array) {
     pageCount: 1,
     pageGraph: null,
     documentKey: 'doc',
+    selectedPageIds: [],
     selectedPages: [1],
+    currentPageId: null,
     currentPage: 1,
     annotations: [],
   };

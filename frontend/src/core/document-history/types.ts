@@ -1,7 +1,7 @@
 import type { PdfAnnotation } from '../annotations/types';
 import type { WriterDocumentMode, WriterElementV2 } from '../writer-v2/types';
 import type { PdfCommand } from '../commands/types';
-import type { PageGraph, PageNode } from '../pages/types';
+import type { PageGraph, PageId, PageNode } from '../pages/types';
 import type { OcrPageAnchoredState } from '../ocr/ocrPageAnchor';
 
 export interface WriterHistoryState {
@@ -17,7 +17,9 @@ export interface HistoryState {
   pageCount: number;
   pageGraph: PageGraph<PageNode> | null;
   documentKey?: string | null;
+  selectedPageIds: PageId[];
   selectedPages: number[];
+  currentPageId: PageId | null;
   currentPage: number;
   annotations: PdfAnnotation[];
   writer?: WriterHistoryState;
