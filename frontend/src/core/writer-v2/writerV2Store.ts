@@ -122,8 +122,14 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     const previousEditingId = beforeStore.editingId;
     const rawResult = executeWriterCommand(beforeStore, command);
     const session = useSessionStore.getState();
+    const isPdfOverlaySession =
+      beforeStore.documentMeta?.mode === 'pdfOverlay'
+      || (
+        !beforeStore.documentMeta
+        && Boolean(session.pageGraph && session.workingBytes)
+      );
     const result =
-      rawResult.changed && beforeStore.documentMeta?.mode === 'pdfOverlay'
+      rawResult.changed && isPdfOverlaySession
         ? {
             ...rawResult,
             state: {
