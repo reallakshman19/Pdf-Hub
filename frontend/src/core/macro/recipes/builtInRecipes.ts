@@ -893,6 +893,18 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
   },
 ];
 
+const RUNNER_UNSAFE_OPS = new Set<string>([
+  'merge_files',
+  'insert_pdf',
+  'replace_page',
+]);
+
+export function isRunnerSafeBuiltInRecipe(
+  item: MacroRecipeCatalogItem,
+): boolean {
+  return item.requiredOps.every((op) => !RUNNER_UNSAFE_OPS.has(op));
+}
+
 export function getBuiltInMacroRecipes(): MacroRecipeCatalogItem[] {
   return BUILT_IN_RECIPES.map((item) => cloneCatalogItem(item));
 }
