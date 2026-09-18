@@ -11,9 +11,10 @@ export const ToolbarView: React.FC = () => {
     activeTool: state.activeTool,
     setActiveTool: state.setActiveTool,
   })));
-  const { viewState, pageCount, setZoom, setFitMode, setViewMode, setPage } = useSessionStore(useShallow((state) => ({
+  const { viewState, pageCount, pageGraph, setZoom, setFitMode, setViewMode, setPage } = useSessionStore(useShallow((state) => ({
     viewState: state.viewState,
     pageCount: state.pageCount,
+    pageGraph: state.pageGraph,
     setZoom: state.setZoom,
     setFitMode: state.setFitMode,
     setViewMode: state.setViewMode,
@@ -21,6 +22,11 @@ export const ToolbarView: React.FC = () => {
   })));
 
   const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 300, 400];
+  const currentLogicalLabel =
+    pageGraph?.pages[viewState.currentPage - 1]?.logicalLabel;
+  const showLogicalLabel =
+    currentLogicalLabel !== undefined
+    && currentLogicalLabel !== String(viewState.currentPage);
 
   const handleZoomOut = () => {
     const nextZoom = zoomSteps.slice().reverse().find((step) => step < viewState.zoom) || 25;
@@ -127,6 +133,14 @@ export const ToolbarView: React.FC = () => {
           className="w-16 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-2 py-1 text-xs"
         />
         <span className="text-xs text-slate-500">/ {pageCount || '-'}</span>
+        {showLogicalLabel && (
+          <span
+            className="max-w-24 truncate font-mono text-xs text-slate-500"
+            title="Logical PDF page label"
+          >
+            · {currentLogicalLabel}
+          </span>
+        )}
       </div>
     </div>
   );
