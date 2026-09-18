@@ -67,6 +67,14 @@ requireMarkers('src/components/macro/builder/MacroRecipeBuilder.tsx', [
   'Workflow ID',
 ]);
 
+requireMarkers('src/core/macro/risk.ts', [
+  "'remove_pages'",
+  "'split_pages'",
+  "'replace_page'",
+  "'reorder_pages'",
+  "'preview-required'",
+]);
+
 requireMarkers('src/components/macro/builder/MacroBuilderExecutionPanel.tsx', [
   'Test Run',
   'Impact summary',
@@ -74,6 +82,8 @@ requireMarkers('src/components/macro/builder/MacroBuilderExecutionPanel.tsx', [
   'validateRecipeBeforeRun',
   'dryRun: true',
   'dryRun: false',
+  "riskAnalysis.risk === 'preview-required'",
+  'lastTestedRecipeSignature === recipeSignature',
 ]);
 
 for (const file of [
@@ -103,6 +113,10 @@ requireMarkers('src/components/shell/ModeBar.tsx', [
   "label: 'Automate'",
   "setSidebarTab('macros')",
   'setMobileDrawerOpen(true)',
+]);
+
+requireMarkers('src/components/shell/ToolbarBand.tsx', [
+  'label="Automate"',
 ]);
 
 requireMarkers('src/components/shell/LeftRail.tsx', [
