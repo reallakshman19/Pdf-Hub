@@ -152,7 +152,7 @@ describe('OcrPanelWriterConnected', () => {
     render(<OcrPanelWriterConnected />);
 
     expect(screen.queryByTestId('ocr-unified-panel')).toBeNull();
-    expect(screen.getByRole('button', { name: /run ocr/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
     expect(screen.getAllByTestId('ocr-run-section')).toHaveLength(1);
     expect(screen.getAllByTestId('ocr-review-section')).toHaveLength(1);
 
