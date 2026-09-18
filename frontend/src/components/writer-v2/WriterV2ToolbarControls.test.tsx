@@ -57,8 +57,11 @@ vi.mock('@/core/writer-v2/export/exportLiveBlankWriterDocx', () => ({
 }));
 
 vi.mock('@/core/writer-v2/export/projectImportController', () => ({
+  commitStagedWriterProjectImport: vi.fn(),
   importProjectIntoWriterStore: vi.fn(),
   importRoundTripPdfIntoWriterStore: vi.fn(),
+  revokeStagedWriterProjectImport: vi.fn(),
+  stageStandaloneWriterProject: vi.fn(),
 }));
 
 vi.mock('@/core/writer-v2/export/downloadWriterFile', () => ({
