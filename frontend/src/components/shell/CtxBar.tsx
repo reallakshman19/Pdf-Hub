@@ -14,7 +14,6 @@ import { useWriterStore } from '@/core/writer/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
-import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
 import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
 import { useToastStore } from '@/core/toast/store';
@@ -250,10 +249,7 @@ const GenerateSection: React.FC = () => {
     addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
   return (
     <div className="flex items-center h-full">
-      <CtxLabel first>Workflows</CtxLabel>
-      <ToolbarMacro />
-      <CtxSep />
-      <CtxLabel>AI Tools</CtxLabel>
+      <CtxLabel first>AI Tools</CtxLabel>
       <CtxBtn icon={Sparkles} label="Smart Fill" ai onClick={stub('Smart Fill')} />
       <CtxBtn icon={BrainCircuit} label="Ask AI" ai onClick={stub('Ask AI')} />
       <CtxSep />
