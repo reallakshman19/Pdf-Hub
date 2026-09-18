@@ -6,7 +6,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
 import { useSessionStore } from '@/core/session/store';
-import type { DocumentCommand, CommandSource } from '../types';
+import type { PdfCommand } from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
 
@@ -23,8 +23,7 @@ export class DocumentMutationTransactionError extends Error {
 }
 
 export interface CommitDocumentMutationInput {
-  command: DocumentCommand;
-  source: CommandSource;
+  command: PdfCommand;
   label: string;
   beforeBytes: Uint8Array;
   afterBytes: Uint8Array;
@@ -118,7 +117,6 @@ export async function commitDocumentMutation(
     useHistoryStore.getState().push({
       id: uuidv4(),
       command: input.command,
-      source: input.source,
       label: input.label,
       timestamp: Date.now(),
       before: {
