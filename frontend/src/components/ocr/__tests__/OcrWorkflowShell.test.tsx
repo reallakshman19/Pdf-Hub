@@ -57,7 +57,7 @@ describe('OCR professional workflow shell', () => {
 
     expect(screen.getAllByTestId('ocr-assistant-shell')).toHaveLength(1);
     expect(screen.getByTestId('ocr-header-summary')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /run ocr/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
 
     const summary = screen.getByTestId('ocr-unified-summary');
     expect(within(summary).getByText('ocr-shell.pdf')).toBeTruthy();
