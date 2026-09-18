@@ -406,8 +406,10 @@ function InsertPositionEditor({
       >
         <option value="start">start</option>
         <option value="end">end</option>
-        <option value="before">before</option>
-        <option value="after">after</option>
+        <option value="before-current">before current</option>
+        <option value="after-current">after current</option>
+        <option value="before">before page</option>
+        <option value="after">after page</option>
       </select>
 
       {(value.mode === 'before' || value.mode === 'after') ? (
