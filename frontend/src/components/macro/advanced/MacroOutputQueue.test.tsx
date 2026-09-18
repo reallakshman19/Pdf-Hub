@@ -98,6 +98,7 @@ describe('MacroOutputQueue', () => {
       expect(onError).toHaveBeenCalledWith('disk full');
     });
 
+    expect(screen.getByRole('alert')).toHaveTextContent('disk full');
     expect(onChange).not.toHaveBeenCalled();
   });
 
