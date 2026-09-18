@@ -9,15 +9,16 @@ const allTabs: Array<{ id: SidebarTab; icon: React.ComponentType<{ className?: s
   { id: 'thumbnails', icon: Layers,        label: 'Pages' },
   { id: 'search',     icon: Search,        label: 'Search' },
   { id: 'comments',   icon: MessageSquare, label: 'Comments' },
-  { id: 'macros',     icon: Sparkles,      label: 'Macros' },
+  { id: 'macros',     icon: Sparkles,      label: 'Automate' },
   { id: 'bookmarks',  icon: Bookmark,      label: 'Bookmarks' },
   { id: 'ocr',        icon: ScanText,      label: 'OCR' },
 ];
 
 export const LeftRail: React.FC = () => {
-  const { sidebarTab, setSidebarTab } = useEditorStore(useShallow((state) => ({
+  const { sidebarTab, setSidebarTab, setActiveMode } = useEditorStore(useShallow((state) => ({
     sidebarTab: state.sidebarTab,
     setSidebarTab: state.setSidebarTab,
+    setActiveMode: state.setActiveMode,
   })));
   const visibleTabs = React.useMemo(
     () => allTabs.filter(() => true),
@@ -36,7 +37,10 @@ export const LeftRail: React.FC = () => {
         return (
           <Tooltip key={id} content={label} position="right">
             <button
-              onClick={() => setSidebarTab(id)}
+              onClick={() => {
+                setSidebarTab(id);
+                if (id === 'macros') setActiveMode('generate');
+              }}
               className={[
                 'relative w-[34px] h-[34px] flex items-center justify-center rounded-md transition-all',
                 isActive
