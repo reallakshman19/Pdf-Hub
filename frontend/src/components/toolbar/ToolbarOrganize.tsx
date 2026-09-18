@@ -11,6 +11,7 @@ import {
   Split,
   Undo,
   Redo,
+  Hash,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -37,10 +38,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
+import { PageLabelsDialog } from '../dialogs/PageLabelsDialog';
+import type { PageLabelRange } from '@/core/pages/types';
 
 export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
   const [isReplacePageDialogOpen, setIsReplacePageDialogOpen] = useState(false);
+  const [isPageLabelsDialogOpen, setIsPageLabelsDialogOpen] = useState(false);
   const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
   const donorOperationRef = useRef<{
     controller: AbortController;
@@ -51,7 +55,9 @@ export const ToolbarOrganize: React.FC = () => {
     workingBytes,
     documentKey,
     pageCount,
+    selectedPageIds,
     selectedPages,
+    pageGraph,
     viewState,
     setPage,
     clearSelectedPages,
@@ -59,7 +65,9 @@ export const ToolbarOrganize: React.FC = () => {
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
     pageCount: state.pageCount,
+    selectedPageIds: state.selectedPageIds,
     selectedPages: state.selectedPages,
+    pageGraph: state.pageGraph,
     viewState: state.viewState,
     setPage: state.setPage,
     clearSelectedPages: state.clearSelectedPages,
@@ -180,6 +188,7 @@ export const ToolbarOrganize: React.FC = () => {
       signal?: AbortSignal;
       documentKey?: string;
       resources?: CommandResources;
+      preserveSelection?: boolean;
     },
   ) => {
     const commandDocumentKey = options?.documentKey ?? documentKey;
@@ -213,7 +222,9 @@ export const ToolbarOrganize: React.FC = () => {
     }
 
     if (result.mutated) {
-      clearSelectedPages();
+      if (!options?.preserveSelection) {
+        clearSelectedPages();
+      }
       if (nextPage !== null) {
         setPage(nextPage);
       }
@@ -225,6 +236,26 @@ export const ToolbarOrganize: React.FC = () => {
       message: successMessage,
     });
     return result;
+  };
+
+  const handlePageLabelsApply = async (
+    ranges: PageLabelRange[],
+  ): Promise<boolean> => {
+    if (!pageGraph) return false;
+
+    const result = await runMutation(
+      {
+        type: 'SET_PAGE_LABELS',
+        payload: { ranges },
+      },
+      ranges.length === 0
+        ? 'Cleared logical page labels.'
+        : 'Updated logical page labels.',
+      null,
+      { preserveSelection: true },
+    );
+
+    return Boolean(result);
   };
 
   const handleMerge = async () => {
@@ -476,6 +507,16 @@ export const ToolbarOrganize: React.FC = () => {
         onConfirm={confirmReplacePage}
         maxPages={replaceDonorSet?.donors[0]?.pageCount ?? 1}
       />
+      {pageGraph && (
+        <PageLabelsDialog
+          isOpen={isPageLabelsDialogOpen}
+          pageGraph={pageGraph}
+          currentPageId={viewState.currentPageId}
+          selectedPageIds={selectedPageIds}
+          onClose={() => setIsPageLabelsDialogOpen(false)}
+          onApply={handlePageLabelsApply}
+        />
+      )}
       <div className="flex items-center space-x-1">
         <Tooltip content={peekUndo() ? `Undo: ${peekUndo()?.label}` : "Undo"}>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyUndo()} disabled={!canUndo() || !workingBytes}>
@@ -542,6 +583,19 @@ export const ToolbarOrganize: React.FC = () => {
         <Tooltip content="Insert blank page">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleInsertBlankPage} disabled={!workingBytes}>
             <FilePlus2 className="w-4 h-4" />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content="Logical Page Labels — PDF navigator numbering, not printed page numbers">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsPageLabelsDialogOpen(true)}
+            disabled={!workingBytes || !pageGraph}
+            aria-label="Logical Page Labels"
+          >
+            <Hash className="w-4 h-4" />
           </Button>
         </Tooltip>
 
