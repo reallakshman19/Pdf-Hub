@@ -1,16 +1,9 @@
 import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Play,
-  RotateCw,
-  Save,
   Sparkles,
   Trash2,
   Wrench,
-  AlertCircle,
-  CheckCircle,
-  Eye,
-  Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
@@ -18,7 +11,6 @@ import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
 import { BUILTIN_MACROS } from '@/core/macro/builtins';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
-import { validateRecipeBeforeRun, type PreflightReport } from '@/core/macro/validation/validator';
 import { usePresetsStore } from '@/core/macro/store/presets';
 import { ImageIcon } from 'lucide-react';
 import type {
@@ -830,7 +822,6 @@ export const MacrosSidebar: React.FC = () => {
       <MacroOutputQueue
         outputs={outputQueue}
         onChange={setOutputQueue}
-        onError={setRunError}
       />
 
       <MacroExpertWorkspace
