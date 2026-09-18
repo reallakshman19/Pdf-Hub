@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import {
   buildPageLabelRangesForRestart,
   previewPageLabelRestart,
+  type PageLabelRestartDraft,
 } from '@/core/pages/pageLabelEditing';
 import { physicalIndexForPageId } from '@/core/pages/pageGraph';
 import type {
@@ -78,7 +79,7 @@ export const PageLabelsDialog: React.FC<PageLabelsDialogProps> = ({
     setStartNumber(existing?.startNumber ?? 1);
   }, [isOpen, pageGraph, targetPageId]);
 
-  const draft = React.useMemo(
+  const draft = React.useMemo<PageLabelRestartDraft>(
     () => ({
       ...(style === 'prefix-only' ? {} : { style }),
       ...(prefix.length > 0 ? { prefix } : {}),
