@@ -289,13 +289,13 @@ export const MacrosSidebar: React.FC = () => {
     const generationTemplate = getGenerationTemplateById(selectedGenerationId);
 
     if (!generationTemplate) {
-      setRunError('Generate Document template was not found.');
+      setGenerationError('Generate Document template was not found.');
       return;
     }
 
-    setIsRunning(true);
-    setRunError(null);
-    setRunLogs([]);
+    setGenerationRunning(true);
+    setGenerationError(null);
+    setGenerationLogs([]);
 
     try {
       const finalRecipe = buildGenerationRecipe({
@@ -312,11 +312,11 @@ export const MacrosSidebar: React.FC = () => {
       });
 
       if (!result.success) {
-        setRunError(result.logs?.at(-1) ?? 'Generate Document failed.');
+        setGenerationError(result.logs?.at(-1) ?? 'Generate Document failed.');
         return;
       }
 
-      setRunLogs(result.logs ?? []);
+      setGenerationLogs(result.logs ?? []);
 
       const generatedOutputs: MacroOutputFile[] = result.outputFiles.length > 0
         ? result.outputFiles
@@ -336,10 +336,10 @@ export const MacrosSidebar: React.FC = () => {
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setRunError(message);
+      setGenerationError(message);
       logError('macro', 'Failed to generate document', { error: message });
     } finally {
-      setIsRunning(false);
+      setGenerationRunning(false);
     }
   };
 
@@ -360,7 +360,7 @@ export const MacrosSidebar: React.FC = () => {
           className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
           value={selectedGenerationId}
           onChange={(e) => handleGenerationTemplateChange(e.target.value)}
-          disabled={isRunning}
+          disabled={generationRunning || presetRunnerBusy}
         >
           {GENERATION_TEMPLATES.map((template) => (
             <option key={template.id} value={template.id}>
@@ -427,7 +427,7 @@ export const MacrosSidebar: React.FC = () => {
           type="button"
           variant="ghost"
           onClick={resetGenerationValues}
-          disabled={isRunning || !selectedGenerationTemplate}
+          disabled={generationRunning || presetRunnerBusy || !selectedGenerationTemplate}
           className="w-full justify-center text-xs"
         >
           Reset Fields
@@ -435,11 +435,38 @@ export const MacrosSidebar: React.FC = () => {
 
         <Button
           onClick={handleGenerate}
-          disabled={isRunning || !selectedGenerationTemplate}
+          disabled={generationRunning || presetRunnerBusy || !selectedGenerationTemplate}
           className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
         >
-          {isRunning ? 'Generating...' : 'Generate PDF'}
+          {generationRunning ? 'Generating...' : 'Generate PDF'}
         </Button>
+
+        {generationError ? (
+          <div
+            className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700"
+            role="alert"
+          >
+            {generationError}
+          </div>
+        ) : null}
+
+        {generationLogs.length > 0 ? (
+          <details>
+            <summary className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">
+              Generation details
+            </summary>
+            <div className="mt-2 max-h-32 space-y-1 overflow-auto rounded-md border border-slate-200 p-2 dark:border-slate-800">
+              {generationLogs.map((line, index) => (
+                <div
+                  key={`generation-${index}-${line}`}
+                  className="text-xs text-slate-600 dark:text-slate-300"
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </section>
 
       <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
@@ -454,7 +481,7 @@ export const MacrosSidebar: React.FC = () => {
             className="block w-full text-xs rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
             value={selectedRecipeId}
             onChange={(e) => setSelectedRecipeId(e.target.value)}
-            disabled={isRunning || !workingBytes}
+            disabled={generationRunning || presetRunnerBusy || !workingBytes}
           >
             <optgroup label="Built-ins">
               {BUILTIN_RECIPES.map((recipe) => (
@@ -794,7 +821,7 @@ export const MacrosSidebar: React.FC = () => {
               variant="secondary"
               className="flex-1 text-xs"
               onClick={() => void handleDryRun()}
-              disabled={isRunning || isDryRunning || !workingBytes}
+              disabled={generationRunning || isDryRunning || !workingBytes}
             >
               {isDryRunning ? (
                 <RotateCw className="w-3.5 h-3.5 mr-1 animate-spin" />
@@ -807,7 +834,7 @@ export const MacrosSidebar: React.FC = () => {
               variant="secondary"
               className="flex-1 text-xs"
               onClick={handleSavePreset}
-              disabled={isRunning || !workingBytes}
+              disabled={generationRunning || !workingBytes}
             >
               <Save className="w-3.5 h-3.5 mr-1" />
               Save Preset
@@ -834,7 +861,7 @@ export const MacrosSidebar: React.FC = () => {
           )}
 
           <div className="flex gap-2">
-            {isRunning ? (
+            {generationRunning ? (
               <Button variant="secondary" size="sm" onClick={cancelSelectedMacro} className="text-red-600">
                 <Square className="w-4 h-4 mr-1" />
                 Cancel
@@ -851,17 +878,17 @@ export const MacrosSidebar: React.FC = () => {
           </div>
         </div>
 
-        {runError && (
+        {generationError && (
           <div className="rounded-md border border-red-300 bg-red-50 text-red-700 px-2 py-1 text-xs">
-            {runError}
+            {generationError}
           </div>
         )}
 
         <div className="space-y-1 max-h-32 overflow-auto rounded-md border border-slate-200 dark:border-slate-800 p-2">
-          {runLogs.length === 0 && (
+          {generationLogs.length === 0 && (
             <div className="text-xs text-slate-500">No run logs yet.</div>
           )}
-          {runLogs.map((line) => (
+          {generationLogs.map((line) => (
             <div key={`${selectedRecipe?.id}-${line}`} className="text-xs text-slate-600 dark:text-slate-300">
               {line}
             </div>
@@ -877,7 +904,7 @@ export const MacrosSidebar: React.FC = () => {
 
       <MacroExpertWorkspace
         selectedRecipe={selectedRecipe}
-        disabled={isRunning || isDryRunning}
+        disabled={generationRunning || isDryRunning}
         onOutputsProduced={(outputs) => {
           setOutputQueue((current) => [
             ...current,
