@@ -1,4 +1,8 @@
 import { create } from 'zustand';
+import { useAnnotationStore } from '../annotations/store';
+import { materializePdfCommand } from '../commands/types';
+import { recordStateTransaction, writerHistoryState } from '../document-history/stateTransaction';
+import { useSessionStore } from '../session/store';
 import {
   createInitialWriterV2State,
   executeWriterCommand,
@@ -8,7 +12,7 @@ import {
   type WriterV2CommandResult,
   type WriterV2State,
 } from './writerCommandStore';
-import type { WriterCommand } from './writerCommands';
+import { isMutationCommand, type WriterCommand } from './writerCommands';
 import type {
   WriterDocumentMetaV2,
   WriterElementV2,
@@ -109,26 +113,92 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   },
 
   dispatchWriterCommand: (command) => {
-    const previousEditingId = get().editingId;
-    const result = executeWriterCommand(get(), command);
+    const beforeStore = get();
+    const previousEditingId = beforeStore.editingId;
+    const result = executeWriterCommand(beforeStore, command);
+    const session = useSessionStore.getState();
+    const useGlobalHistory =
+      result.changed
+      && isMutationCommand(command)
+      && beforeStore.documentMeta?.mode === 'pdfOverlay'
+      && Boolean(session.documentKey && session.workingBytes);
 
-    set(applyCommandStateToStore(result.state, get(), {
+    const nextStore = applyCommandStateToStore(result.state, beforeStore, {
       editingId: command.type === 'DELETE_WRITER_ELEMENT'
         && previousEditingId === command.id
           ? null
           : previousEditingId,
-    }));
+    });
+
+    if (useGlobalHistory) {
+      nextStore.undoStack = [];
+      nextStore.redoStack = [];
+    }
+
+    set(nextStore);
+
+    if (useGlobalHistory && session.documentKey) {
+      const afterStore = get();
+      const annotations = useAnnotationStore.getState().annotations;
+      const label = writerCommandLabel(command);
+
+      recordStateTransaction({
+        command: materializePdfCommand(
+          {
+            type: 'WRITER_CHANGE',
+            payload: {
+              action: label,
+              elementIds: writerCommandElementIds(command),
+            },
+          },
+          'writer-store',
+          session.documentKey,
+        ),
+        label,
+        before: {
+          annotations,
+          writer: writerHistoryState(beforeStore),
+        },
+        after: {
+          annotations,
+          writer: writerHistoryState(afterStore),
+        },
+      });
+
+      session.setDirty(true);
+
+      return {
+        ...result,
+        state: writerCommandState(afterStore),
+      };
+    }
 
     return result;
   },
 
   undoWriter: () => {
+    if (usesGlobalWriterHistory(get())) {
+      return {
+        state: writerCommandState(get()),
+        changed: false,
+        reason: 'PDF-backed Writer undo is owned by document history.',
+      };
+    }
+
     const result = undoWriterCommand(get());
     set(applyCommandStateToStore(result.state, get(), { editingId: null }));
     return result;
   },
 
   redoWriter: () => {
+    if (usesGlobalWriterHistory(get())) {
+      return {
+        state: writerCommandState(get()),
+        changed: false,
+        reason: 'PDF-backed Writer redo is owned by document history.',
+      };
+    }
+
     const result = redoWriterCommand(get());
     set(applyCommandStateToStore(result.state, get(), { editingId: null }));
     return result;
@@ -382,4 +452,55 @@ function inferPageCountFromElements(elements: WriterElementV2[]): number {
   }
 
   return Math.max(1, ...elements.map((element) => element.pageIndex + 1));
+}
+
+
+function usesGlobalWriterHistory(state: WriterV2StoreState): boolean {
+  const session = useSessionStore.getState();
+  return state.documentMeta?.mode === 'pdfOverlay'
+    && Boolean(session.documentKey && session.workingBytes);
+}
+
+function writerCommandState(state: WriterV2StoreState): WriterV2State {
+  return {
+    elements: state.elements,
+    selectedIds: state.selectedIds,
+    activeId: state.activeId,
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
+    dirty: state.dirty,
+  };
+}
+
+function writerCommandElementIds(command: WriterCommand): string[] {
+  if ('id' in command && typeof command.id === 'string') return [command.id];
+  if ('element' in command) return [command.element.id];
+  if ('elements' in command) return command.elements.map((element) => element.id);
+  if ('updates' in command) return command.updates.map((update) => update.id);
+  if ('ids' in command) return [...command.ids];
+  return [];
+}
+
+function writerCommandLabel(command: WriterCommand): string {
+  const labels: Record<WriterCommand['type'], string> = {
+    ADD_WRITER_ELEMENT: 'Add Writer element',
+    UPDATE_WRITER_ELEMENT: 'Edit Writer element',
+    DELETE_WRITER_ELEMENT: 'Delete Writer element',
+    MOVE_WRITER_ELEMENT: 'Move Writer element',
+    RESIZE_WRITER_ELEMENT: 'Resize Writer element',
+    LOCK_WRITER_ELEMENT: 'Change Writer lock',
+    HIDE_WRITER_ELEMENT: 'Change Writer visibility',
+    SET_WRITER_Z_INDEX: 'Change Writer layer order',
+    BRING_WRITER_FORWARD: 'Bring Writer element forward',
+    SEND_WRITER_BACKWARD: 'Send Writer element backward',
+    BRING_WRITER_TO_FRONT: 'Bring Writer element to front',
+    SEND_WRITER_TO_BACK: 'Send Writer element to back',
+    SET_ACTIVE_WRITER_ELEMENT: 'Select Writer element',
+    SET_WRITER_SELECTION: 'Select Writer elements',
+    CLEAR_WRITER_SELECTION: 'Clear Writer selection',
+    BATCH_ADD_WRITER_ELEMENTS: 'Add Writer elements',
+    BATCH_UPDATE_WRITER_ELEMENTS: 'Edit Writer elements',
+    BATCH_DELETE_WRITER_ELEMENTS: 'Delete Writer elements',
+  };
+  return labels[command.type];
 }

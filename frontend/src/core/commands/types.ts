@@ -1,97 +1,20 @@
-// ── Architecture-level command system (Agent 00 contract) ───────────────────
-
-import type { AnnotationType } from '@/core/annotations/annotationTypes';
 import type { AdmittedDonorPdf } from '@/core/admission/donorPdf';
 
-
-export type PdfCommandSource = 'user' | 'macro' | 'ai' | 'system';
-
-export type PdfCommandRisk =
-  | 'safe'
-  | 'destructive'
-  | 'destructive-preview-required'
-  | 'destructive-confirm-required'
-  | 'server-only';
-
-export interface PdfCommandBase<TType extends string, TPayload> {
-  id: string;
-  type: TType;
-  source: PdfCommandSource;
-  risk: PdfCommandRisk;
-  createdAt: string;
-  documentKey: string;
-  payload: TPayload;
-}
-
-export interface PdfCommandResult {
-  commandId: string;
-  ok: boolean;
-  dirty: boolean;
-  message?: string;
-  inverseCommand?: PdfCommand;
-  diagnostics?: Record<string, unknown>;
-}
-
-export interface PdfCommandPreview {
-  commandId: string;
-  title: string;
-  summary: string;
-  affectedPages: number[];
-  warnings: string[];
-  before?: unknown;
-  after?: unknown;
-}
-
-export interface PdfPoint {
-  pageNumber: number;
-  x: number;
-  y: number;
-  coordinateSpace: 'pdf-points';
-}
-
-export type AddAnnotationCommand = PdfCommandBase<'ANNOTATION_ADD', { annotationType: AnnotationType; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; style: Record<string, unknown>; content?: string }>;
-export type UpdateAnnotationCommand = PdfCommandBase<'ANNOTATION_UPDATE', { annotationId: string; patch: Record<string, unknown> }>;
-export type DeleteAnnotationCommand = PdfCommandBase<'ANNOTATION_DELETE', { annotationIds: string[] }>;
-export type AddWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_ADD', { overlayType: 'textBox' | 'image' | 'table' | 'link'; pageNumber: number; rect: { x: number; y: number; width: number; height: number }; content: unknown; style: Record<string, unknown> }>;
-export type UpdateWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_UPDATE', { overlayId: string; patch: Record<string, unknown> }>;
-export type DeleteWriterOverlayCommand = PdfCommandBase<'WRITER_OVERLAY_DELETE', { overlayIds: string[] }>;
-export type OrganizePagesCommand = PdfCommandBase<'PAGES_ORGANIZE', { operation: 'insertBlank' | 'insertFromFile' | 'delete' | 'duplicate' | 'rotate' | 'replace' | 'reorder' | 'extract' | 'split'; pageNumbers: number[]; targetIndex?: number; rotation?: 90 | 180 | 270; sourceDocumentKey?: string; sourcePageNumbers?: number[] }>;
-export type StartOcrCommand = PdfCommandBase<'OCR_START', { pageNumbers: number[]; mode: 'auto' | 'region'; language: string; regions?: Array<{ pageNumber: number; rect: { x: number; y: number; width: number; height: number } }> }>;
-export type CommitOcrTextLayerCommand = PdfCommandBase<'OCR_COMMIT_TEXT_LAYER', { jobId: string; pageNumbers: number[]; searchable: boolean }>;
-export type AddBookmarkCommand = PdfCommandBase<'BOOKMARK_ADD', { title: string; pageNumber: number; x?: number; y?: number; parentId?: string }>;
-export type UpdateBookmarkCommand = PdfCommandBase<'BOOKMARK_UPDATE', { bookmarkId: string; patch: Record<string, unknown> }>;
-export type DeleteBookmarkCommand = PdfCommandBase<'BOOKMARK_DELETE', { bookmarkIds: string[] }>;
-export type MacroCommand = PdfCommandBase<'MACRO_RUN', { macroId: string; commands: PdfCommand[] }>;
-export type AiGeneratedCommand = PdfCommandBase<'AI_GENERATED_COMMAND', { prompt: string; proposedCommands: PdfCommand[]; explanation: string; requiresUserConfirmation: true }>;
-export type PreviewRedactionCommand = PdfCommandBase<'REDACTION_PREVIEW', { pageNumber: number; rects: Array<{ x: number; y: number; width: number; height: number }>; reason?: string }>;
-export type ApplyRedactionCommand = PdfCommandBase<'REDACTION_APPLY', { redactionPreviewId: string; pageRects: Array<{ pageNumber: number; rects: Array<{ x: number; y: number; width: number; height: number }> }>; removeText: true; removeImages: true; removeAnnotations: true; removeOcrText: true }>;
-
-export type PdfCommand =
-  | AddAnnotationCommand
-  | UpdateAnnotationCommand
-  | DeleteAnnotationCommand
-  | AddWriterOverlayCommand
-  | UpdateWriterOverlayCommand
-  | DeleteWriterOverlayCommand
-  | OrganizePagesCommand
-  | StartOcrCommand
-  | CommitOcrTextLayerCommand
-  | AddBookmarkCommand
-  | UpdateBookmarkCommand
-  | DeleteBookmarkCommand
-  | MacroCommand
-  | AiGeneratedCommand
-  | PreviewRedactionCommand
-  | ApplyRedactionCommand;
-
-// ── Dispatch-level command system (existing implementation) ──────────────────
-
-export type CommandSource =
+export type PdfCommandSource =
   | 'toolbar'
   | 'thumbnail-menu'
   | 'macro-runner'
   | 'shortcut'
+  | 'api'
+  | 'ai'
+  | 'annotation-store'
+  | 'writer-store'
   | 'system';
+
+export type PdfCommandRisk =
+  | 'safe'
+  | 'preview-required'
+  | 'confirm-required';
 
 export interface HeaderFooterCommandOptions {
   zone: 'header' | 'footer';
@@ -131,22 +54,148 @@ export interface RedactionBoxCommandOptions {
   fillColor?: string;
 }
 
-export type DocumentCommand =
-  | { type: 'ROTATE_PAGES'; pageIndices: number[]; angle: number }
-  | { type: 'REORDER_PAGES'; fromIndex: number; toIndex: number }
-  | { type: 'REORDER_PAGES_BY_ORDER'; order: number[] }
-  | { type: 'EXTRACT_PAGES'; pageIndices: number[]; outputName?: string }
-  | { type: 'SPLIT_PAGES'; pageIndices: number[]; outputName?: string }
-  | { type: 'DELETE_PAGES'; pageIndices: number[] }
-  | { type: 'INSERT_PAGES'; atIndex: number; donor: AdmittedDonorPdf }
-  | { type: 'INSERT_BLANK_PAGE'; atIndex: number; size: { width: number; height: number } }
-  | { type: 'REPLACE_PAGE'; atIndex: number; donor: AdmittedDonorPdf; donorPageIndex: number }
-  | { type: 'DUPLICATE_PAGES'; pageIndices: number[] }
-  | { type: 'MERGE_PDF'; donors: readonly AdmittedDonorPdf[] }
-  | { type: 'ADD_HEADER_FOOTER_TEXT'; pageIndices: number[]; options: HeaderFooterCommandOptions }
-  | { type: 'DRAW_TEXT_ON_PAGES'; pageIndices: number[]; options: DrawTextCommandOptions }
-  | { type: 'DRAW_REDACTION_BOX'; pageIndices: number[]; options: RedactionBoxCommandOptions }
-  | { type: 'REPLACE_WORKING_COPY'; nextBytes: Uint8Array; nextPageCount?: number; reason?: string };
+export interface MacroCommandMetadata {
+  recipeId: string;
+  recipeName: string;
+  stepCount: number;
+}
+
+export interface PdfCommandBase<TType extends string, TPayload> {
+  id: string;
+  type: TType;
+  source: PdfCommandSource;
+  risk: PdfCommandRisk;
+  createdAt: string;
+  documentKey: string;
+  payload: TPayload;
+  groupId?: string;
+}
+
+export type RotatePagesCommand = PdfCommandBase<
+  'ROTATE_PAGES',
+  { pageIndices: number[]; angle: 90 | 180 | 270 }
+>;
+export type ReorderPagesCommand = PdfCommandBase<
+  'REORDER_PAGES',
+  { fromIndex: number; toIndex: number }
+>;
+export type ReorderPagesByOrderCommand = PdfCommandBase<
+  'REORDER_PAGES_BY_ORDER',
+  { order: number[] }
+>;
+export type ExtractPagesCommand = PdfCommandBase<
+  'EXTRACT_PAGES',
+  { pageIndices: number[]; outputName?: string }
+>;
+export type SplitPagesCommand = PdfCommandBase<
+  'SPLIT_PAGES',
+  { pageIndices: number[]; outputName?: string }
+>;
+export type DeletePagesCommand = PdfCommandBase<
+  'DELETE_PAGES',
+  { pageIndices: number[] }
+>;
+export type InsertPagesCommand = PdfCommandBase<
+  'INSERT_PAGES',
+  { atIndex: number; donorResourceId: string }
+>;
+export type InsertBlankPageCommand = PdfCommandBase<
+  'INSERT_BLANK_PAGE',
+  { atIndex: number; size: { width: number; height: number } }
+>;
+export type ReplacePageCommand = PdfCommandBase<
+  'REPLACE_PAGE',
+  { atIndex: number; donorResourceId: string; donorPageIndex: number }
+>;
+export type DuplicatePagesCommand = PdfCommandBase<
+  'DUPLICATE_PAGES',
+  { pageIndices: number[] }
+>;
+export type MergePdfCommand = PdfCommandBase<
+  'MERGE_PDF',
+  { donorResourceIds: string[] }
+>;
+export type AddHeaderFooterTextCommand = PdfCommandBase<
+  'ADD_HEADER_FOOTER_TEXT',
+  { pageIndices: number[]; options: HeaderFooterCommandOptions }
+>;
+export type DrawTextOnPagesCommand = PdfCommandBase<
+  'DRAW_TEXT_ON_PAGES',
+  { pageIndices: number[]; options: DrawTextCommandOptions }
+>;
+export type DrawRedactionBoxCommand = PdfCommandBase<
+  'DRAW_REDACTION_BOX',
+  { pageIndices: number[]; options: RedactionBoxCommandOptions }
+>;
+export type AnnotationChangeCommand = PdfCommandBase<
+  'ANNOTATION_CHANGE',
+  { action: string; annotationIds: string[] }
+>;
+export type WriterChangeCommand = PdfCommandBase<
+  'WRITER_CHANGE',
+  { action: string; elementIds: string[] }
+>;
+
+export type ApplyWorkingCopyCommand = PdfCommandBase<
+  'APPLY_WORKING_COPY',
+  {
+    binaryResourceId: string;
+    nextPageCount?: number;
+    reason?: string;
+    macro?: MacroCommandMetadata;
+    selectedPages?: number[];
+  }
+>;
+
+export type PdfCommand =
+  | RotatePagesCommand
+  | ReorderPagesCommand
+  | ReorderPagesByOrderCommand
+  | ExtractPagesCommand
+  | SplitPagesCommand
+  | DeletePagesCommand
+  | InsertPagesCommand
+  | InsertBlankPageCommand
+  | ReplacePageCommand
+  | DuplicatePagesCommand
+  | MergePdfCommand
+  | AddHeaderFooterTextCommand
+  | DrawTextOnPagesCommand
+  | DrawRedactionBoxCommand
+  | AnnotationChangeCommand
+  | WriterChangeCommand
+  | ApplyWorkingCopyCommand;
+
+export type PdfCommandType = PdfCommand['type'];
+export type PdfCommandOfType<TType extends PdfCommandType> = Extract<
+  PdfCommand,
+  { type: TType }
+>;
+export type PdfCommandPayload<TType extends PdfCommandType> =
+  PdfCommandOfType<TType>['payload'];
+
+export type PdfCommandDraft = {
+  [TType in PdfCommandType]: {
+    type: TType;
+    payload: PdfCommandPayload<TType>;
+  };
+}[PdfCommandType];
+
+export interface CreatePdfCommandInput<TType extends PdfCommandType> {
+  type: TType;
+  source: PdfCommandSource;
+  documentKey: string;
+  payload: PdfCommandPayload<TType>;
+  risk?: PdfCommandRisk;
+  id?: string;
+  createdAt?: string;
+  groupId?: string;
+}
+
+export interface CommandResources {
+  donors?: Readonly<Record<string, AdmittedDonorPdf>>;
+  binaries?: Readonly<Record<string, Uint8Array>>;
+}
 
 export interface CommandContext {
   currentPage: number;
@@ -155,9 +204,9 @@ export interface CommandContext {
   documentKey: string;
 }
 
-export interface CommandPayload {
-  command: DocumentCommand;
-  source: CommandSource;
+export interface CommandExecutionInput {
+  command: PdfCommand;
+  resources?: CommandResources;
   workingBytes?: Uint8Array;
   context?: Partial<CommandContext>;
   signal?: AbortSignal;
@@ -171,7 +220,9 @@ export interface CommandArtifact {
 
 export type CommandErrorCode =
   | 'NO_WORKING_DOCUMENT'
+  | 'STALE_DOCUMENT'
   | 'VALIDATION_FAILED'
+  | 'RESOURCE_MISSING'
   | 'ADMISSION_REJECTED'
   | 'CANCELLED'
   | 'EXECUTION_FAILED'
@@ -185,12 +236,84 @@ export interface CommandError {
 
 export interface CommandResult {
   success: boolean;
-  command: DocumentCommand['type'];
-  source: CommandSource;
+  commandId: string;
+  commandType: PdfCommandType;
+  source: PdfCommandSource;
   mutated: boolean;
   message: string;
   nextBytes?: Uint8Array;
   nextPageCount?: number;
   artifacts?: CommandArtifact[];
   error?: CommandError;
+}
+
+const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
+  'DELETE_PAGES',
+  'SPLIT_PAGES',
+  'REPLACE_PAGE',
+  'REORDER_PAGES',
+  'REORDER_PAGES_BY_ORDER',
+]);
+
+export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {
+  return PREVIEW_REQUIRED_TYPES.has(type) ? 'preview-required' : 'safe';
+}
+
+export function createPdfCommand<TType extends PdfCommandType>(
+  input: CreatePdfCommandInput<TType>,
+): PdfCommandOfType<TType> {
+  const command = {
+    id: input.id ?? createCommandId(),
+    type: input.type,
+    source: input.source,
+    risk: input.risk ?? defaultRiskForCommand(input.type),
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    documentKey: input.documentKey,
+    payload: input.payload,
+    ...(input.groupId ? { groupId: input.groupId } : {}),
+  };
+
+  return command as PdfCommandOfType<TType>;
+}
+
+export function materializePdfCommand(
+  draft: PdfCommandDraft,
+  source: PdfCommandSource,
+  documentKey: string,
+  options?: {
+    risk?: PdfCommandRisk;
+    id?: string;
+    createdAt?: string;
+    groupId?: string;
+  },
+): PdfCommand {
+  return {
+    id: options?.id ?? createCommandId(),
+    type: draft.type,
+    source,
+    risk: options?.risk ?? defaultRiskForCommand(draft.type),
+    createdAt: options?.createdAt ?? new Date().toISOString(),
+    documentKey,
+    payload: draft.payload,
+    ...(options?.groupId ? { groupId: options.groupId } : {}),
+  } as PdfCommand;
+}
+
+export function isPdfCommandSerializable(command: PdfCommand): boolean {
+  try {
+    const json = JSON.stringify(command);
+    if (!json) return false;
+    const parsed = JSON.parse(json) as unknown;
+    return Boolean(parsed && typeof parsed === 'object');
+  } catch {
+    return false;
+  }
+}
+
+function createCommandId(): string {
+  const cryptoObject = globalThis.crypto;
+  if (cryptoObject && typeof cryptoObject.randomUUID === 'function') {
+    return cryptoObject.randomUUID();
+  }
+  return `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }

@@ -24,7 +24,9 @@ describe('ThumbnailMacroConfigDialog visual mask guardrail', () => {
     expect(onApply).toHaveBeenCalledTimes(1);
     expect(onApply.mock.calls[0]?.[0]).toMatchObject({
       type: 'DRAW_REDACTION_BOX',
-      pageIndices: [0, 1],
+      payload: {
+        pageIndices: [0, 1],
+      },
     });
     expect(onApply.mock.calls[0]?.[1]).toMatch(/not securely removed/i);
   });

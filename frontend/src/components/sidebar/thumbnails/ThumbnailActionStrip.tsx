@@ -2,8 +2,11 @@ import React from 'react';
 import { RotateCw, Scissors, Trash2, CopyPlus, Split, Hash, Heading } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { dispatchCommand } from '@/core/commands/dispatch';
-import type { DocumentCommand } from '@/core/commands/types';
+import { commandBus } from '@/core/commands/bus';
+import {
+  materializePdfCommand,
+  type PdfCommandDraft,
+} from '@/core/commands/types';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 
@@ -17,17 +20,21 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
   currentPage,
 }) => {
   const targetPages = selectedPages.length > 0 ? selectedPages : [currentPage];
-  const { workingBytes } = useSessionStore(useShallow((state) => ({
+  const { workingBytes, documentKey } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
   })));
   const pageIndices = targetPages.map((page) => page - 1);
 
-  const handleCommand = (command: DocumentCommand) => {
-    if (!workingBytes) return;
-    void dispatchCommand({
-      source: 'thumbnail-menu',
+  const handleCommand = (draft: PdfCommandDraft) => {
+    if (!workingBytes || !documentKey) return;
+    void commandBus.execute({
       workingBytes,
-      command,
+      command: materializePdfCommand(
+        draft,
+        'thumbnail-menu',
+        documentKey,
+      ),
     });
   };
 
@@ -41,7 +48,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => handleCommand({ type: 'ROTATE_PAGES', pageIndices, angle: 90 })}
+          onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 90 } })}
         >
           <RotateCw className="w-3.5 h-3.5" />
         </Button>
@@ -51,7 +58,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => handleCommand({ type: 'EXTRACT_PAGES', pageIndices })}
+          onClick={() => handleCommand({ type: 'EXTRACT_PAGES', payload: { pageIndices } })}
         >
           <Scissors className="w-3.5 h-3.5" />
         </Button>
@@ -61,7 +68,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => handleCommand({ type: 'SPLIT_PAGES', pageIndices })}
+          onClick={() => handleCommand({ type: 'SPLIT_PAGES', payload: { pageIndices } })}
         >
           <Split className="w-3.5 h-3.5" />
         </Button>
@@ -71,7 +78,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => handleCommand({ type: 'DUPLICATE_PAGES', pageIndices })}
+          onClick={() => handleCommand({ type: 'DUPLICATE_PAGES', payload: { pageIndices } })}
         >
           <CopyPlus className="w-3.5 h-3.5" />
         </Button>
@@ -81,7 +88,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-          onClick={() => handleCommand({ type: 'DELETE_PAGES', pageIndices })}
+          onClick={() => handleCommand({ type: 'DELETE_PAGES', payload: { pageIndices } })}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
@@ -94,8 +101,9 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           onClick={() =>
             handleCommand({
               type: 'ADD_HEADER_FOOTER_TEXT',
-              pageIndices,
-              options: {
+              payload: {
+                pageIndices,
+                options: {
                 zone: 'footer',
                 text: 'Page {page} of {pages}',
                 align: 'center',
@@ -104,7 +112,8 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
                 fontSize: 10,
                 color: '#475569',
                 opacity: 0.9,
-                pageNumberToken: true,
+                  pageNumberToken: true,
+                },
               },
             })
           }
@@ -120,9 +129,10 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           onClick={() =>
             handleCommand({
               type: 'ADD_HEADER_FOOTER_TEXT',
-              pageIndices,
-              options: {
-                zone: 'header',
+              payload: {
+                pageIndices,
+                options: {
+                  zone: 'header',
                 text: '{file}',
                 align: 'right',
                 marginX: 24,
@@ -130,7 +140,8 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
                 fontSize: 10,
                 color: '#334155',
                 opacity: 0.85,
-                fileNameToken: true,
+                  fileNameToken: true,
+                },
               },
             })
           }

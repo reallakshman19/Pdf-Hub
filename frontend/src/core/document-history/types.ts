@@ -1,15 +1,26 @@
-import type { CommandSource, DocumentCommand } from '../commands/types';
+import type { PdfAnnotation } from '../annotations/types';
+import type { WriterElementV2 } from '../writer-v2/types';
+import type { PdfCommand } from '../commands/types';
+
+export interface WriterHistoryState {
+  elements: WriterElementV2[];
+  selectedIds: string[];
+  activeId: string | null;
+}
 
 export interface HistoryState {
   bytes: Uint8Array;
   pageCount: number;
   documentKey?: string | null;
+  selectedPages: number[];
+  currentPage: number;
+  annotations: PdfAnnotation[];
+  writer?: WriterHistoryState;
 }
 
 export interface Transaction {
   id: string;
-  command: DocumentCommand;
-  source: CommandSource;
+  command: PdfCommand;
   label: string;
   timestamp: number;
   before: HistoryState;

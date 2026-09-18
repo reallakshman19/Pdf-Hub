@@ -18,7 +18,7 @@ const admissionMocks = vi.hoisted(() => ({
 }));
 
 const commandMocks = vi.hoisted(() => ({
-  dispatchCommand: vi.fn(),
+  execute: vi.fn(),
 }));
 
 const toastMocks = vi.hoisted(() => ({
@@ -39,8 +39,10 @@ vi.mock('@/core/admission/donorPdf', () => ({
   firstDonorAdmissionErrorMessage: admissionMocks.firstErrorMessage,
 }));
 
-vi.mock('@/core/commands/dispatch', () => ({
-  dispatchCommand: commandMocks.dispatchCommand,
+vi.mock('@/core/commands/bus', () => ({
+  commandBus: {
+    execute: commandMocks.execute,
+  },
 }));
 
 vi.mock('@/core/toast/store', () => ({
@@ -163,9 +165,10 @@ beforeEach(() => {
     pageCount: 3,
   });
   fileMocks.pickPdfFileSources.mockResolvedValue([{ file: new File([], 'donor.pdf') }]);
-  commandMocks.dispatchCommand.mockResolvedValue({
+  commandMocks.execute.mockResolvedValue({
     success: true,
-    command: 'REPLACE_PAGE',
+    commandId: 'cmd-1',
+    commandType: 'REPLACE_PAGE',
     source: 'toolbar',
     mutated: true,
     message: 'Page replaced',
@@ -210,7 +213,7 @@ describe('ToolbarOrganize donor replacement staging', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('replace-dialog')).not.toBeInTheDocument();
     });
-    expect(commandMocks.dispatchCommand).not.toHaveBeenCalled();
+    expect(commandMocks.execute).not.toHaveBeenCalled();
   });
 
   it('clears the staged replacement when the active document changes', async () => {
@@ -232,7 +235,7 @@ describe('ToolbarOrganize donor replacement staging', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('replace-dialog')).not.toBeInTheDocument();
     });
-    expect(commandMocks.dispatchCommand).not.toHaveBeenCalled();
+    expect(commandMocks.execute).not.toHaveBeenCalled();
   });
 
   it('dispatches exactly one admitted replacement after confirmation', async () => {
@@ -244,13 +247,30 @@ describe('ToolbarOrganize donor replacement staging', () => {
     fireEvent.click(screen.getByText('Confirm Replacement'));
 
     await waitFor(() => {
-      expect(commandMocks.dispatchCommand).toHaveBeenCalledTimes(1);
+      expect(commandMocks.execute).toHaveBeenCalledTimes(1);
     });
-    expect(commandMocks.dispatchCommand.mock.calls[0]?.[0].command).toMatchObject({
-      type: 'REPLACE_PAGE',
-      donorPageIndex: 5,
-      donor: expect.objectContaining({ fileName: 'donor.pdf', pageCount: 6 }),
+    expect(commandMocks.execute.mock.calls[0]?.[0]).toMatchObject({
+      command: {
+        type: 'REPLACE_PAGE',
+        source: 'toolbar',
+        documentKey: 'doc-1',
+        payload: {
+          donorResourceId: 'donor:0',
+          donorPageIndex: 5,
+        },
+      },
+      resources: {
+        donors: {
+          'donor:0': expect.objectContaining({
+            fileName: 'donor.pdf',
+            pageCount: 6,
+          }),
+        },
+      },
     });
+    expect(
+      JSON.stringify(commandMocks.execute.mock.calls[0]?.[0].command),
+    ).not.toContain('donor.pdf');
   });
 
   it('does not reopen the dialog after a stale admission completes', async () => {
@@ -276,6 +296,6 @@ describe('ToolbarOrganize donor replacement staging', () => {
     });
 
     expect(screen.queryByTestId('replace-dialog')).not.toBeInTheDocument();
-    expect(commandMocks.dispatchCommand).not.toHaveBeenCalled();
+    expect(commandMocks.execute).not.toHaveBeenCalled();
   });
 });

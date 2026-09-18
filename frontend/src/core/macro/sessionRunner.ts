@@ -4,6 +4,8 @@ import { executeMacroRecipe, type MacroExecutionResult } from './executor';
 import { useSessionStore } from '@/core/session/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { throwIfAborted } from '@/core/cancellation/operationCancellation';
+import { commandBus } from '@/core/commands/bus';
+import { materializePdfCommand } from '@/core/commands/types';
 
 export interface SessionMacroRunOptions {
   donorFiles?: Record<string, Uint8Array>;
@@ -14,6 +16,20 @@ export interface SessionMacroRunOptions {
 }
 
 let runPromise: Promise<unknown> = Promise.resolve();
+
+function failedBeforeCommit(
+  result: MacroExecutionResult,
+  message: string,
+): MacroExecutionResult {
+  return {
+    ...result,
+    status: 'failed',
+    success: false,
+    rolledBack: true,
+    outputFiles: [],
+    logs: [...result.logs, `[commit-failed] ${message}`],
+  };
+}
 
 function cancelledBeforeCommit(result: MacroExecutionResult): MacroExecutionResult {
   return {
@@ -72,26 +88,59 @@ async function runMacroRecipeAgainstSessionNow(
     }
     throwIfAborted(options?.abortSignal, 'macro session commit');
 
-    const { dispatchCommand } = await import('@/core/commands/dispatch');
     if (options?.abortSignal?.aborted) {
       return cancelledBeforeCommit(result);
     }
 
-    await dispatchCommand({
-      source: 'macro-runner',
-      command: {
-        type: 'REPLACE_WORKING_COPY',
-        nextBytes: result.finalBytes,
-        nextPageCount: result.stepResults
-          .flatMap((stepResult) => stepResult.sideEffects)
-          .filter((effect) => effect.type === 'page_count_changed')
-          .at(-1)?.newCount
-          ?? useSessionStore.getState().pageCount,
-        reason: `Ran macro recipe ${recipe.name}`,
+    const documentKey = session.documentKey;
+    if (!documentKey) {
+      return failedBeforeCommit(
+        result,
+        'The active document has no command identity.',
+      );
+    }
+
+    const binaryResourceId = 'macro:final-bytes';
+    const commitResult = await commandBus.execute({
+      command: materializePdfCommand(
+        {
+          type: 'APPLY_WORKING_COPY',
+          payload: {
+            binaryResourceId,
+            nextPageCount: result.stepResults
+              .flatMap((stepResult) => stepResult.sideEffects)
+              .filter((effect) => effect.type === 'page_count_changed')
+              .at(-1)?.newCount
+              ?? useSessionStore.getState().pageCount,
+            reason: `Ran macro recipe ${recipe.name}`,
+            macro: {
+              recipeId: recipe.id,
+              recipeName: recipe.name,
+              stepCount: recipe.steps.length,
+            },
+            selectedPages: result.selectedPages,
+          },
+        },
+        'macro-runner',
+        documentKey,
+      ),
+      resources: {
+        binaries: {
+          [binaryResourceId]: result.finalBytes,
+        },
       },
+      signal: options?.abortSignal,
     });
 
-    useSessionStore.getState().setSelectedPages(result.selectedPages);
+    if (!commitResult.success) {
+      if (commitResult.error?.code === 'CANCELLED') {
+        return cancelledBeforeCommit(result);
+      }
+      return failedBeforeCommit(
+        result,
+        commitResult.error?.message ?? commitResult.message,
+      );
+    }
   }
 
   if (options?.saveOutputs && executionSucceeded) {

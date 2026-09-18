@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { useHistoryStore } from '@/core/document-history/store';
+import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
@@ -55,10 +57,6 @@ export const ToolbarComment: React.FC = () => {
   const writerActiveTool = useWriterStore((state) => state.activeTool);
   const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
   const {
-    undo,
-    redo,
-    history,
-    future,
     selectedAnnotationIds,
     copySelection,
     pasteClipboard,
@@ -68,10 +66,6 @@ export const ToolbarComment: React.FC = () => {
     deleteSelection,
     toggleLockSelection,
   } = useAnnotationStore(useShallow((state) => ({
-    undo: state.undo,
-    redo: state.redo,
-    history: state.history,
-    future: state.future,
     selectedAnnotationIds: state.selectedAnnotationIds,
     copySelection: state.copySelection,
     pasteClipboard: state.pasteClipboard,
@@ -80,6 +74,11 @@ export const ToolbarComment: React.FC = () => {
     distributeSelection: state.distributeSelection,
     deleteSelection: state.deleteSelection,
     toggleLockSelection: state.toggleLockSelection,
+  })));
+
+  const { undoStack, redoStack } = useHistoryStore(useShallow((state) => ({
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
   })));
 
   const { viewState } = useSessionStore(useShallow((state) => ({
@@ -395,13 +394,13 @@ export const ToolbarComment: React.FC = () => {
       <Separator orientation="vertical" className="h-6" />
 
       <Tooltip content="Undo">
-        <Button variant="ghost" size="icon" onClick={undo} disabled={history.length === 0}>
+        <Button variant="ghost" size="icon" onClick={() => void applyUndo()} disabled={undoStack.length === 0}>
           <Undo className="w-4 h-4" />
         </Button>
       </Tooltip>
 
       <Tooltip content="Redo">
-        <Button variant="ghost" size="icon" onClick={redo} disabled={future.length === 0}>
+        <Button variant="ghost" size="icon" onClick={() => void applyRedo()} disabled={redoStack.length === 0}>
           <Redo className="w-4 h-4" />
         </Button>
       </Tooltip>

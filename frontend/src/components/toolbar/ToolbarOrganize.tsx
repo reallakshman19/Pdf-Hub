@@ -24,8 +24,12 @@ import {
 } from '@/core/admission/donorPdf';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
-import { dispatchCommand } from '@/core/commands/dispatch';
-import type { DocumentCommand } from '@/core/commands/types';
+import { commandBus } from '@/core/commands/bus';
+import {
+  materializePdfCommand,
+  type CommandResources,
+  type PdfCommandDraft,
+} from '@/core/commands/types';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import { useHistoryStore } from '@/core/document-history/store';
@@ -169,22 +173,31 @@ export const ToolbarOrganize: React.FC = () => {
   };
 
   const runMutation = async (
-    command: DocumentCommand,
+    draft: PdfCommandDraft,
     successMessage: string,
     nextPage: number | null,
-    options?: { signal?: AbortSignal; documentKey?: string },
+    options?: {
+      signal?: AbortSignal;
+      documentKey?: string;
+      resources?: CommandResources;
+    },
   ) => {
-    if (!workingBytes) return null;
+    const commandDocumentKey = options?.documentKey ?? documentKey;
+    if (!workingBytes || !commandDocumentKey) return null;
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command,
+    const result = await commandBus.execute({
+      command: materializePdfCommand(
+        draft,
+        'toolbar',
+        commandDocumentKey,
+      ),
       workingBytes,
+      resources: options?.resources,
       context: {
         currentPage: viewState.currentPage,
         selectedPages,
         fileName: useSessionStore.getState().fileName ?? 'document.pdf',
-        ...(options?.documentKey ? { documentKey: options.documentKey } : {}),
+        documentKey: commandDocumentKey,
       },
       ...(options?.signal ? { signal: options.signal } : {}),
     });
@@ -219,12 +232,27 @@ export const ToolbarOrganize: React.FC = () => {
     if (!admitted) return;
     try {
       await runMutation(
-        { type: 'MERGE_PDF', donors: admitted.admitted.donors },
+        {
+          type: 'MERGE_PDF',
+          payload: {
+            donorResourceIds: admitted.admitted.donors.map(
+              (_, index) => `donor:${index}`,
+            ),
+          },
+        },
         `Merged ${admitted.admitted.donors.length} file(s).`,
         viewState.currentPage,
         {
           signal: admitted.operation.controller.signal,
           documentKey: admitted.operation.documentKey,
+          resources: {
+            donors: Object.fromEntries(
+              admitted.admitted.donors.map((donor, index) => [
+                `donor:${index}`,
+                donor,
+              ]),
+            ),
+          },
         },
       );
     } finally {
@@ -238,8 +266,10 @@ export const ToolbarOrganize: React.FC = () => {
     const result = await runMutation(
       {
         type: 'EXTRACT_PAGES',
-        pageIndices: activeIndices,
-        outputName: `extract-pages-${activePages.join('-')}.pdf`,
+        payload: {
+          pageIndices: activeIndices,
+          outputName: `extract-pages-${activePages.join('-')}.pdf`,
+        },
       },
       `Prepared extraction for ${activePages.length} page(s).`,
       null,
@@ -260,14 +290,21 @@ export const ToolbarOrganize: React.FC = () => {
       await runMutation(
         {
           type: 'INSERT_PAGES',
-          atIndex: viewState.currentPage - 1,
-          donor,
+          payload: {
+            atIndex: viewState.currentPage - 1,
+            donorResourceId: 'donor:0',
+          },
         },
         `Inserted pages from ${donor.fileName}.`,
         viewState.currentPage,
         {
           signal: admitted.operation.controller.signal,
           documentKey: admitted.operation.documentKey,
+          resources: {
+            donors: {
+              'donor:0': donor,
+            },
+          },
         },
       );
     } finally {
@@ -287,7 +324,7 @@ export const ToolbarOrganize: React.FC = () => {
     }
 
     await runMutation(
-      { type: 'DELETE_PAGES', pageIndices: activeIndices },
+      { type: 'DELETE_PAGES', payload: { pageIndices: activeIndices } },
       `Deleted ${activePages.length} page(s).`,
       1,
     );
@@ -308,8 +345,10 @@ export const ToolbarOrganize: React.FC = () => {
     const result = await runMutation(
       {
         type: 'SPLIT_PAGES',
-        pageIndices: activeIndices,
-        outputName: `split-pages-${activePages.join('-')}.pdf`,
+        payload: {
+          pageIndices: activeIndices,
+          outputName: `split-pages-${activePages.join('-')}.pdf`,
+        },
       },
       `Split ${activePages.length} page(s) into a new file.`,
       1,
@@ -325,7 +364,7 @@ export const ToolbarOrganize: React.FC = () => {
   const handleDuplicatePages = async () => {
     if (!workingBytes || activeIndices.length === 0) return;
     await runMutation(
-      { type: 'DUPLICATE_PAGES', pageIndices: activeIndices },
+      { type: 'DUPLICATE_PAGES', payload: { pageIndices: activeIndices } },
       `Duplicated ${activePages.length} page(s).`,
       viewState.currentPage,
     );
@@ -334,7 +373,10 @@ export const ToolbarOrganize: React.FC = () => {
   const handleRotatePages = async () => {
     if (!workingBytes || activeIndices.length === 0) return;
     await runMutation(
-      { type: 'ROTATE_PAGES', pageIndices: activeIndices, angle: 90 },
+      {
+        type: 'ROTATE_PAGES',
+        payload: { pageIndices: activeIndices, angle: 90 },
+      },
       `Rotated ${activePages.length} page(s) by 90°.`,
       viewState.currentPage,
     );
@@ -358,7 +400,7 @@ export const ToolbarOrganize: React.FC = () => {
 
     const atIndex = placement === 'before' ? viewState.currentPage - 1 : viewState.currentPage;
     await runMutation(
-      { type: 'INSERT_BLANK_PAGE', atIndex, size },
+      { type: 'INSERT_BLANK_PAGE', payload: { atIndex, size } },
       'Inserted blank page.',
       atIndex + 1,
     );
@@ -387,15 +429,22 @@ export const ToolbarOrganize: React.FC = () => {
       await runMutation(
         {
           type: 'REPLACE_PAGE',
-          atIndex: viewState.currentPage - 1,
-          donor,
-          donorPageIndex: safeDonorPage - 1,
+          payload: {
+            atIndex: viewState.currentPage - 1,
+            donorResourceId: 'donor:0',
+            donorPageIndex: safeDonorPage - 1,
+          },
         },
         `Replaced current page from donor page ${safeDonorPage}.`,
         viewState.currentPage,
         {
           signal: operation.controller.signal,
           documentKey: operation.documentKey,
+          resources: {
+            donors: {
+              'donor:0': donor,
+            },
+          },
         },
       );
     } catch (error) {
@@ -429,13 +478,13 @@ export const ToolbarOrganize: React.FC = () => {
       />
       <div className="flex items-center space-x-1">
         <Tooltip content={peekUndo() ? `Undo: ${peekUndo()?.label}` : "Undo"}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyUndo()} disabled={!canUndo() || !workingBytes}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyUndo()} disabled={!canUndo() || !workingBytes}>
             <Undo className="w-4 h-4" />
           </Button>
         </Tooltip>
 
         <Tooltip content={peekRedo() ? `Redo: ${peekRedo()?.label}` : "Redo"}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyRedo()} disabled={!canRedo() || !workingBytes}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyRedo()} disabled={!canRedo() || !workingBytes}>
             <Redo className="w-4 h-4" />
           </Button>
         </Tooltip>

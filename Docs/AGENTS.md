@@ -208,7 +208,7 @@ services/            call pdf\_engine functions; never import fitz
 tasks/               asyncio tasks; call services; write checkpoints
 ─────────────────────────────────────────────────────────
 core/session         current document state
-core/annotations     annotation CRUD + undo/redo
+core/annotations     annotation CRUD; PDF-backed undo/redo is global document history
 core/ocr             job tracking + per-page results (including failure states)
 core/logger          ring buffer, max 500, sessionStorage in dev
 ```

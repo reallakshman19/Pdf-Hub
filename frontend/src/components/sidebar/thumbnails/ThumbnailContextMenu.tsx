@@ -6,8 +6,12 @@ import {
   firstDonorAdmissionErrorMessage,
 } from '@/core/admission/donorPdf';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
-import { dispatchCommand } from '@/core/commands/dispatch';
-import type { DocumentCommand } from '@/core/commands/types';
+import { commandBus } from '@/core/commands/bus';
+import {
+  materializePdfCommand,
+  type CommandResources,
+  type PdfCommandDraft,
+} from '@/core/commands/types';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
@@ -78,20 +82,29 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
   }, []);
 
   const handleCommand = async (
-    command: DocumentCommand,
+    draft: PdfCommandDraft,
     successMessage: string,
-    options?: { signal?: AbortSignal; documentKey?: string },
+    options?: {
+      signal?: AbortSignal;
+      documentKey?: string;
+      resources?: CommandResources;
+    },
   ) => {
-    if (!workingBytes) return;
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command,
+    const commandDocumentKey = options?.documentKey ?? documentKey;
+    if (!workingBytes || !commandDocumentKey) return;
+    const result = await commandBus.execute({
+      command: materializePdfCommand(
+        draft,
+        'thumbnail-menu',
+        commandDocumentKey,
+      ),
       workingBytes,
+      resources: options?.resources,
       context: {
         currentPage: viewState.currentPage,
         selectedPages,
         fileName: fileName ?? 'document.pdf',
-        ...(options?.documentKey ? { documentKey: options.documentKey } : {}),
+        documentKey: commandDocumentKey,
       },
       ...(options?.signal ? { signal: options.signal } : {}),
     });
@@ -159,14 +172,21 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       await handleCommand(
         {
           type: 'REPLACE_PAGE',
-          atIndex: page - 1,
-          donor,
-          donorPageIndex: 0,
+          payload: {
+            atIndex: page - 1,
+            donorResourceId: 'donor:0',
+            donorPageIndex: 0,
+          },
         },
         `Replaced page ${page} using the first donor page from ${donor.fileName}.`,
         {
           signal: controller.signal,
           documentKey: expectedDocumentKey,
+          resources: {
+            donors: {
+              'donor:0': donor,
+            },
+          },
         },
       );
     } catch (error) {
@@ -215,31 +235,31 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     >
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() => handleCommand({ type: 'ROTATE_PAGES', pageIndices, angle: 90 }, 'Rotated selected pages.')}
+        onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 90 } }, 'Rotated selected pages.')}
       >
         Rotate 90°
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() => handleCommand({ type: 'EXTRACT_PAGES', pageIndices }, 'Extracted selected pages.')}
+        onClick={() => handleCommand({ type: 'EXTRACT_PAGES', payload: { pageIndices } }, 'Extracted selected pages.')}
       >
         Extract Pages
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() => handleCommand({ type: 'SPLIT_PAGES', pageIndices }, 'Split selected pages into a new file.')}
+        onClick={() => handleCommand({ type: 'SPLIT_PAGES', payload: { pageIndices } }, 'Split selected pages into a new file.')}
       >
         Split Pages
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() => handleCommand({ type: 'DUPLICATE_PAGES', pageIndices }, 'Duplicated selected pages.')}
+        onClick={() => handleCommand({ type: 'DUPLICATE_PAGES', payload: { pageIndices } }, 'Duplicated selected pages.')}
       >
         Duplicate Pages
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-red-600 dark:text-red-400"
-        onClick={() => handleCommand({ type: 'DELETE_PAGES', pageIndices }, 'Deleted selected pages.')}
+        onClick={() => handleCommand({ type: 'DELETE_PAGES', payload: { pageIndices } }, 'Deleted selected pages.')}
       >
         Delete Pages
       </button>
@@ -252,8 +272,10 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
           handleCommand(
             {
               type: 'INSERT_BLANK_PAGE',
-              atIndex: targetPages[0] - 1,
-              size: { width: 595, height: 842 },
+              payload: {
+                atIndex: targetPages[0] - 1,
+                size: { width: 595, height: 842 },
+              },
             },
             'Inserted blank page before selection.',
           )
@@ -267,8 +289,10 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
           handleCommand(
             {
               type: 'INSERT_BLANK_PAGE',
-              atIndex: targetPages[targetPages.length - 1],
-              size: { width: 595, height: 842 },
+              payload: {
+                atIndex: targetPages[targetPages.length - 1],
+                size: { width: 595, height: 842 },
+              },
             },
             'Inserted blank page after selection.',
           )

@@ -1,6 +1,8 @@
-import type { PdfCommand } from './types';
-
-type Rect = { x: number; y: number; width: number; height: number };
+import {
+  defaultRiskForCommand,
+  isPdfCommandSerializable,
+  type PdfCommand,
+} from './types';
 
 export interface CommandValidationResult {
   ok: boolean;
@@ -8,83 +10,171 @@ export interface CommandValidationResult {
   warnings: string[];
 }
 
-function isRect(rect: Rect | undefined): rect is Rect {
-  return Boolean(
-    rect &&
-      Number.isFinite(rect.x) &&
-      Number.isFinite(rect.y) &&
-      Number.isFinite(rect.width) &&
-      Number.isFinite(rect.height) &&
-      rect.width >= 0 &&
-      rect.height >= 0,
-  );
+function validatePageIndices(
+  values: number[] | undefined,
+  field: string,
+  errors: string[],
+): void {
+  if (!Array.isArray(values) || values.length === 0) {
+    errors.push(`${field} must contain at least one page index.`);
+    return;
+  }
+  if (values.some((value) => !Number.isInteger(value) || value < 0)) {
+    errors.push(`${field} must contain zero-based non-negative integer page indices.`);
+  }
 }
 
-function validatePageNumbers(pageNumbers: number[] | undefined): string[] {
-  if (!Array.isArray(pageNumbers) || pageNumbers.length === 0) {
-    return ['At least one page number is required.'];
+function requireNonEmpty(
+  value: string | undefined,
+  field: string,
+  errors: string[],
+): void {
+  if (!value || value.trim().length === 0) {
+    errors.push(`${field} is required.`);
   }
+}
 
-  return pageNumbers.some((n) => !Number.isInteger(n) || n <= 0)
-    ? ['Page numbers must be positive integers.']
-    : [];
+function requireNonNegativeInteger(
+  value: number,
+  field: string,
+  errors: string[],
+): void {
+  if (!Number.isInteger(value) || value < 0) {
+    errors.push(`${field} must be a non-negative integer.`);
+  }
 }
 
 export function validateCommand(command: PdfCommand): CommandValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!command.id) errors.push('Command id is required.');
-  if (!command.type) errors.push('Command type is required.');
-  if (!command.documentKey) errors.push('Document key is required.');
-  if (!command.createdAt) errors.push('Creation timestamp is required.');
+  requireNonEmpty(command.id, 'id', errors);
+  requireNonEmpty(command.documentKey, 'documentKey', errors);
+  requireNonEmpty(command.createdAt, 'createdAt', errors);
+
+  if (!Number.isFinite(Date.parse(command.createdAt))) {
+    errors.push('createdAt must be a valid ISO-compatible timestamp.');
+  }
+
+  if (!isPdfCommandSerializable(command)) {
+    errors.push('Command must be JSON-serializable.');
+  }
+
+  const expectedRisk = defaultRiskForCommand(command.type);
+  if (expectedRisk === 'preview-required' && command.risk === 'safe') {
+    errors.push(`${command.type} cannot be marked safe.`);
+  }
 
   switch (command.type) {
-    case 'ANNOTATION_ADD':
-      if (!Number.isInteger(command.payload.pageNumber) || command.payload.pageNumber <= 0) {
-        errors.push('Annotation page number must be a positive integer.');
-      }
-      if (!isRect(command.payload.rect)) {
-        errors.push('Annotation rectangle is invalid.');
+    case 'ROTATE_PAGES':
+      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
+      if (![90, 180, 270].includes(command.payload.angle)) {
+        errors.push('payload.angle must be 90, 180, or 270.');
       }
       break;
 
-    case 'WRITER_OVERLAY_ADD':
-      if (!Number.isInteger(command.payload.pageNumber) || command.payload.pageNumber <= 0) {
-        errors.push('Writer overlay page number must be a positive integer.');
-      }
-      if (!isRect(command.payload.rect)) {
-        errors.push('Writer overlay rectangle is invalid.');
+    case 'REORDER_PAGES':
+      requireNonNegativeInteger(command.payload.fromIndex, 'payload.fromIndex', errors);
+      requireNonNegativeInteger(command.payload.toIndex, 'payload.toIndex', errors);
+      break;
+
+    case 'REORDER_PAGES_BY_ORDER':
+      validatePageIndices(command.payload.order, 'payload.order', errors);
+      if (new Set(command.payload.order).size !== command.payload.order.length) {
+        errors.push('payload.order cannot contain duplicate page indices.');
       }
       break;
 
-    case 'PAGES_ORGANIZE':
-      errors.push(...validatePageNumbers(command.payload.pageNumbers));
+    case 'EXTRACT_PAGES':
+    case 'SPLIT_PAGES':
+    case 'DELETE_PAGES':
+    case 'DUPLICATE_PAGES':
+      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
+      break;
+
+    case 'INSERT_PAGES':
+      requireNonNegativeInteger(command.payload.atIndex, 'payload.atIndex', errors);
+      requireNonEmpty(command.payload.donorResourceId, 'payload.donorResourceId', errors);
+      break;
+
+    case 'INSERT_BLANK_PAGE':
+      requireNonNegativeInteger(command.payload.atIndex, 'payload.atIndex', errors);
       if (
-        command.payload.operation === 'delete' ||
-        command.payload.operation === 'replace' ||
-        command.payload.operation === 'split'
+        !Number.isFinite(command.payload.size.width)
+        || command.payload.size.width <= 0
+        || !Number.isFinite(command.payload.size.height)
+        || command.payload.size.height <= 0
       ) {
-        if (command.risk === 'safe') {
-          errors.push('Destructive page operations cannot be marked safe.');
+        errors.push('payload.size must contain positive finite width and height.');
+      }
+      break;
+
+    case 'REPLACE_PAGE':
+      requireNonNegativeInteger(command.payload.atIndex, 'payload.atIndex', errors);
+      requireNonNegativeInteger(command.payload.donorPageIndex, 'payload.donorPageIndex', errors);
+      requireNonEmpty(command.payload.donorResourceId, 'payload.donorResourceId', errors);
+      break;
+
+    case 'MERGE_PDF':
+      if (command.payload.donorResourceIds.length === 0) {
+        errors.push('payload.donorResourceIds must contain at least one donor resource.');
+      }
+      command.payload.donorResourceIds.forEach((resourceId, index) =>
+        requireNonEmpty(resourceId, `payload.donorResourceIds.${index}`, errors)
+      );
+      break;
+
+    case 'ADD_HEADER_FOOTER_TEXT':
+      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
+      requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
+      if (!Number.isFinite(command.payload.options.fontSize) || command.payload.options.fontSize <= 0) {
+        errors.push('payload.options.fontSize must be positive.');
+      }
+      break;
+
+    case 'DRAW_TEXT_ON_PAGES':
+      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
+      requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
+      if (!Number.isFinite(command.payload.options.fontSize) || command.payload.options.fontSize <= 0) {
+        errors.push('payload.options.fontSize must be positive.');
+      }
+      break;
+
+    case 'DRAW_REDACTION_BOX':
+      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
+      if (
+        !Number.isFinite(command.payload.options.width)
+        || command.payload.options.width <= 0
+        || !Number.isFinite(command.payload.options.height)
+        || command.payload.options.height <= 0
+      ) {
+        errors.push('Visual-mask width and height must be positive.');
+      }
+      break;
+
+    case 'ANNOTATION_CHANGE':
+      requireNonEmpty(command.payload.action, 'payload.action', errors);
+      break;
+
+    case 'WRITER_CHANGE':
+      requireNonEmpty(command.payload.action, 'payload.action', errors);
+      break;
+
+    case 'APPLY_WORKING_COPY':
+      requireNonEmpty(command.payload.binaryResourceId, 'payload.binaryResourceId', errors);
+      if (
+        command.payload.nextPageCount !== undefined
+        && (!Number.isInteger(command.payload.nextPageCount) || command.payload.nextPageCount < 1)
+      ) {
+        errors.push('payload.nextPageCount must be an integer >= 1 when provided.');
+      }
+      if (command.payload.macro) {
+        requireNonEmpty(command.payload.macro.recipeId, 'payload.macro.recipeId', errors);
+        requireNonEmpty(command.payload.macro.recipeName, 'payload.macro.recipeName', errors);
+        if (!Number.isInteger(command.payload.macro.stepCount) || command.payload.macro.stepCount < 0) {
+          errors.push('payload.macro.stepCount must be a non-negative integer.');
         }
       }
-      break;
-
-    case 'OCR_START':
-      errors.push(...validatePageNumbers(command.payload.pageNumbers));
-      if (!command.payload.language) {
-        errors.push('OCR language is required.');
-      }
-      break;
-
-    case 'REDACTION_APPLY':
-      if (command.risk !== 'destructive') {
-        errors.push('REDACTION_APPLY must be marked risk: destructive.');
-      }
-      break;
-
-    default:
       break;
   }
 

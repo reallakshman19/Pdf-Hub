@@ -4,6 +4,7 @@ import type { AppLogEntry } from '@/core/logger/types';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { useHistoryStore } from '@/core/document-history/store';
 import { useWriterStore } from '@/core/writer/store';
 import { useSearchStore } from '@/core/search/store';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
@@ -37,10 +38,12 @@ export const DebugPage: React.FC = () => {
     annotations: state.annotations,
     selectedAnnotationIds: state.selectedAnnotationIds,
     activeAnnotationId: state.activeAnnotationId,
-    history: state.history,
-    future: state.future,
   })));
-  const writerState = useWriterStore();
+  const historyState = useHistoryStore(useShallow((state) => ({
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
+  })));
+    const writerState = useWriterStore();
   const searchState = useSearchStore(useShallow((state) => ({
     query: state.query,
     hits: state.hits,
@@ -78,10 +81,10 @@ export const DebugPage: React.FC = () => {
       annotationCount: annotationState.annotations.length,
       selectedAnnotationIds: annotationState.selectedAnnotationIds,
       activeAnnotationId: annotationState.activeAnnotationId,
-      historyDepth: annotationState.history.length,
-      futureDepth: annotationState.future.length,
+      historyDepth: historyState.undoStack.length,
+      futureDepth: historyState.redoStack.length,
     }),
-    [annotationState],
+    [annotationState, historyState],
   );
 
   const writerSnapshot = useMemo(

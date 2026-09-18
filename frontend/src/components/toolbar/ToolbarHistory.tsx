@@ -32,13 +32,13 @@ export const ToolbarHistory: React.FC = () => {
   return (
     <div className="flex items-center space-x-1">
       <Tooltip content={undoTooltip}>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={applyUndo} disabled={!canUndo()}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyUndo()} disabled={!canUndo()}>
           <Undo className="w-4 h-4" />
         </Button>
       </Tooltip>
 
       <Tooltip content={redoTooltip}>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={applyRedo} disabled={!canRedo()}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyRedo()} disabled={!canRedo()}>
           <Redo className="w-4 h-4" />
         </Button>
       </Tooltip>

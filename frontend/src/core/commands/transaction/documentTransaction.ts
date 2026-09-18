@@ -6,7 +6,9 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
 import { useSessionStore } from '@/core/session/store';
-import type { DocumentCommand, CommandSource } from '../types';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import type { WriterElementV2 } from '@/core/writer-v2/types';
+import type { PdfCommand } from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
 
@@ -23,12 +25,14 @@ export class DocumentMutationTransactionError extends Error {
 }
 
 export interface CommitDocumentMutationInput {
-  command: DocumentCommand;
-  source: CommandSource;
+  command: PdfCommand;
   label: string;
   beforeBytes: Uint8Array;
   afterBytes: Uint8Array;
   nextAnnotations?: PdfAnnotation[];
+  nextWriterElements?: WriterElementV2[];
+  nextSelectedPages?: number[];
+  nextCurrentPage?: number;
 }
 
 export interface CommittedDocumentMutation {
@@ -51,10 +55,27 @@ function cloneAnnotationLists(lists: PdfAnnotation[][]): PdfAnnotation[][] {
   return lists.map((annotations) => [...annotations]);
 }
 
+function writerHistorySnapshot() {
+  const writer = useWriterV2Store.getState();
+  return {
+    elements: writer.elements.map((element) => ({
+      ...element,
+      rect: { ...element.rect },
+      style: { ...element.style },
+    })),
+    selectedIds: [...writer.selectedIds],
+    activeId: writer.activeId,
+  };
+}
+
+function restoreWriterSnapshot(snapshot: ReturnType<typeof useWriterV2Store.getState>): void {
+  useWriterV2Store.setState(snapshot);
+}
+
 /**
- * Persists all dependent annotation state before committing any in-memory PDF
- * mutation. If an unexpected synchronous commit error occurs, every Zustand
- * store is restored to its pre-commit snapshot.
+ * Persists dependent annotation state before any in-memory commit. Session,
+ * annotation and history stores are then mutated as one synchronous transaction;
+ * if any commit step throws, all three stores are restored to their snapshots.
  */
 export async function commitDocumentMutation(
   input: CommitDocumentMutationInput,
@@ -95,6 +116,8 @@ export async function commitDocumentMutation(
     selectedAnnotationIds: [...annotationState.selectedAnnotationIds],
     clipboard: [...annotationState.clipboard],
   };
+  const writerSnapshot = useWriterV2Store.getState();
+  const writerBefore = writerHistorySnapshot();
   const historyState = useHistoryStore.getState();
   const historySnapshot = {
     undoStack: [...historyState.undoStack],
@@ -104,43 +127,89 @@ export async function commitDocumentMutation(
     lastTrimReason: historyState.lastTrimReason,
     overBudget: historyState.overBudget,
   };
+
   const previousAfter = historyState.undoStack.at(-1)?.after;
   const canSharePreviousSnapshot = Boolean(
-    sessionSnapshot.documentKey &&
-    previousAfter?.documentKey === sessionSnapshot.documentKey &&
-    previousAfter.pageCount === beforePageCount,
+    sessionSnapshot.documentKey
+    && previousAfter?.documentKey === sessionSnapshot.documentKey
+    && previousAfter.pageCount === beforePageCount,
   );
   const beforeHistoryBytes = canSharePreviousSnapshot && previousAfter
     ? previousAfter.bytes
     : new Uint8Array(input.beforeBytes);
 
   try {
+    useSessionStore.getState().replaceWorkingCopy(input.afterBytes, afterPageCount);
+
+    if (input.nextAnnotations) {
+      useAnnotationStore.getState().setAnnotations(input.nextAnnotations);
+    }
+
+    if (input.nextWriterElements) {
+      const currentWriter = useWriterV2Store.getState();
+      const allowedIds = new Set(
+        input.nextWriterElements.map((element) => element.id),
+      );
+      const selectedIds = currentWriter.selectedIds.filter((id) =>
+        allowedIds.has(id)
+      );
+      useWriterV2Store.setState({
+        elements: input.nextWriterElements,
+        selectedIds,
+        activeId:
+          currentWriter.activeId && allowedIds.has(currentWriter.activeId)
+            ? currentWriter.activeId
+            : selectedIds.at(-1) ?? null,
+        undoStack: [],
+        redoStack: [],
+        dirty: true,
+        editingId: null,
+      });
+    }
+
+    useSessionStore.getState().setDocumentKey(nextDocumentKey);
+
+    if (input.nextSelectedPages) {
+      useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
+    }
+
+    if (typeof input.nextCurrentPage === 'number') {
+      useSessionStore.getState().setPage(input.nextCurrentPage);
+    }
+
+    const sessionAfter = useSessionStore.getState();
+    const annotationAfter = useAnnotationStore.getState();
+    const writerAfter = writerHistorySnapshot();
+
     useHistoryStore.getState().push({
       id: uuidv4(),
       command: input.command,
-      source: input.source,
       label: input.label,
       timestamp: Date.now(),
+      ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
       before: {
         bytes: beforeHistoryBytes,
         pageCount: beforePageCount,
         documentKey: sessionSnapshot.documentKey,
+        selectedPages: [...sessionSnapshot.selectedPages],
+        currentPage: sessionSnapshot.viewState.currentPage,
+        annotations: [...annotationSnapshot.annotations],
+        writer: writerBefore,
       },
       after: {
         bytes: new Uint8Array(input.afterBytes),
         pageCount: afterPageCount,
         documentKey: nextDocumentKey,
+        selectedPages: [...sessionAfter.selectedPages],
+        currentPage: sessionAfter.viewState.currentPage,
+        annotations: [...annotationAfter.annotations],
+        writer: writerAfter,
       },
     });
-
-    useSessionStore.getState().replaceWorkingCopy(input.afterBytes, afterPageCount);
-    if (input.nextAnnotations) {
-      useAnnotationStore.getState().applyPageRemap(input.nextAnnotations);
-    }
-    useSessionStore.getState().setDocumentKey(nextDocumentKey);
   } catch (error) {
     useSessionStore.setState(sessionSnapshot);
     useAnnotationStore.setState(annotationSnapshot);
+    restoreWriterSnapshot(writerSnapshot);
     useHistoryStore.setState(historySnapshot);
     throw toTransactionError('commit', 'Document mutation commit failed and was rolled back', error);
   }

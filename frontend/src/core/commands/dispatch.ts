@@ -5,6 +5,7 @@ import {
   inspectAdmittedDonorPdfs,
   isDonorAdmissionBoundaryError,
   DonorAdmissionBoundaryError,
+  type AdmittedDonorPdf,
 } from '@/core/admission/donorPdf';
 import {
   isOperationCancelledError,
@@ -20,6 +21,15 @@ import {
   remapAfterRotate,
 } from '@/core/annotations/pageRemapper';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import type { WriterElementV2 } from '@/core/writer-v2/types';
+import {
+  remapWriterAfterDelete,
+  remapWriterAfterDuplicate,
+  remapWriterAfterInsert,
+  remapWriterAfterReorder,
+  remapWriterAfterRotate,
+} from '@/core/writer-v2/pageRemapper';
 import {
   commitDocumentMutation,
   isDocumentMutationTransactionError,
@@ -27,10 +37,9 @@ import {
 import type {
   CommandArtifact,
   CommandErrorCode,
-  CommandPayload,
+  CommandExecutionInput,
   CommandResult,
-  CommandSource,
-  DocumentCommand,
+  PdfCommand,
 } from './types';
 
 type ResolvedCommandContext = {
@@ -38,20 +47,20 @@ type ResolvedCommandContext = {
   currentPage: number;
   selectedPages: number[];
   fileName: string;
-  documentKey: string | null;
+  documentKey: string;
 };
 
 function commandError(
-  command: DocumentCommand['type'],
-  source: CommandSource,
+  command: PdfCommand,
   code: CommandErrorCode,
   message: string,
   details?: string,
 ): CommandResult {
   return {
     success: false,
-    command,
-    source,
+    commandId: command.id,
+    commandType: command.type,
+    source: command.source,
     mutated: false,
     message,
     error: {
@@ -63,8 +72,7 @@ function commandError(
 }
 
 function commandSuccess(
-  command: DocumentCommand['type'],
-  source: CommandSource,
+  command: PdfCommand,
   mutated: boolean,
   message: string,
   nextBytes?: Uint8Array,
@@ -73,8 +81,9 @@ function commandSuccess(
 ): CommandResult {
   return {
     success: true,
-    command,
-    source,
+    commandId: command.id,
+    commandType: command.type,
+    source: command.source,
     mutated,
     message,
     ...(nextBytes ? { nextBytes } : {}),
@@ -83,36 +92,34 @@ function commandSuccess(
   };
 }
 
-function resolveContext(payload: CommandPayload): ResolvedCommandContext | null {
+function resolveContext(input: CommandExecutionInput): ResolvedCommandContext | null {
   const session = useSessionStore.getState();
-  const workingBytes = payload.workingBytes ?? session.workingBytes;
-  if (!workingBytes) {
-    return null;
-  }
+  const workingBytes = input.workingBytes ?? session.workingBytes;
+  if (!workingBytes) return null;
 
   return {
     workingBytes,
-    currentPage: payload.context?.currentPage ?? session.viewState.currentPage,
-    selectedPages: payload.context?.selectedPages ?? session.selectedPages,
-    fileName: payload.context?.fileName ?? session.fileName ?? 'document.pdf',
-    documentKey: payload.context?.documentKey ?? session.documentKey,
+    currentPage: input.context?.currentPage ?? session.viewState.currentPage,
+    selectedPages: input.context?.selectedPages ?? session.selectedPages,
+    fileName: input.context?.fileName ?? session.fileName ?? 'document.pdf',
+    documentKey: input.command.documentKey,
   };
 }
 
-function commandLabel(command: DocumentCommand): string {
+function commandLabel(command: PdfCommand): string {
   switch (command.type) {
     case 'ROTATE_PAGES':
-      return `Rotate ${command.pageIndices.length} page(s)`;
+      return `Rotate ${command.payload.pageIndices.length} page(s)`;
     case 'REORDER_PAGES':
       return 'Reorder page';
     case 'REORDER_PAGES_BY_ORDER':
       return 'Reorder pages';
     case 'EXTRACT_PAGES':
-      return `Extract ${command.pageIndices.length} page(s)`;
+      return `Extract ${command.payload.pageIndices.length} page(s)`;
     case 'SPLIT_PAGES':
-      return `Split ${command.pageIndices.length} page(s)`;
+      return `Split ${command.payload.pageIndices.length} page(s)`;
     case 'DELETE_PAGES':
-      return `Delete ${command.pageIndices.length} page(s)`;
+      return `Delete ${command.payload.pageIndices.length} page(s)`;
     case 'INSERT_PAGES':
       return 'Insert pages';
     case 'INSERT_BLANK_PAGE':
@@ -120,17 +127,17 @@ function commandLabel(command: DocumentCommand): string {
     case 'REPLACE_PAGE':
       return 'Replace page';
     case 'DUPLICATE_PAGES':
-      return `Duplicate ${command.pageIndices.length} page(s)`;
+      return `Duplicate ${command.payload.pageIndices.length} page(s)`;
     case 'MERGE_PDF':
-      return `Merge ${command.donors.length} file(s)`;
+      return `Merge ${command.payload.donorResourceIds.length} file(s)`;
     case 'ADD_HEADER_FOOTER_TEXT':
       return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
       return 'Draw text on pages';
     case 'DRAW_REDACTION_BOX':
       return 'Draw visual mask';
-    case 'REPLACE_WORKING_COPY':
-      return command.reason ?? 'Apply macro output';
+    case 'APPLY_WORKING_COPY':
+      return command.payload.reason ?? command.payload.macro?.recipeName ?? 'Apply working copy';
   }
 }
 
@@ -141,24 +148,31 @@ function sanitizePageIndices(pageIndices: number[], pageCount: number): number[]
 }
 
 function outputName(prefix: string, pageIndices: number[], fallback?: string): string {
-  if (fallback && fallback.trim().length > 0) {
-    return fallback;
-  }
+  if (fallback && fallback.trim().length > 0) return fallback;
   const humanPages = pageIndices.map((index) => index + 1).join('-');
   return `${prefix}-${humanPages}.pdf`;
 }
 
+function activeDocumentKey(input: CommandExecutionInput): string | null {
+  return input.context?.documentKey ?? useSessionStore.getState().documentKey;
+}
+
+function assertCommandDocumentCurrent(input: CommandExecutionInput): CommandResult | null {
+  const activeKey = activeDocumentKey(input);
+  if (!activeKey || activeKey === input.command.documentKey) return null;
+  return commandError(
+    input.command,
+    'STALE_DOCUMENT',
+    'The active document changed before this command could execute.',
+  );
+}
+
 function assertDonorCommandCurrent(
   context: ResolvedCommandContext,
-  payload: CommandPayload,
+  input: CommandExecutionInput,
   operation: string,
 ): void {
-  throwIfAborted(payload.signal, operation);
-  if (!context.documentKey) {
-    throw new DonorAdmissionBoundaryError(
-      'Donor commands require an active document identity.',
-    );
-  }
+  throwIfAborted(input.signal, operation);
   if (useSessionStore.getState().documentKey !== context.documentKey) {
     throw new DonorAdmissionBoundaryError(
       'The active document changed before the donor command could commit.',
@@ -166,298 +180,447 @@ function assertDonorCommandCurrent(
   }
 }
 
+function resolveDonor(
+  input: CommandExecutionInput,
+  resourceId: string,
+): AdmittedDonorPdf | null {
+  return input.resources?.donors?.[resourceId] ?? null;
+}
+
+function resolveDonors(
+  input: CommandExecutionInput,
+  resourceIds: readonly string[],
+): AdmittedDonorPdf[] | null {
+  const donors: AdmittedDonorPdf[] = [];
+  for (const resourceId of resourceIds) {
+    const donor = resolveDonor(input, resourceId);
+    if (!donor) return null;
+    donors.push(donor);
+  }
+  return donors;
+}
+
 async function applyMutation(
-  command: DocumentCommand,
-  source: CommandSource,
+  command: PdfCommand,
   beforeBytes: Uint8Array,
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
+  nextWriterElements?: WriterElementV2[],
+  nextSelectedPages?: number[],
+  nextCurrentPage?: number,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return commitDocumentMutation({
     command,
-    source,
     label: commandLabel(command),
     beforeBytes,
     afterBytes,
     nextAnnotations,
+    nextWriterElements,
+    nextSelectedPages,
+    nextCurrentPage,
   });
 }
 
-export async function dispatchCommand(payload: CommandPayload): Promise<CommandResult> {
-  const { command, source } = payload;
-  const context = resolveContext(payload);
+export async function dispatchPdfCommand(
+  input: CommandExecutionInput,
+): Promise<CommandResult> {
+  const { command } = input;
+
+  const stale = assertCommandDocumentCurrent(input);
+  if (stale) return stale;
+
+  const context = resolveContext(input);
   if (!context) {
     return commandError(
-      command.type,
-      source,
+      command,
       'NO_WORKING_DOCUMENT',
-      'No working document is available in the session',
+      'No working document is available in the session.',
     );
   }
 
-  const pageCount = await PdfEditAdapter.countPages(context.workingBytes);
-
   try {
+    throwIfAborted(input.signal, `command ${command.type}: before execution`);
+    const pageCount = await PdfEditAdapter.countPages(context.workingBytes);
+
     switch (command.type) {
       case 'ROTATE_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const { pageIndices: requested, angle } = command.payload;
+        const pageIndices = sanitizePageIndices(requested, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for rotation');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for rotation.');
         }
-        // Capture page dimensions BEFORE rotation for annotation coordinate transform
         const rotations = await Promise.all(
           pageIndices.map(async (idx) => {
             const { width, height } = await PdfEditAdapter.getPageSize(context.workingBytes, idx);
-            return { pageIndex: idx, angle: command.angle, width, height };
+            return { pageIndex: idx, angle, width, height };
           }),
         );
-        const nextAnnotations = remapAfterRotate(useAnnotationStore.getState().annotations, rotations);
-        const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, command.angle);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
+        const nextAnnotations = remapAfterRotate(
+          useAnnotationStore.getState().annotations,
+          rotations,
+        );
+        const nextWriterElements = remapWriterAfterRotate(
+          useWriterV2Store.getState().elements,
+          rotations,
+        );
+        const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
       }
 
       case 'REORDER_PAGES': {
-        // Build full order array (order[newIndex] = oldIndex) from the single fromIndex→toIndex move
+        const { fromIndex, toIndex } = command.payload;
         const order = Array.from({ length: pageCount }, (_, i) => i);
-        const [moved] = order.splice(command.fromIndex, 1);
-        order.splice(command.toIndex, 0, moved);
-        const nextAnnotations = remapAfterReorder(useAnnotationStore.getState().annotations, order);
-        const nextBytes = await PdfEditAdapter.movePage(context.workingBytes, command.fromIndex, command.toIndex);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Page reordered', result.nextBytes, result.nextPageCount);
+        const moved = order.splice(fromIndex, 1)[0];
+        if (moved === undefined) {
+          return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
+        }
+        order.splice(toIndex, 0, moved);
+        const nextAnnotations = remapAfterReorder(
+          useAnnotationStore.getState().annotations,
+          order,
+        );
+        const nextWriterElements = remapWriterAfterReorder(
+          useWriterV2Store.getState().elements,
+          order,
+        );
+        const nextBytes = await PdfEditAdapter.movePage(context.workingBytes, fromIndex, toIndex);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Page reordered', result.nextBytes, result.nextPageCount);
       }
 
       case 'REORDER_PAGES_BY_ORDER': {
-        const nextAnnotations = remapAfterReorder(useAnnotationStore.getState().annotations, command.order);
-        const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, command.order);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages reordered', result.nextBytes, result.nextPageCount);
+        const { order } = command.payload;
+        if (order.length !== pageCount) {
+          return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
+        }
+        const nextAnnotations = remapAfterReorder(
+          useAnnotationStore.getState().annotations,
+          order,
+        );
+        const nextWriterElements = remapWriterAfterReorder(
+          useWriterV2Store.getState().elements,
+          order,
+        );
+        const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages reordered', result.nextBytes, result.nextPageCount);
       }
 
       case 'EXTRACT_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for extraction');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for extraction.');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
-        return commandSuccess(command.type, source, false, 'Pages extracted', undefined, undefined, [
+        return commandSuccess(command, false, 'Pages extracted', undefined, undefined, [
           {
             kind: 'pdf',
-            name: outputName('extract-pages', pageIndices, command.outputName),
+            name: outputName('extract-pages', pageIndices, command.payload.outputName),
             bytes: extractedBytes,
           },
         ]);
       }
 
       case 'SPLIT_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for split');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for split.');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
-        const nextAnnotations = remapAfterDelete(useAnnotationStore.getState().annotations, pageIndices);
+        const nextAnnotations = remapAfterDelete(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDelete(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages split into a new file', result.nextBytes, result.nextPageCount, [
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages split into a new file', result.nextBytes, result.nextPageCount, [
           {
             kind: 'pdf',
-            name: outputName('split-pages', pageIndices, command.outputName),
+            name: outputName('split-pages', pageIndices, command.payload.outputName),
             bytes: extractedBytes,
           },
         ]);
       }
 
       case 'DELETE_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for deletion');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for deletion.');
         }
-        const nextAnnotations = remapAfterDelete(useAnnotationStore.getState().annotations, pageIndices);
+        if (pageIndices.length >= pageCount) {
+          return commandError(command, 'VALIDATION_FAILED', 'Cannot delete every page in the document.');
+        }
+        const nextAnnotations = remapAfterDelete(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDelete(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages deleted', result.nextBytes, result.nextPageCount);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages deleted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_PAGES': {
-        assertDonorCommandCurrent(context, payload, 'insert donor pages: before mutation');
-        inspectAdmittedDonorPdfs('INSERT_PAGES', [command.donor], context.documentKey);
-        const [donor] = consumeAdmittedDonorPdfs(
-          'INSERT_PAGES',
-          [command.donor],
-          context.documentKey,
-        );
+        const donor = resolveDonor(input, command.payload.donorResourceId);
+        if (!donor) {
+          return commandError(command, 'RESOURCE_MISSING', 'The admitted donor resource is unavailable.');
+        }
+        assertDonorCommandCurrent(context, input, 'insert donor pages: before mutation');
+        inspectAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
+        const [resolved] = consumeAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
         const nextAnnotations = remapAfterInsert(
           useAnnotationStore.getState().annotations,
-          command.atIndex,
-          donor.pageCount,
+          command.payload.atIndex,
+          resolved.pageCount,
+        );
+        const nextWriterElements = remapWriterAfterInsert(
+          useWriterV2Store.getState().elements,
+          command.payload.atIndex,
+          resolved.pageCount,
         );
         const nextBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
-          donor.bytes,
-          command.atIndex,
+          resolved.bytes,
+          command.payload.atIndex,
         );
-        assertDonorCommandCurrent(context, payload, 'insert donor pages: before commit');
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
+        assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_BLANK_PAGE': {
-        const nextAnnotations = remapAfterInsert(useAnnotationStore.getState().annotations, command.atIndex, 1);
-        const nextBytes = await PdfEditAdapter.insertBlankPage(
-          context.workingBytes,
-          command.atIndex,
-          command.size,
+        const { atIndex, size } = command.payload;
+        const nextAnnotations = remapAfterInsert(
+          useAnnotationStore.getState().annotations,
+          atIndex,
+          1,
         );
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Blank page inserted', result.nextBytes, result.nextPageCount);
+        const nextWriterElements = remapWriterAfterInsert(
+          useWriterV2Store.getState().elements,
+          atIndex,
+          1,
+        );
+        const nextBytes = await PdfEditAdapter.insertBlankPage(context.workingBytes, atIndex, size);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Blank page inserted', result.nextBytes, result.nextPageCount);
       }
 
       case 'REPLACE_PAGE': {
-        assertDonorCommandCurrent(context, payload, 'replace page: before mutation');
-        const [inspectedDonor] = inspectAdmittedDonorPdfs(
-          'REPLACE_PAGE',
-          [command.donor],
-          context.documentKey,
-        );
+        const { atIndex, donorResourceId, donorPageIndex } = command.payload;
+        const donor = resolveDonor(input, donorResourceId);
+        if (!donor) {
+          return commandError(command, 'RESOURCE_MISSING', 'The admitted donor resource is unavailable.');
+        }
+        assertDonorCommandCurrent(context, input, 'replace page: before mutation');
+        const [inspected] = inspectAdmittedDonorPdfs('REPLACE_PAGE', [donor], context.documentKey);
         if (
-          !Number.isInteger(command.donorPageIndex)
-          || command.donorPageIndex < 0
-          || command.donorPageIndex >= inspectedDonor.pageCount
+          !Number.isInteger(donorPageIndex)
+          || donorPageIndex < 0
+          || donorPageIndex >= inspected.pageCount
         ) {
           return commandError(
-            command.type,
-            source,
+            command,
             'VALIDATION_FAILED',
-            'The selected donor page is outside the admitted donor page range',
+            'The selected donor page is outside the admitted donor page range.',
           );
         }
-        const [donor] = consumeAdmittedDonorPdfs(
-          'REPLACE_PAGE',
-          [command.donor],
-          context.documentKey,
-        );
-        // Treat as delete-then-insert: annotations on replaced page are cleared.
+        const [resolved] = consumeAdmittedDonorPdfs('REPLACE_PAGE', [donor], context.documentKey);
         const nextAnnotations = remapAfterInsert(
-          remapAfterDelete(useAnnotationStore.getState().annotations, [command.atIndex]),
-          command.atIndex,
+          remapAfterDelete(useAnnotationStore.getState().annotations, [atIndex]),
+          atIndex,
+          1,
+        );
+        const nextWriterElements = remapWriterAfterInsert(
+          remapWriterAfterDelete(
+            useWriterV2Store.getState().elements,
+            [atIndex],
+          ),
+          atIndex,
           1,
         );
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
-          command.atIndex,
-          donor.bytes,
-          command.donorPageIndex,
+          atIndex,
+          resolved.bytes,
+          donorPageIndex,
         );
-        assertDonorCommandCurrent(context, payload, 'replace page: before commit');
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Page replaced', result.nextBytes, result.nextPageCount);
+        assertDonorCommandCurrent(context, input, 'replace page: before commit');
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Page replaced', result.nextBytes, result.nextPageCount);
       }
 
       case 'DUPLICATE_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for duplication');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for duplication.');
         }
-        const nextAnnotations = remapAfterDuplicate(useAnnotationStore.getState().annotations, pageIndices);
+        const nextAnnotations = remapAfterDuplicate(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDuplicate(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes, nextAnnotations);
-        return commandSuccess(command.type, source, true, 'Pages duplicated', result.nextBytes, result.nextPageCount);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
+        return commandSuccess(command, true, 'Pages duplicated', result.nextBytes, result.nextPageCount);
       }
 
       case 'MERGE_PDF': {
-        if (command.donors.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No donor files provided for merge');
+        const donorRefs = resolveDonors(input, command.payload.donorResourceIds);
+        if (!donorRefs || donorRefs.length === 0) {
+          return commandError(command, 'RESOURCE_MISSING', 'No admitted donor resources were provided for merge.');
         }
-        assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before mutation');
-        inspectAdmittedDonorPdfs('MERGE_PDF', command.donors, context.documentKey);
-        const donors = consumeAdmittedDonorPdfs(
-          'MERGE_PDF',
-          command.donors,
-          context.documentKey,
-        );
+        assertDonorCommandCurrent(context, input, 'merge donor PDFs: before mutation');
+        inspectAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
+        const donors = consumeAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
         const nextBytes = await PdfEditAdapter.merge(
           context.workingBytes,
           donors.map((donor) => donor.bytes),
         );
-        assertDonorCommandCurrent(context, payload, 'merge donor PDFs: before commit');
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        return commandSuccess(command.type, source, true, 'Files merged', result.nextBytes, result.nextPageCount);
+        assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
+        const result = await applyMutation(command, context.workingBytes, nextBytes);
+        return commandSuccess(command, true, 'Files merged', result.nextBytes, result.nextPageCount);
       }
 
       case 'ADD_HEADER_FOOTER_TEXT': {
-        const selectedIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const { options } = command.payload;
+        const selectedIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         const pageIndices = selectedIndices.filter((index) => {
           const pageNumber = index + 1;
-          if (command.options.excludeFirstPage && pageNumber === 1) return false;
-          if (command.options.excludeLastPage && pageNumber === pageCount) return false;
+          if (options.excludeFirstPage && pageNumber === 1) return false;
+          if (options.excludeLastPage && pageNumber === pageCount) return false;
           return true;
         });
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for header/footer text');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for header/footer text.');
         }
         const nextBytes = await PdfEditAdapter.addHeaderFooterText(context.workingBytes, {
           pages: pageIndices,
-          zone: command.options.zone,
-          text: command.options.text,
-          align: command.options.align,
-          marginX: command.options.marginX,
-          marginY: command.options.marginY,
-          fontSize: command.options.fontSize,
-          color: command.options.color ?? '#374151',
-          opacity: command.options.opacity ?? 0.9,
+          zone: options.zone,
+          text: options.text,
+          align: options.align,
+          marginX: options.marginX,
+          marginY: options.marginY,
+          fontSize: options.fontSize,
+          color: options.color ?? '#374151',
+          opacity: options.opacity ?? 0.9,
           fileName: context.fileName,
-          now: new Date(),
-          enablePageNumberToken: command.options.pageNumberToken ?? true,
-          enableFileNameToken: command.options.fileNameToken ?? false,
-          enableDateToken: command.options.dateToken ?? false,
+          now: new Date(command.createdAt),
+          enablePageNumberToken: options.pageNumberToken ?? true,
+          enableFileNameToken: options.fileNameToken ?? false,
+          enableDateToken: options.dateToken ?? false,
         });
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        return commandSuccess(command.type, source, true, 'Header/footer text applied', result.nextBytes, result.nextPageCount);
+        const result = await applyMutation(command, context.workingBytes, nextBytes);
+        return commandSuccess(command, true, 'Header/footer text applied', result.nextBytes, result.nextPageCount);
       }
 
       case 'DRAW_TEXT_ON_PAGES': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const { options } = command.payload;
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for drawing text');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for drawing text.');
         }
         const nextBytes = await PdfEditAdapter.drawTextOnPages(context.workingBytes, {
           pages: pageIndices,
-          text: command.options.text,
-          x: command.options.x,
-          y: command.options.y,
-          fontSize: command.options.fontSize,
-          color: command.options.color ?? '#111827',
-          opacity: command.options.opacity ?? 0.95,
-          align: command.options.align ?? 'left',
-          rotation: command.options.rotation,
+          text: options.text,
+          x: options.x,
+          y: options.y,
+          fontSize: options.fontSize,
+          color: options.color ?? '#111827',
+          opacity: options.opacity ?? 0.95,
+          align: options.align ?? 'left',
+          rotation: options.rotation,
           fileName: context.fileName,
-          now: new Date(),
-          enablePageNumberToken: command.options.pageNumberToken ?? true,
-          enableFileNameToken: command.options.fileNameToken ?? false,
-          enableDateToken: command.options.dateToken ?? false,
+          now: new Date(command.createdAt),
+          enablePageNumberToken: options.pageNumberToken ?? true,
+          enableFileNameToken: options.fileNameToken ?? false,
+          enableDateToken: options.dateToken ?? false,
         });
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
-        return commandSuccess(command.type, source, true, 'Text applied to pages', result.nextBytes, result.nextPageCount);
+        const result = await applyMutation(command, context.workingBytes, nextBytes);
+        return commandSuccess(command, true, 'Text applied to pages', result.nextBytes, result.nextPageCount);
       }
 
       case 'DRAW_REDACTION_BOX': {
-        const pageIndices = sanitizePageIndices(command.pageIndices, pageCount);
+        const { options } = command.payload;
+        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
         if (pageIndices.length === 0) {
-          return commandError(command.type, source, 'VALIDATION_FAILED', 'No pages selected for visual masking');
+          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for visual masking.');
         }
         const nextBytes = await PdfEditAdapter.drawRedactionBoxes(context.workingBytes, {
           pages: pageIndices,
-          x: command.options.x,
-          y: command.options.y,
-          width: command.options.width,
-          height: command.options.height,
-          fillColor: command.options.fillColor ?? '#ffffff',
+          x: options.x,
+          y: options.y,
+          width: options.width,
+          height: options.height,
+          fillColor: options.fillColor ?? '#ffffff',
         });
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
+        const result = await applyMutation(command, context.workingBytes, nextBytes);
         return commandSuccess(
-          command.type,
-          source,
+          command,
           true,
           'Visual mask applied. Underlying PDF content was not securely removed.',
           result.nextBytes,
@@ -465,34 +628,48 @@ export async function dispatchCommand(payload: CommandPayload): Promise<CommandR
         );
       }
 
-      case 'REPLACE_WORKING_COPY': {
-        const nextBytes = command.nextBytes;
-        const resolvedPageCount = typeof command.nextPageCount === 'number'
-          ? command.nextPageCount
-          : await PdfEditAdapter.countPages(nextBytes);
-        const result = await applyMutation(command, source, context.workingBytes, nextBytes);
+      case 'ANNOTATION_CHANGE':
+      case 'WRITER_CHANGE':
+        return commandError(
+          command,
+          'VALIDATION_FAILED',
+          `${command.type} is recorded by its state store and is not executable as a PDF byte command.`,
+        );
+
+      case 'APPLY_WORKING_COPY': {
+        const nextBytes = input.resources?.binaries?.[command.payload.binaryResourceId];
+        if (!nextBytes) {
+          return commandError(command, 'RESOURCE_MISSING', 'The working-copy binary resource is unavailable.');
+        }
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          undefined,
+          undefined,
+          command.payload.selectedPages,
+        );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });
         return commandSuccess(
-          command.type,
-          source,
+          command,
           true,
-          command.reason ?? 'Working copy replaced',
+          command.payload.reason ?? command.payload.macro?.recipeName ?? 'Working copy applied',
           result.nextBytes,
-          resolvedPageCount,
+          result.nextPageCount,
         );
       }
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
     if (isOperationCancelledError(error)) {
-      return commandError(command.type, source, 'CANCELLED', message);
+      return commandError(command, 'CANCELLED', message);
     }
     if (isDonorAdmissionBoundaryError(error)) {
-      return commandError(command.type, source, 'ADMISSION_REJECTED', message);
+      return commandError(command, 'ADMISSION_REJECTED', message);
     }
     const details = isDocumentMutationTransactionError(error)
       ? `transaction-stage=${error.stage}`
       : undefined;
-    return commandError(command.type, source, 'EXECUTION_FAILED', message, details);
+    return commandError(command, 'EXECUTION_FAILED', message, details);
   }
 }

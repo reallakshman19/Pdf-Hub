@@ -81,13 +81,17 @@ export const WriterKeyboardHandler: React.FC = () => {
       }
 
       if (ctrl && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        if (store.documentMeta?.mode !== 'blankDocument') return;
         event.preventDefault();
+        event.stopPropagation();
         store.undoWriter();
         return;
       }
 
       if (ctrl && event.key.toLowerCase() === 'z' && event.shiftKey) {
+        if (store.documentMeta?.mode !== 'blankDocument') return;
         event.preventDefault();
+        event.stopPropagation();
         store.redoWriter();
       }
     };

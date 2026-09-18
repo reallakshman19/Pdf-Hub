@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { DocumentCommand } from '../../commands/types';
+import {
+  materializePdfCommand,
+  type PdfCommand,
+} from '../../commands/types';
 import type { Transaction } from '../types';
 import {
   retainedBytesForTransactions,
@@ -7,7 +10,32 @@ import {
   type HistoryRetentionPolicy,
 } from '../historyBudget';
 
-const command: DocumentCommand = { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 };
+const command: PdfCommand = materializePdfCommand(
+  {
+    type: 'ROTATE_PAGES',
+    payload: {
+      pageIndices: [0],
+      angle: 90,
+    },
+  },
+  'toolbar',
+  'doc',
+  {
+    id: 'budget-rotate',
+    createdAt: '2026-09-18T00:00:00.000Z',
+  },
+);
+
+function state(bytes: Uint8Array) {
+  return {
+    bytes,
+    pageCount: 1,
+    documentKey: 'doc',
+    selectedPages: [1],
+    currentPage: 1,
+    annotations: [],
+  };
+}
 
 function transaction(
   id: string,
@@ -17,11 +45,10 @@ function transaction(
   return {
     id,
     command,
-    source: 'toolbar',
     label: id,
     timestamp: 0,
-    before: { bytes: beforeBytes, pageCount: 1 },
-    after: { bytes: afterBytes, pageCount: 1 },
+    before: state(beforeBytes),
+    after: state(afterBytes),
   };
 }
 

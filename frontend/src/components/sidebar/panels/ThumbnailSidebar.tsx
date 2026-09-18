@@ -9,7 +9,8 @@ import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { useSearchStore } from '@/core/search/store';
-import { dispatchCommand } from '@/core/commands/dispatch';
+import { commandBus } from '@/core/commands/bus';
+import { materializePdfCommand } from '@/core/commands/types';
 import { isOperationCancelledError, raceWithAbort } from '@/core/cancellation/operationCancellation';
 import { ThumbnailActionStrip } from '@/components/sidebar/thumbnails/ThumbnailActionStrip';
 import { ThumbnailContextMenu } from '@/components/sidebar/thumbnails/ThumbnailContextMenu';
@@ -328,12 +329,17 @@ const ThumbnailSidebar: React.FC = () => {
     const movingIndices = movingPages.map((page) => page - 1).sort((left, right) => left - right);
     const order = buildReorderOrder(pageCount, movingIndices, targetPage - 1);
 
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: {
-        type: 'REORDER_PAGES_BY_ORDER',
-        order,
-      },
+    if (!documentKey) return;
+
+    const result = await commandBus.execute({
+      command: materializePdfCommand(
+        {
+          type: 'REORDER_PAGES_BY_ORDER',
+          payload: { order },
+        },
+        'thumbnail-menu',
+        documentKey,
+      ),
     });
 
     if (result.success) {

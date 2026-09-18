@@ -6,7 +6,6 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
-import { useEditorStore } from '@/core/editor/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -25,16 +24,12 @@ export const useKeyboardShortcuts = () => {
     duplicateSelection,
     deleteSelection,
     clearSelection,
-    undo,
-    redo,
   } = useAnnotationStore(useShallow((state) => ({
     copySelection: state.copySelection,
     pasteClipboard: state.pasteClipboard,
     duplicateSelection: state.duplicateSelection,
     deleteSelection: state.deleteSelection,
     clearSelection: state.clearSelection,
-    undo: state.undo,
-    redo: state.redo,
   })));
 
   useEffect(() => {
@@ -59,13 +54,11 @@ export const useKeyboardShortcuts = () => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
         if (isTypingTarget) return;
         event.preventDefault();
-        const activeMode = useEditorStore.getState().activeMode;
-        if (activeMode === 'write') {
-          useWriterV2Store.getState().undoWriter();
+        const writer = useWriterV2Store.getState();
+        if (writer.documentMeta?.mode === 'blankDocument') {
+          writer.undoWriter();
         } else if (useHistoryStore.getState().canUndo()) {
-          applyUndo();
-        } else {
-          undo();
+          void applyUndo();
         }
         return;
       }
@@ -76,13 +69,11 @@ export const useKeyboardShortcuts = () => {
       ) {
         if (isTypingTarget) return;
         event.preventDefault();
-        const activeMode = useEditorStore.getState().activeMode;
-        if (activeMode === 'write') {
-          useWriterV2Store.getState().redoWriter();
+        const writer = useWriterV2Store.getState();
+        if (writer.documentMeta?.mode === 'blankDocument') {
+          writer.redoWriter();
         } else if (useHistoryStore.getState().canRedo()) {
-          applyRedo();
-        } else {
-          redo();
+          void applyRedo();
         }
         return;
       }
@@ -175,7 +166,5 @@ export const useKeyboardShortcuts = () => {
     duplicateSelection,
     deleteSelection,
     clearSelection,
-    undo,
-    redo,
   ]);
 };
