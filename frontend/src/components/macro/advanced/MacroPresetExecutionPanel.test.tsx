@@ -190,22 +190,28 @@ describe('MacroPresetExecutionPanel', () => {
     });
   });
 
-  it('delegates preset saving and reset to the parent configuration owner', () => {
+  it('delegates preset saving but keeps run-state reset local', async () => {
     const onSavePreset = vi.fn();
-    const onReset = vi.fn();
 
     render(
       <MacroPresetExecutionPanel
-        recipe={safeRecipe}
+        recipe={destructiveRecipe}
         onSavePreset={onSavePreset}
-        onReset={onReset}
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Preset' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(onSavePreset).toHaveBeenCalledWith(destructiveRecipe);
 
-    expect(onSavePreset).toHaveBeenCalledWith(safeRecipe);
-    expect(onReset).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('macro-preset-test-run'));
+    await waitFor(() => {
+      expect(screen.getByText('Test Run passed')).toBeInTheDocument();
+      expect(screen.getByTestId('macro-preset-run')).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Run State' }));
+
+    expect(screen.queryByText('Test Run passed')).toBeNull();
+    expect(screen.getByTestId('macro-preset-run')).toBeDisabled();
   });
 });
