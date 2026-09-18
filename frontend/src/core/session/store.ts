@@ -187,40 +187,43 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
 
   commitWorkingCopy: ({ bytes, pageCount, documentKey }) => {
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
-    return set((state) => ({
-      documentKey: documentKey === undefined ? state.documentKey : documentKey,
-      originalBytes: bytes,
-      workingBytes: bytes,
-      pageCount,
-      pageGraph:
+    return set((state) => {
+      const nextDocumentKey =
+        documentKey === undefined ? state.documentKey : documentKey;
+      const nextPageGraph =
         state.pageGraph && state.pageGraph.pages.length === pageCount
-          ? (documentKey === undefined ? state.documentKey : documentKey)
-            ? rekeyPageGraph(
-                state.pageGraph,
-                (documentKey === undefined ? state.documentKey : documentKey) as string,
-              )
+          ? nextDocumentKey
+            ? rekeyPageGraph(state.pageGraph, nextDocumentKey)
             : state.pageGraph
-          : null,
-      isDirty: false,
-      isDocumentDirty: false,
-      isReviewDirty: false,
-      isSessionDirty: false,
-      selectedPages: validSelectedPages(state.selectedPages, pageCount),
-      viewState: {
-        ...state.viewState,
-        currentPage: clampPage(state.viewState.currentPage, pageCount),
-      },
-      saveState: {
-        status: 'saved',
-        completedAt: Date.now(),
-        message: 'Document saved',
-      },
-      annotationAutosaveState: {
-        status: 'saved',
-        pendingCount: 0,
-        lastSavedAt: Date.now(),
-      },
-    }));
+          : null;
+
+      return {
+        documentKey: nextDocumentKey,
+        originalBytes: bytes,
+        workingBytes: bytes,
+        pageCount,
+        pageGraph: nextPageGraph,
+        isDirty: false,
+        isDocumentDirty: false,
+        isReviewDirty: false,
+        isSessionDirty: false,
+        selectedPages: validSelectedPages(state.selectedPages, pageCount),
+        viewState: {
+          ...state.viewState,
+          currentPage: clampPage(state.viewState.currentPage, pageCount),
+        },
+        saveState: {
+          status: 'saved',
+          completedAt: Date.now(),
+          message: 'Document saved',
+        },
+        annotationAutosaveState: {
+          status: 'saved',
+          pendingCount: 0,
+          lastSavedAt: Date.now(),
+        },
+      };
+    });
   },
 
   setPage: (currentPage) =>
