@@ -234,6 +234,70 @@ void writerStore;
 void writerPersistence;
 void writerAutosave;
 
+const ocrTypes = requireContains('src/core/ocr/types.ts', [
+  'pageId?: PageId',
+  'export interface OcrReviewFocus',
+]);
+
+const ocrAnchors = requireContains('src/core/ocr/ocrPageAnchor.ts', [
+  'normalizeOcrPageAnchoredState',
+  'reanchorOcrPageStateAfterPageGraphChange',
+  'rekeyOcrPageAnchoredState',
+  'transformRectForRotation',
+]);
+
+const ocrStore = requireContains('src/core/ocr/ocrStore.ts', [
+  'normalizeOcrPageAnchoredState',
+  'pageIdForOcrPageIndex',
+  'snapshot.job.documentFingerprint !== activeDocumentKey',
+  'result.documentFingerprint !== activeDocumentKey',
+]);
+
+if (!historyTypeSource.includes('ocr?: OcrPageAnchoredState')) {
+  failures.push('document history must retain OCR page-scoped state');
+}
+
+for (const requiredToken of [
+  'currentOcrPageState',
+  'commitOcrPageState',
+  'reanchorOcrPageStateAfterPageGraphChange',
+  'rekeyOcrPageAnchoredState',
+  'ocr: cloneOcrPageAnchoredState(ocrBefore)',
+  'ocr: cloneOcrPageAnchoredState(ocrAfter)',
+]) {
+  if (!documentTransaction.includes(requiredToken)) {
+    failures.push(`document transaction missing OCR state token: ${requiredToken}`);
+  }
+}
+
+for (const requiredToken of [
+  "state.ocr",
+  'normalizeOcrPageAnchoredState',
+  'activeJobId: null',
+  'jobs: []',
+]) {
+  if (!historyRestoreSource.includes(requiredToken)) {
+    failures.push(`history restore missing OCR token: ${requiredToken}`);
+  }
+}
+
+if (!commandDispatch.includes('invalidatePageIds: [targetPageId]')) {
+  failures.push('REPLACE_PAGE must invalidate OCR attached to replaced page content');
+}
+
+for (const requiredToken of [
+  'rebindByPageIndex: true',
+  'clearIfPageCountChanged: true',
+]) {
+  if (!commandDispatch.includes(requiredToken)) {
+    failures.push(`opaque working-copy OCR policy missing: ${requiredToken}`);
+  }
+}
+
+void ocrTypes;
+void ocrAnchors;
+void ocrStore;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
