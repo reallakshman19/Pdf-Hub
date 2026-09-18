@@ -141,6 +141,24 @@ export const MacrosSidebar: React.FC = () => {
     [overridesByRecipe, pageCount, selectedRecipe],
   );
 
+  const effectiveRecipe = React.useMemo(
+    () =>
+      selectedRecipe
+        ? applyOverridesToRecipe(
+            selectedRecipe,
+            overrides,
+            viewState.currentPage,
+            Math.max(1, pageCount),
+          )
+        : undefined,
+    [
+      overrides,
+      pageCount,
+      selectedRecipe,
+      viewState.currentPage,
+    ],
+  );
+
   const hasRotate = selectedRecipe?.steps.some((step) => step.op === 'rotate_pages') ?? false;
   const hasExtractOrSplit =
     selectedRecipe?.steps.some((step) => step.op === 'extract_pages' || step.op === 'split_pages') ??
