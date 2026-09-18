@@ -64,6 +64,8 @@ export const AutomateSidebar: React.FC = () => {
   const [tab, setTab] = React.useState<AutomateTab>('quick');
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
   const [runningRecipeId, setRunningRecipeId] = React.useState<string | null>(null);
+  const [specializedOpen, setSpecializedOpen] = React.useState(false);
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(
@@ -225,24 +227,36 @@ export const AutomateSidebar: React.FC = () => {
           />
         ) : null}
 
-        <details className="mt-4 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+        <details
+          className="mt-4 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+          open={specializedOpen}
+          onToggle={(event) => setSpecializedOpen(event.currentTarget.open)}
+        >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Wrench className="h-3.5 w-3.5" />
             Specialized workflows
           </summary>
-          <div className="border-t border-slate-100 dark:border-slate-800">
-            <PsIsonoteRecipeBuilder />
-          </div>
+          {specializedOpen ? (
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <PsIsonoteRecipeBuilder />
+            </div>
+          ) : null}
         </details>
 
-        <details className="mt-2 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+        <details
+          className="mt-2 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+          open={advancedOpen}
+          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+        >
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <Settings2 className="h-3.5 w-3.5" />
             Advanced macro tools
           </summary>
-          <div className="border-t border-slate-100 dark:border-slate-800">
-            <MacrosSidebar />
-          </div>
+          {advancedOpen ? (
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <MacrosSidebar />
+            </div>
+          ) : null}
         </details>
       </div>
     </div>
