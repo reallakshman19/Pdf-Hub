@@ -27,7 +27,14 @@ function summarizeStep(step: MacroStep): string {
   if (step.op === 'header_footer_text') return `${step.zone} · ${step.align} · "${step.text}"`;
   if (step.op === 'insert_blank_page') {
     const pos = step.position;
-    const posStr = pos.mode === 'before' || pos.mode === 'after' ? `${pos.mode} page ${pos.page}` : pos.mode;
+    const posStr =
+      pos.mode === 'before' || pos.mode === 'after'
+        ? `${pos.mode} page ${pos.page}`
+        : pos.mode === 'before-current'
+          ? 'before current page'
+          : pos.mode === 'after-current'
+            ? 'after current page'
+            : pos.mode;
     return `${posStr} · ${typeof step.size === 'string' ? step.size : 'custom'}`;
   }
   if (step.op === 'replace_page') return `page ${step.targetPage} ← donor p${step.donorPage}`;
@@ -60,7 +67,7 @@ export function MacroStepsTable({
         <thead>
           <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
             <th className="py-2 px-2 font-semibold text-slate-500 dark:text-slate-400 w-8">#</th>
-            <th className="py-2 px-2 font-semibold text-slate-500 dark:text-slate-400">Operation</th>
+            <th className="py-2 px-2 font-semibold text-slate-500 dark:text-slate-400">Action</th>
             <th className="py-2 px-2 font-semibold text-slate-500 dark:text-slate-400">Parameters</th>
             <th className="py-2 px-2 font-semibold text-slate-500 dark:text-slate-400 w-20">Status</th>
             <th className="py-2 px-2 w-24" />
@@ -91,8 +98,7 @@ export function MacroStepsTable({
               >
                 <td className="py-2 px-2 text-slate-400 dark:text-slate-500 font-mono">{index + 1}</td>
                 <td className="py-2 px-2">
-                  <div className="font-medium text-slate-800 dark:text-slate-200">{presentation?.label ?? step.op}</div>
-                  <div className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{step.op}</div>
+                  <div className="font-medium text-slate-800 dark:text-slate-200">{presentation?.label ?? 'Workflow step'}</div>
                 </td>
                 <td className="py-2 px-2 text-slate-600 dark:text-slate-300 font-mono">{summarizeStep(step)}</td>
                 <td className="py-2 px-2">

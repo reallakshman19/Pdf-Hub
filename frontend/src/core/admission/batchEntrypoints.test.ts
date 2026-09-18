@@ -9,19 +9,20 @@ function readSource(relativePath: string): string {
 }
 
 describe('batch PDF source boundaries', () => {
-  it('routes the toolbar batch action through file sources', () => {
-    const source = readSource('components/toolbar/ToolbarOrganize.tsx');
+  it('routes Automate batch processing through file sources', () => {
+    const source = readSource('components/macro/advanced/MacroBatchRunPanel.tsx');
     const batchSection = source.slice(
-      source.indexOf('const confirmBatchRun'),
-      source.indexOf('return (', source.indexOf('const confirmBatchRun')),
+      source.indexOf('const runBatch = async'),
+      source.indexOf('return (', source.indexOf('const runBatch = async')),
     );
 
     expect(batchSection).toContain('FileAdapter.pickPdfFileSources(true)');
     expect(batchSection).toContain('runMacroBatch({');
     expect(batchSection).toContain('sources,');
+    expect(batchSection).toContain('onOutput:');
+    expect(batchSection).toContain('FileAdapter.downloadBytes');
     expect(batchSection).not.toContain('FileAdapter.pickPdfFiles(true)');
     expect(batchSection).not.toMatch(/\.arrayBuffer\s*\(/);
-    expect(batchSection).not.toContain('Uint8Array');
   });
 
   it('keeps the batch runner sequential and source-based', () => {
@@ -37,10 +38,12 @@ describe('batch PDF source boundaries', () => {
 
     expect(options).toContain('sources: readonly PickedPdfFileSource[]');
     expect(options).not.toContain('files:');
+    expect(options).toContain('onOutput?:');
     expect(result).not.toContain('Uint8Array');
     expect(result).not.toContain('ArrayBuffer');
     expect(source).not.toContain('Promise.all');
     expect(source).not.toContain('successes:');
-    expect(source).not.toContain('bytes: result.finalBytes');
+    expect(source).toContain('bytes: execution.finalBytes');
+    expect(source).toContain('await options.onOutput?.');
   });
 });

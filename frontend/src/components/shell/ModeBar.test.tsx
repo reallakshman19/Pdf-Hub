@@ -11,7 +11,12 @@ vi.mock('@/hooks/useIsMobile', () => ({
 describe('ModeBar', () => {
   beforeEach(() => {
     vi.mocked(useIsMobile).mockReturnValue(false);
-    useEditorStore.setState({ activeMode: 'annotate' });
+    useEditorStore.setState({
+      activeMode: 'annotate',
+      sidebarTab: 'thumbnails',
+      mobileDrawerOpen: false,
+      mobileSheetOpen: true,
+    });
   });
 
   it('returns null (renders nothing) when useIsMobile is false', () => {
@@ -37,6 +42,19 @@ describe('ModeBar', () => {
     const fileButton = screen.getByText('File');
     fireEvent.click(fileButton);
     expect(useEditorStore.getState().activeMode).toBe('file');
+  });
+
+  it('opens the Automate drawer when the mobile Automate mode is selected', () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    render(<ModeBar />);
+
+    fireEvent.click(screen.getByText('Automate'));
+
+    const state = useEditorStore.getState();
+    expect(state.activeMode).toBe('generate');
+    expect(state.sidebarTab).toBe('macros');
+    expect(state.mobileDrawerOpen).toBe(true);
+    expect(state.mobileSheetOpen).toBe(false);
   });
 
   it('enforces touch targets (min-h-[44px]) on mobile buttons', () => {

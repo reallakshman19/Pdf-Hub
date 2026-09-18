@@ -4,9 +4,11 @@ import { WriterElementNode } from './WriterElementNode';
 import type { PlacedElement } from '../../core/writer/types';
 import { WriterSnapGuides } from './WriterSnapGuides';
 import type { SnapGuide } from '../../core/writer/geometry';
-import { recognizeImage } from '../../core/ocr/clientOcr';
 import { useToastStore } from '../../core/toast/store';
-import { error as logError } from '@/core/logger/service';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import type { OcrRegionMode } from '@/core/ocr/ocrRegionModel';
+import { useEditorStore } from '@/core/editor/store';
+import { useSessionStore } from '@/core/session/store';
 
 interface Props {
   pageNumber:     number;
@@ -16,20 +18,6 @@ interface Props {
 
 function nextId(): string {
   return `wel-${crypto.randomUUID()}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function ocrTextToHtml(value: string): string {
-  const escaped = escapeHtml(value);
-  return `<p>${escaped.replace(/\r?\n/g, '<br/>')}</p>`;
 }
 
 function isWriterPlacementTool(tool: string): boolean {
@@ -55,10 +43,21 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
     .sort((a, b) => a.zIndex - b.zIndex);
 
   const addToast = useToastStore(s => s.addToast);
+  const documentKey = useSessionStore((state) => state.documentKey);
+  const ocrDocumentFingerprint = useOcrStore((state) => state.documentFingerprint);
+  const addOcrRegion = useOcrStore((state) => state.addOcrRegion);
+  const focusOcrTarget = useOcrStore((state) => state.focusOcrTarget);
+  const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
 
   // Marquee selection state
   const [marqueeStart, setMarqueeStart] = useState<{ x: number, y: number } | null>(null);
   const [marqueeCurrent, setMarqueeCurrent] = useState<{ x: number, y: number } | null>(null);
+  const [pendingOcrRect, setPendingOcrRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Snap guides state (passed down from store or managed locally during drag)
   // To keep it simple, WriterElementNode will push active guides up via a custom event or callback,
@@ -97,7 +96,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       clearSelection();
     }
 
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
 
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
@@ -120,7 +119,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!marqueeStart || !marqueeCurrent) return;
 
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
 
     // If it was just a tiny click movement, don't trigger selection box logic
     const dx = Math.abs(marqueeCurrent.x - marqueeStart.x);
@@ -134,66 +133,13 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
        const bottom = Math.max(marqueeStart.y, marqueeCurrent.y) / scale;
 
        if (isOcr) {
-         if (!pageDimensions) {
-           setMarqueeStart(null);
-           setMarqueeCurrent(null);
-           return;
-         }
-
-         // Perform OCR
-             const container = e.currentTarget.parentElement?.parentElement;
-             if (container) {
-               const canvas = container.querySelector('canvas');
-           if (canvas) {
-             // Create an offscreen canvas to extract just the selected rect from the main canvas
-             const offscreen = document.createElement('canvas');
-             // The main canvas is rendered at a higher pixel density often, but we assume
-             // it maps roughly to the screen coords.
-             // Best way is to scale the extraction rect up by the canvas's internal scaling.
-             const scaleX = canvas.width / (pageDimensions.width * scale);
-             const scaleY = canvas.height / (pageDimensions.height * scale);
-
-             offscreen.width = (right - left) * scale * scaleX;
-             offscreen.height = (bottom - top) * scale * scaleY;
-             const ctx = offscreen.getContext('2d');
-             if (ctx) {
-               ctx.drawImage(
-                 canvas,
-                 left * scale * scaleX, top * scale * scaleY, offscreen.width, offscreen.height,
-                 0, 0, offscreen.width, offscreen.height
-               );
-               const dataUrl = offscreen.toDataURL('image/png');
-
-               addToast({ type: 'info', title: 'Running OCR', message: 'Extracting text from region...' });
-
-               recognizeImage(dataUrl).then(text => {
-                 if (text.trim()) {
-                   addElement({
-                     id: nextId(),
-                     type: 'rich-text',
-                     pageNumber,
-                     x: left,
-                     y: top,
-                     width: Math.max(200/scale, right - left),
-                     height: Math.max(80/scale, bottom - top),
-                     content: ocrTextToHtml(text),
-                     styles: {},
-                     zIndex: elements.length,
-                     locked: false,
-                   });
-                   addToast({ type: 'success', title: 'OCR Complete', message: 'Text extracted successfully.' });
-                 } else {
-                   addToast({ type: 'info', title: 'OCR Complete', message: 'No text found in region.' });
-                 }
-                 setActiveTool('select');
-               }).catch(err => {
-                 logError('ocr', 'OCR region recognition failed', { error: String(err) });
-                 addToast({ type: 'error', title: 'OCR Failed', message: 'Could not extract text.' });
-                 setActiveTool('select');
-               });
-             }
-           }
-         }
+         setPendingOcrRect({
+           x: left,
+           y: top,
+           width: Math.max(1, right - left),
+           height: Math.max(1, bottom - top),
+         });
+         setActiveTool('select');
        } else {
          // Find all elements completely or partially inside the box
          const hits = pageElements.filter(el => {
@@ -220,7 +166,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
     setMarqueeStart(null);
     setMarqueeCurrent(null);
-  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, addElement, elements.length, pageNumber, setActiveTool, addToast, pageDimensions]);
+  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, pageNumber, setActiveTool]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -276,6 +222,54 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
     [isPlacing, isOcr, pageDimensions, scale, activeTool, elements.length, pageNumber, addElement, setActiveTool, setSelectedId],
   );
 
+  const commitOcrRegion = (mode: OcrRegionMode) => {
+    if (!pendingOcrRect) return;
+
+    const fingerprint = documentKey ?? ocrDocumentFingerprint;
+    if (!fingerprint) {
+      addToast({
+        type: 'error',
+        title: 'OCR Area Not Saved',
+        message: 'Open OCR for this document before creating a review area.',
+      });
+      setPendingOcrRect(null);
+      return;
+    }
+
+    const region = addOcrRegion({
+      id: `ocr-region-${crypto.randomUUID()}`,
+      documentFingerprint: fingerprint,
+      pageIndex: pageNumber - 1,
+      bbox: pendingOcrRect,
+      mode,
+    });
+
+    if (!region) {
+      addToast({
+        type: 'error',
+        title: 'OCR Area Not Saved',
+        message: 'The selected area could not be added to OCR review.',
+      });
+      return;
+    }
+
+    focusOcrTarget({
+      documentFingerprint: fingerprint,
+      pageIndex: region.pageIndex,
+      bbox: region.bbox,
+      targetId: region.id,
+      source: 'region',
+      label: `OCR ${mode} area`,
+    });
+    setSidebarTab('ocr');
+    setPendingOcrRect(null);
+    addToast({
+      type: 'success',
+      title: 'OCR Area Added',
+      message: `Added page ${pageNumber} as a ${mode} OCR area.`,
+    });
+  };
+
   if (!pageDimensions) return null;
 
   const captureLayerEnabled = isWriterCaptureMode;
@@ -295,6 +289,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       }}
     >
       <div
+        data-testid="writer-overlay-capture"
         style={{
           position: 'absolute',
           inset: 0,
@@ -337,6 +332,49 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
            />
         )}
       </div>
+
+      {pendingOcrRect && (
+        <>
+          <div
+            className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none"
+            style={{
+              left: pendingOcrRect.x * scale,
+              top: pendingOcrRect.y * scale,
+              width: pendingOcrRect.width * scale,
+              height: pendingOcrRect.height * scale,
+              zIndex: 18,
+            }}
+            data-testid="ocr-document-region-pending"
+          />
+          <div
+            className="absolute z-20 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+            style={{
+              left: Math.max(4, pendingOcrRect.x * scale),
+              top: Math.max(4, pendingOcrRect.y * scale - 38),
+              pointerEvents: 'auto',
+            }}
+            data-testid="ocr-document-region-mode-picker"
+          >
+            {(['text', 'table', 'note'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className="rounded px-2 py-1 text-xs font-medium capitalize text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-blue-950/40"
+                onClick={() => commitOcrRegion(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={() => setPendingOcrRect(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
 
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
         {activeGuides.length > 0 && pageDimensions && (

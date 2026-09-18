@@ -18,11 +18,13 @@ import { OcrSearchMiniPanel } from '../OcrSearchMiniPanel';
 import { OcrConfidenceLegend } from '../OcrConfidenceLegend';
 import { OcrLowConfidencePanel } from '../OcrLowConfidencePanel';
 import { OcrCorrectionPanel } from '../OcrCorrectionPanel';
-import { OcrRegionTool } from '../OcrRegionTool';
 import { OcrRegionListPanel } from '../OcrRegionListPanel';
 import { OcrRegionActionPanel } from '../OcrRegionActionPanel';
 import { OcrTableReviewPanel } from '../OcrTableReviewPanel';
 import { OcrWriterInsertPanel } from '../OcrWriterInsertPanel';
+import { useEditorStore } from '@/core/editor/store';
+import { useWriterStore } from '@/core/writer/store';
+import { Button } from '@/components/ui/Button';
 
 export interface OcrReviewWorkspaceProps {
   documentFingerprint: string;
@@ -36,7 +38,6 @@ export interface OcrReviewWorkspaceProps {
 
 export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   documentFingerprint,
-  selectedPages,
   pages,
   pdfBytes = null,
   writerInsertionQueue,
@@ -56,6 +57,9 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   const [lastRegionTableBlock, setLastRegionTableBlock] = React.useState<OcrTableBlock | null>(null);
   const [lastAcceptedTableSummary, setLastAcceptedTableSummary] = React.useState<string | null>(null);
   const [lastInsertedWriterCount, setLastInsertedWriterCount] = React.useState<number | null>(null);
+  const setActiveMode = useEditorStore((state) => state.setActiveMode);
+  const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
+  const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- document switches must reset document-scoped review state before stale selections remain actionable. */
@@ -108,19 +112,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
 
   const selectedRegionPageInput = React.useMemo(() => {
     if (!selectedRegion) return null;
-
-    const existing = pages?.find((page) => page.pageIndex === selectedRegion.pageIndex);
-
-    if (existing) return existing;
-
-    return {
-      pageIndex: selectedRegion.pageIndex,
-      imageBytes: new Uint8Array([1, 2, 3]),
-      width: 595,
-      height: 842,
-      imageCount: 1,
-      region: selectedRegion.bbox,
-    };
+    return pages?.find((page) => page.pageIndex === selectedRegion.pageIndex) ?? null;
   }, [
     pages,
     selectedRegion,
@@ -216,6 +208,17 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
               limit: 8,
             })
           }
+          onSelectMatch={(match) => {
+            if (!match.item.bbox) return;
+            useOcrStore.getState().focusOcrTarget({
+              documentFingerprint,
+              pageIndex: match.item.pageIndex,
+              bbox: match.item.bbox,
+              targetId: match.item.targetId,
+              source: 'search',
+              label: match.item.text,
+            });
+          }}
         />
       ) : null}
 
@@ -229,6 +232,14 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
             selectedWordId={selectedLowConfidenceWordId}
             onSelectWord={(item) => {
               setSelectedLowConfidenceWordId(item.word.id);
+              useOcrStore.getState().focusOcrTarget({
+                documentFingerprint,
+                pageIndex: item.pageIndex,
+                bbox: item.word.bbox,
+                targetId: item.word.id,
+                source: 'lowConfidence',
+                label: item.word.text,
+              });
             }}
           />
           <OcrCorrectionPanel
@@ -243,24 +254,41 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
           className="space-y-2"
           data-testid="ocr-review-workspace-regions"
         >
-          <OcrRegionTool
-            documentFingerprint={documentFingerprint}
-            pageIndex={selectedPages[0] ?? 0}
-            pageWidth={595}
-            pageHeight={842}
-            viewportWidth={240}
-            viewportHeight={340}
-            onCreateRegion={(region) => {
-              useOcrStore.getState().upsertOcrRegion(region);
-              setSelectedRegionId(region.id);
-            }}
-          />
+          <div
+            className="rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"
+            data-testid="ocr-region-document-guidance"
+          >
+            <div className="font-semibold">Select OCR areas on the PDF itself</div>
+            <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+              Use OCR Area, then drag over the real page. Region coordinates come from the rendered document instead of a synthetic preview.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-2 h-7 text-xs"
+              onClick={() => {
+                setActiveMode('annotate');
+                setSidebarTab('ocr');
+                setWriterActiveTool('ocr-region');
+              }}
+            >
+              Select OCR Area
+            </Button>
+          </div>
           {currentRegions.length > 0 ? (
             <OcrRegionListPanel
               regions={currentRegions}
               selectedRegionId={selectedRegionId}
               onSelectRegion={(region) => {
                 setSelectedRegionId(region.id);
+                useOcrStore.getState().focusOcrTarget({
+                  documentFingerprint,
+                  pageIndex: region.pageIndex,
+                  bbox: region.bbox,
+                  targetId: region.id,
+                  source: 'region',
+                  label: `OCR ${region.mode} area`,
+                });
               }}
               onDeleteRegion={(regionId) => {
                 useOcrStore.getState().deleteOcrRegion(regionId);
@@ -274,7 +302,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
             region={selectedRegion}
             pageInput={selectedRegionPageInput}
             resolvePageInput={
-              selectedRegion
+              selectedRegion && (pdfBytes || selectedRegionPageInput)
                 ? async (region) => {
                     const resolved = await resolveOcrRegionPageInput({
                       region,

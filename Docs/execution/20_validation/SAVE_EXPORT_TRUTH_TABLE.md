@@ -1,3 +1,7 @@
+> **Historical validation artifact — not the current save contract.**
+>
+> Use `Docs/SAVE_SEMANTICS.md` as the authoritative save/export contract. In particular, current production Save still flattens application annotations, which is a known Phase 1 defect.
+
 # Save/Export Truth Table
 
 This document explicitly defines the semantics for save, export, and download actions. A1 handles the underlying state and A0 enforces the correct application of these definitions across all agents.

@@ -10,6 +10,8 @@ export type PageSelector =
 export type InsertPosition =
   | { mode: 'before'; page: number }
   | { mode: 'after'; page: number }
+  | { mode: 'before-current' }
+  | { mode: 'after-current' }
   | { mode: 'start' }
   | { mode: 'end' };
 

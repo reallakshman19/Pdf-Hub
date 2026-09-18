@@ -109,7 +109,7 @@ export function ToolbarBand() {
 
       <ToolbarDivider />
 
-      <ToolbarGroup label="Generate">
+      <ToolbarGroup label="Automate">
         <ToolbarGenerate />
       </ToolbarGroup>
 

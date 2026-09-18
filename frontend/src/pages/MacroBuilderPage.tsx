@@ -47,13 +47,13 @@ export const MacroBuilderPage: React.FC = () => {
 
   function handleSave(recipe: MacroRecipe): void {
     setCustomRecipes(loadCustomMacroRecipes());
-    setSaveMessage(`Saved custom macro: ${recipe.name}`);
+    setSaveMessage(`Saved workflow: ${recipe.name}`);
   }
 
   return (
     <main
       data-macro-builder-page="true"
-      aria-label="Macro builder page"
+      aria-label="Workflow builder page"
       style={{
         minHeight: '100vh',
         background: '#f8fafc',
@@ -72,9 +72,9 @@ export const MacroBuilderPage: React.FC = () => {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 20 }}>Macro Recipe Builder</h1>
+          <h1 style={{ margin: 0, fontSize: 20 }}>Workflow Builder</h1>
           <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>
-            Build, validate, import, export, and save macro recipes.
+            Build, test, save, and run reusable document workflows.
           </p>
         </div>
 
@@ -95,7 +95,7 @@ export const MacroBuilderPage: React.FC = () => {
       </header>
 
       <section
-        aria-label="Macro builder source selector"
+        aria-label="Workflow builder source selector"
         style={{
           display: 'flex',
           gap: 8,
@@ -111,7 +111,7 @@ export const MacroBuilderPage: React.FC = () => {
 
         <select
           id="macro-builder-source"
-          aria-label="Macro builder source"
+          aria-label="Workflow builder source"
           value={selectedSource}
           onChange={(event) => handleLoadSelected(event.currentTarget.value)}
           style={{
@@ -122,9 +122,9 @@ export const MacroBuilderPage: React.FC = () => {
             background: '#ffffff',
           }}
         >
-          <option value="new">New blank recipe</option>
+          <option value="new">New workflow</option>
 
-          <optgroup label="Built-in Recipes">
+          <optgroup label="Templates">
             {builtIns.map((item) => (
               <option key={item.id} value={`builtin:${item.id}`}>
                 {item.name}
@@ -133,7 +133,7 @@ export const MacroBuilderPage: React.FC = () => {
           </optgroup>
 
           {customRecipes.length > 0 ? (
-            <optgroup label="Custom Recipes">
+            <optgroup label="My Workflows">
               {customRecipes.map((recipe) => (
                 <option key={recipe.id} value={`custom:${recipe.id}`}>
                   {recipe.name}

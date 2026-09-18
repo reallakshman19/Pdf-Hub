@@ -13,7 +13,6 @@ import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
 import { useReviewStore } from '@/core/review/store';
-import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { useAnnotationPersistence } from './useAnnotationPersistence';
@@ -29,6 +28,7 @@ import { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admissio
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { ocrStore } from '@/core/ocr/store';
+import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
@@ -119,6 +119,7 @@ export const DocumentWorkspace: React.FC = () => {
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
   })));
+  const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
 
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
@@ -435,10 +436,21 @@ export const DocumentWorkspace: React.FC = () => {
     }
   }, [viewState.currentPage, pdfDoc, viewState.viewMode]);
 
+  React.useEffect(() => {
+    if (!ocrReviewFocus || !documentKey) return;
+    if (ocrReviewFocus.documentFingerprint !== documentKey) return;
+
+    setPage(ocrReviewFocus.pageIndex + 1);
+  }, [
+    documentKey,
+    ocrReviewFocus,
+    setPage,
+  ]);
+
   const sortedVisibleAnnotations = React.useMemo(
     () =>
       annotations
-        .filter((annotation) => !hideResolved || getAnnotationReviewStatus(annotation) !== 'resolved')
+        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
         .slice()
         .sort((a, b) => {
           if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
@@ -744,10 +756,16 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
 }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
+  const ocrFocusRef = React.useRef<HTMLDivElement | null>(null);
   const { hits, activeHitId } = useSearchStore(useShallow((state) => ({
     hits: state.hits,
     activeHitId: state.activeHitId,
   })));
+  const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
+  const pageOcrFocus =
+    ocrReviewFocus?.pageIndex === pageNumber - 1
+      ? ocrReviewFocus
+      : null;
   const isSelectTool = activeTool === 'select';
   const isTextMarkTool = isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
   const isNoteTool = activeTool === 'comment';
@@ -841,6 +859,16 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
     }
   }, [activeHitId]);
+
+  React.useEffect(() => {
+    if (!pageOcrFocus || !ocrFocusRef.current) return;
+
+    ocrFocusRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'center',
+    });
+  }, [pageOcrFocus]);
 
   const pageWidth = (renderSize?.width || size.width) / scale;
   const pageHeight = (renderSize?.height || size.height) / scale;
@@ -1585,6 +1613,26 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       onClick={onActivate}
     >
       <canvas ref={canvasRef} className="block" />
+
+      {pageOcrFocus ? (
+        <div
+          ref={ocrFocusRef}
+          data-testid="ocr-review-focus-target"
+          className="absolute z-[19] pointer-events-none rounded-sm border-2 border-blue-500 bg-blue-400/15 shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
+          style={{
+            left: pageOcrFocus.bbox.x * scale,
+            top: pageOcrFocus.bbox.y * scale,
+            width: Math.max(2, pageOcrFocus.bbox.width * scale),
+            height: Math.max(2, pageOcrFocus.bbox.height * scale),
+          }}
+        >
+          {pageOcrFocus.label ? (
+            <span className="absolute -top-6 left-0 max-w-52 truncate rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow">
+              {pageOcrFocus.label}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className="absolute inset-0"

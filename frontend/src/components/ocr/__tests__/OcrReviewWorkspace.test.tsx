@@ -44,7 +44,7 @@ describe('OcrReviewWorkspace', () => {
     expect(screen.getByText(/Run OCR to show confidence/i)).toBeTruthy();
   });
 
-  it('renders result summary, search, and region tools when OCR result exists', () => {
+  it('renders result summary and document-linked region guidance when OCR result exists', () => {
     useOcrStore.getState().setOcrResult(
       createOcrDemoResult('clean-text', 'review-doc'),
     );
@@ -59,6 +59,31 @@ describe('OcrReviewWorkspace', () => {
     expect(screen.getByTestId('ocr-result-summary')).toBeTruthy();
     expect(screen.getByTestId('ocr-review-workspace-summary')).toBeTruthy();
     expect(screen.getByTestId('ocr-review-workspace-regions')).toBeTruthy();
+    expect(screen.getByTestId('ocr-region-document-guidance')).toBeTruthy();
+    expect(screen.queryByTestId('ocr-region-canvas')).toBeNull();
+  });
+
+  it('publishes real PDF focus when a low-confidence word is selected', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'review-doc'),
+    );
+
+    render(
+      <OcrReviewWorkspace
+        {...defaultProps}
+      />,
+    );
+
+    const lowConfidenceItems = screen.queryAllByTestId('ocr-low-confidence-item');
+    expect(lowConfidenceItems.length).toBeGreaterThan(0);
+
+    fireEvent.click(lowConfidenceItems[0]);
+
+    const focus = useOcrStore.getState().reviewFocus;
+    expect(focus).not.toBeNull();
+    expect(focus?.documentFingerprint).toBe('review-doc');
+    expect(focus?.source).toBe('lowConfidence');
+    expect(focus?.bbox.width).toBeGreaterThan(0);
   });
 
   it('does not render stale OCR result from another document', () => {

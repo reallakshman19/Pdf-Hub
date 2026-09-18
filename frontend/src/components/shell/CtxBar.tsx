@@ -4,7 +4,7 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  Wand2, Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal,
+  Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
@@ -14,7 +14,6 @@ import { useWriterStore } from '@/core/writer/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
-import { ToolbarMacro } from '@/components/toolbar/ToolbarMacro';
 import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
 import { useToastStore } from '@/core/toast/store';
@@ -357,24 +356,18 @@ const OrganizeSection: React.FC = () => (
 );
 
 const GenerateSection: React.FC = () => {
-  const { setMacroBuilderOpen } = useEditorStore(useShallow((state) => ({
-    setMacroBuilderOpen: state.setMacroBuilderOpen,
-  })));
   const addToast = useToastStore((s) => s.addToast);
   const stub = (name: string) => () =>
     addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
   return (
     <div className="flex items-center h-full">
       <CtxLabel first>AI Tools</CtxLabel>
-      <CtxBtn icon={Wand2} label="Builder" ai onClick={() => setMacroBuilderOpen(true)} />
       <CtxBtn icon={Sparkles} label="Smart Fill" ai onClick={stub('Smart Fill')} />
       <CtxBtn icon={BrainCircuit} label="Ask AI" ai onClick={stub('Ask AI')} />
       <CtxSep />
       <CtxLabel>Extract</CtxLabel>
       <CtxBtn icon={TableProperties} label="Extract Fields" ai onClick={stub('Extract Fields')} />
       <CtxBtn icon={FileSearch} label="Summarize" ai onClick={stub('Summarize')} />
-      <CtxSep />
-      <ToolbarMacro />
     </div>
   );
 };
