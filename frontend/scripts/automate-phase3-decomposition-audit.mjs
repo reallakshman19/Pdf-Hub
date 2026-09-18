@@ -115,6 +115,7 @@ requireMarkers('src/core/macro/recipes/builtInRecipes.ts', [
   "'review-copy-selected'",
   "'review-pack-header-footer'",
   "'insert-blank-after-current'",
+  "position: { mode: 'after-current' }",
 ]);
 
 if (failures.length > 0) {
