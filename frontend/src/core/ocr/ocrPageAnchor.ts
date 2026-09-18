@@ -248,12 +248,22 @@ export function rekeyOcrPageAnchoredState(
   state: OcrPageAnchoredState,
   documentFingerprint: string,
 ): OcrPageAnchoredState {
+  const hasBoundState = Boolean(
+    state.documentFingerprint
+    || state.result
+    || state.corrections.length > 0
+    || state.regions.length > 0
+    || state.selectedPageIndexes.length > 0
+    || state.reviewFocus,
+  );
+  const nextDocumentFingerprint = hasBoundState ? documentFingerprint : null;
+
   return {
-    documentFingerprint,
+    documentFingerprint: nextDocumentFingerprint,
     result: state.result
       ? {
           ...state.result,
-          documentFingerprint,
+          documentFingerprint: nextDocumentFingerprint ?? documentFingerprint,
         }
       : null,
     corrections: state.corrections.map((correction) => ({
