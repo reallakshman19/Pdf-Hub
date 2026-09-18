@@ -152,6 +152,14 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       }
       break;
 
+    case 'ANNOTATION_CHANGE':
+      requireNonEmpty(command.payload.action, 'payload.action', errors);
+      break;
+
+    case 'WRITER_CHANGE':
+      requireNonEmpty(command.payload.action, 'payload.action', errors);
+      break;
+
     case 'APPLY_WORKING_COPY':
       requireNonEmpty(command.payload.binaryResourceId, 'payload.binaryResourceId', errors);
       if (
