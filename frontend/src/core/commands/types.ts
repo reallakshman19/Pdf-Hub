@@ -263,6 +263,29 @@ export function createPdfCommand<TType extends PdfCommandType>(
   return command as PdfCommandOfType<TType>;
 }
 
+export function materializePdfCommand(
+  draft: PdfCommandDraft,
+  source: PdfCommandSource,
+  documentKey: string,
+  options?: {
+    risk?: PdfCommandRisk;
+    id?: string;
+    createdAt?: string;
+    groupId?: string;
+  },
+): PdfCommand {
+  return {
+    id: options?.id ?? createCommandId(),
+    type: draft.type,
+    source,
+    risk: options?.risk ?? defaultRiskForCommand(draft.type),
+    createdAt: options?.createdAt ?? new Date().toISOString(),
+    documentKey,
+    payload: draft.payload,
+    ...(options?.groupId ? { groupId: options.groupId } : {}),
+  } as PdfCommand;
+}
+
 export function isPdfCommandSerializable(command: PdfCommand): boolean {
   try {
     const json = JSON.stringify(command);
