@@ -149,7 +149,19 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
           nextInputIndex += 1;
           break;
         }
-        throwIfAborted(options.abortSignal, `batch input ${nextInputIndex}: before advancing`);
+        if (options.abortSignal?.aborted) {
+        cancelled = true;
+        outcome = 'cancelled';
+        diagnostics.push({
+          severity: 'info',
+          code: 'ADMISSION_CANCELLED',
+          phase: 'COMMIT',
+          inputIndex: nextInputIndex,
+          message: 'Batch execution was cancelled after the current input completed.',
+        });
+        nextInputIndex += 1;
+        break;
+      }
         continue;
       }
 
@@ -311,7 +323,6 @@ async function executeValidatedBatchPdf(
     fileName: input.fileName,
     bytes: execution.finalBytes,
   });
-  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before recording success`);
   return freezeRecord({
     inputIndex: input.inputIndex,
     fileName: input.fileName,
