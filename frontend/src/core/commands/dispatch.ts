@@ -21,6 +21,15 @@ import {
   remapAfterRotate,
 } from '@/core/annotations/pageRemapper';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import type { WriterElementV2 } from '@/core/writer-v2/types';
+import {
+  remapWriterAfterDelete,
+  remapWriterAfterDuplicate,
+  remapWriterAfterInsert,
+  remapWriterAfterReorder,
+  remapWriterAfterRotate,
+} from '@/core/writer-v2/pageRemapper';
 import {
   commitDocumentMutation,
   isDocumentMutationTransactionError,
@@ -196,6 +205,7 @@ async function applyMutation(
   beforeBytes: Uint8Array,
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
+  nextWriterElements?: WriterElementV2[],
   nextSelectedPages?: number[],
   nextCurrentPage?: number,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
@@ -205,6 +215,7 @@ async function applyMutation(
     beforeBytes,
     afterBytes,
     nextAnnotations,
+    nextWriterElements,
     nextSelectedPages,
     nextCurrentPage,
   });
@@ -244,9 +255,22 @@ export async function dispatchPdfCommand(
             return { pageIndex: idx, angle, width, height };
           }),
         );
-        const nextAnnotations = remapAfterRotate(useAnnotationStore.getState().annotations, rotations);
+        const nextAnnotations = remapAfterRotate(
+          useAnnotationStore.getState().annotations,
+          rotations,
+        );
+        const nextWriterElements = remapWriterAfterRotate(
+          useWriterV2Store.getState().elements,
+          rotations,
+        );
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
       }
 
@@ -258,9 +282,22 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
         }
         order.splice(toIndex, 0, moved);
-        const nextAnnotations = remapAfterReorder(useAnnotationStore.getState().annotations, order);
+        const nextAnnotations = remapAfterReorder(
+          useAnnotationStore.getState().annotations,
+          order,
+        );
+        const nextWriterElements = remapWriterAfterReorder(
+          useWriterV2Store.getState().elements,
+          order,
+        );
         const nextBytes = await PdfEditAdapter.movePage(context.workingBytes, fromIndex, toIndex);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Page reordered', result.nextBytes, result.nextPageCount);
       }
 
@@ -269,9 +306,22 @@ export async function dispatchPdfCommand(
         if (order.length !== pageCount) {
           return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
         }
-        const nextAnnotations = remapAfterReorder(useAnnotationStore.getState().annotations, order);
+        const nextAnnotations = remapAfterReorder(
+          useAnnotationStore.getState().annotations,
+          order,
+        );
+        const nextWriterElements = remapWriterAfterReorder(
+          useWriterV2Store.getState().elements,
+          order,
+        );
         const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages reordered', result.nextBytes, result.nextPageCount);
       }
 
@@ -296,9 +346,22 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for split.');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
-        const nextAnnotations = remapAfterDelete(useAnnotationStore.getState().annotations, pageIndices);
+        const nextAnnotations = remapAfterDelete(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDelete(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages split into a new file', result.nextBytes, result.nextPageCount, [
           {
             kind: 'pdf',
@@ -316,9 +379,22 @@ export async function dispatchPdfCommand(
         if (pageIndices.length >= pageCount) {
           return commandError(command, 'VALIDATION_FAILED', 'Cannot delete every page in the document.');
         }
-        const nextAnnotations = remapAfterDelete(useAnnotationStore.getState().annotations, pageIndices);
+        const nextAnnotations = remapAfterDelete(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDelete(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages deleted', result.nextBytes, result.nextPageCount);
       }
 
@@ -335,21 +411,47 @@ export async function dispatchPdfCommand(
           command.payload.atIndex,
           resolved.pageCount,
         );
+        const nextWriterElements = remapWriterAfterInsert(
+          useWriterV2Store.getState().elements,
+          command.payload.atIndex,
+          resolved.pageCount,
+        );
         const nextBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
           resolved.bytes,
           command.payload.atIndex,
         );
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_BLANK_PAGE': {
         const { atIndex, size } = command.payload;
-        const nextAnnotations = remapAfterInsert(useAnnotationStore.getState().annotations, atIndex, 1);
+        const nextAnnotations = remapAfterInsert(
+          useAnnotationStore.getState().annotations,
+          atIndex,
+          1,
+        );
+        const nextWriterElements = remapWriterAfterInsert(
+          useWriterV2Store.getState().elements,
+          atIndex,
+          1,
+        );
         const nextBytes = await PdfEditAdapter.insertBlankPage(context.workingBytes, atIndex, size);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Blank page inserted', result.nextBytes, result.nextPageCount);
       }
 
@@ -378,6 +480,14 @@ export async function dispatchPdfCommand(
           atIndex,
           1,
         );
+        const nextWriterElements = remapWriterAfterInsert(
+          remapWriterAfterDelete(
+            useWriterV2Store.getState().elements,
+            [atIndex],
+          ),
+          atIndex,
+          1,
+        );
         const nextBytes = await PdfEditAdapter.replacePage(
           context.workingBytes,
           atIndex,
@@ -385,7 +495,13 @@ export async function dispatchPdfCommand(
           donorPageIndex,
         );
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Page replaced', result.nextBytes, result.nextPageCount);
       }
 
@@ -394,9 +510,22 @@ export async function dispatchPdfCommand(
         if (pageIndices.length === 0) {
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for duplication.');
         }
-        const nextAnnotations = remapAfterDuplicate(useAnnotationStore.getState().annotations, pageIndices);
+        const nextAnnotations = remapAfterDuplicate(
+          useAnnotationStore.getState().annotations,
+          pageIndices,
+        );
+        const nextWriterElements = remapWriterAfterDuplicate(
+          useWriterV2Store.getState().elements,
+          pageIndices,
+        );
         const nextBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
-        const result = await applyMutation(command, context.workingBytes, nextBytes, nextAnnotations);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+        );
         return commandSuccess(command, true, 'Pages duplicated', result.nextBytes, result.nextPageCount);
       }
 
@@ -508,6 +637,7 @@ export async function dispatchPdfCommand(
           command,
           context.workingBytes,
           nextBytes,
+          undefined,
           undefined,
           command.payload.selectedPages,
         );
