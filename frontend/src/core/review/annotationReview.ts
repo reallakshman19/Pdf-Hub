@@ -55,7 +55,8 @@ export function normalizeAnnotationReview(annotation: PdfAnnotation): PdfAnnotat
     return annotation;
   }
 
-  const { reviewStatus: _legacyReviewStatus, ...dataWithoutLegacy } = annotation.data;
+  const dataWithoutLegacy = { ...annotation.data };
+  delete dataWithoutLegacy.reviewStatus;
 
   if (!annotation.data.review && !isReviewStatus(legacy)) {
     return hasLegacyField
@@ -94,7 +95,8 @@ export function withAnnotationReviewStatus(
   status: ReviewStatus,
   updatedAt: number = Date.now(),
 ): PdfAnnotation {
-  const { reviewStatus: _legacyReviewStatus, ...dataWithoutLegacy } = annotation.data;
+  const dataWithoutLegacy = { ...annotation.data };
+  delete dataWithoutLegacy.reviewStatus;
 
   return {
     ...annotation,
