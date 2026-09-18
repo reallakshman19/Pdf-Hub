@@ -141,7 +141,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       workingBytes: bytes,
       pageCount,
       pageGraph: pageGraph ?? null,
-      isDirty: false;
+      isDirty: false,
       isDocumentDirty: false,
       isReviewDirty: false,
       isSessionDirty: false,
@@ -194,12 +194,12 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       pageCount,
       pageGraph:
         state.pageGraph && state.pageGraph.pages.length === pageCount
-          ? rekeyPageGraph(
-              state.pageGraph,
-              documentKey === undefined
-                ? state.documentKey ?? state.pageGraph.pages[0]?.documentKey ?? ''
-                : documentKey ?? state.pageGraph.pages[0]?.documentKey ?? '',
-            )
+          ? (documentKey === undefined ? state.documentKey : documentKey)
+            ? rekeyPageGraph(
+                state.pageGraph,
+                (documentKey === undefined ? state.documentKey : documentKey) as string,
+              )
+            : state.pageGraph
           : null,
       isDirty: false,
       isDocumentDirty: false,
@@ -299,7 +299,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
       workingBytes: null,
       pageCount: 0,
       pageGraph: null,
-      isDirty: false;
+      isDirty: false,
       isDocumentDirty: false,
       isReviewDirty: false,
       isSessionDirty: false,
