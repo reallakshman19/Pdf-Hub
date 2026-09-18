@@ -13,7 +13,6 @@ import {
   Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
@@ -37,6 +36,10 @@ import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenera
 import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
 import { MacroExpertWorkspace } from '@/components/macro/advanced/MacroExpertWorkspace';
+import {
+  MacroOutputQueue,
+  type MacroOutputQueueItem,
+} from '@/components/macro/advanced/MacroOutputQueue';
 
 function resolveFieldDefault(field: GenerationField): string {
   const raw = field.defaultValue ?? '';
@@ -69,10 +72,6 @@ interface RecipeOverrides {
   blankPlacement: BlankPlacement;
   blankSize: BlankSizeMode;
   blankCount: number;
-}
-
-interface OutputQueueItem extends MacroOutputFile {
-  id: string;
 }
 
 const BUILTIN_RECIPES: MacroRecipe[] = Object.values(BUILTIN_MACROS);
@@ -130,7 +129,7 @@ export const MacrosSidebar: React.FC = () => {
   const [isRunning, setIsRunning] = React.useState(false);
   const [runLogs, setRunLogs] = React.useState<string[]>([]);
   const [runError, setRunError] = React.useState<string | null>(null);
-  const [outputQueue, setOutputQueue] = React.useState<OutputQueueItem[]>([]);
+  const [outputQueue, setOutputQueue] = React.useState<MacroOutputQueueItem[]>([]);
   const [preflightReport, setPreflightReport] = React.useState<PreflightReport | null>(null);
   const [isDryRunning, setIsDryRunning] = React.useState(false);
   const runAbortControllerRef = React.useRef<AbortController | null>(null);
@@ -297,43 +296,6 @@ export const MacrosSidebar: React.FC = () => {
     }));
     setRunLogs([]);
     setRunError(null);
-    setOutputQueue([]);
-  };
-
-  const saveOutput = async (id: string) => {
-    const output = outputQueue.find((item) => item.id === id);
-    if (!output) {
-      return;
-    }
-
-    try {
-      await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-      setOutputQueue((items) => items.filter((item) => item.id !== id));
-    } catch (err) {
-      const message = String(err);
-      setRunError(message);
-      logError('macro', 'Failed to save macro output', {
-        outputName: output.name,
-        error: message,
-      });
-    }
-  };
-
-  const saveAllOutputs = async () => {
-    for (const output of outputQueue) {
-      try {
-        await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-      } catch (err) {
-        const message = String(err);
-        setRunError(message);
-        logError('macro', 'Failed to save all macro outputs', {
-          outputName: output.name,
-          error: message,
-        });
-        return;
-      }
-    }
-
     setOutputQueue([]);
   };
 
@@ -1007,49 +969,11 @@ export const MacrosSidebar: React.FC = () => {
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Output Queue
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void saveAllOutputs()}
-              disabled={outputQueue.length === 0}
-            >
-              <Save className="w-3.5 h-3.5 mr-1" />
-              Save All
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setOutputQueue([])}
-              disabled={outputQueue.length === 0}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-1" />
-              Clear
-            </Button>
-          </div>
-        </div>
-
-        {outputQueue.length === 0 && (
-          <div className="text-xs text-slate-500">No generated output files.</div>
-        )}
-
-        <div className="space-y-2">
-          {outputQueue.map((output) => (
-            <div key={output.id} className="rounded-md border border-slate-200 dark:border-slate-800 p-2 flex items-center justify-between gap-2">
-              <div className="text-xs text-slate-700 dark:text-slate-200 truncate">{output.name}</div>
-              <Button variant="ghost" size="sm" onClick={() => void saveOutput(output.id)}>
-                <Save className="w-3.5 h-3.5 mr-1" />
-                Save
-              </Button>
-            </div>
-          ))}
-        </div>
-      </section>
+      <MacroOutputQueue
+        outputs={outputQueue}
+        onChange={setOutputQueue}
+        onError={setRunError}
+      />
 
       <MacroExpertWorkspace
         selectedRecipe={selectedRecipe}
