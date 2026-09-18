@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WriterElementV2 } from '../types';
 import { useWriterV2Store } from '../writerV2Store';
+import { useSessionStore } from '../../session/store';
 import {
   createMemoryWriterPersistence,
   type WriterAssetRecordV2,
@@ -63,6 +64,7 @@ function imageAsset(
 describe('writer-v2 persistence controller', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
+    useSessionStore.getState().clearDocument();
   });
 
   it('loads empty session when no stored document exists', async () => {
@@ -167,4 +169,55 @@ describe('writer-v2 persistence controller', () => {
 
     expect(useWriterV2Store.getState().elements[0].id).toBe('writer-1');
   });
+
+  it('migrates persisted PDF-overlay pageIndex anchors to PageId on load', async () => {
+    const adapter = createMemoryWriterPersistence();
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-1',
+      fileName: 'doc-1.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 2,
+      pageGraph: {
+        pages: [
+          {
+            pageId: 'page-a',
+            documentKey: 'doc-1',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+          {
+            pageId: 'page-b',
+            documentKey: 'doc-1',
+            originalPageNumber: 2,
+            currentIndex: 1,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+        ],
+      },
+    });
+    await adapter.saveDocument({
+      documentFingerprint: 'doc-1',
+      schemaVersion: 2,
+      elements: [element('legacy-writer', { pageIndex: 1 })],
+      updatedAt: '2026-01-04T00:00:00.000Z',
+    });
+
+    const result = await loadWriterSessionFromPersistence('doc-1', adapter);
+    const persisted = await adapter.loadDocument('doc-1');
+
+    expect(result.elements[0]).toMatchObject({
+      pageId: 'page-b',
+      pageIndex: 1,
+    });
+    expect(persisted?.elements[0]).toMatchObject({
+      pageId: 'page-b',
+      pageIndex: 1,
+    });
+  });
+
 });

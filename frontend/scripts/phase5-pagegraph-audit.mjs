@@ -160,6 +160,80 @@ void reviewTypes;
 void annotationPersistence;
 void historyTransactions;
 
+const writerTypes = requireContains('src/core/writer-v2/types.ts', [
+  'pageId?: PageId',
+  'pageIndex: number',
+]);
+
+const writerAnchors = requireContains('src/core/writer-v2/writerPageAnchor.ts', [
+  'normalizeWriterPageAnchors',
+  'reanchorWriterElementsAfterPageGraphChange',
+  'duplicateWriterElementsByPageGraph',
+  'rebindWriterElementsByPageIndex',
+]);
+
+const writerStore = requireContains('src/core/writer-v2/writerV2Store.ts', [
+  'normalizeWriterCommandElements',
+  'writerElementForTargetPage',
+  "beforeStore.documentMeta?.mode === 'pdfOverlay'",
+]);
+
+const writerPersistence = requireContains(
+  'src/core/writer-v2/persistence/writerPersistenceController.ts',
+  [
+    'normalizeWriterPageAnchors',
+    'writerElementsEquivalent',
+  ],
+);
+
+const writerAutosave = requireContains(
+  'src/core/writer-v2/persistence/writerAutosave.ts',
+  ['normalizeWriterPageAnchors'],
+);
+
+for (const retiredToken of [
+  'remapWriterAfterDelete(',
+  'remapWriterAfterDuplicate(',
+  'remapWriterAfterInsert(',
+  'remapWriterAfterReorder(',
+]) {
+  if (commandDispatch.includes(retiredToken)) {
+    failures.push(
+      `structural Writer remapping must be PageId-first; dispatch still contains ${retiredToken}`,
+    );
+  }
+}
+
+for (const requiredToken of [
+  'activePdfOverlayWriterElements',
+  'reanchorWriterElementsAfterPageGraphChange',
+  'duplicateWriterElementsByPageGraph',
+  'rebindWriterElementsByPageIndex',
+]) {
+  if (!commandDispatch.includes(requiredToken)) {
+    failures.push(`command dispatch missing Writer PageId token: ${requiredToken}`);
+  }
+}
+
+if (!documentTransaction.includes('writerElementsToCommit')) {
+  failures.push('document transaction must normalize Writer elements against target PageGraph');
+}
+
+const historyTypeSource = read('src/core/document-history/types.ts');
+const historyRestoreSource = read('src/core/document-history/transactions.ts');
+if (!historyTypeSource.includes('documentMode?: WriterDocumentMode')) {
+  failures.push('Writer history must retain document mode for blank/PDF identity isolation');
+}
+if (!historyRestoreSource.includes("state.writer.documentMode === 'blankDocument'")) {
+  failures.push('history restore must keep blank Writer paging outside PDF PageGraph normalization');
+}
+
+void writerTypes;
+void writerAnchors;
+void writerStore;
+void writerPersistence;
+void writerAutosave;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',

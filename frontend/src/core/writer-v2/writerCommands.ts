@@ -5,6 +5,7 @@ export type WriterElementPatch = Partial<
     WriterElementV2,
     | 'id'
     | 'documentFingerprint'
+    | 'pageId'
     | 'createdAt'
   >
 >;

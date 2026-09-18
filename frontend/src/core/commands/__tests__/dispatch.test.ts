@@ -9,6 +9,8 @@ import { useAnnotationStore } from '../../annotations/store';
 import type { PdfAnnotation } from '../../annotations/types';
 import { useHistoryStore } from '../../document-history/store';
 import { useSessionStore } from '../../session/store';
+import { useWriterV2Store } from '../../writer-v2/writerV2Store';
+import type { WriterElementV2 } from '../../writer-v2/types';
 import {
   commandBus,
   resetCommandBusForTests,
@@ -162,6 +164,22 @@ const TEST_ANNOTATION: PdfAnnotation = {
   updatedAt: 1,
 };
 
+function writerElement(id: string, pageIndex: number): WriterElementV2 {
+  return {
+    id,
+    documentFingerprint: 'test-doc',
+    pageIndex,
+    type: 'richTextBox',
+    rect: { x: 10, y: 20, width: 100, height: 40 },
+    plainText: id,
+    style: { zIndex: 1 },
+    createdAt: '2026-09-18T00:00:00.000Z',
+    updatedAt: '2026-09-18T00:00:00.000Z',
+    locked: false,
+    hidden: false,
+  };
+}
+
 describe('canonical command dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -169,6 +187,7 @@ describe('canonical command dispatch', () => {
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
     useAnnotationStore.getState().setAnnotations([]);
+    useWriterV2Store.getState().clearWriterV2();
     useSessionStore.getState().openDocument({
       documentKey: 'test-doc',
       fileName: 'test.pdf',
@@ -270,6 +289,10 @@ describe('canonical command dispatch', () => {
   });
 
   it('applies macro output through an out-of-band binary resource', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'test-doc',
+      elements: [writerElement('macro-writer', 1)],
+    });
     const nextBytes = new Uint8Array([5, 5, 5]);
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
@@ -311,6 +334,11 @@ describe('canonical command dispatch', () => {
     expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe(
       'macro-output::stable::1',
     );
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      id: 'macro-writer',
+      pageId: 'macro-output::stable::2',
+      pageIndex: 1,
+    });
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Macro run');
     expect(
       JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
@@ -375,6 +403,10 @@ describe('canonical command dispatch', () => {
     useAnnotationStore.getState().setAnnotations([
       { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
     ]);
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'test-doc',
+      elements: [writerElement('page-one-writer', 0)],
+    });
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
     const result = await execute(
@@ -399,6 +431,11 @@ describe('canonical command dispatch', () => {
       id: 'page-one-note',
       pageId: 'test-doc::stable::1',
       pageNumber: 3,
+    });
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      id: 'page-one-writer',
+      pageId: 'test-doc::stable::1',
+      pageIndex: 2,
     });
   });
 
@@ -609,6 +646,10 @@ describe('canonical command dispatch', () => {
     useAnnotationStore.getState().setAnnotations([
       { ...TEST_ANNOTATION, id: 'duplicate-note', pageNumber: 2 },
     ]);
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'test-doc',
+      elements: [writerElement('duplicate-writer', 1)],
+    });
     pdfMocks.duplicatePages.mockResolvedValue(new Uint8Array([8, 8, 8]));
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
@@ -637,6 +678,17 @@ describe('canonical command dispatch', () => {
         pageNumber: 3,
       }),
     ]));
+    expect(useWriterV2Store.getState().elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'duplicate-writer',
+        pageId: 'test-doc::stable::2',
+        pageIndex: 1,
+      }),
+      expect.objectContaining({
+        pageId: expect.stringContaining('::duplicate::1'),
+        pageIndex: 2,
+      }),
+    ]));
   });
 
   it('uses one permutation for single-page reorder bytes, overlays, and PageGraph', async () => {
@@ -658,6 +710,31 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::1',
       'test-doc::stable::3',
     ]);
+  });
+
+  it('does not apply PDF PageGraph remapping to a blank Writer document', async () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-during-pdf',
+      pageCount: 1,
+    });
+    useWriterV2Store.getState().dispatchWriterCommand({
+      type: 'ADD_WRITER_ELEMENT',
+      element: writerElement('blank-writer-element', 0),
+    });
+    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
+
+    const result = await execute({
+      type: 'REORDER_PAGES_BY_ORDER',
+      payload: { order: [2, 1, 0] },
+    });
+
+    expect(result.success).toBe(true);
+    expect(useWriterV2Store.getState().documentMeta?.mode).toBe('blankDocument');
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      id: 'blank-writer-element',
+      pageIndex: 0,
+    });
+    expect(useWriterV2Store.getState().elements[0]?.pageId).toBeUndefined();
   });
 
   it('adds header/footer text', async () => {

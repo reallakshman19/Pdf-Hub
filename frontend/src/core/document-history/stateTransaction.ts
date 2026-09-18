@@ -24,8 +24,10 @@ export function writerHistoryState(input: {
   elements: WriterElementV2[];
   selectedIds: string[];
   activeId: string | null;
+  documentMeta?: { mode: 'pdfOverlay' | 'blankDocument' } | null;
 }): WriterHistoryState {
   return {
+    ...(input.documentMeta?.mode ? { documentMode: input.documentMeta.mode } : {}),
     elements: cloneWriterElements(input.elements),
     selectedIds: [...input.selectedIds],
     activeId: input.activeId,

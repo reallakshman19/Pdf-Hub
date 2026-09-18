@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import { useSessionStore } from '../session/store';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 
 function element(id: string): WriterElementV2 {
@@ -47,6 +48,7 @@ function asset(id: string): WriterAssetRecordV2 {
 describe('writer-v2 zustand store persistence state', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
+    useSessionStore.getState().clearDocument();
   });
 
   it('hydrates a complete writer session', () => {
@@ -127,4 +129,91 @@ describe('writer-v2 zustand store persistence state', () => {
     expect(state.assetRecords).toEqual([]);
     expect(state.lastPersistedAt).toBeNull();
   });
+
+  it('hydrates PDF-overlay elements with stable PageIds and retargets pageIndex edits', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-1',
+      fileName: 'writer.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 2,
+      pageGraph: {
+        pages: [
+          {
+            pageId: 'page-a',
+            documentKey: 'doc-1',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+          {
+            pageId: 'page-b',
+            documentKey: 'doc-1',
+            originalPageNumber: 2,
+            currentIndex: 1,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          },
+        ],
+      },
+    });
+
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-anchor')],
+    });
+
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      pageId: 'page-a',
+      pageIndex: 0,
+    });
+
+    useWriterV2Store.getState().dispatchWriterCommand({
+      type: 'UPDATE_WRITER_ELEMENT',
+      id: 'writer-anchor',
+      patch: { pageIndex: 1 },
+      now: '2026-09-18T01:00:00.000Z',
+    });
+
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      pageId: 'page-b',
+      pageIndex: 1,
+    });
+  });
+
+  it('does not add PDF PageIds to blank-document elements', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'pdf-in-background',
+      fileName: 'background.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'background-page',
+          documentKey: 'pdf-in-background',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    const meta = useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-writer',
+      pageCount: 1,
+    });
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: meta.documentFingerprint,
+      elements: [element('blank-element')],
+      documentMeta: meta,
+    });
+
+    expect(useWriterV2Store.getState().elements[0].pageId).toBeUndefined();
+    expect(useWriterV2Store.getState().elements[0].pageIndex).toBe(0);
+  });
+
 });

@@ -1,5 +1,6 @@
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '../writerV2Store';
+import { normalizeWriterPageAnchors } from '../writerPageAnchor';
 import {
   createBestAvailableWriterPersistence,
   createWriterDocumentRecord,
@@ -61,10 +62,18 @@ export async function autosaveCurrentWriterDraft(
 
   const persistedAt = new Date().toISOString();
 
+  const elements =
+    writer.documentMeta?.mode === 'pdfOverlay'
+      ? normalizeWriterPageAnchors(
+          writer.elements,
+          useSessionStore.getState().pageGraph,
+        )
+      : writer.elements;
+
   await persistence.saveDocument(
     createWriterDocumentRecord(
       documentFingerprint,
-      writer.elements,
+      elements,
       persistedAt,
     ),
   );
@@ -139,9 +148,26 @@ export async function recoverWriterDraftForCurrentDocument(
     persistedAt: document.updatedAt,
   });
 
+  const hydratedElements = useWriterV2Store.getState().elements;
+  const anchorsChanged =
+    hydratedElements.length !== document.elements.length
+    || hydratedElements.some((element, index) =>
+      element.pageId !== document.elements[index]?.pageId
+      || element.pageIndex !== document.elements[index]?.pageIndex
+    );
+  if (anchorsChanged) {
+    await persistence.saveDocument(
+      createWriterDocumentRecord(
+        documentFingerprint,
+        hydratedElements,
+        document.updatedAt,
+      ),
+    );
+  }
+
   return {
     changed: true,
-    message: `Recovered ${document.elements.length} Writer object(s).`,
+    message: `Recovered ${hydratedElements.length} Writer object(s).`,
   };
 }
 

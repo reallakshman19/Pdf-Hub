@@ -30,6 +30,11 @@ import {
   updateWriterDocumentPageSetup,
 } from './writerDocumentMode';
 import { updateWriterDocumentTitle } from './writerDocumentTitle';
+import {
+  normalizeWriterPageAnchors,
+  writerElementForTargetPage,
+} from './writerPageAnchor';
+import type { PageGraph, PageNode } from '../pages/types';
 
 export type WriterV2Tool =
   | 'select'
@@ -115,8 +120,28 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   dispatchWriterCommand: (command) => {
     const beforeStore = get();
     const previousEditingId = beforeStore.editingId;
-    const result = executeWriterCommand(beforeStore, command);
+    const rawResult = executeWriterCommand(beforeStore, command);
     const session = useSessionStore.getState();
+    const isPdfOverlaySession =
+      beforeStore.documentMeta?.mode === 'pdfOverlay'
+      || (
+        !beforeStore.documentMeta
+        && Boolean(session.pageGraph && session.workingBytes)
+      );
+    const result =
+      rawResult.changed && isPdfOverlaySession
+        ? {
+            ...rawResult,
+            state: {
+              ...rawResult.state,
+              elements: normalizeWriterCommandElements(
+                rawResult.state.elements,
+                command,
+                session.pageGraph,
+              ),
+            },
+          }
+        : rawResult;
     const useGlobalHistory =
       result.changed
       && isMutationCommand(command)
@@ -355,9 +380,18 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   },
 
   hydrateWriterElements: (elements) => {
+    const current = get();
+    const hydratedElements =
+      current.documentMeta?.mode === 'pdfOverlay'
+        ? normalizeWriterPageAnchors(
+            elements,
+            useSessionStore.getState().pageGraph,
+          )
+        : elements;
+
     set({
       ...createInitialWriterV2State({
-        elements,
+        elements: hydratedElements,
       }),
       dirty: false,
       editingId: null,
@@ -379,15 +413,23 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       documentFingerprint,
       pageCount: inferPageCountFromElements(elements),
     });
+    const resolvedMeta = documentMeta ?? fallbackMeta;
+    const hydratedElements =
+      resolvedMeta.mode === 'pdfOverlay'
+        ? normalizeWriterPageAnchors(
+            elements,
+            useSessionStore.getState().pageGraph,
+          )
+        : elements;
 
     set({
       ...createInitialWriterV2State({
-        elements,
+        elements: hydratedElements,
       }),
       dirty: false,
       editingId: null,
       currentDocumentFingerprint: documentFingerprint,
-      documentMeta: documentMeta ?? fallbackMeta,
+      documentMeta: resolvedMeta,
       assetRecords: assetRecords.map((asset) => ({ ...asset })),
       lastPersistedAt: persistedAt,
     });
@@ -454,6 +496,68 @@ function inferPageCountFromElements(elements: WriterElementV2[]): number {
   return Math.max(1, ...elements.map((element) => element.pageIndex + 1));
 }
 
+
+function normalizeWriterCommandElements(
+  elements: WriterElementV2[],
+  command: WriterCommand,
+  graph: PageGraph<PageNode> | null,
+): WriterElementV2[] {
+  if (!graph) return elements;
+
+  let retargeted = elements;
+
+  if (
+    command.type === 'ADD_WRITER_ELEMENT'
+    && Number.isInteger(command.element.pageIndex)
+  ) {
+    retargeted = elements.map((element) =>
+      element.id === command.element.id
+        ? writerElementForTargetPage(element, graph, command.element.pageIndex)
+        : element,
+    );
+  }
+
+  if (command.type === 'BATCH_ADD_WRITER_ELEMENTS') {
+    const targetById = new Map(
+      command.elements.map((element) => [element.id, element.pageIndex] as const),
+    );
+    retargeted = elements.map((element) => {
+      const pageIndex = targetById.get(element.id);
+      return pageIndex === undefined
+        ? element
+        : writerElementForTargetPage(element, graph, pageIndex);
+    });
+  }
+
+  if (
+    command.type === 'UPDATE_WRITER_ELEMENT'
+    && typeof command.patch.pageIndex === 'number'
+  ) {
+    retargeted = retargeted.map((element) =>
+      element.id === command.id
+        ? writerElementForTargetPage(element, graph, command.patch.pageIndex as number)
+        : element,
+    );
+  }
+
+  if (command.type === 'BATCH_UPDATE_WRITER_ELEMENTS') {
+    const targetById = new Map(
+      command.updates.flatMap((update) =>
+        typeof update.patch.pageIndex === 'number'
+          ? [[update.id, update.patch.pageIndex] as const]
+          : [],
+      ),
+    );
+    retargeted = retargeted.map((element) => {
+      const pageIndex = targetById.get(element.id);
+      return pageIndex === undefined
+        ? element
+        : writerElementForTargetPage(element, graph, pageIndex);
+    });
+  }
+
+  return normalizeWriterPageAnchors(retargeted, graph);
+}
 
 function usesGlobalWriterHistory(state: WriterV2StoreState): boolean {
   const session = useSessionStore.getState();

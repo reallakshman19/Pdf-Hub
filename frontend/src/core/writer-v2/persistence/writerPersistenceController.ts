@@ -4,6 +4,8 @@ import {
   type WriterPersistenceAdapterV2,
 } from './indexedDbWriterStore';
 import type { WriterElementV2 } from '../types';
+import { normalizeWriterPageAnchors } from '../writerPageAnchor';
+import { useSessionStore } from '@/core/session/store';
 import {
   useWriterV2Store,
   type WriterV2StoreState,
@@ -41,10 +43,21 @@ export async function loadWriterSessionFromPersistence(
     assetRecords,
     persistedAt: documentRecord?.updatedAt ?? null,
   });
+  const hydratedElements = useWriterV2Store.getState().elements;
+
+  if (documentRecord && !writerElementsEquivalent(elements, hydratedElements)) {
+    await adapter.saveDocument(
+      createWriterDocumentRecord(
+        documentFingerprint,
+        hydratedElements,
+        documentRecord.updatedAt,
+      ),
+    );
+  }
 
   return {
     documentFingerprint,
-    elements,
+    elements: hydratedElements,
     assetRecords,
     loaded: !!documentRecord,
     updatedAt: documentRecord?.updatedAt ?? null,
@@ -57,7 +70,12 @@ export async function saveWriterSessionToPersistence(
   state: Pick<WriterV2StoreState, 'elements' | 'assetRecords'> = useWriterV2Store.getState(),
   savedAt = new Date().toISOString(),
 ): Promise<WriterPersistenceSaveResult> {
-  const elements = cloneElements(state.elements);
+  const writerState = useWriterV2Store.getState();
+  const session = useSessionStore.getState();
+  const elements =
+    writerState.documentMeta?.mode === 'pdfOverlay'
+      ? normalizeWriterPageAnchors(state.elements, session.pageGraph)
+      : cloneElements(state.elements);
   const assetRecords = state.assetRecords.map((asset) => ({
     ...asset,
     documentFingerprint,
@@ -128,4 +146,21 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
         }
       : undefined,
   }));
+}
+
+
+function writerElementsEquivalent(
+  left: WriterElementV2[],
+  right: WriterElementV2[],
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((element, index) => {
+    const other = right[index];
+    return Boolean(
+      other
+      && element.id === other.id
+      && element.pageIndex === other.pageIndex
+      && element.pageId === other.pageId
+    );
+  });
 }

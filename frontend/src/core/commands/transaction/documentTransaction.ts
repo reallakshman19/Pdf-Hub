@@ -11,6 +11,7 @@ import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
+import { normalizeWriterPageAnchors } from '@/core/writer-v2/writerPageAnchor';
 import type { PdfCommand } from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
@@ -58,6 +59,7 @@ function toTransactionError(
 function writerHistorySnapshot() {
   const writer = useWriterV2Store.getState();
   return {
+    ...(writer.documentMeta?.mode ? { documentMode: writer.documentMeta.mode } : {}),
     elements: writer.elements.map((element) => ({
       ...element,
       rect: { ...element.rect },
@@ -115,6 +117,13 @@ export async function commitDocumentMutation(
     input.nextAnnotations ?? annotationState.annotations,
     pageGraphForCommit,
   );
+  const writerElementsToCommit =
+    input.nextWriterElements === undefined
+      ? undefined
+      : normalizeWriterPageAnchors(
+          input.nextWriterElements,
+          pageGraphForCommit,
+        );
 
   try {
     await saveAnnotations(nextDocumentKey, annotationsToPersist);
@@ -167,16 +176,16 @@ export async function commitDocumentMutation(
       useAnnotationStore.getState().setAnnotations(annotationsToPersist);
     }
 
-    if (input.nextWriterElements) {
+    if (writerElementsToCommit) {
       const currentWriter = useWriterV2Store.getState();
       const allowedIds = new Set(
-        input.nextWriterElements.map((element) => element.id),
+        writerElementsToCommit.map((element) => element.id),
       );
       const selectedIds = currentWriter.selectedIds.filter((id) =>
         allowedIds.has(id)
       );
       useWriterV2Store.setState({
-        elements: input.nextWriterElements,
+        elements: writerElementsToCommit,
         selectedIds,
         activeId:
           currentWriter.activeId && allowedIds.has(currentWriter.activeId)
