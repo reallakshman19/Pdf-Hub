@@ -51,10 +51,6 @@ function toTransactionError(
   return new DocumentMutationTransactionError(stage, `${message}: ${reason}`, error);
 }
 
-function cloneAnnotationLists(lists: PdfAnnotation[][]): PdfAnnotation[][] {
-  return lists.map((annotations) => [...annotations]);
-}
-
 function writerHistorySnapshot() {
   const writer = useWriterV2Store.getState();
   return {
@@ -110,8 +106,6 @@ export async function commitDocumentMutation(
   const sessionSnapshot = useSessionStore.getState();
   const annotationSnapshot = {
     annotations: [...annotationState.annotations],
-    history: cloneAnnotationLists(annotationState.history),
-    future: cloneAnnotationLists(annotationState.future),
     activeAnnotationId: annotationState.activeAnnotationId,
     selectedAnnotationIds: [...annotationState.selectedAnnotationIds],
     clipboard: [...annotationState.clipboard],

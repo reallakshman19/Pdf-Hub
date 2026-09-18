@@ -63,6 +63,13 @@ for (const required of [
   }
 }
 
+const documentTransaction = read('src/core/commands/transaction/documentTransaction.ts');
+for (const token of ['annotationState.history', 'annotationState.future']) {
+  if (documentTransaction.includes(token)) {
+    fail(`document transaction still references retired annotation history: ${token}`);
+  }
+}
+
 const writerStore = read('src/core/writer-v2/writerV2Store.ts');
 for (const required of [
   "'WRITER_CHANGE'",
