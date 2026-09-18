@@ -110,11 +110,7 @@ describe('MacroExpertWorkspace', () => {
 
     expect(screen.getByText(/Preview required/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('macro-expert-run'));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /Validate \+ Dry Run this exact workflow/i,
-    );
+    expect(screen.getByTestId('macro-expert-run')).toBeDisabled();
     expect(runMock).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('macro-expert-test-run'));
@@ -153,11 +149,7 @@ describe('MacroExpertWorkspace', () => {
       },
     });
 
-    fireEvent.click(screen.getByTestId('macro-expert-run'));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /Validate \+ Dry Run this exact workflow/i,
-    );
+    expect(screen.getByTestId('macro-expert-run')).toBeDisabled();
     expect(runMock).not.toHaveBeenCalled();
   });
 
