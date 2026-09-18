@@ -6,13 +6,11 @@ import {
   PDFHexString,
   PDFName,
   PDFNumber,
+  PDFString,
 } from 'pdf-lib';
 
 import { createPageGraph } from './pageGraph';
-import {
-  decodePageLabelDictionaryForTests,
-  writePdfPageLabels,
-} from './pdfPageLabelWriter';
+import { writePdfPageLabels } from './pdfPageLabelWriter';
 
 function graph() {
   return createPageGraph([
@@ -33,6 +31,21 @@ function page(pageId: string, currentIndex: number) {
     width: 300,
     height: 400,
     rotation: 0 as const,
+  };
+}
+
+function decodeLabelDictionary(dict: PDFDict) {
+  const style = dict.lookupMaybe(PDFName.of('S'), PDFName)?.asString();
+  const prefix =
+    dict.lookupMaybe(PDFName.of('P'), PDFString)?.decodeText()
+    ?? dict.lookupMaybe(PDFName.of('P'), PDFHexString)?.decodeText();
+  const startNumber =
+    dict.lookupMaybe(PDFName.of('St'), PDFNumber)?.asNumber();
+
+  return {
+    ...(style ? { style } : {}),
+    ...(prefix !== undefined ? { prefix } : {}),
+    ...(startNumber !== undefined ? { startNumber } : {}),
   };
 }
 
@@ -86,30 +99,10 @@ describe('PDF PageLabels writer', () => {
     const dictionaries = [1, 3, 5, 7].map((offset) =>
       nums?.lookupMaybe(offset, PDFDict),
     );
-    expect(decodePageLabelDictionaryForTests(dictionaries[0]!, {
-      PDFName,
-      PDFString: (await import('pdf-lib')).PDFString,
-      PDFHexString,
-      PDFNumber,
-    } as never)).toEqual({ prefix: 'Cover' });
-    expect(decodePageLabelDictionaryForTests(dictionaries[1]!, {
-      PDFName,
-      PDFString: (await import('pdf-lib')).PDFString,
-      PDFHexString,
-      PDFNumber,
-    } as never)).toEqual({ style: '/r' });
-    expect(decodePageLabelDictionaryForTests(dictionaries[2]!, {
-      PDFName,
-      PDFString: (await import('pdf-lib')).PDFString,
-      PDFHexString,
-      PDFNumber,
-    } as never)).toEqual({ style: '/D' });
-    expect(decodePageLabelDictionaryForTests(dictionaries[3]!, {
-      PDFName,
-      PDFString: (await import('pdf-lib')).PDFString,
-      PDFHexString,
-      PDFNumber,
-    } as never)).toEqual({
+    expect(decodeLabelDictionary(dictionaries[0]!)).toEqual({ prefix: 'Cover' });
+    expect(decodeLabelDictionary(dictionaries[1]!)).toEqual({ style: '/r' });
+    expect(decodeLabelDictionary(dictionaries[2]!)).toEqual({ style: '/D' });
+    expect(decodeLabelDictionary(dictionaries[3]!)).toEqual({
       style: '/D',
       prefix: 'A-',
       startNumber: 7,
