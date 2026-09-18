@@ -20,7 +20,7 @@ const MODES: Array<{ id: ActiveMode; icon: React.ComponentType<{ className?: str
   { id: 'draw',     icon: PenTool,       label: 'Draw' },
   { id: 'write',    icon: Type,          label: 'Write' },
   { id: 'organize', icon: Layers,        label: 'Organize' },
-  { id: 'generate', icon: Sparkles,      label: 'Generate', ai: true },
+  { id: 'generate', icon: Sparkles,      label: 'Automate', ai: true },
 ];
 
 export const ModeBar: React.FC = () => {
