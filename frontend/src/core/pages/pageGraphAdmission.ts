@@ -79,18 +79,6 @@ export function createInitialPageId(
   return `${documentKey}::page::${sourcePageNumber}`;
 }
 
-export function rekeyPageGraph(
-  graph: PageGraph<PageNode>,
-  documentKey: string,
-): PageGraph<PageNode> {
-  return createPageGraph(
-    graph.pages.map((page) => ({
-      ...page,
-      documentKey,
-    })),
-  );
-}
-
 function normalizePageRotation(value: number): PageRotation {
   const normalized = ((value % 360) + 360) % 360;
   return isPageRotation(normalized) ? normalized : 0;
