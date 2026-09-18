@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dispatchCommand } from '../dispatch';
+
 import {
   admitDonorPdfFiles,
   type AdmittedDonorPdf,
@@ -9,6 +9,16 @@ import { useAnnotationStore } from '../../annotations/store';
 import type { PdfAnnotation } from '../../annotations/types';
 import { useHistoryStore } from '../../document-history/store';
 import { useSessionStore } from '../../session/store';
+import {
+  commandBus,
+  resetCommandBusForTests,
+} from '../bus';
+import {
+  materializePdfCommand,
+  type CommandResources,
+  type PdfCommandDraft,
+  type PdfCommandSource,
+} from '../types';
 
 const persistenceMocks = vi.hoisted(() => ({
   saveAnnotations: vi.fn(),
@@ -21,7 +31,9 @@ vi.mock('@/core/annotations/persistence', () => ({
 vi.mock('@/adapters/file/FileAdapter', () => ({
   FileAdapter: {
     MAX_PDF_SIZE_BYTES: 100 * 1024 * 1024,
-    hashBytes: vi.fn().mockImplementation(async (bytes) => 'mock-hash-' + bytes.length),
+    hashBytes: vi.fn().mockImplementation(
+      async (bytes: Uint8Array) => 'mock-hash-' + bytes.length,
+    ),
   },
 }));
 
@@ -63,6 +75,31 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   },
 }));
 
+async function execute(
+  draft: PdfCommandDraft,
+  options?: {
+    source?: PdfCommandSource;
+    resources?: CommandResources;
+    documentKey?: string;
+  },
+) {
+  const documentKey = options?.documentKey
+    ?? useSessionStore.getState().documentKey
+    ?? 'test-doc';
+
+  return commandBus.execute({
+    command: materializePdfCommand(
+      draft,
+      options?.source ?? 'toolbar',
+      documentKey,
+      {
+        createdAt: '2026-09-18T00:00:00.000Z',
+      },
+    ),
+    resources: options?.resources,
+  });
+}
+
 async function admitDonor(
   commandTarget: DonorCommandTarget,
   name = 'donor.pdf',
@@ -74,15 +111,18 @@ async function admitDonor(
     size: bytes.byteLength,
     arrayBuffer: vi.fn(async () => bytes.slice().buffer),
   } as unknown as File;
+
   const result = await admitDonorPdfFiles(
     [{ file }],
     'COMMAND_CALLER',
     commandTarget,
     { ownerDocumentKey: 'test-doc' },
   );
+
   if (result.outcome !== 'ACCEPTED') {
     throw new Error(`Donor admission failed: ${result.outcome}`);
   }
+
   return result.value.donors[0];
 }
 
@@ -96,9 +136,10 @@ const TEST_ANNOTATION: PdfAnnotation = {
   updatedAt: 1,
 };
 
-describe('dispatchCommand', () => {
+describe('canonical command dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetCommandBusForTests();
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
     useAnnotationStore.getState().setAnnotations([]);
@@ -112,18 +153,18 @@ describe('dispatchCommand', () => {
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
   });
 
-  it('pushes history and updates session for ROTATE_PAGES', async () => {
+  it('pushes canonical history and updates session for ROTATE_PAGES', async () => {
     pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 },
+    const result = await execute({
+      type: 'ROTATE_PAGES',
+      payload: { pageIndices: [0], angle: 90 },
     });
 
     expect(result.success).toBe(true);
     expect(result.mutated).toBe(true);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
-    expect(useHistoryStore.getState().undoStack[0].source).toBe('toolbar');
+    expect(useHistoryStore.getState().undoStack[0]?.command.source).toBe('toolbar');
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2, 2, 2]));
     expect(useSessionStore.getState().documentKey).toBe('mock-hash-3');
   });
@@ -131,11 +172,13 @@ describe('dispatchCommand', () => {
   it('does not mutate any store when annotation persistence fails', async () => {
     useAnnotationStore.getState().setAnnotations([TEST_ANNOTATION]);
     pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
-    persistenceMocks.saveAnnotations.mockRejectedValueOnce(new Error('IndexedDB quota exceeded'));
+    persistenceMocks.saveAnnotations.mockRejectedValueOnce(
+      new Error('IndexedDB quota exceeded'),
+    );
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 },
+    const result = await execute({
+      type: 'ROTATE_PAGES',
+      payload: { pageIndices: [0], angle: 90 },
     });
 
     expect(result.success).toBe(false);
@@ -149,12 +192,15 @@ describe('dispatchCommand', () => {
 
   it('returns artifact and does not mutate for EXTRACT_PAGES', async () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([9, 9, 9]));
-
     const beforeBytes = useSessionStore.getState().workingBytes;
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: { type: 'EXTRACT_PAGES', pageIndices: [0, 1] },
-    });
+
+    const result = await execute(
+      {
+        type: 'EXTRACT_PAGES',
+        payload: { pageIndices: [0, 1] },
+      },
+      { source: 'thumbnail-menu' },
+    );
 
     expect(result.success).toBe(true);
     expect(result.mutated).toBe(false);
@@ -168,9 +214,9 @@ describe('dispatchCommand', () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'SPLIT_PAGES', pageIndices: [0] },
+    const result = await execute({
+      type: 'SPLIT_PAGES',
+      payload: { pageIndices: [0] },
     });
 
     expect(result.success).toBe(true);
@@ -180,31 +226,63 @@ describe('dispatchCommand', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 
-  it('applies REPLACE_WORKING_COPY as a history-backed mutation', async () => {
+  it('applies macro output through an out-of-band binary resource', async () => {
     const nextBytes = new Uint8Array([5, 5, 5]);
     pdfMocks.countPages.mockResolvedValue(4);
 
-    const result = await dispatchCommand({
-      source: 'macro-runner',
-      command: {
-        type: 'REPLACE_WORKING_COPY',
-        nextBytes,
-        nextPageCount: 4,
-        reason: 'Macro run',
+    const result = await execute(
+      {
+        type: 'APPLY_WORKING_COPY',
+        payload: {
+          binaryResourceId: 'macro:final',
+          nextPageCount: 4,
+          reason: 'Macro run',
+          macro: {
+            recipeId: 'r1',
+            recipeName: 'Recipe 1',
+            stepCount: 2,
+          },
+          selectedPages: [2],
+        },
       },
-    });
+      {
+        source: 'macro-runner',
+        resources: {
+          binaries: {
+            'macro:final': nextBytes,
+          },
+        },
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(result.mutated).toBe(true);
     expect(result.nextPageCount).toBe(4);
-    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
-    expect(useHistoryStore.getState().undoStack[0].label).toBe('Macro run');
+    expect(useSessionStore.getState().selectedPages).toEqual([2]);
+    expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Macro run');
+    expect(
+      JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
+    ).not.toContain('5,5,5');
+  });
+
+  it('rejects missing macro binary resources', async () => {
+    const result = await execute({
+      type: 'APPLY_WORKING_COPY',
+      payload: {
+        binaryResourceId: 'missing',
+        reason: 'Macro run',
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('RESOURCE_MISSING');
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
   it('returns validation error when delete is requested with empty page list', async () => {
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'DELETE_PAGES', pageIndices: [] },
+    const result = await execute({
+      type: 'DELETE_PAGES',
+      payload: { pageIndices: [] },
     });
 
     expect(result.success).toBe(false);
@@ -215,43 +293,77 @@ describe('dispatchCommand', () => {
   it('returns no working document error when there is no active file', async () => {
     useSessionStore.getState().clearDocument();
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'ROTATE_PAGES', pageIndices: [0], angle: 90 },
-    });
+    const result = await execute(
+      {
+        type: 'ROTATE_PAGES',
+        payload: { pageIndices: [0], angle: 90 },
+      },
+      { documentKey: 'test-doc' },
+    );
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('NO_WORKING_DOCUMENT');
   });
 
+  it('rejects a stale document identity', async () => {
+    const result = await execute(
+      {
+        type: 'ROTATE_PAGES',
+        payload: { pageIndices: [0], angle: 90 },
+      },
+      { documentKey: 'old-doc' },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('STALE_DOCUMENT');
+    expect(pdfMocks.rotatePages).not.toHaveBeenCalled();
+  });
+
   it('reorders pages by explicit order', async () => {
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: { type: 'REORDER_PAGES_BY_ORDER', order: [2, 1, 0] },
-    });
+    const result = await execute(
+      {
+        type: 'REORDER_PAGES_BY_ORDER',
+        payload: { order: [2, 1, 0] },
+      },
+      { source: 'thumbnail-menu' },
+    );
 
     expect(result.success).toBe(true);
-    expect(pdfMocks.reorderPages).toHaveBeenCalledWith(new Uint8Array([1, 1, 1]), [2, 1, 0]);
+    expect(pdfMocks.reorderPages).toHaveBeenCalledWith(
+      new Uint8Array([1, 1, 1]),
+      [2, 1, 0],
+    );
   });
 
-  it('inserts pages from an admitted donor and commits through history', async () => {
+  it('inserts pages from an admitted donor through an execution resource', async () => {
     const donor = await admitDonor('INSERT_PAGES');
     pdfMocks.insertAt.mockResolvedValue(new Uint8Array([1, 9, 1]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: {
+    const result = await execute(
+      {
         type: 'INSERT_PAGES',
-        atIndex: 1,
-        donor,
+        payload: {
+          atIndex: 1,
+          donorResourceId: 'donor:0',
+        },
       },
-    });
+      {
+        resources: {
+          donors: {
+            'donor:0': donor,
+          },
+        },
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(pdfMocks.insertAt).toHaveBeenCalledTimes(1);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(
+      JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
+    ).not.toContain(donor.fileName);
   });
 
   it('rejects a fabricated donor before PDF mutation or transaction commit', async () => {
@@ -265,14 +377,22 @@ describe('dispatchCommand', () => {
       handle: null,
     } as AdmittedDonorPdf;
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: {
+    const result = await execute(
+      {
         type: 'INSERT_PAGES',
-        atIndex: 1,
-        donor: fabricated,
+        payload: {
+          atIndex: 1,
+          donorResourceId: 'donor:0',
+        },
       },
-    });
+      {
+        resources: {
+          donors: {
+            'donor:0': fabricated,
+          },
+        },
+      },
+    );
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('ADMISSION_REJECTED');
@@ -308,15 +428,25 @@ describe('dispatchCommand', () => {
     );
     expect(admitted.outcome).toBe('ACCEPTED');
     if (admitted.outcome !== 'ACCEPTED') return;
+
     pdfMocks.merge.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: {
+    const result = await execute(
+      {
         type: 'MERGE_PDF',
-        donors: admitted.value.donors,
+        payload: {
+          donorResourceIds: ['donor:0', 'donor:1'],
+        },
       },
-    });
+      {
+        resources: {
+          donors: {
+            'donor:0': admitted.value.donors[0],
+            'donor:1': admitted.value.donors[1],
+          },
+        },
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(admitted.value.donors.map((donor) => donor.fileName)).toEqual([
@@ -332,15 +462,24 @@ describe('dispatchCommand', () => {
     const donor = await admitDonor('REPLACE_PAGE');
     pdfMocks.replacePage.mockResolvedValue(new Uint8Array([4, 4, 4]));
 
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: {
+    const result = await execute(
+      {
         type: 'REPLACE_PAGE',
-        atIndex: 0,
-        donor,
-        donorPageIndex: 0,
+        payload: {
+          atIndex: 0,
+          donorResourceId: 'donor:0',
+          donorPageIndex: 0,
+        },
       },
-    });
+      {
+        source: 'thumbnail-menu',
+        resources: {
+          donors: {
+            'donor:0': donor,
+          },
+        },
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(pdfMocks.replacePage).toHaveBeenCalledTimes(1);
@@ -350,9 +489,12 @@ describe('dispatchCommand', () => {
   it('inserts blank pages', async () => {
     pdfMocks.insertBlankPage.mockResolvedValue(new Uint8Array([1, 0, 1]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: { type: 'INSERT_BLANK_PAGE', atIndex: 1, size: { width: 595, height: 842 } },
+    const result = await execute({
+      type: 'INSERT_BLANK_PAGE',
+      payload: {
+        atIndex: 1,
+        size: { width: 595, height: 842 },
+      },
     });
 
     expect(result.success).toBe(true);
@@ -362,22 +504,24 @@ describe('dispatchCommand', () => {
   it('adds header/footer text', async () => {
     pdfMocks.addHeaderFooterText.mockResolvedValue(new Uint8Array([2, 2, 2]));
 
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: {
+    const result = await execute(
+      {
         type: 'ADD_HEADER_FOOTER_TEXT',
-        pageIndices: [0, 1],
-        options: {
-          zone: 'footer',
-          text: 'Page {page}',
-          align: 'center',
-          marginX: 20,
-          marginY: 20,
-          fontSize: 10,
-          pageNumberToken: true,
+        payload: {
+          pageIndices: [0, 1],
+          options: {
+            zone: 'footer',
+            text: 'Page {page}',
+            align: 'center',
+            marginX: 20,
+            marginY: 20,
+            fontSize: 10,
+            pageNumberToken: true,
+          },
         },
       },
-    });
+      { source: 'thumbnail-menu' },
+    );
 
     expect(result.success).toBe(true);
     expect(pdfMocks.addHeaderFooterText).toHaveBeenCalledTimes(1);
@@ -386,31 +530,32 @@ describe('dispatchCommand', () => {
   it('draws text on selected pages', async () => {
     pdfMocks.drawTextOnPages.mockResolvedValue(new Uint8Array([3, 3, 3]));
 
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: {
+    const result = await execute(
+      {
         type: 'DRAW_TEXT_ON_PAGES',
-        pageIndices: [0],
-        options: {
-          text: 'REVIEW',
-          x: 20,
-          y: 30,
-          fontSize: 12,
+        payload: {
+          pageIndices: [0],
+          options: {
+            text: 'REVIEW',
+            x: 20,
+            y: 30,
+            fontSize: 12,
+          },
         },
       },
-    });
+      { source: 'thumbnail-menu' },
+    );
 
     expect(result.success).toBe(true);
     expect(pdfMocks.drawTextOnPages).toHaveBeenCalledTimes(1);
   });
 
-  it('labels legacy redaction commands as visual masks', async () => {
+  it('labels visual-mask commands accurately', async () => {
     pdfMocks.drawRedactionBoxes.mockResolvedValue(new Uint8Array([4, 4, 4]));
 
-    const result = await dispatchCommand({
-      source: 'toolbar',
-      command: {
-        type: 'DRAW_REDACTION_BOX',
+    const result = await execute({
+      type: 'DRAW_REDACTION_BOX',
+      payload: {
         pageIndices: [0],
         options: {
           x: 20,
@@ -429,21 +574,23 @@ describe('dispatchCommand', () => {
   });
 
   it('returns validation error for empty header/footer target', async () => {
-    const result = await dispatchCommand({
-      source: 'thumbnail-menu',
-      command: {
+    const result = await execute(
+      {
         type: 'ADD_HEADER_FOOTER_TEXT',
-        pageIndices: [],
-        options: {
-          zone: 'footer',
-          text: 'Page {page}',
-          align: 'center',
-          marginX: 20,
-          marginY: 20,
-          fontSize: 10,
+        payload: {
+          pageIndices: [],
+          options: {
+            zone: 'footer',
+            text: 'Page {page}',
+            align: 'center',
+            marginX: 20,
+            marginY: 20,
+            fontSize: 10,
+          },
         },
       },
-    });
+      { source: 'thumbnail-menu' },
+    );
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('VALIDATION_FAILED');
