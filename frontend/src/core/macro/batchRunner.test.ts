@@ -302,6 +302,39 @@ describe('runMacroBatch', () => {
     });
   });
 
+  it('hands off successful output bytes without retaining them in the report', async () => {
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(
+      successResult(321, ['done']),
+    );
+    const outputs: Array<{
+      inputIndex: number;
+      fileName: string;
+      bytes: Uint8Array;
+    }> = [];
+
+    const report = await runMacroBatch({
+      sources: [createSource('valid.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: (output) => {
+        outputs.push(output);
+      },
+    });
+
+    expect(outputs).toHaveLength(1);
+    expect(outputs[0]).toMatchObject({
+      inputIndex: 0,
+      fileName: 'valid.pdf',
+    });
+    expect(outputs[0]?.bytes).toBeInstanceOf(Uint8Array);
+    expect(outputs[0]?.bytes.byteLength).toBe(321);
+    expect(containsBinary(report)).toBe(false);
+    expect(report.records[0]).toMatchObject({
+      status: 'success',
+      outputBytes: 321,
+    });
+  });
+
   it('continues after macro failure when continueOnError is true', async () => {
     macroMocks.executeMacroRecipe
       .mockResolvedValueOnce(failureResult('first failed'))
