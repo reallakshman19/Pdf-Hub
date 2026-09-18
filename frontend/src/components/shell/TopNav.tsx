@@ -297,7 +297,13 @@ export const TopNav: React.FC = () => {
                   key={id}
                   role="tab"
                   aria-selected={isActive}
-                  onClick={() => setActiveMode(id)}
+                  onClick={() => {
+                    setActiveMode(id);
+                    if (id === 'generate') {
+                      setSidebarTab('macros');
+                      if (leftPanelWidth < 1) setLeftPanelWidth(20);
+                    }
+                  }}
                   className={[
                     'flex items-center gap-1.5 px-[10px] py-1 rounded-[8px] text-[11.5px] font-[500] whitespace-nowrap transition-all select-none border-none cursor-pointer bg-transparent',
                     isActive
