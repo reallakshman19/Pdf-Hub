@@ -87,6 +87,7 @@ export interface OcrRunActionsProps {
   onRun: () => void;
   onClear: () => void;
   onCancel?: () => void;
+  runDisabled?: boolean;
   clearDisabled?: boolean;
   showClear?: boolean;
 }
@@ -96,6 +97,7 @@ export function OcrRunActions({
   onRun,
   onClear,
   onCancel,
+  runDisabled = false,
   clearDisabled = false,
   showClear = true,
 }: OcrRunActionsProps) {
@@ -105,7 +107,7 @@ export function OcrRunActions({
         type="button"
         size="sm"
         onClick={onRun}
-        disabled={running}
+        disabled={running || runDisabled}
         data-testid="run-ocr-button"
       >
         {running ? (
