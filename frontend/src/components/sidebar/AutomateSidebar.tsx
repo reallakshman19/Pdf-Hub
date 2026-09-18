@@ -240,6 +240,7 @@ export const AutomateSidebar: React.FC = () => {
           <QuickActions
             actions={quickActions}
             hasDocument={Boolean(workingBytes)}
+            selectedPageCount={selectedPages.length}
             runningRecipeId={runningRecipeId}
             onRun={(recipe) => void runRecipe(recipe)}
             onCustomize={(item) => openBuilder(`builtin:${item.id}`)}
@@ -330,12 +331,14 @@ function AutomateTabButton({
 function QuickActions({
   actions,
   hasDocument,
+  selectedPageCount,
   runningRecipeId,
   onRun,
   onCustomize,
 }: {
   actions: MacroRecipeCatalogItem[];
   hasDocument: boolean;
+  selectedPageCount: number;
   runningRecipeId: string | null;
   onRun: (recipe: MacroRecipe) => void;
   onCustomize: (item: MacroRecipeCatalogItem) => void;
@@ -354,6 +357,11 @@ function QuickActions({
       <div className="space-y-2">
         {actions.map((item) => {
           const running = runningRecipeId === item.recipe.id;
+          const requiresSelection =
+            item.id === 'rotate-selected-90'
+            || item.id === 'extract-selected';
+          const selectionMissing = requiresSelection && selectedPageCount === 0;
+
           return (
             <article
               key={item.id}
@@ -368,6 +376,11 @@ function QuickActions({
                   <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
                     {item.description}
                   </p>
+                  {selectionMissing ? (
+                    <p className="mt-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                      Select one or more pages first.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -376,7 +389,7 @@ function QuickActions({
                   type="button"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={!hasDocument || runningRecipeId !== null}
+                  disabled={!hasDocument || runningRecipeId !== null || selectionMissing}
                   onClick={() => onRun(item.recipe)}
                 >
                   <Play className={['mr-1 h-3 w-3', running ? 'animate-pulse' : ''].join(' ')} />
