@@ -27,7 +27,11 @@ import {
 
 
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
-  buildPageGraphFromPdfBytes: vi.fn(async (_bytes: Uint8Array, documentKey: string) => ({
+  buildPageGraphFromPdfBytes: vi.fn(),
+}));
+
+function mockPageGraph(documentKey: string) {
+  return {
     pages: [{
       pageId: `${documentKey}::page::1`,
       documentKey,
@@ -37,8 +41,8 @@ vi.mock('@/core/pages/pageGraphAdmission', () => ({
       height: 792,
       rotation: 0 as const,
     }],
-  })),
-}));
+  };
+}
 
 async function onePagePdfBytes(): Promise<Uint8Array> {
   const document = await PDFDocument.create();
@@ -185,6 +189,9 @@ function stateSnapshot() {
 
 describe('atomic standalone Writer project import', () => {
   beforeEach(() => {
+    vi.mocked(buildPageGraphFromPdfBytes).mockImplementation(
+      async (_bytes, documentKey) => mockPageGraph(documentKey),
+    );
     useSessionStore.getState().clearDocument();
     useWriterV2Store.getState().clearWriterV2();
     useEditorStore.getState().setActiveMode('annotate');
@@ -192,7 +199,6 @@ describe('atomic standalone Writer project import', () => {
   });
 
   afterEach(() => {
-    vi.mocked(buildPageGraphFromPdfBytes).mockClear();
     vi.restoreAllMocks();
   });
 
