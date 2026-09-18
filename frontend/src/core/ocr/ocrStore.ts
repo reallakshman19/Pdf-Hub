@@ -207,6 +207,15 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   setOcrResult: (result) => {
     const previous = get();
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+
+    if (
+      result
+      && activeDocumentKey
+      && result.documentFingerprint !== activeDocumentKey
+    ) {
+      return;
+    }
 
     const nextState: OcrStoreState = {
       ...previous,
