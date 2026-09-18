@@ -94,7 +94,7 @@ export const MacrosSidebar: React.FC = () => {
     }));
   };
 
-  const resetPanel = () => {
+  const resetParameters = () => {
     if (!selectedRecipe) {
       return;
     }
@@ -103,6 +103,10 @@ export const MacrosSidebar: React.FC = () => {
       [selectedRecipe.id]: createDefaultOverrides(selectedRecipe, Math.max(1, pageCount)),
     }));
   };
+
+  const selectedIsSavedPreset = savedPresets.some(
+    (recipe) => recipe.id === selectedRecipeId,
+  );
 
   const saveCurrentPreset = (recipe: MacroRecipe) => {
     savePreset({
@@ -168,7 +172,7 @@ export const MacrosSidebar: React.FC = () => {
               </optgroup>
             )}
           </select>
-          {selectedRecipeId.startsWith('custom_') && (
+          {selectedIsSavedPreset && (
             <Button variant="ghost" size="icon" onClick={() => deletePreset(selectedRecipeId)} className="flex-shrink-0 text-red-500 hover:text-red-600">
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -182,6 +186,7 @@ export const MacrosSidebar: React.FC = () => {
         pageCount={pageCount}
         disabled={generationBusy || presetRunnerBusy || expertBusy}
         onChange={updateOverrides}
+        onReset={resetParameters}
       />
 
       <MacroPresetExecutionPanel
@@ -189,7 +194,6 @@ export const MacrosSidebar: React.FC = () => {
         disabled={generationBusy || expertBusy}
         onBusyChange={setPresetRunnerBusy}
         onSavePreset={saveCurrentPreset}
-        onReset={resetPanel}
         onOutputsProduced={(outputs) => {
           setOutputQueue((current) => [
             ...current,
