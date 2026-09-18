@@ -260,6 +260,11 @@ describe('canonical command dispatch', () => {
 
   it('does not mutate any store when annotation persistence fails', async () => {
     useAnnotationStore.getState().setAnnotations([TEST_ANNOTATION]);
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'test-doc',
+      result: ocrDocument(0),
+      selectedPageIndexes: [0],
+    });
     pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
     persistenceMocks.saveAnnotations.mockRejectedValueOnce(
       new Error('IndexedDB quota exceeded'),
@@ -276,6 +281,11 @@ describe('canonical command dispatch', () => {
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
     expect(useSessionStore.getState().documentKey).toBe('test-doc');
     expect(useAnnotationStore.getState().annotations).toEqual([TEST_ANNOTATION]);
+    expect(useOcrStore.getState().documentFingerprint).toBe('test-doc');
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      pageIndex: 0,
+    });
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
