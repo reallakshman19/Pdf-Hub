@@ -7,10 +7,8 @@ import {
   createPageGraph,
   isPageRotation,
 } from './pageGraph';
-import {
-  applyResolvedPdfPageLabels,
-  readResolvedPdfPageLabels,
-} from './pdfPageLabels';
+import { readResolvedPdfPageLabels } from './pdfPageLabels';
+import { applyResolvedPageLabels } from './pageLabels';
 import type { PageGraph, PageId, PageNode, PageRotation } from './types';
 
 export async function buildPageGraphFromPdfBytes(
@@ -68,7 +66,7 @@ export async function buildPageGraphFromPdfBytes(
       }
     }
 
-    return applyResolvedPdfPageLabels(
+    return applyResolvedPageLabels(
       createPageGraph(pages),
       resolvedPageLabels,
     );
