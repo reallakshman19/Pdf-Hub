@@ -3,15 +3,17 @@ import { runMacroRecipeAgainstSession } from './sessionRunner';
 import { useSessionStore } from '@/core/session/store';
 
 const mockExecuteMacroRecipe = vi.hoisted(() => vi.fn());
-const mockDispatchCommand = vi.hoisted(() => vi.fn());
+const mockCommandExecute = vi.hoisted(() => vi.fn());
 const mockSavePdfBytes = vi.hoisted(() => vi.fn());
 
 vi.mock('./executor', () => ({
   executeMacroRecipe: mockExecuteMacroRecipe,
 }));
 
-vi.mock('@/core/commands/dispatch', () => ({
-  dispatchCommand: mockDispatchCommand,
+vi.mock('@/core/commands/bus', () => ({
+  commandBus: {
+    execute: mockCommandExecute,
+  },
 }));
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
@@ -38,7 +40,7 @@ describe('runMacroRecipeAgainstSession', () => {
       outputFiles: [],
       stepResults: [],
     });
-    mockDispatchCommand.mockResolvedValue({ success: true, message: 'ok' });
+    mockCommandExecute.mockResolvedValue({ success: true, message: 'ok' });
   });
 
   it('throws when session has no active document', async () => {
@@ -48,10 +50,26 @@ describe('runMacroRecipeAgainstSession', () => {
     ).rejects.toThrow('No active document in session');
   });
 
-  it('calls replaceWorkingCopy for normal runs', async () => {
+  it('commits normal runs as one canonical APPLY_WORKING_COPY command', async () => {
     await runMacroRecipeAgainstSession({ id: 'r2', name: 'R2', steps: [] });
 
-    expect(useSessionStore.getState().selectedPages).toEqual([2]);
+    expect(mockCommandExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: expect.objectContaining({
+          type: 'APPLY_WORKING_COPY',
+          source: 'macro-runner',
+          documentKey: 'macro-doc',
+          payload: expect.objectContaining({
+            selectedPages: [2],
+            macro: {
+              recipeId: 'r2',
+              recipeName: 'R2',
+              stepCount: 0,
+            },
+          }),
+        }),
+      }),
+    );
   });
 
   it('saves extracted outputs when saveOutputs is true', async () => {
