@@ -25,8 +25,8 @@ describe('MacroBuilderPage slice 11', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('main', { name: 'Macro builder page' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Macro recipe builder' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Workflow builder page' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Workflow builder' })).toBeInTheDocument();
     expect(screen.getByLabelText('Workflow builder source')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to workspace' })).toHaveAttribute('href', '/');
   });
