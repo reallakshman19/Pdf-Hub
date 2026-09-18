@@ -450,6 +450,11 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for split.');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const nextPageGraph = removePagesFromGraph(
+          pageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
+        );
         const nextAnnotations = remapAfterDelete(
           useAnnotationStore.getState().annotations,
           pageIndices,
@@ -465,6 +470,9 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages split into a new file', result.nextBytes, result.nextPageCount, [
           {
@@ -483,6 +491,11 @@ export async function dispatchPdfCommand(
         if (pageIndices.length >= pageCount) {
           return commandError(command, 'VALIDATION_FAILED', 'Cannot delete every page in the document.');
         }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const nextPageGraph = removePagesFromGraph(
+          pageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
+        );
         const nextAnnotations = remapAfterDelete(
           useAnnotationStore.getState().annotations,
           pageIndices,
@@ -498,6 +511,9 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages deleted', result.nextBytes, result.nextPageCount);
       }
@@ -510,6 +526,20 @@ export async function dispatchPdfCommand(
         assertDonorCommandCurrent(context, input, 'insert donor pages: before mutation');
         inspectAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
         const [resolved] = consumeAdmittedDonorPdfs('INSERT_PAGES', [donor], context.documentKey);
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const insertedNodes = await buildImportedDonorNodes(
+          resolved,
+          context,
+          command,
+          'insert',
+          0,
+          input.signal,
+        );
+        const nextPageGraph = insertPagesIntoGraph(
+          pageGraph,
+          command.payload.atIndex,
+          insertedNodes,
+        );
         const nextAnnotations = remapAfterInsert(
           useAnnotationStore.getState().annotations,
           command.payload.atIndex,
@@ -532,12 +562,26 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages inserted', result.nextBytes, result.nextPageCount);
       }
 
       case 'INSERT_BLANK_PAGE': {
         const { atIndex, size } = command.payload;
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const nextPageGraph = insertPagesIntoGraph(
+          pageGraph,
+          atIndex,
+          [createBlankPageNode({
+            documentKey: context.documentKey,
+            commandId: command.id,
+            width: size.width,
+            height: size.height,
+          })],
+        );
         const nextAnnotations = remapAfterInsert(
           useAnnotationStore.getState().annotations,
           atIndex,
@@ -555,6 +599,9 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Blank page inserted', result.nextBytes, result.nextPageCount);
       }
@@ -579,6 +626,26 @@ export async function dispatchPdfCommand(
           );
         }
         const [resolved] = consumeAdmittedDonorPdfs('REPLACE_PAGE', [donor], context.documentKey);
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const donorGraph = await buildPageGraphFromPdfBytes(
+          resolved.bytes,
+          `${context.documentKey}::donor::${command.id}::${resolved.inputIndex}`,
+          input.signal,
+        );
+        if (donorGraph.pages.length !== resolved.pageCount) {
+          throw new Error(
+            `Donor PageGraph count ${donorGraph.pages.length} does not match admitted page count ${resolved.pageCount}`,
+          );
+        }
+        const replacementNode = donorGraph.pages[donorPageIndex];
+        if (!replacementNode) {
+          return commandError(command, 'VALIDATION_FAILED', 'The donor PageGraph does not contain the selected page.');
+        }
+        const nextPageGraph = replacePageGraphContent(
+          pageGraph,
+          atIndex,
+          replacementNode,
+        );
         const nextAnnotations = remapAfterInsert(
           remapAfterDelete(useAnnotationStore.getState().annotations, [atIndex]),
           atIndex,
@@ -605,6 +672,9 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Page replaced', result.nextBytes, result.nextPageCount);
       }
@@ -614,6 +684,12 @@ export async function dispatchPdfCommand(
         if (pageIndices.length === 0) {
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for duplication.');
         }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const nextPageGraph = duplicatePagesInGraph(
+          pageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
+          (_source, ordinal) => createDuplicatePageId(command.id, ordinal),
+        );
         const nextAnnotations = remapAfterDuplicate(
           useAnnotationStore.getState().annotations,
           pageIndices,
@@ -629,6 +705,9 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages duplicated', result.nextBytes, result.nextPageCount);
       }
@@ -641,12 +720,39 @@ export async function dispatchPdfCommand(
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before mutation');
         inspectAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
         const donors = consumeAdmittedDonorPdfs('MERGE_PDF', donorRefs, context.documentKey);
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const importedNodes: PageNode[] = [];
+        for (const donor of donors) {
+          const nodes = await buildImportedDonorNodes(
+            donor,
+            context,
+            command,
+            'merge',
+            importedNodes.length,
+            input.signal,
+          );
+          importedNodes.push(...nodes);
+        }
+        const nextPageGraph = insertPagesIntoGraph(
+          pageGraph,
+          pageGraph.pages.length,
+          importedNodes,
+        );
         const nextBytes = await PdfEditAdapter.merge(
           context.workingBytes,
           donors.map((donor) => donor.bytes),
         );
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
-        const result = await applyMutation(command, context.workingBytes, nextBytes);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          nextPageGraph,
+        );
         return commandSuccess(command, true, 'Files merged', result.nextBytes, result.nextPageCount);
       }
 
@@ -745,6 +851,11 @@ export async function dispatchPdfCommand(
         if (!nextBytes) {
           return commandError(command, 'RESOURCE_MISSING', 'The working-copy binary resource is unavailable.');
         }
+        const rebuiltPageGraph = await buildPageGraphFromPdfBytes(
+          nextBytes,
+          `${context.documentKey}::working-copy::${command.id}`,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -752,6 +863,8 @@ export async function dispatchPdfCommand(
           undefined,
           undefined,
           command.payload.selectedPages,
+          undefined,
+          rebuiltPageGraph,
         );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });
         return commandSuccess(
