@@ -1,3 +1,5 @@
+import type { PageId } from '../pages/types';
+
 export type ReviewStatus = 'open' | 'resolved' | 'rejected';
 
 export interface ReviewMessage {
@@ -15,6 +17,9 @@ export type ReviewReply = ReviewMessage;
 
 export interface ReviewThreadAnchor {
   annotationId: string;
+  /** Canonical anchor during PageId migration; absent only for legacy inputs. */
+  pageId?: PageId;
+  /** Derived one-based position retained for navigation/UI compatibility. */
   pageNumber: number;
   annotationType: string;
 }
