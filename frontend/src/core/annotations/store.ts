@@ -1,7 +1,11 @@
 import { create } from 'zustand';
-import { documentBus } from '../events/bus';
-import { remapAfterReorder, remapAfterDelete, remapAfterInsert, remapAfterRotate, remapAfterDuplicate } from './pageRemapper';
+import { materializePdfCommand } from '../commands/types';
+import {
+  recordStateTransaction,
+  writerHistoryState,
+} from '../document-history/stateTransaction';
 import { useSessionStore } from '../session/store';
+import { useWriterV2Store } from '../writer-v2/writerV2Store';
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -22,8 +26,6 @@ export type DistributeMode = 'horizontal' | 'vertical';
 
 interface AnnotationState {
   annotations: PdfAnnotation[];
-  history: PdfAnnotation[][];
-  future: PdfAnnotation[][];
   activeAnnotationId: string | null;
   selectedAnnotationIds: string[];
   clipboard: PdfAnnotation[];
@@ -39,8 +41,6 @@ interface AnnotationActions {
   setSelection: (ids: string[]) => void;
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
-  undo: () => void;
-  redo: () => void;
   setAnnotations: (annotations: PdfAnnotation[]) => void;
   applyPageRemap: (annotations: PdfAnnotation[]) => void;
   copySelection: () => void;
@@ -53,7 +53,49 @@ interface AnnotationActions {
   updateStyleForSelection: (stylePatch: Partial<AnnotationStyle>) => void;
 }
 
-const MAX_HISTORY = 50;
+function recordAnnotationMutation(
+  state: AnnotationState,
+  nextAnnotations: PdfAnnotation[],
+  label = 'Edit annotations',
+): void {
+  const session = useSessionStore.getState();
+  if (!session.documentKey || !session.workingBytes) return;
+
+  const writer = useWriterV2Store.getState();
+  const annotationIds = Array.from(
+    new Set([
+      ...state.selectedAnnotationIds,
+      ...nextAnnotations
+        .filter((annotation) =>
+          !state.annotations.some((current) => current === annotation)
+        )
+        .map((annotation) => annotation.id),
+    ]),
+  );
+
+  recordStateTransaction({
+    command: materializePdfCommand(
+      {
+        type: 'ANNOTATION_CHANGE',
+        payload: {
+          action: label,
+          annotationIds,
+        },
+      },
+      'annotation-store',
+      session.documentKey,
+    ),
+    label,
+    before: {
+      annotations: state.annotations,
+      writer: writerHistoryState(writer),
+    },
+    after: {
+      annotations: nextAnnotations,
+      writer: writerHistoryState(writer),
+    },
+  });
+}
 
 function normalizeIds(ids: string[], annotations: PdfAnnotation[]): string[] {
   const allowed = new Set(annotations.map((annotation) => annotation.id));
@@ -62,40 +104,6 @@ function normalizeIds(ids: string[], annotations: PdfAnnotation[]): string[] {
 
 function markAnnotationDirty(): void {
   useSessionStore.getState().setDirty(true);
-}
-
-function pushAnnotationHistory(state: AnnotationState): PdfAnnotation[][] {
-  return [...state.history, state.annotations].slice(-MAX_HISTORY);
-}
-
-function applyAnnotationHistoryTransaction(
-  state: AnnotationState,
-  nextAnnotations: PdfAnnotation[],
-  nextSelectedIds: string[] = [],
-  nextActiveId: string | null = null,
-): Partial<AnnotationState> {
-  markAnnotationDirty();
-
-  return {
-    annotations: nextAnnotations,
-    history: pushAnnotationHistory(state),
-    future: [],
-    selectedAnnotationIds: normalizeIds(nextSelectedIds, nextAnnotations),
-    activeAnnotationId:
-      nextActiveId && normalizeIds([nextActiveId], nextAnnotations).length > 0
-        ? nextActiveId
-        : normalizeIds(nextSelectedIds, nextAnnotations)[0] ?? null,
-  };
-}
-
-function clearAnnotationInteractionState(): Pick<
-  AnnotationState,
-  'selectedAnnotationIds' | 'activeAnnotationId'
-> {
-  return {
-    selectedAnnotationIds: [],
-    activeAnnotationId: null,
-  };
 }
 
 function selectedAnnotations(
@@ -112,11 +120,11 @@ function snapshot(
   nextSelectedIds?: string[],
   nextActiveId?: string | null,
 ) {
-  useSessionStore.getState().setDirty(true);
+  markAnnotationDirty();
+  recordAnnotationMutation(state, nextAnnotations);
+
   return {
     annotations: nextAnnotations,
-    history: [...state.history, state.annotations].slice(-MAX_HISTORY),
-    future: [],
     selectedAnnotationIds: normalizeIds(
       nextSelectedIds ?? state.selectedAnnotationIds,
       nextAnnotations,
@@ -130,8 +138,6 @@ function snapshot(
 
 export const useAnnotationStore = create<AnnotationState & AnnotationActions>((set) => ({
   annotations: [],
-  history: [],
-  future: [],
   activeAnnotationId: null,
   selectedAnnotationIds: [],
   clipboard: [],
@@ -227,47 +233,15 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       activeAnnotationId: null,
     }),
 
-  undo: () =>
-    set((state) => {
-      if (state.history.length === 0) return state;
-      markAnnotationDirty();
-      const previous = state.history[state.history.length - 1];
-      const newHistory = state.history.slice(0, -1);
-      const newFuture = [state.annotations, ...state.future].slice(0, MAX_HISTORY);
-      return {
-        annotations: previous,
-        history: newHistory,
-        future: newFuture,
-        ...clearAnnotationInteractionState(),
-      };
-    }),
-
-  redo: () =>
-    set((state) => {
-      if (state.future.length === 0) return state;
-      markAnnotationDirty();
-      const next = state.future[0];
-      const newFuture = state.future.slice(1);
-      const newHistory = pushAnnotationHistory(state);
-      return {
-        annotations: next,
-        history: newHistory,
-        future: newFuture,
-        ...clearAnnotationInteractionState(),
-      };
-    }),
-
   setAnnotations: (annotations) =>
     set({
       annotations,
-      history: [],
-      future: [],
       selectedAnnotationIds: [],
       activeAnnotationId: null,
     }),
 
   applyPageRemap: (annotations) =>
-    set((state) => applyAnnotationHistoryTransaction(state, annotations, [], null)),
+    set((state) => snapshot(state, annotations, [], null)),
 
   copySelection: () =>
     set((state) => {
@@ -575,57 +549,3 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       return snapshot(state, nextAnnotations);
     }),
 }));
-
-// Register pure page lifecycle event remappers
-documentBus.subscribe((event) => {
-  if (event.type === 'PAGES_REORDERED') {
-    useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(state, remapAfterReorder(state.annotations, event.order), [], null),
-    );
-    return;
-  }
-
-  if (event.type === 'PAGES_DELETED') {
-    useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(state, remapAfterDelete(state.annotations, event.indices), [], null),
-    );
-    return;
-  }
-
-  if (event.type === 'PAGES_INSERTED') {
-    useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(
-        state,
-        remapAfterInsert(state.annotations, event.atIndex, event.count),
-        [],
-        null,
-      ),
-    );
-    return;
-  }
-
-  if (event.type === 'PAGES_ROTATED') {
-    useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(state, remapAfterRotate(state.annotations, event.rotations), [], null),
-    );
-    return;
-  }
-
-  if (event.type === 'PAGES_DUPLICATED') {
-    useAnnotationStore.setState((state) =>
-      applyAnnotationHistoryTransaction(state, remapAfterDuplicate(state.annotations, event.pageIndices), [], null),
-    );
-    return;
-  }
-
-  if (event.type === 'DOCUMENT_REPLACED') {
-    useAnnotationStore.setState({
-      annotations: [],
-      history: [],
-      future: [],
-      selectedAnnotationIds: [],
-      activeAnnotationId: null,
-      clipboard: [],
-    });
-  }
-});
