@@ -75,13 +75,39 @@ describe('annotation store', () => {
 
     store.updateManyAnnotations([
       { id: 'a1', data: { pageNumber: 5 } },
-      { id: 'a3', data: { data: { reviewStatus: 'resolved' } } },
+      {
+        id: 'a3',
+        data: {
+          data: {
+            review: {
+              author: 'Reviewer',
+              createdAt: 1,
+              updatedAt: 1,
+              status: 'resolved',
+              replies: [],
+            },
+          },
+        },
+      },
     ]);
 
     const state = useAnnotationStore.getState();
     expect(state.annotations.find((a) => a.id === 'a1')?.pageNumber).toBe(5);
     expect(state.annotations.find((a) => a.id === 'a2')?.pageNumber).toBe(2);
-    expect(state.annotations.find((a) => a.id === 'a3')?.data.reviewStatus).toBe('resolved');
+    expect(state.annotations.find((a) => a.id === 'a3')?.data.review?.status).toBe('resolved');
+  });
+
+  it('setReviewStatusForSelection writes only canonical review metadata', () => {
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([baseAnnotation('a1', 1, 10, 10)]);
+    store.setSelection(['a1']);
+
+    store.setReviewStatusForSelection('resolved');
+
+    const annotation = useAnnotationStore.getState().annotations[0];
+    expect(annotation.data.review?.status).toBe('resolved');
+    expect(annotation.data.review?.replies).toEqual([]);
+    expect(Object.prototype.hasOwnProperty.call(annotation.data, 'reviewStatus')).toBe(false);
   });
 
   it('copySelection + pasteClipboard clones and offsets geometry including callout points', () => {
