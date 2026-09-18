@@ -4,11 +4,10 @@ import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
-import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Send, Minus, X } from 'lucide-react';
+import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Minus, X } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
-import { v4 as uuidv4 } from 'uuid';
-import type { ReviewReply, ReviewStatus } from '@/core/review/types';
+import type { ReviewStatus } from '@/core/review/types';
 import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -219,8 +218,6 @@ const ReviewTab: React.FC<{
   updateAnnotation: (id: string, data: Partial<PdfAnnotation>) => void;
   updateManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
 }> = ({ activeAnnotation, selection, updateAnnotation, updateManyAnnotations }) => {
-  const [newReplyText, setNewReplyText] = useState('');
-
   if (selection.length > 1) {
     return (
       <div className="p-4 space-y-4">
@@ -389,82 +386,6 @@ const ReviewTab: React.FC<{
         </LabeledInputShell>
       </Section>
 
-      <Section title="Replies">
-        <div className="space-y-3 mb-4">
-          {(!activeAnnotation.data.review?.replies || activeAnnotation.data.review.replies.length === 0) ? (
-            <div className="text-xs text-slate-500 italic">No replies yet.</div>
-          ) : (
-            activeAnnotation.data.review.replies.map(reply => (
-              <div key={reply.id} className="bg-slate-100 dark:bg-slate-800 p-2 rounded-md text-sm">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-xs">{reply.author}</span>
-                  <span className="text-[10px] text-slate-500">{new Date(reply.createdAt).toLocaleDateString()}</span>
-                </div>
-                <p className="text-slate-700 dark:text-slate-300">{reply.content}</p>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <input
-            type="text"
-            className={`${baseInputClass} flex-1`}
-            placeholder="Add a reply..."
-            value={newReplyText}
-            onChange={(e) => setNewReplyText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newReplyText.trim()) {
-                const newReply: ReviewReply = {
-                  id: uuidv4(),
-                  author: 'Current User',
-                  content: newReplyText.trim(),
-                  createdAt: Date.now()
-                };
-
-                updateAnnotation(activeAnnotation.id, {
-                  data: {
-                    ...activeAnnotation.data,
-                    review: {
-                      ...(activeAnnotation.data.review || { author: 'Current User', status: 'open' as ReviewStatus, createdAt: Date.now(), replies: [] }),
-                      replies: [...(activeAnnotation.data.review?.replies || []), newReply],
-                      updatedAt: Date.now()
-                    }
-                  }
-                });
-                setNewReplyText('');
-              }
-            }}
-          />
-          <Button
-            size="icon"
-            onClick={() => {
-              if (newReplyText.trim()) {
-                const newReply: ReviewReply = {
-                  id: uuidv4(),
-                  author: 'Current User',
-                  content: newReplyText.trim(),
-                  createdAt: Date.now()
-                };
-
-                updateAnnotation(activeAnnotation.id, {
-                  data: {
-                    ...activeAnnotation.data,
-                    review: {
-                      ...(activeAnnotation.data.review || { author: 'Current User', status: 'open' as ReviewStatus, createdAt: Date.now(), replies: [] }),
-                      replies: [...(activeAnnotation.data.review?.replies || []), newReply],
-                      updatedAt: Date.now()
-                    }
-                  }
-                });
-                setNewReplyText('');
-              }
-            }}
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
-      </Section>
     </div>
   );
 };
