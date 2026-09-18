@@ -54,11 +54,11 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
         recipe,
         continueOnError: true,
         abortSignal: controller.signal,
-        onOutput: ({ fileName, bytes }) => {
+        onOutput: ({ inputIndex, fileName, bytes }) => {
           if (controller.signal.aborted) return;
           FileAdapter.downloadBytes(
             bytes,
-            buildBatchOutputName(fileName, recipe.id),
+            buildBatchOutputName(inputIndex, fileName, recipe.id),
           );
         },
       });
@@ -176,15 +176,22 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
 };
 
 function buildBatchOutputName(
+  inputIndex: number,
   fileName: string,
   recipeId: string,
 ): string {
-  const base = fileName.replace(/\.pdf$/i, '') || 'document';
+  const rawBase = fileName.replace(/\.pdf$/i, '') || 'document';
+  const base = rawBase
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    || 'document';
   const safeRecipe = recipeId
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^-|-$/g, '')
     || 'workflow';
-  return `${base}-${safeRecipe}.pdf`;
+  const order = String(inputIndex + 1).padStart(3, '0');
+  return `${order}-${base}-${safeRecipe}.pdf`;
 }
