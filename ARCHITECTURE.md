@@ -421,3 +421,26 @@ Structural semantics for canonical ranges:
 Logical PageLabels remain separate from visible printed page numbers/header-footer content. Setting PageLabels must never draw page content.
 
 The current mutation path may perform an additional pdf-lib parse to rewrite PageLabels after a structural operation. Phase 7's persistent mutation-session work is the planned place to remove this repeated-parse cost rather than expanding 5F into an engine rewrite.
+
+
+### Page Labels UX
+
+Organize mode exposes one focused **Logical Page Labels** workflow backed exclusively by the canonical `SET_PAGE_LABELS` command.
+
+The control supports:
+- restart/apply from the current page
+- restart/apply from the first selected page
+- decimal, lower/upper Roman, lower/upper alphabetic styles
+- optional prefix
+- positive starting number
+- prefix-only ranges
+- preview before commit
+- clear logical labels
+
+The UI works with stable PageIds internally. Physical page position remains visible in the dialog, thumbnails, and page navigator; logical labels are secondary metadata. A logical label must never replace the physical page position where the user needs structural context.
+
+On an unlabeled document, adding the first restart after physical page 1 seeds an ordinary decimal range at page 1 so the complete PDF number tree remains valid. Existing later canonical restart ranges are preserved. Reapplying at the same PageId replaces that restart.
+
+For imported PDFs where PDF.js can resolve labels but the original compact PageLabel range dictionaries have not been reconstructed, the dialog warns that applying a restart replaces that imported scheme with a canonical PDF Hub configuration.
+
+Page Labels UI never calls the low-level PDF writer directly and never uses header/footer drawing commands. All mutations flow through `SET_PAGE_LABELS → CommandBus → DocumentTransaction`.
