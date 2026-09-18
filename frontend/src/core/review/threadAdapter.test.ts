@@ -120,4 +120,21 @@ describe('ReviewThread adapter', () => {
       'This note needs a concise title generated from its text content.',
     );
   });
+
+  it('projects PageId into the review thread anchor when available', () => {
+    const annotation = {
+      ...baseAnnotation,
+      pageId: 'stable-page-7',
+      pageNumber: 3,
+    };
+
+    const thread = reviewThreadFromAnnotation(annotation);
+
+    expect(thread?.anchor).toMatchObject({
+      annotationId: annotation.id,
+      pageId: 'stable-page-7',
+      pageNumber: 3,
+    });
+  });
+
 });
