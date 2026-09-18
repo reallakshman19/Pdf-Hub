@@ -120,6 +120,7 @@ export const MacroPresetExecutionPanel: React.FC<MacroPresetExecutionPanelProps>
     setIsDryRunning(true);
     setRunError(null);
     setLogs([]);
+    setIsRunning(true);
 
     try {
       const signature = JSON.stringify(recipe);
@@ -177,7 +178,6 @@ export const MacroPresetExecutionPanel: React.FC<MacroPresetExecutionPanelProps>
       const controller = new AbortController();
       abortRef.current?.abort('Superseded by a new preset workflow run');
       abortRef.current = controller;
-      setIsRunning(true);
 
       const result = await runMacroRecipeAgainstSession(
         {
