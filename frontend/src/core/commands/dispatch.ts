@@ -6,12 +6,30 @@ import {
   isDonorAdmissionBoundaryError,
   DonorAdmissionBoundaryError,
   type AdmittedDonorPdf,
+  type ResolvedAdmittedDonorPdf,
 } from '@/core/admission/donorPdf';
 import {
   isOperationCancelledError,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
 import { useSessionStore } from '@/core/session/store';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
+import {
+  duplicatePagesInGraph,
+  insertPagesIntoGraph,
+  removePagesFromGraph,
+  rotatePagesInGraph,
+} from '@/core/pages/pageGraph';
+import {
+  createBlankPageNode,
+  createDuplicatePageId,
+  importedPageNodes,
+  movePageGraphBeforeOriginalTarget,
+  pageIdsAtIndices,
+  reorderPageGraphByOrder,
+  replacePageGraphContent,
+} from '@/core/pages/structuralPageGraph';
+import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useAnnotationStore } from '@/core/annotations/store';
 import {
   remapAfterDelete,
@@ -200,6 +218,67 @@ function resolveDonors(
   return donors;
 }
 
+async function resolveStructuralPageGraph(
+  context: ResolvedCommandContext,
+  input: CommandExecutionInput,
+  pageCount: number,
+): Promise<PageGraph<PageNode>> {
+  const current = useSessionStore.getState().pageGraph;
+  if (current && current.pages.length === pageCount) {
+    return current;
+  }
+
+  return buildPageGraphFromPdfBytes(
+    context.workingBytes,
+    context.documentKey,
+    input.signal,
+  );
+}
+
+function orderFromGraphs(
+  before: PageGraph<PageNode>,
+  after: PageGraph<PageNode>,
+): number[] {
+  const oldIndex = new Map(
+    before.pages.map((page, index) => [page.pageId, index] as const),
+  );
+  return after.pages.map((page) => {
+    const index = oldIndex.get(page.pageId);
+    if (index === undefined) {
+      throw new Error(`PageGraph reorder introduced unknown PageId ${page.pageId}`);
+    }
+    return index;
+  });
+}
+
+async function buildImportedDonorNodes(
+  donor: ResolvedAdmittedDonorPdf,
+  context: ResolvedCommandContext,
+  command: PdfCommand,
+  kind: 'insert' | 'merge',
+  ordinalOffset: number,
+  signal?: AbortSignal,
+): Promise<PageNode[]> {
+  const donorGraph = await buildPageGraphFromPdfBytes(
+    donor.bytes,
+    `${context.documentKey}::donor::${command.id}::${donor.inputIndex}`,
+    signal,
+  );
+
+  if (donorGraph.pages.length !== donor.pageCount) {
+    throw new Error(
+      `Donor PageGraph count ${donorGraph.pages.length} does not match admitted page count ${donor.pageCount}`,
+    );
+  }
+
+  return importedPageNodes(donorGraph.pages, {
+    documentKey: context.documentKey,
+    commandId: command.id,
+    kind,
+    ordinalOffset,
+  });
+}
+
 async function applyMutation(
   command: PdfCommand,
   beforeBytes: Uint8Array,
@@ -208,6 +287,7 @@ async function applyMutation(
   nextWriterElements?: WriterElementV2[],
   nextSelectedPages?: number[],
   nextCurrentPage?: number,
+  nextPageGraph?: PageGraph<PageNode> | null,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return commitDocumentMutation({
     command,
@@ -218,6 +298,7 @@ async function applyMutation(
     nextWriterElements,
     nextSelectedPages,
     nextCurrentPage,
+    nextPageGraph,
   });
 }
 
@@ -240,7 +321,10 @@ export async function dispatchPdfCommand(
 
   try {
     throwIfAborted(input.signal, `command ${command.type}: before execution`);
-    const pageCount = await PdfEditAdapter.countPages(context.workingBytes);
+    const sessionPageGraph = useSessionStore.getState().pageGraph;
+    const pageCount =
+      sessionPageGraph?.pages.length
+      ?? await PdfEditAdapter.countPages(context.workingBytes);
 
     switch (command.type) {
       case 'ROTATE_PAGES': {
@@ -249,12 +333,12 @@ export async function dispatchPdfCommand(
         if (pageIndices.length === 0) {
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for rotation.');
         }
-        const rotations = await Promise.all(
-          pageIndices.map(async (idx) => {
-            const { width, height } = await PdfEditAdapter.getPageSize(context.workingBytes, idx);
-            return { pageIndex: idx, angle, width, height };
-          }),
-        );
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const rotations = pageIndices.map((idx) => {
+          const page = pageGraph.pages[idx];
+          if (!page) throw new Error(`PageGraph is missing page index ${idx}`);
+          return { pageIndex: idx, angle, width: page.width, height: page.height };
+        });
         const nextAnnotations = remapAfterRotate(
           useAnnotationStore.getState().annotations,
           rotations,
@@ -263,6 +347,11 @@ export async function dispatchPdfCommand(
           useWriterV2Store.getState().elements,
           rotations,
         );
+        const nextPageGraph = rotatePagesInGraph(
+          pageGraph,
+          pageIdsAtIndices(pageGraph, pageIndices),
+          angle,
+        );
         const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
         const result = await applyMutation(
           command,
@@ -270,42 +359,25 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
       }
 
       case 'REORDER_PAGES': {
         const { fromIndex, toIndex } = command.payload;
-        const order = Array.from({ length: pageCount }, (_, i) => i);
-        const moved = order.splice(fromIndex, 1)[0];
-        if (moved === undefined) {
-          return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        if (!pageGraph.pages[fromIndex] || !pageGraph.pages[toIndex]) {
+          return commandError(command, 'VALIDATION_FAILED', 'The source or target page index is invalid.');
         }
-        order.splice(toIndex, 0, moved);
-        const nextAnnotations = remapAfterReorder(
-          useAnnotationStore.getState().annotations,
-          order,
+        const nextPageGraph = movePageGraphBeforeOriginalTarget(
+          pageGraph,
+          fromIndex,
+          toIndex,
         );
-        const nextWriterElements = remapWriterAfterReorder(
-          useWriterV2Store.getState().elements,
-          order,
-        );
-        const nextBytes = await PdfEditAdapter.movePage(context.workingBytes, fromIndex, toIndex);
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
-          nextAnnotations,
-          nextWriterElements,
-        );
-        return commandSuccess(command, true, 'Page reordered', result.nextBytes, result.nextPageCount);
-      }
-
-      case 'REORDER_PAGES_BY_ORDER': {
-        const { order } = command.payload;
-        if (order.length !== pageCount) {
-          return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
-        }
+        const order = orderFromGraphs(pageGraph, nextPageGraph);
         const nextAnnotations = remapAfterReorder(
           useAnnotationStore.getState().annotations,
           order,
@@ -321,6 +393,38 @@ export async function dispatchPdfCommand(
           nextBytes,
           nextAnnotations,
           nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
+        );
+        return commandSuccess(command, true, 'Page reordered', result.nextBytes, result.nextPageCount);
+      }
+
+      case 'REORDER_PAGES_BY_ORDER': {
+        const { order } = command.payload;
+        if (order.length !== pageCount) {
+          return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const nextPageGraph = reorderPageGraphByOrder(pageGraph, order);
+        const nextAnnotations = remapAfterReorder(
+          useAnnotationStore.getState().annotations,
+          order,
+        );
+        const nextWriterElements = remapWriterAfterReorder(
+          useWriterV2Store.getState().elements,
+          order,
+        );
+        const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          nextBytes,
+          nextAnnotations,
+          nextWriterElements,
+          undefined,
+          undefined,
+          nextPageGraph,
         );
         return commandSuccess(command, true, 'Pages reordered', result.nextBytes, result.nextPageCount);
       }
