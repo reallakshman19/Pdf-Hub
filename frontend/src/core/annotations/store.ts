@@ -12,6 +12,10 @@ import {
   withAnnotationReviewReply,
   withAnnotationReviewStatus,
 } from '../review/annotationReview';
+import {
+  annotationForTargetPage,
+  normalizeAnnotationPageAnchors,
+} from './pageAnchor';
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -128,19 +132,24 @@ function snapshot(
   nextSelectedIds?: string[],
   nextActiveId?: string | null,
 ) {
+  const anchoredAnnotations = normalizeAnnotationPageAnchors(
+    nextAnnotations,
+    useSessionStore.getState().pageGraph,
+  );
+
   markAnnotationDirty();
-  recordAnnotationMutation(state, nextAnnotations);
+  recordAnnotationMutation(state, anchoredAnnotations);
 
   return {
-    annotations: nextAnnotations,
+    annotations: anchoredAnnotations,
     selectedAnnotationIds: normalizeIds(
       nextSelectedIds ?? state.selectedAnnotationIds,
-      nextAnnotations,
+      anchoredAnnotations,
     ),
     activeAnnotationId:
       nextActiveId !== undefined
         ? nextActiveId
-        : normalizeIds(state.selectedAnnotationIds, nextAnnotations)[0] ?? null,
+        : normalizeIds(state.selectedAnnotationIds, anchoredAnnotations)[0] ?? null,
   };
 }
 
@@ -152,7 +161,11 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
 
   addAnnotation: (annotation) =>
     set((state) => {
-      const normalizedAnnotation = normalizeAnnotationReview(annotation);
+      const normalizedAnnotation = annotationForTargetPage(
+        normalizeAnnotationReview(annotation),
+        useSessionStore.getState().pageGraph,
+        annotation.pageNumber,
+      );
       return snapshot(
         state,
         [...state.annotations, normalizedAnnotation],
@@ -163,15 +176,23 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
 
   updateAnnotation: (id, data) =>
     set((state) => {
-      const nextAnnotations = state.annotations.map((annotation) =>
-        annotation.id === id
-          ? {
-              ...annotation,
-              ...data,
-              updatedAt: Date.now(),
-            }
-          : annotation,
-      );
+      const nextAnnotations = state.annotations.map((annotation) => {
+        if (annotation.id !== id) return annotation;
+
+        const updated: PdfAnnotation = {
+          ...annotation,
+          ...data,
+          updatedAt: Date.now(),
+        };
+
+        return typeof data.pageNumber === 'number' && data.pageId === undefined
+          ? annotationForTargetPage(
+              updated,
+              useSessionStore.getState().pageGraph,
+              data.pageNumber,
+            )
+          : updated;
+      });
 
       return snapshot(state, nextAnnotations);
     }),
@@ -181,13 +202,21 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       const patchMap = new Map(updates.map((entry) => [entry.id, entry.data]));
       const nextAnnotations = state.annotations.map((annotation) => {
         const patch = patchMap.get(annotation.id);
-        return patch
-          ? {
-              ...annotation,
-              ...patch,
-              updatedAt: Date.now(),
-            }
-          : annotation;
+        if (!patch) return annotation;
+
+        const updated: PdfAnnotation = {
+          ...annotation,
+          ...patch,
+          updatedAt: Date.now(),
+        };
+
+        return typeof patch.pageNumber === 'number' && patch.pageId === undefined
+          ? annotationForTargetPage(
+              updated,
+              useSessionStore.getState().pageGraph,
+              patch.pageNumber,
+            )
+          : updated;
       });
 
       return snapshot(state, nextAnnotations);
@@ -249,7 +278,10 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
 
   setAnnotations: (annotations) =>
     set({
-      annotations: normalizeAnnotationReviews(annotations),
+      annotations: normalizeAnnotationPageAnchors(
+        normalizeAnnotationReviews(annotations),
+        useSessionStore.getState().pageGraph,
+      ),
       selectedAnnotationIds: [],
       activeAnnotationId: null,
     }),
@@ -279,7 +311,9 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
       if (state.clipboard.length === 0) return state;
 
       const now = Date.now();
-      const pasted = state.clipboard.map((annotation, index) => ({
+      const targetGraph = useSessionStore.getState().pageGraph;
+      const pasted = state.clipboard.map((annotation, index) => annotationForTargetPage({
+
         ...annotation,
         id: uuidv4(),
         pageNumber: targetPage ?? annotation.pageNumber,
@@ -311,7 +345,7 @@ export const useAnnotationStore = create<AnnotationState & AnnotationActions>((s
         },
         createdAt: now,
         updatedAt: now,
-      }));
+      }, targetGraph, targetPage ?? annotation.pageNumber));
 
       return snapshot(
         state,
