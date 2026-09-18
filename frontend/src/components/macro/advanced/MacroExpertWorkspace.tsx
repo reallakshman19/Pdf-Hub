@@ -17,6 +17,7 @@ import { error as logError } from '@/core/logger/service';
 import type {
   MacroOutputFile,
   MacroRecipe,
+  MacroStep,
 } from '@/core/macro/types';
 import { macroValidator } from '@/core/macro/validator';
 import {
@@ -99,6 +100,12 @@ export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
   const assessmentCurrent =
     currentSignature !== null
     && preflightSignature === currentSignature;
+  const previewSatisfied =
+    risk?.risk !== 'preview-required'
+    || (
+      currentSignature !== null
+      && lastTestedSignature === currentSignature
+    );
 
   const buildValidationContext = React.useCallback(() => ({
     pageCount: Math.max(1, pageCount),
@@ -385,7 +392,7 @@ export const MacroExpertWorkspace: React.FC<MacroExpertWorkspaceProps> = ({
           <Button
             size="sm"
             onClick={() => void runExpertRecipe()}
-            disabled={disabled || isDryRunning || !workingBytes}
+            disabled={disabled || isDryRunning || !workingBytes || !previewSatisfied}
             data-testid="macro-expert-run"
           >
             <Play className="mr-1 h-3.5 w-3.5" />
@@ -598,7 +605,7 @@ function getExpertStepLabel(value: unknown): string {
 
   try {
     return getMacroOpPresentation(
-      getMacroOpSchema(value as MacroRecipe['steps'][number]['op']),
+      getMacroOpSchema(value as MacroStep['op']),
     ).label;
   } catch {
     return 'Unknown action';
