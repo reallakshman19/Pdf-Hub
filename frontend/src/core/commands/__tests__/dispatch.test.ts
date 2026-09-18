@@ -373,7 +373,7 @@ describe('canonical command dispatch', () => {
 
   it('reorders pages by explicit order', async () => {
     useAnnotationStore.getState().setAnnotations([
-      { ...TEST_ANNOTATION, id: 'page-two-note', pageNumber: 2 },
+      { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
     ]);
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
@@ -396,9 +396,9 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::1',
     ]);
     expect(useAnnotationStore.getState().annotations[0]).toMatchObject({
-      id: 'page-two-note',
-      pageId: 'test-doc::stable::2',
-      pageNumber: 2,
+      id: 'page-one-note',
+      pageId: 'test-doc::stable::1',
+      pageNumber: 3,
     });
   });
 
