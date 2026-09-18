@@ -835,7 +835,7 @@ export const MacrosSidebar: React.FC = () => {
 
       <MacroExpertWorkspace
         selectedRecipe={selectedRecipe}
-        disabled={generationRunning || isDryRunning}
+        disabled={generationRunning || presetRunnerBusy}
         onOutputsProduced={(outputs) => {
           setOutputQueue((current) => [
             ...current,
