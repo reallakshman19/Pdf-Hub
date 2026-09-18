@@ -3,6 +3,7 @@ import {
   findBuiltInMacroRecipe,
   getBuiltInMacroRecipes,
   getRecommendedMacroRecipes,
+  isRunnerSafeBuiltInRecipe,
 } from './builtInRecipes';
 import { macroValidator } from '../validator';
 
@@ -24,6 +25,20 @@ describe('built-in macro recipes slice 6', () => {
 
       expect(result.valid, `${item.id}: ${JSON.stringify(result.errors)}`).toBe(true);
     }
+  });
+
+  it('classifies donor-bound recipes as unsafe for direct/batch runners', () => {
+    const recipes = getBuiltInMacroRecipes();
+
+    const merge = recipes.find((item) => item.id === 'merge-two-donors');
+    const insert = recipes.find((item) => item.id === 'insert-donor-start');
+    const replace = recipes.find((item) => item.id === 'replace-first-page');
+    const footer = recipes.find((item) => item.id === 'footer-page-numbers');
+
+    expect(merge && isRunnerSafeBuiltInRecipe(merge)).toBe(false);
+    expect(insert && isRunnerSafeBuiltInRecipe(insert)).toBe(false);
+    expect(replace && isRunnerSafeBuiltInRecipe(replace)).toBe(false);
+    expect(footer && isRunnerSafeBuiltInRecipe(footer)).toBe(true);
   });
 
   it('recommended recipes are valid subset of built-ins', () => {
