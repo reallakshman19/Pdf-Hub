@@ -305,13 +305,14 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       return null;
     }
 
+    const pageId = pageIdForOcrPageIndex(
+      useSessionStore.getState().pageGraph,
+      input.pageIndex,
+    );
     const region = createOcrRegion({
       id: input.id,
       documentFingerprint,
-      pageId: pageIdForOcrPageIndex(
-        useSessionStore.getState().pageGraph,
-        input.pageIndex,
-      ),
+      ...(pageId ? { pageId } : {}),
       pageIndex: input.pageIndex,
       bbox: input.bbox,
       mode: input.mode,
