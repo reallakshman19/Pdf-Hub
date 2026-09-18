@@ -32,6 +32,7 @@ describe('PageGraph PDF admission', () => {
     vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
       doc: {
         numPages: 2,
+        getPageLabels: vi.fn().mockResolvedValue(['Cover', 'i']),
         getPage,
       },
       cacheKey: 'fixture',
@@ -52,6 +53,7 @@ describe('PageGraph PDF admission', () => {
         width: 595,
         height: 842,
         rotation: 0,
+        logicalLabel: 'Cover',
       },
       {
         pageId: 'sha256:fixture::page::2',
@@ -61,6 +63,7 @@ describe('PageGraph PDF admission', () => {
         width: 842,
         height: 595,
         rotation: 90,
+        logicalLabel: 'i',
       },
     ]);
     expect(first.cleanup).toHaveBeenCalledTimes(1);
@@ -73,6 +76,7 @@ describe('PageGraph PDF admission', () => {
     vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
       doc: {
         numPages: 1,
+        getPageLabels: vi.fn().mockResolvedValue(null),
         getPage: vi.fn().mockResolvedValue(sourcePage),
       },
       cacheKey: 'fixture',
@@ -111,4 +115,26 @@ describe('PageGraph PDF admission', () => {
       documentKey: 'doc-b',
     });
   });
+
+  it('fails soft when PDF page labels are malformed without rejecting PageGraph admission', async () => {
+    const sourcePage = page(1, 595, 842, 0);
+    vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
+      doc: {
+        numPages: 1,
+        getPageLabels: vi.fn().mockRejectedValue(new Error('broken PageLabels tree')),
+        getPage: vi.fn().mockResolvedValue(sourcePage),
+      },
+      cacheKey: 'fixture',
+      release: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const graph = await buildPageGraphFromPdfBytes(
+      new Uint8Array([7]),
+      'sha256:labels-broken',
+    );
+
+    expect(graph.pages).toHaveLength(1);
+    expect(graph.pages[0]?.logicalLabel).toBeUndefined();
+  });
+
 });
