@@ -112,6 +112,7 @@ export function useOcrRunWorkflow({
   );
 
   const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
+  const hasInputSource = Boolean(pdfBytes || (pages && pages.length > 0));
 
   const state: OcrRunWorkflowState = isRunning
     ? 'running'
@@ -119,11 +120,11 @@ export function useOcrRunWorkflow({
       ? 'error'
       : hasCurrentDocumentResult
         ? 'complete'
-        : requestedPageIndexes.length > 0
+        : hasInputSource && requestedPageIndexes.length > 0
           ? 'ready'
           : 'idle';
 
-  const canRun = !isRunning && requestedPageIndexes.length > 0;
+  const canRun = !isRunning && hasInputSource && requestedPageIndexes.length > 0;
   const canClear = !isRunning;
   const canCancel = isRunning || Boolean(activeAbort) || Boolean(lastBatchController);
 

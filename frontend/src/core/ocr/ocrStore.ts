@@ -43,6 +43,16 @@ import {
 } from './ocrConfidence';
 import type { PdfRect } from '../writer-v2/types';
 
+export interface OcrReviewFocus {
+  documentFingerprint: string;
+  pageIndex: number;
+  bbox: PdfRect;
+  targetId: string;
+  source: 'lowConfidence' | 'search' | 'region';
+  label?: string;
+  requestedAt: number;
+}
+
 export interface OcrStoreDerivedState {
   correctedResult: OcrDocumentResult | null;
   searchIndex: OcrSearchIndex | null;
@@ -63,6 +73,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
 
   corrections: OcrCorrection[];
   regions: OcrRegion[];
+  reviewFocus: OcrReviewFocus | null;
 
   lastUpdatedAt: string | null;
   dirty: boolean;
@@ -110,6 +121,8 @@ export interface OcrStoreState extends OcrStoreDerivedState {
 
   searchOcr: (query: OcrSearchQuery) => OcrSearchMatch[];
   getOcrPageResult: (pageIndex: number) => OcrPageResult | null;
+  focusOcrTarget: (focus: Omit<OcrReviewFocus, 'requestedAt'>) => void;
+  clearOcrFocus: () => void;
 
   markOcrPersisted: (persistedAt?: string) => void;
   clearOcr: () => void;
@@ -130,6 +143,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       result: input.result ?? null,
       corrections: [...(input.corrections ?? [])],
       regions: [...(input.regions ?? [])],
+      reviewFocus: null,
       lastUpdatedAt: input.updatedAt ?? new Date().toISOString(),
       dirty: false,
     };
@@ -349,6 +363,17 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
     ) ?? null;
   },
 
+  focusOcrTarget: (focus) => {
+    set({
+      reviewFocus: {
+        ...focus,
+        requestedAt: Date.now(),
+      },
+    });
+  },
+
+  clearOcrFocus: () => set({ reviewFocus: null }),
+
   markOcrPersisted: (persistedAt = new Date().toISOString()) => {
     set({
       dirty: false,
@@ -375,6 +400,7 @@ export function getInitialOcrDataState() {
 
     corrections: [],
     regions: [],
+    reviewFocus: null,
 
     correctedResult: null,
     searchIndex: null,
@@ -406,6 +432,8 @@ export function createInitialOcrStoreState(): OcrStoreState {
     clearOcrRegionsForDocument: () => undefined,
     searchOcr: () => [],
     getOcrPageResult: () => null,
+    focusOcrTarget: () => undefined,
+    clearOcrFocus: () => undefined,
     markOcrPersisted: () => undefined,
     clearOcr: () => undefined,
   };

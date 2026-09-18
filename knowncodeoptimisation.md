@@ -26,7 +26,7 @@ knowncodeoptimisation.md: committed at repository root on Phase 4 branch
 | KC-003 | Static-cert marker shim | `OcrSourceSummaryCard.tsx`, `OcrPanelWriterConnected.tsx` | Active | Literal static cert markers were required. | Replace with structural cert later. |
 | KC-004 | Type shim | `OcrPanelWriterConnected.tsx` | Active | Normalize direct/demo/session source summary shape. | Move to shared source-summary model. |
 | KC-005 | Controlled disclosure patch | `OcrAssistantShell.tsx` | Active | Avoid effect-driven default-open disclosure state. | Keep. |
-| KC-006 | Effect workaround | `OcrRunSection.tsx` | Active | Diagnostics auto-open currently uses guarded effect. | Replace with derived open state later. |
+| KC-006 | Effect workaround | `OcrRunSection.tsx` | Complete | Diagnostics previously auto-opened settings through an effect. | Removed; OCR settings now stay user-controlled. |
 | KC-007 | Test scoping patch | OCR tests | Active | Avoid ambiguous Testing Library text matches. | Keep scoped `within()` usage. |
 | KC-008 | Static-cert single-panel marker | `OcrPanelWriterConnected.tsx` | Active | Proves one connected `OcrPanel` mount. | Replace with JSX owner check later. |
 | KC-009 | Presentational run controls | `OcrRunControls.tsx`, `OcrPanel.tsx` | Active | Move engine/profile options out of control component. | Keep. |
@@ -86,14 +86,7 @@ knowncodeoptimisation.md: committed at repository root on Phase 4 branch
 
 ### KC-006 - diagnostics auto-open workaround
 
-```diff
-+ React.useEffect(() => {
-+   if (executionDiagnostics) {
-+     // eslint-disable-next-line react-hooks/set-state-in-effect
-+     setAdvancedOpen(true);
-+   }
-+ }, [executionDiagnostics]);
-```
+Resolved in the OCR primary-flow reset. Diagnostics no longer force-open OCR settings; the disclosure remains under explicit user control.
 
 ### KC-007 - scoped tests
 
@@ -262,5 +255,5 @@ Superseded once the connector write path was verified.
 
 1. `OcrReviewWorkspace` is still broad. A later phase should split `OcrRegionWorkspace`, `OcrTableReviewWorkspace`, and `OcrWriterInsertionWorkspace` if it keeps growing.
 2. The static certification script is still string-marker based. Better future design: export a structured capability manifest or use focused unit tests instead of literal marker checks.
-3. `OcrRunSection` still has the diagnostics auto-open effect workaround. Replace with derived controlled state on next touch.
+3. OCR settings now remain closed unless the user opens them; keep technical diagnostics out of the primary workflow.
 4. Phase 4 now covers stale OCR result suppression and document-switch cleanup. Add deeper user-flow tests for region creation/table acceptance when the test environment can reliably interact with region tool geometry.

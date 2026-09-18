@@ -70,7 +70,7 @@ export const OcrLowConfidencePanel: React.FC<OcrLowConfidencePanelProps> = ({
                   </span>
                 </div>
                 <div className="mt-0.5 text-[11px] text-slate-500">
-                  Page {item.pageIndex + 1} · x {Math.round(item.word.bbox.x)}, y {Math.round(item.word.bbox.y)}
+                  Page {item.pageIndex + 1} · show in document
                 </div>
               </button>
             );

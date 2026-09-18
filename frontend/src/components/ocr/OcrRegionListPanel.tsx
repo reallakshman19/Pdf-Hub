@@ -84,7 +84,7 @@ export const OcrRegionListPanel: React.FC<OcrRegionListPanelProps> = ({
                   </div>
 
                   <div className="mt-0.5 text-[11px] text-slate-500">
-                    x {Math.round(region.bbox.x)}, y {Math.round(region.bbox.y)}, w {Math.round(region.bbox.width)}, h {Math.round(region.bbox.height)}
+                    Selected area on document
                   </div>
                 </button>
 

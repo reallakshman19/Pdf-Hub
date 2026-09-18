@@ -31,6 +31,8 @@ describe('OcrRegionListPanel', () => {
     expect(screen.getByTestId('ocr-region-count').textContent).toBe('2');
     expect(screen.getByText('text')).toBeTruthy();
     expect(screen.getByText('table')).toBeTruthy();
+    expect(screen.getAllByText('Selected area on document')).toHaveLength(2);
+    expect(screen.queryByText(/x 10/i)).toBeNull();
   });
 
   it('selects region', () => {

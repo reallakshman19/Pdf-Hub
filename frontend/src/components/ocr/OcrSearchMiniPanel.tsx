@@ -4,11 +4,13 @@ import type { OcrSearchMatch } from '@/core/ocr/ocrSearchIndex';
 export interface OcrSearchMiniPanelProps {
   disabled?: boolean;
   onSearch: (query: string) => OcrSearchMatch[];
+  onSelectMatch?: (match: OcrSearchMatch) => void;
 }
 
 export const OcrSearchMiniPanel: React.FC<OcrSearchMiniPanelProps> = ({
   disabled,
   onSearch,
+  onSelectMatch,
 }) => {
   const [query, setQuery] = React.useState('');
   const [matches, setMatches] = React.useState<OcrSearchMatch[]>([]);
@@ -48,18 +50,20 @@ export const OcrSearchMiniPanel: React.FC<OcrSearchMiniPanelProps> = ({
         ) : null}
 
         {matches.slice(0, 8).map((match) => (
-          <div
+          <button
+            type="button"
             key={match.item.id}
-            className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            className="w-full rounded bg-slate-50 px-2 py-1 text-left text-xs text-slate-700 hover:bg-blue-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-blue-950/30"
             data-testid="ocr-search-match"
+            onClick={() => onSelectMatch?.(match)}
           >
             <div className="truncate font-medium">
               {match.item.text}
             </div>
             <div className="text-[11px] text-slate-500">
-              Page {match.item.pageIndex + 1} · {match.item.source}
+              Page {match.item.pageIndex + 1} · show in document
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
