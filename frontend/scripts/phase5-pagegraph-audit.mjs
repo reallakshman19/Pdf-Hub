@@ -345,6 +345,38 @@ for (const requiredToken of [
 void sessionNavigationTypes;
 void sessionNavigationStore;
 
+const pageLabelReader = requireContains('src/core/pages/pdfPageLabels.ts', [
+  'getPageLabels()',
+  'labels.length !== doc.numPages',
+  'Unable to read PDF page labels; using physical page numbers',
+]);
+
+const pageLabelDomain = requireContains('src/core/pages/pageLabels.ts', [
+  'applyResolvedPageLabels',
+  'clearResolvedPageLabels',
+  'delete next.logicalLabel',
+]);
+
+for (const requiredToken of [
+  'readResolvedPdfPageLabels',
+  'applyResolvedPageLabels',
+]) {
+  if (!openPdf.includes(requiredToken) && !read('src/core/pages/pageGraphAdmission.ts').includes(requiredToken)) {
+    failures.push(`PageGraph admission missing PageLabels token: ${requiredToken}`);
+  }
+}
+
+const labelInvalidationCount =
+  commandDispatch.match(/clearResolvedPageLabels\(/g)?.length ?? 0;
+if (labelInvalidationCount < 7) {
+  failures.push(
+    `order/count-changing structural commands must invalidate resolved PageLabels; found ${labelInvalidationCount} invalidation sites`,
+  );
+}
+
+void pageLabelReader;
+void pageLabelDomain;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
