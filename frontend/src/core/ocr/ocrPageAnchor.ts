@@ -151,10 +151,12 @@ export function reanchorOcrPageStateAfterPageGraphChange(
 
           const beforeNode = pageNodeById(beforeGraph, page.pageId);
           const afterNode = pageNodeById(afterGraph, page.pageId);
-          const rotationDelta =
-            beforeNode && afterNode
-              ? rotationDeltaDegrees(beforeNode.rotation, afterNode.rotation)
-              : 0;
+          if (!beforeNode || !afterNode) return [];
+
+          const rotationDelta = rotationDeltaDegrees(
+            beforeNode.rotation,
+            afterNode.rotation,
+          );
 
           return [
             transformOcrPageResult(
@@ -162,8 +164,8 @@ export function reanchorOcrPageStateAfterPageGraphChange(
               page.pageId,
               nextIndex,
               rotationDelta,
-              effectivePageWidth(beforeNode ?? afterNode!),
-              effectivePageHeight(beforeNode ?? afterNode!),
+              effectivePageWidth(beforeNode),
+              effectivePageHeight(beforeNode),
             ),
           ];
         }),
