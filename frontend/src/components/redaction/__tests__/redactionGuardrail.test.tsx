@@ -4,6 +4,7 @@ import RedactionTool from '../RedactionTool';
 import RedactionPreviewPanel from '../RedactionPreviewPanel';
 import { clearRegions, addRegion, exportPlan } from '../../../core/redaction/store';
 import { validateCommand } from '../../../core/commands/validators';
+import { materializePdfCommand } from '../../../core/commands/types';
 import {
   REDACTION_CAPABILITY,
   supportsSecureRedaction,
@@ -47,20 +48,30 @@ describe('Redaction guardrails', () => {
     expect(plan.pages[0].rects).toHaveLength(1);
   });
 
-  test('REDACTION_APPLY validator rejects any non-destructive risk', () => {
-    const base = {
-      id: 'r1',
-      type: 'REDACTION_APPLY' as const,
-      source: 'user' as const,
-      documentKey: 'doc1',
-      createdAt: new Date().toISOString(),
-      payload: {},
-    };
-    expect(validateCommand({ ...base, risk: 'destructive' } as Parameters<typeof validateCommand>[0]).ok).toBe(true);
-    expect(validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
-    expect(validateCommand({ ...base, risk: 'destructive-preview-required' } as Parameters<typeof validateCommand>[0]).ok).toBe(false);
+  test('canonical command model exposes visual masking without a secure redaction apply command', () => {
+    const command = materializePdfCommand(
+      {
+        type: 'DRAW_REDACTION_BOX',
+        payload: {
+          pageIndices: [0],
+          options: {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+            fillColor: '#000000',
+          },
+        },
+      },
+      'toolbar',
+      'doc1',
+    );
 
-    const safeResult = validateCommand({ ...base, risk: 'safe' } as Parameters<typeof validateCommand>[0]);
-    expect(safeResult.errors[0]).toMatch(/destructive/);
+    const validation = validateCommand(command);
+
+    expect(command.type).toBe('DRAW_REDACTION_BOX');
+    expect(command.risk).toBe('safe');
+    expect(validation.ok).toBe(true);
+    expect(JSON.stringify(command)).not.toMatch(/REDACTION_APPLY/);
   });
 });
