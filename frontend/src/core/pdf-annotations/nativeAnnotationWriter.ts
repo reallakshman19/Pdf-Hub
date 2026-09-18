@@ -80,9 +80,10 @@ export async function writeNativePdfAnnotations(
             Type: 'Annot',
             Subtype: 'Text',
             Rect: replyRect(annotation, page),
-            Contents: lib.PDFString.of(reply.content),
-            T: lib.PDFString.of(reply.author || 'Unknown'),
+            Contents: pdfText(lib, reply.content),
+            T: pdfText(lib, reply.author || 'Unknown'),
             NM: lib.PDFString.of(replyAnnotationName(annotation.id, reply.id)),
+            PDFHubReplyId: lib.PDFString.of(reply.id),
             M: lib.PDFString.of(pdfDate(reply.createdAt)),
             CreationDate: lib.PDFString.of(pdfDate(reply.createdAt)),
             F: 4,
@@ -169,12 +170,15 @@ function registerNativeAnnotation(
     NM: lib.PDFString.of(annotation.id),
     M: lib.PDFString.of(pdfDate(modifiedAt)),
     CreationDate: lib.PDFString.of(pdfDate(createdAt)),
-    T: lib.PDFString.of(author),
+    T: pdfText(lib, author),
     F: 4,
+    PDFHubVersion: 1,
+    PDFHubType: lib.PDFString.of(annotation.type),
+    PDFHubData: pdfText(lib, JSON.stringify(serializableAnnotationData(annotation))),
   };
 
   if (contents) {
-    base.Contents = lib.PDFString.of(contents);
+    base.Contents = pdfText(lib, contents);
   }
 
   if (annotation.data.review) {
@@ -583,4 +587,26 @@ function finite(value: unknown, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+
+function serializableAnnotationData(annotation: PdfAnnotation): Record<string, unknown> {
+  const data = { ...annotation.data };
+
+  if (data.review) {
+    data.review = {
+      ...data.review,
+      replies: [],
+    };
+  }
+
+  // Large binary payloads should remain in dedicated asset storage rather than
+  // being copied into a custom PDF string.
+  delete data.stampImageDataUrl;
+
+  return data;
+}
+
+function pdfText(lib: PdfLibModule, value: string) {
+  return lib.PDFHexString.fromText(value);
 }
