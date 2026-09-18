@@ -1,3 +1,5 @@
+import type { PageGraph, PageNode } from '../pages/types';
+
 export type FitMode = 'manual' | 'width' | 'page';
 export type ViewMode = 'continuous' | 'single' | 'two-page';
 
@@ -80,7 +82,9 @@ export interface DocumentSession {
    */
   originalBytes: Uint8Array | null;
   workingBytes: Uint8Array | null;
+  /** Compatibility count derived from PageGraph when a graph is present. */
   pageCount: number;
+  pageGraph: PageGraph<PageNode> | null;
 
   isDocumentDirty: boolean;
   isReviewDirty: boolean;
