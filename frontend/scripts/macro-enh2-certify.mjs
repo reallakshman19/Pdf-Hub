@@ -27,6 +27,7 @@ const commands = [
       'src/core/macro/recipes/recipeStorage.slice6.test.ts',
       'src/core/macro/builder/recipeBuilderState.slice7.test.ts',
       'src/components/macro/builder/MacroRecipeBuilder.slice8.test.tsx',
+      'src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx',
       'src/components/macro/builder/MacroStepEditor.slice9.test.tsx',
       'src/components/macro/builder/MacroNestedBranchEditor.slice10.test.tsx',
       'src/pages/MacroBuilderPage.slice11.test.tsx',
@@ -34,7 +35,14 @@ const commands = [
       'src/core/macro/store/presets.slice12.test.ts',
       'src/core/macro/sessionRunner.slice12.test.ts',
       'src/core/macro/builtins.slice13.test.ts',
+      'src/components/sidebar/AutomateSidebar.test.tsx',
+      'src/components/toolbar/ToolbarMacro.test.tsx',
     ],
+  },
+  {
+    name: 'automate-phase3-audit',
+    command: 'node',
+    args: ['scripts/automate-phase3-audit.mjs'],
   },
   {
     name: 'audit-no-placeholders',
