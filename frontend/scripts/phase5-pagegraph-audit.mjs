@@ -498,6 +498,16 @@ void organizeToolbar;
 void thumbnailSidebar;
 void viewToolbar;
 
+const macroTypesForPageLabels = read('src/core/macro/types.ts');
+if (
+  macroTypesForPageLabels.includes("op: 'set_page_labels'")
+  || macroTypesForPageLabels.includes('op: "set_page_labels"')
+) {
+  failures.push(
+    'PageLabels must not introduce a parallel macro DSL operation while legacy macro commits remain opaque',
+  );
+}
+
 const automateSidebar = requireContains(
   'src/components/sidebar/AutomateSidebar.tsx',
   [
