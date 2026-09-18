@@ -5,16 +5,14 @@ import { buildTestPdf } from './fixtures/testPdf';
 
 /**
  * Journey 1 — open a real PDF, place a real annotation via the actual UI,
- * save (real flatten pipeline), reopen the saved file, and verify the
- * annotation's drawn content actually persisted into the saved bytes.
+ * save through the editable-save pipeline, reopen the saved file, and verify
+ * that the annotation persisted as a native PDF annotation object.
  *
- * No part of the PDF pipeline is mocked: the PDF is opened via the app's
- * real file-input fallback, the annotation is placed with a real mouse
- * click on the rendered page, "Save" runs the app's real
- * composeCommittedPdf → PdfEditAdapter.exportWithAnnotations pipeline, and
- * the resulting bytes are downloaded and parsed with pdfjs-dist (the same
- * library the app itself uses to render pages) to prove new drawn content
- * is present that wasn't in the original file.
+ * No part of the PDF pipeline is mocked: the PDF is opened through the app's
+ * real file-input fallback, the annotation is placed through the real UI,
+ * Save runs composeEditablePdf(), and the resulting bytes are parsed with
+ * pdfjs-dist to prove the PDF contains a native annotation rather than only
+ * additional page-content drawing operators.
  */
 test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) => {
   await stubNativeFilePickers(page);
@@ -24,7 +22,7 @@ test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) =
   const originalBytes = await buildTestPdf({
     bodyLines: ['Journey 1 fixture — annotation round-trip.'],
   });
-  const originalOperatorCount = await countPageOperators(originalBytes);
+  const originalAnnotationCount = await countPageAnnotations(originalBytes);
 
   // Initial open: the empty-state "Browse Files" CTA.
   const [chooser] = await Promise.all([
@@ -54,7 +52,7 @@ test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) =
   const openButton = page.locator('button:has(svg.lucide-folder-open.w-4)');
   const saveButton = page.locator('button:has(svg.lucide-save.w-4)');
 
-  // Save — triggers the real flatten pipeline and a real blob download.
+  // Save — writes native editable annotations and produces a real blob download.
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     saveButton.click(),
@@ -78,20 +76,18 @@ test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) =
   });
   await expect(pageSurface).toBeVisible({ timeout: 15_000 });
 
-  const savedOperatorCount = await countPageOperators(savedBytes);
+  const savedAnnotationCount = await countPageAnnotations(savedBytes);
 
-  // The annotation was flattened into real page-content drawing operators,
-  // so the reopened, saved PDF must contain strictly more drawing
-  // operations on page 1 than the pristine original.
-  expect(savedOperatorCount).toBeGreaterThan(originalOperatorCount);
+  // Save preserves the annotation as a native PDF annotation object.
+  expect(savedAnnotationCount).toBeGreaterThan(originalAnnotationCount);
 });
 
-async function countPageOperators(bytes: Uint8Array): Promise<number> {
+async function countPageAnnotations(bytes: Uint8Array): Promise<number> {
   // pdfjs-dist's `data` option takes ownership of (and detaches) the
   // underlying buffer for zero-copy loading, so callers who need to reuse
-  // `bytes` afterward (e.g. to upload the same PDF) must pass a copy.
+  // `bytes` afterward must pass a copy.
   const doc = await getDocument({ data: bytes.slice() }).promise;
-  const page = await doc.getPage(1);
-  const operatorList = await page.getOperatorList();
-  return operatorList.fnArray.length;
+  const pdfPage = await doc.getPage(1);
+  const annotations = await pdfPage.getAnnotations({ intent: 'display' });
+  return annotations.length;
 }

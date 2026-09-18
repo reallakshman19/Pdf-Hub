@@ -6,10 +6,12 @@ import { error as logError } from '@/core/logger/service';
 import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { readNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationReader';
 
 interface UseAnnotationPersistenceArgs {
   documentKey: string | null;
   pdfDoc: PDFDocumentProxy | null;
+  workingBytes: Uint8Array | null;
   annotations: PdfAnnotation[];
   setAnnotations: (annotations: PdfAnnotation[]) => void;
   setRestoredCount: (count: number) => void;
@@ -18,6 +20,7 @@ interface UseAnnotationPersistenceArgs {
 export function useAnnotationPersistence({
   documentKey,
   pdfDoc,
+  workingBytes,
   annotations,
   setAnnotations,
   setRestoredCount,
@@ -27,11 +30,27 @@ export function useAnnotationPersistence({
       if (!documentKey) return;
       setRestoredCount(0);
       const stored = await loadAnnotations(documentKey);
-      setAnnotations(stored);
-      if (stored.length > 0) setRestoredCount(stored.length);
+      if (stored.length > 0) {
+        setAnnotations(stored);
+        setRestoredCount(stored.length);
+        return;
+      }
+
+      if (!workingBytes) {
+        setAnnotations([]);
+        return;
+      }
+
+      const imported = await readNativePdfAnnotations(workingBytes);
+      setAnnotations(imported.annotations);
+      setRestoredCount(imported.importedCount);
+
+      if (imported.annotations.length > 0) {
+        await saveAnnotations(documentKey, imported.annotations);
+      }
     };
     void loadStored();
-  }, [documentKey, setAnnotations, setRestoredCount]);
+  }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
 
   React.useEffect(() => {
     if (!documentKey || !pdfDoc) return;

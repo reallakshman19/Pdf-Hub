@@ -299,6 +299,7 @@ export const DocumentWorkspace: React.FC = () => {
   useAnnotationPersistence({
     documentKey,
     pdfDoc,
+    workingBytes,
     annotations,
     setAnnotations,
     setRestoredCount,

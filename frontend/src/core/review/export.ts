@@ -1,5 +1,6 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { ReviewSummaryExport } from './types';
+import { getAnnotationReviewStatus } from './annotationReview';
 
 export function exportReviewSummary(annotations: PdfAnnotation[]): ReviewSummaryExport {
   const summary: ReviewSummaryExport = {
@@ -12,7 +13,7 @@ export function exportReviewSummary(annotations: PdfAnnotation[]): ReviewSummary
   };
 
   for (const a of annotations) {
-    const status = a.data.review?.status || 'open';
+    const status = getAnnotationReviewStatus(a);
     if (status === 'resolved') summary.resolvedCount++;
     else if (status === 'rejected') summary.rejectedCount++;
     else summary.openCount++;

@@ -1,12 +1,13 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import type { PdfAnnotation } from './types';
+import { normalizeAnnotationReviews } from '@/core/review/annotationReview';
 import { error, debug } from '@/core/logger/service';
 
 const DB_NAME = 'DocCraftAnnotations';
 const STORE_NAME = 'annotations';
 const DB_VERSION = 1;
-const ANNOTATION_SCHEMA_VERSION = 2;
+const ANNOTATION_SCHEMA_VERSION = 3;
 
 interface AnnotationRecord {
   id: string;
@@ -102,7 +103,7 @@ export const loadAnnotations = async (
       schemaVersion,
     });
 
-    return annotations;
+    return normalizeAnnotationReviews(annotations);
   } catch (err) {
     error('annotation', 'Failed to load annotations from IndexedDB', {
       error: String(err),

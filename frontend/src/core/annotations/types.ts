@@ -1,9 +1,9 @@
 import type { ReviewMetadata } from '../review/types';
+export type { ReviewStatus } from '../review/types';
 
 import type { AnnotationType } from './annotationTypes';
 export type { AnnotationType } from './annotationTypes';
 
-export type ReviewStatus = 'open' | 'resolved' | 'rejected';
 
 export interface AnnotationStyle {
   stroke?: string;
@@ -78,7 +78,6 @@ export interface AnnotationData extends Record<string, unknown> {
   zIndex?: number;
   rotation?: number;
   review?: ReviewMetadata;
-  reviewStatus?: ReviewStatus;
   style?: AnnotationStyle;
   geometryVersion?: number;
   normalizedGeometry?: unknown;

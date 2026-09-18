@@ -1,10 +1,34 @@
 export type ReviewStatus = 'open' | 'resolved' | 'rejected';
 
-export interface ReviewReply {
+export interface ReviewMessage {
   id: string;
   author: string;
   content: string;
   createdAt: number;
+}
+
+/**
+ * Compatibility alias for the annotation-backed persistence schema.
+ * New UI/domain code should use ReviewMessage.
+ */
+export type ReviewReply = ReviewMessage;
+
+export interface ReviewThreadAnchor {
+  annotationId: string;
+  pageNumber: number;
+  annotationType: string;
+}
+
+export interface ReviewThread {
+  id: string;
+  anchor: ReviewThreadAnchor;
+  status: ReviewStatus;
+  author: string;
+  title: string;
+  category?: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: ReviewMessage[];
 }
 
 export interface ReviewMetadata {
