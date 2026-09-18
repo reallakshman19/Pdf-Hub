@@ -35,6 +35,20 @@ describe('built-in macro recipes slice 6', () => {
     }
   });
 
+  it('preserves legacy-only convenience workflows in the standard catalog', () => {
+    const ids = new Set(getBuiltInMacroRecipes().map((item) => item.id));
+
+    for (const id of [
+      'header-file-name-selected',
+      'file-date-page-footer-selected',
+      'review-copy-selected',
+      'review-pack-header-footer',
+      'insert-blank-after-current',
+    ]) {
+      expect(ids.has(id), id).toBe(true);
+    }
+  });
+
   it('findBuiltInMacroRecipe returns cloned recipe', () => {
     const first = findBuiltInMacroRecipe('review-current-page');
     const second = findBuiltInMacroRecipe('review-current-page');
