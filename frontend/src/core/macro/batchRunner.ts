@@ -150,18 +150,18 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
           break;
         }
         if (options.abortSignal?.aborted) {
-        cancelled = true;
-        outcome = 'cancelled';
-        diagnostics.push({
-          severity: 'info',
-          code: 'ADMISSION_CANCELLED',
-          phase: 'COMMIT',
-          inputIndex: nextInputIndex,
-          message: 'Batch execution was cancelled after the current input completed.',
-        });
-        nextInputIndex += 1;
-        break;
-      }
+          cancelled = true;
+          outcome = 'cancelled';
+          diagnostics.push({
+            severity: 'info',
+            code: 'ADMISSION_CANCELLED',
+            phase: 'COMMIT',
+            inputIndex: nextInputIndex,
+            message: 'Batch execution was cancelled after the current input was recorded.',
+          });
+          nextInputIndex += 1;
+          break;
+        }
         continue;
       }
 
@@ -198,7 +198,19 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
           break;
         }
       }
-      throwIfAborted(options.abortSignal, `batch input ${nextInputIndex}: before advancing`);
+      if (options.abortSignal?.aborted) {
+        cancelled = true;
+        outcome = 'cancelled';
+        diagnostics.push({
+          severity: 'info',
+          code: 'ADMISSION_CANCELLED',
+          phase: 'COMMIT',
+          inputIndex: nextInputIndex,
+          message: 'Batch execution was cancelled after the current input was recorded.',
+        });
+        nextInputIndex += 1;
+        break;
+      }
     } catch (error) {
       if (isOperationCancelledError(error)) {
         cancelled = true;
