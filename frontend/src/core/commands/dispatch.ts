@@ -628,6 +628,14 @@ export async function dispatchPdfCommand(
         );
       }
 
+      case 'ANNOTATION_CHANGE':
+      case 'WRITER_CHANGE':
+        return commandError(
+          command,
+          'VALIDATION_FAILED',
+          `${command.type} is recorded by its state store and is not executable as a PDF byte command.`,
+        );
+
       case 'APPLY_WORKING_COPY': {
         const nextBytes = input.resources?.binaries?.[command.payload.binaryResourceId];
         if (!nextBytes) {
