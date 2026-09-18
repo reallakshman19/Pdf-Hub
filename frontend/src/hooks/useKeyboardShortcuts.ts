@@ -63,7 +63,7 @@ export const useKeyboardShortcuts = () => {
         if (activeMode === 'write') {
           useWriterV2Store.getState().undoWriter();
         } else if (useHistoryStore.getState().canUndo()) {
-          applyUndo();
+          void applyUndo();
         } else {
           undo();
         }
@@ -80,7 +80,7 @@ export const useKeyboardShortcuts = () => {
         if (activeMode === 'write') {
           useWriterV2Store.getState().redoWriter();
         } else if (useHistoryStore.getState().canRedo()) {
-          applyRedo();
+          void applyRedo();
         } else {
           redo();
         }
