@@ -5,6 +5,7 @@ import type {
   OcrPageResult,
   OcrReviewFocus,
 } from './types';
+export type { OcrReviewFocus } from './types';
 import type { OcrProfileId } from './ocrProfiles';
 import type {
   OcrCorrection,
