@@ -1,86 +1,90 @@
-/* 
- * Page types for DocCraft.
+/*
+ * Canonical page-domain types for PDF Hub.
  *
- * These interfaces describe page descriptors and selection state used by
- * the organize mode.  The model is kept simple to avoid introducing
- * external dependencies and can be extended later for additional
- * metadata (e.g. labels, OCR status badges).
+ * Page identity is stable; physical position is mutable.  Do not use the
+ * current page index/number as identity.  PDF logical PageLabels are also a
+ * separate concept from both identity and printed page-number content.
  */
 
-export interface PageDescriptor {
-  /**
-   * A stable unique identifier for the page.  This does not change even
-   * when the page is reordered within the document.
-   */
-  pageId: string;
-  /**
-   * The key identifying the underlying document.  Multiple documents may
-   * be open simultaneously in future versions of DocCraft.
-   */
+export type PageId = string;
+
+export type PageRotation = 0 | 90 | 180 | 270;
+
+/**
+ * Canonical page entity used by the future PageGraph/session model.
+ *
+ * Naming deliberately preserves the repository's established `pageId` and
+ * `currentIndex` vocabulary so Phase 5 does not create a second page model.
+ */
+export interface PageNode {
+  /** Stable identity for the page within the editing session. */
+  pageId: PageId;
+
+  /** The document identity from which this node was admitted. */
   documentKey: string;
+
   /**
-   * The original one-based page number in the source document.
+   * Original one-based source page number, when the page came from the
+   * admitted source PDF.  Inserted/generated pages may use 0.
    */
   originalPageNumber: number;
+
   /**
-   * The current zero-based index of the page in the working page list.
-   * This value changes when pages are reordered.
+   * Current zero-based physical position.  This changes after structural
+   * operations and must never be used as persistent identity.
    */
   currentIndex: number;
-  /**
-   * Width of the page in PDF points.
-   */
+
+  /** Page dimensions in PDF points. */
   width: number;
-  /**
-   * Height of the page in PDF points.
-   */
   height: number;
+
+  /** Page rotation in degrees. */
+  rotation: PageRotation;
+
   /**
-   * Page rotation.  Valid values are 0, 90, 180 and 270 degrees.
+   * Resolved logical PDF page label.  This is metadata from /PageLabels and
+   * does not draw visible numbering on the page.
    */
-  rotation: 0 | 90 | 180 | 270;
+  logicalLabel?: string;
+}
+
+export interface PageGraph<TPage extends PageNode = PageNode> {
+  pages: TPage[];
+}
+
+/**
+ * UI-enriched page descriptor used by the existing page organizer.
+ *
+ * It extends the canonical PageNode instead of defining a parallel identity
+ * model.  Phase 5 migrations can therefore move page-dependent state onto
+ * PageId incrementally without breaking the current thumbnail UI.
+ */
+export interface PageDescriptor extends PageNode {
   /**
-   * Optional user‑defined page label.
+   * Legacy/custom UI label.  This is NOT the PDF /PageLabels value.
+   * Prefer logicalLabel for real PDF page-label semantics.
    */
   label?: string;
+
   /**
-   * Optional OCR status.  This is used to display badges in the thumbnail
-   * panel and is not persisted into the PDF itself.
+   * Optional OCR status used for thumbnail badges.  This is not persisted
+   * into PDF page-label metadata.
    */
   ocrStatus?: 'none' | 'queued' | 'running' | 'complete' | 'failed' | 'low-confidence';
-  /**
-   * Number of annotations on the page.  Used to display annotation
-   * badges.
-   */
+
+  /** Number of annotations on the page, for UI badges. */
   annotationCount: number;
-  /**
-   * Optional URL or data URI for a cached thumbnail image.  When
-   * undefined the viewer should display a skeleton or generate a
-   * thumbnail on the fly.
-   */
+
+  /** Optional cached thumbnail URL/data URI. */
   thumbnailUrl?: string;
 }
 
 /**
- * Selection state for the page panel.  Tracks which pages are selected,
- * which page is the anchor for range selection, and which page has
- * keyboard focus.
+ * Page-organizer selection uses PageId, not physical page number.
  */
 export interface PageSelectionState {
-  /**
-   * The identifiers of all selected pages.  May be an empty array if no
-   * pages are selected.
-   */
-  selectedPageIds: string[];
-  /**
-   * The anchor page for shift‑range selection.  When undefined or null,
-   * range selection falls back to single selection behaviour.
-   */
-  anchorPageId: string | null;
-  /**
-   * The page that most recently received keyboard focus or click
-   * interaction.  Used to support keyboard operations like delete or
-   * rotate on the focused page.
-   */
-  focusedPageId: string | null;
+  selectedPageIds: PageId[];
+  anchorPageId: PageId | null;
+  focusedPageId: PageId | null;
 }

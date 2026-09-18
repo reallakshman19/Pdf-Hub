@@ -7,6 +7,7 @@
  * integrated into command execution to build preview and apply logic.
  */
 
+import { createPageGraph, reorderPageGraph, rotatePagesInGraph } from './pageGraph';
 import type { PageDescriptor } from './types';
 
 /**
@@ -17,27 +18,16 @@ import type { PageDescriptor } from './types';
  * @param targetIndex The index in the resulting array where the pages should be inserted.
  * @returns A new array of pages with updated currentIndex values.
  */
-export function reorderPages(pages: PageDescriptor[], movingIds: string[], targetIndex: number): PageDescriptor[] {
-  // Filter out moving pages and keep their relative order as they appear in the original list.
-  const movingPages = pages.filter((p) => movingIds.includes(p.pageId));
-  const remainingPages = pages.filter((p) => !movingIds.includes(p.pageId));
-
-  // Clamp the target index to the bounds of the remaining array.
-  let insertIndex = Math.max(0, Math.min(targetIndex, remainingPages.length));
-
-  // When moving pages forward in the list, adjust the insertion index to account for removal.
-  // If the target index is after the first moving page, subtract the number of moving pages
-  // that originally appear before the target position.
-  const firstMovingIndex = pages.findIndex((p) => p.pageId === movingIds[0]);
-  if (firstMovingIndex !== -1 && insertIndex > firstMovingIndex) {
-    const movingBeforeTarget = pages.slice(0, insertIndex).filter((p) => movingIds.includes(p.pageId)).length;
-    insertIndex -= movingBeforeTarget;
-  }
-
-  const newPages = [...remainingPages];
-  newPages.splice(insertIndex, 0, ...movingPages);
-
-  return newPages.map((p, i) => ({ ...p, currentIndex: i }));
+export function reorderPages(
+  pages: PageDescriptor[],
+  movingIds: string[],
+  targetIndex: number,
+): PageDescriptor[] {
+  return reorderPageGraph(
+    createPageGraph(pages),
+    movingIds,
+    targetIndex,
+  ).pages;
 }
 
 /**
@@ -49,16 +39,16 @@ export function reorderPages(pages: PageDescriptor[], movingIds: string[], targe
  * @param angle Angle in degrees.  Must be a multiple of 90.
  * @returns A new array of pages.
  */
-export function rotatePages(pages: PageDescriptor[], pageIds: string[], angle: number): PageDescriptor[] {
-  const normalizedAngle = ((angle % 360) + 360) % 360;
-  if (![0, 90, 180, 270].includes(normalizedAngle)) {
-    return pages.slice();
-  }
-  return pages.map((p) =>
-    pageIds.includes(p.pageId)
-      ? { ...p, rotation: (((p.rotation + normalizedAngle) % 360) as 0 | 90 | 180 | 270) }
-      : { ...p }
-  );
+export function rotatePages(
+  pages: PageDescriptor[],
+  pageIds: string[],
+  angle: number,
+): PageDescriptor[] {
+  return rotatePagesInGraph(
+    createPageGraph(pages),
+    pageIds,
+    angle,
+  ).pages;
 }
 
 /**
