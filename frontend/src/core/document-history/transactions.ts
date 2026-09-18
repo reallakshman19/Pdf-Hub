@@ -11,7 +11,11 @@ import type { HistoryState, Transaction } from './types';
 
 async function persistHistoryState(state: HistoryState): Promise<void> {
   if (!state.documentKey) return;
-  await saveAnnotations(state.documentKey, state.annotations);
+  const annotations = normalizeAnnotationPageAnchors(
+    state.annotations,
+    state.pageGraph,
+  );
+  await saveAnnotations(state.documentKey, annotations);
 }
 
 function restoreHistoryState(state: HistoryState): void {
@@ -28,7 +32,9 @@ function restoreHistoryState(state: HistoryState): void {
   );
   useSessionStore.getState().setSelectedPages(state.selectedPages);
   useSessionStore.getState().setPage(state.currentPage);
-  useAnnotationStore.getState().setAnnotations([...state.annotations]);
+  useAnnotationStore.getState().setAnnotations(
+    normalizeAnnotationPageAnchors(state.annotations, state.pageGraph),
+  );
 
   if (state.writer) {
     useWriterV2Store.setState({
