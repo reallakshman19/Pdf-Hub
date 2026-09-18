@@ -148,10 +148,13 @@ export function annotationForTargetPage(
   pageNumber: number,
 ): PdfAnnotation {
   const pageId = pageIdForAnnotationPageNumber(graph, pageNumber);
-  return cloneAnnotation(annotation, {
-    pageNumber,
-    ...(pageId ? { pageId } : { pageId: undefined }),
-  });
+  const next = cloneAnnotation(annotation, { pageNumber });
+  if (pageId) {
+    next.pageId = pageId;
+  } else {
+    delete next.pageId;
+  }
+  return next;
 }
 
 function cloneAnnotation(
