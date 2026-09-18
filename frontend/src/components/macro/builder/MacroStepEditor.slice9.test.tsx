@@ -10,6 +10,11 @@ import {
   CUSTOM_MACRO_RECIPE_STORAGE_KEY,
 } from '../../../core/macro/recipes/recipeStorage';
 
+function exportSource(): void {
+  fireEvent.click(screen.getByText('Advanced'));
+  fireEvent.click(screen.getByRole('button', { name: 'View recipe source' }));
+}
+
 describe('MacroStepEditor slice 9', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -26,7 +31,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: '180' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     expect((screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value).toContain('"degrees": 180');
   });
@@ -40,7 +45,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: 'all' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     expect((screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value).toContain('"mode": "all"');
   });
@@ -60,7 +65,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: '5' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"mode": "range"');
@@ -80,7 +85,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: '3' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"mode": "before"');
@@ -100,7 +105,7 @@ describe('MacroStepEditor slice 9', () => {
     });
 
     expect(screen.getAllByText(/fontSize/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Save Custom' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save Workflow' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('Font Size'), {
       target: { value: '14' },
@@ -118,7 +123,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: 'donorA\ndonorB' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"donorA"');
@@ -149,7 +154,7 @@ describe('MacroStepEditor slice 9', () => {
       },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save Custom' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Workflow' }));
 
     expect(localStorage.getItem(CUSTOM_MACRO_RECIPE_STORAGE_KEY)).toContain('place_table');
   });
@@ -165,7 +170,7 @@ describe('MacroStepEditor slice 9', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(/Invalid JSON/);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     expect((screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value).toContain('"op": "place_table"');
   });
@@ -182,7 +187,7 @@ describe('MacroStepEditor slice 9', () => {
       target: { value: 'IFC' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
 
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"type": "filename_contains"');
