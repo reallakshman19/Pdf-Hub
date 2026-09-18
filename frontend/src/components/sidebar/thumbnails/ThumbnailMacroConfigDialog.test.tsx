@@ -8,7 +8,7 @@ describe('ThumbnailMacroConfigDialog visual mask guardrail', () => {
 
     render(
       <ThumbnailMacroConfigDialog
-        kind="redaction"
+        kind="visualMask"
         pageIndices={[0, 1]}
         onCancel={vi.fn()}
         onApply={onApply}
