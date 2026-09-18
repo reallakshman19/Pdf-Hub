@@ -298,6 +298,53 @@ void ocrTypes;
 void ocrAnchors;
 void ocrStore;
 
+const sessionNavigationTypes = requireContains('src/core/session/types.ts', [
+  'selectedPageIds: PageId[]',
+  'currentPageId: PageId | null',
+  'selectedPages: number[]',
+  'currentPage: number',
+]);
+
+const sessionNavigationStore = requireContains('src/core/session/store.ts', [
+  'setPageById',
+  'setSelectedPageIds',
+  'resolveNavigationForGraph',
+  'selectedPageIds: navigation.selectedPageIds',
+  'currentPageId: navigation.currentPageId',
+]);
+
+for (const requiredToken of [
+  'selectedPageIds: PageId[]',
+  'currentPageId: PageId | null',
+]) {
+  if (!historyTypeSource.includes(requiredToken)) {
+    failures.push(`document history missing navigation identity: ${requiredToken}`);
+  }
+}
+
+for (const requiredToken of [
+  'setSelectedPageIds(state.selectedPageIds)',
+  'setPageById(state.currentPageId)',
+]) {
+  if (!historyRestoreSource.includes(requiredToken)) {
+    failures.push(`history restore missing PageId navigation token: ${requiredToken}`);
+  }
+}
+
+for (const requiredToken of [
+  'selectedPageIds: [...sessionSnapshot.selectedPageIds]',
+  'currentPageId: sessionSnapshot.viewState.currentPageId',
+  'selectedPageIds: [...sessionAfter.selectedPageIds]',
+  'currentPageId: sessionAfter.viewState.currentPageId',
+]) {
+  if (!documentTransaction.includes(requiredToken)) {
+    failures.push(`document transaction missing PageId navigation snapshot: ${requiredToken}`);
+  }
+}
+
+void sessionNavigationTypes;
+void sessionNavigationStore;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
