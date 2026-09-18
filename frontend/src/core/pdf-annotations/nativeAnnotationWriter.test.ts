@@ -2,6 +2,7 @@ import {
   PDFArray,
   PDFDict,
   PDFDocument,
+  PDFHexString,
   PDFName,
   PDFString,
 } from 'pdf-lib';
@@ -50,7 +51,11 @@ function readName(dict: PDFDict, key: string): string | null {
 }
 
 function readString(dict: PDFDict, key: string): string | null {
-  return dict.lookupMaybe(PDFName.of(key), PDFString)?.decodeText() ?? null;
+  const value = dict.lookup(PDFName.of(key));
+  if (value instanceof PDFString || value instanceof PDFHexString) {
+    return value.decodeText();
+  }
+  return null;
 }
 
 describe('writeNativePdfAnnotations', () => {
@@ -63,7 +68,7 @@ describe('writeNativePdfAnnotations', () => {
         opacity: 0.4,
       }),
       annotation('comment-1', 'comment', {
-        text: 'Check this value.',
+        text: 'تحقق من هذه القيمة',
         review: {
           author: 'Alice',
           createdAt: 1_700_000_000_000,
@@ -73,7 +78,7 @@ describe('writeNativePdfAnnotations', () => {
             {
               id: 'reply-1',
               author: 'Bob',
-              content: 'Confirmed.',
+              content: 'تم التأكيد',
               createdAt: 1_700_000_000_200,
             },
           ],
@@ -95,12 +100,12 @@ describe('writeNativePdfAnnotations', () => {
 
     expect(readName(byNm.get('highlight-1')!, 'Subtype')).toBe('Highlight');
     expect(readName(byNm.get('comment-1')!, 'Subtype')).toBe('Text');
-    expect(readString(byNm.get('comment-1')!, 'Contents')).toBe('Check this value.');
+    expect(readString(byNm.get('comment-1')!, 'Contents')).toBe('تحقق من هذه القيمة');
 
     const reply = byNm.get('comment-1:reply:reply-1');
     expect(reply).toBeTruthy();
     expect(readName(reply!, 'Subtype')).toBe('Text');
-    expect(readString(reply!, 'Contents')).toBe('Confirmed.');
+    expect(readString(reply!, 'Contents')).toBe('تم التأكيد');
     expect(reply!.get(PDFName.of('IRT'))).toBeTruthy();
   });
 
