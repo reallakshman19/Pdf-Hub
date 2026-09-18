@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clonePageGraph,
   createPageGraph,
   duplicatePagesInGraph,
   insertPagesIntoGraph,
@@ -9,6 +10,7 @@ import {
   pageIdAtPhysicalIndex,
   physicalIndexForPageId,
   removePagesFromGraph,
+  rekeyPageGraph,
   reorderPageGraph,
   rotatePagesInGraph,
   validatePageGraph,
@@ -205,6 +207,31 @@ describe('PageGraph', () => {
       currentIndex: 1,
       logicalLabel: 'Cover',
     });
+  });
+
+  it('preserves canonical PageLabel ranges through clone, rekey and neutral transforms', () => {
+    const graph = createPageGraph(
+      [
+        page('page-a', 0),
+        page('page-b', 1),
+        page('page-c', 2),
+      ],
+      [
+        { startPageId: 'page-a', prefix: 'Cover' },
+        { startPageId: 'page-b', style: 'decimal' },
+      ],
+    );
+
+    const cloned = clonePageGraph(graph);
+    const rekeyed = rekeyPageGraph(cloned, 'doc-2');
+    const rotated = rotatePagesInGraph(rekeyed, ['page-b'], 90);
+
+    expect(rotated.pageLabelRanges).toEqual([
+      { startPageId: 'page-a', prefix: 'Cover' },
+      { startPageId: 'page-b', style: 'decimal' },
+    ]);
+    expect(rotated.pageLabelRanges).not.toBe(graph.pageLabelRanges);
+    expect(rotated.pages.every((item) => item.documentKey === 'doc-2')).toBe(true);
   });
 
   it('reports duplicate IDs and broken physical-index invariants', () => {
