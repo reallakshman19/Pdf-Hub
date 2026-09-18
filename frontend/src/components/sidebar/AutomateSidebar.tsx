@@ -4,6 +4,7 @@ import {
   Copy,
   Download,
   FilePlus2,
+  Hash,
   Play,
   Plus,
   Sparkles,
@@ -11,6 +12,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { PageLabelsDialog } from '@/components/dialogs/PageLabelsDialog';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
@@ -28,6 +30,9 @@ import {
   upsertCustomMacroRecipe,
 } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { commandBus } from '@/core/commands/bus';
+import { materializePdfCommand } from '@/core/commands/types';
+import type { PageLabelRange } from '@/core/pages/types';
 import { validateRecipeBeforeRun } from '@/core/macro/validation/validator';
 import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
 import type { MacroOutputFile, MacroRecipe } from '@/core/macro/types';
@@ -53,15 +58,23 @@ const QUICK_ACTION_IDS = [
 export const AutomateSidebar: React.FC = () => {
   const {
     workingBytes,
+    documentKey,
     fileName,
     pageCount,
+    pageGraph,
+    selectedPageIds,
     selectedPages,
+    currentPageId,
     currentPage,
   } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
+    documentKey: state.documentKey,
     fileName: state.fileName,
     pageCount: state.pageCount,
+    pageGraph: state.pageGraph,
+    selectedPageIds: state.selectedPageIds,
     selectedPages: state.selectedPages,
+    currentPageId: state.viewState.currentPageId,
     currentPage: state.viewState.currentPage,
   })));
   const addToast = useToastStore((state) => state.addToast);
@@ -82,6 +95,7 @@ export const AutomateSidebar: React.FC = () => {
   );
 
   const [tab, setTab] = React.useState<AutomateTab>('quick');
+  const [pageLabelsOpen, setPageLabelsOpen] = React.useState(false);
   const [customRecipes, setCustomRecipes] = React.useState<MacroRecipe[]>(() => loadCustomMacroRecipes());
   const [runningRecipeId, setRunningRecipeId] = React.useState<string | null>(null);
   const [specializedOpen, setSpecializedOpen] = React.useState(false);
@@ -100,6 +114,42 @@ export const AutomateSidebar: React.FC = () => {
   React.useEffect(() => () => {
     abortRef.current?.abort('Automate panel unmounted');
   }, []);
+
+  const applyPageLabels = async (
+    ranges: PageLabelRange[],
+  ): Promise<boolean> => {
+    if (!workingBytes || !documentKey || !pageGraph) return false;
+
+    const result = await commandBus.execute({
+      command: materializePdfCommand(
+        {
+          type: 'SET_PAGE_LABELS',
+          payload: { ranges },
+        },
+        'macro-runner',
+        documentKey,
+      ),
+    });
+
+    if (!result.success) {
+      addToast({
+        type: 'error',
+        title: 'Page Labels Failed',
+        message: result.error?.message ?? result.message,
+      });
+      return false;
+    }
+
+    addToast({
+      type: 'success',
+      title: 'Page Labels Updated',
+      message:
+        ranges.length === 0
+          ? 'Logical page labels were cleared.'
+          : 'Logical page labels were updated.',
+    });
+    return true;
+  };
 
   const openBuilder = (source: string) => {
     setMacroBuilderSource(source);
@@ -231,6 +281,16 @@ export const AutomateSidebar: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col" data-testid="automate-sidebar">
+      {pageGraph && (
+        <PageLabelsDialog
+          isOpen={pageLabelsOpen}
+          pageGraph={pageGraph}
+          currentPageId={currentPageId}
+          selectedPageIds={selectedPageIds}
+          onClose={() => setPageLabelsOpen(false)}
+          onApply={applyPageLabels}
+        />
+      )}
       <div className="grid grid-cols-3 gap-1 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
         <AutomateTabButton
           active={tab === 'quick'}
@@ -258,6 +318,18 @@ export const AutomateSidebar: React.FC = () => {
       <div className="flex-1 overflow-auto p-3">
         {tab === 'quick' ? (
           <>
+            <PageLabelsQuickAction
+              disabled={
+                !workingBytes
+                || !pageGraph
+                || runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
+              onConfigure={() => setPageLabelsOpen(true)}
+            />
+
             <GenerateDocumentQuickAction
               open={generatorOpen}
               disabled={
@@ -376,6 +448,46 @@ export const AutomateSidebar: React.FC = () => {
     </div>
   );
 };
+
+function PageLabelsQuickAction({
+  disabled,
+  onConfigure,
+}: {
+  disabled: boolean;
+  onConfigure: () => void;
+}) {
+  return (
+    <section
+      className="mb-4"
+      aria-label="Logical Page Labels"
+      data-testid="automate-page-labels"
+    >
+      <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-start gap-2">
+          <Hash className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+              Logical Page Labels
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+              Configure PDF navigator numbering and restarts. This does not print page numbers.
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="mt-3 h-7 text-xs"
+          onClick={onConfigure}
+          disabled={disabled}
+        >
+          Configure labels
+        </Button>
+      </article>
+    </section>
+  );
+}
 
 function GenerateDocumentQuickAction({
   open,
