@@ -30,7 +30,13 @@ import {
   replacePageGraphContent,
 } from '@/core/pages/structuralPageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
-import { clearResolvedPageLabels } from '@/core/pages/pageLabels';
+import {
+  clearPageLabelRanges,
+  reanchorPageLabelRangesAfterGraphChange,
+  validatePageLabelRanges,
+  withPageLabelRanges,
+} from '@/core/pages/pageLabels';
+import { writePdfPageLabels } from '@/core/pages/pdfPageLabelWriter';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 import {
@@ -152,6 +158,10 @@ function commandLabel(command: PdfCommand): string {
       return `Duplicate ${command.payload.pageIndices.length} page(s)`;
     case 'MERGE_PDF':
       return `Merge ${command.payload.donorResourceIds.length} file(s)`;
+    case 'SET_PAGE_LABELS':
+      return command.payload.ranges.length === 0
+        ? 'Clear logical page labels'
+        : 'Set logical page labels';
     case 'ADD_HEADER_FOOTER_TEXT':
       return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
@@ -265,6 +275,42 @@ function orderFromGraphs(
     }
     return index;
   });
+}
+
+function pageGraphHasLogicalLabelMetadata(
+  graph: PageGraph<PageNode>,
+): boolean {
+  return graph.pageLabelRanges !== undefined
+    || graph.pages.some((page) => page.logicalLabel !== undefined);
+}
+
+function reconcilePageLabelsAfterStructuralChange(
+  beforeGraph: PageGraph<PageNode>,
+  afterGraph: PageGraph<PageNode>,
+): PageGraph<PageNode> {
+  return reanchorPageLabelRangesAfterGraphChange(
+    beforeGraph,
+    afterGraph,
+  );
+}
+
+async function synchronizeStructuralPageLabels(
+  beforeGraph: PageGraph<PageNode>,
+  afterGraph: PageGraph<PageNode>,
+  bytes: Uint8Array,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  if (!pageGraphHasLogicalLabelMetadata(beforeGraph)) {
+    return bytes;
+  }
+
+  const writeResult = await writePdfPageLabels(
+    bytes,
+    afterGraph,
+    afterGraph.pageLabelRanges ?? [],
+    signal,
+  );
+  return writeResult.bytes;
 }
 
 async function buildImportedDonorNodes(
@@ -402,7 +448,8 @@ export async function dispatchPdfCommand(
         if (!pageGraph.pages[fromIndex]) {
           return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
         }
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           movePageGraphBeforeOriginalTarget(
             pageGraph,
             fromIndex,
@@ -423,7 +470,13 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const reorderedBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          reorderedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -443,7 +496,8 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           reorderPageGraphByOrder(pageGraph, order),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
@@ -495,7 +549,8 @@ export async function dispatchPdfCommand(
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           removePagesFromGraph(
             pageGraph,
             pageIdsAtIndices(pageGraph, pageIndices),
@@ -514,7 +569,13 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
+        const removedBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          removedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -543,7 +604,8 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'Cannot delete every page in the document.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           removePagesFromGraph(
             pageGraph,
             pageIdsAtIndices(pageGraph, pageIndices),
@@ -562,7 +624,13 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
+        const removedBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          removedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -601,7 +669,8 @@ export async function dispatchPdfCommand(
           [donor],
           context.documentKey,
         );
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           insertPagesIntoGraph(
             pageGraph,
             command.payload.atIndex,
@@ -621,10 +690,16 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.insertAt(
+        const insertedBytes = await PdfEditAdapter.insertAt(
           context.workingBytes,
           resolved.bytes,
           command.payload.atIndex,
+        );
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          insertedBytes,
+          input.signal,
         );
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
         const result = await applyMutation(
@@ -643,7 +718,8 @@ export async function dispatchPdfCommand(
       case 'INSERT_BLANK_PAGE': {
         const { atIndex, size } = command.payload;
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           insertPagesIntoGraph(
             pageGraph,
             atIndex,
@@ -668,7 +744,13 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.insertBlankPage(context.workingBytes, atIndex, size);
+        const insertedBytes = await PdfEditAdapter.insertBlankPage(context.workingBytes, atIndex, size);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          insertedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -783,7 +865,8 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for duplication.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           duplicatePagesInGraph(
             pageGraph,
             pageIdsAtIndices(pageGraph, pageIndices),
@@ -805,7 +888,13 @@ export async function dispatchPdfCommand(
               pageIdsAtIndices(pageGraph, pageIndices),
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
+        const duplicatedBytes = await PdfEditAdapter.duplicatePages(context.workingBytes, pageIndices);
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          duplicatedBytes,
+          input.signal,
+        );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -848,7 +937,8 @@ export async function dispatchPdfCommand(
           donorRefs,
           context.documentKey,
         );
-        const nextPageGraph = clearResolvedPageLabels(
+        const nextPageGraph = reconcilePageLabelsAfterStructuralChange(
+          pageGraph,
           insertPagesIntoGraph(
             pageGraph,
             pageGraph.pages.length,
@@ -868,9 +958,15 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const nextBytes = await PdfEditAdapter.merge(
+        const mergedBytes = await PdfEditAdapter.merge(
           context.workingBytes,
           donors.map((donor) => donor.bytes),
+        );
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          mergedBytes,
+          input.signal,
         );
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
         const result = await applyMutation(
@@ -884,6 +980,54 @@ export async function dispatchPdfCommand(
           nextPageGraph,
         );
         return commandSuccess(command, true, 'Files merged', result.nextBytes, result.nextPageCount);
+      }
+
+      case 'SET_PAGE_LABELS': {
+        const pageGraph = await resolveStructuralPageGraph(
+          context,
+          input,
+          pageCount,
+        );
+        const ranges = command.payload.ranges.map((range) => ({ ...range }));
+        const validation = validatePageLabelRanges(pageGraph, ranges);
+        if (!validation.valid) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'The logical page-label configuration is invalid.',
+            validation.errors.join('; '),
+          );
+        }
+
+        const nextPageGraph =
+          ranges.length === 0
+            ? clearPageLabelRanges(pageGraph)
+            : withPageLabelRanges(pageGraph, ranges);
+        const writeResult = await writePdfPageLabels(
+          context.workingBytes,
+          nextPageGraph,
+          nextPageGraph.pageLabelRanges ?? [],
+          input.signal,
+        );
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          writeResult.bytes,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          nextPageGraph,
+        );
+        return commandSuccess(
+          command,
+          true,
+          ranges.length === 0
+            ? 'Logical page labels cleared'
+            : 'Logical page labels updated',
+          result.nextBytes,
+          result.nextPageCount,
+        );
       }
 
       case 'ADD_HEADER_FOOTER_TEXT': {
