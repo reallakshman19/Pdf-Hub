@@ -4,6 +4,7 @@ import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
   importPdfHubWriterProjectFromReader,
   type ImportPdfHubProjectResult,
@@ -371,11 +372,20 @@ export async function commitStagedWriterProjectImport(
   try {
     const mode = project.documentMeta?.mode ?? inferredModeFromProject(project);
     if (mode === 'pdfOverlay') {
+      const pageGraph = await buildPageGraphFromPdfBytes(
+        project.originalPdfBytes,
+        project.manifest.documentFingerprint,
+        operation.signal,
+      );
+      if (pageGraph.pages.length !== project.originalPdfPageCount) {
+        throw new Error('Writer project PageGraph count does not match validated PDF page count.');
+      }
       useSessionStore.getState().openDocument({
         documentKey: project.manifest.documentFingerprint,
         fileName: 'imported-writer-project.pdf',
         bytes: project.originalPdfBytes,
         pageCount: project.originalPdfPageCount,
+        pageGraph,
       });
     } else {
       useSessionStore.getState().clearDocument();
