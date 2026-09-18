@@ -1,4 +1,5 @@
 import { saveAnnotations } from '../annotations/persistence';
+import { normalizeAnnotationPageAnchors } from '../annotations/pageAnchor';
 import { useAnnotationStore } from '../annotations/store';
 import { enqueueDocumentOperation } from '../commands/documentOperationQueue';
 import { documentBus } from '../events/bus';
