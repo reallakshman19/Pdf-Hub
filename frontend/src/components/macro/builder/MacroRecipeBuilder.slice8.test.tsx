@@ -30,7 +30,7 @@ describe('MacroRecipeBuilder slice 8', () => {
 
     expect(screen.getByRole('region', { name: 'Workflow builder' })).toBeInTheDocument();
     expect(screen.getByLabelText('Workflow Name')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Workflow ID')).not.toBeVisible();
+    expect((screen.getByTestId('macro-builder-advanced') as HTMLDetailsElement).open).toBe(false);
     expect(screen.getByText(/Recipe must contain at least one step/)).toBeInTheDocument();
     expect(screen.getByTestId('macro-builder-execution')).toBeInTheDocument();
   });
