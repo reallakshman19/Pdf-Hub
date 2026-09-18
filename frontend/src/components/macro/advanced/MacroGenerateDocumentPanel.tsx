@@ -107,6 +107,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   const generate = async () => {
     if (!workingBytes || !selectedTemplate || disabled || isRunning) return;
 
+    onBusyChange?.(true);
     setIsRunning(true);
     setRunError(null);
     setLogs([]);
@@ -166,6 +167,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
       });
     } finally {
       setIsRunning(false);
+      onBusyChange?.(false);
     }
   };
 
