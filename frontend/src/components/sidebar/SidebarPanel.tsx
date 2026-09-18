@@ -1,8 +1,7 @@
 import React, { useState, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
-import { MacrosSidebar } from '@/components/sidebar/MacrosSidebar';
-import { PsIsonoteRecipeBuilder } from '@/components/sidebar/PsIsonoteRecipeBuilder';
+import { AutomateSidebar } from '@/components/sidebar/AutomateSidebar';
 import OcrPanelWriterConnected from '@/components/ocr/OcrPanelWriterConnected';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -49,7 +48,7 @@ export const SidebarPanel: React.FC = () => {
       case 'bookmarks':  return 'Bookmarks';
       case 'comments':   return 'Comments';
       case 'search':     return 'Search';
-      case 'macros':     return 'Macros';
+      case 'macros':     return 'Automate';
       case 'ocr':        return 'OCR';
       default:           return 'Panel';
     }
@@ -95,12 +94,7 @@ export const SidebarPanel: React.FC = () => {
           {sidebarTab === 'comments' && <CommentsSidebar />}
           {sidebarTab === 'search' && <SearchPanel />}
         </Suspense>
-        {sidebarTab === 'macros' && (
-          <>
-            <PsIsonoteRecipeBuilder />
-            <MacrosSidebar />
-          </>
-        )}
+        {sidebarTab === 'macros' && <AutomateSidebar />}
         {sidebarTab === 'ocr' && <OcrPanelConnected />}
       </div>
     </div>

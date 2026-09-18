@@ -9,14 +9,12 @@ import {
   FilePlus2,
   Trash2,
   Split,
-  PlaySquare,
   Undo,
   Redo,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
-import { downloadBlob } from '@/core/document/download';
 import {
   admitDonorPdfFiles,
   assertAdmittedDonorSetDispatchAllowed,
@@ -35,20 +33,15 @@ import { useShallow } from 'zustand/react/shallow';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
-import { BatchRunDialog } from '../dialogs/BatchRunDialog';
-import { runMacroBatch } from '@/core/macro/batchRunner';
-import { BUILTIN_MACROS } from '@/core/macro/builtins';
 
 export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
   const [isReplacePageDialogOpen, setIsReplacePageDialogOpen] = useState(false);
-  const [isBatchRunDialogOpen, setIsBatchRunDialogOpen] = useState(false);
   const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
   const donorOperationRef = useRef<{
     controller: AbortController;
     documentKey: string;
   } | null>(null);
-  const batchOperationRef = useRef<AbortController | null>(null);
 
   const {
     workingBytes,
@@ -116,8 +109,6 @@ export const ToolbarOrganize: React.FC = () => {
   useEffect(() => () => {
     donorOperationRef.current?.controller.abort('toolbar unmounted');
     donorOperationRef.current = null;
-    batchOperationRef.current?.abort('toolbar unmounted');
-    batchOperationRef.current = null;
   }, []);
 
   const admitDonorSelection = async (
@@ -423,62 +414,6 @@ export const ToolbarOrganize: React.FC = () => {
     }
   };
 
-  const handleBatchRun = () => {
-    setIsBatchRunDialogOpen(true);
-  };
-
-  const confirmBatchRun = async (recipeId: string) => {
-    const recipe = BUILTIN_MACROS[recipeId];
-    if (!recipe) {
-      addToast({
-        type: 'error',
-        title: 'Batch Run Failed',
-        message: `Recipe "${recipeId}" was not found.`,
-      });
-      return;
-    }
-
-    batchOperationRef.current?.abort('superseded by a newer batch operation');
-    const controller = new AbortController();
-    batchOperationRef.current = controller;
-
-    try {
-      const sources = await FileAdapter.pickPdfFileSources(true);
-      if (sources.length === 0 || controller.signal.aborted) return;
-
-      const report = await runMacroBatch({
-        sources,
-        recipe,
-        continueOnError: true,
-        abortSignal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-
-      const reportJson = JSON.stringify(report, null, 2);
-      const reportBytes = new TextEncoder().encode(reportJson);
-      const blob = new Blob([reportBytes], { type: 'application/json' });
-      downloadBlob(blob, `batch-report-${Date.now()}.json`);
-
-      addToast({
-        type: 'success',
-        title: 'Batch Run Complete',
-        message: `Success: ${report.summary.succeeded}, Failures: ${report.summary.failed}.`,
-      });
-    } catch (error) {
-      if (!isOperationCancelledError(error) && !controller.signal.aborted) {
-        addToast({
-          type: 'error',
-          title: 'Batch Run Failed',
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    } finally {
-      if (batchOperationRef.current === controller) {
-        batchOperationRef.current = null;
-      }
-    }
-  };
-
   return (
     <>
       <InsertBlankPageDialog
@@ -491,11 +426,6 @@ export const ToolbarOrganize: React.FC = () => {
         onClose={closeReplaceDonor}
         onConfirm={confirmReplacePage}
         maxPages={replaceDonorSet?.donors[0]?.pageCount ?? 1}
-      />
-      <BatchRunDialog
-        isOpen={isBatchRunDialogOpen}
-        onClose={() => setIsBatchRunDialogOpen(false)}
-        onConfirm={confirmBatchRun}
       />
       <div className="flex items-center space-x-1">
         <Tooltip content={peekUndo() ? `Undo: ${peekUndo()?.label}` : "Undo"}>
@@ -572,13 +502,6 @@ export const ToolbarOrganize: React.FC = () => {
           </Button>
         </Tooltip>
 
-        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1" />
-
-        <Tooltip content="Batch Run Recipe">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBatchRun}>
-            <PlaySquare className="w-4 h-4" />
-          </Button>
-        </Tooltip>
       </div>
     </>
   );

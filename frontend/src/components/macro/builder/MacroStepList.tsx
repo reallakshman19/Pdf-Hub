@@ -85,7 +85,7 @@ export function MacroStepList({
             onMoveDown={onMoveDown}
           />
         ) : (
-          <p>No macro steps added.</p>
+          <p>No workflow steps added.</p>
         )}
       </div>
     );
@@ -156,7 +156,6 @@ export function MacroStepList({
                   <strong>
                     {index + 1}. {presentation?.label ?? step.op}
                   </strong>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>{step.op}</div>
                   <StepSummary step={step} />
                 </button>
 

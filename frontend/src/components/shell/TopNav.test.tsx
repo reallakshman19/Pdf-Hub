@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TopNav } from './TopNav';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCapabilities } from '@/hooks/useCapabilities';
+import { useEditorStore } from '@/core/editor/store';
 
 vi.mock('@/hooks/useIsMobile', () => ({
   useIsMobile: vi.fn(),
@@ -58,6 +59,11 @@ describe('TopNav — mobile variant', () => {
 describe('TopNav — desktop variant', () => {
   beforeEach(() => {
     vi.mocked(useIsMobile).mockReturnValue(false);
+    useEditorStore.setState({
+      activeMode: 'view',
+      sidebarTab: 'thumbnails',
+      leftPanelWidth: 0,
+    });
     vi.mocked(useCapabilities).mockReturnValue({
       mode: 'preview',
       serverAlive: false,
@@ -77,6 +83,16 @@ describe('TopNav — desktop variant', () => {
     });
   });
 
+  it('opens the unified Automate sidebar from the desktop mode tab', () => {
+    render(<TopNav />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Automate/i }));
+
+    expect(useEditorStore.getState().activeMode).toBe('generate');
+    expect(useEditorStore.getState().sidebarTab).toBe('macros');
+    expect(useEditorStore.getState().leftPanelWidth).toBe(20);
+  });
+
   it('renders unified desktop single-row header layout', () => {
     render(<TopNav />);
     // Check that modes tabs are rendered
@@ -86,7 +102,7 @@ describe('TopNav — desktop variant', () => {
     expect(screen.getByRole('tab', { name: /Draw/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Write/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Organize/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Generate/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Automate/i })).toBeInTheDocument();
 
     // Check that search pill and actions are rendered
     expect(screen.getByPlaceholderText(/search or run command/i)).toBeInTheDocument();

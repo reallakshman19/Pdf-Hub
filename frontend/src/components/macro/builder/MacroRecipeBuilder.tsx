@@ -25,6 +25,7 @@ import { MacroValidationPanel } from './MacroValidationPanel';
 import { MacroRecipeImportExport } from './MacroRecipeImportExport';
 import { MacroStepEditor } from './MacroStepEditor';
 import { getChildParentPath } from './macroPathUtils';
+import { MacroBuilderExecutionPanel } from './MacroBuilderExecutionPanel';
 
 export interface MacroRecipeBuilderProps {
   initialRecipe?: MacroRecipe;
@@ -137,7 +138,7 @@ export function MacroRecipeBuilder({
     <section
       data-macro-builder="true"
       className="macro-recipe-builder"
-      aria-label="Macro recipe builder"
+      aria-label="Workflow builder"
       style={{
         display: 'grid',
         gridTemplateColumns: '280px minmax(320px, 1fr) 380px',
@@ -155,36 +156,16 @@ export function MacroRecipeBuilder({
           color: '#111827',
         }}
       >
-        <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Macro Builder</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Workflow Builder</h2>
 
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Recipe ID</span>
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Workflow Name</span>
           <input
-            aria-label="Recipe ID"
-            value={state.recipe.id}
-            onChange={(event) => handleIdentityChange({ id: event.currentTarget.value })}
-            style={inputStyle}
-          />
-        </label>
-
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Recipe Name</span>
-          <input
-            aria-label="Recipe Name"
+            aria-label="Workflow Name"
             value={state.recipe.name}
             onChange={(event) => handleIdentityChange({ name: event.currentTarget.value })}
             style={inputStyle}
           />
-        </label>
-
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <input
-            aria-label="Dry Run"
-            type="checkbox"
-            checked={Boolean(state.recipe.dryRun)}
-            onChange={(event) => handleIdentityChange({ dryRun: event.currentTarget.checked })}
-          />
-          <span>Dry run recipe</span>
         </label>
 
         <MacroStepPalette
@@ -243,12 +224,14 @@ export function MacroRecipeBuilder({
 
         <MacroValidationPanel validation={state.validation} />
 
+        <MacroBuilderExecutionPanel
+          recipe={state.recipe}
+          validationValid={state.validation.valid}
+        />
+
         <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
-          <button type="button" onClick={handleExport}>
-            Export JSON
-          </button>
           <button type="button" onClick={handleSave} disabled={!state.validation.valid}>
-            Save Custom
+            Save Workflow
           </button>
           {onClose ? (
             <button type="button" onClick={onClose}>
@@ -257,11 +240,43 @@ export function MacroRecipeBuilder({
           ) : null}
         </div>
 
-        <MacroRecipeImportExport
-          exportText={exportText}
-          onExportTextChange={setExportText}
-          onImport={handleImport}
-        />
+        <details
+          style={{
+            marginTop: 12,
+            border: '1px solid #e5e7eb',
+            borderRadius: 8,
+            padding: 8,
+          }}
+          data-testid="macro-builder-advanced"
+        >
+          <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            Advanced
+          </summary>
+
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Workflow ID</span>
+              <input
+                aria-label="Workflow ID"
+                value={state.recipe.id}
+                onChange={(event) => handleIdentityChange({ id: event.currentTarget.value })}
+                style={inputStyle}
+              />
+            </label>
+
+            <button type="button" onClick={handleExport}>
+              View recipe source
+            </button>
+
+            <div style={{ marginTop: 8 }}>
+              <MacroRecipeImportExport
+                exportText={exportText}
+                onExportTextChange={setExportText}
+                onImport={handleImport}
+              />
+            </div>
+          </div>
+        </details>
 
         {state.lastError ? (
           <p role="alert" style={{ color: '#b91c1c' }}>

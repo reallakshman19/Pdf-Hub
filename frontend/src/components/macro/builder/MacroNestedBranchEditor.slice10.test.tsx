@@ -7,6 +7,11 @@ import {
 import '@testing-library/jest-dom/vitest';
 import { MacroRecipeBuilder } from './MacroRecipeBuilder';
 
+function exportSource(): void {
+  fireEvent.click(screen.getByText('Advanced'));
+  fireEvent.click(screen.getByRole('button', { name: 'View recipe source' }));
+}
+
 describe('MacroNestedBranchEditor slice 10', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -26,7 +31,7 @@ describe('MacroNestedBranchEditor slice 10', () => {
     const thenSelect = selects.find(s => s.getAttribute('aria-label')?.includes('Then Branch Step'));
     if (thenSelect) fireEvent.change(thenSelect, { target: { value: 'draw_text_on_pages' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"then"');
     expect(json).toContain('"op": "draw_text_on_pages"');
@@ -40,7 +45,7 @@ describe('MacroNestedBranchEditor slice 10', () => {
     const elseSelect = selects.find(s => s.getAttribute('aria-label')?.includes('Else Branch Step'));
     if (elseSelect) fireEvent.change(elseSelect, { target: { value: 'select_pages' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"else"');
     expect(json).toContain('"op": "select_pages"');
@@ -59,7 +64,7 @@ describe('MacroNestedBranchEditor slice 10', () => {
     if (stepBtn) fireEvent.click(stepBtn);
 
     fireEvent.change(screen.getByLabelText('Text'), { target: { value: 'NESTED APPROVED' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
     expect((screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value).toContain('"text": "NESTED APPROVED"');
   });
 
@@ -110,7 +115,7 @@ describe('MacroNestedBranchEditor slice 10', () => {
     const upBtns = buttons.filter(b => b.textContent === '↑');
     if (upBtns.length > 1) fireEvent.click(upBtns[1]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json.indexOf('rotate_pages')).toBeLessThan(json.indexOf('select_pages'));
   });
@@ -131,7 +136,7 @@ describe('MacroNestedBranchEditor slice 10', () => {
     const innerElseSelect = innerSelects.find(s => s.getAttribute('aria-label')?.includes('Else Branch Step') && s !== thenSelect);
     if (innerElseSelect) fireEvent.change(innerElseSelect, { target: { value: 'select_pages' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    exportSource();
     const json = (screen.getByLabelText('Macro JSON') as HTMLTextAreaElement).value;
     expect(json).toContain('"op": "conditional"');
     expect(json).toContain('"else"');

@@ -20,13 +20,21 @@ const MODES: Array<{ id: ActiveMode; icon: React.ComponentType<{ className?: str
   { id: 'draw',     icon: PenTool,       label: 'Draw' },
   { id: 'write',    icon: Type,          label: 'Write' },
   { id: 'organize', icon: Layers,        label: 'Organize' },
-  { id: 'generate', icon: Sparkles,      label: 'Generate', ai: true },
+  { id: 'generate', icon: Sparkles,      label: 'Automate', ai: true },
 ];
 
 export const ModeBar: React.FC = () => {
-  const { activeMode, setActiveMode, setMobileSheetOpen } = useEditorStore(useShallow((state) => ({
+  const {
+    activeMode,
+    setActiveMode,
+    setSidebarTab,
+    setMobileDrawerOpen,
+    setMobileSheetOpen,
+  } = useEditorStore(useShallow((state) => ({
     activeMode: state.activeMode,
     setActiveMode: state.setActiveMode,
+    setSidebarTab: state.setSidebarTab,
+    setMobileDrawerOpen: state.setMobileDrawerOpen,
     setMobileSheetOpen: state.setMobileSheetOpen,
   })));
   const isMobile = useIsMobile();
@@ -50,6 +58,10 @@ export const ModeBar: React.FC = () => {
             onClick={() => {
               setActiveMode(id);
               setMobileSheetOpen(false);
+              if (id === 'generate') {
+                setSidebarTab('macros');
+                setMobileDrawerOpen(true);
+              }
             }}
             className={[
               'flex items-center justify-center gap-2 px-5 py-0 min-h-[44px] min-w-[100px] rounded-full text-sm font-medium whitespace-nowrap snap-center shrink-0 transition-all border border-slate-200 dark:border-slate-800 cursor-pointer bg-white dark:bg-slate-900',
