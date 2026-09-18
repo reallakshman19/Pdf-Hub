@@ -238,6 +238,12 @@ describe('canonical command dispatch', () => {
   });
 
   it('pushes canonical history and updates session for ROTATE_PAGES', async () => {
+    useSessionStore.getState().setPageGraph({
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['i', 'ii', '1'][index],
+      })),
+    });
     pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
 
     const result = await execute({
@@ -255,6 +261,7 @@ describe('canonical command dispatch', () => {
       pageId: 'test-doc::stable::1',
       rotation: 90,
       documentKey: 'mock-hash-3',
+      logicalLabel: 'i',
     });
     expect(pdfMocks.getPageSize).not.toHaveBeenCalled();
   });
@@ -454,6 +461,12 @@ describe('canonical command dispatch', () => {
   });
 
   it('reorders pages by explicit order', async () => {
+    useSessionStore.getState().setPageGraph({
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['i', 'ii', '1'][index],
+      })),
+    });
     useAnnotationStore.getState().setAnnotations([
       { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
     ]);
@@ -488,6 +501,11 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::2',
       'test-doc::stable::1',
     ]);
+    expect(
+      useSessionStore.getState().pageGraph?.pages.every(
+        (page) => page.logicalLabel === undefined,
+      ),
+    ).toBe(true);
     expect(useAnnotationStore.getState().annotations[0]).toMatchObject({
       id: 'page-one-note',
       pageId: 'test-doc::stable::1',
@@ -693,6 +711,12 @@ describe('canonical command dispatch', () => {
   });
 
   it('replaces a page from an admitted donor exactly once', async () => {
+    useSessionStore.getState().setPageGraph({
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['A-1', 'A-2', 'A-3'][index],
+      })),
+    });
     useOcrStore.getState().hydrateOcrSession({
       documentFingerprint: 'test-doc',
       result: ocrDocument(0),
@@ -729,6 +753,7 @@ describe('canonical command dispatch', () => {
       pageId: 'test-doc::stable::1',
       width: 700,
       height: 900,
+      logicalLabel: 'A-1',
     });
     expect(useOcrStore.getState().result?.pages).toEqual([]);
     expect(useOcrStore.getState().selectedPageIndexes).toEqual([]);

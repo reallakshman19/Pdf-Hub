@@ -119,3 +119,5 @@ PDF-overlay Writer elements use stable `PageId` as page identity; `pageIndex` is
 OCR page-scoped state uses stable `PageId` as PDF page identity. `pageIndex` is derived for OCR execution/rendering. Structural PDF transactions must reanchor or invalidate OCR coherently and undo/redo must restore the OCR snapshot that belongs to the corresponding byte/PageGraph revision.
 
 Session current-page and selected-page identity use stable `PageId`. Numeric `currentPage` and `selectedPages` values are derived UI/engine compatibility coordinates. Structural transactions and history must preserve PageIds across reorder/insert operations and resolve numeric positions from the target PageGraph.
+
+PDF `/PageLabels` are logical presentation metadata over physical page ranges, not PageId identity and not visible printed page-number content. Resolved labels may be attached to PageGraph for display, but structural operations must not preserve stale resolved values unless the underlying PageLabels number tree is updated coherently.

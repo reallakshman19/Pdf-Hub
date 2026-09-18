@@ -373,3 +373,30 @@ During the short `replaceWorkingCopy(...)` transaction window where PageGraph is
 Document history snapshots both canonical IDs and compatibility numbers; undo/redo restores PageGraph first and then restores current/selected pages by PageId. Numeric history values remain only as a legacy/fallback path.
 
 The older organizer `PageStore` already uses PageIds for its internal selection model. This slice aligns canonical DocumentSession navigation with the same stable identity model without requiring a UI redesign.
+
+
+### Real PDF /PageLabels read path
+
+PDF Hub now reads logical page labels during PDF admission from PDF.js `getPageLabels()`, using the renderer document that is already leased/cached for page metrics.
+
+PDF.js owns parsing of the PDF `/PageLabels` number tree and standard label semantics:
+- `/D` decimal
+- `/r` lower Roman
+- `/R` upper Roman
+- `/a` lower alphabetic
+- `/A` upper alphabetic
+- `/P` prefix
+- `/St` starting number/restart
+
+PDF Hub validates that the resolved label array matches the physical page count. Missing, malformed, rejected, or inconsistent label metadata fails soft to ordinary physical page-number presentation; document admission itself is not rejected.
+
+Resolved values are stored on `PageNode.logicalLabel`. They are **not stable page identity**. A PDF PageLabels number tree is defined over physical page indices/ranges.
+
+Until Phase 5F makes structural mutations PageLabels-aware at serialization time:
+- rotation preserves resolved labels
+- replace-page preserves the label at that physical position
+- reorder/delete/split/insert/blank-insert/duplicate/merge clear resolved labels in live PageGraph rather than presenting stale metadata
+- reopening the PDF reads the actual serialized PageLabels again
+- opaque whole-document replacement rebuilds PageGraph and reads labels from its output bytes
+
+This deliberately prefers absence over a logical label that disagrees with the saved PDF.
