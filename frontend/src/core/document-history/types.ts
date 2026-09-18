@@ -1,9 +1,13 @@
+import type { PdfAnnotation } from '../annotations/types';
 import type { PdfCommand } from '../commands/types';
 
 export interface HistoryState {
   bytes: Uint8Array;
   pageCount: number;
   documentKey?: string | null;
+  selectedPages: number[];
+  currentPage: number;
+  annotations: PdfAnnotation[];
 }
 
 export interface Transaction {
