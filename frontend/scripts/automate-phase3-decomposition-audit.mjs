@@ -30,6 +30,7 @@ requireMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   '<MacroExpertWorkspace',
   '<MacroOutputQueue',
   '<MacroPresetExecutionPanel',
+  '<MacroPresetParameters',
   '<MacroGenerateDocumentPanel',
   'onOutputsProduced',
 ]);
@@ -54,6 +55,10 @@ forbidMarkers('src/components/sidebar/MacrosSidebar.tsx', [
   'selectedGenerationId',
   'generationLogs',
   'generationError',
+  'headerFooterOpacity',
+  'Target pages',
+  'function createDefaultOverrides',
+  'function applyOverridesToRecipe',
   "from '@/adapters/file/FileAdapter'",
 ]);
 
@@ -85,6 +90,22 @@ requireMarkers('src/components/macro/advanced/MacroPresetExecutionPanel.tsx', [
   'onOutputsProduced',
 ]);
 
+requireMarkers('src/components/macro/advanced/MacroPresetParameters.tsx', [
+  'Parameters',
+  'Target pages',
+  'Reset Parameters',
+  'Header/Footer opacity',
+  'Blank page count',
+]);
+
+requireMarkers('src/core/macro/presetOverrides.ts', [
+  'export interface RecipeOverrides',
+  'export function createDefaultOverrides',
+  'export function applyOverridesToRecipe',
+  'headerFooterOpacity',
+  'toPageSelector',
+]);
+
 requireMarkers('src/components/macro/advanced/MacroGenerateDocumentPanel.tsx', [
   'Generate Document',
   'GENERATION_TEMPLATES',
@@ -99,9 +120,9 @@ const sidebarSize = Buffer.byteLength(
   'utf8',
 );
 
-if (sidebarSize >= 30_000) {
+if (sidebarSize >= 10_000) {
   failures.push(
-    `src/components/sidebar/MacrosSidebar.tsx: expected decomposition below 30 KB, found ${sidebarSize} bytes`,
+    `src/components/sidebar/MacrosSidebar.tsx: expected composer below 10 KB, found ${sidebarSize} bytes`,
   );
 }
 
