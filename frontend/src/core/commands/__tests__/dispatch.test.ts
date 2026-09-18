@@ -8,6 +8,7 @@ import {
 import { useAnnotationStore } from '../../annotations/store';
 import type { PdfAnnotation } from '../../annotations/types';
 import { useHistoryStore } from '../../document-history/store';
+import { applyRedo, applyUndo } from '../../document-history/transactions';
 import { useSessionStore } from '../../session/store';
 import { useWriterV2Store } from '../../writer-v2/writerV2Store';
 import type { WriterElementV2 } from '../../writer-v2/types';
@@ -465,6 +466,8 @@ describe('canonical command dispatch', () => {
       result: ocrDocument(0),
       selectedPageIndexes: [0],
     });
+    useSessionStore.getState().setPage(1);
+    useSessionStore.getState().setSelectedPages([1]);
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
     const result = await execute(
@@ -502,6 +505,49 @@ describe('canonical command dispatch', () => {
     });
     expect(useOcrStore.getState().selectedPageIndexes).toEqual([2]);
     expect(useOcrStore.getState().documentFingerprint).toBe('mock-hash-3');
+    expect(useSessionStore.getState().selectedPageIds).toEqual([
+      'test-doc::stable::1',
+    ]);
+    expect(useSessionStore.getState().selectedPages).toEqual([3]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'test-doc::stable::1',
+      currentPage: 3,
+    });
+
+    const transaction = useHistoryStore.getState().undoStack[0];
+    expect(transaction?.before.selectedPageIds).toEqual(['test-doc::stable::1']);
+    expect(transaction?.before.currentPageId).toBe('test-doc::stable::1');
+    expect(transaction?.after.selectedPageIds).toEqual(['test-doc::stable::1']);
+    expect(transaction?.after.currentPageId).toBe('test-doc::stable::1');
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState().selectedPageIds).toEqual([
+      'test-doc::stable::1',
+    ]);
+    expect(useSessionStore.getState().selectedPages).toEqual([1]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'test-doc::stable::1',
+      currentPage: 1,
+    });
+    expect(useAnnotationStore.getState().annotations[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      pageNumber: 1,
+    });
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      pageIndex: 0,
+    });
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      pageIndex: 0,
+    });
+
+    await expect(applyRedo()).resolves.toBe(true);
+    expect(useSessionStore.getState().selectedPages).toEqual([3]);
+    expect(useSessionStore.getState().viewState).toMatchObject({
+      currentPageId: 'test-doc::stable::1',
+      currentPage: 3,
+    });
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
