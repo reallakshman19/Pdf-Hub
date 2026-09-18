@@ -79,6 +79,17 @@ describe('document transaction history memory', () => {
       fileName: 'fixture.pdf',
       bytes: new Uint8Array([1]),
       pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'hash-1',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
     });
   });
 
@@ -127,6 +138,7 @@ describe('document transaction history memory', () => {
     await expect(applyUndo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1]));
     expect(useSessionStore.getState().documentKey).toBe('hash-1');
+    expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe('stable-page');
     expect(useAnnotationStore.getState().annotations).toEqual([beforeAnnotation]);
 
     await expect(applyRedo()).resolves.toBe(true);
