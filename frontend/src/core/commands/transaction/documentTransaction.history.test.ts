@@ -9,6 +9,7 @@ import {
 import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
 import { commitDocumentMutation } from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({
@@ -74,6 +75,7 @@ describe('document transaction history memory', () => {
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
     useAnnotationStore.getState().setAnnotations([beforeAnnotation]);
+    useOcrStore.getState().clearOcr();
     useSessionStore.getState().openDocument({
       documentKey: 'hash-1',
       fileName: 'fixture.pdf',
@@ -90,6 +92,35 @@ describe('document transaction history memory', () => {
           rotation: 0,
         }],
       },
+    });
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'hash-1',
+      result: {
+        documentFingerprint: 'hash-1',
+        createdAt: '2026-09-18T00:00:00.000Z',
+        engineId: 'test',
+        profileId: 'clean-scan',
+        pages: [{
+          status: 'success',
+          pageIndex: 0,
+          pageNumber: 1,
+          width: 595,
+          height: 842,
+          words: [{
+            id: 'word-1',
+            pageIndex: 0,
+            text: 'OCR',
+            normalizedText: 'ocr',
+            confidence: 0.9,
+            bbox: { x: 100, y: 100, width: 40, height: 20 },
+          }],
+          lines: [],
+          blocks: [],
+          diagnostics: [],
+        }],
+        diagnostics: [],
+      },
+      selectedPageIndexes: [0],
     });
   });
 
@@ -123,6 +154,11 @@ describe('document transaction history memory', () => {
     expect(history.undoStack[0]?.command.source).toBe('toolbar');
     expect(history.undoStack[0]?.before.annotations).toEqual([beforeAnnotation]);
     expect(history.undoStack[0]?.after.annotations).toEqual([afterAnnotation]);
+    expect(history.undoStack[0]?.before.ocr?.documentFingerprint).toBe('hash-1');
+    expect(history.undoStack[0]?.before.ocr?.result?.pages[0]?.pageId).toBe(
+      'stable-page',
+    );
+    expect(history.undoStack[0]?.after.ocr?.documentFingerprint).toBe('hash-2');
     expect(history.getDiagnostics()).toMatchObject({
       retainedTransactions: 2,
       retainedBytes: 3,
@@ -134,16 +170,28 @@ describe('document transaction history memory', () => {
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2]));
     expect(useSessionStore.getState().documentKey).toBe('hash-2');
     expect(useAnnotationStore.getState().annotations).toEqual([afterAnnotation]);
+    expect(useOcrStore.getState().documentFingerprint).toBe('hash-2');
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'stable-page',
+      pageIndex: 0,
+    });
 
     await expect(applyUndo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1]));
     expect(useSessionStore.getState().documentKey).toBe('hash-1');
     expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe('stable-page');
     expect(useAnnotationStore.getState().annotations).toEqual([beforeAnnotation]);
+    expect(useOcrStore.getState().documentFingerprint).toBe('hash-1');
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'stable-page',
+      pageIndex: 0,
+    });
 
     await expect(applyRedo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2]));
     expect(useSessionStore.getState().documentKey).toBe('hash-2');
     expect(useAnnotationStore.getState().annotations).toEqual([afterAnnotation]);
+    expect(useOcrStore.getState().documentFingerprint).toBe('hash-2');
+    expect(useOcrStore.getState().result?.pages[0]?.pageId).toBe('stable-page');
   });
 });
