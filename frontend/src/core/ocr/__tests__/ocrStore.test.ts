@@ -3,6 +3,7 @@ import { getOcrProfile } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { runOcrJob } from '../ocrJobRunner';
 import { createOcrCorrection } from '../ocrCorrections';
+import { useSessionStore } from '../../session/store';
 import {
   recomputeOcrDerivedState,
   useOcrStore,
@@ -11,6 +12,7 @@ import {
 describe('ocrStore', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
+    useSessionStore.getState().clearDocument();
   });
 
   it('starts with stable initial OCR state', () => {
@@ -312,6 +314,57 @@ describe('ocrStore', () => {
     expect(recomputed.searchIndex).not.toBeNull();
     expect(base.searchIndex).toBeNull();
   });
+
+  it('hydrates pageIndex-only OCR data onto the active PageGraph', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-store',
+      fileName: 'ocr.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-ocr-page',
+          documentKey: 'doc-store',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+    const document = await createMockDocument();
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-store',
+      result: document,
+      selectedPageIndexes: [0],
+    });
+
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'stable-ocr-page',
+      pageIndex: 0,
+    });
+    expect(useOcrStore.getState().result?.pages[0]?.words?.[0]?.pageId).toBe(
+      'stable-ocr-page',
+    );
+  });
+
+  it('rejects a direct OCR result from a superseded document revision', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'current-doc',
+      fileName: 'current.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+    });
+    const stale = await createMockDocument();
+
+    useOcrStore.getState().setOcrResult(stale);
+
+    expect(useOcrStore.getState().result).toBeNull();
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+  });
+
 });
 
 async function createMockDocument() {
