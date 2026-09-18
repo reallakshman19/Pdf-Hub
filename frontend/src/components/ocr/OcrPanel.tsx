@@ -174,6 +174,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   const runControlsNode = (
     <OcrRunActions
       running={runWorkflow.isRunning}
+      runDisabled={!runWorkflow.canRun}
       clearDisabled={!runWorkflow.canClear}
       showClear={runWorkflow.state === 'complete' || runWorkflow.state === 'error'}
       onRun={runWorkflow.runSelectedOcr}
