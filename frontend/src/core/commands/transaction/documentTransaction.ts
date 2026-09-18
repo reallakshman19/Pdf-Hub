@@ -59,6 +59,7 @@ function toTransactionError(
 function writerHistorySnapshot() {
   const writer = useWriterV2Store.getState();
   return {
+    ...(writer.documentMeta?.mode ? { documentMode: writer.documentMeta.mode } : {}),
     elements: writer.elements.map((element) => ({
       ...element,
       rect: { ...element.rect },
