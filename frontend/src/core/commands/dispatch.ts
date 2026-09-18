@@ -30,6 +30,7 @@ import {
   replacePageGraphContent,
 } from '@/core/pages/structuralPageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
+import { clearResolvedPageLabels } from '@/core/pages/pageLabels';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 import {
@@ -401,10 +402,12 @@ export async function dispatchPdfCommand(
         if (!pageGraph.pages[fromIndex]) {
           return commandError(command, 'VALIDATION_FAILED', 'The source page index is invalid.');
         }
-        const nextPageGraph = movePageGraphBeforeOriginalTarget(
-          pageGraph,
-          fromIndex,
-          toIndex,
+        const nextPageGraph = clearResolvedPageLabels(
+          movePageGraphBeforeOriginalTarget(
+            pageGraph,
+            fromIndex,
+            toIndex,
+          ),
         );
         const order = orderFromGraphs(pageGraph, nextPageGraph);
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
@@ -440,7 +443,9 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'Reorder list must include every page exactly once.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = reorderPageGraphByOrder(pageGraph, order);
+        const nextPageGraph = clearResolvedPageLabels(
+          reorderPageGraphByOrder(pageGraph, order),
+        );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
           pageGraph,
@@ -490,9 +495,11 @@ export async function dispatchPdfCommand(
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = removePagesFromGraph(
-          pageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
+        const nextPageGraph = clearResolvedPageLabels(
+          removePagesFromGraph(
+            pageGraph,
+            pageIdsAtIndices(pageGraph, pageIndices),
+          ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
@@ -536,9 +543,11 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'Cannot delete every page in the document.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = removePagesFromGraph(
-          pageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
+        const nextPageGraph = clearResolvedPageLabels(
+          removePagesFromGraph(
+            pageGraph,
+            pageIdsAtIndices(pageGraph, pageIndices),
+          ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
@@ -592,10 +601,12 @@ export async function dispatchPdfCommand(
           [donor],
           context.documentKey,
         );
-        const nextPageGraph = insertPagesIntoGraph(
-          pageGraph,
-          command.payload.atIndex,
-          insertedNodes,
+        const nextPageGraph = clearResolvedPageLabels(
+          insertPagesIntoGraph(
+            pageGraph,
+            command.payload.atIndex,
+            insertedNodes,
+          ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
@@ -632,15 +643,17 @@ export async function dispatchPdfCommand(
       case 'INSERT_BLANK_PAGE': {
         const { atIndex, size } = command.payload;
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = insertPagesIntoGraph(
-          pageGraph,
-          atIndex,
-          [createBlankPageNode({
-            documentKey: context.documentKey,
-            commandId: command.id,
-            width: size.width,
-            height: size.height,
-          })],
+        const nextPageGraph = clearResolvedPageLabels(
+          insertPagesIntoGraph(
+            pageGraph,
+            atIndex,
+            [createBlankPageNode({
+              documentKey: context.documentKey,
+              commandId: command.id,
+              width: size.width,
+              height: size.height,
+            })],
+          ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
@@ -770,10 +783,12 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for duplication.');
         }
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const nextPageGraph = duplicatePagesInGraph(
-          pageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
-          (_source, ordinal) => createDuplicatePageId(command.id, ordinal),
+        const nextPageGraph = clearResolvedPageLabels(
+          duplicatePagesInGraph(
+            pageGraph,
+            pageIdsAtIndices(pageGraph, pageIndices),
+            (_source, ordinal) => createDuplicatePageId(command.id, ordinal),
+          ),
         );
         const nextAnnotations = duplicateAnnotationsByPageGraph(
           useAnnotationStore.getState().annotations,
@@ -833,10 +848,12 @@ export async function dispatchPdfCommand(
           donorRefs,
           context.documentKey,
         );
-        const nextPageGraph = insertPagesIntoGraph(
-          pageGraph,
-          pageGraph.pages.length,
-          importedNodes,
+        const nextPageGraph = clearResolvedPageLabels(
+          insertPagesIntoGraph(
+            pageGraph,
+            pageGraph.pages.length,
+            importedNodes,
+          ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
           useAnnotationStore.getState().annotations,
