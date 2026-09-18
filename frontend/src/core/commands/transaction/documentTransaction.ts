@@ -12,6 +12,14 @@ import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { normalizeWriterPageAnchors } from '@/core/writer-v2/writerPageAnchor';
+import {
+  cloneOcrPageAnchoredState,
+  normalizeOcrPageAnchoredState,
+  reanchorOcrPageStateAfterPageGraphChange,
+  rekeyOcrPageAnchoredState,
+  type OcrPageAnchoredState,
+} from '@/core/ocr/ocrPageAnchor';
+import { recomputeOcrDerivedState, useOcrStore } from '@/core/ocr/ocrStore';
 import type { PdfCommand } from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
@@ -38,6 +46,7 @@ export interface CommitDocumentMutationInput {
   nextSelectedPages?: number[];
   nextCurrentPage?: number;
   nextPageGraph?: PageGraph<PageNode> | null;
+  nextOcrState?: OcrPageAnchoredState | null;
 }
 
 export interface CommittedDocumentMutation {
@@ -72,6 +81,32 @@ function writerHistorySnapshot() {
 
 function restoreWriterSnapshot(snapshot: ReturnType<typeof useWriterV2Store.getState>): void {
   useWriterV2Store.setState(snapshot);
+}
+
+function currentOcrPageState(): OcrPageAnchoredState {
+  const ocr = useOcrStore.getState();
+  return {
+    documentFingerprint: ocr.documentFingerprint,
+    result: ocr.result,
+    corrections: ocr.corrections,
+    regions: ocr.regions,
+    selectedPageIndexes: ocr.selectedPageIndexes,
+    reviewFocus: ocr.reviewFocus,
+  };
+}
+
+function commitOcrPageState(state: OcrPageAnchoredState): void {
+  const current = useOcrStore.getState();
+  useOcrStore.setState(
+    recomputeOcrDerivedState({
+      ...current,
+      ...cloneOcrPageAnchoredState(state),
+      activeJobId: null,
+      jobs: [],
+      dirty: true,
+      lastUpdatedAt: new Date().toISOString(),
+    }),
+  );
 }
 
 /**
@@ -124,6 +159,33 @@ export async function commitDocumentMutation(
           input.nextWriterElements,
           pageGraphForCommit,
         );
+  const ocrBefore = normalizeOcrPageAnchoredState(
+    currentOcrPageState(),
+    sessionSnapshot.pageGraph,
+  );
+  const ocrForTargetGraph =
+    input.nextOcrState === null
+      ? {
+          documentFingerprint: ocrBefore.documentFingerprint,
+          result: null,
+          corrections: [],
+          regions: [],
+          selectedPageIndexes: [],
+          reviewFocus: null,
+        }
+      : input.nextOcrState
+        ? normalizeOcrPageAnchoredState(input.nextOcrState, pageGraphForCommit)
+        : sessionSnapshot.pageGraph && pageGraphForCommit
+          ? reanchorOcrPageStateAfterPageGraphChange(
+              ocrBefore,
+              sessionSnapshot.pageGraph,
+              pageGraphForCommit,
+            )
+          : normalizeOcrPageAnchoredState(ocrBefore, pageGraphForCommit);
+  const ocrForCommit = rekeyOcrPageAnchoredState(
+    ocrForTargetGraph,
+    nextDocumentKey,
+  );
 
   try {
     await saveAnnotations(nextDocumentKey, annotationsToPersist);
@@ -142,6 +204,7 @@ export async function commitDocumentMutation(
     clipboard: [...annotationState.clipboard],
   };
   const writerSnapshot = useWriterV2Store.getState();
+  const ocrStoreSnapshot = useOcrStore.getState();
   const writerBefore = writerHistorySnapshot();
   const historyState = useHistoryStore.getState();
   const historySnapshot = {
@@ -198,6 +261,8 @@ export async function commitDocumentMutation(
       });
     }
 
+    commitOcrPageState(ocrForCommit);
+
     if (input.nextSelectedPages) {
       useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
     }
@@ -209,6 +274,7 @@ export async function commitDocumentMutation(
     const sessionAfter = useSessionStore.getState();
     const annotationAfter = useAnnotationStore.getState();
     const writerAfter = writerHistorySnapshot();
+    const ocrAfter = currentOcrPageState();
 
     useHistoryStore.getState().push({
       id: uuidv4(),
@@ -227,6 +293,7 @@ export async function commitDocumentMutation(
         currentPage: sessionSnapshot.viewState.currentPage,
         annotations: [...annotationSnapshot.annotations],
         writer: writerBefore,
+        ocr: cloneOcrPageAnchoredState(ocrBefore),
       },
       after: {
         bytes: new Uint8Array(input.afterBytes),
@@ -239,12 +306,14 @@ export async function commitDocumentMutation(
         currentPage: sessionAfter.viewState.currentPage,
         annotations: [...annotationAfter.annotations],
         writer: writerAfter,
+        ocr: cloneOcrPageAnchoredState(ocrAfter),
       },
     });
   } catch (error) {
     useSessionStore.setState(sessionSnapshot);
     useAnnotationStore.setState(annotationSnapshot);
     restoreWriterSnapshot(writerSnapshot);
+    useOcrStore.setState(ocrStoreSnapshot);
     useHistoryStore.setState(historySnapshot);
     throw toTransactionError('commit', 'Document mutation commit failed and was rolled back', error);
   }
