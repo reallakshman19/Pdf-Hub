@@ -4,6 +4,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { exportReviewSummary, formatReviewSummaryText } from '@/core/review/export';
+import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { downloadBlob } from '@/core/document/download';
 import { MessageSquare, Download, CircleDot, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -26,7 +27,7 @@ export const CommentsSidebar: React.FC = () => {
   const filteredAnnotations = useMemo(() => {
     return annotations.filter((a) => {
       if (filterStatus === 'all') return true;
-      const status = a.data.review?.status || 'open';
+      const status = getAnnotationReviewStatus(a);
       return status === filterStatus;
     });
   }, [annotations, filterStatus]);
@@ -124,7 +125,7 @@ export const CommentsSidebar: React.FC = () => {
                       ? annotation.data.text
                       : annotation.type.toUpperCase();
 
-                  const status = annotation.data.review?.status || 'open';
+                  const status = getAnnotationReviewStatus(annotation);
                   const repliesCount = annotation.data.review?.replies?.length || 0;
 
                   return (
