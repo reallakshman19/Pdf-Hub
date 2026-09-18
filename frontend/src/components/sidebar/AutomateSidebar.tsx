@@ -33,6 +33,7 @@ import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
 import type { MacroOutputFile, MacroRecipe } from '@/core/macro/types';
 import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
+import { MacroBatchRunPanel } from '@/components/macro/advanced/MacroBatchRunPanel';
 import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
 import {
   MacroOutputQueue,
@@ -86,6 +87,7 @@ export const AutomateSidebar: React.FC = () => {
   const [specializedOpen, setSpecializedOpen] = React.useState(false);
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
   const [generationBusy, setGenerationBusy] = React.useState(false);
+  const [batchBusy, setBatchBusy] = React.useState(false);
   const [generatedOutputs, setGeneratedOutputs] = React.useState<MacroOutputQueueItem[]>([]);
   const abortRef = React.useRef<AbortController | null>(null);
 
@@ -104,7 +106,13 @@ export const AutomateSidebar: React.FC = () => {
   };
 
   const runRecipe = async (recipe: MacroRecipe) => {
-    if (!workingBytes || runningRecipeId || generationBusy || specializedOpen) return;
+    if (
+      !workingBytes
+      || runningRecipeId
+      || generationBusy
+      || batchBusy
+      || specializedOpen
+    ) return;
 
     abortRef.current?.abort('Superseded by another workflow');
     const controller = new AbortController();
@@ -225,21 +233,21 @@ export const AutomateSidebar: React.FC = () => {
       <div className="grid grid-cols-3 gap-1 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
         <AutomateTabButton
           active={tab === 'quick'}
-          disabled={generationBusy}
+          disabled={generationBusy || batchBusy}
           onClick={() => setTab('quick')}
         >
           Quick Actions
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'workflows'}
-          disabled={generationBusy}
+          disabled={generationBusy || batchBusy}
           onClick={() => setTab('workflows')}
         >
           My Workflows
         </AutomateTabButton>
         <AutomateTabButton
           active={tab === 'build'}
-          disabled={generationBusy}
+          disabled={generationBusy || batchBusy}
           onClick={() => setTab('build')}
         >
           Build
@@ -251,7 +259,12 @@ export const AutomateSidebar: React.FC = () => {
           <>
             <GenerateDocumentQuickAction
               open={generatorOpen}
-              disabled={runningRecipeId !== null || generationBusy || specializedOpen}
+              disabled={
+                runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
               outputs={generatedOutputs}
               onToggle={() => setGeneratorOpen((value) => !value)}
               onBusyChange={setGenerationBusy}
@@ -267,6 +280,16 @@ export const AutomateSidebar: React.FC = () => {
               onOutputsChange={setGeneratedOutputs}
             />
 
+            <MacroBatchRunPanel
+              disabled={
+                runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
+              onBusyChange={setBatchBusy}
+            />
+
             <QuickActions
               actions={quickActions}
               hasDocument={Boolean(workingBytes)}
@@ -274,9 +297,11 @@ export const AutomateSidebar: React.FC = () => {
               runningRecipeId={
                 generationBusy
                   ? '__generate__'
-                  : specializedOpen
-                    ? '__specialized__'
-                    : runningRecipeId
+                  : batchBusy
+                    ? '__batch__'
+                    : specializedOpen
+                      ? '__specialized__'
+                      : runningRecipeId
               }
               onRun={(recipe) => void runRecipe(recipe)}
               onCustomize={(item) => openBuilder(`builtin:${item.id}`)}
@@ -291,9 +316,11 @@ export const AutomateSidebar: React.FC = () => {
             runningRecipeId={
               generationBusy
                 ? '__generate__'
-                : specializedOpen
-                  ? '__specialized__'
-                  : runningRecipeId
+                : batchBusy
+                  ? '__batch__'
+                  : specializedOpen
+                    ? '__specialized__'
+                    : runningRecipeId
             }
             onRun={(recipe) => void runRecipe(recipe)}
             onEdit={(recipe) => openBuilder(`custom:${recipe.id}`)}
@@ -315,7 +342,14 @@ export const AutomateSidebar: React.FC = () => {
           open={specializedOpen}
           onToggle={(event) => {
             const nextOpen = event.currentTarget.open;
-            if (nextOpen && (generationBusy || runningRecipeId !== null)) {
+            if (
+              nextOpen
+              && (
+                generationBusy
+                || batchBusy
+                || runningRecipeId !== null
+              )
+            ) {
               setSpecializedOpen(false);
               return;
             }
