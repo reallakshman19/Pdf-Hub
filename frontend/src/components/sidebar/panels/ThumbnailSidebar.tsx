@@ -146,6 +146,7 @@ const ThumbnailSidebar: React.FC = () => {
   const {
     workingBytes,
     documentKey,
+    pageGraph,
     viewState,
     setPage,
     selectedPages,
@@ -154,6 +155,7 @@ const ThumbnailSidebar: React.FC = () => {
   } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
+    pageGraph: state.pageGraph,
     viewState: state.viewState,
     setPage: state.setPage,
     selectedPages: state.selectedPages,
@@ -487,6 +489,11 @@ const ThumbnailSidebar: React.FC = () => {
             const annotationCount = annotationCountByPage[thumb.pageNumber] ?? 0;
             const unresolvedCount = unresolvedCountByPage[thumb.pageNumber] ?? 0;
             const searchHitCount = searchHitCountByPage[thumb.pageNumber] ?? 0;
+            const logicalLabel =
+              pageGraph?.pages[thumb.pageNumber - 1]?.logicalLabel;
+            const showLogicalLabel =
+              logicalLabel !== undefined
+              && logicalLabel !== String(thumb.pageNumber);
 
             const aspectRatio = thumb.pageWidth && thumb.pageHeight ? thumb.pageWidth / thumb.pageHeight : 0.707;
             const calculatedWidth = thumbHeight * aspectRatio;
@@ -498,7 +505,11 @@ const ThumbnailSidebar: React.FC = () => {
                 draggable
                 tabIndex={0}
                 role="button"
-                aria-label={`Page ${thumb.pageNumber}`}
+                aria-label={
+                  showLogicalLabel
+                    ? `Page ${thumb.pageNumber}, logical label ${logicalLabel}`
+                    : `Page ${thumb.pageNumber}`
+                }
                 aria-pressed={selected || active}
                 onFocus={() => {
                   vlistRef.current?.scrollToIndex(thumb.pageNumber - 1, { align: 'nearest' });
@@ -532,6 +543,14 @@ const ThumbnailSidebar: React.FC = () => {
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       Page {thumb.pageNumber}
                     </span>
+                    {showLogicalLabel && (
+                      <span
+                        className="max-w-24 truncate font-mono text-[10px] text-slate-500 dark:text-slate-400"
+                        title={`Logical label: ${logicalLabel}`}
+                      >
+                        · {logicalLabel}
+                      </span>
+                    )}
                   </div>
                   {selected ? (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
