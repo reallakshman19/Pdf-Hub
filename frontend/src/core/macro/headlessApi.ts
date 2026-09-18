@@ -11,6 +11,7 @@ import {
 } from '@/core/commands/types';
 import { validateCommand } from '@/core/commands/validators';
 import { executePageLabelCommandMutation } from '@/core/commands/pageLabelCommand';
+import { raceWithAbort } from '@/core/cancellation/operationCancellation';
 import { macroValidator } from './validator';
 import {
   assertMacroInputResources,
@@ -45,7 +46,11 @@ export async function inspectHeadlessPdfDocument(
   basePdfBytes: Uint8Array,
   options: HeadlessCommandOptions = {},
 ): Promise<HeadlessDocumentInspection> {
-  const documentKey = await FileAdapter.hashBytes(basePdfBytes);
+  const documentKey = await raceWithAbort(
+    FileAdapter.hashBytes(basePdfBytes),
+    options.abortSignal,
+    'hash PDF for headless command inspection',
+  );
   const pageGraph = await buildPageGraphFromPdfBytes(
     basePdfBytes,
     documentKey,
