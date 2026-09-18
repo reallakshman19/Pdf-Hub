@@ -478,13 +478,13 @@ export const ToolbarOrganize: React.FC = () => {
       />
       <div className="flex items-center space-x-1">
         <Tooltip content={peekUndo() ? `Undo: ${peekUndo()?.label}` : "Undo"}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyUndo()} disabled={!canUndo() || !workingBytes}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyUndo()} disabled={!canUndo() || !workingBytes}>
             <Undo className="w-4 h-4" />
           </Button>
         </Tooltip>
 
         <Tooltip content={peekRedo() ? `Redo: ${peekRedo()?.label}` : "Redo"}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => applyRedo()} disabled={!canRedo() || !workingBytes}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyRedo()} disabled={!canRedo() || !workingBytes}>
             <Redo className="w-4 h-4" />
           </Button>
         </Tooltip>
