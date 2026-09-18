@@ -1,274 +1,229 @@
-# DocCraft — Architecture (v2)
+# PDF Hub — Current Architecture
 
-> Revised after critical review.
-> Key changes from v1: mode story simplified, Celery removed,
-> PyMuPDF license resolved, adapter layer deferred, debug console
-> moved out of shell, annotation persistence defined, roadmap cut to Phase 5.
+> **Authoritative architecture document.**
+>
+> This file describes the current product direction and implementation reality.
+> Older documents that describe DocCraft as a FastAPI/PyMuPDF server-first product are historical and must not be used as implementation authority.
 
----
+## Product model
 
-## 1. What This Product Actually Is
+PDF Hub is a **local-first, browser-based PDF workspace**.
 
-DocCraft is a **server-first PDF editor** with OCR and equation support.
-It runs as a local FastAPI server. The frontend is a React SPA that connects to it.
+The primary product runs as a static React application. PDF rendering, page operations, annotations, OCR, Writer overlays, macros, persistence, and save/export flows execute locally in the browser.
 
-There are two modes, but they are not equal products:
+The product goal is a professional/personal/basic PDF editor with:
+- professional page organization, numbering, headers/footers, automation, large-document handling, mobile/web UX, and a future external API;
+- personal OCR, comments, review and editable annotations;
+- bounded editing of existing PDF text.
 
-| Mode            | What it is                                      | Who it serves                        |
-|-----------------|-------------------------------------------------|--------------------------------------|
-| **Server mode** | Full editor — OCR, annotations, macro API       | The real product. Always the target. |
-| **Preview mode**| Read-only viewer + limited client-side OCR      | Fallback when server is not running. Honest about its limits. |
+A backend is not required for the current core product.
 
-Preview mode is not marketed as a full alternative. It exists so the frontend
-is not a blank page when opened without the server. It carries a persistent
-banner: *"Running in preview mode — start the server for full features."*
+## Current technology
 
----
+### Application
+- React 19
+- TypeScript
+- Vite
+- Zustand
 
-## 2. License Decision
+### PDF
+- PDF.js / `pdfjs-dist` for rendering and text extraction
+- `pdf-lib` for current PDF mutation/writing
+- virtualized page rendering with `virtua`
 
-| Component       | Library      | License     | Decision                                      |
-|-----------------|--------------|-------------|-----------------------------------------------|
-| PDF engine      | PyMuPDF      | AGPL-3.0    | ✓ Use it. Backend published on GitHub (AGPL). |
-| PDF manipulation (client) | pdf-lib | MIT    | ✓ Use it. Preview mode only.                  |
-| OCR text        | pytesseract  | Apache 2.0  | ✓ No issue.                                   |
-| OCR equations   | pix2tex      | MIT         | ✓ No issue.                                   |
-| Task async      | asyncio (stdlib) | PSF     | ✓ Replaces Celery. No license concern.        |
+### Review / annotation
+- application annotation model + IndexedDB persistence
+- Konva / React-Konva for portions of interactive overlay tooling
+- current PDF save path still flattens application annotations; native editable PDF annotation serialization is planned
 
-**Backend repo**: public on GitHub, `LICENSE: AGPL-3.0`.
-**Frontend repo**: public on GitHub, `LICENSE: MIT`.
+### OCR
+- Tesseract.js
+- browser workers and batching
+- searchable-PDF export
+- confidence/correction/table/region workflows
 
-The PyMuPDF calls are isolated in `backend/pdf_engine/` — a structural boundary,
-not a running microservice. If the project ever goes commercial, extraction to
-a separate process is a bounded refactor of that one folder.
+### Writer
+- Writer V2 / Lexical-based editing and positioned document elements
+- legacy Writer code remains and must be retired or clearly isolated
 
----
+### Automation
+- macro recipe engine
+- preflight/dry-run support
+- macro builder
+- specialized PS/ISONOTE workflows
 
-## 3. Technology Stack
+## Architectural boundaries
 
-### 3.1 Frontend
+The target dependency direction is:
 
-| Layer             | Library          | Version | Reason                                           |
-|-------------------|------------------|---------|--------------------------------------------------|
-| Framework         | React            | 18.x    | —                                                |
-| Build             | Vite             | 5.x     | Fast HMR, static export for preview mode         |
-| Language          | TypeScript       | 5.x     | Strict mode                                      |
-| State             | Zustand          | 4.x     | Simple, testable                                 |
-| PDF rendering     | pdfjs-dist (Mozilla)   | 4.x | Apache 2.0, direct canvas access, actively maintained |
-| PDF React wrapper | react-pdf (wojtekmaj)  | 10.x | MIT, onRenderSuccess fires every render, canvas ref exposed |
-| PDF manipulation  | pdf-lib          | 1.x     | Preview mode only — merge/split in browser       |
-| Annotation canvas | Konva.js     | 10.x   | MIT, 55 kB gzip, stable serialization, multi-layer canvas |
-| React canvas      | react-konva  | 19.x   | Declarative <Stage><Layer>, React 18/19 native support    |
-| Math rendering    | MathJax 3        | 3.x     | LaTeX → SVG overlays                             |
-| OCR (preview)     | Tesseract.js  | 7.x   | Web Worker, v5 memory leak fixed in v6, v7 adds relaxedsimd WASM |
-| Routing           | React Router     | 6.x     | —                                                |
-| Styling           | Tailwind CSS     | 3.x     | Utility-first, light-first theme                 |
-| UI primitives     | Radix UI         | latest  | Accessible, unstyled                             |
-| Icons             | Lucide React     | latest  | —                                                |
-| Persistence       | idb (IndexedDB)  | 7.x     | Annotation storage in preview mode               |
-| Testing           | Vitest + RTL     | latest  | —                                                |
-| E2E               | Playwright       | latest  | —                                                |
-
-### 3.2 Backend
-
-| Layer             | Library               | Version | Reason                                           |
-|-------------------|-----------------------|---------|--------------------------------------------------|
-| Framework         | FastAPI               | 0.111+  | Async, typed, OpenAPI docs                       |
-| PDF engine        | PyMuPDF (fitz)        | 1.24+   | Best-in-class; isolated in pdf_engine/           |
-| OCR text          | pytesseract + Tesseract 5 | latest | LSTM engine                                   |
-| OCR equations | pix2tex  | 0.1.4 | pip install "pix2tex[api]" — correct install; LaTeX-OCR repo is the same codebase. Pin to 0.1.4. Maintenance low but last release Jan 2025. Upgrade path: surya (VikParuchuri) when stability is confirmed.            |
-| Page rasterize    | pdf2image             | 1.17+   | PDF → PIL images                                 |
-| PDF generation    | ReportLab             | 4.x     | Headers, footers, tables, text at coordinates    |
-| Async workers     | asyncio + BackgroundTasks | stdlib | Replaces Celery. Add queue only if needed.   |
-| Progress stream   | WebSocket (FastAPI)   | built-in| OCR progress to frontend                         |
-| Annotation DB     | SQLite via aiosqlite  | —       | Per-document annotation storage                  |
-| Temp file store   | Local filesystem      | —       | UUID-named, TTL-based cleanup (see §7)           |
-| Containerization  | Docker Compose        | 3.x     | One-command start                                |
-
-**Not in this stack:**
-- ~~Celery~~ — asyncio handles the job queue at this scale
-- ~~Redis~~ — removed with Celery
-- ~~PostgreSQL~~ — SQLite is sufficient; migrate if multi-user need emerges
-
----
-
-## 4. Module Boundaries
-
-Modules are introduced *when the coupling pain is visible*, not upfront.
-Phase 0–1 use direct imports. Adapters are extracted in Phase 2–3.
-
-```
-Phase 0–1:  Components → Libraries directly (acceptable)
-Phase 2+:   Components → Adapters → Libraries (extract as coupling becomes clear)
+```text
+Desktop UI / Mobile UI / Macro / API / Agent
+                  |
+                  v
+              CommandBus
+                  |
+                  v
+         DocumentTransaction
+                  |
+                  v
+           DocumentSession
+        /      |       |       \
+     Pages  Review   Writer    OCR
+        \      |       |       /
+                  v
+             PDF Engine
+                  |
+                  v
+           DocumentSource
 ```
 
-This is the only change from v1's adapter rule. The direction is the same;
-the timing is honest.
+Not every current subsystem has reached this target. Refactors must move toward it rather than add new parallel state/command systems.
 
-### Backend module boundary — enforced from day one
+## Mandatory invariants
 
-```
-backend/
-  app/           ← FastAPI routes, request/response models, auth
-  pdf_engine/    ← ALL PyMuPDF calls live here. Nothing else imports fitz.
-  services/      ← Business logic; calls pdf_engine, never fitz directly
-  tasks/         ← asyncio background tasks for OCR and macro jobs
-  storage/       ← File lifecycle and annotation DB
-```
+### 1. One canonical command model
+UI, macros, future external API and agent-generated operations must converge on one serializable command contract.
 
-`grep -r "import fitz" backend/app/` and `backend/services/` must always return empty.
-Only `backend/pdf_engine/` may import fitz.
+The repository currently contains overlapping architecture-level `PdfCommand` and dispatch-level `DocumentCommand` models. This is acknowledged technical debt, not a pattern to extend.
 
----
+### 2. One canonical state per concept
+There should be one authoritative representation for:
+- page
+- annotation
+- review thread
+- OCR result/correction
+- Writer element
+- macro recipe
+- document session
 
-## 5. Annotation Persistence — Resolved
+Do not add duplicate status or metadata fields as compatibility shortcuts without a migration plan.
 
-This was unresolved in v1. Here is the decision:
+### 3. Stable page identity
+Page number/index is presentation state, not durable identity.
 
-| Mode         | Storage           | Scope                          | Cleared when                     |
-|--------------|-------------------|--------------------------------|----------------------------------|
-| Preview mode | IndexedDB (idb)   | Browser, keyed by file hash    | User clears browser data         |
-| Server mode  | SQLite (aiosqlite)| Server, keyed by file UUID     | User explicitly deletes document |
+The target model uses a stable `PageId`, while visible page number, PDF `/PageLabels`, and printed page-number overlays are separate concepts.
 
-**Sync between modes:** None. Preview mode annotations are local to the browser.
-When the user starts the server, they re-open the file there and start fresh.
-This is honest — sync across modes is a Phase 6+ problem if it ever matters.
+### 4. One geometry service
+PDF coordinates, rendered viewport coordinates and screen coordinates must be converted through shared geometry code.
 
-**IndexedDB vs localStorage:** IndexedDB has no practical size limit and survives
-across sessions reliably. localStorage was the v1 choice — it fails above ~5 MB
-of annotation data and gets cleared by aggressive browser privacy settings.
+Do not introduce feature-specific fixed page assumptions such as 595 × 842.
 
----
+### 5. Original source is immutable during an editing session
+The original PDF is the recovery anchor. Editing occurs through working state / operations and is compiled on save.
 
-## 6. Two Honest Truths About OCR
+### 6. Save semantics must be explicit
+The target semantics are:
+- **Save / Save As:** preserve editable PDF-native annotations and supported editable document state
+- **Export Flattened:** burn visual annotations/overlays into page content
+- **Searchable PDF Export:** add OCR text layer
+- **Download:** download the current persisted/working PDF representation
 
-### 6.1 Equation OCR accuracy
+The current implementation does **not yet satisfy this target**. See `Docs/SAVE_SEMANTICS.md`.
 
-pix2tex accuracy on real documents:
-- Clean digital PDFs with typeset equations: ~80–85%
-- Scanned textbooks, good scan quality: ~65–75%
-- Scanned textbooks, poor scan quality: ~40–60%
-- Handwritten equations: ~20–40%
+## Current session and mutation model
 
-**Consequence:** The UI must include an equation correction workflow.
-Every rendered equation has an edit button. Clicking it opens the raw LaTeX,
-lets the user correct it, and re-renders via MathJax. This is not optional —
-without it, wrong equations silently mislead users.
+`DocumentSession` currently stores original and working PDF bytes as `Uint8Array`.
 
-### 6.2 OCR performance thresholds
+Page mutations are dispatched through `core/commands/dispatch.ts` into `PdfEditAdapter`, with document transactions coordinating PDF bytes, annotations and history.
 
-v1 invented numbers. These are **placeholders until benchmarked on target hardware.**
-Run `tests/benchmark/ocr_benchmark.py` after setup and fill in real numbers.
+Current limitations:
+- page identity is primarily index/number based;
+- document history retains whole-PDF byte snapshots under a byte budget;
+- several subsystems retain their own undo/history mechanisms;
+- many structural operations load/rewrite the complete PDF.
 
-| Metric                        | Target       | Status        |
-|-------------------------------|--------------|---------------|
-| Server OCR: 1 page, text      | TBD          | Benchmark first |
-| Server OCR: 1 page, equations | TBD          | Benchmark first |
-| Server OCR: 100-page book     | TBD          | Benchmark first |
-| Preview OCR: 1 page           | < 20 sec     | Tesseract.js ceiling — acceptable |
+These are migration targets, not desired long-term architecture.
 
-### 6.3 Nougat Alternative (Removed)
+## Rendering and large documents
 
-Nougat is REMOVED from consideration.
-CPU: 165–188 sec/page (small model, measured). 3–9× over the 20 sec target.
-nougat-base license: CC-BY-NC-4.0 — non-commercial only.
-No position output: cannot map equation blocks to page coordinates.
+PDF.js rendering is virtualized and cached. This is good and should be preserved.
 
-If full-page academic PDF parsing becomes a future requirement, evaluate:
-- Marker (VikParuchuri, Apache 2.0) — CPU-viable, outputs Markdown+LaTeX
-- DocTR (Mindee, Apache 2.0) — layout detection with bounding boxes
-These remain in the Ideas Backlog, not in the active plan.
+However, the file layer currently reads the complete PDF using `File.arrayBuffer()` and applies a 100 MB admission limit. Therefore the app is **not yet a genuine large-PDF architecture** even though the UI is virtualized.
 
----
+The target is a `DocumentSource` abstraction supporting random/range reads and OPFS/native-file-backed working data.
 
-## 7. File Security and Temp File Lifecycle
+## OCR architecture
 
-**Server mode upload policy:**
-- Maximum file size: 100 MB (enforced at FastAPI middleware level)
-- Files stored in `storage/tmp/{uuid}/{filename}` — no path reconstruction
-- TTL: 24 hours from last access; cleaned by a startup sweep on server restart
-- Server listens on `127.0.0.1` only by default — not `0.0.0.0`
+The OCR engine is intentionally local.
 
-```python
-# backend/app/config.py
-class Settings(BaseSettings):
-    host: str = "127.0.0.1"   # localhost only — must be explicit to expose
-    port: int = 8000
-    max_upload_mb: int = 100
-    tmp_ttl_hours: int = 24
-    tmp_dir: Path = Path("storage/tmp")
-```
+Production OCR UI must operate on the real active document. Demo/QA fixtures may remain as test infrastructure but must not be mounted in normal user workflows.
 
-**Macro API auth:**
-- Default: API key required, generated on first server start, written to `.env`
-- Not passthrough. Not optional. The key is printed to console on first run.
+OCR region selection must ultimately occur against actual rendered page geometry rather than synthetic fixed-size preview canvases.
 
----
+## Annotation and review architecture
 
-## 8. OCR Error Recovery
+Annotations and review/discussion are distinct concepts.
 
-v1 designed the happy path. These are the failure modes and their handling:
+Target:
+- `Annotation` = visual markup/anchor
+- `ReviewThread` = review status and discussion
+- `ReviewMessage` = individual message/reply
 
-| Failure                          | Detection                          | Recovery                                                  |
-|----------------------------------|------------------------------------|-----------------------------------------------------------|
-| pix2tex crashes on a page        | Exception caught in task           | Page marked `status: 'equation-failed'`; raw image shown |
-| Tesseract produces garbage       | Confidence < 0.3 on >50% of blocks | Page marked `status: 'low-confidence'`; user warned      |
-| WebSocket drops mid-job          | Client reconnect with job ID       | Resume progress from last known page                      |
-| Job takes > 30 min               | asyncio timeout                    | Job cancelled; partial results saved and available        |
-| Server restart during job        | On-startup: check incomplete jobs  | Resume from last completed page (checkpoint per 10 pages) |
+The current implementation still embeds review metadata in annotation data. Phase 1 will separate these concerns and add native PDF annotation serialization.
 
----
+## Visual masks vs secure redaction
 
-## 9. Debug Console — Moved Out of Shell
+A visual mask is **not secure redaction**.
 
-v1 made the debug console a persistent shell zone visible to all users.
-That was wrong for a tool that may be used by non-developers.
+Current browser functionality can draw opaque page content but does not prove removal of underlying text, images, OCR text, annotations or content streams.
 
-**New design:**
-- Debug console is accessed at `http://localhost:3000/debug` — a separate route
-- `Ctrl+Shift+D` is retained as a keyboard shortcut that navigates to `/debug`
-- The shell has zero debug UI — no dock, no toggle button in TopNav
-- The `/debug` page is full-screen: Logs | State | Performance | System tabs
-- In production builds (`VITE_ENV=production`), the `/debug` route is hidden
+User-facing UI must call this feature **Visual Mask** and show the capability warning. Legacy internal command/op identifiers containing the word `redaction` may remain temporarily for compatibility but must not be presented as secure behavior.
 
-The structured logging service is unchanged — logs are still emitted and stored.
-The console for reading them is just not in the main workspace.
+## Desktop and mobile
 
----
+Desktop and mobile should share the engine and document model but may have separate interaction shells.
 
-## 10. Performance Targets (Revised)
+The existing `MobileShell` approach is intentional. Do not replace it with desktop UI merely compressed by CSS.
 
-| Metric                           | Target           | Note                              |
-|----------------------------------|------------------|-----------------------------------|
-| PDF open (< 10 MB), first page   | < 800 ms         | Measured from file select to paint|
-| Page render at 100% zoom         | < 200 ms         | After document loaded             |
-| Annotation save (server)         | < 100 ms         | SQLite write                      |
-| Merge 5 PDFs (< 5 MB each)       | < 3 sec (preview)| pdf-lib in browser                |
-| Merge 5 PDFs (< 5 MB each)       | < 1 sec (server) | PyMuPDF                           |
-| OCR text/equation performance    | TBD              | Benchmark on target hardware first|
+## Testing requirements
 
----
+Maintain a permanent PDF fidelity corpus covering, at minimum:
+- ordinary and scanned PDFs
+- mixed page sizes and rotations
+- CropBox / MediaBox differences
+- bookmarks/outlines
+- PageLabels
+- AcroForms
+- existing annotations
+- attachments and metadata
+- tagged PDFs
+- CID/subset fonts
+- Arabic/CJK/RTL
+- object streams and incremental revisions
+- encrypted and signed PDFs
+- malformed-but-readable xrefs
 
-## 11. Roadmap Boundary
+For structural mutations, test:
+1. open
+2. mutate
+3. save
+4. reopen
+5. validate/render
+6. mutate again
+7. save again
+8. reopen again
 
-**This plan covers Phases 0–5 only.**
+## Roadmap authority
 
-Anything beyond Phase 5 is in the **Ideas Backlog** — not planned, not estimated,
-not designed. It exists so good ideas are not lost, not so they consume planning time.
+The active product roadmap is tracked in GitHub issue **#167**.
 
-| Phase | Name                            |
-|-------|---------------------------------|
-| P0    | Foundation + repo setup         |
-| P1    | App shell + layout              |
-| P2    | PDF rendering + viewer          |
-| P3    | Annotations + persistence       |
-| P4    | OCR + equation rendering        |
-| P5    | Macro API + export              |
+When an old design/work-item document conflicts with:
+1. this file,
+2. issue #167, or
+3. current production code,
 
-**Ideas Backlog (unplanned):**
-- Form fill (AcroForm)
-- Digital signature
-- Redaction
-- PDF comparison
-- Collaborative editing
-- Cloud storage connectors
+treat the old document as historical unless it has been explicitly re-authorized.
+
+## What not to add yet
+
+Until the stabilization roadmap is complete, avoid expanding:
+- annotation type count
+- OCR subsystems/panels
+- macro operation count
+- parallel command/history systems
+- cloud/backend architecture
+- collaboration
+- signature creation
+- Word-like global text reflow
+
+The immediate objective is coherence, correctness and PDF fidelity—not feature count.
