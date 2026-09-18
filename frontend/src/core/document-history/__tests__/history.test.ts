@@ -56,7 +56,9 @@ function historyState(
       })),
     },
     documentKey,
+    selectedPageIds: [`${documentKey}::stable::1`],
     selectedPages: [1],
+    currentPageId: `${documentKey}::stable::1`,
     currentPage: 1,
     annotations: [],
   };
@@ -124,6 +126,9 @@ describe('Document History', () => {
       pageId: 'before::stable::1',
       documentKey: 'before',
     });
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['before::stable::1']);
+    expect(useSessionStore.getState().selectedPages).toEqual([1]);
+    expect(useSessionStore.getState().viewState.currentPageId).toBe('before::stable::1');
     expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('before', []);
 
     await expect(applyRedo()).resolves.toBe(true);
@@ -135,6 +140,8 @@ describe('Document History', () => {
       pageId: 'after::stable::1',
       documentKey: 'after',
     });
+    expect(useSessionStore.getState().selectedPageIds).toEqual(['after::stable::1']);
+    expect(useSessionStore.getState().viewState.currentPageId).toBe('after::stable::1');
     expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('after', []);
   });
 
