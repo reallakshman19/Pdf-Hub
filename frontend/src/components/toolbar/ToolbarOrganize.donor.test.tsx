@@ -62,14 +62,6 @@ vi.mock('@/core/document-history/transactions', () => ({
   applyRedo: vi.fn(),
 }));
 
-vi.mock('@/core/macro/batchRunner', () => ({
-  runMacroBatch: vi.fn(),
-}));
-
-vi.mock('@/core/macro/builtins', () => ({
-  BUILTIN_MACROS: {},
-}));
-
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
     getPageSize: vi.fn(),
@@ -93,10 +85,6 @@ vi.mock('@/components/ui/Tooltip', () => ({
 
 vi.mock('../dialogs/InsertBlankPageDialog', () => ({
   InsertBlankPageDialog: () => null,
-}));
-
-vi.mock('../dialogs/BatchRunDialog', () => ({
-  BatchRunDialog: () => null,
 }));
 
 vi.mock('../dialogs/ReplacePageDialog', () => ({
