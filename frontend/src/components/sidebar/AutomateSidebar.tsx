@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Copy,
   Download,
-  MoreHorizontal,
   Play,
   Plus,
   Settings2,
@@ -11,6 +10,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
@@ -48,10 +48,10 @@ export const AutomateSidebar: React.FC = () => {
   const {
     setMacroBuilderOpen,
     setMacroBuilderSource,
-  } = useEditorStore((state) => ({
+  } = useEditorStore(useShallow((state) => ({
     setMacroBuilderOpen: state.setMacroBuilderOpen,
     setMacroBuilderSource: state.setMacroBuilderSource,
-  }));
+  })));
 
   const builtIns = React.useMemo(() => getBuiltInMacroRecipes(), []);
   const quickActions = React.useMemo(
