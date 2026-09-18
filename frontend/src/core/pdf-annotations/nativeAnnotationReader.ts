@@ -1,11 +1,10 @@
 import type {
   PDFArray,
   PDFDict,
-  PDFDocument,
   PDFPage,
 } from 'pdf-lib';
 
-import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
+import type { PdfAnnotation } from '@/core/annotations/types';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
