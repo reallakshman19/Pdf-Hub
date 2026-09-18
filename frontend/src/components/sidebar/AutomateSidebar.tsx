@@ -30,7 +30,7 @@ import {
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { validateRecipeBeforeRun } from '@/core/macro/validation/validator';
 import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
-import type { MacroRecipe } from '@/core/macro/types';
+import type { MacroOutputFile, MacroRecipe } from '@/core/macro/types';
 import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
 import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
@@ -248,7 +248,7 @@ export const AutomateSidebar: React.FC = () => {
           <>
             <GenerateDocumentQuickAction
               open={generatorOpen}
-              disabled={runningRecipeId !== null}
+              disabled={runningRecipeId !== null || generationBusy}
               outputs={generatedOutputs}
               onToggle={() => setGeneratorOpen((value) => !value)}
               onBusyChange={setGenerationBusy}
@@ -331,7 +331,7 @@ function GenerateDocumentQuickAction({
   outputs: MacroOutputQueueItem[];
   onToggle: () => void;
   onBusyChange: (busy: boolean) => void;
-  onOutputsProduced: (outputs: MacroRecipe extends never ? never : import('@/core/macro/types').MacroOutputFile[]) => void;
+  onOutputsProduced: (outputs: MacroOutputFile[]) => void;
   onOutputsChange: (outputs: MacroOutputQueueItem[]) => void;
 }) {
   return (
