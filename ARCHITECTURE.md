@@ -392,11 +392,32 @@ PDF Hub validates that the resolved label array matches the physical page count.
 
 Resolved values are stored on `PageNode.logicalLabel`. They are **not stable page identity**. A PDF PageLabels number tree is defined over physical page indices/ranges.
 
-Until Phase 5F makes structural mutations PageLabels-aware at serialization time:
-- rotation preserves resolved labels
-- replace-page preserves the label at that physical position
-- reorder/delete/split/insert/blank-insert/duplicate/merge clear resolved labels in live PageGraph rather than presenting stale metadata
-- reopening the PDF reads the actual serialized PageLabels again
-- opaque whole-document replacement rebuilds PageGraph and reads labels from its output bytes
+### Canonical PageLabel ranges and writer
 
-This deliberately prefers absence over a logical label that disagrees with the saved PDF.
+PDF Hub now has a canonical logical-label configuration on PageGraph:
+
+```ts
+interface PageLabelRange {
+  startPageId: PageId
+  style?: 'decimal' | 'roman-lower' | 'roman-upper' | 'letters-lower' | 'letters-upper'
+  prefix?: string
+  startNumber?: number
+}
+```
+
+The range start uses stable PageId in application state. The PDF writer resolves each start PageId to its current physical index and emits a real catalog `/PageLabels` number tree with `/Nums`, `/S`, `/P`, and `/St`.
+
+The canonical `SET_PAGE_LABELS` command carries the complete range configuration. An empty range list removes only the catalog `/PageLabels` entry. Because PageLabel configuration lives inside PageGraph, normal document history snapshots it with the corresponding PDF byte revision; undo/redo therefore restores logical labels and serialized bytes together.
+
+Structural semantics for canonical ranges:
+- rotate/replace preserve ranges because physical order/count is unchanged
+- reorder keeps surviving range-start PageIds and recomputes resolved labels in the new physical order
+- insert/blank/duplicate/merge keep range starts; inserted pages inherit the active surrounding range
+- delete/split migrate a deleted range start to the first surviving page that originally belonged to that range; a fully deleted range disappears
+- every order/count mutation with label metadata rewrites the serialized `/PageLabels` tree before commit
+- if an existing imported PDF exposes only resolved labels and no canonical range structure, the first order/count mutation removes the stale serialized PageLabels entry rather than inventing unrecoverable range semantics
+- reopening a PDF always re-reads the serialized resolved labels through PDF.js
+
+Logical PageLabels remain separate from visible printed page numbers/header-footer content. Setting PageLabels must never draw page content.
+
+The current mutation path may perform an additional pdf-lib parse to rewrite PageLabels after a structural operation. Phase 7's persistent mutation-session work is the planned place to remove this repeated-parse cost rather than expanding 5F into an engine rewrite.
