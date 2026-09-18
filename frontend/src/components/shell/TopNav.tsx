@@ -8,8 +8,9 @@ import {
   Undo2, Redo2, Minus, Plus
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { useAnnotationStore } from '@/core/annotations/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useHistoryStore } from '@/core/document-history/store';
+import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import type { ActiveMode } from '@/core/editor/types';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
@@ -49,18 +50,39 @@ export const TopNav: React.FC = () => {
     activeMode: state.activeMode,
     setActiveMode: state.setActiveMode,
   })));
-  const { history, future, undo, redo } = useAnnotationStore(useShallow((state) => ({
-    history: state.history,
-    future: state.future,
-    undo: state.undo,
-    redo: state.redo,
+  const { documentUndoStack, documentRedoStack } = useHistoryStore(useShallow((state) => ({
+    documentUndoStack: state.undoStack,
+    documentRedoStack: state.redoStack,
   })));
-  const { undoWriter, redoWriter, undoStack, redoStack } = useWriterV2Store(useShallow((state) => ({
+  const { documentMeta, undoWriter, redoWriter, writerUndoStack, writerRedoStack } = useWriterV2Store(useShallow((state) => ({
+    documentMeta: state.documentMeta,
     undoWriter: state.undoWriter,
     redoWriter: state.redoWriter,
-    undoStack: state.undoStack,
-    redoStack: state.redoStack,
+    writerUndoStack: state.undoStack,
+    writerRedoStack: state.redoStack,
   })));
+  const useLocalWriterHistory =
+    activeMode === 'write' && documentMeta?.mode === 'blankDocument';
+  const canUndo = useLocalWriterHistory
+    ? writerUndoStack.length > 0
+    : documentUndoStack.length > 0;
+  const canRedo = useLocalWriterHistory
+    ? writerRedoStack.length > 0
+    : documentRedoStack.length > 0;
+  const handleUndo = () => {
+    if (useLocalWriterHistory) {
+      undoWriter();
+      return;
+    }
+    void applyUndo();
+  };
+  const handleRedo = () => {
+    if (useLocalWriterHistory) {
+      redoWriter();
+      return;
+    }
+    void applyRedo();
+  };
 
   const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
 
@@ -372,16 +394,16 @@ export const TopNav: React.FC = () => {
           {/* Undo / Redo */}
           <div className="flex items-center border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 rounded-lg p-[1px]">
             <button
-              onClick={activeMode === 'write' ? undoWriter : undo}
-              disabled={activeMode === 'write' ? undoStack.length === 0 : history.length === 0}
+              onClick={handleUndo}
+              disabled={!canUndo}
               title="Undo"
               className="flex items-center justify-center h-6 w-7 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
             >
               <Undo2 className="w-[13px] h-[13px]" />
             </button>
             <button
-              onClick={activeMode === 'write' ? redoWriter : redo}
-              disabled={activeMode === 'write' ? redoStack.length === 0 : future.length === 0}
+              onClick={handleRedo}
+              disabled={!canRedo}
               title="Redo"
               className="flex items-center justify-center h-6 w-7 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
             >
