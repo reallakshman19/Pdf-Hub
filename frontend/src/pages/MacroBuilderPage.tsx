@@ -53,7 +53,7 @@ export const MacroBuilderPage: React.FC = () => {
   return (
     <main
       data-macro-builder-page="true"
-      aria-label="Macro builder page"
+      aria-label="Workflow builder page"
       style={{
         minHeight: '100vh',
         background: '#f8fafc',
