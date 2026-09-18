@@ -353,3 +353,23 @@ Every committed PDF mutation rekeys bound OCR state to the new document revision
 Document history snapshots and restores OCR together with bytes/PageGraph so structural undo/redo restores the matching OCR page state.
 
 Current Phase 5 history is still snapshot-based. OCR state therefore contributes additional memory pressure even though the retained-byte budget currently accounts primarily for PDF bytes. Delta/checkpoint history remains a later large-document architecture task rather than being expanded inside this PageId migration.
+
+
+### Session navigation PageId anchors
+
+DocumentSession now treats page navigation identity separately from display position:
+
+- `viewState.currentPageId` is the canonical current-page identity
+- `viewState.currentPage` is the derived one-based UI/render position
+- `selectedPageIds` is the canonical selected-page set
+- `selectedPages` is the derived one-based compatibility selection
+
+Existing UI surfaces may continue to call numeric `setPage(...)` and `setSelectedPages(...)`; SessionStore resolves those inputs to PageIds whenever PageGraph is present. PageId-native callers can use `setPageById(...)` and `setSelectedPageIds(...)`.
+
+When PageGraph order changes, SessionStore preserves current/selected PageIds and recomputes their numeric positions. If a selected PageId is deleted, it leaves the selection. If the current PageId is deleted, navigation falls back to the page occupying the clamped previous physical position and adopts that page's PageId.
+
+During the short `replaceWorkingCopy(...)` transaction window where PageGraph is intentionally null, canonical navigation IDs are retained. Installing the target PageGraph resolves those IDs to the new positions before dependent state is committed.
+
+Document history snapshots both canonical IDs and compatibility numbers; undo/redo restores PageGraph first and then restores current/selected pages by PageId. Numeric history values remain only as a legacy/fallback path.
+
+The older organizer `PageStore` already uses PageIds for its internal selection model. This slice aligns canonical DocumentSession navigation with the same stable identity model without requiring a UI redesign.
