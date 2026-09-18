@@ -712,6 +712,31 @@ describe('canonical command dispatch', () => {
     ]);
   });
 
+  it('does not apply PDF PageGraph remapping to a blank Writer document', async () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-during-pdf',
+      pageCount: 1,
+    });
+    useWriterV2Store.getState().dispatchWriterCommand({
+      type: 'ADD_WRITER_ELEMENT',
+      element: writerElement('blank-writer-element', 0),
+    });
+    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
+
+    const result = await execute({
+      type: 'REORDER_PAGES_BY_ORDER',
+      payload: { order: [2, 1, 0] },
+    });
+
+    expect(result.success).toBe(true);
+    expect(useWriterV2Store.getState().documentMeta?.mode).toBe('blankDocument');
+    expect(useWriterV2Store.getState().elements[0]).toMatchObject({
+      id: 'blank-writer-element',
+      pageIndex: 0,
+    });
+    expect(useWriterV2Store.getState().elements[0]?.pageId).toBeUndefined();
+  });
+
   it('adds header/footer text', async () => {
     pdfMocks.addHeaderFooterText.mockResolvedValue(new Uint8Array([2, 2, 2]));
 
