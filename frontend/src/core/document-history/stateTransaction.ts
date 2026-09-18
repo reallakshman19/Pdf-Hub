@@ -1,0 +1,95 @@
+import { v4 as uuidv4 } from 'uuid';
+
+import type { PdfAnnotation } from '../annotations/types';
+import type { PdfCommand } from '../commands/types';
+import { useSessionStore } from '../session/store';
+import type { WriterElementV2 } from '../writer-v2/types';
+import { useHistoryStore } from './store';
+import type { WriterHistoryState } from './types';
+
+export interface StateHistorySnapshot {
+  annotations: PdfAnnotation[];
+  writer: WriterHistoryState;
+}
+
+export interface RecordStateTransactionInput {
+  command: PdfCommand;
+  label: string;
+  before: StateHistorySnapshot;
+  after: StateHistorySnapshot;
+}
+
+export function writerHistoryState(input: {
+  elements: WriterElementV2[];
+  selectedIds: string[];
+  activeId: string | null;
+}): WriterHistoryState {
+  return {
+    elements: cloneWriterElements(input.elements),
+    selectedIds: [...input.selectedIds],
+    activeId: input.activeId,
+  };
+}
+
+export function cloneAnnotations(
+  annotations: PdfAnnotation[],
+): PdfAnnotation[] {
+  return annotations.map((annotation) => ({
+    ...annotation,
+    rect: { ...annotation.rect },
+    data: { ...annotation.data },
+  }));
+}
+
+export function recordStateTransaction(
+  input: RecordStateTransactionInput,
+): boolean {
+  const session = useSessionStore.getState();
+
+  if (!session.workingBytes || !session.documentKey) {
+    return false;
+  }
+
+  if (input.command.documentKey !== session.documentKey) {
+    return false;
+  }
+
+  const sharedBytes = session.workingBytes;
+  const baseState = {
+    bytes: sharedBytes,
+    pageCount: session.pageCount,
+    documentKey: session.documentKey,
+    selectedPages: [...session.selectedPages],
+    currentPage: session.viewState.currentPage,
+  };
+
+  useHistoryStore.getState().push({
+    id: uuidv4(),
+    command: input.command,
+    label: input.label,
+    timestamp: Date.now(),
+    ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
+    before: {
+      ...baseState,
+      annotations: cloneAnnotations(input.before.annotations),
+      writer: writerHistoryState(input.before.writer),
+    },
+    after: {
+      ...baseState,
+      annotations: cloneAnnotations(input.after.annotations),
+      writer: writerHistoryState(input.after.writer),
+    },
+  });
+
+  return true;
+}
+
+function cloneWriterElements(
+  elements: WriterElementV2[],
+): WriterElementV2[] {
+  return elements.map((element) => ({
+    ...element,
+    rect: { ...element.rect },
+    style: { ...element.style },
+  }));
+}
