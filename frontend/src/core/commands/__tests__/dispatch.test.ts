@@ -11,6 +11,8 @@ import { useHistoryStore } from '../../document-history/store';
 import { useSessionStore } from '../../session/store';
 import { useWriterV2Store } from '../../writer-v2/writerV2Store';
 import type { WriterElementV2 } from '../../writer-v2/types';
+import { useOcrStore } from '../../ocr/ocrStore';
+import type { OcrDocumentResult } from '../../ocr/types';
 import {
   commandBus,
   resetCommandBusForTests,
@@ -180,6 +182,37 @@ function writerElement(id: string, pageIndex: number): WriterElementV2 {
   };
 }
 
+function ocrDocument(
+  pageIndex: number,
+  documentFingerprint = 'test-doc',
+): OcrDocumentResult {
+  return {
+    documentFingerprint,
+    createdAt: '2026-09-18T00:00:00.000Z',
+    engineId: 'test',
+    profileId: 'clean-scan',
+    pages: [{
+      status: 'success',
+      pageIndex,
+      pageNumber: pageIndex + 1,
+      width: 612,
+      height: 792,
+      words: [{
+        id: 'ocr-word',
+        pageIndex,
+        text: 'PIPE',
+        normalizedText: 'pipe',
+        confidence: 0.9,
+        bbox: { x: 100, y: 200, width: 50, height: 20 },
+      }],
+      lines: [],
+      blocks: [],
+      diagnostics: [],
+    }],
+    diagnostics: [],
+  };
+}
+
 describe('canonical command dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,6 +221,7 @@ describe('canonical command dispatch', () => {
     useHistoryStore.getState().clear();
     useAnnotationStore.getState().setAnnotations([]);
     useWriterV2Store.getState().clearWriterV2();
+    useOcrStore.getState().clearOcr();
     useSessionStore.getState().openDocument({
       documentKey: 'test-doc',
       fileName: 'test.pdf',
@@ -293,6 +327,11 @@ describe('canonical command dispatch', () => {
       documentFingerprint: 'test-doc',
       elements: [writerElement('macro-writer', 1)],
     });
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'test-doc',
+      result: ocrDocument(1),
+      selectedPageIndexes: [1],
+    });
     const nextBytes = new Uint8Array([5, 5, 5]);
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
@@ -339,6 +378,10 @@ describe('canonical command dispatch', () => {
       pageId: 'macro-output::stable::2',
       pageIndex: 1,
     });
+    expect(useOcrStore.getState().result).toBeNull();
+    expect(useOcrStore.getState().corrections).toEqual([]);
+    expect(useOcrStore.getState().regions).toEqual([]);
+    expect(useOcrStore.getState().selectedPageIndexes).toEqual([]);
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Macro run');
     expect(
       JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
@@ -407,6 +450,11 @@ describe('canonical command dispatch', () => {
       documentFingerprint: 'test-doc',
       elements: [writerElement('page-one-writer', 0)],
     });
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'test-doc',
+      result: ocrDocument(0),
+      selectedPageIndexes: [0],
+    });
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
 
     const result = await execute(
@@ -437,6 +485,13 @@ describe('canonical command dispatch', () => {
       pageId: 'test-doc::stable::1',
       pageIndex: 2,
     });
+    expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
+      pageId: 'test-doc::stable::1',
+      pageIndex: 2,
+      pageNumber: 3,
+    });
+    expect(useOcrStore.getState().selectedPageIndexes).toEqual([2]);
+    expect(useOcrStore.getState().documentFingerprint).toBe('mock-hash-3');
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
@@ -582,6 +637,11 @@ describe('canonical command dispatch', () => {
   });
 
   it('replaces a page from an admitted donor exactly once', async () => {
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'test-doc',
+      result: ocrDocument(0),
+      selectedPageIndexes: [0],
+    });
     const donor = await admitDonor('REPLACE_PAGE');
     pageGraphMocks.buildPageGraphFromPdfBytes.mockResolvedValueOnce(
       pageGraph(3, 'donor-replace', { width: 700, height: 900 }),
@@ -614,6 +674,8 @@ describe('canonical command dispatch', () => {
       width: 700,
       height: 900,
     });
+    expect(useOcrStore.getState().result?.pages).toEqual([]);
+    expect(useOcrStore.getState().selectedPageIndexes).toEqual([]);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
   });
 
