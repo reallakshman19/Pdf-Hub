@@ -2,6 +2,7 @@ import { saveAnnotations } from '../annotations/persistence';
 import { useAnnotationStore } from '../annotations/store';
 import { enqueueDocumentOperation } from '../commands/documentOperationQueue';
 import { documentBus } from '../events/bus';
+import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { useHistoryStore } from './store';
@@ -21,6 +22,9 @@ function restoreHistoryState(state: HistoryState): void {
     useSessionStore.getState().setDocumentKey(state.documentKey);
   }
 
+  useSessionStore.getState().setPageGraph(
+    state.pageGraph ? clonePageGraph(state.pageGraph) : null,
+  );
   useSessionStore.getState().setSelectedPages(state.selectedPages);
   useSessionStore.getState().setPage(state.currentPage);
   useAnnotationStore.getState().setAnnotations([...state.annotations]);
