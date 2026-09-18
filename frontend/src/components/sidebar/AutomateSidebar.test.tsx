@@ -63,6 +63,21 @@ describe('AutomateSidebar', () => {
     expect(screen.queryByText('Built-ins')).toBeNull();
   });
 
+  it('disables selection-dependent quick actions until pages are selected', () => {
+    useSessionStore.getState().setSelectedPages([]);
+
+    render(<AutomateSidebar />);
+
+    const rotateCard = screen.getByText('Rotate Selected Pages 90°').closest('article');
+    const extractCard = screen.getByText('Extract Selected Pages').closest('article');
+
+    expect(rotateCard).not.toBeNull();
+    expect(extractCard).not.toBeNull();
+    expect(within(rotateCard as HTMLElement).getByRole('button', { name: 'Run' })).toBeDisabled();
+    expect(within(extractCard as HTMLElement).getByRole('button', { name: 'Run' })).toBeDisabled();
+    expect(screen.getAllByText('Select one or more pages first.')).toHaveLength(2);
+  });
+
   it('preflights and runs a quick action through the shared session runner', async () => {
     render(<AutomateSidebar />);
 
