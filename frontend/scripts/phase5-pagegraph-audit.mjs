@@ -50,6 +50,48 @@ for (const relativePath of [
   requireContains(relativePath, ['buildPageGraphFromPdfBytes', 'pageGraph']);
 }
 
+const historyTypes = requireContains('src/core/document-history/types.ts', [
+  'pageGraph: PageGraph<PageNode> | null',
+]);
+
+const historyRestore = requireContains('src/core/document-history/transactions.ts', [
+  'setPageGraph(',
+  'clonePageGraph(state.pageGraph)',
+]);
+
+const documentTransaction = requireContains(
+  'src/core/commands/transaction/documentTransaction.ts',
+  [
+    'nextPageGraph?: PageGraph<PageNode> | null',
+    'pageGraph: sessionSnapshot.pageGraph',
+    'pageGraph: sessionAfter.pageGraph',
+    'rekeyPageGraph(pageGraphForCommit, nextDocumentKey)',
+  ],
+);
+
+const commandDispatch = requireContains('src/core/commands/dispatch.ts', [
+  'resolveStructuralPageGraph',
+  'rotatePagesInGraph',
+  'reorderPageGraphByOrder',
+  'removePagesFromGraph',
+  'insertPagesIntoGraph',
+  'replacePageGraphContent',
+  'duplicatePagesInGraph',
+  'buildImportedDonorNodes',
+]);
+
+if (commandDispatch.includes('PdfEditAdapter.getPageSize(context.workingBytes')) {
+  failures.push('ROTATE_PAGES must use cached PageGraph metrics instead of reparsing page size');
+}
+
+if (commandDispatch.includes('PdfEditAdapter.movePage(context.workingBytes')) {
+  failures.push('REORDER_PAGES must use the same explicit permutation for PDF bytes and dependent state');
+}
+
+void historyTypes;
+void historyRestore;
+void documentTransaction;
+
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',
   'getViewport({ scale: 1, rotation: 0 })',
