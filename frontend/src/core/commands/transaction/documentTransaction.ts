@@ -36,6 +36,12 @@ export class DocumentMutationTransactionError extends Error {
   }
 }
 
+export interface OcrPageMutationPolicy {
+  invalidatePageIds?: readonly string[];
+  rebindByPageIndex?: boolean;
+  clearIfPageCountChanged?: boolean;
+}
+
 export interface CommitDocumentMutationInput {
   command: PdfCommand;
   label: string;
@@ -47,6 +53,7 @@ export interface CommitDocumentMutationInput {
   nextCurrentPage?: number;
   nextPageGraph?: PageGraph<PageNode> | null;
   nextOcrState?: OcrPageAnchoredState | null;
+  ocrPagePolicy?: OcrPageMutationPolicy;
 }
 
 export interface CommittedDocumentMutation {
@@ -111,8 +118,8 @@ function commitOcrPageState(state: OcrPageAnchoredState): void {
 
 /**
  * Persists dependent annotation state before any in-memory commit. Session,
- * annotation and history stores are then mutated as one synchronous transaction;
- * if any commit step throws, all three stores are restored to their snapshots.
+ * annotation, Writer, OCR and history stores are then mutated as one synchronous transaction;
+ * if any commit step throws, all stores are restored to their snapshots.
  */
 export async function commitDocumentMutation(
   input: CommitDocumentMutationInput,
@@ -163,25 +170,35 @@ export async function commitDocumentMutation(
     currentOcrPageState(),
     sessionSnapshot.pageGraph,
   );
+  const shouldClearOpaqueOcr = Boolean(
+    input.ocrPagePolicy?.clearIfPageCountChanged
+    && beforePageCount !== afterPageCount,
+  );
+  const emptyOcrState: OcrPageAnchoredState = {
+    documentFingerprint: ocrBefore.documentFingerprint,
+    result: null,
+    corrections: [],
+    regions: [],
+    selectedPageIndexes: [],
+    reviewFocus: null,
+  };
   const ocrForTargetGraph =
-    input.nextOcrState === null
-      ? {
-          documentFingerprint: ocrBefore.documentFingerprint,
-          result: null,
-          corrections: [],
-          regions: [],
-          selectedPageIndexes: [],
-          reviewFocus: null,
-        }
+    input.nextOcrState === null || shouldClearOpaqueOcr
+      ? emptyOcrState
       : input.nextOcrState
         ? normalizeOcrPageAnchoredState(input.nextOcrState, pageGraphForCommit)
-        : sessionSnapshot.pageGraph && pageGraphForCommit
-          ? reanchorOcrPageStateAfterPageGraphChange(
-              ocrBefore,
-              sessionSnapshot.pageGraph,
-              pageGraphForCommit,
-            )
-          : normalizeOcrPageAnchoredState(ocrBefore, pageGraphForCommit);
+        : input.ocrPagePolicy?.rebindByPageIndex
+          ? normalizeOcrPageAnchoredState(ocrBefore, pageGraphForCommit)
+          : sessionSnapshot.pageGraph && pageGraphForCommit
+            ? reanchorOcrPageStateAfterPageGraphChange(
+                ocrBefore,
+                sessionSnapshot.pageGraph,
+                pageGraphForCommit,
+                {
+                  dropPageIds: input.ocrPagePolicy?.invalidatePageIds,
+                },
+              )
+            : normalizeOcrPageAnchoredState(ocrBefore, pageGraphForCommit);
   const ocrForCommit = rekeyOcrPageAnchoredState(
     ocrForTargetGraph,
     nextDocumentKey,
