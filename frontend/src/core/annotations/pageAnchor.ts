@@ -47,6 +47,22 @@ export function normalizeAnnotationPageAnchors(
  * Re-resolves physical pageNumber after a structural PageGraph mutation.
  * Canonically anchored annotations whose PageId disappeared are removed.
  */
+export function rebindAnnotationsByPageNumber(
+  annotations: readonly PdfAnnotation[],
+  graph: PageGraph<PageNode>,
+): PdfAnnotation[] {
+  return annotations.flatMap((annotation) => {
+    const pageId = pageIdForAnnotationPageNumber(graph, annotation.pageNumber);
+    if (!pageId) return [];
+
+    const next = cloneAnnotation(annotation, {
+      pageNumber: annotation.pageNumber,
+    });
+    next.pageId = pageId;
+    return [next];
+  });
+}
+
 export function reanchorAnnotationsAfterPageGraphChange(
   annotations: readonly PdfAnnotation[],
   beforeGraph: PageGraph<PageNode>,
