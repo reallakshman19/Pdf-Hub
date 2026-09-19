@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E1-001",
-    "path": "agents/relay/execution-packages/EP-8E1-001.yaml",
+    "id": "EP-8E2-001",
+    "path": "agents/relay/execution-packages/EP-8E2-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-233",
+    "id": "PR-235",
     "path": null,
-    "merge_ref": "61a4829e1264db0a5c3721027a7194945488a227",
-    "note": "Phase 8D.3 merged under documented #183 infrastructure exception; runner-executed certification remained NOT_RUN."
+    "merge_ref": "f531685439e83cc24163233ac7c2e27661e663d0",
+    "note": "Phase 8E.1 merged after transactional undo/redo hardening under documented #183 infrastructure exception; executable certification remained NOT_RUN."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review exact Phase 8E.1 branch, run cd frontend && pnpm run certify:phase8e1 when a runner is available, and keep issue #234 / the 8E.1 PR open until executable evidence is terminal."
+      "next_action": "Review Phase 8E.2 replayability policy, run cd frontend && pnpm run certify:phase8e2 when a runner is available, and keep issue #236 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,11 +78,11 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.1 implementation and static anti-drift coverage are present on the active branch. Runner-executed typecheck/Vitest/audit/build evidence is not yet available because #183 remains unresolved.",
+      "summary": "Phase 8E.2 replayability/checkpoint policy is implemented on the active branch. Static review is available; runner-executed evidence remains subject to #183.",
       "not_run": [
         {
-          "id": "TEST-04",
-          "reason": "GitHub-hosted Actions currently fail before runner allocation under #183.",
+          "id": "TEST-03",
+          "reason": "GitHub-hosted Actions may fail before runner allocation under #183.",
           "cause": "INFRASTRUCTURE"
         }
       ]
@@ -102,13 +102,13 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E1-001",
+    "execution_ref": "EP-8E2-001",
     "receipt": null,
     "basis": [
-      "Issue #234 is the projected GitHub tracking issue for the active 8E.1 slice."
+      "Issue #236 is the projected GitHub tracking issue for the active 8E.2 slice."
     ],
     "observed": {
-      "issue": 234
+      "issue": 236
     },
     "superseded_operations": []
   },

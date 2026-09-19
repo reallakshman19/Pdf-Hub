@@ -221,10 +221,20 @@ target revision before persistence or history-stack movement, then restores the
 existing PageGraph/navigation/annotation/Writer/OCR state. Missing or
 mismatched revision storage fails closed before an undo/redo entry is consumed.
 
-This is only the first 8E slice. Replayability/checkpoint-barrier
-classification, durable journal/checkpoint manifests, reference-aware revision
-GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
-incremental search indexing.
+Phase 8E.2 adds the replayability/checkpoint-barrier policy before any
+durable replay journal exists. Canonical commands are classified as
+`SELF_CONTAINED_REPLAY`, `CHECKPOINT_REQUIRED` or `NON_MUTATING`.
+Donor-backed insert/replace/merge, opaque working-copy application,
+annotation/Writer descriptive state commands, image-bearing header/footer
+templates, commands that actually depend on runtime file-name/locale context,
+and split operations with artifact side effects require checkpoints.
+`EXTRACT_PAGES` is explicitly non-mutating and is not a reconstruction-journal
+entry; `SPLIT_PAGES` is mutating and therefore cannot be treated as artifact-only.
+
+This classification is policy only. No command replay executor is enabled yet.
+Durable journal/checkpoint manifests, reference-aware revision GC and bounded
+recovery checkpoints remain follow-on work. Phase 8F owns incremental search
+indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
