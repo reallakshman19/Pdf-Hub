@@ -184,6 +184,23 @@ requireContains(imageTest, imageTestPath, [
   'retains the byte wrapper and releases its lease',
 ]);
 
+const packagePath = 'package.json';
+const packageJson = JSON.parse(read(packagePath));
+const certifyCommand =
+  packageJson.scripts?.['certify:phase8d3'] ?? '';
+requireContains(certifyCommand, packagePath, [
+  'PdfJsDocumentSourceTransport.test.ts',
+  'PdfRendererAdapter.test.ts',
+  'activePdfDocumentLease.test.ts',
+  'activePdfRendererInput.test.ts',
+  'DocumentWorkspace.test.tsx',
+  'documentTransaction.history.test.ts',
+  'SearchPanel.test.tsx',
+  'BookmarksSidebar.test.tsx',
+  'selectBoxCopyEngine.test.ts',
+  'imageSnapshot.test.ts',
+]);
+
 const moduleLimits = [
   [leasePath, lease, 120],
   [rendererPath, renderer, 600],
