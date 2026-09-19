@@ -1,7 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, degrees } from 'pdf-lib';
 
+import type { PageGraph, PageNode } from '@/core/pages/types';
+import { writePdfPageLabels } from '@/core/pages/pdfPageLabelWriter';
 import type { ResolvedHeaderFooterPage } from './resolutionTypes';
 import { pdfLibHeaderFooterWriter } from './pdfLibHeaderFooterWriter';
 
@@ -19,6 +21,20 @@ async function basePdf(): Promise<Uint8Array> {
     page.setRotation(degrees(angle));
   }
   return pdf.save();
+}
+
+function pageGraphForLabels(): PageGraph<PageNode> {
+  return {
+    pages: [0, 90, 180, 270].map((rotation, index) => ({
+      pageId: `p${index + 1}`,
+      documentKey: 'doc',
+      originalPageNumber: index + 1,
+      currentIndex: index,
+      width: 600,
+      height: 800,
+      rotation: rotation as 0 | 90 | 180 | 270,
+    })),
+  };
 }
 
 function resolvedPages(): ResolvedHeaderFooterPage[] {
@@ -115,6 +131,37 @@ describe('pdfLibHeaderFooterWriter', () => {
       [600, 800],
       [600, 800],
     ]);
+  });
+
+  it('preserves logical PDF PageLabels while adding printed content', async () => {
+    const before = await basePdf();
+    const labeled = await writePdfPageLabels(
+      before,
+      pageGraphForLabels(),
+      [
+        { startPageId: 'p1', prefix: 'Cover' },
+        { startPageId: 'p2', style: 'roman-lower' },
+      ],
+    );
+
+    const result = await pdfLibHeaderFooterWriter.write({
+      baseBytes: labeled.bytes,
+      pages: resolvedPages(),
+      binaryResources: {
+        logo: onePixelPng,
+      },
+    });
+
+    const reopened = await PDFDocument.load(result.bytes);
+    const labels = reopened.catalog.lookupMaybe(
+      PDFName.of('PageLabels'),
+      PDFDict,
+    );
+    const nums = labels?.lookupMaybe(PDFName.of('Nums'), PDFArray);
+
+    expect(nums?.size()).toBe(4);
+    expect(nums?.lookupMaybe(0, PDFNumber)?.asNumber()).toBe(0);
+    expect(nums?.lookupMaybe(2, PDFNumber)?.asNumber()).toBe(1);
   });
 
   it('reports standard-font fallback instead of making font choice implicit', async () => {
