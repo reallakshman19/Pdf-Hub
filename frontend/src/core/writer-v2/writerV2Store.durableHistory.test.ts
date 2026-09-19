@@ -27,6 +27,14 @@ import { useSessionStore } from '@/core/session/store';
 import {
   createPdfOverlayWriterDocumentMeta,
 } from './writerDocumentMode';
+import {
+  createMemoryWriterPersistence,
+  type WriterAssetRecordV2,
+} from './persistence/indexedDbWriterStore';
+import {
+  resetWriterPersistenceAdapterForTests,
+  setWriterPersistenceAdapterForTests,
+} from './persistence/writerPersistenceRuntime';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
 
@@ -70,6 +78,7 @@ describe('Writer V2 durable command dispatch', () => {
     useWriterV2Store.getState().clearWriterV2();
     clearWorkingRevisionStoreRegistryForTests();
     clearHistoryJournalStoreRegistryForTests();
+    resetWriterPersistenceAdapterForTests();
   });
 
   async function openJournalAwareWriterSession() {
@@ -200,6 +209,121 @@ describe('Writer V2 durable command dispatch', () => {
           },
         },
       ],
+    });
+  });
+
+  it('persists newly referenced Writer assets before the journal checkpoint', async () => {
+    const journal =
+      await openJournalAwareWriterSession();
+    const persistence =
+      createMemoryWriterPersistence();
+    setWriterPersistenceAdapterForTests(
+      persistence,
+    );
+
+    const events: string[] = [];
+    const originalSaveAsset =
+      persistence.saveAsset.bind(persistence);
+    vi.spyOn(
+      persistence,
+      'saveAsset',
+    ).mockImplementation(async (asset) => {
+      events.push('asset');
+      await originalSaveAsset(asset);
+    });
+
+    const originalJournalSave =
+      journal.save.bind(journal);
+    vi.spyOn(
+      journal,
+      'save',
+    ).mockImplementation(async (manifest) => {
+      if (manifest.entries.length > 0) {
+        events.push('journal');
+      }
+      await originalJournalSave(manifest);
+    });
+
+    const asset: WriterAssetRecordV2 = {
+      id: 'asset-1',
+      documentFingerprint: 'sha256:one',
+      kind: 'image',
+      mimeType: 'image/png',
+      dataUrl:
+        'data:image/png;base64,AAAA',
+      width: 1,
+      height: 1,
+      createdAt:
+        '2026-09-19T00:00:00.000Z',
+      updatedAt:
+        '2026-09-19T00:00:00.000Z',
+    };
+    useWriterV2Store
+      .getState()
+      .addWriterAssets([asset]);
+
+    await expect(
+      useWriterV2Store
+        .getState()
+        .dispatchWriterCommandDurable({
+          type: 'ADD_WRITER_ELEMENT',
+          element: {
+            ...element('image-1'),
+            type: 'imageBox',
+            imageAssetId: 'asset-1',
+            assetIds: ['asset-1'],
+          },
+        }),
+    ).resolves.toMatchObject({
+      changed: true,
+    });
+
+    expect(events).toEqual([
+      'asset',
+      'journal',
+    ]);
+    await expect(
+      persistence.loadAsset('asset-1'),
+    ).resolves.toMatchObject({
+      id: 'asset-1',
+      documentFingerprint: 'sha256:one',
+    });
+  });
+
+  it('fails before Writer apply when a newly referenced asset record is missing', async () => {
+    const journal =
+      await openJournalAwareWriterSession();
+    setWriterPersistenceAdapterForTests(
+      createMemoryWriterPersistence(),
+    );
+
+    await expect(
+      useWriterV2Store
+        .getState()
+        .dispatchWriterCommandDurable({
+          type: 'ADD_WRITER_ELEMENT',
+          element: {
+            ...element('missing-image'),
+            type: 'imageBox',
+            imageAssetId: 'missing-asset',
+            assetIds: ['missing-asset'],
+          },
+        }),
+    ).rejects.toThrow(
+      /cannot checkpoint missing asset/,
+    );
+
+    expect(
+      useWriterV2Store.getState().elements,
+    ).toEqual([]);
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(0);
+    await expect(
+      journal.load('history-writer'),
+    ).resolves.toMatchObject({
+      activeTransactionId: null,
+      entries: [],
     });
   });
 
