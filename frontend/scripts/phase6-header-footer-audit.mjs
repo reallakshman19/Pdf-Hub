@@ -212,8 +212,13 @@ requireContains(dispatch, dispatchPath, [
   'executeHeaderFooterTemplateMutation',
   'applyMutation(',
 ]);
-const canonicalCaseStart = dispatch.indexOf("case 'APPLY_HEADER_FOOTER_TEMPLATE'");
-const legacyCaseStart = dispatch.indexOf("case 'ADD_HEADER_FOOTER_TEXT'");
+const canonicalCaseStart = dispatch.lastIndexOf(
+  "case 'APPLY_HEADER_FOOTER_TEMPLATE'",
+);
+const legacyCaseStart = dispatch.indexOf(
+  "case 'ADD_HEADER_FOOTER_TEXT'",
+  canonicalCaseStart,
+);
 if (
   canonicalCaseStart < 0
   || legacyCaseStart < 0
