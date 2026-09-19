@@ -76,7 +76,14 @@ function createAnnotationTransactionInput(
   label = 'Edit annotations',
 ): RecordStateTransactionInput | null {
   const session = useSessionStore.getState();
-  if (!session.documentKey || !session.workingBytes) {
+  const hasDurableRevision = Boolean(
+    session.revisionStoreId
+    && session.activeRevisionId,
+  );
+  if (
+    !session.documentKey
+    || (!hasDurableRevision && !session.workingBytes)
+  ) {
     return null;
   }
 
@@ -187,7 +194,6 @@ function usesDurableAnnotationHistory(): boolean {
   const session = useSessionStore.getState();
   return Boolean(
     session.documentKey
-    && session.workingBytes
     && session.revisionStoreId
     && session.activeRevisionId
     && session.historyJournalStoreId
