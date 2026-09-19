@@ -11,11 +11,12 @@ import { createHeaderFooterVisualGeometry } from '@/core/header-footer/pdfWriter
 interface HeaderFooterPreviewProps {
   page: ResolvedHeaderFooterPage;
   pageNode: PageNode;
+  imageUrls?: Readonly<Record<string, string>>;
 }
 
 export const HeaderFooterPreview: React.FC<
   HeaderFooterPreviewProps
-> = ({ page, pageNode }) => {
+> = ({ page, pageNode, imageUrls = {} }) => {
   const geometry = createHeaderFooterVisualGeometry(
     pageNode.width,
     pageNode.height,
@@ -58,6 +59,7 @@ export const HeaderFooterPreview: React.FC<
             leftPercent={leftPercent}
             rightPercent={rightPercent}
             offsetPercent={headerTopPercent}
+            imageUrls={imageUrls}
           />
         )}
         {page.footer && (
@@ -67,6 +69,7 @@ export const HeaderFooterPreview: React.FC<
             leftPercent={leftPercent}
             rightPercent={rightPercent}
             offsetPercent={footerBottomPercent}
+            imageUrls={imageUrls}
           />
         )}
       </div>
@@ -80,12 +83,14 @@ const PreviewBand: React.FC<{
   leftPercent: number;
   rightPercent: number;
   offsetPercent: number;
+  imageUrls: Readonly<Record<string, string>>;
 }> = ({
   band,
   position,
   leftPercent,
   rightPercent,
   offsetPercent,
+  imageUrls,
 }) => {
   const positionStyle =
     position === 'header'
@@ -105,9 +110,9 @@ const PreviewBand: React.FC<{
         <Separator band={band} />
       )}
       <div className="grid grid-cols-3 items-start gap-1">
-        <Content content={band.left} align="left" />
-        <Content content={band.center} align="center" />
-        <Content content={band.right} align="right" />
+        <Content content={band.left} align="left" imageUrls={imageUrls} />
+        <Content content={band.center} align="center" imageUrls={imageUrls} />
+        <Content content={band.right} align="right" imageUrls={imageUrls} />
       </div>
       {band.separator && position === 'header' && (
         <Separator band={band} />
@@ -135,22 +140,30 @@ const Separator: React.FC<{
 const Content: React.FC<{
   content?: ResolvedHeaderFooterContent;
   align: 'left' | 'center' | 'right';
-}> = ({ content, align }) => {
+  imageUrls: Readonly<Record<string, string>>;
+}> = ({ content, align, imageUrls }) => {
   if (!content) return <span />;
 
   if (content.kind === 'image') {
-    return (
+    const imageUrl = imageUrls[content.binaryResourceId];
+    const justifySelf =
+      align === 'left'
+        ? 'start'
+        : align === 'center'
+          ? 'center'
+          : 'end';
+
+    return imageUrl ? (
+      <img
+        src={imageUrl}
+        alt={content.altText || 'Header/footer image'}
+        className="max-h-8 max-w-full object-contain"
+        style={{ justifySelf, opacity: content.opacity }}
+      />
+    ) : (
       <span
         className="inline-flex min-h-4 items-center rounded border border-dashed border-slate-400 px-1 text-[8px] text-slate-500"
-        style={{
-          justifySelf:
-            align === 'left'
-              ? 'start'
-              : align === 'center'
-                ? 'center'
-                : 'end',
-          opacity: content.opacity,
-        }}
+        style={{ justifySelf, opacity: content.opacity }}
       >
         Image
       </span>
