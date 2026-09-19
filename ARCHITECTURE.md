@@ -474,10 +474,19 @@ The first Phase 7A implementation is
 `PdfMutationSession`. The session owns one parsed PDF revision and exposes
 engine-neutral page count, page metrics, rotation and commit operations.
 
-`ROTATE_PAGES` is the first canonical command on this boundary. Its PageGraph,
+`ROTATE_PAGES` plus canonical reorder, delete, insert-blank and duplicate page
+commands now execute through this boundary. Their PageGraph, PageLabel,
 annotation, Writer, OCR and history semantics remain in core command/
-transaction code; only parsed PDF state and byte mutation moved into the
-engine session.
+transaction code; only parsed PDF state and byte mutation live in the engine
+session.
+
+The current transaction prepare stage still reparses before/after bytes for
+page-count validation. Phase 7E will remove that remaining transaction-level
+counting seam; Phase 7B only guarantees reuse inside each mutation session.
+
+Reorder/delete/duplicate currently preserve the prior pdf-lib page-copy rebuild
+semantics. Phase 7 is an execution-boundary migration, not the later fidelity
+hardening phase.
 
 This is intentionally not yet the Phase 8 large-document substrate:
 `DocumentSession` still stores `Uint8Array` revisions, and OPFS /

@@ -104,4 +104,77 @@ describe('PdfLibMutationEngine', () => {
       code: 'OPERATION_CANCELLED',
     });
   });
+
+  it('reuses one input parse across structural page mutations', async () => {
+    const source = await PDFDocument.create();
+    for (const [width, height] of [
+      [100, 200],
+      [110, 210],
+      [120, 220],
+      [130, 230],
+    ]) {
+      source.addPage([width, height]);
+    }
+    const bytes = new Uint8Array(await source.save());
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    await session.reorderPages([3, 1, 0, 2]);
+    await session.duplicatePages([1]);
+    await session.removePages([3]);
+    session.insertBlankPage(2, {
+      width: 300,
+      height: 400,
+    });
+
+    expect(session.pageCount).toBe(5);
+    expect(session.getPageMetrics(0)).toMatchObject({
+      width: 130,
+      height: 230,
+    });
+    expect(session.getPageMetrics(1)).toMatchObject({
+      width: 110,
+      height: 210,
+    });
+    expect(session.getPageMetrics(2)).toMatchObject({
+      width: 300,
+      height: 400,
+    });
+    expect(session.getPageMetrics(3)).toMatchObject({
+      width: 110,
+      height: 210,
+    });
+    expect(session.getPageMetrics(4)).toMatchObject({
+      width: 120,
+      height: 220,
+    });
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(committed.pageCount).toBe(5);
+
+    loadSpy.mockRestore();
+    session.dispose();
+  });
+
+  it('validates structural mutations before committing', async () => {
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({
+      bytes: await createPdf(),
+    });
+
+    await expect(
+      session.reorderPages([0, 0, 2]),
+    ).rejects.toThrow(/valid page permutation/i);
+
+    await expect(
+      session.removePages([0, 1, 2]),
+    ).rejects.toThrow(/cannot remove all pages/i);
+
+    session.dispose();
+  });
+
 });

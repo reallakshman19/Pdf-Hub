@@ -44,13 +44,10 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 
 const pdfMocks = vi.hoisted(() => ({
   movePage: vi.fn(),
-  reorderPages: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
   insertAt: vi.fn(),
-  insertBlankPage: vi.fn(),
   replacePage: vi.fn(),
-  duplicatePages: vi.fn(),
   merge: vi.fn(),
   drawTextOnPages: vi.fn(),
   drawRedactionBoxes: vi.fn(),
@@ -61,13 +58,10 @@ const pdfMocks = vi.hoisted(() => ({
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
     movePage: pdfMocks.movePage,
-    reorderPages: pdfMocks.reorderPages,
     extractPages: pdfMocks.extractPages,
     removePages: pdfMocks.removePages,
     insertAt: pdfMocks.insertAt,
-    insertBlankPage: pdfMocks.insertBlankPage,
     replacePage: pdfMocks.replacePage,
-    duplicatePages: pdfMocks.duplicatePages,
     merge: pdfMocks.merge,
     drawTextOnPages: pdfMocks.drawTextOnPages,
     drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
@@ -80,6 +74,10 @@ const mutationEngineMocks = vi.hoisted(() => ({
   open: vi.fn(),
   getPageMetrics: vi.fn(),
   rotatePages: vi.fn(),
+  reorderPages: vi.fn(),
+  removePages: vi.fn(),
+  insertBlankPage: vi.fn(),
+  duplicatePages: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -274,6 +272,10 @@ describe('canonical command dispatch', () => {
       pageCount: 3,
       getPageMetrics: mutationEngineMocks.getPageMetrics,
       rotatePages: mutationEngineMocks.rotatePages,
+      reorderPages: mutationEngineMocks.reorderPages,
+      removePages: mutationEngineMocks.removePages,
+      insertBlankPage: mutationEngineMocks.insertBlankPage,
+      duplicatePages: mutationEngineMocks.duplicatePages,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -478,6 +480,35 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
+  it('deletes pages through the mutation session', async () => {
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([4, 4]),
+      pageCount: 2,
+    });
+    pdfMocks.countPages
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(2);
+
+    const result = await execute({
+      type: 'DELETE_PAGES',
+      payload: { pageIndices: [1] },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mutationEngineMocks.removePages).toHaveBeenCalledWith(
+      [1],
+    );
+    expect(
+      useSessionStore
+        .getState()
+        .pageGraph?.pages.map((page) => page.pageId),
+    ).toEqual([
+      'test-doc::stable::1',
+      'test-doc::stable::3',
+    ]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+  });
+
   it('returns validation error when delete is requested with empty page list', async () => {
     const result = await execute({
       type: 'DELETE_PAGES',
@@ -539,7 +570,10 @@ describe('canonical command dispatch', () => {
     });
     useSessionStore.getState().setPage(1);
     useSessionStore.getState().setSelectedPages([1]);
-    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([3, 2, 1]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([3, 2, 1]),
+      pageCount: 3,
+    });
 
     const result = await execute(
       {
@@ -550,8 +584,7 @@ describe('canonical command dispatch', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(pdfMocks.reorderPages).toHaveBeenCalledWith(
-      new Uint8Array([1, 1, 1]),
+    expect(mutationEngineMocks.reorderPages).toHaveBeenCalledWith(
       [2, 1, 0],
     );
     expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
@@ -819,7 +852,10 @@ describe('canonical command dispatch', () => {
   });
 
   it('inserts blank pages', async () => {
-    pdfMocks.insertBlankPage.mockResolvedValue(new Uint8Array([1, 0, 1]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([1, 0, 1]),
+      pageCount: 4,
+    });
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4);
@@ -833,7 +869,10 @@ describe('canonical command dispatch', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(pdfMocks.insertBlankPage).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.insertBlankPage).toHaveBeenCalledWith(
+      1,
+      { width: 595, height: 842 },
+    );
     expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(4);
     expect(useSessionStore.getState().pageGraph?.pages[1]).toMatchObject({
       originalPageNumber: 0,
@@ -851,7 +890,10 @@ describe('canonical command dispatch', () => {
       documentFingerprint: 'test-doc',
       elements: [writerElement('duplicate-writer', 1)],
     });
-    pdfMocks.duplicatePages.mockResolvedValue(new Uint8Array([8, 8, 8]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([8, 8, 8]),
+      pageCount: 4,
+    });
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4);
@@ -862,6 +904,9 @@ describe('canonical command dispatch', () => {
     });
 
     expect(result.success).toBe(true);
+    expect(mutationEngineMocks.duplicatePages).toHaveBeenCalledWith(
+      [1],
+    );
     expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
       'test-doc::stable::1',
       'test-doc::stable::2',
@@ -892,8 +937,37 @@ describe('canonical command dispatch', () => {
     ]));
   });
 
+  it('rejects structural mutation when PageGraph count disagrees with the opened PDF session', async () => {
+    mutationEngineMocks.open.mockImplementationOnce(async () => ({
+      pageCount: 2,
+      getPageMetrics: mutationEngineMocks.getPageMetrics,
+      rotatePages: mutationEngineMocks.rotatePages,
+      reorderPages: mutationEngineMocks.reorderPages,
+      removePages: mutationEngineMocks.removePages,
+      insertBlankPage: mutationEngineMocks.insertBlankPage,
+      duplicatePages: mutationEngineMocks.duplicatePages,
+      commit: mutationEngineMocks.commit,
+      dispose: mutationEngineMocks.dispose,
+    }));
+
+    const result = await execute({
+      type: 'REORDER_PAGES',
+      payload: { fromIndex: 0, toIndex: 1 },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('EXECUTION_FAILED');
+    expect(result.message).toMatch(/PageGraph count 3/);
+    expect(mutationEngineMocks.reorderPages).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.commit).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('uses one permutation for single-page reorder bytes, overlays, and PageGraph', async () => {
-    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([6, 6, 6]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([6, 6, 6]),
+      pageCount: 3,
+    });
 
     const result = await execute({
       type: 'REORDER_PAGES',
@@ -902,8 +976,7 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(true);
     expect(pdfMocks.movePage).not.toHaveBeenCalled();
-    expect(pdfMocks.reorderPages).toHaveBeenCalledWith(
-      new Uint8Array([1, 1, 1]),
+    expect(mutationEngineMocks.reorderPages).toHaveBeenCalledWith(
       [1, 0, 2],
     );
     expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
@@ -922,7 +995,10 @@ describe('canonical command dispatch', () => {
       type: 'ADD_WRITER_ELEMENT',
       element: writerElement('blank-writer-element', 0),
     });
-    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([7, 7, 7]),
+      pageCount: 3,
+    });
 
     const result = await execute({
       type: 'REORDER_PAGES_BY_ORDER',
@@ -1011,7 +1087,10 @@ describe('canonical command dispatch', () => {
         { startPageId: 'test-doc::stable::3', style: 'decimal' },
       ],
     });
-    pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([6, 6, 6]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([6, 6, 6]),
+      pageCount: 3,
+    });
     pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
       bytes: new Uint8Array([7, 7, 7]),
       rangeCount: 3,
