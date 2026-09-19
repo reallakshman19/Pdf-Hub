@@ -12,12 +12,23 @@ export interface WriterHistoryState {
   activeId: string | null;
 }
 
+export interface HistoryRevisionLocator {
+  storeId: string;
+  revisionId: string;
+}
+
 export interface HistoryState {
-  bytes: Uint8Array;
+  /**
+   * Inline PDF snapshot retained only when no durable revision locator is
+   * available (legacy/unpublished compatibility sessions).
+   */
+  bytes?: Uint8Array;
+  /** Preferred immutable PDF backing for revision-aware history. */
+  revision?: HistoryRevisionLocator;
   pageCount: number;
   pageGraph: PageGraph<PageNode> | null;
   documentKey?: string | null;
-  /** Durable content-addressed revision matching bytes when available. */
+  /** Compatibility mirror of revision.revisionId when a durable locator exists. */
   activeRevisionId?: string | null;
   selectedPageIds: PageId[];
   selectedPages: number[];
