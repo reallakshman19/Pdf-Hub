@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PDFDocument, degrees } from 'pdf-lib';
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  degrees,
+} from 'pdf-lib';
 
 import { PdfLibMutationEngine } from './PdfLibMutationEngine';
 
@@ -264,7 +271,54 @@ describe('PdfLibMutationEngine', () => {
         new Uint8Array(await donor.save()),
         9,
       ),
-    ).rejects.toThrow(/Donor page index 9/);
+    ).rejects.toThrow(/
+
+  it('writes PageLabels inside the active session before its single commit', async () => {
+    const bytes = await createPdf();
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    session.setPageLabels([
+      {
+        startPageIndex: 0,
+        prefix: 'Cover',
+      },
+      {
+        startPageIndex: 1,
+        style: 'roman-lower',
+      },
+    ]);
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    loadSpy.mockRestore();
+
+    const reopened = await PDFDocument.load(
+      committed.bytes,
+    );
+    const labels = reopened.catalog.lookupMaybe(
+      PDFName.of('PageLabels'),
+      PDFDict,
+    );
+    const nums = labels?.lookupMaybe(
+      PDFName.of('Nums'),
+      PDFArray,
+    );
+
+    expect(nums?.size()).toBe(4);
+    expect(
+      nums?.lookupMaybe(0, PDFNumber)?.asNumber(),
+    ).toBe(0);
+    expect(
+      nums?.lookupMaybe(2, PDFNumber)?.asNumber(),
+    ).toBe(1);
+
+    session.dispose();
+  });
+Donor page index 9/);
 
     session.dispose();
   });
