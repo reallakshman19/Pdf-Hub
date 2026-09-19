@@ -348,16 +348,19 @@ export const useAnnotationStore =
       return annotationSnapshot(state, nextAnnotations, nextSelectedIds, nextActiveId);
     }),
 
-  deleteSelection: () =>
+  deleteSelection: () => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length === 0) return state;
-      const selectedSet = new Set(state.selectedAnnotationIds);
+      if (targetIds.length === 0) return state;
+      const selectedSet = new Set(targetIds);
       const nextAnnotations = state.annotations.filter(
         (annotation) => !selectedSet.has(annotation.id),
       );
       return annotationSnapshot(state, nextAnnotations, [], null);
-    }),
-
+    });
+  },
   setActiveAnnotationId: (id) =>
     set((state) => ({
       activeAnnotationId: id,
@@ -429,13 +432,21 @@ export const useAnnotationStore =
       return { clipboard: copied };
     }),
 
-  pasteClipboard: (targetPage) =>
+  pasteClipboard: (targetPage) => {
+    const sourceClipboard = get().clipboard.map(
+      (annotation) => ({
+        ...annotation,
+        rect: { ...annotation.rect },
+        data: { ...annotation.data },
+    });
+  },
+    );
     runMutation((state) => {
-      if (state.clipboard.length === 0) return state;
+      if (sourceClipboard.length === 0) return state;
 
       const now = Date.now();
       const targetGraph = useSessionStore.getState().pageGraph;
-      const pasted = state.clipboard.map((annotation, index) => annotationForTargetPage({
+      const pasted = sourceClipboard.map((annotation, index) => annotationForTargetPage({
 
         ...annotation,
         id: uuidv4(),
@@ -478,14 +489,16 @@ export const useAnnotationStore =
       );
     }),
 
-  duplicateSelection: () =>
+  duplicateSelection: () => {
+    const invocationState = get();
+    const ids =
+      invocationState.selectedAnnotationIds.length > 0
+        ? [...invocationState.selectedAnnotationIds]
+        : invocationState.activeAnnotationId
+        ? [invocationState.activeAnnotationId]
+        : [];
+
     runMutation((state) => {
-      const ids =
-        state.selectedAnnotationIds.length > 0
-          ? state.selectedAnnotationIds
-          : state.activeAnnotationId
-          ? [state.activeAnnotationId]
-          : [];
 
       if (ids.length === 0) return state;
 
@@ -529,13 +542,19 @@ export const useAnnotationStore =
         duplicated.map((annotation) => annotation.id),
         duplicated[0]?.id ?? null,
       );
-    }),
-
-  alignSelection: (mode) =>
+    });
+  },
+  alignSelection: (mode) => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length < 2) return state;
+      if (targetIds.length < 2) return state;
 
-      const selected = selectedAnnotations(state.annotations, state.selectedAnnotationIds);
+      const selected = selectedAnnotations(
+        state.annotations,
+        targetIds,
+      );
       const left = Math.min(...selected.map((annotation) => annotation.rect.x));
       const top = Math.min(...selected.map((annotation) => annotation.rect.y));
       const right = Math.max(
@@ -547,7 +566,7 @@ export const useAnnotationStore =
       const centerX = (left + right) / 2;
       const centerY = (top + bottom) / 2;
 
-      const selectedSet = new Set(state.selectedAnnotationIds);
+      const selectedSet = new Set(targetIds);
 
       const nextAnnotations = state.annotations.map((annotation) => {
         if (!selectedSet.has(annotation.id)) return annotation;
@@ -569,13 +588,19 @@ export const useAnnotationStore =
       });
 
       return annotationSnapshot(state, nextAnnotations);
-    }),
-
-  distributeSelection: (mode) =>
+    });
+  },
+  distributeSelection: (mode) => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length < 3) return state;
+      if (targetIds.length < 3) return state;
 
-      const selected = selectedAnnotations(state.annotations, state.selectedAnnotationIds).filter(
+      const selected = selectedAnnotations(
+        state.annotations,
+        targetIds,
+      ).filter(
         (annotation) => annotation.data.locked !== true,
       );
       if (selected.length < 3) return state;
@@ -628,13 +653,16 @@ export const useAnnotationStore =
       );
 
       return annotationSnapshot(state, nextAnnotations);
-    }),
-
-  setReviewStatusForSelection: (status) =>
+    });
+  },
+  setReviewStatusForSelection: (status) => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length === 0) return state;
+      if (targetIds.length === 0) return state;
 
-      const selectedSet = new Set(state.selectedAnnotationIds);
+      const selectedSet = new Set(targetIds);
       const updatedAt = Date.now();
       const nextAnnotations = state.annotations.map((annotation) =>
         selectedSet.has(annotation.id)
@@ -643,8 +671,8 @@ export const useAnnotationStore =
       );
 
       return annotationSnapshot(state, nextAnnotations);
-    }),
-
+    });
+  },
   setReviewStatus: (id, status) =>
     runMutation((state) => {
       const annotation = state.annotations.find((item) => item.id === id);
@@ -681,11 +709,14 @@ export const useAnnotationStore =
       return annotationSnapshot(state, nextAnnotations, state.selectedAnnotationIds, state.activeAnnotationId);
     }),
 
-  toggleLockSelection: () =>
+  toggleLockSelection: () => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length === 0) return state;
+      if (targetIds.length === 0) return state;
 
-      const selectedSet = new Set(state.selectedAnnotationIds);
+      const selectedSet = new Set(targetIds);
       const shouldLock = state.annotations.some(
         (annotation) =>
           selectedSet.has(annotation.id) && annotation.data.locked !== true,
@@ -705,20 +736,26 @@ export const useAnnotationStore =
       );
 
       return annotationSnapshot(state, nextAnnotations);
-    }),
-
-  updateStyleForSelection: (stylePatch) =>
+    });
+  },
+  updateStyleForSelection: (stylePatch) => {
+    const targetIds = [
+      ...get().selectedAnnotationIds,
+    ];
     runMutation((state) => {
-      if (state.selectedAnnotationIds.length === 0) return state;
+      if (targetIds.length === 0) return state;
 
-      const selectedSet = new Set(state.selectedAnnotationIds);
+      const selectedSet = new Set(targetIds);
       const nextAnnotations = state.annotations.map((annotation) =>
         selectedSet.has(annotation.id)
           ? {
               ...annotation,
               data: {
                 ...annotation.data,
-                ...(stylePatch.fill ? { backgroundColor: stylePatch.fill } : {}),
+                ...(stylePatch.fill ? { backgroundColor: stylePatch.fill } : {
+    });
+  },
+
                 ...(stylePatch.stroke ? { borderColor: stylePatch.stroke } : {}),
                 ...(stylePatch.strokeWidth !== undefined
                   ? { borderWidth: stylePatch.strokeWidth }
