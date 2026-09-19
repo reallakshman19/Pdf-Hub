@@ -72,7 +72,10 @@ async function selectStore(
   options: BrowserHistoryJournalStoreOptions,
 ): Promise<BrowserHistoryJournalStoreSelection> {
   try {
-    if (typeof indexedDB === 'undefined') {
+    if (
+      !options.createIndexedDbStore
+      && typeof indexedDB === 'undefined'
+    ) {
       throw new Error(
         'IndexedDB is unavailable.',
       );
