@@ -235,21 +235,21 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
   private async commitNewRevision(
     input: CommitRevisionInput,
   ): Promise<StoredRevision> {
-    const size = await raceWithAbort(
-      input.source.size(),
-      input.signal,
-      'commit working revision: source size',
-    );
-    assertDocumentSourceSize(input.source.id, size);
-
     const fileName = this.fileName(input.revisionId);
-    const handle = await this.directory.getFileHandle(
-      fileName,
-      { create: true },
-    );
     let writable: FileSystemWritableFileStream | null = null;
 
     try {
+      const size = await raceWithAbort(
+        input.source.size(),
+        input.signal,
+        'commit working revision: source size',
+      );
+      assertDocumentSourceSize(input.source.id, size);
+
+      const handle = await this.directory.getFileHandle(
+        fileName,
+        { create: true },
+      );
       writable = await handle.createWritable({
         keepExistingData: false,
       });
