@@ -106,7 +106,11 @@ export async function fitRichBoxToContentById(
   const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const fit = computeRichBoxFit(element, pdf);
-  const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
+  const result = await applyRichBoxFit(
+    element,
+    fit.nextY,
+    fit.nextHeight,
+  );
 
   return {
     changed: result.changed,
