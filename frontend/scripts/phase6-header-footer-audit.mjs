@@ -645,6 +645,22 @@ forbidContains(pdfEditAdapter, pdfEditAdapterPath, [
   'HeaderFooterOptions',
 ]);
 
+const acceptanceTestPath =
+  'src/core/header-footer/phase6Acceptance.test.ts';
+const acceptanceTest = read(acceptanceTestPath);
+requireContains(acceptanceTest, acceptanceTestPath, [
+  'Phase 6 header/footer acceptance',
+  'resolveHeaderFooterTemplate',
+  'executeHeaderFooterTemplateMutation',
+  'reorderPageGraphByOrder',
+  'reanchorPageLabelRangesAfterGraphChange',
+  'applyUndo',
+  'applyRedo',
+  'getPageLabels',
+  'Page 1 of 3',
+  'Appendix A',
+]);
+
 const contentPreparationPath =
   'src/core/header-footer/pdfLibContentPreparation.ts';
 const contentPreparation = read(contentPreparationPath);
