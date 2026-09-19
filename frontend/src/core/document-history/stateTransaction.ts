@@ -49,7 +49,14 @@ export function recordStateTransaction(
 ): boolean {
   const session = useSessionStore.getState();
 
-  if (!session.workingBytes || !session.documentKey) {
+  const hasDurableRevision = Boolean(
+    session.revisionStoreId && session.activeRevisionId,
+  );
+
+  if (
+    !session.documentKey
+    || (!hasDurableRevision && !session.workingBytes)
+  ) {
     return false;
   }
 
@@ -57,13 +64,24 @@ export function recordStateTransaction(
     return false;
   }
 
-  const sharedBytes = session.workingBytes;
+  const pdfBacking = hasDurableRevision
+    ? {
+        revision: {
+          storeId: session.revisionStoreId as string,
+          revisionId: session.activeRevisionId as string,
+        },
+        activeRevisionId: session.activeRevisionId,
+      }
+    : {
+        bytes: session.workingBytes as Uint8Array,
+        activeRevisionId: session.activeRevisionId,
+      };
+
   const baseState = {
-    bytes: sharedBytes,
+    ...pdfBacking,
     pageCount: session.pageCount,
     pageGraph: session.pageGraph ? clonePageGraph(session.pageGraph) : null,
     documentKey: session.documentKey,
-    activeRevisionId: session.activeRevisionId,
     selectedPageIds: [...session.selectedPageIds],
     selectedPages: [...session.selectedPages],
     currentPageId: session.viewState.currentPageId,
