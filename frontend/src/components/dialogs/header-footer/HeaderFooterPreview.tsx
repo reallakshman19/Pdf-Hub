@@ -30,6 +30,14 @@ export const HeaderFooterPreview: React.FC<
     (page.layout.headerOffsetFromTopPt / geometry.visualHeight) * 100;
   const footerBottomPercent =
     (page.layout.footerOffsetFromBottomPt / geometry.visualHeight) * 100;
+  const slotWidthPt = Math.max(
+    1,
+    (
+      geometry.visualWidth
+      - page.layout.leftMarginPt
+      - page.layout.rightMarginPt
+    ) / 3,
+  );
 
   return (
     <div className="space-y-2">
@@ -60,6 +68,7 @@ export const HeaderFooterPreview: React.FC<
             rightPercent={rightPercent}
             offsetPercent={headerTopPercent}
             imageUrls={imageUrls}
+            slotWidthPt={slotWidthPt}
           />
         )}
         {page.footer && (
@@ -70,6 +79,7 @@ export const HeaderFooterPreview: React.FC<
             rightPercent={rightPercent}
             offsetPercent={footerBottomPercent}
             imageUrls={imageUrls}
+            slotWidthPt={slotWidthPt}
           />
         )}
       </div>
@@ -84,6 +94,7 @@ const PreviewBand: React.FC<{
   rightPercent: number;
   offsetPercent: number;
   imageUrls: Readonly<Record<string, string>>;
+  slotWidthPt: number;
 }> = ({
   band,
   position,
@@ -91,6 +102,7 @@ const PreviewBand: React.FC<{
   rightPercent,
   offsetPercent,
   imageUrls,
+  slotWidthPt,
 }) => {
   const positionStyle =
     position === 'header'
@@ -110,9 +122,9 @@ const PreviewBand: React.FC<{
         <Separator band={band} />
       )}
       <div className="grid grid-cols-3 items-start gap-1">
-        <Content content={band.left} align="left" imageUrls={imageUrls} />
-        <Content content={band.center} align="center" imageUrls={imageUrls} />
-        <Content content={band.right} align="right" imageUrls={imageUrls} />
+        <Content content={band.left} align="left" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
+        <Content content={band.center} align="center" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
+        <Content content={band.right} align="right" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
       </div>
       {band.separator && position === 'header' && (
         <Separator band={band} />
@@ -141,7 +153,8 @@ const Content: React.FC<{
   content?: ResolvedHeaderFooterContent;
   align: 'left' | 'center' | 'right';
   imageUrls: Readonly<Record<string, string>>;
-}> = ({ content, align, imageUrls }) => {
+  slotWidthPt: number;
+}> = ({ content, align, imageUrls, slotWidthPt }) => {
   if (!content) return <span />;
 
   if (content.kind === 'image') {
@@ -158,7 +171,14 @@ const Content: React.FC<{
         src={imageUrl}
         alt={content.altText || 'Header/footer image'}
         className="max-h-8 max-w-full object-contain"
-        style={{ justifySelf, opacity: content.opacity }}
+        style={{
+          justifySelf,
+          opacity: content.opacity,
+          width: `${Math.min(
+            100,
+            (content.widthPt / slotWidthPt) * 100,
+          )}%`,
+        }}
       />
     ) : (
       <span
