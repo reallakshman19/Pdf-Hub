@@ -130,7 +130,7 @@ Document transactions still coordinate committed PDF bytes, PageGraph state, ann
 
 Current limitations:
 - document history retains whole-PDF byte snapshots under a byte budget;
-- the transaction prepare stage still reparses before/after PDF bytes for page-count validation;
+- compatibility/non-session transaction paths still use parse-based page-count fallback when authoritative revision metadata is unavailable;
 - several compatibility/artifact paths still use `PdfEditAdapter`;
 - many structural mutations still rebuild or save the complete PDF even though they now reuse one parsed active revision inside the mutation session.
 
@@ -485,9 +485,11 @@ resolved physical PageLabel/text/mask/header-footer write operations.
 PageGraph, admission, annotation, Writer, OCR and history semantics remain in
 core command/transaction code.
 
-The current transaction prepare stage still reparses before/after bytes for
-page-count validation. Phase 7E will remove that remaining transaction-level
-counting seam; Phase 7B only guarantees reuse inside each mutation session.
+Canonical mutation-session commits now carry authoritative before/after page
+counts into the document transaction, eliminating its redundant count-only
+reparses for those commands. The transaction validates the metadata against
+the active session/PageGraph. Compatibility/non-session commits retain the
+parse-based fallback when metadata is unavailable.
 
 Reorder/delete/duplicate currently preserve the prior pdf-lib page-copy rebuild
 semantics. Phase 7 is an execution-boundary migration, not the later fidelity
@@ -505,8 +507,9 @@ See `Docs/PDF_MUTATION_ENGINE.md` and issue #211.
 Canonical PageLabels, simple text overlays and visual masks now reuse the
 active `PdfMutationSession`. Structural PageLabels are applied before the
 session's single save rather than reopening committed bytes in a separate
-writer. The richer professional header/footer writer remains the next Phase 7D
-slice; transaction-level before/after page-count reparses remain Phase 7E.
+writer. Phase 7D.2 also moved professional header/footer writes into the same
+session boundary; Phase 7E then removed transaction-only count reparses for
+canonical session commits.
 
 
 ### Phase 7D.2 professional header/footer writes
@@ -517,3 +520,17 @@ compiles the resolved result to an engine-neutral physical write plan and calls
 `PdfMutationSession.applyHeaderFooter(...)`; it no longer opens a separate
 pdf-lib document through the compatibility writer. Legacy direct/headless
 compatibility callers may still use `executeHeaderFooterTemplateMutation(...)`.
+
+
+### Phase 7E revision metadata
+
+`PdfMutationSession.commit()` already returns the authoritative output page
+count. Canonical session-backed commands now propagate that result, together
+with the active pre-mutation page count, into `commitDocumentMutation(...)`.
+The transaction validates the metadata against session/PageGraph state and
+uses it for history, OCR page-count policy and session commit without reparsing
+the before/after PDF bytes solely to count pages.
+
+Compatibility/non-session byte-replacement paths keep a guarded
+`PdfEditAdapter.countPages(...)` fallback. Whole-byte history remains
+unchanged; this is not the Phase 8 OPFS/checkpoint-history migration.
