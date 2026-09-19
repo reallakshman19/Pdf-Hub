@@ -343,18 +343,32 @@ remain; that is safe and is future garbage-collection work. A journal
 checkpoint is therefore never intentionally committed ahead of a newly
 referenced asset record.
 
-The existing synchronous `dispatchWriterCommand(...)` remains available for
-non-mutating selection, blank/legacy sessions, direct UI mutation callbacks and
-the remaining synchronous Writer helper APIs. Multi-step legacy consolidation
-also remains synchronous because hiding source objects and adding the
-consolidated rich box must be made atomic before migration. Phase 8E.5B3C2B
-owns direct UI mutation callbacks, with high-frequency drag/input surfaces
-requiring coalescing rather than one checkpoint per pointer/input event.
-Phase 8E.5B3C2C owns synchronous helper contracts and remaining bridges.
-Synchronous PDF-overlay mutation dispatch must not be prohibited until those
-migrations are complete. No command replay or revision deletion is enabled yet.
-Reference-aware revision GC and bounded recovery checkpoints remain follow-on
-work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3C2B1 migrates one-shot PDF-overlay UI commits without
+turning high-frequency input streams into journal amplification. Writer element
+move/resize commits execute only on drag end through the durable UI dispatch
+boundary; rich-editor save awaits durable UPDATE before closing the editor and
+cleans newly admitted in-memory assets if commit fails. Overlay placement awaits
+durable ADD before switching back to the select tool. Writer Ribbon image upload
+durably links the newly admitted asset to the active Writer element before the
+rich-editor image node is inserted. Select Box Writer insertion awaits durable
+ADD before it clears the selection panel or reports success, and cleans temporary
+image assets on failed/unchanged insertion. The shared UI dispatch helper logs
+context + command type before rethrowing durable failures.
+
+Synchronous `dispatchWriterCommand(...)` remains available for non-mutating
+selection, blank/legacy sessions and the remaining synchronous Writer helper
+APIs. Writer table pointer-resize, Writer inspector transform/style/callout
+inputs and Writer table-properties controls remain deliberately synchronous in
+B1 because they emit at pointer/input frequency. Phase 8E.5B3C2B2 must give
+those surfaces an explicit preview/coalescing boundary so one user gesture
+produces one durable history transaction rather than one checkpoint per event.
+Multi-step legacy consolidation also remains synchronous because hiding source
+objects and adding the consolidated rich box must be made atomic before
+migration. Phase 8E.5B3C2C owns synchronous helper contracts and remaining
+bridges. Synchronous PDF-overlay mutation dispatch must not be prohibited until
+those migrations are complete. No command replay or revision deletion is
+enabled yet. Reference-aware revision GC and bounded recovery checkpoints remain
+follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
