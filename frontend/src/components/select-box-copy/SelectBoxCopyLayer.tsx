@@ -119,9 +119,16 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
 
   React.useEffect(() => () => {
     operationAbortControllerRef.current?.abort(
-      'Select Box Copy layer unmounted',
+      'Select Box Copy renderer session changed or layer deactivated',
     );
-  }, []);
+  }, [
+    activeWriterTool,
+    documentKey,
+    workingBytes,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+  ]);
 
   if (activeWriterTool !== 'selectBoxCopy') {
     return null;
