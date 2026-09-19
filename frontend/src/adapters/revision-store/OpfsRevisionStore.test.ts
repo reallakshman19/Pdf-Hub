@@ -8,7 +8,7 @@ class FakeFileHandle {
   private bytes = new Uint8Array();
 
   async getFile(): Promise<File> {
-    return new Blob([Uint8Array.from(this.bytes)]) as File;
+    return new Blob([Uint8Array.from(this.bytes).buffer]) as File;
   }
 
   async createWritable(): Promise<FileSystemWritableFileStream> {
@@ -16,7 +16,7 @@ class FakeFileHandle {
     let closed = false;
 
     return {
-      write: async (value: FileSystemWriteChunkType) => {
+      write: async (value: unknown) => {
         if (closed || !(value instanceof Uint8Array)) {
           throw new Error('Unsupported fake write');
         }
@@ -43,7 +43,7 @@ class FakeDirectory {
 
   async getFileHandle(
     name: string,
-    options?: FileSystemGetFileOptions,
+    options?: { create?: boolean },
   ): Promise<FileSystemFileHandle> {
     const existing = this.files.get(name);
     if (existing) {
@@ -216,10 +216,48 @@ describe('OpfsRevisionStore', () => {
     await expect(store.open('pending')).rejects.toMatchObject({
       code: 'REVISION_NOT_FOUND',
     });
+    await expect(
+      store.commit({
+        revisionId: 'pending',
+        source: new MemorySource({
+          id: 'second',
+          bytes: Uint8Array.from([9]),
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: 'REVISION_EXISTS',
+    });
 
     releaseRead?.();
     await pending;
     expect(await store.has('pending')).toBe(true);
+  });
+
+  it('preserves cancellation and cleans the unpublished file', async () => {
+    const directory = new FakeDirectory();
+    const store = new OpfsRevisionStore({
+      id: 'working-opfs',
+      directory: directory.asHandle(),
+      chunkBytes: 2,
+    });
+    const source = new MemorySource({
+      id: 'input',
+      bytes: Uint8Array.from([1, 2, 3]),
+    });
+    const controller = new AbortController();
+    controller.abort('cancel fixture');
+
+    await expect(
+      store.commit({
+        revisionId: 'cancelled',
+        source,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({
+      code: 'OPERATION_CANCELLED',
+    });
+    expect(await store.has('cancelled')).toBe(false);
+    expect(directory.files.size).toBe(0);
   });
 
   it('removes revisions and clears only revision files', async () => {
