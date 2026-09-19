@@ -1,8 +1,8 @@
 # Working Revision Store
 
-Status: **Phase 8C.2 — primary admission and session revision lifecycle**.
+Status: **Phase 8C.3 — revision-first canonical mutation commits**.
 
-Tracking: #218, #221, #223.
+Tracking: #218, #221, #223, #225.
 
 ## Purpose
 
@@ -120,36 +120,49 @@ releases the process-local store registration but does not delete persistent
 OPFS content-addressed revisions; later recovery/history retention policy owns
 physical deletion.
 
-## Deliberately unchanged in 8C.2
+## Phase 8C.3 canonical mutation publication
 
-The product still retains compatibility session bytes:
+Canonical `DocumentTransaction` commits are now revision-first for
+revision-aware sessions:
 
-- `DocumentSession.originalBytes`
-- `DocumentSession.workingBytes`
+1. validate mutation page-count metadata and hash the completed output
+2. resolve the session's registered `WorkingRevisionStore`
+3. publish/reuse revision id == output SHA-256 documentKey
+4. persist dependent annotations under that documentKey
+5. switch session bytes, documentKey, PageGraph, annotations, Writer and OCR
+6. append history containing the matching before/after activeRevisionIds
+
+Revision publication uses `BorrowedBytesSource`: it borrows the already-owned
+mutation output instead of cloning the entire PDF before OPFS writes, while
+each range read remains caller-owned. The caller must keep the borrowed backing
+bytes immutable for the publication lifetime.
+
+If publication fails or is cancelled, annotation persistence and in-memory
+state commit do not run. Revision-aware sessions do not silently fall back to
+byte-only state. Compatibility/headless sessions with no `revisionStoreId`
+keep the legacy byte-only transaction path.
+
+Undo/redo history still stores full PDF byte snapshots, but now carries the
+content-addressed active revision id with each matching PDF state. Restoring a
+history state therefore restores the durable revision pointer when available.
+
+The legacy `originalBytes` field still follows old Save-baseline semantics;
+`originalRevisionId` remains the immutable recovery identity and is the
+authoritative Phase 8 direction.
+
+A small peak-memory hardening accompanies this slice: `FileAdapter` no longer
+clones a full-span `ArrayBuffer` merely to hash an owned `Uint8Array`.
+Subarrays and non-ArrayBuffer backing storage still copy safely.
+
+## Deliberately unchanged after 8C.3
+
+- `DocumentSession.originalBytes` / `workingBytes` remain compatibility bytes
+- `PdfMutationEngine` still opens from a materialized `Uint8Array`
+- Save/Save As composition is not yet revision-first
 - PDF.js still receives materialized bytes
-- `PdfMutationEngine` still opens from bytes
-- current canonical mutation transactions do not yet publish their output into
-  the WorkingRevisionStore, so mutation byte replacement clears
-  `activeRevisionId`
 - history still retains whole-PDF snapshots
 - the 100 MB primary-open policy remains
 
-The legacy `originalBytes` field still follows old Save-baseline semantics;
-`originalRevisionId` is the new immutable recovery identity and is the
-authoritative direction for Phase 8.
-
-## Phase 8C.3
-
-The next slice should make canonical document mutation commits revision-first:
-
-1. hash the completed mutation bytes
-2. publish/reuse that content-addressed revision
-3. only then switch session bytes/documentKey/PageGraph/dependent state
-4. set `activeRevisionId` to the published hash
-5. preserve `originalRevisionId`
-6. leave compatibility/headless paths explicitly byte-only where no registered
-   session revision store exists
-
-Phase 8D can then let PDF.js consume revision `DocumentSource` ranges, and
+Phase 8D can now let PDF.js consume revision `DocumentSource` ranges, and
 Phase 8E can move history from full-byte snapshots to revision references,
 journals and bounded checkpoints.
