@@ -893,6 +893,8 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
   },
 ];
 
+const LEGACY_HEADER_FOOTER_OP = 'header_footer_text';
+
 const RUNNER_UNSAFE_OPS = new Set<string>([
   'merge_files',
   'insert_pdf',
@@ -906,7 +908,11 @@ export function isRunnerSafeBuiltInRecipe(
 }
 
 export function getBuiltInMacroRecipes(): MacroRecipeCatalogItem[] {
-  return BUILT_IN_RECIPES.map((item) => cloneCatalogItem(item));
+  return BUILT_IN_RECIPES
+    .filter(
+      (item) => !item.requiredOps.includes(LEGACY_HEADER_FOOTER_OP),
+    )
+    .map((item) => cloneCatalogItem(item));
 }
 
 export function getRecommendedMacroRecipes(): MacroRecipeCatalogItem[] {
