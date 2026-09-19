@@ -111,6 +111,7 @@ requireContains(selectLayer, selectLayerPath, [
   'extractSelectBoxCopyFromDocument',
   'renderSelectBoxImageSnapshotFromDocument',
   'operationAbortControllerRef',
+  'selectionOperationIdRef',
   'await lease?.release()',
   'Select Box Copy renderer session changed or layer deactivated',
   'activeWriterTool,',
@@ -196,6 +197,7 @@ requireContains(selectLayerTest, selectLayerTestPath, [
   'aborts in-flight Select Box renderer work when the active revision changes',
   'aborts in-flight Select Box renderer work when the tool is deactivated',
   'aborts in-flight Select Box renderer work when viewport geometry changes',
+  'keeps the busy indicator for the newest selection after superseding an older one',
 ]);
 
 const packagePath = 'package.json';
