@@ -3,12 +3,12 @@
   "id": "ODR-0001",
   "decision": {
     "authority": "OWNER",
-    "kind": "INTENT_MUTATION",
-    "statement": "Continue PDF Hub engineering from Phase 8D.3 and follow the revised engineering-pr-delivery-v2.5 protocol from reallaksh19/Common.",
+    "kind": "NO_CHANGE_CONFIRMATION",
+    "statement": "Continue the existing PDF Hub Phase 8D.3 product roadmap, while using the revised engineering-pr-delivery-v2.5 protocol from reallaksh19/Common for delivery control.",
     "source": "Owner instruction received 2026-09-19T10:33:01Z and captured durably by this ODR."
   },
   "effects": {
-    "requirement_disposition": "NOT_APPLICABLE",
+    "requirement_disposition": "SATISFIED",
     "grants_material_write_authority": false,
     "pending_items": []
   },
@@ -36,29 +36,10 @@
       "ISSUE-230"
     ]
   },
-  "change_intake": {
-    "previous_concept": "Engineering execution was coordinated primarily through branch state, issue prose and live conversation, without a V2.5 relay/write gate in Pdf-Hub.",
-    "requested_concept": "Engineering delivery must use repository-owned V2.5 roadmap, EP, takeover, quality, checkpoint, projection and Owner-publication controls.",
-    "retained_behavior": [
-      "Phase 8D.3 remains the next product slice.",
-      "Issue #230 scope and issue #227 renderer/source design remain authoritative engineering inputs.",
-      "Breadth freeze and current roadmap phase ordering remain in force.",
-      "Issue #183 remains an infrastructure evidence gap, not proof of a code failure."
-    ],
-    "invalidated_behavior": [
-      "Conversation or branch existence alone is no longer material write authority.",
-      "Future PR merge authorization must be captured against an exact PR head under V2.5 delivery controls."
-    ],
-    "new_scope": [
-      "Maintain agents/relay as deterministic engineering custody.",
-      "Gate material writes on candidate DISC/TC and live MATERIAL_WRITE_READY semantics.",
-      "Close each PR task with Issue-to-EP correlation, delivery observation, QRV/checkpoint and Owner progress publication."
-    ]
-  },
   "required_reconciliation": [
-    "Establish V2.5 relay root and recalculated progress basis.",
-    "Create semantic EP for current frontier WP-8D3.",
-    "Certify the execution candidate before product writes."
+    "Use the V2.5 relay root and recalculated progress basis for current execution.",
+    "Keep EP-8D3-001 on the existing WP-8D3 frontier.",
+    "Require candidate certification and the live material-write gate before product writes."
   ],
   "status": "APPLIED"
 }
