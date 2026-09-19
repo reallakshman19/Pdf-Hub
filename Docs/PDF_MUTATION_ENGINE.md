@@ -214,18 +214,20 @@ Admission semantics are preserved:
 
 ### Parse scope for donor commands
 
-The active PDF revision is loaded once when its mutation session opens.
-Each donor PDF is parsed once by the pdf-lib mutation adapter when that donor
-is consumed for insert/replace/merge.
+Inside the **mutation adapter**, the active PDF revision is loaded once when
+its session opens and each consumed donor is loaded once for page copying.
 
 A focused engine test performs insert + merge + replace in one active session
-and asserts four total `PDFDocument.load()` calls: one active-document parse
-plus three donor parses. The active revision is never reparsed between those
-mutations.
+and asserts four adapter-level `PDFDocument.load()` calls: one active-document
+parse plus three donor parses. The active revision is never reparsed between
+those mutations.
 
-Donor PageGraph inspection still uses the separate PDF.js admission/PageGraph
-path. Phase 7C does not attempt to unify rendering metadata and mutation-engine
-donor parsing.
+This is not the total donor-pipeline parse count. Before command execution,
+the current admission boundary still validates donor page count through
+`PdfEditAdapter.countPages(...)`, and donor PageGraph construction later uses
+PDF.js. Phase 7C deliberately leaves those validation/rendering parses in
+place; it only removes reparsing of the active PDF inside the donor mutation
+helper itself.
 
 The transaction prepare caveat from 7B remains: `commitDocumentMutation(...)`
 still reparses before/after revision bytes for page-count validation. That is
