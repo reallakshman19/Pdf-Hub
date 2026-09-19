@@ -128,6 +128,11 @@ export async function executeHeadlessPdfCommand(
       }
       return mutation.bytes;
     }
+
+    default:
+      throw new Error(
+        `Unsupported headless PDF command: ${command.type}`,
+      );
   }
 }
 
