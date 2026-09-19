@@ -1,6 +1,6 @@
 # DocumentSource Architecture
 
-Status: **Phase 8D.1 — PDF.js range-transport substrate added; workspace migration pending**.
+Status: **Phase 8D.2 — primary workspace revision/range-backed rendering**.
 
 Tracking issue: #218.
 
@@ -178,14 +178,39 @@ The source path:
 - exposes range request/byte diagnostics without retaining buffers; and
 - keeps the existing byte renderer API for compatibility/standalone workflows.
 
-Phase 8D.1 does **not** yet change `DocumentWorkspace`. Workspace, Search,
-Bookmarks and Select Box Copy are migrated in the following 8D slices. This
-distinction prevents the architecture docs from claiming range-backed product
-behavior before production callers actually use the new path.
+## Phase 8D.2 active workspace migration
 
-Phase 8D.2 will resolve `revisionStoreId + activeRevisionId` to the immutable
-active revision source and migrate the primary workspace while removing its
-eager all-page text indexing.
+The primary `DocumentWorkspace` now resolves renderer input through a
+session-side bridge:
+
+```text
+revisionStoreId + activeRevisionId
+        |
+        v
+WorkingRevisionStore.open(activeRevisionId)
+        |
+        v
+DocumentSource
+        |
+        v
+PdfRendererAdapter.acquireDocumentSource(...)
+```
+
+Revision-aware sessions never silently fall back to `workingBytes`. Missing,
+stale or unavailable revision metadata fails explicitly. Legacy sessions with
+all revision metadata absent retain the byte renderer path.
+
+Workspace lease acquisition is abort-aware and reacts to revision identity
+changes, so mutation A -> B and history restoration B -> A reacquire the
+matching revision-keyed source entry.
+
+The previous workspace-open loop that extracted text from every page into
+`SearchIndexer` has been removed. Opening a document no longer deliberately
+walks `1..numPages` for search indexing. Phase 8F owns visible/nearby-first
+incremental indexing and background index persistence.
+
+Search, Bookmarks and Select Box Copy still have independent active-session
+byte reacquisition paths until Phase 8D.3.
 
 Phase 8E will replace default whole-byte history retention with a journal and
 bounded checkpoints.
