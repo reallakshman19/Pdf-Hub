@@ -1,7 +1,10 @@
 import { documentBus } from '../events/bus';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { pdfLibMutationEngine } from '@/adapters/pdf-mutation/PdfLibMutationEngine';
-import type { PdfMutationSession } from '@/core/pdf-mutation/types';
+import type {
+  PdfMutationCommitResult,
+  PdfMutationSession,
+} from '@/core/pdf-mutation/types';
 import {
   consumeAdmittedDonorPdfs,
   inspectAdmittedDonorPdfs,
@@ -56,6 +59,7 @@ import {
 import {
   commitDocumentMutation,
   isDocumentMutationTransactionError,
+  type DocumentMutationRevisionMetadata,
   type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
 import { planPageLabelCommandMutation } from './pageLabelCommand';
@@ -321,7 +325,7 @@ async function commitStructuralMutationSession(
   session: PdfMutationSession,
   beforeGraph: PageGraph<PageNode>,
   afterGraph: PageGraph<PageNode>,
-): Promise<Uint8Array> {
+): Promise<PdfMutationCommitResult> {
   applyStructuralPageLabelsToMutationSession(
     beforeGraph,
     afterGraph,
@@ -332,7 +336,7 @@ async function commitStructuralMutationSession(
     committed.pageCount,
     afterGraph,
   );
-  return committed.bytes;
+  return committed;
 }
 
 async function buildImportedDonorNodes(
@@ -363,6 +367,11 @@ async function buildImportedDonorNodes(
   });
 }
 
+interface ApplyMutationOptions {
+  ocrPagePolicy?: OcrPageMutationPolicy;
+  revisionMetadata?: DocumentMutationRevisionMetadata;
+}
+
 async function applyMutation(
   command: PdfCommand,
   beforeBytes: Uint8Array,
@@ -372,7 +381,7 @@ async function applyMutation(
   nextSelectedPages?: number[],
   nextCurrentPage?: number,
   nextPageGraph?: PageGraph<PageNode> | null,
-  ocrPagePolicy?: OcrPageMutationPolicy,
+  options?: ApplyMutationOptions,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return commitDocumentMutation({
     command,
@@ -384,8 +393,40 @@ async function applyMutation(
     nextSelectedPages,
     nextCurrentPage,
     nextPageGraph,
-    ocrPagePolicy,
+    ocrPagePolicy: options?.ocrPagePolicy,
+    revisionMetadata: options?.revisionMetadata,
   });
+}
+
+async function applyCommittedSessionMutation(
+  command: PdfCommand,
+  beforeBytes: Uint8Array,
+  beforePageCount: number,
+  committed: PdfMutationCommitResult,
+  nextAnnotations?: PdfAnnotation[],
+  nextWriterElements?: WriterElementV2[],
+  nextSelectedPages?: number[],
+  nextCurrentPage?: number,
+  nextPageGraph?: PageGraph<PageNode> | null,
+  options?: Omit<ApplyMutationOptions, 'revisionMetadata'>,
+): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
+  return applyMutation(
+    command,
+    beforeBytes,
+    committed.bytes,
+    nextAnnotations,
+    nextWriterElements,
+    nextSelectedPages,
+    nextCurrentPage,
+    nextPageGraph,
+    {
+      ...options,
+      revisionMetadata: {
+        beforePageCount,
+        afterPageCount: committed.pageCount,
+      },
+    },
+  );
 }
 
 async function executeRotatePagesCommand(
@@ -1075,7 +1116,11 @@ export async function dispatchPdfCommand(
           undefined,
           nextPageGraph,
           targetPageId
-            ? { invalidatePageIds: [targetPageId] }
+            ? {
+                ocrPagePolicy: {
+                  invalidatePageIds: [targetPageId],
+                },
+              }
             : undefined,
         );
         return commandSuccess(command, true, 'Page replaced', result.nextBytes, result.nextPageCount);
@@ -1495,8 +1540,10 @@ export async function dispatchPdfCommand(
           undefined,
           rebuiltPageGraph,
           {
-            rebindByPageIndex: true,
-            clearIfPageCountChanged: true,
+            ocrPagePolicy: {
+              rebindByPageIndex: true,
+              clearIfPageCountChanged: true,
+            },
           },
         );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });
