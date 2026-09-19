@@ -220,17 +220,29 @@ const toolbarOrganizePath = 'src/components/toolbar/ToolbarOrganize.tsx';
 const toolbarOrganize = read(toolbarOrganizePath);
 requireContains(toolbarOrganize, toolbarOrganizePath, [
   'HeaderFooterDialog',
+  'handleHeaderFooterApply',
   "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
   'aria-label="Header & Footer"',
 ]);
-forbidContains(
-  toolbarOrganize.slice(
-    toolbarOrganize.indexOf('handleHeaderFooterApply'),
-    toolbarOrganize.indexOf('const handleMerge'),
-  ),
-  toolbarOrganizePath,
-  ['ADD_HEADER_FOOTER_TEXT', 'PdfEditAdapter'],
-);
+const headerFooterHandlerStart =
+  toolbarOrganize.indexOf('const handleHeaderFooterApply');
+const headerFooterHandlerEnd =
+  toolbarOrganize.indexOf('const handleMerge', headerFooterHandlerStart);
+if (
+  headerFooterHandlerStart < 0
+  || headerFooterHandlerEnd <= headerFooterHandlerStart
+) {
+  fail('Toolbar Organize canonical header/footer handler boundary is missing');
+} else {
+  forbidContains(
+    toolbarOrganize.slice(
+      headerFooterHandlerStart,
+      headerFooterHandlerEnd,
+    ),
+    toolbarOrganizePath,
+    ['ADD_HEADER_FOOTER_TEXT', 'PdfEditAdapter'],
+  );
+}
 
 const pageTypesPath = 'src/core/pages/types.ts';
 const pageTypes = read(pageTypesPath);
