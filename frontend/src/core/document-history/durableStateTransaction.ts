@@ -64,6 +64,7 @@ export async function commitDurableStateTransaction(
       });
 
     assertSessionUnchanged(sessionSnapshot);
+    assertHistoryUnchanged(historyBefore);
 
     const historySnapshot = {
       undoStack: [...historyBefore.undoStack],
@@ -105,9 +106,16 @@ export async function commitDurableStateTransaction(
       useHistoryStore.setState(historySnapshot);
 
       if (rollbackError) {
-        throw new AggregateError(
-          [error, rollbackError],
-          'State transaction failed and rollback also failed.',
+        const primaryReason =
+          error instanceof Error
+            ? error.message
+            : String(error);
+        const rollbackReason =
+          rollbackError instanceof Error
+            ? rollbackError.message
+            : String(rollbackError);
+        throw new Error(
+          `State transaction failed (${primaryReason}) and rollback also failed (${rollbackReason}).`,
         );
       }
 
@@ -133,5 +141,21 @@ function assertSessionUnchanged(
         `State transaction session changed during durable preparation: ${key}.`,
       );
     }
+  }
+}
+
+
+function assertHistoryUnchanged(
+  snapshot: ReturnType<typeof useHistoryStore.getState>,
+): void {
+  const current = useHistoryStore.getState();
+
+  if (
+    current.undoStack !== snapshot.undoStack
+    || current.redoStack !== snapshot.redoStack
+  ) {
+    throw new Error(
+      'State transaction history changed during durable preparation.',
+    );
   }
 }
