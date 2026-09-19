@@ -204,14 +204,6 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       break;
     }
 
-    case 'ADD_HEADER_FOOTER_TEXT':
-      validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
-      requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
-      if (!Number.isFinite(command.payload.options.fontSize) || command.payload.options.fontSize <= 0) {
-        errors.push('payload.options.fontSize must be positive.');
-      }
-      break;
-
     case 'DRAW_TEXT_ON_PAGES':
       validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
       requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
