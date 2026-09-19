@@ -6,10 +6,17 @@ import {
   releaseDocumentSource,
   resolveDocumentSource,
 } from '@/core/document-source/registry';
+import {
+  releaseWorkingRevisionStore,
+  resolveWorkingRevisionStore,
+} from '@/core/revision-store/registry';
 
 export interface OpenDocumentPayload {
   documentKey: string;
   sourceId?: string | null;
+  revisionStoreId?: string | null;
+  originalRevisionId?: string | null;
+  activeRevisionId?: string | null;
   fileName: string;
   bytes: Uint8Array;
   pageCount: number;
@@ -21,6 +28,8 @@ export interface CommitWorkingCopyPayload {
   bytes: Uint8Array;
   pageCount: number;
   documentKey?: string | null;
+  /** Revision already published before this state commit. */
+  activeRevisionId?: string | null;
 }
 
 export interface SessionActions {
@@ -120,6 +129,44 @@ function pageNumbersForIds(
   });
 }
 
+function assertOpenRevisionMetadata(input: {
+  documentKey: string;
+  revisionStoreId: string | null;
+  originalRevisionId: string | null;
+  activeRevisionId: string | null;
+}): void {
+  const values = [
+    input.revisionStoreId,
+    input.originalRevisionId,
+    input.activeRevisionId,
+  ];
+  const presentCount = values.filter(
+    (value) => value !== null,
+  ).length;
+
+  if (presentCount === 0) return;
+  if (presentCount !== values.length) {
+    throw new Error(
+      'OpenDocument revision metadata must provide revisionStoreId, originalRevisionId and activeRevisionId together.',
+    );
+  }
+  if (
+    input.activeRevisionId !== input.documentKey
+  ) {
+    throw new Error(
+      `OpenDocument activeRevisionId ${input.activeRevisionId} must match documentKey ${input.documentKey}.`,
+    );
+  }
+  if (
+    input.revisionStoreId
+    && !resolveWorkingRevisionStore(input.revisionStoreId)
+  ) {
+    throw new Error(
+      `OpenDocument revisionStoreId ${input.revisionStoreId} is not registered.`,
+    );
+  }
+}
+
 function resolveNavigationForGraph(
   state: Pick<DocumentSession, 'pageGraph' | 'selectedPageIds' | 'selectedPages' | 'viewState'>,
   pageGraph: PageGraph<PageNode>,
@@ -158,6 +205,9 @@ function resolveNavigationForGraph(
 export const useSessionStore = create<DocumentSession & SessionActions>((set, get) => ({
   documentKey: null,
   sourceId: null,
+  revisionStoreId: null,
+  originalRevisionId: null,
+  activeRevisionId: null,
   fileName: null,
   originalBytes: null,
   workingBytes: null,
@@ -188,6 +238,10 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
   setDocumentKey: (documentKey) =>
     set((state) => ({
       documentKey,
+      activeRevisionId:
+        state.activeRevisionId === documentKey
+          ? state.activeRevisionId
+          : null,
       pageGraph:
         state.pageGraph && documentKey
           ? rekeyPageGraph(state.pageGraph, documentKey)
@@ -219,6 +273,9 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
   openDocument: ({
     documentKey,
     sourceId = null,
+    revisionStoreId = null,
+    originalRevisionId = null,
+    activeRevisionId = null,
     fileName,
     bytes,
     pageCount,
@@ -235,6 +292,12 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
         `OpenDocument sourceId ${sourceId} is not registered.`,
       );
     }
+    assertOpenRevisionMetadata({
+      documentKey,
+      revisionStoreId,
+      originalRevisionId,
+      activeRevisionId,
+    });
 
     const previousSourceId = get().sourceId;
     if (
@@ -244,10 +307,24 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       releaseDocumentSource(previousSourceId);
     }
 
+    const previousRevisionStoreId =
+      get().revisionStoreId;
+    if (
+      previousRevisionStoreId
+      && previousRevisionStoreId !== revisionStoreId
+    ) {
+      releaseWorkingRevisionStore(
+        previousRevisionStoreId,
+      );
+    }
+
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
     return set({
       documentKey,
       sourceId,
+      revisionStoreId,
+      originalRevisionId,
+      activeRevisionId,
       fileName,
       originalBytes: bytes,
       workingBytes: bytes,
@@ -282,6 +359,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
     return set((state) => ({
       workingBytes: bytes,
+      activeRevisionId: null,
       pageCount,
       pageGraph: null,
       isDirty: true,
@@ -299,11 +377,39 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     }));
   },
 
-  commitWorkingCopy: ({ bytes, pageCount, documentKey }) => {
+  commitWorkingCopy: ({
+    bytes,
+    pageCount,
+    documentKey,
+    activeRevisionId,
+  }) => {
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
     return set((state) => {
       const nextDocumentKey =
         documentKey === undefined ? state.documentKey : documentKey;
+      const nextActiveRevisionId =
+        activeRevisionId !== undefined
+          ? activeRevisionId
+          : state.activeRevisionId === nextDocumentKey
+            ? state.activeRevisionId
+            : null;
+      if (
+        nextActiveRevisionId
+        && nextActiveRevisionId !== nextDocumentKey
+      ) {
+        throw new Error(
+          `activeRevisionId ${nextActiveRevisionId} must match documentKey ${nextDocumentKey}.`,
+        );
+      }
+      if (
+        nextActiveRevisionId
+        && !state.revisionStoreId
+      ) {
+        throw new Error(
+          'Cannot commit activeRevisionId without a registered revisionStoreId.',
+        );
+      }
+
       const nextPageGraph =
         state.pageGraph && state.pageGraph.pages.length === pageCount
           ? nextDocumentKey
@@ -322,6 +428,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
 
       return {
         documentKey: nextDocumentKey,
+        activeRevisionId: nextActiveRevisionId,
         originalBytes: bytes,
         workingBytes: bytes,
         pageCount,
@@ -476,9 +583,15 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
 
   clearDocument: () => {
     releaseDocumentSource(get().sourceId);
+    releaseWorkingRevisionStore(
+      get().revisionStoreId,
+    );
     return set({
       documentKey: null,
       sourceId: null,
+      revisionStoreId: null,
+      originalRevisionId: null,
+      activeRevisionId: null,
       fileName: null,
       originalBytes: null,
       workingBytes: null,
