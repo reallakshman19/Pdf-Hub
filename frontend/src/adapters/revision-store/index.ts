@@ -7,3 +7,9 @@ export {
   type CreateOpfsRevisionStoreInput,
   type OpfsRevisionStoreInput,
 } from './OpfsRevisionStore';
+export {
+  PRIMARY_WORKING_REVISION_STORE_ID,
+  getBrowserWorkingRevisionStore,
+  type BrowserWorkingRevisionStoreOptions,
+  type BrowserWorkingRevisionStoreSelection,
+} from './browserWorkingRevisionStore';
