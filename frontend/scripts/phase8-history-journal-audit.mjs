@@ -130,6 +130,7 @@ requireContains(sessionStore, sessionStorePath, [
   'historyJournalStoreId: null',
   'historyJournalId: null',
   'historyJournalPersistent: false',
+  'does not match store capability',
 ]);
 
 const admissionPath = 'src/core/admission/openPdf.ts';
