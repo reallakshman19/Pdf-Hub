@@ -60,6 +60,7 @@ import {
 } from './transaction/documentTransaction';
 import { planPageLabelCommandMutation } from './pageLabelCommand';
 import { executeHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
+import { resolveLegacyPageTextTokens } from '@/core/text/legacyPageTextTokens';
 import type {
   CommandArtifact,
   CommandErrorCode,
@@ -540,6 +541,8 @@ function usesPersistentMutationSession(
     || type === 'MERGE_PDF'
     || type === 'SPLIT_PAGES'
     || type === 'SET_PAGE_LABELS'
+    || type === 'DRAW_TEXT_ON_PAGES'
+    || type === 'DRAW_REDACTION_BOX'
   );
 }
 
@@ -1315,45 +1318,112 @@ export async function dispatchPdfCommand(
 
       case 'DRAW_TEXT_ON_PAGES': {
         const { options } = command.payload;
-        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(
+          command.payload.pageIndices,
+          pageCount,
+        );
         if (pageIndices.length === 0) {
-          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for drawing text.');
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'No pages selected for drawing text.',
+          );
         }
-        const nextBytes = await PdfEditAdapter.drawTextOnPages(context.workingBytes, {
-          pages: pageIndices,
-          text: options.text,
-          x: options.x,
-          y: options.y,
-          fontSize: options.fontSize,
-          color: options.color ?? '#111827',
-          opacity: options.opacity ?? 0.95,
-          align: options.align ?? 'left',
-          rotation: options.rotation,
-          fileName: context.fileName,
-          now: new Date(command.createdAt),
-          enablePageNumberToken: options.pageNumberToken ?? true,
-          enableFileNameToken: options.fileNameToken ?? false,
-          enableDateToken: options.dateToken ?? false,
-        });
-        const result = await applyMutation(command, context.workingBytes, nextBytes);
-        return commandSuccess(command, true, 'Text applied to pages', result.nextBytes, result.nextPageCount);
+
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        const now = new Date(command.createdAt);
+        await mutationSession.drawText(
+          pageIndices.map((pageIndex) => ({
+            pageIndex,
+            text: resolveLegacyPageTextTokens(
+              options.text,
+              {
+                page: pageIndex + 1,
+                pages: pageCount,
+                file: context.fileName,
+                date: now.toLocaleDateString(),
+                enablePageNumberToken:
+                  options.pageNumberToken ?? true,
+                enableFileNameToken:
+                  options.fileNameToken ?? false,
+                enableDateToken:
+                  options.dateToken ?? false,
+              },
+            ),
+            xPt: options.x,
+            yPt: options.y,
+            fontSizePt: options.fontSize,
+            color: options.color ?? '#111827',
+            opacity: options.opacity ?? 0.95,
+            align: options.align ?? 'left',
+            rotationDegrees: options.rotation,
+          })),
+        );
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Text mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          committed.bytes,
+        );
+        return commandSuccess(
+          command,
+          true,
+          'Text applied to pages',
+          result.nextBytes,
+          result.nextPageCount,
+        );
       }
 
       case 'DRAW_REDACTION_BOX': {
         const { options } = command.payload;
-        const pageIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
+        const pageIndices = sanitizePageIndices(
+          command.payload.pageIndices,
+          pageCount,
+        );
         if (pageIndices.length === 0) {
-          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for visual masking.');
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'No pages selected for visual masking.',
+          );
         }
-        const nextBytes = await PdfEditAdapter.drawRedactionBoxes(context.workingBytes, {
-          pages: pageIndices,
-          x: options.x,
-          y: options.y,
-          width: options.width,
-          height: options.height,
-          fillColor: options.fillColor ?? '#ffffff',
-        });
-        const result = await applyMutation(command, context.workingBytes, nextBytes);
+
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        mutationSession.drawVisualMasks(
+          pageIndices.map((pageIndex) => ({
+            pageIndex,
+            xPt: options.x,
+            yFromTopPt: options.y,
+            widthPt: options.width,
+            heightPt: options.height,
+            fillColor:
+              options.fillColor ?? '#ffffff',
+          })),
+        );
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Visual-mask mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          committed.bytes,
+        );
         return commandSuccess(
           command,
           true,
