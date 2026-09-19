@@ -329,17 +329,32 @@ Image replacement removes its newly admitted asset and restores its prior dirty
 flag when durable Writer dispatch rejects or produces no change. A production
 source allowlist limits durable dispatch callers to this tranche.
 
+Phase 8E.5B3C1.1 closes a resource-ordering gap discovered before
+image-bearing UI migration. Writer history checkpoints intentionally contain
+asset ids rather than inline image bytes, while Writer asset persistence had
+previously depended on a 400 ms React autosave. The Writer autosave hook and
+history path now resolve one shared runtime persistence adapter. During durable
+Writer dispatch, asset ids newly referenced by the command's after-state are
+resolved to asset records and persisted before the lazy state-transaction
+factory returns journal input. Missing asset records fail closed before Writer
+state is applied. Saving prerequisite assets does not mark the Writer document
+persisted. If the later journal save fails, an unreferenced persisted asset may
+remain; that is safe and is future garbage-collection work. A journal
+checkpoint is therefore never intentionally committed ahead of a newly
+referenced asset record.
+
 The existing synchronous `dispatchWriterCommand(...)` remains available for
 non-mutating selection, blank/legacy sessions, direct UI mutation callbacks and
 the remaining synchronous Writer helper APIs. Multi-step legacy consolidation
 also remains synchronous because hiding source objects and adding the
 consolidated rich box must be made atomic before migration. Phase 8E.5B3C2B
-owns direct UI mutation callbacks; Phase 8E.5B3C2C owns synchronous helper
-contracts and remaining bridges. Synchronous PDF-overlay mutation dispatch must
-not be prohibited until those migrations are complete. No command replay or
-revision deletion is enabled yet. Reference-aware revision GC and bounded
-recovery checkpoints remain follow-on work. Phase 8F owns incremental search
-indexing.
+owns direct UI mutation callbacks, with high-frequency drag/input surfaces
+requiring coalescing rather than one checkpoint per pointer/input event.
+Phase 8E.5B3C2C owns synchronous helper contracts and remaining bridges.
+Synchronous PDF-overlay mutation dispatch must not be prohibited until those
+migrations are complete. No command replay or revision deletion is enabled yet.
+Reference-aware revision GC and bounded recovery checkpoints remain follow-on
+work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

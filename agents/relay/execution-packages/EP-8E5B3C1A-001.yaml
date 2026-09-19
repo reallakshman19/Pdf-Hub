@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C1A-001",
+    "branch": "phase8/history-writer-asset-durability",
+    "base_ref": "4bceaaff0cf7f52df485fa20d1f775eb64b21c50",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2A",
+    "previous_join": "4bceaaff0cf7f52df485fa20d1f775eb64b21c50",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-asset-durability",
+    "material_ref": "4bceaaff0cf7f52df485fa20d1f775eb64b21c50",
+    "base_branch": "main",
+    "base_observed_ref": "4bceaaff0cf7f52df485fa20d1f775eb64b21c50",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 257,
+  "outcome": {
+    "engineering": [
+      "Writer autosave and durable history resolve one shared runtime persistence adapter.",
+      "Newly referenced Writer assets are persisted before a state transaction can prepare or save its journal checkpoint.",
+      "Missing asset records fail before Writer state/history application.",
+      "Asset-only prerequisite persistence does not mark the whole Writer document persisted."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Prevent crash recovery from producing Writer checkpoints with dangling image asset references.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B3C2A async Writer helper migration and before image-bearing direct UI migration.",
+    "why_this_work_exists": "Writer state checkpoints contain asset ids while Writer assets were previously persisted only by a delayed autosave.",
+    "deliberate_non_goals": [
+      "No asset garbage collection.",
+      "No whole Writer document checkpointing.",
+      "No direct UI caller migration.",
+      "No recovery UI."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Autosave and history durability use one shared Writer persistence runtime adapter.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "New asset references are persisted before journal transaction input is returned and before journal save.",
+      "weight": 35,
+      "verification": ["TEST-02", "TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Missing referenced asset records fail before Writer/history state is applied.",
+      "weight": 25,
+      "verification": ["TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Prerequisite asset persistence does not mark the Writer document persisted or embed asset bytes in history.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static audit verifies useWriterPersistence and history durability resolve the shared runtime adapter.",
+      "proves": ["AC-01"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Static audit verifies asset-only persistence and source ordering inside the lazy Writer transaction factory.",
+      "proves": ["AC-02", "AC-04"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Writer durable-history tests record asset-save before journal-save ordering and fail closed on a missing asset record.",
+      "proves": ["AC-02", "AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c1a on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2B1 migrate one-shot direct Writer UI mutations"
+  }
+}
