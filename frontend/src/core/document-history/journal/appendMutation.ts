@@ -11,6 +11,7 @@ import type {
 import {
   assertHistoryJournalManifest,
   cloneHistoryJournalManifest,
+  resolveHistoryJournalActiveTransactionId,
   type HistoryJournalManifest,
   type HistoryJournalRevisionRef,
 } from './types';
@@ -33,9 +34,13 @@ export interface PreparedHistoryJournalMutation {
 
 function truncateAbandonedTail(
   manifest: HistoryJournalManifest,
-  activeRevisionId: string,
 ): void {
-  if (activeRevisionId === manifest.originalRevisionId) {
+  const activeTransactionId =
+    resolveHistoryJournalActiveTransactionId(
+      manifest,
+    );
+
+  if (activeTransactionId === null) {
     manifest.entries = [];
     manifest.checkpoints = manifest.checkpoints.filter(
       (checkpoint) =>
@@ -44,24 +49,16 @@ function truncateAbandonedTail(
     return;
   }
 
-  let activeEntryIndex = -1;
-  for (
-    let index = manifest.entries.length - 1;
-    index >= 0;
-    index -= 1
-  ) {
-    if (
-      manifest.entries[index]?.afterRevision.revisionId
-      === activeRevisionId
-    ) {
-      activeEntryIndex = index;
-      break;
-    }
-  }
+  const activeEntryIndex =
+    manifest.entries.findIndex(
+      (entry) =>
+        entry.transactionId
+        === activeTransactionId,
+    );
 
   if (activeEntryIndex < 0) {
     throw new Error(
-      `History journal cannot locate active revision ${activeRevisionId} in its retained transaction chain.`,
+      `History journal cannot locate active transaction ${activeTransactionId} in its retained transaction chain.`,
     );
   }
 
@@ -167,10 +164,7 @@ export async function prepareHistoryJournalMutation(
     revisionId: input.afterRevisionId,
   };
   const manifest = cloneHistoryJournalManifest(current);
-  truncateAbandonedTail(
-    manifest,
-    input.beforeRevisionId,
-  );
+  truncateAbandonedTail(manifest);
 
   manifest.entries.push({
     entryId: `${input.journalId}:entry:${input.transactionId}`,
@@ -207,6 +201,8 @@ export async function prepareHistoryJournalMutation(
 
   manifest.activeRevisionId =
     input.afterRevisionId;
+  manifest.activeTransactionId =
+    input.transactionId;
   manifest.updatedAt = createdAt;
   assertHistoryJournalManifest(manifest);
 

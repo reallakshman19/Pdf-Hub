@@ -49,6 +49,8 @@ requireContains(append, appendPath, [
   "=== 'CHECKPOINT_REQUIRED'",
   "kind: 'BARRIER'",
   'manifest.activeRevisionId =',
+  'manifest.activeTransactionId =',
+  'resolveHistoryJournalActiveTransactionId',
   'truncateAbandonedTail',
   'manifest.entries = []',
   'activeEntryIndex',
@@ -65,8 +67,11 @@ const navigation = read(navigationPath);
 requireContains(navigation, navigationPath, [
   'prepareHistoryJournalNavigation',
   'current.activeRevisionId !== input.currentRevisionId',
-  'knownRevisionIds',
+  'resolveHistoryJournalActiveTransactionId',
+  'candidateIndex',
+  'previousTransactionId',
   'manifest.activeRevisionId = input.targetRevisionId',
+  'manifest.activeTransactionId =',
   'previousManifest',
 ]);
 forbidContains(navigation, navigationPath, [
@@ -171,6 +176,7 @@ const navigationTestPath =
 const navigationTest = read(navigationTestPath);
 requireContains(navigationTest, navigationTestPath, [
   'moves active revision without deleting the redo tail',
+  'moves the logical cursor when adjacent transactions share one PDF revision',
   'fails when session and journal heads disagree',
 ]);
 

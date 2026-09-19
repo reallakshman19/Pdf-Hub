@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B1-001",
+    "branch": "phase8/history-journal-cursor",
+    "base_ref": "7e1f6ccd46b0c622d50b20bd30f7dd62dd658389",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5A",
+    "previous_join": "7e1f6ccd46b0c622d50b20bd30f7dd62dd658389",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-journal-cursor",
+    "material_ref": "7e1f6ccd46b0c622d50b20bd30f7dd62dd658389",
+    "base_branch": "main",
+    "base_observed_ref": "7e1f6ccd46b0c622d50b20bd30f7dd62dd658389",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 244,
+  "outcome": {
+    "engineering": [
+      "Journal history cursor is represented independently from immutable PDF revision identity.",
+      "Undo/redo validates candidate transaction adjacency and updates both logical cursor and revision.",
+      "Divergent edits truncate durable journal history by transaction cursor.",
+      "Legacy binary-only manifests without cursor metadata remain readable."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Remove revision-identity ambiguity before persisting same-revision annotation/Writer state checkpoints.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5A state checkpoint codec.",
+    "why_this_work_exists": "Multiple state-only history transactions can share one PDF revision, so activeRevisionId alone cannot identify the durable history position.",
+    "deliberate_non_goals": [
+      "No production state-only checkpoint append.",
+      "No async annotation/Writer mutation coordinator.",
+      "No command replay or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "New manifests carry an explicit null-or-transaction durable cursor while legacy manifests can infer one.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Binary mutation append advances and divergent append truncates using transaction identity.",
+      "weight": 25,
+      "verification": ["TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Undo/redo moves a logical cursor correctly even when adjacent history entries share the same PDF revision.",
+      "weight": 35,
+      "verification": ["TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Manifest validation rejects explicit cursor/revision inconsistency and duplicate transaction ids.",
+      "weight": 15,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "journal types tests cover legacy inference and explicit cursor consistency.",
+      "proves": ["AC-01", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "appendMutation tests cover cursor advance and divergent-tail truncation.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "navigation tests cover same-revision undo/redo by transaction identity.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b1 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B2 async durable state-only transaction coordinator"
+  }
+}

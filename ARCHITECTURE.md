@@ -266,14 +266,23 @@ assets continue to live in the Writer persistence subsystem. Custom annotation
 stamps with inline `stampImageDataUrl` cannot be journal-checkpointed until
 their binary is externalized.
 
-This slice deliberately does not persist state-only transactions because
-`recordStateTransaction` is synchronous and currently records history after
-the annotation/Writer Zustand mutation has happened. Phase 8E.5B must introduce
-an async durability coordinator so journal persistence can be awaited and
-failed writes can roll back optimistic state safely. No command replay or
-revision deletion is enabled yet. Reference-aware revision GC and bounded
-recovery checkpoints remain follow-on work. Phase 8F owns incremental search
-indexing.
+Before state-only durability can be wired, Phase 8E.5B1 adds a durable
+logical transaction cursor independent of `activeRevisionId`. This is required
+because annotation/Writer transactions can share the same immutable PDF
+revision. New manifests start at `activeTransactionId: null`; binary mutation
+append advances the cursor; undo/redo validates and moves the cursor by
+transaction identity; divergent edits truncate from the cursor rather than
+from revision identity. Pre-8E.5B1 manifests without cursor metadata remain
+readable by inferring the cursor from their active binary revision.
+
+State-only transactions are still not persisted in this slice.
+`recordStateTransaction` remains synchronous and currently records history
+after the annotation/Writer Zustand mutation has happened. The next slice must
+introduce an async durability coordinator so journal checkpoint persistence can
+be awaited and failed writes can roll back optimistic state safely. No command
+replay or revision deletion is enabled yet. Reference-aware revision GC and
+bounded recovery checkpoints remain follow-on work. Phase 8F owns incremental
+search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

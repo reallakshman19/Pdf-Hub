@@ -46,6 +46,11 @@ export interface HistoryJournalManifestV1 {
   revisionStoreId: string;
   originalRevisionId: string;
   activeRevisionId: string;
+  /**
+   * Durable logical history cursor. Optional only for pre-8E.5B1 manifests;
+   * new manifests always write null or a transaction id explicitly.
+   */
+  activeTransactionId?: string | null;
   fileName: string;
   createdAt: string;
   updatedAt: string;
@@ -89,6 +94,7 @@ export function createInitialHistoryJournalManifest(input: {
     revisionStoreId: input.revisionStoreId,
     originalRevisionId: input.revisionId,
     activeRevisionId: input.revisionId,
+    activeTransactionId: null,
     fileName: input.fileName,
     createdAt,
     updatedAt: createdAt,
@@ -167,6 +173,7 @@ export function assertHistoryJournalManifest(
     }
   }
 
+  const transactionIds = new Set<string>();
   for (const entry of manifest.entries) {
     assertRevisionRef(
       entry.beforeRevision,
@@ -176,7 +183,80 @@ export function assertHistoryJournalManifest(
       entry.afterRevision,
       manifest.revisionStoreId,
     );
+    if (transactionIds.has(entry.transactionId)) {
+      throw new Error(
+        `History journal contains duplicate transaction id ${entry.transactionId}.`,
+      );
+    }
+    transactionIds.add(entry.transactionId);
   }
+
+  if (manifest.activeTransactionId !== undefined) {
+    if (manifest.activeTransactionId === null) {
+      if (
+        manifest.activeRevisionId
+        !== manifest.originalRevisionId
+      ) {
+        throw new Error(
+          'History journal null transaction cursor must point at the original revision.',
+        );
+      }
+    } else {
+      const activeEntry = manifest.entries.find(
+        (entry) =>
+          entry.transactionId
+          === manifest.activeTransactionId,
+      );
+      if (!activeEntry) {
+        throw new Error(
+          `History journal active transaction ${manifest.activeTransactionId} does not exist.`,
+        );
+      }
+      if (
+        activeEntry.afterRevision.revisionId
+        !== manifest.activeRevisionId
+      ) {
+        throw new Error(
+          'History journal active transaction does not match active revision.',
+        );
+      }
+    }
+  }
+}
+
+export function resolveHistoryJournalActiveTransactionId(
+  manifest: HistoryJournalManifest,
+): string | null {
+  assertHistoryJournalManifest(manifest);
+
+  if (manifest.activeTransactionId !== undefined) {
+    return manifest.activeTransactionId;
+  }
+
+  if (
+    manifest.activeRevisionId
+    === manifest.originalRevisionId
+  ) {
+    return null;
+  }
+
+  for (
+    let index = manifest.entries.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const entry = manifest.entries[index];
+    if (
+      entry?.afterRevision.revisionId
+      === manifest.activeRevisionId
+    ) {
+      return entry.transactionId;
+    }
+  }
+
+  throw new Error(
+    `Legacy history journal cannot infer a transaction cursor for active revision ${manifest.activeRevisionId}.`,
+  );
 }
 
 function assertRevisionRef(
