@@ -25,6 +25,9 @@ import type {
   WriterPageSetupV2,
 } from './types';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
+import {
+  persistWriterAssetReferences,
+} from './persistence/writerAssetDurability';
 import { normalizeWriterToolForRichAuthoring } from './writerToolPolicy';
 import type { WriterTableSelection } from './table-pro/writerTableSelection';
 import {
@@ -263,6 +266,17 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       const annotations =
         useAnnotationStore.getState().annotations;
       const label = writerCommandLabel(command);
+      const newlyReferencedAssetIds =
+        collectNewWriterAssetReferences(
+          beforeStore.elements,
+          afterStore.elements,
+        );
+
+      await persistWriterAssetReferences(
+        session.documentKey as string,
+        newlyReferencedAssetIds,
+        afterStore.assetRecords,
+      );
 
       committedResult = {
         ...result,
@@ -717,6 +731,37 @@ function usesDurableWriterHistory(
       && session.historyJournalStoreId
       && session.historyJournalId,
     );
+}
+
+function collectNewWriterAssetReferences(
+  beforeElements: WriterElementV2[],
+  afterElements: WriterElementV2[],
+): string[] {
+  const beforeIds =
+    collectWriterAssetReferences(beforeElements);
+  const afterIds =
+    collectWriterAssetReferences(afterElements);
+
+  return [...afterIds].filter(
+    (assetId) => !beforeIds.has(assetId),
+  );
+}
+
+function collectWriterAssetReferences(
+  elements: WriterElementV2[],
+): Set<string> {
+  const ids = new Set<string>();
+
+  for (const element of elements) {
+    if (element.imageAssetId) {
+      ids.add(element.imageAssetId);
+    }
+    for (const assetId of element.assetIds ?? []) {
+      if (assetId) ids.add(assetId);
+    }
+  }
+
+  return ids;
 }
 
 function writerStoreSnapshot(
