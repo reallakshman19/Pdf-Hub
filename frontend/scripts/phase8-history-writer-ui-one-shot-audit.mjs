@@ -169,7 +169,6 @@ requireContains(
 );
 
 for (const deferredPath of [
-  'src/components/writer-v2/WriterV2Inspector.tsx',
   'src/components/writer-v2/WriterTablePropertiesPanel.tsx',
 ]) {
   const source = read(deferredPath);
