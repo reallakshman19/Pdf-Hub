@@ -217,7 +217,7 @@ function historyState(
   documentKey: string,
   pageGraph: PageGraph<PageNode>,
   currentPageId: string,
-): HistoryState {
+): HistoryState & { bytes: Uint8Array } {
   const currentIndex = pageGraph.pages.findIndex(
     (candidate) => candidate.pageId === currentPageId,
   );
