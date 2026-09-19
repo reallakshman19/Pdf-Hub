@@ -21,6 +21,8 @@ import {
 import { HeaderFooterOptionsPanel } from './header-footer/HeaderFooterOptionsPanel';
 import { HeaderFooterTokenBar } from './header-footer/HeaderFooterTokenBar';
 import { HeaderFooterPreviewPane } from './header-footer/HeaderFooterPreviewPane';
+import { HeaderFooterImagePanel } from './header-footer/HeaderFooterImagePanel';
+import { useHeaderFooterImageResource } from './header-footer/useHeaderFooterImageResource';
 
 interface HeaderFooterDialogProps {
   isOpen: boolean;
@@ -29,7 +31,10 @@ interface HeaderFooterDialogProps {
   selectedPageIds: PageId[];
   fileName: string;
   onClose: () => void;
-  onApply: (template: HeaderFooterTemplate) => Promise<boolean>;
+  onApply: (
+    template: HeaderFooterTemplate,
+    binaryResources?: Readonly<Record<string, Uint8Array>>,
+  ) => Promise<boolean>;
 }
 
 export const HeaderFooterDialog: React.FC<
@@ -54,6 +59,7 @@ export const HeaderFooterDialog: React.FC<
     () => new Date(),
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const imageResource = useHeaderFooterImageResource(isOpen);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -166,11 +172,44 @@ export const HeaderFooterDialog: React.FC<
     updateSlot(band, slot, `${current}${separator}${token}`);
   };
 
+  const handleImageFileSelected = async (file: File) => {
+    const admitted = await imageResource.admit(file);
+    if (!admitted) return;
+
+    setDraft((current) => ({
+      ...current,
+      image: {
+        resourceId: admitted.resourceId,
+        fileName: admitted.fileName,
+        band: current.image?.band ?? 'header',
+        slot: current.image?.slot ?? 'left',
+        widthPt: current.image?.widthPt ?? 48,
+        altText: admitted.fileName,
+      },
+    }));
+  };
+
+  const handleRemoveImage = () => {
+    imageResource.clear();
+    setDraft((current) => ({
+      ...current,
+      image: null,
+    }));
+  };
+
   const handleApply = async () => {
     if (!preview.template || preview.error) return;
     setSubmitting(true);
     try {
-      const applied = await onApply(preview.template);
+      const binaries =
+        draft.image
+        && imageResource.admitted
+        && draft.image.resourceId === imageResource.admitted.resourceId
+          ? {
+              [draft.image.resourceId]: imageResource.admitted.bytes,
+            }
+          : undefined;
+      const applied = await onApply(preview.template, binaries);
       if (applied) onClose();
     } finally {
       setSubmitting(false);
@@ -203,6 +242,23 @@ export const HeaderFooterDialog: React.FC<
 
         <HeaderFooterTokenBar onInsert={insertToken} />
 
+        <HeaderFooterImagePanel
+          image={draft.image}
+          previewUrl={imageResource.previewUrl}
+          busy={imageResource.busy}
+          error={imageResource.error}
+          onFileSelected={(file) => void handleImageFileSelected(file)}
+          onChange={(patch) =>
+            setDraft((current) => ({
+              ...current,
+              image: current.image
+                ? { ...current.image, ...patch }
+                : current.image,
+            }))
+          }
+          onRemove={handleRemoveImage}
+        />
+
         <div className="border-t border-slate-200 pt-3 dark:border-slate-800">
           <HeaderFooterOptionsPanel
             draft={draft}
@@ -218,6 +274,11 @@ export const HeaderFooterDialog: React.FC<
           previewPageId={previewPageId}
           error={preview.error}
           warnings={preview.warnings}
+          imageUrls={
+            draft.image && imageResource.previewUrl
+              ? { [draft.image.resourceId]: imageResource.previewUrl }
+              : {}
+          }
           onPreviewPageChange={setPreviewPageId}
         />
 
@@ -238,6 +299,7 @@ export const HeaderFooterDialog: React.FC<
             onClick={() => void handleApply()}
             disabled={
               submitting
+              || imageResource.busy
               || Boolean(preview.error)
               || !preview.template
               || preview.pages.length === 0
