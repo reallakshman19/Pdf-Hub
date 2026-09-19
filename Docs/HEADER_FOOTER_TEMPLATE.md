@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6G canonical domain, writer, professional editor, presets and Automate/headless contract**.
+Status: **Phase 6A–6H.1 canonical domain with product UI legacy creation retired**.
 
 Tracking issue: #200.
 
@@ -405,6 +405,30 @@ Raw binary resources remain out-of-band from the command payload.
 The legacy Macro DSL operation `header_footer_text` remains readable and
 executable only as a compatibility path until the explicit Phase 6H migration.
 New Automate/headless work must use the canonical template command.
+
+## Legacy migration and retirement
+
+### 6H.1 Product UI migration
+
+New product UI no longer creates the legacy
+`ADD_HEADER_FOOTER_TEXT` command.
+
+The thumbnail one-click page-number and file-header actions now resolve the
+current target pages to stable PageIds and emit
+`APPLY_HEADER_FOOTER_TEMPLATE` using
+`createSimpleHeaderFooterTextTemplate(...)`.
+
+The configurable thumbnail Header/Footer dialog likewise uses canonical
+PageId selectors and canonical token syntax such as
+`{{physicalPage}}`, `{{pageCount}}`, and `{{fileName}}`.
+
+Automate's curated Quick Actions no longer expose the legacy
+`footer-page-numbers` or `header-file-name` macro recipes; the professional
+Header & Footer quick task introduced in Phase 6G replaces them.
+
+This slice deliberately leaves saved Macro DSL compatibility intact. Legacy
+recipe parsing/execution and low-level compatibility command retirement are
+handled in Phase 6H.2.
 
 ## Legacy compatibility
 
