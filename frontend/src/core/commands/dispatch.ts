@@ -157,6 +157,8 @@ function commandLabel(command: PdfCommand): string {
       return command.payload.ranges.length === 0
         ? 'Clear logical page labels'
         : 'Set logical page labels';
+    case 'APPLY_HEADER_FOOTER_TEMPLATE':
+      return command.payload.template.name?.trim() || 'Apply header/footer template';
     case 'ADD_HEADER_FOOTER_TEXT':
       return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
