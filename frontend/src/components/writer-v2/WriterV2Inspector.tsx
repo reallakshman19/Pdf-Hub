@@ -1,6 +1,15 @@
 import React from 'react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
+import type {
+  WriterV2CommandResult,
+} from '@/core/writer-v2/writerCommandStore';
+import type {
+  WriterElementPatch,
+} from '@/core/writer-v2/writerCommands';
+import {
   alignSelectedWriterElements,
   bringSelectedWriterElementToFront,
   deleteSelectedWriterElements,
@@ -32,6 +41,7 @@ import {
   updateActiveWriterReviewMetadata,
 } from '@/core/writer-v2/writerReviewActions';
 import type {
+  WriterElementV2,
   WriterReviewCategory,
   WriterReviewPriority,
   WriterReviewStatus,
@@ -64,17 +74,99 @@ function Label({ children }: { children: React.ReactNode }) {
   return <span style={{ fontSize: 11, color: '#64748b', width: 48, flexShrink: 0 }}>{children}</span>;
 }
 
-function NumberInput({ value, onChange, min, max, step = 1, style }: {
-  value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; style?: React.CSSProperties;
+interface DraftCommitResult {
+  changed: boolean;
+}
+
+function DraftNumberInput({
+  value,
+  onCommit,
+  resetKey,
+  min,
+  max,
+  step = 1,
+  style,
+}: {
+  value: number;
+  onCommit: (
+    value: number,
+  ) => Promise<DraftCommitResult>;
+  resetKey: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  style?: React.CSSProperties;
 }) {
+  const [draft, setDraft] = React.useState(
+    String(value),
+  );
+  const cancelBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(String(value));
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(String(value));
+      return;
+    }
+
+    const parsed = Number(draft);
+
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+
+    const next = Math.max(
+      min ?? Number.NEGATIVE_INFINITY,
+      Math.min(
+        max ?? Number.POSITIVE_INFINITY,
+        parsed,
+      ),
+    );
+
+    setDraft(String(next));
+
+    if (next === value) return;
+
+    void onCommit(next)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(String(value));
+        }
+      })
+      .catch(() => {
+        setDraft(String(value));
+      });
+  };
+
   return (
     <input
       type="number"
-      value={value}
+      value={draft}
       min={min}
       max={max}
       step={step}
-      onChange={(e) => onChange(Number(e.target.value))}
+      onChange={(event) =>
+        setDraft(event.currentTarget.value)
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(String(value));
+          event.currentTarget.blur();
+        }
+      }}
       style={{
         height: 24,
         borderRadius: 5,
@@ -89,12 +181,215 @@ function NumberInput({ value, onChange, min, max, step = 1, style }: {
   );
 }
 
+function DraftOpacityInput({
+  value,
+  onCommit,
+  resetKey,
+}: {
+  value: number;
+  onCommit: (
+    value: number,
+  ) => Promise<DraftCommitResult>;
+  resetKey: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const lastCommittedRef =
+    React.useRef(value);
+
+  React.useEffect(() => {
+    setDraft(value);
+    lastCommittedRef.current = value;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (draft === lastCommittedRef.current) {
+      return;
+    }
+
+    const previous =
+      lastCommittedRef.current;
+    lastCommittedRef.current = draft;
+
+    void onCommit(draft)
+      .then((result) => {
+        if (!result.changed) {
+          lastCommittedRef.current = previous;
+          setDraft(value);
+        }
+      })
+      .catch(() => {
+        lastCommittedRef.current = previous;
+        setDraft(value);
+      });
+  };
+
+  return (
+    <>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={draft}
+        onChange={(event) =>
+          setDraft(
+            Number(event.currentTarget.value),
+          )
+        }
+        onPointerUp={commit}
+        onKeyUp={(event) => {
+          if (
+            event.key.startsWith('Arrow')
+            || event.key === 'Home'
+            || event.key === 'End'
+          ) {
+            commit();
+          }
+        }}
+        onBlur={commit}
+        style={{ flex: 1 }}
+      />
+      <span
+        style={{
+          fontSize: 11,
+          color: '#64748b',
+          width: 28,
+          textAlign: 'right',
+        }}
+      >
+        {Math.round(draft * 100)}%
+      </span>
+    </>
+  );
+}
+
+function DraftColorPicker({
+  value,
+  onCommit,
+  resetKey,
+  label,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<DraftCommitResult>;
+  resetKey: string;
+  label: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const timerRef =
+    React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setDraft(value);
+  }, [resetKey, value]);
+
+  React.useEffect(
+    () => () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleCommit = (next: string) => {
+    setDraft(next);
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = window.setTimeout(
+      () => {
+        timerRef.current = null;
+        if (next === value) return;
+
+        void onCommit(next)
+          .then((result) => {
+            if (!result.changed) {
+              setDraft(value);
+            }
+          })
+          .catch(() => {
+            setDraft(value);
+          });
+      },
+      250,
+    );
+  };
+
+  return (
+    <ColorPickerPopover
+      value={draft}
+      onChange={scheduleCommit}
+      label={label}
+    />
+  );
+}
+
 export const WriterV2Inspector: React.FC = () => {
   const imageReplaceInputRef = React.useRef<HTMLInputElement | null>(null);
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
   const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const inspectorCommitTailRef =
+    React.useRef<Promise<void>>(
+      Promise.resolve(),
+    );
+
+  const queueInspectorPatch =
+    React.useCallback((
+      elementId: string,
+      context: string,
+      buildPatch: (
+        element: WriterElementV2,
+      ) => WriterElementPatch,
+    ): Promise<WriterV2CommandResult> => {
+      const run =
+        inspectorCommitTailRef.current.then(
+          async () => {
+            const element =
+              useWriterV2Store
+                .getState()
+                .elements
+                .find(
+                  (item) =>
+                    item.id === elementId,
+                );
+
+            if (!element) {
+              throw new Error(
+                `Writer Inspector target "${elementId}" no longer exists.`,
+              );
+            }
+
+            return dispatchDurableWriterUiCommand(
+              {
+                type: 'UPDATE_WRITER_ELEMENT',
+                id: elementId,
+                patch: buildPatch(element),
+              },
+              context,
+            );
+          },
+        );
+
+      inspectorCommitTailRef.current =
+        run.then(
+          () => undefined,
+          () => undefined,
+        );
+
+      return run;
+    }, []);
 
   const selected =
     elements.find((el) => el.id === activeId) ??
@@ -144,29 +439,66 @@ export const WriterV2Inspector: React.FC = () => {
     selected.type === 'richNote';
   const isCallout = selected.type === 'textCallout';
 
-  const patchStyle = (patch: Partial<typeof style>) => {
-    dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: selected.id,
-      patch: { style: { ...style, ...patch } },
-    });
-  };
+  const patchStyle = (
+    patch: Partial<typeof style>,
+  ) =>
+    queueInspectorPatch(
+      selected.id,
+      'WriterV2Inspector style',
+      (latest) => ({
+        style: {
+          ...latest.style,
+          ...patch,
+        },
+      }),
+    );
 
-  const patchRect = (patch: Partial<typeof selected.rect>) => {
-    dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: selected.id,
-      patch: { rect: { ...selected.rect, ...patch } },
-    });
-  };
+  const patchRect = (
+    patch: Partial<typeof selected.rect>,
+  ) =>
+    queueInspectorPatch(
+      selected.id,
+      'WriterV2Inspector transform',
+      (latest) => ({
+        rect: {
+          ...latest.rect,
+          ...patch,
+        },
+      }),
+    );
 
-  const patchCallout = (patch: Partial<NonNullable<typeof selected.callout>>) => {
-    if (!selected.callout) return;
-    dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: selected.id,
-      patch: { callout: { ...selected.callout, ...patch } },
-    });
+  const patchCallout = (
+    patch: Partial<
+      NonNullable<typeof selected.callout>
+    >,
+  ) => {
+    if (!selected.callout) {
+      return Promise.resolve({
+        state: {
+          elements: [],
+          selectedIds: [],
+          activeId: null,
+          undoStack: [],
+          redoStack: [],
+          dirty: false,
+        },
+        changed: false,
+        reason:
+          'Selected Writer element has no callout.',
+      });
+    }
+
+    return queueInspectorPatch(
+      selected.id,
+      'WriterV2Inspector callout',
+      (latest) => ({
+        callout: {
+          ...(latest.callout
+            ?? selected.callout!),
+          ...patch,
+        },
+      }),
+    );
   };
 
   return (
@@ -213,13 +545,39 @@ export const WriterV2Inspector: React.FC = () => {
       <Section title="Transform">
         <Row>
           <Label>X / Y</Label>
-          <NumberInput value={Math.round(selected.rect.x)} onChange={(v) => patchRect({ x: v })} />
-          <NumberInput value={Math.round(selected.rect.y)} onChange={(v) => patchRect({ y: v })} />
+          <DraftNumberInput
+            value={Math.round(selected.rect.x)}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchRect({ x: value })
+            }
+          />
+          <DraftNumberInput
+            value={Math.round(selected.rect.y)}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchRect({ y: value })
+            }
+          />
         </Row>
         <Row>
           <Label>W / H</Label>
-          <NumberInput value={Math.round(selected.rect.width)} min={12} onChange={(v) => patchRect({ width: v })} />
-          <NumberInput value={Math.round(selected.rect.height)} min={12} onChange={(v) => patchRect({ height: v })} />
+          <DraftNumberInput
+            value={Math.round(selected.rect.width)}
+            resetKey={selected.id}
+            min={12}
+            onCommit={(value) =>
+              patchRect({ width: value })
+            }
+          />
+          <DraftNumberInput
+            value={Math.round(selected.rect.height)}
+            resetKey={selected.id}
+            min={12}
+            onCommit={(value) =>
+              patchRect({ height: value })
+            }
+          />
         </Row>
       </Section>
 
@@ -230,7 +588,12 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Font</Label>
             <select
               value={style.fontFamily ?? 'Inter'}
-              onChange={(e) => patchStyle({ fontFamily: e.target.value })}
+              onChange={(event) => {
+                void patchStyle({
+                  fontFamily:
+                    event.currentTarget.value,
+                }).catch(() => undefined);
+              }}
               style={{
                 flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -245,7 +608,13 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Size</Label>
             <select
               value={style.fontSize ?? 14}
-              onChange={(e) => patchStyle({ fontSize: Number(e.target.value) })}
+              onChange={(event) => {
+                void patchStyle({
+                  fontSize: Number(
+                    event.currentTarget.value,
+                  ),
+                }).catch(() => undefined);
+              }}
               style={{
                 width: 60, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -255,9 +624,14 @@ export const WriterV2Inspector: React.FC = () => {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <ColorPickerPopover
+            <DraftColorPicker
               value={style.textColor ?? '#111827'}
-              onChange={(v) => patchStyle({ textColor: v })}
+              resetKey={selected.id}
+              onCommit={(value) =>
+                patchStyle({
+                  textColor: value,
+                })
+              }
               label="Color"
             />
           </Row>
@@ -267,39 +641,53 @@ export const WriterV2Inspector: React.FC = () => {
       {/* Fill & Stroke */}
       <Section title="Fill & Stroke">
         <Row>
-          <ColorPickerPopover
+          <DraftColorPicker
             value={style.backgroundColor ?? '#ffffff'}
-            onChange={(v) => patchStyle({ backgroundColor: v })}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                backgroundColor: value,
+              })
+            }
             label="Fill"
           />
         </Row>
         <Row>
-          <ColorPickerPopover
+          <DraftColorPicker
             value={style.borderColor ?? '#2563eb'}
-            onChange={(v) => patchStyle({ borderColor: v })}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                borderColor: value,
+              })
+            }
             label="Border"
           />
-          <NumberInput
+          <DraftNumberInput
             value={style.borderWidth ?? 1}
+            resetKey={selected.id}
             min={0}
             max={20}
-            onChange={(v) => patchStyle({ borderWidth: v })}
+            onCommit={(value) =>
+              patchStyle({
+                borderWidth: value,
+              })
+            }
             style={{ width: 44 }}
           />
           <span style={{ fontSize: 11, color: '#94a3b8' }}>px</span>
         </Row>
         <Row>
           <Label>Opacity</Label>
-          <input
-            type="range"
-            min={0} max={1} step={0.05}
+          <DraftOpacityInput
             value={style.opacity ?? 1}
-            onChange={(e) => patchStyle({ opacity: parseFloat(e.target.value) })}
-            style={{ flex: 1 }}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                opacity: value,
+              })
+            }
           />
-          <span style={{ fontSize: 11, color: '#64748b', width: 28, textAlign: 'right' }}>
-            {Math.round((style.opacity ?? 1) * 100)}%
-          </span>
         </Row>
       </Section>
 
@@ -310,7 +698,13 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Leader</Label>
             <select
               value={selected.callout.leaderStyle}
-              onChange={(e) => patchCallout({ leaderStyle: e.target.value as 'none' | 'line' | 'arrow' })}
+              onChange={(event) => {
+                void patchCallout({
+                  leaderStyle:
+                    event.currentTarget.value
+                    as 'none' | 'line' | 'arrow',
+                }).catch(() => undefined);
+              }}
               style={{
                 flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -324,19 +718,29 @@ export const WriterV2Inspector: React.FC = () => {
           {selected.callout.leaderStyle !== 'none' && (
             <>
               <Row>
-                <ColorPickerPopover
+                <DraftColorPicker
                   value={selected.callout.leaderColor}
-                  onChange={(v) => patchCallout({ leaderColor: v })}
+                  resetKey={selected.id}
+                  onCommit={(value) =>
+                    patchCallout({
+                      leaderColor: value,
+                    })
+                  }
                   label="Color"
                 />
               </Row>
               <Row>
                 <Label>Width</Label>
-                <NumberInput
+                <DraftNumberInput
                   value={selected.callout.leaderWidth}
+                  resetKey={selected.id}
                   min={1}
                   max={20}
-                  onChange={(v) => patchCallout({ leaderWidth: v })}
+                  onCommit={(value) =>
+                    patchCallout({
+                      leaderWidth: value,
+                    })
+                  }
                   style={{ width: 44 }}
                 />
                 <span style={{ fontSize: 11, color: '#94a3b8' }}>px</span>

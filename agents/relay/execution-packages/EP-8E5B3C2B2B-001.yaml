@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2B2B-001",
+    "branch": "phase8/history-writer-inspector-coalesce",
+    "base_ref": "91787e1311816d349fb377406c07c0f742f58434",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2B2A",
+    "previous_join": "91787e1311816d349fb377406c07c0f742f58434",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-inspector-coalesce",
+    "material_ref": "91787e1311816d349fb377406c07c0f742f58434",
+    "base_branch": "main",
+    "base_observed_ref": "91787e1311816d349fb377406c07c0f742f58434",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 262,
+  "outcome": {
+    "engineering": [
+      "Direct Writer Inspector transform/style/callout fields no longer mutate canonical state on every input event.",
+      "Inspector numeric/range/color controls use local draft/coalescing semantics before durable commit.",
+      "Inspector commits serialize and rebuild nested patches from latest canonical Writer state.",
+      "Selection-only Inspector dispatch remains synchronous and separate helper modules remain deferred."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make Writer Inspector editing durable without per-keystroke history amplification or stale nested-object overwrites.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Writer table drag coalescing.",
+    "why_this_work_exists": "Inspector direct controls previously dispatched UPDATE_WRITER_ELEMENT synchronously on every input event and built full nested patches from render-time state.",
+    "deliberate_non_goals": [
+      "No Writer Table Properties migration.",
+      "No review/table-box/selection/image-clear helper migration.",
+      "No OCR bridge or legacy consolidation migration."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Numeric Inspector fields stay local until blur/Enter and Escape cancels without Writer mutation.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Opacity and color fields coalesce transient events before one durable commit.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Rapid Inspector commits serialize and rebuild nested patches from latest canonical Writer state.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "No direct synchronous UPDATE_WRITER_ELEMENT remains in WriterV2Inspector while selection clearing stays synchronous.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static audit verifies serialized latest-state patching, draft input boundaries, direct durable dispatch and absence of direct synchronous UPDATE.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "WriterV2Inspector tests verify local-until-blur behavior, rapid x/y commit preservation and Escape cancellation.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Inherited durable UI tests retain contextual failure logging and Writer rollback guarantees.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2b2b on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2B2C coalesce Writer Table Properties controls"
+  }
+}

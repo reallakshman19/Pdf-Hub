@@ -365,19 +365,30 @@ position and sends it through the durable UI dispatch boundary. Pointer-cancel
 clears the local preview without committing. Table selection activation remains
 synchronous.
 
-Synchronous `dispatchWriterCommand(...)` remains available for non-mutating
-selection, blank/legacy sessions and the remaining synchronous Writer helper
-APIs. Writer inspector transform/style/callout inputs and Writer table-properties
-controls are still high-frequency mutation surfaces and remain deliberately
-unmigrated after B2A. Phase 8E.5B3C2B2B owns inspector draft/commit semantics;
-Phase 8E.5B3C2B2C owns table-properties coalescing. Multi-step legacy
-consolidation also remains synchronous because hiding source objects and adding
-the consolidated rich box must be made atomic before migration. Phase
-8E.5B3C2C owns synchronous helper contracts and remaining bridges. Synchronous
-PDF-overlay mutation dispatch must not be prohibited until those migrations are
-complete. No command replay or revision deletion is enabled yet. Reference-aware
-revision GC and bounded recovery checkpoints remain follow-on work. Phase 8F
-owns incremental search indexing.
+Phase 8E.5B3C2B2B migrates the Inspector's direct
+transform/style/callout controls onto explicit draft/commit semantics. Numeric
+inputs retain local draft text and commit on blur/Enter; Escape restores the
+canonical value without mutation. Opacity updates local range state during the
+gesture and commits only at pointer/key completion. Color controls buffer picker
+changes and debounce them into one durable commit. Font and callout-style selects
+remain discrete one-change commits. Inspector commits run through a local promise
+chain; each queued commit re-reads the latest canonical Writer element before
+constructing full nested rect/style/callout patches, preventing rapid edits from
+overwriting a prior queued field with stale object state. Selection clearing
+remains synchronous.
+
+The Inspector still embeds table/review/image/selection helper actions whose
+mutation contracts live in separate Writer action modules; those helpers are not
+partially rewritten in B2B. Writer table-properties controls remain the final
+high-frequency direct UI surface and are owned by Phase 8E.5B3C2B2C.
+Multi-step legacy consolidation also remains synchronous because hiding source
+objects and adding the consolidated rich box must be made atomic before
+migration. Phase 8E.5B3C2C owns synchronous helper contracts and remaining
+bridges, including review/table-box/selection/image-clear helpers and OCR
+integration. Synchronous PDF-overlay mutation dispatch must not be prohibited
+until those migrations are complete. No command replay or revision deletion is
+enabled yet. Reference-aware revision GC and bounded recovery checkpoints remain
+follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
