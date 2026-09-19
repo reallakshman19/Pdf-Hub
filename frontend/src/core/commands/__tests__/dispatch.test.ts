@@ -937,6 +937,32 @@ describe('canonical command dispatch', () => {
     ]));
   });
 
+  it('rejects structural mutation when PageGraph count disagrees with the opened PDF session', async () => {
+    mutationEngineMocks.open.mockImplementationOnce(async () => ({
+      pageCount: 2,
+      getPageMetrics: mutationEngineMocks.getPageMetrics,
+      rotatePages: mutationEngineMocks.rotatePages,
+      reorderPages: mutationEngineMocks.reorderPages,
+      removePages: mutationEngineMocks.removePages,
+      insertBlankPage: mutationEngineMocks.insertBlankPage,
+      duplicatePages: mutationEngineMocks.duplicatePages,
+      commit: mutationEngineMocks.commit,
+      dispose: mutationEngineMocks.dispose,
+    }));
+
+    const result = await execute({
+      type: 'REORDER_PAGES',
+      payload: { fromIndex: 0, toIndex: 1 },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('EXECUTION_FAILED');
+    expect(result.message).toMatch(/PageGraph count 3/);
+    expect(mutationEngineMocks.reorderPages).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.commit).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('uses one permutation for single-page reorder bytes, overlays, and PageGraph', async () => {
     mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([6, 6, 6]),
