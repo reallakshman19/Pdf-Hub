@@ -3,6 +3,10 @@ import type {
   HistoryReplayBarrier,
   HistoryReplayDisposition,
 } from '../replayability';
+import {
+  assertHistoryStateCheckpointPayload,
+  type HistoryStateCheckpointPayload,
+} from './stateCheckpoint';
 
 export const HISTORY_JOURNAL_SCHEMA_VERSION = 1 as const;
 
@@ -22,6 +26,7 @@ export interface HistoryJournalCheckpoint {
   revision: HistoryJournalRevisionRef;
   createdAt: string;
   transactionId?: string;
+  statePayload?: HistoryStateCheckpointPayload;
 }
 
 export interface HistoryJournalEntry {
@@ -150,6 +155,16 @@ export function assertHistoryJournalManifest(
       checkpoint.revision,
       manifest.revisionStoreId,
     );
+    if (checkpoint.statePayload) {
+      if (checkpoint.kind === 'ADMISSION') {
+        throw new Error(
+          'Admission checkpoints cannot contain statePayload.',
+        );
+      }
+      assertHistoryStateCheckpointPayload(
+        checkpoint.statePayload,
+      );
+    }
   }
 
   for (const entry of manifest.entries) {
