@@ -426,6 +426,14 @@ Automate's curated Quick Actions no longer expose the legacy
 `footer-page-numbers` or `header-file-name` macro recipes; the professional
 Header & Footer quick task introduced in Phase 6G replaces them.
 
+The workflow builder no longer offers `header_footer_text` in its new-step
+palette. The schema remains addressable so imported/saved recipes can still be
+displayed and migrated.
+
+The public built-in recipe catalog also hides every recipe whose required ops
+include `header_footer_text`. Explicit `findBuiltInMacroRecipe(id)` lookup is
+retained so historical built-in references can still resolve during migration.
+
 This slice deliberately leaves saved Macro DSL compatibility intact. Legacy
 recipe parsing/execution and low-level compatibility command retirement are
 handled in Phase 6H.2.
