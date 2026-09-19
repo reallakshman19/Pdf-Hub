@@ -392,7 +392,7 @@ requireContains(legacyMacroCompat, legacyMacroCompatPath, [
   "'{{total_pages}}'",
   "'{{file_name}}'",
   "'{{date}}'",
-  "'{{var:",
+  '{{var:',
 ]);
 forbidContains(legacyMacroCompat, legacyMacroCompatPath, [
   'PdfEditAdapter',
