@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
 import {
   admitAndOpenPdfFile,
   PRIMARY_PDF_OPEN_POLICY,
@@ -9,6 +10,10 @@ import {
   clearDocumentSourceRegistryForTests,
   resolveDocumentSource,
 } from '@/core/document-source/registry';
+import {
+  clearWorkingRevisionStoreRegistryForTests,
+  resolveWorkingRevisionStore,
+} from '@/core/revision-store/registry';
 
 type TestFile = File & {
   arrayBuffer: ReturnType<typeof vi.fn>;
@@ -73,6 +78,7 @@ function pdfHeaderBytes(): Uint8Array {
 
 afterEach(() => {
   clearDocumentSourceRegistryForTests();
+  clearWorkingRevisionStoreRegistryForTests();
   vi.restoreAllMocks();
 });
 
@@ -171,17 +177,21 @@ describe('primary PDF admission coordinator', () => {
     vi.spyOn(FileAdapter, 'hashBytes').mockResolvedValue('sha256:fixture');
     const buildPageGraph = vi.fn().mockResolvedValue(pageGraph(3));
     const commit = vi.fn();
+    const workingRevisionStore = new MemoryRevisionStore({
+      id: 'test-working-revisions',
+    });
 
     const result = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
       commit,
       buildPageGraph,
+      workingRevisionStore,
     });
 
     expect(result.outcome).toBe('ACCEPTED');
     if (result.outcome !== 'ACCEPTED') return;
 
     expect(file.arrayBuffer).not.toHaveBeenCalled();
-    expect(file.slice).toHaveBeenCalledTimes(2);
+    expect(file.slice).toHaveBeenCalledTimes(3);
     expect(file.slice).toHaveBeenNthCalledWith(
       1,
       0,
@@ -192,10 +202,18 @@ describe('primary PDF admission coordinator', () => {
       0,
       file.size,
     );
+    expect(file.slice).toHaveBeenNthCalledWith(
+      3,
+      0,
+      file.size,
+    );
     expect(commit).toHaveBeenCalledTimes(1);
     expect(commit).toHaveBeenCalledWith({
       documentKey: 'sha256:fixture',
       sourceId: result.value.sourceId,
+      revisionStoreId: 'test-working-revisions',
+      originalRevisionId: 'sha256:fixture',
+      activeRevisionId: 'sha256:fixture',
       fileName: 'sample.pdf',
       bytes: expect.any(Uint8Array),
       pageCount: 3,
@@ -205,9 +223,22 @@ describe('primary PDF admission coordinator', () => {
     expect(result.value.sourceId).toMatch(
       /^primary-pdf:/,
     );
+    expect(result.value).toMatchObject({
+      revisionStoreId: 'test-working-revisions',
+      originalRevisionId: 'sha256:fixture',
+      activeRevisionId: 'sha256:fixture',
+    });
     expect(
       resolveDocumentSource(result.value.sourceId),
     ).not.toBeNull();
+    expect(
+      resolveWorkingRevisionStore(
+        result.value.revisionStoreId,
+      ),
+    ).toBe(workingRevisionStore);
+    expect(
+      await workingRevisionStore.has('sha256:fixture'),
+    ).toBe(true);
     expect(result.evidence.measurements).toEqual([
       {
         metric: 'SOURCE_BYTES',
@@ -221,6 +252,54 @@ describe('primary PDF admission coordinator', () => {
         unit: 'count',
       },
     ]);
+  });
+
+  it('reuses a content-addressed initial revision on reopen', async () => {
+    const workingRevisionStore = new MemoryRevisionStore({
+      id: 'reuse-working-revisions',
+    });
+    vi.spyOn(FileAdapter, 'hashBytes').mockResolvedValue(
+      'sha256:reused',
+    );
+    const commitRevision = vi.spyOn(
+      workingRevisionStore,
+      'commit',
+    );
+
+    const first = createFile(pdfHeaderBytes(), {
+      name: 'first.pdf',
+    });
+    const second = createFile(pdfHeaderBytes(), {
+      name: 'second.pdf',
+    });
+
+    const firstResult = await admitAndOpenPdfFile(
+      first,
+      'LANDING_DROP',
+      {
+        commit: vi.fn(),
+        buildPageGraph: vi.fn().mockResolvedValue(
+          pageGraph(1, 'sha256:reused'),
+        ),
+        workingRevisionStore,
+      },
+    );
+    const secondResult = await admitAndOpenPdfFile(
+      second,
+      'TOOLBAR_PICKER',
+      {
+        commit: vi.fn(),
+        buildPageGraph: vi.fn().mockResolvedValue(
+          pageGraph(1, 'sha256:reused'),
+        ),
+        workingRevisionStore,
+      },
+    );
+
+    expect(firstResult.outcome).toBe('ACCEPTED');
+    expect(secondResult.outcome).toBe('ACCEPTED');
+    expect(commitRevision).toHaveBeenCalledTimes(1);
+    expect(second.slice).toHaveBeenCalledTimes(2);
   });
 
   it('does not commit when PageGraph parsing fails', async () => {
@@ -267,14 +346,19 @@ describe('primary PDF admission coordinator', () => {
       .mockResolvedValueOnce('sha256:second');
     const firstCommit = vi.fn();
     const secondCommit = vi.fn();
+    const workingRevisionStore = new MemoryRevisionStore({
+      id: 'stale-working-revisions',
+    });
 
     const firstResultPromise = admitAndOpenPdfFile(firstFile, 'LANDING_DROP', {
       commit: firstCommit,
       buildPageGraph: () => firstGraph.promise,
+      workingRevisionStore,
     });
     const secondResult = await admitAndOpenPdfFile(secondFile, 'TOOLBAR_PICKER', {
       commit: secondCommit,
       buildPageGraph: vi.fn().mockResolvedValue(pageGraph(2, 'sha256:second')),
+      workingRevisionStore,
     });
     firstGraph.resolve(pageGraph(1, 'sha256:first'));
     const firstResult = await firstResultPromise;
