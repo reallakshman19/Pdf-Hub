@@ -115,6 +115,8 @@ requireContains(selectLayer, selectLayerPath, [
   'Select Box Copy renderer session changed or layer deactivated',
   'activeWriterTool,',
   'activeRevisionId,',
+  'viewport.scale,',
+  'viewport.rotation,',
 ]);
 forbidContains(selectLayer, selectLayerPath, [
   'sourceBytes',
@@ -193,6 +195,7 @@ const selectLayerTest = read(selectLayerTestPath);
 requireContains(selectLayerTest, selectLayerTestPath, [
   'aborts in-flight Select Box renderer work when the active revision changes',
   'aborts in-flight Select Box renderer work when the tool is deactivated',
+  'aborts in-flight Select Box renderer work when viewport geometry changes',
 ]);
 
 const packagePath = 'package.json';
