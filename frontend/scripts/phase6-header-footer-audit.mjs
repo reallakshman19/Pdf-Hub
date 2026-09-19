@@ -317,6 +317,7 @@ const automateHeaderFooterPath =
   'src/components/sidebar/automate/AutomateHeaderFooterQuickAction.tsx';
 const automateHeaderFooter = read(automateHeaderFooterPath);
 requireContains(automateHeaderFooter, automateHeaderFooterPath, [
+  'automate-header-footer',
   'HeaderFooterDialog',
   "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
   'payload: { template }',
@@ -340,7 +341,6 @@ const automateSidebarPath = 'src/components/sidebar/AutomateSidebar.tsx';
 const automateSidebar = read(automateSidebarPath);
 requireContains(automateSidebar, automateSidebarPath, [
   'AutomateHeaderFooterQuickAction',
-  'automate-header-footer',
 ]);
 
 const headlessApiPath = 'src/core/macro/headlessApi.ts';
