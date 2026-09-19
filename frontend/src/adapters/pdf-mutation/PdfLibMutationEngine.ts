@@ -4,6 +4,7 @@ import {
 } from '@/core/cancellation/operationCancellation';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { applyPdfLibPageLabels } from './pdfLibPageLabels';
+import { applyPdfLibHeaderFooterPlan } from './pdfLibHeaderFooter';
 import type {
   PdfMutationCommitResult,
   PdfMutationEngine,
@@ -12,6 +13,8 @@ import type {
   PdfMutationPageLabelEntry,
   PdfMutationTextDrawOperation,
   PdfMutationVisualMaskOperation,
+  PdfMutationHeaderFooterPage,
+  PdfMutationHeaderFooterResult,
   PdfMutationSession,
 } from '@/core/pdf-mutation/types';
 
@@ -413,6 +416,21 @@ class PdfLibMutationSession implements PdfMutationSession {
         opacity: 1,
       });
     }
+  }
+
+
+  async applyHeaderFooter(
+    pages: readonly PdfMutationHeaderFooterPage[],
+    binaryResources: Readonly<Record<string, Uint8Array>>,
+  ): Promise<PdfMutationHeaderFooterResult> {
+    this.assertOpen('apply header/footer');
+    return applyPdfLibHeaderFooterPlan(
+      this.document,
+      this.lib,
+      pages,
+      binaryResources,
+      this.signal,
+    );
   }
 
   async commit(): Promise<PdfMutationCommitResult> {
