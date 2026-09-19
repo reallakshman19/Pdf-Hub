@@ -1062,7 +1062,12 @@ export async function dispatchPdfCommand(
           committed.pageCount,
           nextPageGraph,
         );
-        const nextBytes = committed.bytes;
+        const nextBytes = await synchronizeStructuralPageLabels(
+          pageGraph,
+          nextPageGraph,
+          committed.bytes,
+          input.signal,
+        );
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
         const result = await applyMutation(
           command,
