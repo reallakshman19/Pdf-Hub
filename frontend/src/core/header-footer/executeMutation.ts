@@ -1,6 +1,5 @@
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
-import type { CommandResources } from '@/core/commands/types';
 import type { HeaderFooterTemplate } from './types';
 import type { HeaderFooterResolutionContext } from './resolutionTypes';
 import { planHeaderFooterTemplateCommand } from './commandPlan';
@@ -26,7 +25,7 @@ export async function executeHeaderFooterTemplateMutation(
   pageGraph: PageGraph<PageNode>,
   template: HeaderFooterTemplate,
   context: HeaderFooterResolutionContext,
-  resources: CommandResources | undefined,
+  binaryResources: Readonly<Record<string, Uint8Array>> | undefined,
   signal?: AbortSignal,
   writer: HeaderFooterPdfWriter = pdfLibHeaderFooterWriter,
 ): Promise<ExecuteHeaderFooterTemplateMutationResult> {
@@ -45,9 +44,9 @@ export async function executeHeaderFooterTemplateMutation(
     };
   }
 
-  const binaryResources = resources?.binaries ?? {};
+  const availableBinaryResources = binaryResources ?? {};
   const missing = plan.requiredBinaryResourceIds.filter(
-    (resourceId) => binaryResources[resourceId] === undefined,
+    (resourceId) => availableBinaryResources[resourceId] === undefined,
   );
   if (missing.length > 0) {
     return {
@@ -74,7 +73,7 @@ export async function executeHeaderFooterTemplateMutation(
     const written = await writer.write({
       baseBytes,
       pages: plan.pages,
-      binaryResources,
+      binaryResources: availableBinaryResources,
       signal,
     });
 
