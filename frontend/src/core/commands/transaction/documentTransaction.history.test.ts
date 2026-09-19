@@ -282,6 +282,79 @@ describe('document transaction history memory', () => {
     });
   });
 
+  it('rolls undo state and stacks back when journal navigation save fails', async () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'undo-journal-revisions',
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'undo-journal-initial',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    const journalStore = new MemoryHistoryJournalStore({
+      id: 'undo-journal-store',
+    });
+    registerHistoryJournalStore(journalStore);
+    await journalStore.save(
+      createInitialHistoryJournalManifest({
+        journalId: 'history-undo',
+        revisionStoreId: revisionStore.id,
+        revisionId: 'hash-1',
+        fileName: 'fixture.pdf',
+      }),
+    );
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      historyJournalStoreId: journalStore.id,
+      historyJournalId: 'history-undo',
+      historyJournalPersistent: false,
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    await commitDocumentMutation({
+      command: command('hash-1', 'undo-journal-mutation'),
+      label: 'Undo journal mutation',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+
+    vi.spyOn(journalStore, 'save').mockRejectedValueOnce(
+      new Error('journal navigation unavailable'),
+    );
+
+    await expect(applyUndo()).rejects.toThrow(
+      /journal navigation unavailable/,
+    );
+
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+      workingBytes: Uint8Array.from([2]),
+    });
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(useHistoryStore.getState().redoStack).toHaveLength(0);
+    await expect(
+      journalStore.load('history-undo'),
+    ).resolves.toMatchObject({
+      activeRevisionId: 'hash-2',
+      entries: [{ transactionId: expect.any(String) }],
+    });
+  });
+
   it('rolls application history back when durable journal save fails', async () => {
     const revisionStore = new MemoryRevisionStore({
       id: 'journal-failure-revisions',
