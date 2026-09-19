@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6H.1 canonical domain with product UI legacy creation retired**.
+Status: **Phase 6A–6H.2 complete canonical header/footer subsystem with saved-workflow compatibility**.
 
 Tracking issue: #200.
 
@@ -434,21 +434,78 @@ The public built-in recipe catalog also hides every recipe whose required ops
 include `header_footer_text`. Explicit `findBuiltInMacroRecipe(id)` lookup is
 retained so historical built-in references can still resolve during migration.
 
-This slice deliberately leaves saved Macro DSL compatibility intact. Legacy
-recipe parsing/execution and low-level compatibility command retirement are
-handled in Phase 6H.2.
+This slice deliberately leaves saved Macro DSL compatibility intact.
+
+### 6H.2 Saved-workflow compatibility and low-level retirement
+
+Saved recipes containing `header_footer_text` remain valid. The legacy
+MacroStep type, validator, schema lookup, metadata and registry entry are
+retained for compatibility, but execution no longer calls
+`PdfEditAdapter.addHeaderFooterText`.
+
+The compatibility executor now:
+
+1. resolves the legacy physical-page selector
+2. excludes first/last pages using the historical flags
+3. builds the current PageGraph and converts targets to stable PageIds
+4. compiles legacy text/style into `HeaderFooterTemplate`
+5. routes execution through `executeHeaderFooterTemplateMutation(...)`
+
+Legacy token forms are normalized to the canonical equivalents:
+
+- `{page}` / `{{page}}` → `{{physicalPage}}`
+- `{pages}` / `{{pages}}` / `{{total_pages}}` → `{{pageCount}}`
+- `{file}` / `{{file}}` / `{{file_name}}` → `{{fileName}}` when enabled
+- `{date}` / `{{date}}` → `{{date}}` when enabled
+
+The compatibility context supplies `dateText` using the historical
+`toLocaleDateString()` behavior. Unknown or disabled double-brace sequences
+are escaped through one-pass `{{var:...}}` placeholders so the canonical
+resolver returns them literally instead of reinterpreting them.
+
+Because all active and compatibility callers now use the canonical template
+engine, Phase 6H.2 removes:
+
+- `ADD_HEADER_FOOTER_TEXT`
+- `HeaderFooterCommandOptions`
+- `AddHeaderFooterTextCommand`
+- the legacy validator/dispatcher case
+- `PdfEditAdapter.addHeaderFooterText`
+- its private `HeaderFooterOptions` adapter type
+
+## Phase 6 acceptance scenario
+
+The final Phase 6 certification includes a real-PDF acceptance test covering
+the #200 reference document structure:
+
+- cover with no printed number
+- front matter i–iv with printed logical labels
+- body section with `Page 1 of N`
+- appendix A with `Appendix A — A-1`
+
+The test resolves the representative preview, writes real PDF bytes, verifies
+that applying printed content leaves the existing PDF `/PageLabels` unchanged,
+performs a section-preserving reorder using stable PageIds, reserializes
+PageLabels, performs history undo/redo, then reopens the resulting bytes with
+PDF.js and verifies both logical labels and printed text are still attached to
+the expected pages.
+
+Header/footer application is a **static PDF write**, not a live formula layer.
+After an arbitrary later reorder that changes a page's logical/section number,
+the user must update/reapply the header/footer template to recalculate printed
+number tokens. Structural edits move already-written content with its page.
+The acceptance reorder preserves section-internal order so the written numbers
+remain semantically valid while still exercising PageId anchoring and
+PageLabels reserialization.
 
 ## Legacy compatibility
 
-The following remain legacy compatibility paths during Phase 6 migration:
+The only retained header/footer legacy surface is the saved Macro DSL operation
+`header_footer_text`. It is a compatibility input format, not an execution
+engine: it compiles into the canonical template subsystem before PDF mutation.
 
-- `ADD_HEADER_FOOTER_TEXT`
-- macro `header_footer_text`
-- `PdfEditAdapter.addHeaderFooterText`
-
-They are not the canonical professional model.
-
-Later Phase 6 slices will compile/migrate legacy inputs into the new template command where compatibility requires it. New UI/Automate/SDK work must not create another header/footer schema.
+New UI, Automate, SDK, headless and workflow-authoring paths must use the
+canonical `HeaderFooterTemplate` / `APPLY_HEADER_FOOTER_TEMPLATE` contract.
 
 ## Phase boundaries
 

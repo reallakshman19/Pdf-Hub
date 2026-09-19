@@ -1,4 +1,8 @@
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
+import { FileAdapter } from '../../../adapters/file/FileAdapter';
+import { buildPageGraphFromPdfBytes } from '../../pages/pageGraphAdmission';
+import { executeHeaderFooterTemplateMutation } from '../../header-footer/executeMutation';
+import { compileLegacyHeaderFooterTextStep } from '../compat/headerFooterTextCompat';
 import { macroRegistry } from '../registry';
 import type {
   MacroMutableState,
@@ -455,39 +459,72 @@ async function executeHeaderFooterText(
   state: MacroMutableState,
 ): Promise<StepResult> {
   try {
-    const pages = resolvePageSelector(step.selector, getSelectionState(ctx, state))
-      .filter((page) => {
-        if (step.excludeFirstPage && page === 1) return false;
-        if (step.excludeLastPage && page === state.pageCount) return false;
-        return true;
-      });
+    const pages = resolvePageSelector(
+      step.selector,
+      getSelectionState(ctx, state),
+    ).filter((page) => {
+      if (step.excludeFirstPage && page === 1) return false;
+      if (step.excludeLastPage && page === state.pageCount) return false;
+      return true;
+    });
 
     if (pages.length === 0) {
       return warning('No pages matched header_footer_text selector.');
     }
 
-    const updatedBytes = await PdfEditAdapter.addHeaderFooterText(state.workingBytes, {
-      pages: toZeroBasedPageIndices(pages),
-      zone: step.zone,
-      text: step.text,
-      align: step.align,
-      marginX: step.marginX,
-      marginY: step.marginY,
-      fontSize: step.fontSize,
-      color: step.color ?? '#374151',
-      opacity: step.opacity ?? 0.9,
-      fileName: ctx.fileName,
-      now: ctx.now ?? new Date(),
-      enablePageNumberToken: step.pageNumberToken ?? true,
-      enableFileNameToken: step.fileNameToken ?? false,
-      enableDateToken: step.dateToken ?? false,
-      signal: ctx.options?.abortSignal,
+    const signal = ctx.options?.abortSignal;
+    const documentKey = await FileAdapter.hashBytes(state.workingBytes);
+    const pageGraph = await buildPageGraphFromPdfBytes(
+      state.workingBytes,
+      documentKey,
+      signal,
+    );
+    const pageIds = pages.flatMap((pageNumber) => {
+      const pageId = pageGraph.pages[pageNumber - 1]?.pageId;
+      return pageId ? [pageId] : [];
     });
 
+    if (pageIds.length !== pages.length) {
+      return failure(
+        new Error(
+          'Legacy header/footer selector no longer matches the current PDF PageGraph.',
+        ),
+      );
+    }
+
+    const now = ctx.now ?? new Date();
+    const compilation = compileLegacyHeaderFooterTextStep(
+      step,
+      pageIds,
+      now,
+    );
+    const mutation = await executeHeaderFooterTemplateMutation(
+      state.workingBytes,
+      pageGraph,
+      compilation.template,
+      {
+        fileName: ctx.fileName,
+        now,
+        dateText: compilation.dateText,
+        variables: compilation.variables,
+      },
+      undefined,
+      signal,
+    );
+
+    if (!mutation.ok) {
+      return failure(
+        new Error(
+          mutation.errors.join('; ')
+          || 'Legacy header/footer compatibility mutation failed.',
+        ),
+      );
+    }
+
     return success(
-      `Applied ${step.zone} text to ${pages.length} page(s)`,
+      `Applied legacy ${step.zone} text to ${pages.length} page(s) through canonical template compatibility`,
       [
-        bytesEffect(updatedBytes),
+        bytesEffect(mutation.bytes),
       ],
     );
   } catch (err) {

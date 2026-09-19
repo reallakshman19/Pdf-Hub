@@ -160,8 +160,6 @@ function commandLabel(command: PdfCommand): string {
         : 'Set logical page labels';
     case 'APPLY_HEADER_FOOTER_TEMPLATE':
       return command.payload.template.name?.trim() || 'Apply header/footer template';
-    case 'ADD_HEADER_FOOTER_TEXT':
-      return 'Add header/footer text';
     case 'DRAW_TEXT_ON_PAGES':
       return 'Draw text on pages';
     case 'DRAW_REDACTION_BOX':
@@ -1088,38 +1086,6 @@ export async function dispatchPdfCommand(
           result.nextBytes,
           result.nextPageCount,
         );
-      }
-
-      case 'ADD_HEADER_FOOTER_TEXT': {
-        const { options } = command.payload;
-        const selectedIndices = sanitizePageIndices(command.payload.pageIndices, pageCount);
-        const pageIndices = selectedIndices.filter((index) => {
-          const pageNumber = index + 1;
-          if (options.excludeFirstPage && pageNumber === 1) return false;
-          if (options.excludeLastPage && pageNumber === pageCount) return false;
-          return true;
-        });
-        if (pageIndices.length === 0) {
-          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for header/footer text.');
-        }
-        const nextBytes = await PdfEditAdapter.addHeaderFooterText(context.workingBytes, {
-          pages: pageIndices,
-          zone: options.zone,
-          text: options.text,
-          align: options.align,
-          marginX: options.marginX,
-          marginY: options.marginY,
-          fontSize: options.fontSize,
-          color: options.color ?? '#374151',
-          opacity: options.opacity ?? 0.9,
-          fileName: context.fileName,
-          now: new Date(command.createdAt),
-          enablePageNumberToken: options.pageNumberToken ?? true,
-          enableFileNameToken: options.fileNameToken ?? false,
-          enableDateToken: options.dateToken ?? false,
-        });
-        const result = await applyMutation(command, context.workingBytes, nextBytes);
-        return commandSuccess(command, true, 'Header/footer text applied', result.nextBytes, result.nextPageCount);
       }
 
       case 'DRAW_TEXT_ON_PAGES': {

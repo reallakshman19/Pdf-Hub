@@ -8,24 +8,6 @@ type PDFPageT = import('pdf-lib').PDFPage;
 type PdfColor = import('pdf-lib').Color;
 type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
 
-type HeaderFooterOptions = {
-  pages: number[];
-  zone: 'header' | 'footer';
-  text: string;
-  align: 'left' | 'center' | 'right';
-  marginX: number;
-  marginY: number;
-  fontSize: number;
-  color: string;
-  opacity: number;
-  fileName: string;
-  now: Date;
-  enablePageNumberToken: boolean;
-  enableFileNameToken: boolean;
-  enableDateToken: boolean;
-  signal?: AbortSignal;
-};
-
 type DrawTextOptions = {
   pages: number[];
   text: string;
@@ -595,57 +577,6 @@ export class PdfEditAdapter {
       out.addPage(page);
     }
     return await awaitPdfOperation(out.save(), operationOptions.signal, 'reorder pages: save');
-  }
-
-  static async addHeaderFooterText(
-    baseBytes: Uint8Array,
-    options: HeaderFooterOptions,
-  ): Promise<Uint8Array> {
-    const lib = await pdfLib();
-    const { PDFDocument, StandardFonts } = lib;
-    const pdfDoc = await awaitPdfOperation(PDFDocument.load(baseBytes), options.signal, 'header/footer: load');
-    const font = await awaitPdfOperation(pdfDoc.embedFont(StandardFonts.Helvetica), options.signal, 'header/footer: embed font');
-    const totalPages = pdfDoc.getPageCount();
-
-    for (const pageIndex of options.pages) {
-      pdfCheckpoint(options.signal, 'header/footer: draw page');
-      const page = pdfDoc.getPage(pageIndex);
-      const width = page.getWidth();
-      const height = page.getHeight();
-
-      const text = resolveHeaderFooterTokens(options.text, {
-        page: pageIndex + 1,
-        pages: totalPages,
-        file: options.fileName,
-        date: options.now.toLocaleDateString(),
-        enablePageNumberToken: options.enablePageNumberToken,
-        enableFileNameToken: options.enableFileNameToken,
-        enableDateToken: options.enableDateToken,
-      });
-
-      const textWidth = font.widthOfTextAtSize(text, options.fontSize);
-      const x =
-        options.align === 'left'
-          ? options.marginX
-          : options.align === 'center'
-          ? (width - textWidth) / 2
-          : width - options.marginX - textWidth;
-      const y =
-        options.zone === 'header'
-          ? height - options.marginY - options.fontSize
-          : options.marginY;
-
-      page.drawText(text, {
-        x,
-        y,
-        font,
-        size: options.fontSize,
-        color: hexToRgb(options.color, lib),
-        opacity: options.opacity,
-      });
-    }
-
-    return await awaitPdfOperation(pdfDoc.save(), options.signal, 'header/footer: save');
   }
 
   static async drawTextOnPages(

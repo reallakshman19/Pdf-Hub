@@ -5,6 +5,12 @@ import { macroRegistry } from '../registry';
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
 import './content-ops';
 
+const compatMocks = vi.hoisted(() => ({
+  hashBytes: vi.fn(),
+  buildPageGraphFromPdfBytes: vi.fn(),
+  executeHeaderFooterTemplateMutation: vi.fn(),
+}));
+
 const pngDataUrl =
   'data:image/png;base64,' +
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -16,9 +22,24 @@ const jpegDataUrl =
 vi.mock('../../../adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
     drawTextOnPages: vi.fn(async () => new Uint8Array([2, 2, 2])),
-    addHeaderFooterText: vi.fn(async () => new Uint8Array([3, 3, 3])),
     insertImage: vi.fn(async () => new Uint8Array([4, 4, 4])),
   },
+}));
+
+vi.mock('../../../adapters/file/FileAdapter', () => ({
+  FileAdapter: {
+    hashBytes: compatMocks.hashBytes,
+  },
+}));
+
+vi.mock('../../pages/pageGraphAdmission', () => ({
+  buildPageGraphFromPdfBytes:
+    compatMocks.buildPageGraphFromPdfBytes,
+}));
+
+vi.mock('../../header-footer/executeMutation', () => ({
+  executeHeaderFooterTemplateMutation:
+    compatMocks.executeHeaderFooterTemplateMutation,
 }));
 
 vi.mock('html2canvas', () => ({
@@ -67,6 +88,24 @@ function decodePngDonor(): Uint8Array {
 describe('content-ops slice 3', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    compatMocks.hashBytes.mockResolvedValue('sha256:macro');
+    compatMocks.buildPageGraphFromPdfBytes.mockResolvedValue({
+      pages: [1, 2, 3].map((pageNumber, index) => ({
+        pageId: `sha256:macro::page::${pageNumber}`,
+        documentKey: 'sha256:macro',
+        originalPageNumber: pageNumber,
+        currentIndex: index,
+        width: 595,
+        height: 842,
+        rotation: 0 as const,
+      })),
+    });
+    compatMocks.executeHeaderFooterTemplateMutation.mockResolvedValue({
+      ok: true,
+      mutated: true,
+      bytes: new Uint8Array([3, 3, 3]),
+      warnings: [],
+    });
   });
 
   it('draw_text_on_pages sends zero-based page indices', async () => {
@@ -94,7 +133,7 @@ describe('content-ops slice 3', () => {
     );
   });
 
-  it('header_footer_text sends zero-based page indices', async () => {
+  it('header_footer_text compiles stable PageIds into the canonical mutation path', async () => {
     const result = await macroRegistry.execute(
       {
         op: 'header_footer_text',
@@ -113,11 +152,51 @@ describe('content-ops slice 3', () => {
     );
 
     expect(result.status).toBe('success');
-    expect(PdfEditAdapter.addHeaderFooterText).toHaveBeenCalledWith(
+    expect(compatMocks.hashBytes).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+    );
+    expect(
+      compatMocks.buildPageGraphFromPdfBytes,
+    ).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      'sha256:macro',
+      undefined,
+    );
+    expect(
+      compatMocks.executeHeaderFooterTemplateMutation,
+    ).toHaveBeenCalledWith(
       expect.any(Uint8Array),
       expect.objectContaining({
-        pages: [0, 1, 2],
+        pages: expect.any(Array),
       }),
+      expect.objectContaining({
+        rules: [
+          expect.objectContaining({
+            selector: {
+              include: {
+                mode: 'pageIds',
+                pageIds: [
+                  'sha256:macro::page::1',
+                  'sha256:macro::page::2',
+                  'sha256:macro::page::3',
+                ],
+              },
+            },
+            footer: {
+              center: {
+                kind: 'text',
+                template: 'Page {{physicalPage}}',
+              },
+            },
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        fileName: 'sample.pdf',
+        variables: {},
+      }),
+      undefined,
+      undefined,
     );
   });
 

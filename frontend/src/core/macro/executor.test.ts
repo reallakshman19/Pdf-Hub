@@ -7,12 +7,17 @@ import { executeMacroRecipe } from './executor';
 import { resolveSelector as resolvePageSelector } from './steps/page-ops';
 import type { MacroExecutionContext, MacroRecipe } from './types';
 
+const headerFooterCompatMocks = vi.hoisted(() => ({
+  hashBytes: vi.fn(),
+  buildPageGraphFromPdfBytes: vi.fn(),
+  executeHeaderFooterTemplateMutation: vi.fn(),
+}));
+
 const pdfMocks = vi.hoisted(() => ({
   countPages: vi.fn(),
   rotatePages: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
-  addHeaderFooterText: vi.fn(),
   drawTextOnPages: vi.fn(),
   mergePdfs: vi.fn(),
   insertAt: vi.fn(),
@@ -29,7 +34,6 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     rotatePages: pdfMocks.rotatePages,
     extractPages: pdfMocks.extractPages,
     removePages: pdfMocks.removePages,
-    addHeaderFooterText: pdfMocks.addHeaderFooterText,
     drawTextOnPages: pdfMocks.drawTextOnPages,
     merge: pdfMocks.mergePdfs,
     insertAt: pdfMocks.insertAt,
@@ -40,6 +44,23 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     getPageSize: pdfMocks.getPageSize,
   },
 }));
+
+vi.mock('@/adapters/file/FileAdapter', () => ({
+  FileAdapter: {
+    hashBytes: headerFooterCompatMocks.hashBytes,
+  },
+}));
+
+vi.mock('@/core/pages/pageGraphAdmission', () => ({
+  buildPageGraphFromPdfBytes:
+    headerFooterCompatMocks.buildPageGraphFromPdfBytes,
+}));
+
+vi.mock('@/core/header-footer/executeMutation', () => ({
+  executeHeaderFooterTemplateMutation:
+    headerFooterCompatMocks.executeHeaderFooterTemplateMutation,
+}));
+
 
 const baseContext: MacroExecutionContext = {
   workingBytes: new Uint8Array([1, 2, 3]),
@@ -58,7 +79,6 @@ describe('macro executor', () => {
     pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([5, 5, 5]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([6, 6, 6]));
-    pdfMocks.addHeaderFooterText.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.drawTextOnPages.mockResolvedValue(new Uint8Array([8, 8, 8]));
     pdfMocks.mergePdfs.mockResolvedValue(new Uint8Array([9, 9, 9]));
     pdfMocks.insertAt.mockResolvedValue(new Uint8Array([3, 3, 3]));
@@ -67,6 +87,26 @@ describe('macro executor', () => {
     pdfMocks.replacePage.mockResolvedValue(new Uint8Array([6, 1, 6]));
     pdfMocks.reorderPages.mockResolvedValue(new Uint8Array([4, 1, 4]));
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
+    headerFooterCompatMocks.hashBytes.mockResolvedValue(
+      'sha256:macro-executor',
+    );
+    headerFooterCompatMocks.buildPageGraphFromPdfBytes.mockResolvedValue({
+      pages: Array.from({ length: 6 }, (_, index) => ({
+        pageId: `sha256:macro-executor::page::${index + 1}`,
+        documentKey: 'sha256:macro-executor',
+        originalPageNumber: index + 1,
+        currentIndex: index,
+        width: 612,
+        height: 792,
+        rotation: 0 as const,
+      })),
+    });
+    headerFooterCompatMocks.executeHeaderFooterTemplateMutation.mockResolvedValue({
+      ok: true,
+      mutated: true,
+      bytes: new Uint8Array([7, 7, 7]),
+      warnings: [],
+    });
   });
 
   it('resolves selected pages with fallback to current page', () => {
@@ -201,7 +241,37 @@ describe('macro executor', () => {
 
     await executeMacroRecipe(recipe, baseContext);
 
-    expect(pdfMocks.addHeaderFooterText).toHaveBeenCalledTimes(1);
+    expect(
+      headerFooterCompatMocks.executeHeaderFooterTemplateMutation,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      headerFooterCompatMocks.executeHeaderFooterTemplateMutation,
+    ).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      expect.objectContaining({
+        pages: expect.any(Array),
+      }),
+      expect.objectContaining({
+        rules: [
+          expect.objectContaining({
+            selector: {
+              include: {
+                mode: 'pageIds',
+                pageIds: [
+                  'sha256:macro-executor::page::2',
+                  'sha256:macro-executor::page::3',
+                ],
+              },
+            },
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        fileName: 'sample.pdf',
+      }),
+      undefined,
+      undefined,
+    );
     expect(pdfMocks.drawTextOnPages).toHaveBeenCalledTimes(1);
   });
 

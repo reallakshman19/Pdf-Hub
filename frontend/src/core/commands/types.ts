@@ -18,22 +18,6 @@ export type PdfCommandRisk =
   | 'preview-required'
   | 'confirm-required';
 
-export interface HeaderFooterCommandOptions {
-  zone: 'header' | 'footer';
-  text: string;
-  align: 'left' | 'center' | 'right';
-  marginX: number;
-  marginY: number;
-  fontSize: number;
-  color?: string;
-  opacity?: number;
-  pageNumberToken?: boolean;
-  fileNameToken?: boolean;
-  dateToken?: boolean;
-  excludeFirstPage?: boolean;
-  excludeLastPage?: boolean;
-}
-
 export interface DrawTextCommandOptions {
   text: string;
   x: number;
@@ -125,10 +109,6 @@ export type ApplyHeaderFooterTemplateCommand = PdfCommandBase<
   'APPLY_HEADER_FOOTER_TEMPLATE',
   { template: HeaderFooterTemplate }
 >;
-export type AddHeaderFooterTextCommand = PdfCommandBase<
-  'ADD_HEADER_FOOTER_TEXT',
-  { pageIndices: number[]; options: HeaderFooterCommandOptions }
->;
 export type DrawTextOnPagesCommand = PdfCommandBase<
   'DRAW_TEXT_ON_PAGES',
   { pageIndices: number[]; options: DrawTextCommandOptions }
@@ -171,7 +151,6 @@ export type PdfCommand =
   | MergePdfCommand
   | SetPageLabelsCommand
   | ApplyHeaderFooterTemplateCommand
-  | AddHeaderFooterTextCommand
   | DrawTextOnPagesCommand
   | DrawRedactionBoxCommand
   | AnnotationChangeCommand
