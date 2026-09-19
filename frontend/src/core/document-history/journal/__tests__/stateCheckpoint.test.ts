@@ -98,6 +98,17 @@ describe('history state checkpoint payload', () => {
     ).toThrow(/inline data URI/);
   });
 
+  it('rejects generic data URIs without an explicit media type', () => {
+    expect(() =>
+      createHistoryStateCheckpointPayload({
+        annotations: [annotation({
+          content: 'data:,embedded',
+        })],
+        writer: writer(),
+      }),
+    ).toThrow(/inline data URI/);
+  });
+
   it('rejects data URIs buried inside Writer serialized editor state', () => {
     const state = writer();
     state.elements[0] = {
@@ -160,6 +171,21 @@ describe('history state checkpoint payload', () => {
         cyclicPayload as never,
       ),
     ).toThrow(/cycle/);
+  });
+
+  it('rejects symbol-keyed structured state', () => {
+    const symbolData: Record<string | symbol, unknown> = {};
+    symbolData[Symbol('hidden')] = 'value';
+
+    expect(() =>
+      assertHistoryStateCheckpointPayload({
+        schemaVersion: 1,
+        annotations: [annotation({
+          normalizedGeometry: symbolData,
+        })],
+        writer: writer(),
+      } as never),
+    ).toThrow(/symbol-keyed data/);
   });
 
   it('rejects non-plain object instances and unsupported values', () => {
