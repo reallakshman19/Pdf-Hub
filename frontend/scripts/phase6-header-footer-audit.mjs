@@ -380,6 +380,68 @@ if (quickActionStart < 0 || quickActionEnd <= quickActionStart) {
   );
 }
 
+const legacyMacroCompatPath =
+  'src/core/macro/compat/headerFooterTextCompat.ts';
+const legacyMacroCompat = read(legacyMacroCompatPath);
+requireContains(legacyMacroCompat, legacyMacroCompatPath, [
+  'compileLegacyHeaderFooterTextStep',
+  'translateLegacyHeaderFooterText',
+  'createSimpleHeaderFooterTextTemplate',
+  "'{{page}}'",
+  "'{page}'",
+  "'{{total_pages}}'",
+  "'{{file_name}}'",
+  "'{{date}}'",
+  "'{{var:",
+]);
+forbidContains(legacyMacroCompat, legacyMacroCompatPath, [
+  'PdfEditAdapter',
+  'addHeaderFooterText',
+  'ADD_HEADER_FOOTER_TEXT',
+  "from 'pdf-lib'",
+]);
+
+const legacyMacroContentOpsPath =
+  'src/core/macro/steps/content-ops.ts';
+const legacyMacroContentOps = read(legacyMacroContentOpsPath);
+const legacyMacroExecutorStart =
+  legacyMacroContentOps.indexOf('async function executeHeaderFooterText');
+const legacyMacroExecutorEnd =
+  legacyMacroContentOps.indexOf(
+    "macroRegistry.register('header_footer_text'",
+    legacyMacroExecutorStart,
+  );
+if (
+  legacyMacroExecutorStart < 0
+  || legacyMacroExecutorEnd <= legacyMacroExecutorStart
+) {
+  fail('Legacy macro header/footer compatibility executor boundary is missing');
+} else {
+  const legacyMacroExecutor = legacyMacroContentOps.slice(
+    legacyMacroExecutorStart,
+    legacyMacroExecutorEnd,
+  );
+  requireContains(
+    legacyMacroExecutor,
+    legacyMacroContentOpsPath,
+    [
+      'FileAdapter.hashBytes',
+      'buildPageGraphFromPdfBytes',
+      'compileLegacyHeaderFooterTextStep',
+      'executeHeaderFooterTemplateMutation',
+      'pageIds',
+    ],
+  );
+  forbidContains(
+    legacyMacroExecutor,
+    legacyMacroContentOpsPath,
+    [
+      'addHeaderFooterText',
+      'ADD_HEADER_FOOTER_TEXT',
+    ],
+  );
+}
+
 const macroOpSchemaPath =
   'src/core/macro/schema/opSchema.ts';
 const macroOpSchema = read(macroOpSchemaPath);
@@ -481,7 +543,7 @@ if (
 }
 if (!macroTypes.includes("op: 'header_footer_text'")) {
   fail(
-    'Phase 6G must retain legacy header_footer_text until the explicit 6H migration slice',
+    'Saved-workflow compatibility must retain the legacy header_footer_text DSL entry',
   );
 }
 
@@ -515,9 +577,11 @@ requireContains(commandTypes, commandTypesPath, [
   'ApplyHeaderFooterTemplateCommand',
   'HeaderFooterTemplate',
 ]);
-if (!commandTypes.includes("'ADD_HEADER_FOOTER_TEXT'")) {
-  fail('Phase 6 migration must not prematurely remove the legacy compatibility command');
-}
+forbidContains(commandTypes, commandTypesPath, [
+  "'ADD_HEADER_FOOTER_TEXT'",
+  'AddHeaderFooterTextCommand',
+  'HeaderFooterCommandOptions',
+]);
 
 const validatorsPath = 'src/core/commands/validators.ts';
 const validators = read(validatorsPath);
@@ -541,30 +605,45 @@ requireContains(dispatch, dispatchPath, [
 const canonicalCaseStart = dispatch.lastIndexOf(
   "case 'APPLY_HEADER_FOOTER_TEMPLATE'",
 );
-const legacyCaseStart = dispatch.indexOf(
-  "case 'ADD_HEADER_FOOTER_TEXT'",
+const nextCommandCase = dispatch.indexOf(
+  "case 'DRAW_TEXT_ON_PAGES'",
   canonicalCaseStart,
 );
 if (
   canonicalCaseStart < 0
-  || legacyCaseStart < 0
-  || canonicalCaseStart >= legacyCaseStart
+  || nextCommandCase <= canonicalCaseStart
 ) {
-  fail('Canonical header/footer dispatch case must precede the legacy compatibility case');
+  fail('Canonical header/footer dispatch boundary is missing');
 } else {
   const canonicalDispatchSlice = dispatch.slice(
     canonicalCaseStart,
-    legacyCaseStart,
+    nextCommandCase,
   );
   forbidContains(canonicalDispatchSlice, dispatchPath, [
     'PdfEditAdapter',
     'addHeaderFooterText',
+    'ADD_HEADER_FOOTER_TEXT',
   ]);
   requireContains(canonicalDispatchSlice, dispatchPath, [
     'executeHeaderFooterTemplateMutation',
     'applyMutation(',
   ]);
 }
+forbidContains(dispatch, dispatchPath, [
+  "case 'ADD_HEADER_FOOTER_TEXT'",
+  'addHeaderFooterText',
+]);
+forbidContains(validators, validatorsPath, [
+  "case 'ADD_HEADER_FOOTER_TEXT'",
+]);
+
+const pdfEditAdapterPath =
+  'src/adapters/pdf-edit/PdfEditAdapter.ts';
+const pdfEditAdapter = read(pdfEditAdapterPath);
+forbidContains(pdfEditAdapter, pdfEditAdapterPath, [
+  'addHeaderFooterText',
+  'HeaderFooterOptions',
+]);
 
 const contentPreparationPath =
   'src/core/header-footer/pdfLibContentPreparation.ts';
