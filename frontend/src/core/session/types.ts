@@ -84,6 +84,12 @@ export interface DocumentSession {
   originalRevisionId: string | null;
   /** Durable revision matching workingBytes, or null when bytes are unpublished. */
   activeRevisionId: string | null;
+  /** Runtime registry identity of the history journal metadata store. */
+  historyJournalStoreId: string | null;
+  /** Stable editing-session journal identity; unlike documentKey it does not change per mutation. */
+  historyJournalId: string | null;
+  /** Whether the active journal store survives page/browser-process restart. */
+  historyJournalPersistent: boolean;
   fileName: string | null;
   /**
    * Copy-on-write: the store holds whatever reference callers pass to
