@@ -187,6 +187,86 @@ describe('DocumentWorkspace', () => {
     });
   });
 
+  it('reacquires the renderer source when active revision changes A to B and back to A', async () => {
+    const store = new MemoryRevisionStore({
+      id: 'switch-revisions',
+    });
+    for (const [revisionId, value] of [
+      ['sha256:A', 1],
+      ['sha256:B', 2],
+    ] as const) {
+      await store.commit({
+        revisionId,
+        source: new MemorySource({
+          id: `source-${revisionId}`,
+          bytes: Uint8Array.from([value]),
+        }),
+      });
+    }
+    registerWorkingRevisionStore(store);
+
+    useSessionStore.setState({
+      documentKey: 'sha256:A',
+      revisionStoreId: store.id,
+      originalRevisionId: 'sha256:A',
+      activeRevisionId: 'sha256:A',
+      workingBytes: Uint8Array.from([1]),
+    });
+
+    await act(async () => {
+      render(<DocumentWorkspace />);
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        PdfRendererAdapter.acquireDocumentSource,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cacheKey: 'sha256:A',
+        }),
+      );
+    });
+
+    await act(async () => {
+      useSessionStore.setState({
+        documentKey: 'sha256:B',
+        activeRevisionId: 'sha256:B',
+        workingBytes: Uint8Array.from([2]),
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        PdfRendererAdapter.acquireDocumentSource,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cacheKey: 'sha256:B',
+        }),
+      );
+    });
+
+    await act(async () => {
+      useSessionStore.setState({
+        documentKey: 'sha256:A',
+        activeRevisionId: 'sha256:A',
+        workingBytes: Uint8Array.from([1]),
+      });
+    });
+
+    await vi.waitFor(() => {
+      const keys = vi.mocked(
+        PdfRendererAdapter.acquireDocumentSource,
+      ).mock.calls.map(
+        ([input]) => input.cacheKey,
+      );
+      expect(keys).toEqual([
+        'sha256:A',
+        'sha256:B',
+        'sha256:A',
+      ]);
+    });
+  });
+
   it('viewMode changes layout to single', async () => {
     useSessionStore.setState({
       workingBytes: new Uint8Array([1, 2, 3]),
