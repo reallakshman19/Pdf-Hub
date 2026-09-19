@@ -46,8 +46,6 @@ const pdfMocks = vi.hoisted(() => ({
   movePage: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
-  drawTextOnPages: vi.fn(),
-  drawRedactionBoxes: vi.fn(),
   countPages: vi.fn(),
   getPageSize: vi.fn(),
 }));
@@ -57,8 +55,6 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     movePage: pdfMocks.movePage,
     extractPages: pdfMocks.extractPages,
     removePages: pdfMocks.removePages,
-    drawTextOnPages: pdfMocks.drawTextOnPages,
-    drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
     countPages: pdfMocks.countPages,
     getPageSize: pdfMocks.getPageSize,
   },
@@ -76,6 +72,8 @@ const mutationEngineMocks = vi.hoisted(() => ({
   replacePage: vi.fn(),
   appendPdfs: vi.fn(),
   setPageLabels: vi.fn(),
+  drawText: vi.fn(),
+  drawVisualMasks: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -278,6 +276,8 @@ describe('canonical command dispatch', () => {
       replacePage: mutationEngineMocks.replacePage,
       appendPdfs: mutationEngineMocks.appendPdfs,
       setPageLabels: mutationEngineMocks.setPageLabels,
+      drawText: mutationEngineMocks.drawText,
+      drawVisualMasks: mutationEngineMocks.drawVisualMasks,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -1320,19 +1320,28 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
-  it('draws text on selected pages', async () => {
-    pdfMocks.drawTextOnPages.mockResolvedValue(new Uint8Array([3, 3, 3]));
+  it('draws resolved text on selected pages through the mutation session', async () => {
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([3, 3, 3]),
+      pageCount: 3,
+    });
 
     const result = await execute(
       {
         type: 'DRAW_TEXT_ON_PAGES',
         payload: {
-          pageIndices: [0],
+          pageIndices: [0, 2],
           options: {
-            text: 'REVIEW',
+            text: 'Page {page} of {pages} — {file} — {date}',
             x: 20,
             y: 30,
             fontSize: 12,
+            color: '#123456',
+            opacity: 0.8,
+            align: 'right',
+            rotation: 90,
+            fileNameToken: true,
+            dateToken: true,
           },
         },
       },
@@ -1340,16 +1349,49 @@ describe('canonical command dispatch', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(pdfMocks.drawTextOnPages).toHaveBeenCalledTimes(1);
+    const dateText = new Date(
+      '2026-09-18T00:00:00.000Z',
+    ).toLocaleDateString();
+    expect(mutationEngineMocks.drawText).toHaveBeenCalledWith([
+      {
+        pageIndex: 0,
+        text: `Page 1 of 3 — test.pdf — ${dateText}`,
+        xPt: 20,
+        yPt: 30,
+        fontSizePt: 12,
+        color: '#123456',
+        opacity: 0.8,
+        align: 'right',
+        rotationDegrees: 90,
+      },
+      {
+        pageIndex: 2,
+        text: `Page 3 of 3 — test.pdf — ${dateText}`,
+        xPt: 20,
+        yPt: 30,
+        fontSizePt: 12,
+        color: '#123456',
+        opacity: 0.8,
+        align: 'right',
+        rotationDegrees: 90,
+      },
+    ]);
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([3, 3, 3]),
+    );
   });
 
-  it('labels visual-mask commands accurately', async () => {
-    pdfMocks.drawRedactionBoxes.mockResolvedValue(new Uint8Array([4, 4, 4]));
+  it('labels visual-mask commands accurately and writes them through the mutation session', async () => {
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([4, 4, 4]),
+      pageCount: 3,
+    });
 
     const result = await execute({
       type: 'DRAW_REDACTION_BOX',
       payload: {
-        pageIndices: [0],
+        pageIndices: [0, 2],
         options: {
           x: 20,
           y: 30,
@@ -1361,6 +1403,25 @@ describe('canonical command dispatch', () => {
     });
 
     expect(result.success).toBe(true);
+    expect(mutationEngineMocks.drawVisualMasks).toHaveBeenCalledWith([
+      {
+        pageIndex: 0,
+        xPt: 20,
+        yFromTopPt: 30,
+        widthPt: 120,
+        heightPt: 24,
+        fillColor: '#000000',
+      },
+      {
+        pageIndex: 2,
+        xPt: 20,
+        yFromTopPt: 30,
+        widthPt: 120,
+        heightPt: 24,
+        fillColor: '#000000',
+      },
+    ]);
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
     expect(result.message).toMatch(/visual mask/i);
     expect(result.message).toMatch(/not securely removed/i);
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Draw visual mask');
