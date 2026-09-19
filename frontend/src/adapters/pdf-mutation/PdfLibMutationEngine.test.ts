@@ -177,4 +177,96 @@ describe('PdfLibMutationEngine', () => {
     session.dispose();
   });
 
+
+  it('reuses the active parse while donor PDFs are parsed only when consumed', async () => {
+    const active = await PDFDocument.create();
+    active.addPage([100, 200]);
+    active.addPage([110, 210]);
+    const activeBytes = new Uint8Array(await active.save());
+
+    const insertDonor = await PDFDocument.create();
+    insertDonor.addPage([200, 300]);
+    insertDonor.addPage([210, 310]);
+    const insertBytes = new Uint8Array(
+      await insertDonor.save(),
+    );
+
+    const mergeDonor = await PDFDocument.create();
+    mergeDonor.addPage([300, 400]);
+    const mergeBytes = new Uint8Array(
+      await mergeDonor.save(),
+    );
+
+    const replaceDonor = await PDFDocument.create();
+    replaceDonor.addPage([400, 500]);
+    const replaceBytes = new Uint8Array(
+      await replaceDonor.save(),
+    );
+
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({
+      bytes: activeBytes,
+    });
+
+    await session.insertPdf(1, insertBytes);
+    await session.appendPdfs([mergeBytes]);
+    await session.replacePage(
+      0,
+      replaceBytes,
+      0,
+    );
+
+    expect(session.pageCount).toBe(5);
+    expect(session.getPageMetrics(0)).toMatchObject({
+      width: 400,
+      height: 500,
+    });
+    expect(session.getPageMetrics(1)).toMatchObject({
+      width: 200,
+      height: 300,
+    });
+    expect(session.getPageMetrics(2)).toMatchObject({
+      width: 210,
+      height: 310,
+    });
+    expect(session.getPageMetrics(3)).toMatchObject({
+      width: 110,
+      height: 210,
+    });
+    expect(session.getPageMetrics(4)).toMatchObject({
+      width: 300,
+      height: 400,
+    });
+
+    const committed = await session.commit();
+
+    expect(committed.pageCount).toBe(5);
+    expect(loadSpy).toHaveBeenCalledTimes(4);
+
+    loadSpy.mockRestore();
+    session.dispose();
+  });
+
+  it('validates donor replacement page indices inside the session', async () => {
+    const donor = await PDFDocument.create();
+    donor.addPage([200, 300]);
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({
+      bytes: await createPdf(),
+    });
+
+    await expect(
+      session.replacePage(
+        0,
+        new Uint8Array(await donor.save()),
+        9,
+      ),
+    ).rejects.toThrow(/Donor page index 9/);
+
+    session.dispose();
+  });
+
 });
