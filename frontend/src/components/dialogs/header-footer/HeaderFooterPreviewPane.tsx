@@ -16,6 +16,7 @@ interface HeaderFooterPreviewPaneProps {
   previewPageId: PageId | null;
   error: string | null;
   warnings: string[];
+  imageUrls?: Readonly<Record<string, string>>;
   onPreviewPageChange: (pageId: PageId) => void;
 }
 
@@ -27,6 +28,7 @@ export const HeaderFooterPreviewPane: React.FC<
   previewPageId,
   error,
   warnings,
+  imageUrls = {},
   onPreviewPageChange,
 }) => {
   const previewPage = previewPageId
@@ -89,6 +91,7 @@ export const HeaderFooterPreviewPane: React.FC<
         <HeaderFooterPreview
           page={previewPage}
           pageNode={previewNode}
+          imageUrls={imageUrls}
         />
       ) : (
         <div className="flex min-h-40 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-700">
