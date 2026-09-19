@@ -545,13 +545,39 @@ export const WriterV2Inspector: React.FC = () => {
       <Section title="Transform">
         <Row>
           <Label>X / Y</Label>
-          <NumberInput value={Math.round(selected.rect.x)} onChange={(v) => patchRect({ x: v })} />
-          <NumberInput value={Math.round(selected.rect.y)} onChange={(v) => patchRect({ y: v })} />
+          <DraftNumberInput
+            value={Math.round(selected.rect.x)}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchRect({ x: value })
+            }
+          />
+          <DraftNumberInput
+            value={Math.round(selected.rect.y)}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchRect({ y: value })
+            }
+          />
         </Row>
         <Row>
           <Label>W / H</Label>
-          <NumberInput value={Math.round(selected.rect.width)} min={12} onChange={(v) => patchRect({ width: v })} />
-          <NumberInput value={Math.round(selected.rect.height)} min={12} onChange={(v) => patchRect({ height: v })} />
+          <DraftNumberInput
+            value={Math.round(selected.rect.width)}
+            resetKey={selected.id}
+            min={12}
+            onCommit={(value) =>
+              patchRect({ width: value })
+            }
+          />
+          <DraftNumberInput
+            value={Math.round(selected.rect.height)}
+            resetKey={selected.id}
+            min={12}
+            onCommit={(value) =>
+              patchRect({ height: value })
+            }
+          />
         </Row>
       </Section>
 
@@ -562,7 +588,12 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Font</Label>
             <select
               value={style.fontFamily ?? 'Inter'}
-              onChange={(e) => patchStyle({ fontFamily: e.target.value })}
+              onChange={(event) => {
+                void patchStyle({
+                  fontFamily:
+                    event.currentTarget.value,
+                }).catch(() => undefined);
+              }}
               style={{
                 flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -577,7 +608,13 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Size</Label>
             <select
               value={style.fontSize ?? 14}
-              onChange={(e) => patchStyle({ fontSize: Number(e.target.value) })}
+              onChange={(event) => {
+                void patchStyle({
+                  fontSize: Number(
+                    event.currentTarget.value,
+                  ),
+                }).catch(() => undefined);
+              }}
               style={{
                 width: 60, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -587,9 +624,14 @@ export const WriterV2Inspector: React.FC = () => {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <ColorPickerPopover
+            <DraftColorPicker
               value={style.textColor ?? '#111827'}
-              onChange={(v) => patchStyle({ textColor: v })}
+              resetKey={selected.id}
+              onCommit={(value) =>
+                patchStyle({
+                  textColor: value,
+                })
+              }
               label="Color"
             />
           </Row>
@@ -599,39 +641,53 @@ export const WriterV2Inspector: React.FC = () => {
       {/* Fill & Stroke */}
       <Section title="Fill & Stroke">
         <Row>
-          <ColorPickerPopover
+          <DraftColorPicker
             value={style.backgroundColor ?? '#ffffff'}
-            onChange={(v) => patchStyle({ backgroundColor: v })}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                backgroundColor: value,
+              })
+            }
             label="Fill"
           />
         </Row>
         <Row>
-          <ColorPickerPopover
+          <DraftColorPicker
             value={style.borderColor ?? '#2563eb'}
-            onChange={(v) => patchStyle({ borderColor: v })}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                borderColor: value,
+              })
+            }
             label="Border"
           />
-          <NumberInput
+          <DraftNumberInput
             value={style.borderWidth ?? 1}
+            resetKey={selected.id}
             min={0}
             max={20}
-            onChange={(v) => patchStyle({ borderWidth: v })}
+            onCommit={(value) =>
+              patchStyle({
+                borderWidth: value,
+              })
+            }
             style={{ width: 44 }}
           />
           <span style={{ fontSize: 11, color: '#94a3b8' }}>px</span>
         </Row>
         <Row>
           <Label>Opacity</Label>
-          <input
-            type="range"
-            min={0} max={1} step={0.05}
+          <DraftOpacityInput
             value={style.opacity ?? 1}
-            onChange={(e) => patchStyle({ opacity: parseFloat(e.target.value) })}
-            style={{ flex: 1 }}
+            resetKey={selected.id}
+            onCommit={(value) =>
+              patchStyle({
+                opacity: value,
+              })
+            }
           />
-          <span style={{ fontSize: 11, color: '#64748b', width: 28, textAlign: 'right' }}>
-            {Math.round((style.opacity ?? 1) * 100)}%
-          </span>
         </Row>
       </Section>
 
@@ -642,7 +698,13 @@ export const WriterV2Inspector: React.FC = () => {
             <Label>Leader</Label>
             <select
               value={selected.callout.leaderStyle}
-              onChange={(e) => patchCallout({ leaderStyle: e.target.value as 'none' | 'line' | 'arrow' })}
+              onChange={(event) => {
+                void patchCallout({
+                  leaderStyle:
+                    event.currentTarget.value
+                    as 'none' | 'line' | 'arrow',
+                }).catch(() => undefined);
+              }}
               style={{
                 flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
                 fontSize: 11, background: '#f8fafc', cursor: 'pointer',
@@ -656,19 +718,29 @@ export const WriterV2Inspector: React.FC = () => {
           {selected.callout.leaderStyle !== 'none' && (
             <>
               <Row>
-                <ColorPickerPopover
+                <DraftColorPicker
                   value={selected.callout.leaderColor}
-                  onChange={(v) => patchCallout({ leaderColor: v })}
+                  resetKey={selected.id}
+                  onCommit={(value) =>
+                    patchCallout({
+                      leaderColor: value,
+                    })
+                  }
                   label="Color"
                 />
               </Row>
               <Row>
                 <Label>Width</Label>
-                <NumberInput
+                <DraftNumberInput
                   value={selected.callout.leaderWidth}
+                  resetKey={selected.id}
                   min={1}
                   max={20}
-                  onChange={(v) => patchCallout({ leaderWidth: v })}
+                  onCommit={(value) =>
+                    patchCallout({
+                      leaderWidth: value,
+                    })
+                  }
                   style={{ width: 44 }}
                 />
                 <span style={{ fontSize: 11, color: '#94a3b8' }}>px</span>
