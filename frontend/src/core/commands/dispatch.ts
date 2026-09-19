@@ -57,6 +57,7 @@ import {
   type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
 import { executePageLabelCommandMutation } from './pageLabelCommand';
+import { executeHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
 import type {
   CommandArtifact,
   CommandErrorCode,
@@ -1029,6 +1030,61 @@ export async function dispatchPdfCommand(
           command.payload.ranges.length === 0
             ? 'Logical page labels cleared'
             : 'Logical page labels updated',
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'APPLY_HEADER_FOOTER_TEMPLATE': {
+        const pageGraph =
+          sessionPageGraph && sessionPageGraph.pages.length === pageCount
+            ? sessionPageGraph
+            : await buildPageGraphFromPdfBytes(
+                context.workingBytes,
+                context.documentKey,
+                input.signal,
+              );
+        const mutation = await executeHeaderFooterTemplateMutation(
+          context.workingBytes,
+          pageGraph,
+          command.payload.template,
+          {
+            fileName: context.fileName,
+            now: new Date(command.createdAt),
+          },
+          input.resources?.binaries,
+          input.signal,
+        );
+
+        if (!mutation.ok) {
+          return commandError(
+            command,
+            mutation.code,
+            mutation.errors[0] ?? 'Header/footer template execution failed.',
+            mutation.errors.slice(1).join('; ') || undefined,
+          );
+        }
+
+        if (!mutation.mutated) {
+          return commandSuccess(
+            command,
+            false,
+            mutation.warnings[0]
+              ?? 'Header/footer template matched no pages.',
+          );
+        }
+
+        const result = await applyMutation(
+          command,
+          context.workingBytes,
+          mutation.bytes,
+        );
+        return commandSuccess(
+          command,
+          true,
+          mutation.warnings.length > 0
+            ? `Header/footer template applied with ${mutation.warnings.length} warning(s)`
+            : 'Header/footer template applied',
           result.nextBytes,
           result.nextPageCount,
         );

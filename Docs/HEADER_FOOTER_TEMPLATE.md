@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6C canonical domain, resolution and command contract**.
+Status: **Phase 6A–6D canonical domain, resolution, command and initial PDF writer contract**.
 
 Tracking issue: #200.
 
@@ -224,6 +224,68 @@ the command; the template references them with `binaryResourceId`.
 Phase 6C deliberately does not render or mutate PDF bytes. The command becomes
 executable when the Phase 6D writer is connected through the canonical
 dispatcher/transaction path.
+
+## PDF writer boundary
+
+Phase 6D makes `APPLY_HEADER_FOOTER_TEMPLATE` executable through the canonical
+dispatcher and `DocumentTransaction`.
+
+The writer boundary is:
+
+```ts
+interface HeaderFooterPdfWriter {
+  write(input: HeaderFooterPdfWriteInput): Promise<HeaderFooterPdfWriteResult>;
+}
+```
+
+The current implementation is `pdfLibHeaderFooterWriter`. Product UI, Automate
+and future SDK code must target the canonical command/template contract, not
+this implementation.
+
+### Geometry
+
+The writer lays out content in viewer-facing visual page coordinates and maps
+those positions back into PDF page coordinates for `/Rotate` values 0, 90, 180
+and 270. Mixed page dimensions and quarter-turn rotations are supported by the
+writer contract and smoke tests.
+
+This is not yet the repository-wide final geometry service. Non-zero box
+origins and deeper CropBox/MediaBox fidelity remain part of later geometry and
+fidelity hardening.
+
+### Fonts
+
+The domain stores a logical font-family/style request; it does not store a
+pdf-lib font object.
+
+The initial pdf-lib resolver supports PDF standard-font families and style
+variants. Unknown families currently fall back to Helvetica with an explicit
+warning. This means Phase 6D does **not** claim full Unicode, Arabic, CJK or
+custom-font fidelity. A later font implementation can replace the resolver
+without changing the template contract.
+
+### Images
+
+PNG and JPEG image bytes are supplied out-of-band through command binary
+resources. Missing image resources fail before PDF writing.
+
+Image `contain` fit preserves aspect ratio. Width-only images preserve their
+natural aspect ratio. `cover` with an explicit height would require a clipping
+path; the current writer fails explicitly for that case rather than silently
+distorting or overflowing the image.
+
+### Persistence and history
+
+Successful writes are committed through the same `applyMutation` /
+`DocumentTransaction` path as other canonical document commands. A valid
+template that matches no pages is a no-op and does not create history.
+
+### Current performance limit
+
+The current pdf-lib writer still loads and saves the complete PDF revision.
+Phase 7 will put this execution behind the broader `PdfMutationEngine`
+boundary and Phase 8 will address file-backed/large-document storage. The
+professional template contract is intentionally independent of that migration.
 
 ## Legacy compatibility
 
