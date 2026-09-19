@@ -88,20 +88,12 @@ const pageGraphMocks = vi.hoisted(() => ({
   buildPageGraphFromPdfBytes: vi.fn(),
 }));
 
-const pageLabelWriterMocks = vi.hoisted(() => ({
-  writePdfPageLabels: vi.fn(),
-}));
-
 const headerFooterMutationMocks = vi.hoisted(() => ({
   executeHeaderFooterTemplateMutation: vi.fn(),
 }));
 
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
   buildPageGraphFromPdfBytes: pageGraphMocks.buildPageGraphFromPdfBytes,
-}));
-
-vi.mock('@/core/pages/pdfPageLabelWriter', () => ({
-  writePdfPageLabels: pageLabelWriterMocks.writePdfPageLabels,
 }));
 
 vi.mock('@/core/header-footer/executeMutation', () => ({
@@ -283,12 +275,6 @@ describe('canonical command dispatch', () => {
     }));
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
-    );
-    pageLabelWriterMocks.writePdfPageLabels.mockImplementation(
-      async (bytes: Uint8Array, _graph: unknown, ranges: unknown[]) => ({
-        bytes,
-        rangeCount: ranges.length,
-      }),
     );
   });
 
@@ -1061,7 +1047,6 @@ describe('canonical command dispatch', () => {
       { startPageIndex: 1, style: 'roman-lower' },
       { startPageIndex: 2, style: 'decimal' },
     ]);
-    expect(pageLabelWriterMocks.writePdfPageLabels).not.toHaveBeenCalled();
     expect(useSessionStore.getState().workingBytes).toEqual(
       new Uint8Array([9, 9, 9]),
     );
@@ -1134,7 +1119,6 @@ describe('canonical command dispatch', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(pageLabelWriterMocks.writePdfPageLabels).not.toHaveBeenCalled();
     expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([
       { startPageIndex: 0, style: 'decimal' },
       { startPageIndex: 1, style: 'roman-lower' },
