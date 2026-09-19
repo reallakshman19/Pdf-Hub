@@ -7,6 +7,9 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
+import {
+  prepareHistoryJournalMutation,
+} from '@/core/document-history/journal/appendMutation';
 import type {
   HistoryRevisionLocator,
   HistoryState,
@@ -382,6 +385,35 @@ export async function commitDocumentMutation(
     overBudget: historyState.overBudget,
   };
 
+  const transactionId = uuidv4();
+  const transactionTimestamp = Date.now();
+
+  let preparedJournal:
+    Awaited<ReturnType<typeof prepareHistoryJournalMutation>>;
+  try {
+    preparedJournal = await prepareHistoryJournalMutation({
+      journalStoreId:
+        sessionSnapshot.historyJournalStoreId,
+      journalId: sessionSnapshot.historyJournalId,
+      revisionStoreId:
+        sessionSnapshot.revisionStoreId,
+      beforeRevisionId:
+        sessionSnapshot.activeRevisionId,
+      afterRevisionId: publishedRevisionId,
+      transactionId,
+      command: input.command,
+      createdAt: new Date(
+        transactionTimestamp,
+      ).toISOString(),
+    });
+  } catch (error) {
+    throw toTransactionError(
+      'persistence',
+      'Document mutation was not committed because history journal preparation failed',
+      error,
+    );
+  }
+
   const previousAfter = historyState.undoStack.at(-1)?.after;
   const beforeRevisionBacking = revisionHistoryBacking(
     sessionSnapshot.revisionStoreId,
@@ -471,10 +503,10 @@ export async function commitDocumentMutation(
     const ocrAfter = currentOcrPageState();
 
     useHistoryStore.getState().push({
-      id: uuidv4(),
+      id: transactionId,
       command: input.command,
       label: input.label,
-      timestamp: Date.now(),
+      timestamp: transactionTimestamp,
       ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
       before: {
         ...beforeHistoryBacking,
@@ -507,6 +539,20 @@ export async function commitDocumentMutation(
         ocr: cloneOcrPageAnchoredState(ocrAfter),
       },
     });
+
+    if (preparedJournal) {
+      try {
+        await preparedJournal.store.save(
+          preparedJournal.manifest,
+        );
+      } catch (error) {
+        throw toTransactionError(
+          'persistence',
+          'Document mutation was rolled back because history journal persistence failed',
+          error,
+        );
+      }
+    }
   } catch (error) {
     useSessionStore.setState(sessionSnapshot);
     useAnnotationStore.setState(annotationSnapshot);
