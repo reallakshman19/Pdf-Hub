@@ -18,7 +18,8 @@ export type HistoryReplayBarrierCode =
   | 'DESCRIPTIVE_STATE_COMMAND'
   | 'EXTERNAL_FILE_NAME_CONTEXT'
   | 'LOCALE_SENSITIVE_DATE_CONTEXT'
-  | 'EXTERNAL_TEMPLATE_CONTEXT';
+  | 'EXTERNAL_TEMPLATE_CONTEXT'
+  | 'ARTIFACT_SIDE_EFFECT';
 
 export interface HistoryReplayBarrier {
   code: HistoryReplayBarrierCode;
@@ -243,8 +244,12 @@ export function classifyHistoryReplayability(
         code: 'DESCRIPTIVE_STATE_COMMAND',
       }]);
 
-    case 'EXTRACT_PAGES':
     case 'SPLIT_PAGES':
+      return checkpoint([{
+        code: 'ARTIFACT_SIDE_EFFECT',
+      }]);
+
+    case 'EXTRACT_PAGES':
       return NON_MUTATING;
 
     default:
