@@ -177,6 +177,141 @@ class PdfLibMutationSession implements PdfMutationSession {
     return output;
   }
 
+
+  async insertPdf(
+    atIndex: number,
+    donorBytes: Uint8Array,
+  ): Promise<void> {
+    this.assertOpen('insert donor PDF');
+    const donor = await this.loadDonor(
+      donorBytes,
+      'insert donor PDF',
+    );
+    const copied = await raceWithAbort(
+      this.document.copyPages(
+        donor,
+        donor.getPageIndices(),
+      ),
+      this.signal,
+      'insert donor PDF: copy pages',
+    );
+
+    let targetIndex = Math.max(
+      0,
+      Math.min(atIndex, this.document.getPageCount()),
+    );
+    for (const page of copied) {
+      throwIfAborted(
+        this.signal,
+        'insert donor PDF: insert page',
+      );
+      this.document.insertPage(targetIndex, page);
+      targetIndex += 1;
+    }
+  }
+
+  async replacePage(
+    targetIndex: number,
+    donorBytes: Uint8Array,
+    donorPageIndex: number,
+  ): Promise<void> {
+    this.assertOpen('replace page from donor PDF');
+    this.assertPageIndex(targetIndex);
+
+    const donor = await this.loadDonor(
+      donorBytes,
+      'replace page from donor PDF',
+    );
+    if (
+      !Number.isInteger(donorPageIndex)
+      || donorPageIndex < 0
+      || donorPageIndex >= donor.getPageCount()
+    ) {
+      throw new Error(
+        `Donor page index ${donorPageIndex} is outside 0..${Math.max(
+          0,
+          donor.getPageCount() - 1,
+        )}.`,
+      );
+    }
+
+    const output = await raceWithAbort(
+      this.lib.PDFDocument.create(),
+      this.signal,
+      'replace page: create output',
+    );
+    const [replacement] = await raceWithAbort(
+      output.copyPages(donor, [donorPageIndex]),
+      this.signal,
+      'replace page: copy donor page',
+    );
+
+    for (const index of this.document.getPageIndices()) {
+      throwIfAborted(
+        this.signal,
+        'replace page: rebuild output',
+      );
+
+      if (index === targetIndex) {
+        output.addPage(replacement);
+        continue;
+      }
+
+      const [copied] = await raceWithAbort(
+        output.copyPages(this.document, [index]),
+        this.signal,
+        'replace page: copy source page',
+      );
+      output.addPage(copied);
+    }
+
+    this.document = output;
+  }
+
+  async appendPdfs(
+    donorBytes: readonly Uint8Array[],
+  ): Promise<void> {
+    this.assertOpen('append donor PDFs');
+
+    for (const [index, bytes] of donorBytes.entries()) {
+      throwIfAborted(
+        this.signal,
+        `append donor PDF ${index}`,
+      );
+      const donor = await this.loadDonor(
+        bytes,
+        `append donor PDF ${index}`,
+      );
+      const copied = await raceWithAbort(
+        this.document.copyPages(
+          donor,
+          donor.getPageIndices(),
+        ),
+        this.signal,
+        `append donor PDF ${index}: copy pages`,
+      );
+      for (const page of copied) {
+        throwIfAborted(
+          this.signal,
+          `append donor PDF ${index}: add page`,
+        );
+        this.document.addPage(page);
+      }
+    }
+  }
+
+  private async loadDonor(
+    bytes: Uint8Array,
+    operation: string,
+  ): Promise<PdfLibDocument> {
+    throwIfAborted(this.signal, operation);
+    return raceWithAbort(
+      this.lib.PDFDocument.load(bytes),
+      this.signal,
+      `${operation}: load donor`,
+    );
+  }
+
   async commit(): Promise<PdfMutationCommitResult> {
     this.assertOpen('commit mutation session');
     throwIfAborted(this.signal, 'commit mutation session');
