@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { OperationCancelledError } from '@/core/cancellation/operationCancellation';
 
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import type { HeaderFooterTemplate } from './types';
@@ -155,4 +156,28 @@ describe('executeHeaderFooterTemplateMutation', () => {
     expect(result.bytes).toBe(bytes);
     expect(writer.write).not.toHaveBeenCalled();
   });
+
+  it('preserves cancellation instead of converting it to execution failure', async () => {
+    const writer: HeaderFooterPdfWriter = {
+      write: vi.fn(async () => {
+        throw new OperationCancelledError('header/footer test');
+      }),
+    };
+
+    await expect(
+      executeHeaderFooterTemplateMutation(
+        new Uint8Array([1]),
+        graph(),
+        template('text'),
+        {
+          fileName: 'test.pdf',
+          now: new Date('2026-09-19T00:00:00Z'),
+        },
+        undefined,
+        undefined,
+        writer,
+      ),
+    ).rejects.toBeInstanceOf(OperationCancelledError);
+  });
+
 });
