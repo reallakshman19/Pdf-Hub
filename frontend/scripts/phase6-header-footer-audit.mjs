@@ -380,6 +380,30 @@ if (quickActionStart < 0 || quickActionEnd <= quickActionStart) {
   );
 }
 
+const macroOpSchemaPath =
+  'src/core/macro/schema/opSchema.ts';
+const macroOpSchema = read(macroOpSchemaPath);
+requireContains(macroOpSchema, macroOpSchemaPath, [
+  'getCreatableMacroOpSchemas',
+  "schema.op !== 'header_footer_text'",
+]);
+requireContains(
+  read('src/components/macro/builder/MacroRecipeBuilder.tsx'),
+  'src/components/macro/builder/MacroRecipeBuilder.tsx',
+  [
+    'getCreatableMacroOpSchemas',
+  ],
+);
+
+const builtInRecipesPath =
+  'src/core/macro/recipes/builtInRecipes.ts';
+const builtInRecipes = read(builtInRecipesPath);
+requireContains(builtInRecipes, builtInRecipesPath, [
+  "const LEGACY_HEADER_FOOTER_OP = 'header_footer_text'",
+  '!item.requiredOps.includes(LEGACY_HEADER_FOOTER_OP)',
+  'findBuiltInMacroRecipe',
+]);
+
 const automateHeaderFooterPath =
   'src/components/sidebar/automate/AutomateHeaderFooterQuickAction.tsx';
 const automateHeaderFooter = read(automateHeaderFooterPath);
