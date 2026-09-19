@@ -1,9 +1,17 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { BrowserFileSource } from '@/adapters/document-source/BrowserFileSource';
 import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
+import {
+  materializeDocumentSource,
+} from '@/core/document-source/materialize';
+import {
+  registerDocumentSource,
+  releaseDocumentSource,
+} from '@/core/document-source/registry';
 import { log, error as logError, warn } from '@/core/logger/service';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import type { PageGraph, PageNode } from '@/core/pages/types';
@@ -28,6 +36,7 @@ export type PrimaryPdfInputSource =
 
 export interface OpenedPdfDocument {
   readonly source: PrimaryPdfInputSource;
+  readonly sourceId: string;
   readonly documentKey: string;
   readonly fileName: string;
   readonly bytes: Uint8Array;
@@ -76,6 +85,9 @@ export async function admitAndOpenPdfFile(
     },
   ];
   const diagnostics: AdmissionDiagnostic[] = [];
+  const sourceId =
+    `primary-pdf:${generation}:${file.size}`;
+  let registeredSourceId: string | null = null;
 
   const sizeDiagnostic = evaluateAdmissionMetric(
     PRIMARY_PDF_OPEN_POLICY,
@@ -117,15 +129,24 @@ export async function admitAndOpenPdfFile(
   }
 
   try {
-    throwIfAborted(options.signal, 'open PDF: metadata preflight');
-    const arrayBuffer = await raceWithAbort(
-      file.arrayBuffer(),
+    throwIfAborted(
       options.signal,
-      'open PDF: bounded read',
+      'open PDF: metadata preflight',
     );
-    const bytes = new Uint8Array(arrayBuffer);
+    const documentSource = new BrowserFileSource({
+      id: sourceId,
+      file,
+    });
+    const signatureBytes = await raceWithAbort(
+      documentSource.read(
+        0,
+        Math.min(file.size, 1024),
+      ),
+      options.signal,
+      'open PDF: signature range read',
+    );
 
-    if (!hasPdfSignature(bytes)) {
+    if (!hasPdfSignature(signatureBytes)) {
       diagnostics.push({
         severity: 'error',
         code: 'PDF_SIGNATURE_MISSING',
@@ -134,6 +155,14 @@ export async function admitAndOpenPdfFile(
       });
       return reject('REJECTED_INVALID_FORMAT', source, measurements, diagnostics);
     }
+
+    const bytes = await materializeDocumentSource(
+      documentSource,
+      {
+        signal: options.signal,
+        maxBytes: FileAdapter.MAX_PDF_SIZE_BYTES,
+      },
+    );
 
     const documentKey = await raceWithAbort(
       FileAdapter.hashBytes(bytes),
@@ -184,8 +213,13 @@ export async function admitAndOpenPdfFile(
     }
 
     const saveHandle = options.saveHandle ?? null;
+
+    registerDocumentSource(documentSource);
+    registeredSourceId = sourceId;
+
     const payload: OpenDocumentPayload = {
       documentKey,
+      sourceId,
       fileName: file.name,
       bytes,
       pageCount,
@@ -194,9 +228,11 @@ export async function admitAndOpenPdfFile(
     };
     const commit = options.commit ?? useSessionStore.getState().openDocument;
     commit(payload);
+    registeredSourceId = null;
 
     const value: OpenedPdfDocument = Object.freeze({
       source,
+      sourceId,
       documentKey,
       fileName: file.name,
       bytes,
@@ -220,6 +256,11 @@ export async function admitAndOpenPdfFile(
       evidence,
     });
   } catch (error) {
+    if (registeredSourceId) {
+      releaseDocumentSource(registeredSourceId);
+      registeredSourceId = null;
+    }
+
     if (isOperationCancelledError(error)) {
       diagnostics.push({
         severity: 'info',
