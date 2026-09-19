@@ -1,5 +1,5 @@
 import type {
-  PdfMutationPdfMutationHeaderFooterTextStyle,
+  PdfMutationHeaderFooterTextStyle,
 } from '@/core/pdf-mutation/types';
 
 type PdfLibNs = Awaited<
