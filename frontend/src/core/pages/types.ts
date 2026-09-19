@@ -27,23 +27,6 @@ export interface PageLabelRange {
   startNumber?: number;
 }
 
-export type PageLabelStyle =
-  | 'decimal'
-  | 'roman-lower'
-  | 'roman-upper'
-  | 'letters-lower'
-  | 'letters-upper';
-
-export interface PageLabelRange {
-  /** Stable page identity where this label range begins. */
-  startPageId: PageId;
-  /** Omit for prefix-only labels. */
-  style?: PageLabelStyle;
-  prefix?: string;
-  /** Positive start value; defaults to 1 when style is present. */
-  startNumber?: number;
-}
-
 /**
  * Canonical page entity used by the future PageGraph/session model.
  *
