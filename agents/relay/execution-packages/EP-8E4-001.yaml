@@ -1,0 +1,119 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E4-001",
+    "branch": "phase8/history-journal-append",
+    "base_ref": "333c5987aa6b33bdf0474d4a298638c1e2d7cb2e",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E3",
+    "previous_join": "333c5987aa6b33bdf0474d4a298638c1e2d7cb2e",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-journal-append",
+    "material_ref": "333c5987aa6b33bdf0474d4a298638c1e2d7cb2e",
+    "base_branch": "main",
+    "base_observed_ref": "333c5987aa6b33bdf0474d4a298638c1e2d7cb2e",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 240,
+  "outcome": {
+    "engineering": [
+      "Canonical binary mutations append durable journal metadata using the 8E.2 replayability policy.",
+      "Checkpoint-required mutations create explicit BARRIER checkpoints at immutable after-revisions.",
+      "Undo/redo moves the durable journal head transactionally.",
+      "A new mutation after undo truncates the abandoned durable redo tail before appending a new branch."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make revision-backed binary mutation history durably reconstructible without enabling replay yet.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.3 journal manifest substrate.",
+    "why_this_work_exists": "8E.3 creates only an admission checkpoint; without durable transaction metadata the persistent revision store cannot reconstruct editing history or checkpoint barriers.",
+    "deliberate_non_goals": [
+      "No command replay executor.",
+      "No durable state-only annotation/Writer transaction append in this slice.",
+      "No revision enumeration, pruning or garbage collection.",
+      "No recovery UI."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Binary mutations append one durable entry using the same transaction id as in-memory history.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03", "TEST-05"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Checkpoint-required mutations append a BARRIER checkpoint and self-contained mutations do not.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-05"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Undo/redo moves the journal active revision and rolls application/history state back if durable save fails.",
+      "weight": 25,
+      "verification": ["TEST-02", "TEST-03", "TEST-05"]
+    },
+    {
+      "id": "AC-04",
+      "description": "A divergent mutation after undo truncates the abandoned journal tail before appending the new branch.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-05"]
+    },
+    {
+      "id": "AC-05",
+      "description": "Legacy/no-journal sessions retain existing behavior and no replay/GC path is introduced.",
+      "weight": 10,
+      "verification": ["TEST-01", "TEST-04", "TEST-05"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "appendMutation tests cover replay entries, barriers, stale heads, legacy bypass and branch truncation.",
+      "proves": ["AC-01", "AC-02", "AC-04", "AC-05"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "navigation tests cover journal-head movement without deleting redo metadata.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "documentTransaction history integration tests cover shared transaction ids, undo/redo head updates and rollback on journal save failure.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Static review confirms no replay executor or revision removal/GC was introduced.",
+      "proves": ["AC-05"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e4 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5 durable state-only checkpoint payloads for annotation/Writer history"
+  }
+}
