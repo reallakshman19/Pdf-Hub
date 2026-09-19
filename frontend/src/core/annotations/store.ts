@@ -438,48 +438,81 @@ export const useAnnotationStore =
         ...annotation,
         rect: { ...annotation.rect },
         data: { ...annotation.data },
-    });
-  },
+      }),
     );
+
     runMutation((state) => {
       if (sourceClipboard.length === 0) return state;
 
       const now = Date.now();
-      const targetGraph = useSessionStore.getState().pageGraph;
-      const pasted = sourceClipboard.map((annotation, index) => annotationForTargetPage({
-
-        ...annotation,
-        id: uuidv4(),
-        pageNumber: targetPage ?? annotation.pageNumber,
-        rect: {
-          ...annotation.rect,
-          x: annotation.rect.x + 18,
-          y: annotation.rect.y + 18 + index * 4,
-        },
-        data: {
-          ...annotation.data,
-          anchor:
-            annotation.data.anchor &&
-            typeof annotation.data.anchor === 'object' &&
-            annotation.data.anchor !== null
-              ? {
-                  x: (annotation.data.anchor as { x: number }).x + 18,
-                  y: (annotation.data.anchor as { y: number }).y + 18 + index * 4,
-                }
-              : annotation.data.anchor,
-          knee:
-            annotation.data.knee &&
-            typeof annotation.data.knee === 'object' &&
-            annotation.data.knee !== null
-              ? {
-                  x: (annotation.data.knee as { x: number }).x + 18,
-                  y: (annotation.data.knee as { y: number }).y + 18 + index * 4,
-                }
-              : annotation.data.knee,
-        },
-        createdAt: now,
-        updatedAt: now,
-      }, targetGraph, targetPage ?? annotation.pageNumber));
+      const targetGraph =
+        useSessionStore.getState().pageGraph;
+      const pasted = sourceClipboard.map(
+        (annotation, index) =>
+          annotationForTargetPage(
+            {
+              ...annotation,
+              id: uuidv4(),
+              pageNumber:
+                targetPage ?? annotation.pageNumber,
+              rect: {
+                ...annotation.rect,
+                x: annotation.rect.x + 18,
+                y:
+                  annotation.rect.y
+                  + 18
+                  + index * 4,
+              },
+              data: {
+                ...annotation.data,
+                anchor:
+                  annotation.data.anchor
+                  && typeof annotation.data.anchor
+                    === 'object'
+                  && annotation.data.anchor !== null
+                    ? {
+                        x:
+                          (
+                            annotation.data.anchor
+                            as { x: number }
+                          ).x + 18,
+                        y:
+                          (
+                            annotation.data.anchor
+                            as { y: number }
+                          ).y
+                          + 18
+                          + index * 4,
+                      }
+                    : annotation.data.anchor,
+                knee:
+                  annotation.data.knee
+                  && typeof annotation.data.knee
+                    === 'object'
+                  && annotation.data.knee !== null
+                    ? {
+                        x:
+                          (
+                            annotation.data.knee
+                            as { x: number }
+                          ).x + 18,
+                        y:
+                          (
+                            annotation.data.knee
+                            as { y: number }
+                          ).y
+                          + 18
+                          + index * 4,
+                      }
+                    : annotation.data.knee,
+              },
+              createdAt: now,
+              updatedAt: now,
+            },
+            targetGraph,
+            targetPage ?? annotation.pageNumber,
+          ),
+      );
 
       return annotationSnapshot(
         state,
@@ -487,7 +520,8 @@ export const useAnnotationStore =
         pasted.map((annotation) => annotation.id),
         pasted[0]?.id ?? null,
       );
-    }),
+    });
+  },
 
   duplicateSelection: () => {
     const invocationState = get();
@@ -742,49 +776,91 @@ export const useAnnotationStore =
     const targetIds = [
       ...get().selectedAnnotationIds,
     ];
+
     runMutation((state) => {
       if (targetIds.length === 0) return state;
 
       const selectedSet = new Set(targetIds);
-      const nextAnnotations = state.annotations.map((annotation) =>
-        selectedSet.has(annotation.id)
-          ? {
-              ...annotation,
-              data: {
-                ...annotation.data,
-                ...(stylePatch.fill ? { backgroundColor: stylePatch.fill } : {
-    });
-  },
-
-                ...(stylePatch.stroke ? { borderColor: stylePatch.stroke } : {}),
-                ...(stylePatch.strokeWidth !== undefined
-                  ? { borderWidth: stylePatch.strokeWidth }
-                  : {}),
-                ...(stylePatch.textColor ? { textColor: stylePatch.textColor } : {}),
-                ...(stylePatch.opacity !== undefined
-                  ? { opacity: stylePatch.opacity }
-                  : {}),
-                ...(stylePatch.fontSize !== undefined
-                  ? { fontSize: stylePatch.fontSize }
-                  : {}),
-                ...(stylePatch.fontWeight
-                  ? { fontWeight: stylePatch.fontWeight }
-                  : {}),
-                ...(stylePatch.textAlign ? { textAlign: stylePatch.textAlign } : {}),
-                style: {
-                  ...(annotation.data.style &&
-                  typeof annotation.data.style === 'object'
-                    ? (annotation.data.style as AnnotationStyle)
+      const nextAnnotations = state.annotations.map(
+        (annotation) =>
+          selectedSet.has(annotation.id)
+            ? {
+                ...annotation,
+                data: {
+                  ...annotation.data,
+                  ...(stylePatch.fill
+                    ? {
+                        backgroundColor:
+                          stylePatch.fill,
+                      }
                     : {}),
-                  ...stylePatch,
+                  ...(stylePatch.stroke
+                    ? {
+                        borderColor:
+                          stylePatch.stroke,
+                      }
+                    : {}),
+                  ...(stylePatch.strokeWidth
+                    !== undefined
+                    ? {
+                        borderWidth:
+                          stylePatch.strokeWidth,
+                      }
+                    : {}),
+                  ...(stylePatch.textColor
+                    ? {
+                        textColor:
+                          stylePatch.textColor,
+                      }
+                    : {}),
+                  ...(stylePatch.opacity
+                    !== undefined
+                    ? {
+                        opacity:
+                          stylePatch.opacity,
+                      }
+                    : {}),
+                  ...(stylePatch.fontSize
+                    !== undefined
+                    ? {
+                        fontSize:
+                          stylePatch.fontSize,
+                      }
+                    : {}),
+                  ...(stylePatch.fontWeight
+                    ? {
+                        fontWeight:
+                          stylePatch.fontWeight,
+                      }
+                    : {}),
+                  ...(stylePatch.textAlign
+                    ? {
+                        textAlign:
+                          stylePatch.textAlign,
+                      }
+                    : {}),
+                  style: {
+                    ...(annotation.data.style
+                    && typeof annotation.data.style
+                      === 'object'
+                      ? (
+                          annotation.data.style
+                          as AnnotationStyle
+                        )
+                      : {}),
+                    ...stylePatch,
+                  },
                 },
-              },
-              updatedAt: Date.now(),
-            }
-          : annotation,
+                updatedAt: Date.now(),
+              }
+            : annotation,
       );
 
-      return annotationSnapshot(state, nextAnnotations);
-    }),
+      return annotationSnapshot(
+        state,
+        nextAnnotations,
+      );
+    });
+  },
     };
   });
