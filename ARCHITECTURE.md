@@ -275,14 +275,21 @@ transaction identity; divergent edits truncate from the cursor rather than
 from revision identity. Pre-8E.5B1 manifests without cursor metadata remain
 readable by inferring the cursor from their active binary revision.
 
-State-only transactions are still not persisted in this slice.
-`recordStateTransaction` remains synchronous and currently records history
-after the annotation/Writer Zustand mutation has happened. The next slice must
-introduce an async durability coordinator so journal checkpoint persistence can
-be awaited and failed writes can roll back optimistic state safely. No command
-replay or revision deletion is enabled yet. Reference-aware revision GC and
-bounded recovery checkpoints remain follow-on work. Phase 8F owns incremental
-search indexing.
+Phase 8E.5B2 introduces that async durability coordinator without yet
+migrating annotation/Writer store entrypoints. The coordinator runs through the
+document operation queue, builds the exact same `HistoryState` shape as the
+legacy synchronous recorder, prepares a same-revision journal entry plus
+binary-safe `BARRIER` state checkpoint, verifies both session identity and the
+in-memory/journal history cursor, invokes a caller-supplied apply callback,
+pushes in-memory history, then atomically saves the updated journal manifest.
+Any failure after apply invokes caller rollback and restores the prior history
+stack. Unsafe state payloads fail before apply.
+
+The annotation and Writer stores still use the legacy synchronous recorder in
+this slice; Phase 8E.5B3 must migrate their PDF-backed mutation entrypoints to
+this coordinator. No command replay or revision deletion is enabled yet.
+Reference-aware revision GC and bounded recovery checkpoints remain follow-on
+work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
