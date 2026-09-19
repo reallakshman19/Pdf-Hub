@@ -2,9 +2,14 @@ import { create } from 'zustand';
 import { pageIdAtPhysicalIndex, physicalIndexForPageId, rekeyPageGraph } from '../pages/pageGraph';
 import type { PageGraph, PageId, PageNode } from '../pages/types';
 import type { DocumentSession, FitMode, ViewMode } from './types';
+import {
+  releaseDocumentSource,
+  resolveDocumentSource,
+} from '@/core/document-source/registry';
 
 export interface OpenDocumentPayload {
   documentKey: string;
+  sourceId?: string | null;
   fileName: string;
   bytes: Uint8Array;
   pageCount: number;
@@ -150,8 +155,9 @@ function resolveNavigationForGraph(
   };
 }
 
-export const useSessionStore = create<DocumentSession & SessionActions>((set) => ({
+export const useSessionStore = create<DocumentSession & SessionActions>((set, get) => ({
   documentKey: null,
+  sourceId: null,
   fileName: null,
   originalBytes: null,
   workingBytes: null,
@@ -212,6 +218,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
 
   openDocument: ({
     documentKey,
+    sourceId = null,
     fileName,
     bytes,
     pageCount,
@@ -223,9 +230,24 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         `OpenDocument PageGraph count ${pageGraph.pages.length} does not match pageCount ${pageCount}`,
       );
     }
+    if (sourceId && !resolveDocumentSource(sourceId)) {
+      throw new Error(
+        `OpenDocument sourceId ${sourceId} is not registered.`,
+      );
+    }
+
+    const previousSourceId = get().sourceId;
+    if (
+      previousSourceId
+      && previousSourceId !== sourceId
+    ) {
+      releaseDocumentSource(previousSourceId);
+    }
+
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
     return set({
       documentKey,
+      sourceId,
       fileName,
       originalBytes: bytes,
       workingBytes: bytes,
@@ -452,9 +474,11 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
 
   clearSelectedPages: () => set({ selectedPageIds: [], selectedPages: [] }),
 
-  clearDocument: () =>
-    set({
+  clearDocument: () => {
+    releaseDocumentSource(get().sourceId);
+    return set({
       documentKey: null,
+      sourceId: null,
       fileName: null,
       originalBytes: null,
       workingBytes: null,
@@ -476,7 +500,8 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set) =>
         fitMode: 'manual',
         viewMode: 'continuous',
       },
-    }),
+    });
+  },
 
   beginSaveOperation: (message = 'Saving document…') =>
     set({
