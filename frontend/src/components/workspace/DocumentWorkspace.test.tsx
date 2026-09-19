@@ -98,6 +98,7 @@ describe('DocumentWorkspace', () => {
       revisionStoreId: null,
       originalRevisionId: null,
       activeRevisionId: null,
+      pageCount: 5,
       viewState: {
         currentPageId: null,
         currentPage: 1,
