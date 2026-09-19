@@ -41,6 +41,7 @@ const domainPaths = [
   'src/core/header-footer/editorDraft.ts',
   'src/core/header-footer/imageAdmission.ts',
   'src/core/header-footer/numberingPresets.ts',
+  'src/core/header-footer/simpleTextTemplate.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -310,6 +311,72 @@ if (
     ),
     toolbarOrganizePath,
     ['ADD_HEADER_FOOTER_TEXT', 'PdfEditAdapter'],
+  );
+}
+
+const simpleTextTemplatePath =
+  'src/core/header-footer/simpleTextTemplate.ts';
+const simpleTextTemplate = read(simpleTextTemplatePath);
+requireContains(simpleTextTemplate, simpleTextTemplatePath, [
+  'createSimpleHeaderFooterTextTemplate',
+  'HeaderFooterPageSelector',
+  "kind: 'text'",
+  'template: input.text',
+]);
+forbidContains(simpleTextTemplate, simpleTextTemplatePath, [
+  'ADD_HEADER_FOOTER_TEXT',
+  'PdfEditAdapter',
+  'header_footer_text',
+]);
+
+const thumbnailActionStripPath =
+  'src/components/sidebar/thumbnails/ThumbnailActionStrip.tsx';
+const thumbnailActionStrip = read(thumbnailActionStripPath);
+requireContains(thumbnailActionStrip, thumbnailActionStripPath, [
+  'createSimpleHeaderFooterTextTemplate',
+  "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  "mode: 'pageIds'",
+  'targetPageIds',
+  'Page {{physicalPage}} of {{pageCount}}',
+  '{{fileName}}',
+]);
+forbidContains(thumbnailActionStrip, thumbnailActionStripPath, [
+  'ADD_HEADER_FOOTER_TEXT',
+  'Page {page}',
+  "'{file}'",
+]);
+
+const thumbnailConfigPath =
+  'src/components/sidebar/thumbnails/ThumbnailMacroConfigDialog.tsx';
+const thumbnailConfig = read(thumbnailConfigPath);
+requireContains(thumbnailConfig, thumbnailConfigPath, [
+  'createSimpleHeaderFooterTextTemplate',
+  "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'pageIds: PageId[]',
+  "mode: 'pageIds'",
+  '{{physicalPage}}',
+  '{{fileName}}',
+]);
+forbidContains(thumbnailConfig, thumbnailConfigPath, [
+  'ADD_HEADER_FOOTER_TEXT',
+  'pageNumberToken',
+  'fileNameToken',
+]);
+
+const automateSidebarSource = read(
+  'src/components/sidebar/AutomateSidebar.tsx',
+);
+const quickActionStart =
+  automateSidebarSource.indexOf('const QUICK_ACTION_IDS');
+const quickActionEnd =
+  automateSidebarSource.indexOf('] as const;', quickActionStart);
+if (quickActionStart < 0 || quickActionEnd <= quickActionStart) {
+  fail('Automate quick-action ID boundary is missing');
+} else {
+  forbidContains(
+    automateSidebarSource.slice(quickActionStart, quickActionEnd),
+    'src/components/sidebar/AutomateSidebar.tsx',
+    ['footer-page-numbers', 'header-file-name'],
   );
 }
 
