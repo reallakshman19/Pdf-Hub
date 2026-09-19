@@ -1,0 +1,105 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3B-001",
+    "branch": "phase8/history-annotation-durable",
+    "base_ref": "523da5302c0ee7e4306ebb9fb7560d343968cfa2",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3A",
+    "previous_join": "523da5302c0ee7e4306ebb9fb7560d343968cfa2",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-annotation-durable",
+    "material_ref": "523da5302c0ee7e4306ebb9fb7560d343968cfa2",
+    "base_branch": "main",
+    "base_observed_ref": "523da5302c0ee7e4306ebb9fb7560d343968cfa2",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 250,
+  "outcome": {
+    "engineering": [
+      "Journal-aware annotation mutations execute through the lazy durable state coordinator.",
+      "Rapid queued annotation edits derive from the latest committed annotation state.",
+      "Durable failure restores annotation state, session dirty state and in-memory history.",
+      "Legacy annotation mutation behavior and synchronous selection/hydration operations remain compatible."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make PDF-backed annotation history crash-durable without stale-state races or compatibility-byte dependence.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B3A lazy mutation factory.",
+    "why_this_work_exists": "Annotation mutations were still recorded synchronously after application and therefore could not await state-checkpoint persistence or roll back on durable failure.",
+    "deliberate_non_goals": [
+      "No Writer store migration.",
+      "No command replay, recovery UI or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Journal-aware annotation mutations route through the lazy durable state coordinator and persist same-revision state checkpoints.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Rapid queued annotation edits derive sequentially and selection-dependent commands preserve invocation intent.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Unsafe state or journal failure cannot leave annotation/history/session dirty state committed.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Legacy/no-journal mutation behavior and synchronous non-history annotation operations remain compatible.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "store.durableHistory tests cover durable success, rapid edits, unsafe stamp rejection, rollback and legacy/synchronous behavior.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "existing annotation store tests remain in certification to protect legacy synchronous semantics.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "static audit verifies mutation routing, synchronous non-history actions, intent freezing and Writer non-migration.",
+      "proves": ["AC-02", "AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3b on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C migrate PDF-backed Writer mutations"
+  }
+}
