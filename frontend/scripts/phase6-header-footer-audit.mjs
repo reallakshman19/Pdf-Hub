@@ -66,6 +66,7 @@ const writerPaths = [
   'src/core/header-footer/pdfWriter.ts',
   'src/core/header-footer/pdfWriterGeometry.ts',
   'src/core/header-footer/pdfLibResources.ts',
+  'src/core/header-footer/pdfLibContentPreparation.ts',
   'src/core/header-footer/pdfLibPageRenderer.ts',
   'src/core/header-footer/pdfLibHeaderFooterWriter.ts',
   'src/core/header-footer/executeMutation.ts',
