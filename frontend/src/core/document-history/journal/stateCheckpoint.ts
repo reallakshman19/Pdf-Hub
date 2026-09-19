@@ -12,8 +12,7 @@ export interface HistoryStateCheckpointPayloadV1 {
 export type HistoryStateCheckpointPayload =
   HistoryStateCheckpointPayloadV1;
 
-const DATA_URI_PATTERN =
-  /data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[^,]*)?,/i;
+const DATA_URI_PATTERN = /data:[^,\s]*,/i;
 
 export function createHistoryStateCheckpointPayload(input: {
   annotations: PdfAnnotation[];
@@ -171,6 +170,12 @@ function assertCloneSafeStructuredState(
       ?? 'object';
     throw new Error(
       `History state checkpoint contains non-plain object ${name} at ${path}.`,
+    );
+  }
+
+  if (Object.getOwnPropertySymbols(objectValue).length > 0) {
+    throw new Error(
+      `History state checkpoint contains symbol-keyed data at ${path}.`,
     );
   }
 
