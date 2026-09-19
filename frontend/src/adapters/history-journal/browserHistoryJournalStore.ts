@@ -21,11 +21,16 @@ export interface BrowserHistoryJournalStoreSelection {
   readonly fallbackReason?: string;
 }
 
+type ProbeableHistoryJournalStore =
+  HistoryJournalStore & {
+    probe(): Promise<void>;
+  };
+
 export interface BrowserHistoryJournalStoreOptions {
   readonly storeId?: string;
   readonly createIndexedDbStore?: (
     storeId: string,
-  ) => IndexedDbHistoryJournalStore;
+  ) => ProbeableHistoryJournalStore;
 }
 
 const pendingSelections = new Map<
@@ -73,7 +78,7 @@ async function selectStore(
       );
     }
 
-    const store =
+    const store: ProbeableHistoryJournalStore =
       options.createIndexedDbStore?.(storeId)
       ?? new IndexedDbHistoryJournalStore({
         id: storeId,
