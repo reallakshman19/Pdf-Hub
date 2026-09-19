@@ -75,6 +75,7 @@ const mutationEngineMocks = vi.hoisted(() => ({
   insertPdf: vi.fn(),
   replacePage: vi.fn(),
   appendPdfs: vi.fn(),
+  setPageLabels: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -276,6 +277,7 @@ describe('canonical command dispatch', () => {
       insertPdf: mutationEngineMocks.insertPdf,
       replacePage: mutationEngineMocks.replacePage,
       appendPdfs: mutationEngineMocks.appendPdfs,
+      setPageLabels: mutationEngineMocks.setPageLabels,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -1037,9 +1039,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('sets and clears logical PageLabels through canonical history', async () => {
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+    mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([9, 9, 9]),
-      rangeCount: 3,
+      pageCount: 3,
     });
 
     const setResult = await execute({
@@ -1054,7 +1056,15 @@ describe('canonical command dispatch', () => {
     });
 
     expect(setResult.success).toBe(true);
-    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([
+      { startPageIndex: 0, prefix: 'Cover' },
+      { startPageIndex: 1, style: 'roman-lower' },
+      { startPageIndex: 2, style: 'decimal' },
+    ]);
+    expect(pageLabelWriterMocks.writePdfPageLabels).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([9, 9, 9]),
+    );
     expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([
       { startPageId: 'test-doc::stable::1', prefix: 'Cover' },
       { startPageId: 'test-doc::stable::2', style: 'roman-lower' },
@@ -1080,15 +1090,20 @@ describe('canonical command dispatch', () => {
       useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
     ).toEqual(['Cover', 'i', '1']);
 
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+    mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([8, 8, 8]),
-      rangeCount: 0,
+      pageCount: 3,
     });
+    mutationEngineMocks.setPageLabels.mockClear();
     const clearResult = await execute({
       type: 'SET_PAGE_LABELS',
       payload: { ranges: [] },
     });
     expect(clearResult.success).toBe(true);
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([]);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([8, 8, 8]),
+    );
     expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([]);
     expect(
       useSessionStore.getState().pageGraph?.pages.every(
@@ -1113,20 +1128,20 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([6, 6, 6]),
       pageCount: 3,
     });
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
-      bytes: new Uint8Array([7, 7, 7]),
-      rangeCount: 3,
-    });
-
     const result = await execute({
       type: 'REORDER_PAGES_BY_ORDER',
       payload: { order: [2, 1, 0] },
     });
 
     expect(result.success).toBe(true);
-    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(pageLabelWriterMocks.writePdfPageLabels).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([
+      { startPageIndex: 0, style: 'decimal' },
+      { startPageIndex: 1, style: 'roman-lower' },
+      { startPageIndex: 2, prefix: 'Cover' },
+    ]);
     expect(useSessionStore.getState().workingBytes).toEqual(
-      new Uint8Array([7, 7, 7]),
+      new Uint8Array([6, 6, 6]),
     );
     expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
       'test-doc::stable::3',
