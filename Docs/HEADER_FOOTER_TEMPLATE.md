@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6D canonical domain, resolution, command and initial PDF writer contract**.
+Status: **Phase 6A–6E.2 canonical domain, writer, professional editor and image-resource UI contract**.
 
 Tracking issue: #200.
 
@@ -310,10 +310,20 @@ the command is created.
 The preview uses actual PageGraph dimensions/rotation and resolved token values.
 It is a layout preview, not a second PDF renderer.
 
-Phase 6E.1 intentionally covers text slots first. The canonical domain/writer
-already support out-of-band PNG/JPEG image resources; image/logo selection and
-preview are completed in the next narrow UI slice rather than expanding the
-dialog into another mega-component.
+Phase 6E.2 adds one admitted logo/image resource to the professional editor.
+The image can target any header/footer left/center/right slot and explicitly
+replaces text in that slot. PNG and JPEG are admitted through the existing
+bounded image boundary; WebP is rejected because the current PDF writer cannot
+embed it.
+
+The template stores only `binaryResourceId`, placement and size. Raw
+`Uint8Array` bytes remain in `CommandResources.binaries` for the duration of
+execution and never enter the serialized command/history payload. Browser
+object URLs are used only for local preview and are revoked when replaced,
+removed, closed or unmounted.
+
+The representative preview renders the admitted image and scales its requested
+PDF-point width against the actual usable slot width.
 
 ## Legacy compatibility
 
