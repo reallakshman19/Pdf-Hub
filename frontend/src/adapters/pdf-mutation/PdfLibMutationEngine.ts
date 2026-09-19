@@ -3,11 +3,13 @@ import {
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { applyPdfLibPageLabels } from './pdfLibPageLabels';
 import type {
   PdfMutationCommitResult,
   PdfMutationEngine,
   PdfMutationEngineOpenInput,
   PdfMutationPageMetrics,
+  PdfMutationPageLabelEntry,
   PdfMutationSession,
 } from '@/core/pdf-mutation/types';
 
@@ -309,6 +311,19 @@ class PdfLibMutationSession implements PdfMutationSession {
       this.lib.PDFDocument.load(bytes),
       this.signal,
       `${operation}: load donor`,
+    );
+  }
+
+
+  setPageLabels(
+    entries: readonly PdfMutationPageLabelEntry[],
+  ): void {
+    this.assertOpen('set PDF PageLabels');
+    throwIfAborted(this.signal, 'set PDF PageLabels');
+    applyPdfLibPageLabels(
+      this.document,
+      this.lib,
+      entries,
     );
   }
 
