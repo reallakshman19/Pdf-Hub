@@ -63,6 +63,7 @@ export function recordStateTransaction(
     pageCount: session.pageCount,
     pageGraph: session.pageGraph ? clonePageGraph(session.pageGraph) : null,
     documentKey: session.documentKey,
+    activeRevisionId: session.activeRevisionId,
     selectedPageIds: [...session.selectedPageIds],
     selectedPages: [...session.selectedPages],
     currentPageId: session.viewState.currentPageId,
