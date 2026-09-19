@@ -39,6 +39,7 @@ const domainPaths = [
   'src/core/header-footer/resolver.ts',
   'src/core/header-footer/commandPlan.ts',
   'src/core/header-footer/editorDraft.ts',
+  'src/core/header-footer/imageAdmission.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -98,6 +99,9 @@ const uiPaths = [
   'src/components/dialogs/header-footer/HeaderFooterTokenBar.tsx',
   'src/components/dialogs/header-footer/HeaderFooterPreview.tsx',
   'src/components/dialogs/header-footer/HeaderFooterPreviewPane.tsx',
+  'src/components/dialogs/header-footer/useHeaderFooterImageEditor.ts',
+  'src/components/dialogs/header-footer/useHeaderFooterImageResource.ts',
+  'src/components/dialogs/header-footer/HeaderFooterImagePanel.tsx',
 ];
 
 for (const relativePath of uiPaths) {
@@ -195,6 +199,9 @@ requireContains(editorDraft, editorDraftPath, [
   "mode: 'pageLabelRange'",
   'selectedPageIds',
   'currentPageId',
+  'HeaderFooterEditorImageDraft',
+  'binaryResourceId: image.resourceId',
+  "fit: 'contain'",
 ]);
 
 const dialogPath = 'src/components/dialogs/HeaderFooterDialog.tsx';
@@ -203,7 +210,10 @@ requireContains(dialog, dialogPath, [
   'compileHeaderFooterEditorDraft',
   'resolveHeaderFooterTemplate',
   'HeaderFooterSlotGrid',
+  'HeaderFooterImagePanel',
   'HeaderFooterPreviewPane',
+  'useHeaderFooterImageEditor',
+  'imageEditor.binaryResources',
   'Logical PDF PageLabels remain',
 ]);
 
@@ -214,6 +224,33 @@ requireContains(preview, previewPath, [
   'createHeaderFooterVisualGeometry',
   'physicalPageNumber',
   'logicalPageLabel',
+  'slotWidthPt',
+  'content.binaryResourceId',
+]);
+
+const imageAdmissionPath =
+  'src/core/header-footer/imageAdmission.ts';
+const imageAdmission = read(imageAdmissionPath);
+requireContains(imageAdmission, imageAdmissionPath, [
+  'admitWriterImageFile',
+  "admitted.format === 'webp'",
+  'PNG and JPEG only',
+  'resourceId: createHeaderFooterImageResourceId()',
+]);
+forbidContains(imageAdmission, imageAdmissionPath, [
+  'data:image/',
+  'base64',
+  'FileReader',
+]);
+
+const imageResourceHookPath =
+  'src/components/dialogs/header-footer/useHeaderFooterImageResource.ts';
+const imageResourceHook = read(imageResourceHookPath);
+requireContains(imageResourceHook, imageResourceHookPath, [
+  'URL.createObjectURL',
+  'URL.revokeObjectURL',
+  'AbortController',
+  'admitHeaderFooterImageFile',
 ]);
 
 const toolbarOrganizePath = 'src/components/toolbar/ToolbarOrganize.tsx';
@@ -222,6 +259,7 @@ requireContains(toolbarOrganize, toolbarOrganizePath, [
   'HeaderFooterDialog',
   'handleHeaderFooterApply',
   "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'resources: { binaries: binaryResources }',
   'aria-label="Header & Footer"',
 ]);
 const headerFooterHandlerStart =
