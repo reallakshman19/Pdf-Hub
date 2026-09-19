@@ -117,6 +117,19 @@ requireContains(imageTests, imageTestPath, [
   'expect(useWriterV2Store.getState().dirty)',
 ]);
 
+const integrationTestPath =
+  'src/core/writer-v2/writerAsyncDurableHelpers.test.ts';
+const integrationTest = read(integrationTestPath);
+requireContains(
+  integrationTest,
+  integrationTestPath,
+  [
+    'persists rich-box style helper changes through the durable Writer path',
+    "command: {\n          type: 'WRITER_CHANGE'",
+    "backgroundColor:\n                    '#eff6ff'",
+  ],
+);
+
 const inheritedAuditPath =
   'scripts/phase8-history-writer-durable-dispatch-audit.mjs';
 const inheritedAudit = read(inheritedAuditPath);
