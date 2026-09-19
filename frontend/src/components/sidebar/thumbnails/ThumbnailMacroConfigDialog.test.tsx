@@ -10,6 +10,7 @@ describe('ThumbnailMacroConfigDialog visual mask guardrail', () => {
       <ThumbnailMacroConfigDialog
         kind="visualMask"
         pageIndices={[0, 1]}
+        pageIds={['p1', 'p2']}
         onCancel={vi.fn()}
         onApply={onApply}
       />,
@@ -30,4 +31,59 @@ describe('ThumbnailMacroConfigDialog visual mask guardrail', () => {
     });
     expect(onApply.mock.calls[0]?.[1]).toMatch(/not securely removed/i);
   });
+
+  it('emits a canonical PageId-targeted template for page-number configuration', () => {
+    const onApply = vi.fn();
+
+    render(
+      <ThumbnailMacroConfigDialog
+        kind="pageNumbers"
+        pageIndices={[1, 3]}
+        pageIds={['p2', 'p4']}
+        onCancel={vi.fn()}
+        onApply={onApply}
+      />,
+    );
+
+    expect(
+      screen.getByDisplayValue(
+        'Page {{physicalPage}} of {{pageCount}}',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/physicalPage/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0]?.[0]).toMatchObject({
+      type: 'APPLY_HEADER_FOOTER_TEMPLATE',
+      payload: {
+        template: {
+          rules: [
+            {
+              selector: {
+                include: {
+                  mode: 'pageIds',
+                  pageIds: ['p2', 'p4'],
+                },
+              },
+              footer: {
+                center: {
+                  kind: 'text',
+                  template:
+                    'Page {{physicalPage}} of {{pageCount}}',
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(
+      JSON.stringify(onApply.mock.calls[0]?.[0]),
+    ).not.toContain('ADD_HEADER_FOOTER_TEXT');
+  });
+
 });

@@ -92,7 +92,8 @@ describe('AutomateSidebar', () => {
 
     expect(screen.getByTestId('automate-quick-actions')).toBeInTheDocument();
     expect(screen.getByTestId('automate-header-footer')).toBeInTheDocument();
-    expect(screen.getByText('Footer Page Numbers')).toBeInTheDocument();
+    expect(screen.queryByText('Footer Page Numbers')).toBeNull();
+    expect(screen.queryByText('Header File Name')).toBeNull();
     expect(screen.getByText('Rotate Selected Pages 90°')).toBeInTheDocument();
 
     expect(screen.getByTestId('automate-generate-document')).toBeInTheDocument();
@@ -169,7 +170,7 @@ describe('AutomateSidebar', () => {
   it('preflights and runs a quick action through the shared session runner', async () => {
     render(<AutomateSidebar />);
 
-    const card = screen.getByText('Footer Page Numbers').closest('article');
+    const card = screen.getByText('Insert Review Cover Page').closest('article');
     expect(card).not.toBeNull();
 
     fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Run' }));
@@ -180,7 +181,7 @@ describe('AutomateSidebar', () => {
 
     expect(runMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'footer-page-numbers',
+        id: 'insert-review-cover',
         dryRun: false,
       }),
       expect.objectContaining({
@@ -193,13 +194,13 @@ describe('AutomateSidebar', () => {
   it('opens a quick action in the workflow builder for customization', () => {
     render(<AutomateSidebar />);
 
-    const card = screen.getByText('Footer Page Numbers').closest('article');
+    const card = screen.getByText('Insert Review Cover Page').closest('article');
     expect(card).not.toBeNull();
 
     fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Customize' }));
 
     expect(useEditorStore.getState().macroBuilderOpen).toBe(true);
-    expect(useEditorStore.getState().macroBuilderSource).toBe('builtin:footer-page-numbers');
+    expect(useEditorStore.getState().macroBuilderSource).toBe('builtin:insert-review-cover');
   });
 
   it('lists saved workflows and opens the selected workflow for editing', () => {
@@ -269,7 +270,7 @@ describe('AutomateSidebar', () => {
 
     fireEvent.click(screen.getByText('Specialized workflows'));
 
-    const quickAction = screen.getByText('Footer Page Numbers').closest('article');
+    const quickAction = screen.getByText('Insert Review Cover Page').closest('article');
     expect(quickAction).not.toBeNull();
     expect(
       within(quickAction as HTMLElement).getByRole('button', { name: 'Run' }),

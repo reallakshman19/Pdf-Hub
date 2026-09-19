@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDefaultStep,
   getAllMacroOpSchemas,
+  getCreatableMacroOpSchemas,
   getMacroOpSchema,
 } from './opSchema';
 import {
@@ -45,4 +46,21 @@ describe('macro op schema slice 6', () => {
       expect(result.valid, `${op}: ${JSON.stringify(result.errors)}`).toBe(true);
     }
   });
+
+  it('keeps the legacy header/footer schema addressable but hides it from new-step creation', () => {
+    expect(getMacroOpSchema('header_footer_text').op).toBe(
+      'header_footer_text',
+    );
+    expect(
+      getAllMacroOpSchemas().some(
+        (schema) => schema.op === 'header_footer_text',
+      ),
+    ).toBe(true);
+    expect(
+      getCreatableMacroOpSchemas().some(
+        (schema) => schema.op === 'header_footer_text',
+      ),
+    ).toBe(false);
+  });
+
 });

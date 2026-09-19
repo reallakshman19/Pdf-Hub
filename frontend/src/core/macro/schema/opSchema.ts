@@ -683,6 +683,17 @@ export function getAllMacroOpSchemas(): MacroOpSchema[] {
   return [...OP_SCHEMAS];
 }
 
+/**
+ * Operations offered when creating new workflow steps.
+ * Legacy header_footer_text remains schema-addressable for imported/saved
+ * recipes but is no longer offered for new workflow authoring.
+ */
+export function getCreatableMacroOpSchemas(): MacroOpSchema[] {
+  return OP_SCHEMAS.filter(
+    (schema) => schema.op !== 'header_footer_text',
+  );
+}
+
 export function getMacroOpsByCategory(category: MacroOpCategory): MacroOpSchema[] {
   return OP_SCHEMAS.filter((schema) => schema.category === category);
 }

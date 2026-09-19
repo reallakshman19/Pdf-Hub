@@ -49,8 +49,6 @@ import {
 type AutomateTab = 'quick' | 'workflows' | 'build';
 
 const QUICK_ACTION_IDS = [
-  'footer-page-numbers',
-  'header-file-name',
   'rotate-selected-90',
   'extract-selected',
   'insert-review-cover',

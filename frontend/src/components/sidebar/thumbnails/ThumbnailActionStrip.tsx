@@ -9,6 +9,7 @@ import {
 } from '@/core/commands/types';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
+import { createSimpleHeaderFooterTextTemplate } from '@/core/header-footer/simpleTextTemplate';
 
 interface ThumbnailActionStripProps {
   selectedPages: number[];
@@ -20,11 +21,16 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
   currentPage,
 }) => {
   const targetPages = selectedPages.length > 0 ? selectedPages : [currentPage];
-  const { workingBytes, documentKey } = useSessionStore(useShallow((state) => ({
+  const { workingBytes, documentKey, pageGraph } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
+    pageGraph: state.pageGraph,
   })));
   const pageIndices = targetPages.map((page) => page - 1);
+  const targetPageIds = targetPages.flatMap((pageNumber) => {
+    const pageId = pageGraph?.pages[pageNumber - 1]?.pageId;
+    return pageId ? [pageId] : [];
+  });
 
   const handleCommand = (draft: PdfCommandDraft) => {
     if (!workingBytes || !documentKey) return;
@@ -98,24 +104,31 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() =>
+          aria-label="Page numbers"
+          onClick={() => {
+            if (targetPageIds.length !== targetPages.length) return;
             handleCommand({
-              type: 'ADD_HEADER_FOOTER_TEXT',
+              type: 'APPLY_HEADER_FOOTER_TEMPLATE',
               payload: {
-                pageIndices,
-                options: {
-                zone: 'footer',
-                text: 'Page {page} of {pages}',
-                align: 'center',
-                marginX: 24,
-                marginY: 20,
-                fontSize: 10,
-                color: '#475569',
-                opacity: 0.9,
-                  pageNumberToken: true,
-                },
+                template: createSimpleHeaderFooterTextTemplate({
+                  name: 'Thumbnail page numbers',
+                  selector: {
+                    include: {
+                      mode: 'pageIds',
+                      pageIds: targetPageIds,
+                    },
+                  },
+                  zone: 'footer',
+                  text: 'Page {{physicalPage}} of {{pageCount}}',
+                  align: 'center',
+                  marginXPt: 24,
+                  marginYPt: 20,
+                  fontSizePt: 10,
+                  color: '#475569',
+                  opacity: 0.9,
+                }),
               },
-            })
+            });
           }
         >
           <Hash className="w-3.5 h-3.5" />
@@ -126,24 +139,31 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() =>
+          aria-label="Header file name"
+          onClick={() => {
+            if (targetPageIds.length !== targetPages.length) return;
             handleCommand({
-              type: 'ADD_HEADER_FOOTER_TEXT',
+              type: 'APPLY_HEADER_FOOTER_TEMPLATE',
               payload: {
-                pageIndices,
-                options: {
+                template: createSimpleHeaderFooterTextTemplate({
+                  name: 'Thumbnail file header',
+                  selector: {
+                    include: {
+                      mode: 'pageIds',
+                      pageIds: targetPageIds,
+                    },
+                  },
                   zone: 'header',
-                text: '{file}',
-                align: 'right',
-                marginX: 24,
-                marginY: 18,
-                fontSize: 10,
-                color: '#334155',
-                opacity: 0.85,
-                  fileNameToken: true,
-                },
+                  text: '{{fileName}}',
+                  align: 'right',
+                  marginXPt: 24,
+                  marginYPt: 18,
+                  fontSizePt: 10,
+                  color: '#334155',
+                  opacity: 0.85,
+                }),
               },
-            })
+            });
           }
         >
           <Heading className="w-3.5 h-3.5" />

@@ -33,12 +33,12 @@ describe('built-in macro recipes slice 6', () => {
     const merge = recipes.find((item) => item.id === 'merge-two-donors');
     const insert = recipes.find((item) => item.id === 'insert-donor-start');
     const replace = recipes.find((item) => item.id === 'replace-first-page');
-    const footer = recipes.find((item) => item.id === 'footer-page-numbers');
+    const review = recipes.find((item) => item.id === 'review-current-page');
 
     expect(merge && isRunnerSafeBuiltInRecipe(merge)).toBe(false);
     expect(insert && isRunnerSafeBuiltInRecipe(insert)).toBe(false);
     expect(replace && isRunnerSafeBuiltInRecipe(replace)).toBe(false);
-    expect(footer && isRunnerSafeBuiltInRecipe(footer)).toBe(true);
+    expect(review && isRunnerSafeBuiltInRecipe(review)).toBe(true);
   });
 
   it('recommended recipes are valid subset of built-ins', () => {
@@ -50,27 +50,30 @@ describe('built-in macro recipes slice 6', () => {
     }
   });
 
-  it('preserves legacy-only convenience workflows in the standard catalog', () => {
+  it('hides legacy header/footer recipes from discovery but keeps explicit compatibility lookup', () => {
     const ids = new Set(getBuiltInMacroRecipes().map((item) => item.id));
 
     for (const id of [
+      'footer-page-numbers',
+      'header-file-name',
       'header-file-name-selected',
       'file-date-page-footer-selected',
-      'review-copy-selected',
       'review-pack-header-footer',
-      'insert-blank-after-current',
+      'bates-numbering',
+      'date-stamp-footer',
+      'confidential-review-pack',
     ]) {
-      expect(ids.has(id), id).toBe(true);
+      expect(ids.has(id), id).toBe(false);
+      expect(findBuiltInMacroRecipe(id), id).not.toBeNull();
     }
 
-    const insertBlank = getBuiltInMacroRecipes().find(
-      (item) => item.id === 'insert-blank-after-current',
-    );
-    expect(insertBlank?.recipe.steps[0]).toMatchObject({
-      op: 'insert_blank_page',
-      position: { mode: 'after-current' },
-      size: 'match-current',
-      count: 1,
+    expect(ids.has('review-copy-selected')).toBe(true);
+    expect(ids.has('insert-blank-after-current')).toBe(true);
+
+    const legacyFooter = findBuiltInMacroRecipe('footer-page-numbers');
+    expect(legacyFooter?.requiredOps).toContain('header_footer_text');
+    expect(legacyFooter?.recipe.steps[0]).toMatchObject({
+      op: 'header_footer_text',
     });
   });
 
