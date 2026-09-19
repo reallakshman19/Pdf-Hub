@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C1-001",
+    "branch": "phase8/history-writer-durable-dispatch",
+    "base_ref": "e9c04fb7ee8170976cd63e9a2e4a0c6620e2b7b6",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3B",
+    "previous_join": "e9c04fb7ee8170976cd63e9a2e4a0c6620e2b7b6",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-durable-dispatch",
+    "material_ref": "e9c04fb7ee8170976cd63e9a2e4a0c6620e2b7b6",
+    "base_branch": "main",
+    "base_observed_ref": "e9c04fb7ee8170976cd63e9a2e4a0c6620e2b7b6",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 252,
+  "outcome": {
+    "engineering": [
+      "Writer V2 exposes an explicit async durable mutation dispatch primitive.",
+      "The durable Writer path returns the actual committed command result after journal persistence.",
+      "Revision-backed Writer undo ownership no longer depends on compatibility PDF bytes.",
+      "Production Writer mutation callers remain intentionally unmigrated in this prerequisite."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Create a truthful async Writer mutation contract before migrating synchronous production callers.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B3B durable annotation history.",
+    "why_this_work_exists": "Writer command dispatch is synchronous and callers consume immediate results, while durable journal preflight is asynchronous. Returning speculative success would violate the command contract.",
+    "deliberate_non_goals": [
+      "No production Writer mutation caller migration.",
+      "No ban on synchronous PDF-overlay mutation dispatch.",
+      "No command replay, recovery UI or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Journal-aware PDF-overlay Writer mutations can be committed through an async durable command API.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "The returned Writer command result reflects the actual committed post-queue state and rapid commands serialize correctly.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Journal failure rolls Writer/history/session state back and revision-backed operation does not require workingBytes.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Selection commands and blank/legacy sessions still delegate to synchronous dispatch, and production callers remain unmigrated.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "writerV2Store.durableHistory tests cover durable success, rapid commands, rollback, source-only revisions and synchronous delegation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Static audit scans production source and fails if C1 accidentally migrates a caller.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Existing Writer V2 store tests remain in certification to protect synchronous and blank-document behavior.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c1 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2 migrate production PDF-overlay Writer mutation callers"
+  }
+}
