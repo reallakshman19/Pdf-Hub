@@ -345,9 +345,10 @@ same preset definition with stable PageIds or PageLabel-range starts.
 The professional dialog uses
 `applyPrintedNumberingPresetToDraft(...)` to prefill the existing six-zone
 editor. Applying a preset preserves targeting, parity, exclusions, typography,
-margins and header content. It replaces footer text for the preset target slot;
-a conflicting footer image in that exact slot is removed because one canonical
-slot can contain only one content value.
+margins and header content. It resets the three footer text slots to the chosen
+pattern; a non-conflicting footer image is preserved. A footer image in the
+preset's exact target slot is removed because one canonical slot can contain
+only one content value.
 
 Presets only generate printed content. They never call `SET_PAGE_LABELS`,
 `writePdfPageLabels`, or otherwise mutate the PDF `/PageLabels` tree.
