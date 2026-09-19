@@ -3,6 +3,11 @@ import { useAnnotationStore } from './store';
 import { useSessionStore } from '../session/store';
 import { useHistoryStore } from '../document-history/store';
 import type { PdfAnnotation } from './types';
+import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
+import {
+  clearWorkingRevisionStoreRegistryForTests,
+  registerWorkingRevisionStore,
+} from '../revision-store/registry';
 
 const baseAnnotation = (id: string, pageNumber: number, x: number, y: number): PdfAnnotation => ({
   id,
@@ -24,6 +29,7 @@ describe('annotation store', () => {
     });
     useSessionStore.getState().clearDocument();
     useHistoryStore.getState().clear();
+    clearWorkingRevisionStoreRegistryForTests();
   });
 
   it('add/update/delete manage selection state', () => {
@@ -174,9 +180,17 @@ describe('annotation store', () => {
     expect(state.annotations.find((a) => a.id === 'a3')?.rect.x).toBe(10);
   });
 
-  it('records PDF-backed annotation mutations in canonical document history', () => {
+  it('records revision-aware annotation mutations without retaining PDF bytes', () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'annotation-history-revisions',
+    });
+    registerWorkingRevisionStore(revisionStore);
+
     useSessionStore.getState().openDocument({
       documentKey: 'doc-annotations',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'doc-annotations',
+      activeRevisionId: 'doc-annotations',
       fileName: 'annotations.pdf',
       bytes: new Uint8Array([1]),
       pageCount: 1,
@@ -187,6 +201,17 @@ describe('annotation store', () => {
     const history = useHistoryStore.getState();
     expect(history.undoStack).toHaveLength(1);
     expect(history.undoStack[0]?.command.type).toBe('ANNOTATION_CHANGE');
+    expect(history.undoStack[0]?.before.revision).toEqual({
+      storeId: revisionStore.id,
+      revisionId: 'doc-annotations',
+    });
+    expect(history.undoStack[0]?.after.revision).toEqual({
+      storeId: revisionStore.id,
+      revisionId: 'doc-annotations',
+    });
+    expect(history.undoStack[0]?.before.bytes).toBeUndefined();
+    expect(history.undoStack[0]?.after.bytes).toBeUndefined();
+    expect(history.retainedBytes).toBe(0);
     expect(history.undoStack[0]?.after.annotations.map((annotation) => annotation.id)).toEqual([
       'history-a1',
     ]);
