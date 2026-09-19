@@ -76,8 +76,10 @@ requireContains(tests, testPath, [
 const annotationStorePath =
   'src/core/annotations/store.ts';
 const annotationStore = read(annotationStorePath);
-forbidContains(annotationStore, annotationStorePath, [
+requireContains(annotationStore, annotationStorePath, [
   'commitDurableStateMutation',
+  'usesDurableAnnotationHistory',
+  'runMutation',
 ]);
 
 const writerStorePath =

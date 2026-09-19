@@ -293,11 +293,27 @@ available and both public APIs execute through one non-enqueuing transaction
 core. Rollback now restores the captured session snapshot as well as caller
 state and history, so optimistic dirty flags cannot leak after journal failure.
 
-The annotation and Writer stores still use the legacy synchronous recorder in
-this prerequisite slice. The next store-migration slice can now derive its
-before/after state lazily inside the queue. No command replay or revision
-deletion is enabled yet. Reference-aware revision GC and bounded recovery
-checkpoints remain follow-on work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3B migrates PDF-backed annotation mutations onto that lazy
+durability path. Journal-aware annotation edits derive their before/after state
+inside the document-operation queue, preflight the binary-safe state checkpoint,
+apply only after durable metadata preparation succeeds, then persist the journal
+after the matching in-memory history transaction is pushed. A journal-save
+failure restores annotation state, selection/active state, session dirty state
+and history. Rapid queued edits therefore derive from the latest committed
+annotation state. Selection, copy and hydration operations remain synchronous,
+and legacy/no-journal sessions retain their existing synchronous mutation path.
+
+Selection-dependent queued actions freeze the user's target ids or clipboard at
+invocation time so a later selection change cannot reinterpret an already
+requested action. Annotation command ids are derived from the actual before/after
+state diff, including deletions, rather than from whatever selection happens to
+be live when the queue reaches the edit. The durable annotation path depends on
+revision/journal identity, not compatibility PDF bytes.
+
+Writer still uses the legacy synchronous recorder in this slice and is the next
+state-store migration target. No command replay or revision deletion is enabled
+yet. Reference-aware revision GC and bounded recovery checkpoints remain
+follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
