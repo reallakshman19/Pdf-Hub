@@ -497,6 +497,7 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::3',
     ]);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(pdfMocks.countPages).not.toHaveBeenCalled();
   });
 
   it('returns validation error when delete is requested with empty page list', async () => {
