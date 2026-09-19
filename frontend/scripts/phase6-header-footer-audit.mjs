@@ -1,0 +1,117 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+
+const root = path.resolve(process.cwd());
+const failures = [];
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function fail(message) {
+  failures.push(message);
+}
+
+function requireContains(source, relativePath, markers) {
+  for (const marker of markers) {
+    if (!source.includes(marker)) {
+      fail(`${relativePath} missing required Phase 6A marker: ${marker}`);
+    }
+  }
+}
+
+function forbidContains(source, relativePath, markers) {
+  for (const marker of markers) {
+    if (source.includes(marker)) {
+      fail(`${relativePath} contains forbidden Phase 6A dependency/token: ${marker}`);
+    }
+  }
+}
+
+const domainPaths = [
+  'src/core/header-footer/types.ts',
+  'src/core/header-footer/validation.ts',
+  'src/core/header-footer/contentValidation.ts',
+];
+
+const domain = domainPaths.map((relativePath) => ({
+  relativePath,
+  source: read(relativePath),
+}));
+
+for (const { relativePath, source } of domain) {
+  forbidContains(source, relativePath, [
+    "from 'pdf-lib'",
+    'PdfEditAdapter',
+    "from 'react'",
+    'CommandBus',
+    'useSessionStore',
+  ]);
+
+  const lineCount = source.split('\n').length;
+  if (lineCount > 300) {
+    fail(`${relativePath} exceeds the Phase 6A 300-line production-module guard (${lineCount})`);
+  }
+}
+
+const typesPath = 'src/core/header-footer/types.ts';
+const types = read(typesPath);
+requireContains(types, typesPath, [
+  'HEADER_FOOTER_TEMPLATE_SCHEMA_VERSION',
+  "mode: 'pageIds'",
+  "mode: 'range'",
+  "mode: 'pageLabelRange'",
+  "'physicalPage'",
+  "'pageLabel'",
+  "'sectionPage'",
+  "'sectionPageCount'",
+  'binaryResourceId: string',
+  'rules: HeaderFooterRule[]',
+]);
+
+const validationPath = 'src/core/header-footer/validation.ts';
+const validation = read(validationPath);
+requireContains(validation, validationPath, [
+  'validateHeaderFooterTemplate',
+  'pageGraph.pageLabelRanges',
+  'excludeFirstPhysicalPage',
+  'excludeLastPhysicalPage',
+]);
+
+const contentValidationPath = 'src/core/header-footer/contentValidation.ts';
+const contentValidation = read(contentValidationPath);
+requireContains(contentValidation, contentValidationPath, [
+  "token.startsWith('metadata:')",
+  "token.startsWith('var:')",
+  'validateHeaderFooterBand',
+  'validateHeaderFooterTextStyle',
+]);
+
+const pageTypesPath = 'src/core/pages/types.ts';
+const pageTypes = read(pageTypesPath);
+const pageLabelStyleDeclarations =
+  pageTypes.match(/export type PageLabelStyle\s*=/g)?.length ?? 0;
+const pageLabelRangeDeclarations =
+  pageTypes.match(/export interface PageLabelRange\s*{/g)?.length ?? 0;
+
+if (pageLabelStyleDeclarations !== 1) {
+  fail(`${pageTypesPath} must contain exactly one PageLabelStyle declaration`);
+}
+if (pageLabelRangeDeclarations !== 1) {
+  fail(`${pageTypesPath} must contain exactly one PageLabelRange declaration`);
+}
+
+const commandTypesPath = 'src/core/commands/types.ts';
+const commandTypes = read(commandTypesPath);
+if (!commandTypes.includes("'ADD_HEADER_FOOTER_TEXT'")) {
+  fail('Phase 6A must not remove the legacy header/footer compatibility command');
+}
+
+if (failures.length > 0) {
+  console.error('Phase 6 header/footer audit failed:');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log('Phase 6 header/footer audit passed.');
