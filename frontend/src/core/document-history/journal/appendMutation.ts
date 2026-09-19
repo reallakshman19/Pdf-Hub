@@ -31,6 +31,73 @@ export interface PreparedHistoryJournalMutation {
   manifest: HistoryJournalManifest;
 }
 
+function truncateAbandonedTail(
+  manifest: HistoryJournalManifest,
+  activeRevisionId: string,
+): void {
+  if (activeRevisionId === manifest.originalRevisionId) {
+    manifest.entries = [];
+    manifest.checkpoints = manifest.checkpoints.filter(
+      (checkpoint) =>
+        checkpoint.kind === 'ADMISSION',
+    );
+    return;
+  }
+
+  let activeEntryIndex = -1;
+  for (
+    let index = manifest.entries.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    if (
+      manifest.entries[index]?.afterRevision.revisionId
+      === activeRevisionId
+    ) {
+      activeEntryIndex = index;
+      break;
+    }
+  }
+
+  if (activeEntryIndex < 0) {
+    throw new Error(
+      `History journal cannot locate active revision ${activeRevisionId} in its retained transaction chain.`,
+    );
+  }
+
+  const retainedEntries = manifest.entries.slice(
+    0,
+    activeEntryIndex + 1,
+  );
+  const retainedTransactionIds = new Set(
+    retainedEntries.map(
+      (entry) => entry.transactionId,
+    ),
+  );
+  const retainedRevisionIds = new Set([
+    manifest.originalRevisionId,
+    ...retainedEntries.map(
+      (entry) => entry.afterRevision.revisionId,
+    ),
+  ]);
+
+  manifest.entries = retainedEntries;
+  manifest.checkpoints =
+    manifest.checkpoints.filter(
+      (checkpoint) =>
+        checkpoint.kind === 'ADMISSION'
+        || (
+          checkpoint.transactionId
+          && retainedTransactionIds.has(
+            checkpoint.transactionId,
+          )
+        )
+        || retainedRevisionIds.has(
+          checkpoint.revision.revisionId,
+        ),
+    );
+}
+
 export async function prepareHistoryJournalMutation(
   input: PrepareHistoryJournalMutationInput,
 ): Promise<PreparedHistoryJournalMutation | null> {
@@ -100,6 +167,10 @@ export async function prepareHistoryJournalMutation(
     revisionId: input.afterRevisionId,
   };
   const manifest = cloneHistoryJournalManifest(current);
+  truncateAbandonedTail(
+    manifest,
+    input.beforeRevisionId,
+  );
 
   manifest.entries.push({
     entryId: `${input.journalId}:entry:${input.transactionId}`,
