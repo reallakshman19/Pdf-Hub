@@ -168,23 +168,17 @@ requireContains(
   ],
 );
 
-for (const deferredPath of [
-  'src/components/writer-v2/WriterTablePropertiesPanel.tsx',
-]) {
-  const source = read(deferredPath);
-  if (
-    source.includes(
-      'dispatchDurableWriterUiCommand',
-    )
-    || source.includes(
-      'dispatchWriterCommandDurable',
-    )
-  ) {
-    fail(
-      `C2B1 must not migrate high-frequency surface before coalescing: ${deferredPath}`,
-    );
-  }
-}
+const tablePropertiesPath =
+  'src/components/writer-v2/WriterTablePropertiesPanel.tsx';
+const tableProperties = read(tablePropertiesPath);
+requireContains(
+  tableProperties,
+  tablePropertiesPath,
+  [
+    'tableCommitTailRef',
+    'dispatchDurableWriterUiCommand(',
+  ],
+);
 
 if (failed) process.exit(1);
 
