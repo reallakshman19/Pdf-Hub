@@ -15,11 +15,17 @@ import {
 import type { HeaderFooterTemplate } from '@/core/header-footer/types';
 import { resolveHeaderFooterTemplate } from '@/core/header-footer/resolver';
 import {
+  applyPrintedNumberingPresetToDraft,
+  printedNumberingPreset,
+  type PrintedNumberingPresetId,
+} from '@/core/header-footer/numberingPresets';
+import {
   HeaderFooterSlotGrid,
   type HeaderFooterEditorSlotKey,
 } from './header-footer/HeaderFooterSlotGrid';
 import { HeaderFooterOptionsPanel } from './header-footer/HeaderFooterOptionsPanel';
 import { HeaderFooterTokenBar } from './header-footer/HeaderFooterTokenBar';
+import { HeaderFooterNumberingPresetBar } from './header-footer/HeaderFooterNumberingPresetBar';
 import { HeaderFooterPreviewPane } from './header-footer/HeaderFooterPreviewPane';
 import { HeaderFooterImagePanel } from './header-footer/HeaderFooterImagePanel';
 import { useHeaderFooterImageEditor } from './header-footer/useHeaderFooterImageEditor';
@@ -176,6 +182,21 @@ export const HeaderFooterDialog: React.FC<
     updateSlot(band, slot, `${current}${separator}${token}`);
   };
 
+  const applyNumberingPreset = (
+    presetId: PrintedNumberingPresetId,
+  ) => {
+    const preset = printedNumberingPreset(presetId);
+    if (
+      draft.image?.band === 'footer'
+      && draft.image.slot === preset.slot
+    ) {
+      imageEditor.panelProps.onRemove();
+    }
+    setDraft((current) =>
+      applyPrintedNumberingPresetToDraft(current, presetId),
+    );
+  };
+
   const handleApply = async () => {
     if (!preview.template || preview.error) return;
     setSubmitting(true);
@@ -212,6 +233,10 @@ export const HeaderFooterDialog: React.FC<
           activeSlot={activeSlot}
           onActiveSlotChange={setActiveSlot}
           onChange={updateSlot}
+        />
+
+        <HeaderFooterNumberingPresetBar
+          onApply={applyNumberingPreset}
         />
 
         <HeaderFooterTokenBar onInsert={insertToken} />
