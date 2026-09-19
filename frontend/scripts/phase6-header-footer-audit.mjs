@@ -79,6 +79,7 @@ for (const relativePath of writerPaths) {
     "from 'react'",
     'CommandBus',
     'useSessionStore',
+    '@/core/commands/',
     '@/components/',
   ]);
   const lineCount = source.split('\n').length;
