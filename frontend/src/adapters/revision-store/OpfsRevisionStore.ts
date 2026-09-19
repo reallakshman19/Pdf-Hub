@@ -3,10 +3,7 @@ import {
 } from '@/core/document-source/materialize';
 import {
   isOperationCancelledError,
-  raceWithAbort,
-  throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
-import { assertDocumentSourceSize } from '@/core/document-source/validation';
 import { OpfsSource } from '@/adapters/document-source/OpfsSource';
 import { RevisionStoreError } from '@/core/revision-store/errors';
 import type {
@@ -20,6 +17,7 @@ import {
   assertRevisionStoreId,
   revisionSourceId,
 } from '@/core/revision-store/validation';
+import { commitOpfsRevisionBytes } from './opfsRevisionIo';
 
 const OPFS_REVISION_CAPABILITIES: Readonly<RevisionStoreCapabilities> =
   Object.freeze({
@@ -235,42 +233,16 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
   private async commitNewRevision(
     input: CommitRevisionInput,
   ): Promise<StoredRevision> {
-    const fileName = this.fileName(input.revisionId);
-    let writable: FileSystemWritableFileStream | null = null;
-
     try {
-      const size = await raceWithAbort(
-        input.source.size(),
-        input.signal,
-        'commit working revision: source size',
-      );
-      assertDocumentSourceSize(input.source.id, size);
-
-      const handle = await this.directory.getFileHandle(
-        fileName,
-        { create: true },
-      );
-      writable = await handle.createWritable({
-        keepExistingData: false,
+      const size = await commitOpfsRevisionBytes({
+        directory: this.directory,
+        fileName: this.fileName(input.revisionId),
+        source: input.source,
+        signal: input.signal,
+        chunkBytes: this.chunkBytes,
       });
-      await this.copyIntoWritable(
-        input,
-        writable,
-        size,
-      );
-      await writable.close();
-      writable = null;
-
-      const committedFile = await handle.getFile();
-      if (committedFile.size !== size) {
-        throw new Error(
-          `Committed revision has ${committedFile.size} byte(s); expected ${size}.`,
-        );
-      }
       return this.descriptor(input.revisionId, size);
     } catch (error) {
-      await bestEffortAbort(writable);
-      await bestEffortRemove(this.directory, fileName);
       if (
         error instanceof RevisionStoreError
         || isOperationCancelledError(error)
@@ -282,42 +254,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
         this.id,
         `Failed to commit revision ${input.revisionId}.`,
         { revisionId: input.revisionId, cause: error },
-      );
-    }
-  }
-
-  private async copyIntoWritable(
-    input: CommitRevisionInput,
-    writable: FileSystemWritableFileStream,
-    size: number,
-  ): Promise<void> {
-    for (
-      let offset = 0;
-      offset < size;
-      offset += this.chunkBytes
-    ) {
-      throwIfAborted(
-        input.signal,
-        'commit working revision: before range read',
-      );
-      const length = Math.min(
-        this.chunkBytes,
-        size - offset,
-      );
-      const bytes = await raceWithAbort(
-        input.source.read(offset, length),
-        input.signal,
-        'commit working revision: range read',
-      );
-      if (bytes.byteLength !== length) {
-        throw new Error(
-          `Source returned ${bytes.byteLength} byte(s) for requested ${length}-byte revision chunk.`,
-        );
-      }
-      await raceWithAbort(
-        writable.write(bytes),
-        input.signal,
-        'commit working revision: write chunk',
       );
     }
   }
@@ -369,26 +305,4 @@ function isNotFound(error: unknown): boolean {
     && 'name' in error
     && error.name === 'NotFoundError'
   );
-}
-
-async function bestEffortAbort(
-  writable: FileSystemWritableFileStream | null,
-): Promise<void> {
-  if (!writable) return;
-  try {
-    await writable.abort();
-  } catch {
-    // Cleanup must not mask the original commit failure.
-  }
-}
-
-async function bestEffortRemove(
-  directory: FileSystemDirectoryHandle,
-  fileName: string,
-): Promise<void> {
-  try {
-    await directory.removeEntry(fileName);
-  } catch {
-    // Cleanup must not mask the original commit failure.
-  }
 }
