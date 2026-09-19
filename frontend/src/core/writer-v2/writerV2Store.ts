@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { useAnnotationStore } from '../annotations/store';
 import { materializePdfCommand } from '../commands/types';
-import { recordStateTransaction, writerHistoryState } from '../document-history/stateTransaction';
+import {
+  recordStateTransaction,
+  writerHistoryState,
+} from '../document-history/stateTransaction';
+import {
+  commitDurableStateMutation,
+} from '../document-history/durableStateTransaction';
 import { useSessionStore } from '../session/store';
 import {
   createInitialWriterV2State,
@@ -60,6 +66,9 @@ export interface WriterV2StoreState extends WriterV2State {
   setTableSelection: (selection: WriterTableSelection | null) => void;
 
   dispatchWriterCommand: (command: WriterCommand) => WriterV2CommandResult;
+  dispatchWriterCommandDurable: (
+    command: WriterCommand,
+  ) => Promise<WriterV2CommandResult>;
   undoWriter: () => WriterV2CommandResult;
   redoWriter: () => WriterV2CommandResult;
 
@@ -120,28 +129,12 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   dispatchWriterCommand: (command) => {
     const beforeStore = get();
     const previousEditingId = beforeStore.editingId;
-    const rawResult = executeWriterCommand(beforeStore, command);
     const session = useSessionStore.getState();
-    const isPdfOverlaySession =
-      beforeStore.documentMeta?.mode === 'pdfOverlay'
-      || (
-        !beforeStore.documentMeta
-        && Boolean(session.pageGraph && session.workingBytes)
-      );
-    const result =
-      rawResult.changed && isPdfOverlaySession
-        ? {
-            ...rawResult,
-            state: {
-              ...rawResult.state,
-              elements: normalizeWriterCommandElements(
-                rawResult.state.elements,
-                command,
-                session.pageGraph,
-              ),
-            },
-          }
-        : rawResult;
+    const result = executeWriterCommandForSession(
+      beforeStore,
+      command,
+      session,
+    );
     const useGlobalHistory =
       result.changed
       && isMutationCommand(command)
@@ -199,6 +192,125 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     }
 
     return result;
+  },
+
+  dispatchWriterCommandDurable: async (command) => {
+    const initialStore = get();
+    const initialSession = useSessionStore.getState();
+
+    if (
+      !isMutationCommand(command)
+      || !usesDurableWriterHistory(
+        initialStore,
+        initialSession,
+      )
+    ) {
+      return get().dispatchWriterCommand(command);
+    }
+
+    let committedResult: WriterV2CommandResult | null =
+      null;
+
+    await commitDurableStateMutation(() => {
+      const beforeStore = get();
+      const session = useSessionStore.getState();
+
+      if (
+        !usesDurableWriterHistory(
+          beforeStore,
+          session,
+        )
+      ) {
+        committedResult =
+          get().dispatchWriterCommand(command);
+        return null;
+      }
+
+      const previousEditingId =
+        beforeStore.editingId;
+      const result =
+        executeWriterCommandForSession(
+          beforeStore,
+          command,
+          session,
+        );
+
+      if (!result.changed) {
+        committedResult = result;
+        return null;
+      }
+
+      const nextStore =
+        applyCommandStateToStore(
+          result.state,
+          beforeStore,
+          {
+            editingId:
+              command.type
+                === 'DELETE_WRITER_ELEMENT'
+              && previousEditingId === command.id
+                ? null
+                : previousEditingId,
+          },
+        );
+      nextStore.undoStack = [];
+      nextStore.redoStack = [];
+
+      const afterStore = {
+        ...beforeStore,
+        ...nextStore,
+      } as WriterV2StoreState;
+      const annotations =
+        useAnnotationStore.getState().annotations;
+      const label = writerCommandLabel(command);
+
+      committedResult = {
+        ...result,
+        state: writerCommandState(afterStore),
+      };
+
+      return {
+        command: materializePdfCommand(
+          {
+            type: 'WRITER_CHANGE',
+            payload: {
+              action: label,
+              elementIds:
+                writerCommandElementIds(command),
+            },
+          },
+          'writer-store',
+          session.documentKey as string,
+        ),
+        label,
+        before: {
+          annotations,
+          writer:
+            writerHistoryState(beforeStore),
+        },
+        after: {
+          annotations,
+          writer:
+            writerHistoryState(afterStore),
+        },
+        apply: () => {
+          set(nextStore);
+          useSessionStore
+            .getState()
+            .setDirty(true);
+        },
+        rollback: () => {
+          set(writerStoreSnapshot(beforeStore));
+        },
+      };
+    });
+
+    return committedResult ?? {
+      state: writerCommandState(get()),
+      changed: false,
+      reason:
+        'Writer command did not produce a durable change.',
+    };
   },
 
   undoWriter: () => {
@@ -559,10 +671,87 @@ function normalizeWriterCommandElements(
   return normalizeWriterPageAnchors(retargeted, graph);
 }
 
+function executeWriterCommandForSession(
+  beforeStore: WriterV2StoreState,
+  command: WriterCommand,
+  session: ReturnType<typeof useSessionStore.getState>,
+): WriterV2CommandResult {
+  const rawResult =
+    executeWriterCommand(beforeStore, command);
+  const isPdfOverlaySession =
+    beforeStore.documentMeta?.mode === 'pdfOverlay'
+    || (
+      !beforeStore.documentMeta
+      && Boolean(
+        session.pageGraph
+        && session.workingBytes,
+      )
+    );
+
+  if (!rawResult.changed || !isPdfOverlaySession) {
+    return rawResult;
+  }
+
+  return {
+    ...rawResult,
+    state: {
+      ...rawResult.state,
+      elements: normalizeWriterCommandElements(
+        rawResult.state.elements,
+        command,
+        session.pageGraph,
+      ),
+    },
+  };
+}
+
+function usesDurableWriterHistory(
+  state: WriterV2StoreState,
+  session: ReturnType<typeof useSessionStore.getState>,
+): boolean {
+  return state.documentMeta?.mode === 'pdfOverlay'
+    && Boolean(
+      session.documentKey
+      && session.revisionStoreId
+      && session.activeRevisionId
+      && session.historyJournalStoreId
+      && session.historyJournalId,
+    );
+}
+
+function writerStoreSnapshot(
+  state: WriterV2StoreState,
+): Partial<WriterV2StoreState> {
+  return {
+    elements: state.elements,
+    selectedIds: state.selectedIds,
+    activeId: state.activeId,
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
+    dirty: state.dirty,
+    activeWriterTool: state.activeWriterTool,
+    editingId: state.editingId,
+    currentDocumentFingerprint:
+      state.currentDocumentFingerprint,
+    documentMeta: state.documentMeta,
+    assetRecords: state.assetRecords,
+    lastPersistedAt: state.lastPersistedAt,
+    tableSelection: state.tableSelection,
+  };
+}
+
 function usesGlobalWriterHistory(state: WriterV2StoreState): boolean {
   const session = useSessionStore.getState();
+  const hasDurableRevision = Boolean(
+    session.revisionStoreId
+    && session.activeRevisionId,
+  );
+
   return state.documentMeta?.mode === 'pdfOverlay'
-    && Boolean(session.documentKey && session.workingBytes);
+    && Boolean(
+      session.documentKey
+      && (hasDurableRevision || session.workingBytes),
+    );
 }
 
 function writerCommandState(state: WriterV2StoreState): WriterV2State {

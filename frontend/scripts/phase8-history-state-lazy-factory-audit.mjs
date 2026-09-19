@@ -85,8 +85,9 @@ requireContains(annotationStore, annotationStorePath, [
 const writerStorePath =
   'src/core/writer-v2/writerV2Store.ts';
 const writerStore = read(writerStorePath);
-forbidContains(writerStore, writerStorePath, [
+requireContains(writerStore, writerStorePath, [
   'commitDurableStateMutation',
+  'dispatchWriterCommandDurable',
 ]);
 
 if (failed) process.exit(1);

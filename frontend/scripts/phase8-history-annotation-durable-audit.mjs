@@ -132,7 +132,8 @@ requireContains(store, storePath, [
 const writerStorePath =
   'src/core/writer-v2/writerV2Store.ts';
 const writerStore = read(writerStorePath);
-forbidContains(writerStore, writerStorePath, [
+requireContains(writerStore, writerStorePath, [
+  'dispatchWriterCommandDurable',
   'commitDurableStateMutation',
 ]);
 
