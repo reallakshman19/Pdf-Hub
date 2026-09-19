@@ -88,14 +88,32 @@ function createAnnotationTransactionInput(
   }
 
   const writer = useWriterV2Store.getState();
+  const nextById = new Map(
+    nextAnnotations.map((annotation) => [
+      annotation.id,
+      annotation,
+    ]),
+  );
+  const currentById = new Map(
+    state.annotations.map((annotation) => [
+      annotation.id,
+      annotation,
+    ]),
+  );
   const annotationIds = Array.from(
     new Set([
-      ...state.selectedAnnotationIds,
+      ...state.annotations
+        .filter((annotation) =>
+          !nextById.has(annotation.id)
+          || nextById.get(annotation.id)
+            !== annotation
+        )
+        .map((annotation) => annotation.id),
       ...nextAnnotations
         .filter((annotation) =>
-          !state.annotations.some(
-            (current) => current === annotation,
-          )
+          !currentById.has(annotation.id)
+          || currentById.get(annotation.id)
+            !== annotation
         )
         .map((annotation) => annotation.id),
     ]),
