@@ -67,28 +67,52 @@ export async function replaceActiveImageBoxAsset(
     updatedAt: now,
   };
 
+  const previousDirty = store.dirty;
   store.addWriterAssets([asset]);
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      plainText: file.name,
-      imageAssetId: assetId,
-      assetIds: [assetId],
-    },
-  });
+  try {
+    const result =
+      await store.dispatchWriterCommandDurable({
+        type: 'UPDATE_WRITER_ELEMENT',
+        id: element.id,
+        patch: {
+          plainText: file.name,
+          imageAssetId: assetId,
+          assetIds: [assetId],
+        },
+      });
 
-  if (!result.changed) {
-    store.removeWriterAsset(assetId);
+    if (!result.changed) {
+      useWriterV2Store.getState().removeWriterAsset(
+        assetId,
+      );
+      useWriterV2Store.setState({
+        dirty: previousDirty,
+      });
+    }
+
+    return {
+      changed: result.changed,
+      message: result.changed
+        ? 'Replaced Writer image asset.'
+        : result.reason,
+    };
+  } catch (error) {
+    useWriterV2Store.getState().removeWriterAsset(
+      assetId,
+    );
+    useWriterV2Store.setState({
+      dirty: previousDirty,
+    });
+
+    return {
+      changed: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    };
   }
-
-  return {
-    changed: result.changed,
-    message: result.changed
-      ? 'Replaced Writer image asset.'
-      : result.reason,
-  };
 }
 
 export function clearActiveImageBoxAsset(): WriterImageReplaceResult {

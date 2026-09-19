@@ -62,7 +62,11 @@ export async function fitActiveRichBoxToContent(): Promise<WriterRichBoxFitResul
   const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const fit = computeRichBoxFit(element, pdf);
-  const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
+  const result = await applyRichBoxFit(
+    element,
+    fit.nextY,
+    fit.nextHeight,
+  );
 
   return {
     changed: result.changed,
@@ -102,7 +106,11 @@ export async function fitRichBoxToContentById(
   const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
   const fit = computeRichBoxFit(element, pdf);
-  const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
+  const result = await applyRichBoxFit(
+    element,
+    fit.nextY,
+    fit.nextHeight,
+  );
 
   return {
     changed: result.changed,
@@ -157,7 +165,11 @@ export async function fitRichBoxesToContentByIds(
     }
 
     const fit = computeRichBoxFit(element, pdf);
-    const result = applyRichBoxFit(element, fit.nextY, fit.nextHeight);
+    const result = await applyRichBoxFit(
+      element,
+      fit.nextY,
+      fit.nextHeight,
+    );
 
     if (result.changed) {
       fittedCount += 1;
@@ -220,22 +232,24 @@ function computeRichBoxFit(
   };
 }
 
-function applyRichBoxFit(
+async function applyRichBoxFit(
   element: WriterElementV2,
   nextY: number,
   nextHeight: number,
 ) {
-  return useWriterV2Store.getState().dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      rect: {
-        ...element.rect,
-        y: nextY,
-        height: nextHeight,
+  return useWriterV2Store
+    .getState()
+    .dispatchWriterCommandDurable({
+      type: 'UPDATE_WRITER_ELEMENT',
+      id: element.id,
+      patch: {
+        rect: {
+          ...element.rect,
+          y: nextY,
+          height: nextHeight,
+        },
       },
-    },
-  });
+    });
 }
 
 function isFittableRichBox(element: WriterElementV2): boolean {

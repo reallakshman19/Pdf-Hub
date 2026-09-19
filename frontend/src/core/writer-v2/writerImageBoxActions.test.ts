@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
 import { clearActiveImageBoxAsset, replaceActiveImageBoxAsset } from './writerImageBoxActions';
@@ -66,6 +72,39 @@ describe('writerImageBoxActions', () => {
     const asset = useWriterV2Store.getState().assetRecords.find((a) => a.id === element.imageAssetId);
     expect(asset?.width).toBe(1);
     expect(asset?.height).toBe(1);
+  });
+
+  it('removes the admitted asset when durable Writer dispatch fails', async () => {
+    const store = useWriterV2Store.getState();
+    const beforeAssets = [...store.assetRecords];
+    const beforeDirty = store.dirty;
+
+    const dispatchSpy = vi
+      .spyOn(
+        useWriterV2Store.getState(),
+        'dispatchWriterCommandDurable',
+      )
+      .mockRejectedValueOnce(
+        new Error('journal write failed'),
+      );
+
+    const result =
+      await replaceActiveImageBoxAsset(
+        pngFile('failed.png'),
+      );
+
+    expect(result).toEqual({
+      changed: false,
+      message: 'journal write failed',
+    });
+    expect(
+      useWriterV2Store.getState().assetRecords,
+    ).toEqual(beforeAssets);
+    expect(
+      useWriterV2Store.getState().dirty,
+    ).toBe(beforeDirty);
+
+    dispatchSpy.mockRestore();
   });
 
   it('rejects a file that is not a real image without touching the element', async () => {

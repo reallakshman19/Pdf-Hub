@@ -320,14 +320,26 @@ preflight, and returns the actual committed `WriterV2CommandResult`. Durable
 failure rolls Writer state back through the shared coordinator. Revision-backed
 Writer undo ownership no longer depends on compatibility `workingBytes`.
 
-The existing synchronous `dispatchWriterCommand(...)` remains available and
-production mutation callers are deliberately not migrated in C1. Non-mutating
-selection commands and blank/legacy sessions still delegate to the synchronous
-path. Phase 8E.5B3C2 must migrate production PDF-overlay mutation callers to the
-durable API before synchronous PDF-overlay mutation dispatch can be prohibited.
-No command replay or revision deletion is enabled yet. Reference-aware revision
-GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
-incremental search indexing.
+Phase 8E.5B3C2A begins caller migration with the Writer helpers that already
+have async contracts. Rich-text creation, rich-box style updates, single/bulk
+rich-box fit updates and async image replacement now await
+`dispatchWriterCommandDurable(...)`, so their success result reflects an
+actually persisted journal checkpoint rather than a speculative mutation.
+Image replacement removes its newly admitted asset and restores its prior dirty
+flag when durable Writer dispatch rejects or produces no change. A production
+source allowlist limits durable dispatch callers to this tranche.
+
+The existing synchronous `dispatchWriterCommand(...)` remains available for
+non-mutating selection, blank/legacy sessions, direct UI mutation callbacks and
+the remaining synchronous Writer helper APIs. Multi-step legacy consolidation
+also remains synchronous because hiding source objects and adding the
+consolidated rich box must be made atomic before migration. Phase 8E.5B3C2B
+owns direct UI mutation callbacks; Phase 8E.5B3C2C owns synchronous helper
+contracts and remaining bridges. Synchronous PDF-overlay mutation dispatch must
+not be prohibited until those migrations are complete. No command replay or
+revision deletion is enabled yet. Reference-aware revision GC and bounded
+recovery checkpoints remain follow-on work. Phase 8F owns incremental search
+indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

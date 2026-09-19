@@ -110,15 +110,19 @@ requireContains(tests, testsPath, [
   'delegates selection commands and blank-document mutations to the synchronous store path',
 ]);
 
+const approvedDurableCallers = new Set([
+  'src/core/writer-v2/ensureRichTextEditing.ts',
+  'src/core/writer-v2/writerRichBoxStyleActions.ts',
+  'src/core/writer-v2/writerRichBoxFitActions.ts',
+  'src/core/writer-v2/writerImageBoxActions.ts',
+]);
+
+const observedDurableCallers = new Set();
+
 const srcRoot = path.join(root, 'src');
 for (const absolute of collectSourceFiles(srcRoot)) {
   const relative = path.relative(root, absolute);
-  if (
-    relative === storePath
-    || relative.endsWith(
-      'writerV2Store.durableHistory.test.ts',
-    )
-  ) {
+  if (relative === storePath) {
     continue;
   }
 
@@ -127,12 +131,26 @@ for (const absolute of collectSourceFiles(srcRoot)) {
     'utf8',
   );
   if (
-    source.includes(
+    !source.includes(
       'dispatchWriterCommandDurable(',
     )
   ) {
+    continue;
+  }
+
+  observedDurableCallers.add(relative);
+
+  if (!approvedDurableCallers.has(relative)) {
     fail(
-      `C1 must not migrate production Writer callers yet: ${relative}`,
+      `Unapproved production durable Writer caller: ${relative}`,
+    );
+  }
+}
+
+for (const approved of approvedDurableCallers) {
+  if (!observedDurableCallers.has(approved)) {
+    fail(
+      `Approved C2A durable Writer caller is missing: ${approved}`,
     );
   }
 }
