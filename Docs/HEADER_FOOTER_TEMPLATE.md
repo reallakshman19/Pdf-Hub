@@ -473,6 +473,31 @@ engine, Phase 6H.2 removes:
 - `PdfEditAdapter.addHeaderFooterText`
 - its private `HeaderFooterOptions` adapter type
 
+## Phase 6 acceptance scenario
+
+The final Phase 6 certification includes a real-PDF acceptance test covering
+the #200 reference document structure:
+
+- cover with no printed number
+- front matter i–iv with printed logical labels
+- body section with `Page 1 of N`
+- appendix A with `Appendix A — A-1`
+
+The test resolves the representative preview, writes real PDF bytes, verifies
+that applying printed content leaves the existing PDF `/PageLabels` unchanged,
+performs a section-preserving reorder using stable PageIds, reserializes
+PageLabels, performs history undo/redo, then reopens the resulting bytes with
+PDF.js and verifies both logical labels and printed text are still attached to
+the expected pages.
+
+Header/footer application is a **static PDF write**, not a live formula layer.
+After an arbitrary later reorder that changes a page's logical/section number,
+the user must update/reapply the header/footer template to recalculate printed
+number tokens. Structural edits move already-written content with its page.
+The acceptance reorder preserves section-internal order so the written numbers
+remain semantically valid while still exercising PageId anchoring and
+PageLabels reserialization.
+
 ## Legacy compatibility
 
 The only retained header/footer legacy surface is the saved Macro DSL operation
