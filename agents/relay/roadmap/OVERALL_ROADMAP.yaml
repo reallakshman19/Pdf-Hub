@@ -2,7 +2,7 @@
   "schema_version": "relay-v2.5",
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0001",
+    "revision": "RM-0002",
     "title": "PDF Hub Professional / Personal / Basic readiness roadmap"
   },
   "objectives": [
@@ -189,9 +189,9 @@
             {
               "id": "WP-8D3",
               "title": "Migrate remaining active renderer consumers",
-              "state": "ACTIVE",
+              "state": "COMPLETE",
               "definition": "DETAILED",
-              "execution_status": "ACTIVE",
+              "execution_status": "TERMINAL",
               "weight": 10,
               "depends_on": [
                 "WP-8D2"
@@ -201,14 +201,14 @@
             {
               "id": "WP-8E",
               "title": "History journal and bounded checkpoints",
-              "state": "PLANNED",
+              "state": "ACTIVE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "ACTIVE",
               "weight": 10,
               "depends_on": [
                 "WP-8D3"
               ],
-              "issue": null
+              "issue": 234
             },
             {
               "id": "WP-8F",

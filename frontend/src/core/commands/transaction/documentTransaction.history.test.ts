@@ -195,12 +195,26 @@ describe('document transaction history memory', () => {
 
     const transaction =
       useHistoryStore.getState().undoStack.at(-1);
-    expect(transaction?.before.activeRevisionId).toBe(
-      'hash-1',
-    );
-    expect(transaction?.after.activeRevisionId).toBe(
-      'hash-2',
-    );
+    expect(transaction?.before).toMatchObject({
+      activeRevisionId: 'hash-1',
+      revision: {
+        storeId: revisionStore.id,
+        revisionId: 'hash-1',
+      },
+    });
+    expect(transaction?.after).toMatchObject({
+      activeRevisionId: 'hash-2',
+      revision: {
+        storeId: revisionStore.id,
+        revisionId: 'hash-2',
+      },
+    });
+    expect(transaction?.before.bytes).toBeUndefined();
+    expect(transaction?.after.bytes).toBeUndefined();
+    expect(useHistoryStore.getState().getDiagnostics()).toMatchObject({
+      retainedBytes: 0,
+      overBudget: false,
+    });
 
     await expect(applyUndo()).resolves.toBe(true);
     expect(useSessionStore.getState()).toMatchObject({
@@ -212,6 +226,54 @@ describe('document transaction history memory', () => {
     expect(useSessionStore.getState()).toMatchObject({
       documentKey: 'hash-2',
       activeRevisionId: 'hash-2',
+    });
+  });
+
+  it('does not consume undo history when the target revision store is unavailable', async () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'missing-history-revisions',
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'initial-history',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    await commitDocumentMutation({
+      command: command('hash-1', 'history-store-loss'),
+      label: 'History store loss',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+
+    clearWorkingRevisionStoreRegistryForTests();
+
+    await expect(applyUndo()).rejects.toThrow(
+      /not registered for history restore/,
+    );
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(useHistoryStore.getState().redoStack).toHaveLength(0);
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+      workingBytes: Uint8Array.from([2]),
     });
   });
 

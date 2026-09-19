@@ -10,10 +10,9 @@ export const HISTORY_POLICY = {
   maxUndoDepth: 15,
 
   /**
-   * Maximum unique PDF snapshot bytes retained across undo and redo history.
-   * Adjacent transactions may share their boundary snapshot, which is counted
-   * once. A single newest transaction is retained even when it exceeds this
-   * budget so the most recent action remains undoable.
+   * Maximum unique inline PDF snapshot bytes retained across undo and redo
+   * history. Revision-aware states retain immutable revision locators instead
+   * and therefore do not consume this compatibility byte budget.
    */
   maxRetainedBytes: 256 * MEBIBYTE,
 
@@ -26,6 +25,6 @@ export const HISTORY_POLICY = {
   /** Documents above this size will normally retain only one or two steps. */
   veryLargeDocumentThresholdBytes: 64 * MEBIBYTE,
 
-  /** Full snapshots with contiguous suffix trimming by depth and unique bytes. */
-  strategy: 'full-snapshot-byte-budgeted' as const,
+  /** Prefer immutable revision locators; byte-budget legacy snapshots only. */
+  strategy: 'revision-preferred-byte-budgeted' as const,
 } as const;

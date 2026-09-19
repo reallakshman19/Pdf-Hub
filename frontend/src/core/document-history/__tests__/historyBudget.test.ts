@@ -40,6 +40,24 @@ function state(bytes: Uint8Array) {
   };
 }
 
+function revisionState(revisionId: string) {
+  return {
+    revision: {
+      storeId: 'history-revisions',
+      revisionId,
+    },
+    activeRevisionId: revisionId,
+    pageCount: 1,
+    pageGraph: null,
+    documentKey: revisionId,
+    selectedPageIds: [],
+    selectedPages: [1],
+    currentPageId: null,
+    currentPage: 1,
+    annotations: [],
+  };
+}
+
 function transaction(
   id: string,
   beforeBytes: Uint8Array,
@@ -80,8 +98,9 @@ describe('history byte budget', () => {
   });
 
   it('retains a contiguous newest suffix when an older transaction exceeds the remaining budget', () => {
-    const newest = transaction('newest', new Uint8Array(3), new Uint8Array(3));
-    const middle = transaction('middle', new Uint8Array(20), newest.before.bytes);
+    const newestBefore = new Uint8Array(3);
+    const newest = transaction('newest', newestBefore, new Uint8Array(3));
+    const middle = transaction('middle', new Uint8Array(20), newestBefore);
     const oldest = transaction('oldest', new Uint8Array(1), new Uint8Array(1));
 
     const retained = retainHistorySuffix(
@@ -92,6 +111,37 @@ describe('history byte budget', () => {
     expect(retained.transactions.map((item) => item.id)).toEqual(['newest']);
     expect(retained.droppedTransactions).toBe(2);
     expect(retained.reason).toBe('bytes');
+  });
+
+  it('does not charge immutable revision locators against the inline byte budget', () => {
+    const transactions: Transaction[] = [
+      {
+        id: 'revision-one',
+        command,
+        label: 'revision-one',
+        timestamp: 0,
+        before: revisionState('rev-1'),
+        after: revisionState('rev-2'),
+      },
+      {
+        id: 'revision-two',
+        command,
+        label: 'revision-two',
+        timestamp: 0,
+        before: revisionState('rev-2'),
+        after: revisionState('rev-3'),
+      },
+    ];
+
+    expect(retainedBytesForTransactions(transactions)).toBe(0);
+    const retained = retainHistorySuffix(
+      transactions,
+      policy({ maxRetainedBytes: 1 }),
+    );
+    expect(retained.transactions).toHaveLength(2);
+    expect(retained.retainedBytes).toBe(0);
+    expect(retained.reason).toBe('none');
+    expect(retained.overBudget).toBe(false);
   });
 
   it('caps history depth even when the byte budget has room', () => {

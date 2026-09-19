@@ -129,7 +129,7 @@ Canonical PDF mutations are dispatched through `core/commands/dispatch.ts` into 
 Document transactions still coordinate committed PDF bytes, PageGraph state, annotations, Writer, OCR and history above the engine boundary.
 
 Current limitations:
-- document history retains whole-PDF byte snapshots under a byte budget;
+- revision-aware in-memory history now retains immutable revision locators instead of whole-PDF byte snapshots, but legacy/no-revision history still retains inline bytes and durable journal/checkpoint metadata is not implemented yet;
 - compatibility/non-session transaction paths still use parse-based page-count fallback when authoritative revision metadata is unavailable;
 - several compatibility/artifact paths still use `PdfEditAdapter`;
 - many structural mutations still rebuild or save the complete PDF even though they now reuse one parsed active revision inside the mutation session.
@@ -209,9 +209,22 @@ operations while retaining their explicit-byte wrappers for standalone callers.
 All short-lived active leases are released in `finally`, and cancellation is
 propagated through source/page/render work.
 
-Session `originalBytes`/`workingBytes`, mutation-engine input, Save
-composition and history byte snapshots remain materialized. Phase 8E later
-migrates history consumption; Phase 8F owns incremental search indexing.
+Session `originalBytes`/`workingBytes`, mutation-engine input and Save
+composition remain materialized.
+
+Phase 8E.1 begins history migration without introducing replay or revision
+deletion. Revision-aware history states retain
+`revisionStoreId + activeRevisionId` as an immutable revision locator and do
+not retain PDF byte snapshots. Legacy/no-revision sessions keep inline byte
+snapshots for compatibility. Undo/redo resolves and materializes only the
+target revision before persistence or history-stack movement, then restores the
+existing PageGraph/navigation/annotation/Writer/OCR state. Missing or
+mismatched revision storage fails closed before an undo/redo entry is consumed.
+
+This is only the first 8E slice. Replayability/checkpoint-barrier
+classification, durable journal/checkpoint manifests, reference-aware revision
+GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
+incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

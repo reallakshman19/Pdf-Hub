@@ -3,7 +3,9 @@ import { normalizeAnnotationPageAnchors } from '../annotations/pageAnchor';
 import { useAnnotationStore } from '../annotations/store';
 import { enqueueDocumentOperation } from '../commands/documentOperationQueue';
 import { documentBus } from '../events/bus';
+import { materializeDocumentSource } from '../document-source/materialize';
 import { clonePageGraph } from '../pages/pageGraph';
+import { resolveWorkingRevisionStore } from '../revision-store/registry';
 import { useSessionStore } from '../session/store';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { normalizeWriterPageAnchors } from '../writer-v2/writerPageAnchor';
@@ -24,13 +26,75 @@ async function persistHistoryState(state: HistoryState): Promise<void> {
   await saveAnnotations(state.documentKey, annotations);
 }
 
-function restoreHistoryState(state: HistoryState): void {
+async function resolveHistoryPdfBytes(
+  state: HistoryState,
+): Promise<{ bytes: Uint8Array; activeRevisionId: string | null }> {
+  if (state.revision) {
+    if (
+      state.activeRevisionId
+      && state.activeRevisionId !== state.revision.revisionId
+    ) {
+      throw new Error(
+        'History revision locator does not match activeRevisionId.',
+      );
+    }
+    if (
+      state.documentKey
+      && state.documentKey !== state.revision.revisionId
+    ) {
+      throw new Error(
+        'History revision locator does not match documentKey.',
+      );
+    }
+
+    const activeStoreId =
+      useSessionStore.getState().revisionStoreId;
+    if (activeStoreId !== state.revision.storeId) {
+      throw new Error(
+        `History revision store ${state.revision.storeId} does not match active session store ${activeStoreId ?? '(none)'}.`,
+      );
+    }
+
+    const store = resolveWorkingRevisionStore(
+      state.revision.storeId,
+    );
+    if (!store) {
+      throw new Error(
+        `WorkingRevisionStore ${state.revision.storeId} is not registered for history restore.`,
+      );
+    }
+
+    const source = await store.open(
+      state.revision.revisionId,
+    );
+    return {
+      bytes: await materializeDocumentSource(source),
+      activeRevisionId: state.revision.revisionId,
+    };
+  }
+
+  if (!state.bytes) {
+    throw new Error(
+      'History state has neither a revision locator nor inline PDF bytes.',
+    );
+  }
+
+  return {
+    bytes: state.bytes,
+    activeRevisionId: state.activeRevisionId ?? null,
+  };
+}
+
+function restoreHistoryState(
+  state: HistoryState,
+  pdf: { bytes: Uint8Array; activeRevisionId: string | null },
+): void {
   const session = useSessionStore.getState();
 
   session.replaceWorkingCopy(
-    state.bytes,
+    pdf.bytes,
     state.pageCount,
-    state.activeRevisionId ?? null,
+    pdf.activeRevisionId,
   );
 
   if (state.documentKey !== undefined) {
@@ -100,6 +164,25 @@ function restoreHistoryState(state: HistoryState): void {
   documentBus.emit({ type: 'DOCUMENT_REPLACED' });
 }
 
+function captureHistoryRestoreSnapshot() {
+  return {
+    session: useSessionStore.getState(),
+    annotations: useAnnotationStore.getState(),
+    writer: useWriterV2Store.getState(),
+    ocr: useOcrStore.getState(),
+  };
+}
+
+function restoreHistoryRestoreSnapshot(
+  snapshot: ReturnType<typeof captureHistoryRestoreSnapshot>,
+): void {
+  useSessionStore.setState(snapshot.session);
+  useAnnotationStore.setState(snapshot.annotations);
+  useWriterV2Store.setState(snapshot.writer);
+  useOcrStore.setState(snapshot.ocr);
+  documentBus.emit({ type: 'DOCUMENT_REPLACED' });
+}
+
 async function applyHistoryDirection(
   direction: 'undo' | 'redo',
 ): Promise<boolean> {
@@ -115,23 +198,31 @@ async function applyHistoryDirection(
       ? candidate.before
       : candidate.after;
 
-    await persistHistoryState(target);
+    // Resolve/materialize before mutating application or history state.
+    const targetPdf = await resolveHistoryPdfBytes(target);
+    const restoreSnapshot = captureHistoryRestoreSnapshot();
 
-    const transaction: Transaction | null = direction === 'undo'
-      ? useHistoryStore.getState().undo()
-      : useHistoryStore.getState().redo();
+    try {
+      // Restore first, persist the matching dependent state, then consume the
+      // history entry. Any restore/persistence failure leaves the stack intact
+      // and rolls application stores back to their pre-undo/redo state.
+      restoreHistoryState(target, targetPdf);
+      await persistHistoryState(target);
 
-    if (!transaction || transaction.id !== candidate.id) {
-      return false;
+      const transaction: Transaction | null = direction === 'undo'
+        ? useHistoryStore.getState().undo()
+        : useHistoryStore.getState().redo();
+
+      if (!transaction || transaction.id !== candidate.id) {
+        restoreHistoryRestoreSnapshot(restoreSnapshot);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      restoreHistoryRestoreSnapshot(restoreSnapshot);
+      throw error;
     }
-
-    restoreHistoryState(
-      direction === 'undo'
-        ? transaction.before
-        : transaction.after,
-    );
-
-    return true;
   });
 }
 
