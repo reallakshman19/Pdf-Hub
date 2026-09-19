@@ -1,5 +1,6 @@
 import { HISTORY_POLICY } from './historyPolicy';
 import type {
+  HistoryState,
   HistoryTrimReason,
   Transaction,
 } from './types';
@@ -18,29 +19,33 @@ export interface HistoryRetentionResult {
   overBudget: boolean;
 }
 
+function addedBytesForState(
+  state: HistoryState,
+  seenSnapshots: ReadonlySet<Uint8Array>,
+): number {
+  const bytes = state.bytes;
+  if (!bytes || seenSnapshots.has(bytes)) return 0;
+  return bytes.byteLength;
+}
+
 function addedBytesForTransaction(
   transaction: Transaction,
   seenSnapshots: ReadonlySet<Uint8Array>,
 ): number {
-  let addedBytes = 0;
-  if (!seenSnapshots.has(transaction.before.bytes)) {
-    addedBytes += transaction.before.bytes.byteLength;
-  }
-  if (
-    transaction.after.bytes !== transaction.before.bytes &&
-    !seenSnapshots.has(transaction.after.bytes)
-  ) {
-    addedBytes += transaction.after.bytes.byteLength;
-  }
-  return addedBytes;
+  return addedBytesForState(transaction.before, seenSnapshots)
+    + addedBytesForState(transaction.after, seenSnapshots);
 }
 
 function rememberTransactionSnapshots(
   transaction: Transaction,
   seenSnapshots: Set<Uint8Array>,
 ): void {
-  seenSnapshots.add(transaction.before.bytes);
-  seenSnapshots.add(transaction.after.bytes);
+  if (transaction.before.bytes) {
+    seenSnapshots.add(transaction.before.bytes);
+  }
+  if (transaction.after.bytes) {
+    seenSnapshots.add(transaction.after.bytes);
+  }
 }
 
 export function retainedBytesForTransactions(
