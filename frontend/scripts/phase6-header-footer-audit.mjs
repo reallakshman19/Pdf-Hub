@@ -38,6 +38,7 @@ const domainPaths = [
   'src/core/header-footer/tokenResolver.ts',
   'src/core/header-footer/resolver.ts',
   'src/core/header-footer/commandPlan.ts',
+  'src/core/header-footer/mutationPlan.ts',
   'src/core/header-footer/editorDraft.ts',
   'src/core/header-footer/imageAdmission.ts',
   'src/core/header-footer/numberingPresets.ts',
@@ -74,6 +75,7 @@ const writerPaths = [
   'src/core/header-footer/pdfLibPageRenderer.ts',
   'src/core/header-footer/pdfLibHeaderFooterWriter.ts',
   'src/core/header-footer/executeMutation.ts',
+  'src/adapters/pdf-mutation/pdfLibHeaderFooter.ts',
 ];
 
 for (const relativePath of writerPaths) {
@@ -599,7 +601,9 @@ requireContains(dispatch, dispatchPath, [
 ]);
 
 requireContains(dispatch, dispatchPath, [
-  'executeHeaderFooterTemplateMutation',
+  'prepareHeaderFooterTemplateMutation',
+  'mutationSession.applyHeaderFooter',
+  'mutationSession.commit',
   'applyMutation(',
 ]);
 const canonicalCaseStart = dispatch.lastIndexOf(
@@ -625,8 +629,15 @@ if (
     'ADD_HEADER_FOOTER_TEXT',
   ]);
   requireContains(canonicalDispatchSlice, dispatchPath, [
-    'executeHeaderFooterTemplateMutation',
+    'prepareHeaderFooterTemplateMutation',
+    'requirePersistentMutationSession',
+    'mutationSession.applyHeaderFooter',
+    'mutationSession.commit',
     'applyMutation(',
+  ]);
+  forbidContains(canonicalDispatchSlice, dispatchPath, [
+    'executeHeaderFooterTemplateMutation',
+    'pdfLibHeaderFooterWriter',
   ]);
 }
 forbidContains(dispatch, dispatchPath, [
@@ -675,9 +686,18 @@ const writerPath = 'src/core/header-footer/pdfLibHeaderFooterWriter.ts';
 const writer = read(writerPath);
 requireContains(writer, writerPath, [
   'pdfLib()',
-  'createHeaderFooterPdfLibResources',
-  'renderResolvedHeaderFooterPage',
+  'applyPdfLibHeaderFooterPlan',
   'raceWithAbort',
+]);
+
+const pdfLibPlanPath =
+  'src/adapters/pdf-mutation/pdfLibHeaderFooter.ts';
+const pdfLibPlan = read(pdfLibPlanPath);
+requireContains(pdfLibPlan, pdfLibPlanPath, [
+  'applyPdfLibHeaderFooterPlan',
+  'createHeaderFooterPdfLibResources',
+  'renderPdfMutationHeaderFooterPage',
+  'document.getPage(resolved.pageIndex)',
 ]);
 
 const geometryPath = 'src/core/header-footer/pdfWriterGeometry.ts';
@@ -693,7 +713,9 @@ requireContains(geometry, geometryPath, [
 const mutationPath = 'src/core/header-footer/executeMutation.ts';
 const mutation = read(mutationPath);
 requireContains(mutation, mutationPath, [
+  'prepareHeaderFooterTemplateMutation',
   'planHeaderFooterTemplateCommand',
+  'compileHeaderFooterMutationPlan',
   "'RESOURCE_MISSING'",
   'isOperationCancelledError',
   'pdfLibHeaderFooterWriter',
