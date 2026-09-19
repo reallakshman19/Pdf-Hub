@@ -259,6 +259,7 @@ requireContains(toolbarOrganize, toolbarOrganizePath, [
   'HeaderFooterDialog',
   'handleHeaderFooterApply',
   "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'payload: { template }',
   'resources: { binaries: binaryResources }',
   'aria-label="Header & Footer"',
 ]);
