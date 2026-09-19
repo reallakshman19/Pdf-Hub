@@ -114,6 +114,8 @@ page proxies call `cleanup()`, and Select Box render tasks are cancelled. The
 Select Box layer also invalidates any in-flight renderer work when the active
 revision/session identity changes, the tool is deactivated, or page/viewport
 geometry changes, so stale results cannot publish into a newer render context.
+Superseded text extractions also use a generation token so an older cancelled
+operation cannot clear the busy state of the newer active selection.
 
 Standalone APIs that intentionally receive explicit bytes remain valid:
 `searchDocumentText(bytes,...)`, `extractSelectBoxCopyFromPdf(...)`, and
