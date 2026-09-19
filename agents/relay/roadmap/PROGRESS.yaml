@@ -217,39 +217,39 @@
   "execution_packages": [
     {
       "id": "EP-8D3-001",
-      "earned_weight": 0,
+      "earned_weight": 3.5,
       "total_weight": 4,
-      "percent": 0
+      "percent": 87.5
     }
   ],
   "implementation_steps": [
     {
       "id": "STEP-01",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "STEP-02",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "STEP-03",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "STEP-04",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
+      "earned_weight": 0.5,
       "total_weight": 1,
-      "percent": 0
+      "percent": 50
     }
   ],
   "acceptance_criteria": [
@@ -259,8 +259,10 @@
       "earned_weight": 0,
       "total_weight": 25,
       "percent": 0,
-      "status": "NOT_STARTED",
-      "basis": []
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+      ]
     },
     {
       "id": "AC-02",
@@ -268,8 +270,10 @@
       "earned_weight": 0,
       "total_weight": 25,
       "percent": 0,
-      "status": "NOT_STARTED",
-      "basis": []
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+      ]
     },
     {
       "id": "AC-03",
@@ -277,8 +281,10 @@
       "earned_weight": 0,
       "total_weight": 25,
       "percent": 0,
-      "status": "NOT_STARTED",
-      "basis": []
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+      ]
     },
     {
       "id": "AC-04",
@@ -286,8 +292,10 @@
       "earned_weight": 0,
       "total_weight": 25,
       "percent": 0,
-      "status": "NOT_STARTED",
-      "basis": []
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+      ]
     }
   ]
 }

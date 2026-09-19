@@ -26,7 +26,7 @@
   "active_ep": {
     "id": "EP-8D3-001",
     "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
-    "state": "EXECUTABLE",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -48,27 +48,27 @@
         "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
       },
       "discovery_receipt": {
-        "id": "DISC-8D3-001",
-        "path": "agents/relay/certifications/discovery/DISC-8D3-001.yaml"
+        "id": "DISC-8D3-002",
+        "path": "agents/relay/certifications/discovery/DISC-8D3-002.yaml"
       },
       "certification": {
-        "id": "TC-8D3-001",
-        "path": "agents/relay/certifications/takeover/TC-8D3-001.yaml"
+        "id": "TC-8D3-002",
+        "path": "agents/relay/certifications/takeover/TC-8D3-002.yaml"
       }
     }
   ],
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 63.64,
-    "ep_percent": 0,
+    "ep_percent": 87.5,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "READY",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Implement STEP-01: active-session PdfDocumentLease coordinator over resolveActivePdfRendererInput and PdfRendererAdapter, then add focused tests."
+      "next_action": "Publish DOBS/QRV for reviewed material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; keep executable certification NOT_RUN until pnpm run certify:phase8d3 actually executes."
     },
     "quality": {
       "state": "CLEAR",
@@ -76,12 +76,12 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Merged 8D.1/8D.2 source-backed renderer substrate is present. 8D.3 implementation has not begun. GitHub Actions runner-executed certification remains unavailable under #183.",
+      "summary": "8D.3 implementation and static anti-drift review are complete on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. Focused test files and certify:phase8d3 are present, but no dependency-capable environment has executed typecheck/Vitest/build; PR #233 Actions jobs still fail before runner allocation under #183.",
       "not_run": [
         {
           "id": "TEST-05",
-          "reason": "8D.3 implementation/certification has not run yet and hosted runner availability remains unresolved under #183.",
-          "cause": "NOT_SCHEDULED"
+          "reason": "No dependency-capable checkout has executed pnpm run certify:phase8d3; PR #233 hosted jobs have runner_id 0 and steps [].",
+          "cause": "INFRASTRUCTURE"
         }
       ]
     },

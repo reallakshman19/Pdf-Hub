@@ -3,8 +3,8 @@
   "identity": {
     "ep_id": "EP-8D3-001",
     "branch": "phase8/active-renderer-consumers",
-    "base_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
-    "execution_state": "EXECUTABLE",
+    "base_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+    "execution_state": "ACTIVE",
     "previous_checkpoint": "NONE",
     "previous_join": null,
     "previous_replan": null
@@ -12,7 +12,7 @@
   "replan_inheritance": null,
   "git_basis": {
     "expected_branch": "phase8/active-renderer-consumers",
-    "material_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "material_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
     "base_branch": "main",
     "base_observed_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
     "drift_policy": "RECHECK_BEFORE_WRITE",
@@ -43,12 +43,10 @@
       "ODR-0001 adopts engineering-pr-delivery-v2.5.",
       "Issue #185 phase order and breadth freeze remain in force."
     ],
-    "current_implementation_state": "DocumentWorkspace is source-backed; SearchPanel, BookmarksSidebar and active Select Box Copy still enter byte-backed renderer wrappers. The 8D.3 execution branch contains no product changes at this EP material basis.",
+    "current_implementation_state": "STEP-01 through STEP-03 are implemented on reviewed material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. STEP-04 remains: provider delivery observation, QRV, executable certification evidence, checkpoint/merge closeout.",
     "known_problems": [
-      "Uncached SearchPanel uses searchDocumentText(workingBytes).",
-      "BookmarksSidebar uses acquireDocument(workingBytes).",
-      "SelectBoxCopyLayer passes working/original bytes into byte-owning helpers.",
-      "Issue #183 still prevents hosted runner execution."
+      "GitHub Actions issue #183 still prevents runner allocation, so typecheck/Vitest/build certification has not executed on this material head.",
+      "Phase 8E history snapshots and Phase 8F incremental indexing remain deliberately outside this EP."
     ],
     "deliberate_non_goals": [
       "No Phase 8E history journal.",
@@ -626,104 +624,13 @@
     "steps": [
       {
         "order": 1,
-        "action": "Implement and test the active-session lease coordinator.",
+        "action": "Publish delivery/quality evidence for the reviewed 8D.3 material head, execute certification when an environment is available, and close the work package only when acceptance evidence is terminal.",
         "targets": [
-          "activePdfDocumentLease.ts",
-          "focused helper test"
-        ],
-        "inputs": [
-          "INPUT-01",
-          "INPUT-02",
-          "INPUT-03"
-        ],
-        "tests": [
-          "TEST-04"
-        ],
-        "benchmarks": [
-          "BENCH-02"
-        ],
-        "acceptance": [
-          "AC-04"
-        ],
-        "expected_result": "A reusable coordinator safely acquires source-backed or legacy byte leases.",
-        "stop_if": [
-          "Live write gate fails or strict revision/cache invariants cannot be preserved."
-        ],
-        "execution_requirement": null
-      },
-      {
-        "order": 2,
-        "action": "Migrate SearchPanel and BookmarksSidebar to the coordinator and loaded-document operations.",
-        "targets": [
-          "SearchPanel.tsx",
-          "BookmarksSidebar.tsx",
-          "focused tests"
-        ],
-        "inputs": [
-          "INPUT-01",
-          "INPUT-02",
-          "INPUT-03"
-        ],
-        "tests": [
-          "TEST-01",
-          "TEST-02",
-          "TEST-04"
-        ],
-        "benchmarks": [
-          "BENCH-01",
-          "BENCH-02"
-        ],
-        "acceptance": [
-          "AC-01",
-          "AC-02",
-          "AC-04"
-        ],
-        "expected_result": "No active search/outline path reacquires from workingBytes; existing behavior remains intact.",
-        "stop_if": [
-          "Automatic full-document indexing or custom bookmark semantics would change."
-        ],
-        "execution_requirement": null
-      },
-      {
-        "order": 3,
-        "action": "Migrate active Select Box Copy to active revision leases and preserve byte wrappers.",
-        "targets": [
-          "SelectBoxCopyLayer.tsx",
-          "selectBoxCopyEngine.ts",
-          "imageSnapshot.ts",
-          "focused tests"
-        ],
-        "inputs": [
-          "INPUT-01",
-          "INPUT-02",
-          "INPUT-03"
-        ],
-        "tests": [
-          "TEST-03",
-          "TEST-04"
-        ],
-        "benchmarks": [
-          "BENCH-01",
-          "BENCH-02"
-        ],
-        "acceptance": [
-          "AC-03",
-          "AC-04"
-        ],
-        "expected_result": "Text/image operations use the active revision cache without geometry/Writer changes.",
-        "stop_if": [
-          "Loaded-document refactor requires geometry or Writer model changes."
-        ],
-        "execution_requirement": null
-      },
-      {
-        "order": 4,
-        "action": "Run 8D.3 certification and close the V2.5 quality/checkpoint/PR-delivery transaction.",
-        "targets": [
-          "8D.3 audit",
-          "frontend/package.json",
-          "agents/relay",
-          "8D.3 PR"
+          "PR #233",
+          "agents/relay/delivery",
+          "agents/relay/quality",
+          "agents/relay/checkpoints",
+          "frontend certification"
         ],
         "inputs": [
           "INPUT-01",
@@ -743,9 +650,11 @@
           "AC-03",
           "AC-04"
         ],
-        "expected_result": "Static/focused evidence, QRV/checkpoint and PR correlation are durable; runner evidence is truthfully classified.",
+        "expected_result": "Provider PR correlation and quality evidence are durable; executable certification is PASS if actually run or remains explicitly NOT_RUN; WP-8D3 does not advance prematurely.",
         "stop_if": [
-          "A MUST_PASS source/static test fails or a protected invariant is violated."
+          "Any MUST_PASS executable validation actually runs and fails.",
+          "A protected renderer/session invariant is violated.",
+          "The PR head or main base develops unreconciled material drift."
         ],
         "execution_requirement": {
           "id": "EXECREQ-8D3-01",
