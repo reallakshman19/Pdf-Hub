@@ -1250,10 +1250,11 @@ describe('canonical command dispatch', () => {
   });
 
   it('does not create history when a canonical header/footer template is a no-op', async () => {
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation.mockReturnValueOnce({
       ok: true,
       mutated: false,
-      bytes: new Uint8Array([1, 1, 1]),
+      pages: [],
+      binaryResources: {},
       warnings: ['Header/footer template matches no pages.'],
     });
 
@@ -1299,7 +1300,7 @@ describe('canonical command dispatch', () => {
   });
 
   it('maps missing canonical header/footer resources to RESOURCE_MISSING', async () => {
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation.mockReturnValueOnce({
       ok: false,
       code: 'RESOURCE_MISSING',
       errors: ['Header/footer binary resource is unavailable: logo'],
