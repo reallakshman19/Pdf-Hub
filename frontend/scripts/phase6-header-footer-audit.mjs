@@ -40,6 +40,7 @@ const domainPaths = [
   'src/core/header-footer/commandPlan.ts',
   'src/core/header-footer/editorDraft.ts',
   'src/core/header-footer/imageAdmission.ts',
+  'src/core/header-footer/numberingPresets.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -97,6 +98,7 @@ const uiPaths = [
   'src/components/dialogs/header-footer/HeaderFooterSlotGrid.tsx',
   'src/components/dialogs/header-footer/HeaderFooterOptionsPanel.tsx',
   'src/components/dialogs/header-footer/HeaderFooterTokenBar.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterNumberingPresetBar.tsx',
   'src/components/dialogs/header-footer/HeaderFooterPreview.tsx',
   'src/components/dialogs/header-footer/HeaderFooterPreviewPane.tsx',
   'src/components/dialogs/header-footer/useHeaderFooterImageEditor.ts',
@@ -204,12 +206,40 @@ requireContains(editorDraft, editorDraftPath, [
   "fit: 'contain'",
 ]);
 
+const numberingPresetsPath =
+  'src/core/header-footer/numberingPresets.ts';
+const numberingPresets = read(numberingPresetsPath);
+requireContains(numberingPresets, numberingPresetsPath, [
+  'PRINTED_NUMBERING_PRESETS',
+  "'page-n'",
+  "'page-n-of-m'",
+  "'logical-label'",
+  "'section-page-of-total'",
+  "'appendix-label'",
+  'createPrintedNumberingRule',
+  'applyPrintedNumberingPresetToDraft',
+  'Page {{physicalPage}}',
+  'Page {{physicalPage}} of {{pageCount}}',
+  '{{pageLabel}}',
+  'Page {{sectionPage}} of {{sectionPageCount}}',
+]);
+forbidContains(numberingPresets, numberingPresetsPath, [
+  'SET_PAGE_LABELS',
+  'writePdfPageLabels',
+  'PdfEditAdapter',
+  'CommandBus',
+  "from 'react'",
+  'ADD_HEADER_FOOTER_TEXT',
+]);
+
 const dialogPath = 'src/components/dialogs/HeaderFooterDialog.tsx';
 const dialog = read(dialogPath);
 requireContains(dialog, dialogPath, [
   'compileHeaderFooterEditorDraft',
   'resolveHeaderFooterTemplate',
   'HeaderFooterSlotGrid',
+  'HeaderFooterNumberingPresetBar',
+  'applyPrintedNumberingPresetToDraft',
   'HeaderFooterImagePanel',
   'HeaderFooterPreviewPane',
   'useHeaderFooterImageEditor',
