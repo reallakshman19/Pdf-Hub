@@ -63,7 +63,7 @@ const expectedDispositions = {
   REORDER_PAGES: 'SELF_CONTAINED_REPLAY',
   REORDER_PAGES_BY_ORDER: 'SELF_CONTAINED_REPLAY',
   EXTRACT_PAGES: 'NON_MUTATING',
-  SPLIT_PAGES: 'NON_MUTATING',
+  SPLIT_PAGES: 'CHECKPOINT_REQUIRED',
   DELETE_PAGES: 'SELF_CONTAINED_REPLAY',
   INSERT_PAGES: 'CHECKPOINT_REQUIRED',
   INSERT_BLANK_PAGE: 'SELF_CONTAINED_REPLAY',
@@ -116,6 +116,20 @@ describe('history replayability policy', () => {
         draft.type,
       ).toBe(expectedDispositions[draft.type]);
     }
+  });
+
+  it('reports the split artifact side-effect barrier', () => {
+    expect(
+      classifyHistoryReplayability(command({
+        type: 'SPLIT_PAGES',
+        payload: { pageIndices: [0] },
+      })),
+    ).toEqual({
+      disposition: 'CHECKPOINT_REQUIRED',
+      barriers: [{
+        code: 'ARTIFACT_SIDE_EFFECT',
+      }],
+    });
   });
 
   it('reports exact donor and binary resource barriers', () => {
