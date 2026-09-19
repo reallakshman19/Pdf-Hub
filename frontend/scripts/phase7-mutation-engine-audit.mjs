@@ -118,7 +118,7 @@ if (
     'mutationSession.rotatePages',
     'mutationSession.commit',
     'mutationSession.dispose',
-    'applyMutation',
+    'applyCommittedSessionMutation',
   ]);
   forbidContains(rotateHandler, dispatchPath, [
     'PdfEditAdapter.rotatePages',
@@ -160,6 +160,8 @@ requireContains(dispatch, dispatchPath, [
   'mutationSession.drawVisualMasks',
   'mutationSession.applyHeaderFooter',
   'commitStructuralMutationSession',
+  'applyCommittedSessionMutation',
+  'revisionMetadata',
 ]);
 
 forbidContains(dispatch, dispatchPath, [
@@ -194,6 +196,7 @@ for (const commandType of persistentSessionCommandTypes) {
 
   requireContains(commandCase, dispatchPath, [
     'requirePersistentMutationSession',
+    'applyCommittedSessionMutation',
   ]);
 
   const requiredMutationCall = {
@@ -347,6 +350,50 @@ if (headerFooterCaseStart >= 0) {
   );
 }
 
+const transactionPath =
+  'src/core/commands/transaction/documentTransaction.ts';
+const transaction = read(transactionPath);
+requireContains(transaction, transactionPath, [
+  'export interface DocumentMutationRevisionMetadata',
+  'revisionMetadata?: DocumentMutationRevisionMetadata',
+  'validatedRevisionPageCounts',
+  'input.revisionMetadata',
+  'sessionSnapshot.pageCount',
+  'PdfEditAdapter.countPages(input.beforeBytes)',
+  'PdfEditAdapter.countPages(input.afterBytes)',
+  'FileAdapter.hashBytes(input.afterBytes)',
+]);
+forbidContains(transaction, transactionPath, [
+  'revisionMetadata: any',
+]);
+
+const transactionTestPath =
+  'src/core/commands/transaction/documentTransaction.history.test.ts';
+const transactionTest = read(transactionTestPath);
+requireContains(transactionTest, transactionTestPath, [
+  'uses supplied revision metadata without reparsing PDF page counts',
+  'pdfMocks.countPages).not.toHaveBeenCalled()',
+  'rejects stale revision metadata during prepare',
+  'retains parse-based page-count fallback when revision metadata is absent',
+  'pdfMocks.countPages).toHaveBeenCalledTimes(2)',
+]);
+
+const applyWorkingCopyStart = dispatch.indexOf(
+  "case 'APPLY_WORKING_COPY': {",
+);
+if (applyWorkingCopyStart >= 0) {
+  const applyWorkingCopy = dispatch.slice(
+    applyWorkingCopyStart,
+  );
+  requireContains(applyWorkingCopy, dispatchPath, [
+    'applyMutation(',
+    'ocrPagePolicy',
+  ]);
+  forbidContains(applyWorkingCopy, dispatchPath, [
+    'applyCommittedSessionMutation(',
+  ]);
+}
+
 const engineTestPath =
   'src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts';
 const engineTest = read(engineTestPath);
@@ -375,5 +422,5 @@ if (failed) {
 }
 
 console.log(
-  '[phase7-mutation-engine] rotation, structural, donor, PageLabels, text, mask, header/footer, and parse-scope guards passed',
+  '[phase7-mutation-engine] mutation sessions, resolved content writes, revision metadata, and parse-scope guards passed',
 );
