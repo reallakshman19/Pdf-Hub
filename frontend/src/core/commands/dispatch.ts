@@ -58,7 +58,7 @@ import {
   isDocumentMutationTransactionError,
   type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
-import { executePageLabelCommandMutation } from './pageLabelCommand';
+import { planPageLabelCommandMutation } from './pageLabelCommand';
 import { executeHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
 import type {
   CommandArtifact,
@@ -294,28 +294,44 @@ function reconcilePageLabelsAfterStructuralChange(
   );
 }
 
-async function synchronizeStructuralPageLabels(
+function applyStructuralPageLabelsToMutationSession(
   beforeGraph: PageGraph<PageNode>,
   afterGraph: PageGraph<PageNode>,
-  bytes: Uint8Array,
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
+  session: PdfMutationSession,
+): void {
   if (!pageGraphHasLogicalLabelMetadata(beforeGraph)) {
-    return bytes;
+    return;
   }
 
-  const mutation = await executePageLabelCommandMutation(
-    bytes,
+  const plan = planPageLabelCommandMutation(
     afterGraph,
     afterGraph.pageLabelRanges ?? [],
-    signal,
   );
-  if (!mutation.ok) {
+  if (!plan.ok) {
     throw new Error(
-      `Unable to reconcile PageLabels after structural mutation: ${mutation.errors.join('; ')}`,
+      `Unable to reconcile PageLabels after structural mutation: ${plan.errors.join('; ')}`,
     );
   }
-  return mutation.bytes;
+
+  session.setPageLabels(plan.entries);
+}
+
+async function commitStructuralMutationSession(
+  session: PdfMutationSession,
+  beforeGraph: PageGraph<PageNode>,
+  afterGraph: PageGraph<PageNode>,
+): Promise<Uint8Array> {
+  applyStructuralPageLabelsToMutationSession(
+    beforeGraph,
+    afterGraph,
+    session,
+  );
+  const committed = await session.commit();
+  assertMutationSessionPageCount(
+    committed.pageCount,
+    afterGraph,
+  );
+  return committed.bytes;
 }
 
 async function buildImportedDonorNodes(
@@ -522,6 +538,8 @@ function usesPersistentMutationSession(
     || type === 'INSERT_PAGES'
     || type === 'REPLACE_PAGE'
     || type === 'MERGE_PDF'
+    || type === 'SPLIT_PAGES'
+    || type === 'SET_PAGE_LABELS'
   );
 }
 
@@ -637,17 +655,12 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.reorderPages(order);
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -689,17 +702,12 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.reorderPages(order);
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -760,17 +768,12 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.removePages(pageIndices);
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -819,13 +822,17 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const removedBytes = await PdfEditAdapter.removePages(context.workingBytes, pageIndices);
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          removedBytes,
-          input.signal,
-        );
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession.removePages(pageIndices);
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -893,17 +900,12 @@ export async function dispatchPdfCommand(
           command.payload.atIndex,
           resolved.bytes,
         );
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
         const result = await applyMutation(
           command,
@@ -952,17 +954,12 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         mutationSession.insertBlankPage(atIndex, size);
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -1057,17 +1054,12 @@ export async function dispatchPdfCommand(
           resolved.bytes,
           donorPageIndex,
         );
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
         const result = await applyMutation(
           command,
@@ -1119,17 +1111,12 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.duplicatePages(pageIndices);
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         const result = await applyMutation(
           command,
           context.workingBytes,
@@ -1200,17 +1187,12 @@ export async function dispatchPdfCommand(
         await mutationSession.appendPdfs(
           donors.map((donor) => donor.bytes),
         );
-        const committed = await mutationSession.commit();
-        assertMutationSessionPageCount(
-          committed.pageCount,
-          nextPageGraph,
-        );
-        const nextBytes = await synchronizeStructuralPageLabels(
-          pageGraph,
-          nextPageGraph,
-          committed.bytes,
-          input.signal,
-        );
+        const nextBytes =
+          await commitStructuralMutationSession(
+            mutationSession,
+            pageGraph,
+            nextPageGraph,
+          );
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
         const result = await applyMutation(
           command,
@@ -1231,30 +1213,39 @@ export async function dispatchPdfCommand(
           input,
           pageCount,
         );
-        const mutation = await executePageLabelCommandMutation(
-          context.workingBytes,
+        const plan = planPageLabelCommandMutation(
           pageGraph,
           command.payload.ranges,
-          input.signal,
         );
-        if (!mutation.ok) {
+        if (!plan.ok) {
           return commandError(
             command,
             'VALIDATION_FAILED',
             'The logical page-label configuration is invalid.',
-            mutation.errors.join('; '),
+            plan.errors.join('; '),
           );
         }
+
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        mutationSession.setPageLabels(plan.entries);
+        const committed = await mutationSession.commit();
+        assertMutationSessionPageCount(
+          committed.pageCount,
+          plan.pageGraph,
+        );
 
         const result = await applyMutation(
           command,
           context.workingBytes,
-          mutation.bytes,
+          committed.bytes,
           undefined,
           undefined,
           undefined,
           undefined,
-          mutation.pageGraph,
+          plan.pageGraph,
         );
         return commandSuccess(
           command,
