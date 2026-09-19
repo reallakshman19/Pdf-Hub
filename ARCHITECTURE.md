@@ -155,9 +155,21 @@ whole-file `File.arrayBuffer()` directly.
 
 The immutable original source is retained out-of-band under a runtime
 `sourceId`; `DocumentSession` stores that ID separately from the SHA-256
-`documentKey`. Session working bytes are still materialized until Phase 8C.
+`documentKey`.
 
-See `Docs/DOCUMENT_SOURCE.md` and issue #218.
+Phase 8C.1 adds the engine-neutral `WorkingRevisionStore` boundary with
+`MemoryRevisionStore` fallback and persistent `OpfsRevisionStore`. Committed
+revision IDs are immutable: a new revision is fully written and verified before
+it can become visible, and cancellation/failure does not publish partial OPFS
+bytes. Committed OPFS revisions reopen through `OpfsSource`, which implements
+the same random-access `DocumentSource` contract.
+
+This boundary is not yet wired into `DocumentSession`; session
+`originalBytes`/`workingBytes`, renderer input and history snapshots remain
+materialized until the following Phase 8C/8D/8E migrations.
+
+See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
+#218.
 
 ## OCR architecture
 

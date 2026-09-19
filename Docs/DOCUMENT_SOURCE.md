@@ -1,6 +1,6 @@
 # DocumentSource Architecture
 
-Status: **Phase 8B — source-aware primary PDF admission with explicit compatibility materialization**.
+Status: **Phase 8C.1 — source-aware admission plus working-revision storage boundary**.
 
 Tracking issue: #218.
 
@@ -130,7 +130,13 @@ Phase 8B does **not** yet make the working document file-backed:
 - history still retains whole-PDF byte snapshots
 - the content hash is still computed from materialized bytes
 
-Phase 8C will introduce file/OPFS-backed working revisions and lifecycle rules.
+Phase 8C.1 now introduces the engine-neutral `WorkingRevisionStore` boundary,
+a memory fallback, persistent `OpfsRevisionStore`, and `OpfsSource`. A
+committed revision id is immutable, and a failed/cancelled OPFS commit is not
+published. Product session state still uses compatibility bytes; the active
+revision-pointer migration is Phase 8C.2.
+
+See `Docs/WORKING_REVISION_STORE.md`.
 
 Phase 8D will bridge renderer consumption toward range-backed revisions.
 
