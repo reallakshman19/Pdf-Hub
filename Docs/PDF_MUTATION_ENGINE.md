@@ -1,6 +1,6 @@
 # PDF Mutation Engine Contract
 
-Status: **Phase 7C — canonical rotation, structural, and donor-backed page operations on persistent mutation sessions**.
+Status: **Phase 7D.1 — canonical page mutation, PageLabels, text overlays, and visual masks on persistent mutation sessions**.
 
 Tracking issue: #211.
 
@@ -46,6 +46,9 @@ UI / Mobile / Automate / SDK / Agent
 - `PdfMutationSession.insertPdf(...)`
 - `PdfMutationSession.replacePage(...)`
 - `PdfMutationSession.appendPdfs(...)`
+- `PdfMutationSession.setPageLabels(...)`
+- `PdfMutationSession.drawText(...)`
+- `PdfMutationSession.drawVisualMasks(...)`
 - `PdfMutationSession.commit()`
 - `PdfMutationSession.dispose()`
 
@@ -74,6 +77,9 @@ open() ----> parsed PDF
                +--> insertPdf(donorBytes)
                +--> replacePage(donorBytes)
                +--> appendPdfs(donorBytes[])
+               +--> setPageLabels(entries)
+               +--> drawText(resolved operations)
+               +--> drawVisualMasks(operations)
                |
                v
              commit()
@@ -238,3 +244,49 @@ Phase 7E work.
 Insert/merge use pdf-lib page copying into the active parsed document, matching
 the previous adapter behavior. Replace retains the previous page-only rebuild
 semantics. Phase 7C therefore does not claim improved document-level fidelity.
+
+
+## Phase 7D.1 content mutation migration
+
+Three more canonical write paths now execute inside the active mutation session:
+
+- logical PDF `/PageLabels`
+- simple text overlays from `DRAW_TEXT_ON_PAGES`
+- visual masks from `DRAW_REDACTION_BOX`
+
+The mutation contract receives **resolved physical write operations**, not
+product-domain intent.
+
+For PageLabels, core converts stable `PageId` ranges into physical
+`startPageIndex` entries. The pdf-lib adapter only serializes the number tree.
+Structural page commands now reanchor PageLabel ranges in core, apply the
+resulting entries to the same parsed PDF session, and then save once. This
+removes the previous post-commit `writePdfPageLabels(...)` reopen/save cycle.
+
+`SPLIT_PAGES` is also partially migrated: extraction remains the
+artifact-producing `PdfEditAdapter.extractPages(...)` helper, while removal
+of pages from the working document and PageLabel reconciliation now occur in
+the persistent mutation session.
+
+For simple text overlays, legacy `{page}`, `{pages}`, `{file}`, and
+`{date}` token expansion stays in core. The engine receives one already
+resolved text operation per page. It owns font embedding, text measurement,
+alignment, color conversion, rotation, and PDF drawing.
+
+For visual masks, the engine receives explicit page index and rectangle
+geometry. The user-visible semantics remain unchanged: this is a visual mask,
+not secure content redaction.
+
+### Remaining 7D work
+
+The professional header/footer template path is intentionally still outside
+the mutation session in 7D.1. Its selector/token/layout resolution belongs in
+the header/footer domain. Phase 7D.2 will move only the already-resolved
+header/footer PDF write plan into the mutation session.
+
+The legacy standalone `writePdfPageLabels(...)` utility remains for direct
+utility tests and compatibility callers, but canonical command dispatch no
+longer reopens the PDF through it.
+
+The Phase 7E transaction caveat remains: `commitDocumentMutation(...)`
+still reparses before/after revision bytes for page-count validation.

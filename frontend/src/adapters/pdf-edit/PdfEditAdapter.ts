@@ -3,6 +3,7 @@ import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { readFillColor, readStrokeColor, readStrokeWidth } from '@/core/annotations/readers';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
+import { resolveLegacyPageTextTokens } from '@/core/text/legacyPageTextTokens';
 
 type PDFPageT = import('pdf-lib').PDFPage;
 type PdfColor = import('pdf-lib').Color;
@@ -60,40 +61,6 @@ function hexToRgb(hex: string, lib: PdfLibNs): PdfColor {
   const green = parseInt(safe.slice(2, 4), 16) / 255;
   const blue = parseInt(safe.slice(4, 6), 16) / 255;
   return lib.rgb(red, green, blue);
-}
-
-function resolveHeaderFooterTokens(
-  template: string,
-  values: {
-    page: number;
-    pages: number;
-    file: string;
-    date: string;
-    enablePageNumberToken: boolean;
-    enableFileNameToken: boolean;
-    enableDateToken: boolean;
-  },
-): string {
-  let output = template;
-
-  if (values.enablePageNumberToken) {
-    output = output.replaceAll('{page}', String(values.page));
-    output = output.replaceAll('{{page}}', String(values.page));
-    output = output.replaceAll('{pages}', String(values.pages));
-    output = output.replaceAll('{{total_pages}}', String(values.pages));
-    output = output.replaceAll('{{pages}}', String(values.pages));
-  }
-  if (values.enableFileNameToken) {
-    output = output.replaceAll('{file}', values.file);
-    output = output.replaceAll('{{file_name}}', values.file);
-    output = output.replaceAll('{{file}}', values.file);
-  }
-  if (values.enableDateToken) {
-    output = output.replaceAll('{date}', values.date);
-    output = output.replaceAll('{{date}}', values.date);
-  }
-
-  return output;
 }
 
 function drawArrowHead(
@@ -594,7 +561,7 @@ export class PdfEditAdapter {
       const page = pdfDoc.getPage(pageIndex);
       const width = page.getWidth();
 
-      const text = resolveHeaderFooterTokens(options.text, {
+      const text = resolveLegacyPageTextTokens(options.text, {
         page: pageIndex + 1,
         pages: totalPages,
         file: options.fileName,

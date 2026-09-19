@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PDFDocument, degrees } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist';
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  degrees,
+} from 'pdf-lib';
 
 import { PdfLibMutationEngine } from './PdfLibMutationEngine';
 
@@ -267,6 +275,135 @@ describe('PdfLibMutationEngine', () => {
     ).rejects.toThrow(/Donor page index 9/);
 
     session.dispose();
+  });
+
+  it('writes PageLabels inside the active session before its single commit', async () => {
+    const bytes = await createPdf();
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    session.setPageLabels([
+      {
+        startPageIndex: 0,
+        prefix: 'Cover',
+      },
+      {
+        startPageIndex: 1,
+        style: 'roman-lower',
+      },
+    ]);
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    loadSpy.mockRestore();
+
+    const reopened = await PDFDocument.load(
+      committed.bytes,
+    );
+    const labels = reopened.catalog.lookupMaybe(
+      PDFName.of('PageLabels'),
+      PDFDict,
+    );
+    const nums = labels?.lookupMaybe(
+      PDFName.of('Nums'),
+      PDFArray,
+    );
+
+    expect(nums?.size()).toBe(4);
+    expect(
+      nums?.lookupMaybe(0, PDFNumber)?.asNumber(),
+    ).toBe(0);
+    expect(
+      nums?.lookupMaybe(2, PDFNumber)?.asNumber(),
+    ).toBe(1);
+
+    session.dispose();
+  });
+
+  it('draws text and visual masks without reparsing the active revision', async () => {
+    const bytes = await createPdf();
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    await session.drawText([
+      {
+        pageIndex: 0,
+        text: 'SESSION TEXT',
+        xPt: 40,
+        yPt: 100,
+        fontSizePt: 12,
+        color: '#112233',
+        opacity: 0.9,
+        align: 'left',
+      },
+      {
+        pageIndex: 1,
+        text: 'CENTERED',
+        xPt: 20,
+        yPt: 80,
+        fontSizePt: 10,
+        color: '#000000',
+        opacity: 1,
+        align: 'center',
+        rotationDegrees: 90,
+      },
+    ]);
+    session.drawVisualMasks([
+      {
+        pageIndex: 0,
+        xPt: 30,
+        yFromTopPt: 40,
+        widthPt: 90,
+        heightPt: 20,
+        fillColor: '#ffffff',
+      },
+    ]);
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(committed.pageCount).toBe(3);
+    loadSpy.mockRestore();
+    session.dispose();
+
+    const pdf = await getDocument({
+      data: committed.bytes.slice(),
+    }).promise;
+    try {
+      const first = await pdf.getPage(1);
+      const firstText = await first.getTextContent();
+      expect(
+        firstText.items
+          .flatMap((item) =>
+            'str' in item && typeof item.str === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' '),
+      ).toContain('SESSION TEXT');
+
+      const second = await pdf.getPage(2);
+      const secondText = await second.getTextContent();
+      expect(
+        secondText.items
+          .flatMap((item) =>
+            'str' in item && typeof item.str === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' '),
+      ).toContain('CENTERED');
+
+      first.cleanup();
+      second.cleanup();
+    } finally {
+      await pdf.destroy();
+    }
   });
 
 });

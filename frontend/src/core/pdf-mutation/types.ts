@@ -4,6 +4,41 @@ export interface PdfMutationPageMetrics {
   rotation: number;
 }
 
+export type PdfMutationPageLabelStyle =
+  | 'decimal'
+  | 'roman-lower'
+  | 'roman-upper'
+  | 'letters-lower'
+  | 'letters-upper';
+
+export interface PdfMutationPageLabelEntry {
+  startPageIndex: number;
+  style?: PdfMutationPageLabelStyle;
+  prefix?: string;
+  startNumber?: number;
+}
+
+export interface PdfMutationTextDrawOperation {
+  pageIndex: number;
+  text: string;
+  xPt: number;
+  yPt: number;
+  fontSizePt: number;
+  color: string;
+  opacity: number;
+  align: 'left' | 'center' | 'right';
+  rotationDegrees?: number;
+}
+
+export interface PdfMutationVisualMaskOperation {
+  pageIndex: number;
+  xPt: number;
+  yFromTopPt: number;
+  widthPt: number;
+  heightPt: number;
+  fillColor: string;
+}
+
 export interface PdfMutationCommitResult {
   bytes: Uint8Array;
   pageCount: number;
@@ -44,6 +79,18 @@ export interface PdfMutationSession {
   appendPdfs(
     donorBytes: readonly Uint8Array[],
   ): Promise<void>;
+
+  setPageLabels(
+    entries: readonly PdfMutationPageLabelEntry[],
+  ): void;
+
+  drawText(
+    operations: readonly PdfMutationTextDrawOperation[],
+  ): Promise<void>;
+
+  drawVisualMasks(
+    operations: readonly PdfMutationVisualMaskOperation[],
+  ): void;
 
   commit(): Promise<PdfMutationCommitResult>;
 

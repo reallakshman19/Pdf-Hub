@@ -46,8 +46,6 @@ const pdfMocks = vi.hoisted(() => ({
   movePage: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
-  drawTextOnPages: vi.fn(),
-  drawRedactionBoxes: vi.fn(),
   countPages: vi.fn(),
   getPageSize: vi.fn(),
 }));
@@ -57,8 +55,6 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     movePage: pdfMocks.movePage,
     extractPages: pdfMocks.extractPages,
     removePages: pdfMocks.removePages,
-    drawTextOnPages: pdfMocks.drawTextOnPages,
-    drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
     countPages: pdfMocks.countPages,
     getPageSize: pdfMocks.getPageSize,
   },
@@ -75,6 +71,9 @@ const mutationEngineMocks = vi.hoisted(() => ({
   insertPdf: vi.fn(),
   replacePage: vi.fn(),
   appendPdfs: vi.fn(),
+  setPageLabels: vi.fn(),
+  drawText: vi.fn(),
+  drawVisualMasks: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -89,20 +88,12 @@ const pageGraphMocks = vi.hoisted(() => ({
   buildPageGraphFromPdfBytes: vi.fn(),
 }));
 
-const pageLabelWriterMocks = vi.hoisted(() => ({
-  writePdfPageLabels: vi.fn(),
-}));
-
 const headerFooterMutationMocks = vi.hoisted(() => ({
   executeHeaderFooterTemplateMutation: vi.fn(),
 }));
 
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
   buildPageGraphFromPdfBytes: pageGraphMocks.buildPageGraphFromPdfBytes,
-}));
-
-vi.mock('@/core/pages/pdfPageLabelWriter', () => ({
-  writePdfPageLabels: pageLabelWriterMocks.writePdfPageLabels,
 }));
 
 vi.mock('@/core/header-footer/executeMutation', () => ({
@@ -276,17 +267,14 @@ describe('canonical command dispatch', () => {
       insertPdf: mutationEngineMocks.insertPdf,
       replacePage: mutationEngineMocks.replacePage,
       appendPdfs: mutationEngineMocks.appendPdfs,
+      setPageLabels: mutationEngineMocks.setPageLabels,
+      drawText: mutationEngineMocks.drawText,
+      drawVisualMasks: mutationEngineMocks.drawVisualMasks,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
-    );
-    pageLabelWriterMocks.writePdfPageLabels.mockImplementation(
-      async (bytes: Uint8Array, _graph: unknown, ranges: unknown[]) => ({
-        bytes,
-        rangeCount: ranges.length,
-      }),
     );
   });
 
@@ -1037,9 +1025,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('sets and clears logical PageLabels through canonical history', async () => {
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+    mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([9, 9, 9]),
-      rangeCount: 3,
+      pageCount: 3,
     });
 
     const setResult = await execute({
@@ -1054,7 +1042,14 @@ describe('canonical command dispatch', () => {
     });
 
     expect(setResult.success).toBe(true);
-    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([
+      { startPageIndex: 0, prefix: 'Cover' },
+      { startPageIndex: 1, style: 'roman-lower' },
+      { startPageIndex: 2, style: 'decimal' },
+    ]);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([9, 9, 9]),
+    );
     expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([
       { startPageId: 'test-doc::stable::1', prefix: 'Cover' },
       { startPageId: 'test-doc::stable::2', style: 'roman-lower' },
@@ -1080,15 +1075,20 @@ describe('canonical command dispatch', () => {
       useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
     ).toEqual(['Cover', 'i', '1']);
 
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
+    mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([8, 8, 8]),
-      rangeCount: 0,
+      pageCount: 3,
     });
+    mutationEngineMocks.setPageLabels.mockClear();
     const clearResult = await execute({
       type: 'SET_PAGE_LABELS',
       payload: { ranges: [] },
     });
     expect(clearResult.success).toBe(true);
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([]);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([8, 8, 8]),
+    );
     expect(useSessionStore.getState().pageGraph?.pageLabelRanges).toEqual([]);
     expect(
       useSessionStore.getState().pageGraph?.pages.every(
@@ -1113,20 +1113,19 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([6, 6, 6]),
       pageCount: 3,
     });
-    pageLabelWriterMocks.writePdfPageLabels.mockResolvedValueOnce({
-      bytes: new Uint8Array([7, 7, 7]),
-      rangeCount: 3,
-    });
-
     const result = await execute({
       type: 'REORDER_PAGES_BY_ORDER',
       payload: { order: [2, 1, 0] },
     });
 
     expect(result.success).toBe(true);
-    expect(pageLabelWriterMocks.writePdfPageLabels).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.setPageLabels).toHaveBeenCalledWith([
+      { startPageIndex: 0, style: 'decimal' },
+      { startPageIndex: 1, style: 'roman-lower' },
+      { startPageIndex: 2, prefix: 'Cover' },
+    ]);
     expect(useSessionStore.getState().workingBytes).toEqual(
-      new Uint8Array([7, 7, 7]),
+      new Uint8Array([6, 6, 6]),
     );
     expect(useSessionStore.getState().pageGraph?.pages.map((page) => page.pageId)).toEqual([
       'test-doc::stable::3',
@@ -1305,19 +1304,28 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
-  it('draws text on selected pages', async () => {
-    pdfMocks.drawTextOnPages.mockResolvedValue(new Uint8Array([3, 3, 3]));
+  it('draws resolved text on selected pages through the mutation session', async () => {
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([3, 3, 3]),
+      pageCount: 3,
+    });
 
     const result = await execute(
       {
         type: 'DRAW_TEXT_ON_PAGES',
         payload: {
-          pageIndices: [0],
+          pageIndices: [0, 2],
           options: {
-            text: 'REVIEW',
+            text: 'Page {page} of {pages} — {file} — {date}',
             x: 20,
             y: 30,
             fontSize: 12,
+            color: '#123456',
+            opacity: 0.8,
+            align: 'right',
+            rotation: 90,
+            fileNameToken: true,
+            dateToken: true,
           },
         },
       },
@@ -1325,16 +1333,49 @@ describe('canonical command dispatch', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(pdfMocks.drawTextOnPages).toHaveBeenCalledTimes(1);
+    const dateText = new Date(
+      '2026-09-18T00:00:00.000Z',
+    ).toLocaleDateString();
+    expect(mutationEngineMocks.drawText).toHaveBeenCalledWith([
+      {
+        pageIndex: 0,
+        text: `Page 1 of 3 — test.pdf — ${dateText}`,
+        xPt: 20,
+        yPt: 30,
+        fontSizePt: 12,
+        color: '#123456',
+        opacity: 0.8,
+        align: 'right',
+        rotationDegrees: 90,
+      },
+      {
+        pageIndex: 2,
+        text: `Page 3 of 3 — test.pdf — ${dateText}`,
+        xPt: 20,
+        yPt: 30,
+        fontSizePt: 12,
+        color: '#123456',
+        opacity: 0.8,
+        align: 'right',
+        rotationDegrees: 90,
+      },
+    ]);
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([3, 3, 3]),
+    );
   });
 
-  it('labels visual-mask commands accurately', async () => {
-    pdfMocks.drawRedactionBoxes.mockResolvedValue(new Uint8Array([4, 4, 4]));
+  it('labels visual-mask commands accurately and writes them through the mutation session', async () => {
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([4, 4, 4]),
+      pageCount: 3,
+    });
 
     const result = await execute({
       type: 'DRAW_REDACTION_BOX',
       payload: {
-        pageIndices: [0],
+        pageIndices: [0, 2],
         options: {
           x: 20,
           y: 30,
@@ -1346,6 +1387,25 @@ describe('canonical command dispatch', () => {
     });
 
     expect(result.success).toBe(true);
+    expect(mutationEngineMocks.drawVisualMasks).toHaveBeenCalledWith([
+      {
+        pageIndex: 0,
+        xPt: 20,
+        yFromTopPt: 30,
+        widthPt: 120,
+        heightPt: 24,
+        fillColor: '#000000',
+      },
+      {
+        pageIndex: 2,
+        xPt: 20,
+        yFromTopPt: 30,
+        widthPt: 120,
+        heightPt: 24,
+        fillColor: '#000000',
+      },
+    ]);
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
     expect(result.message).toMatch(/visual mask/i);
     expect(result.message).toMatch(/not securely removed/i);
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Draw visual mask');

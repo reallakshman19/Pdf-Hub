@@ -4,11 +4,66 @@ import {
   withPageLabelRanges,
 } from '@/core/pages/pageLabels';
 import { writePdfPageLabels } from '@/core/pages/pdfPageLabelWriter';
+import { planPdfPageLabelEntries } from '@/core/pages/pageLabelMutationPlan';
+import type { PdfMutationPageLabelEntry } from '@/core/pdf-mutation/types';
 import type {
   PageGraph,
   PageLabelRange,
   PageNode,
 } from '@/core/pages/types';
+
+export type PageLabelCommandPlanResult =
+  | {
+      ok: true;
+      pageGraph: PageGraph<PageNode>;
+      entries: PdfMutationPageLabelEntry[];
+    }
+  | {
+      ok: false;
+      errors: string[];
+    };
+
+export function planPageLabelCommandMutation(
+  pageGraph: PageGraph<PageNode>,
+  ranges: readonly PageLabelRange[],
+): PageLabelCommandPlanResult {
+  const normalizedRanges = ranges.map(
+    (range) => ({ ...range }),
+  );
+  const validation = validatePageLabelRanges(
+    pageGraph,
+    normalizedRanges,
+  );
+
+  if (!validation.valid) {
+    return {
+      ok: false,
+      errors: validation.errors,
+    };
+  }
+
+  const nextPageGraph =
+    normalizedRanges.length === 0
+      ? clearPageLabelRanges(pageGraph)
+      : withPageLabelRanges(
+          pageGraph,
+          normalizedRanges,
+        );
+
+  const plan = planPdfPageLabelEntries(
+    nextPageGraph,
+    nextPageGraph.pageLabelRanges ?? [],
+  );
+  if (!plan.ok) {
+    return plan;
+  }
+
+  return {
+    ok: true,
+    pageGraph: nextPageGraph,
+    entries: plan.entries,
+  };
+}
 
 export type PageLabelCommandMutationResult =
   | {
@@ -33,31 +88,25 @@ export async function executePageLabelCommandMutation(
   ranges: readonly PageLabelRange[],
   signal?: AbortSignal,
 ): Promise<PageLabelCommandMutationResult> {
-  const normalizedRanges = ranges.map((range) => ({ ...range }));
-  const validation = validatePageLabelRanges(pageGraph, normalizedRanges);
+  const plan = planPageLabelCommandMutation(
+    pageGraph,
+    ranges,
+  );
 
-  if (!validation.valid) {
-    return {
-      ok: false,
-      errors: validation.errors,
-    };
+  if (!plan.ok) {
+    return plan;
   }
-
-  const nextPageGraph =
-    normalizedRanges.length === 0
-      ? clearPageLabelRanges(pageGraph)
-      : withPageLabelRanges(pageGraph, normalizedRanges);
 
   const writeResult = await writePdfPageLabels(
     bytes,
-    nextPageGraph,
-    nextPageGraph.pageLabelRanges ?? [],
+    plan.pageGraph,
+    plan.pageGraph.pageLabelRanges ?? [],
     signal,
   );
 
   return {
     ok: true,
     bytes: writeResult.bytes,
-    pageGraph: nextPageGraph,
+    pageGraph: plan.pageGraph,
   };
 }

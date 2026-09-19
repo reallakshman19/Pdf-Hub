@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { executePageLabelCommandMutation } from './pageLabelCommand';
+import {
+  executePageLabelCommandMutation,
+  planPageLabelCommandMutation,
+} from './pageLabelCommand';
 
 const writer = vi.hoisted(() => ({
   writePdfPageLabels: vi.fn(),
@@ -81,4 +84,42 @@ describe('canonical PageLabels command mutation', () => {
     expect(result.ok).toBe(false);
     expect(writer.writePdfPageLabels).not.toHaveBeenCalled();
   });
+
+  it('plans stable PageId ranges as physical engine entries without invoking the writer', () => {
+    const result = planPageLabelCommandMutation(
+      graph(),
+      [
+        {
+          startPageId: 'p1',
+          prefix: 'Cover',
+        },
+        {
+          startPageId: 'p2',
+          style: 'roman-lower',
+          startNumber: 3,
+        },
+      ],
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.pageGraph.pages.map((page) => page.logicalLabel)).toEqual([
+      'Cover',
+      'iii',
+    ]);
+    expect(result.entries).toEqual([
+      {
+        startPageIndex: 0,
+        prefix: 'Cover',
+      },
+      {
+        startPageIndex: 1,
+        style: 'roman-lower',
+        startNumber: 3,
+      },
+    ]);
+    expect(writer.writePdfPageLabels).not.toHaveBeenCalled();
+  });
+
 });

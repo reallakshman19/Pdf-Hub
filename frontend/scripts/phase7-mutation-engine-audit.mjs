@@ -43,6 +43,9 @@ requireContains(contract, contractPath, [
   'insertPdf',
   'replacePage',
   'appendPdfs',
+  'setPageLabels',
+  'drawText',
+  'drawVisualMasks',
   'commit()',
   'dispose()',
 ]);
@@ -69,6 +72,10 @@ requireContains(adapter, adapterPath, [
   'insertPdf',
   'replacePage',
   'appendPdfs',
+  'setPageLabels',
+  'drawText',
+  'drawVisualMasks',
+  'applyPdfLibPageLabels',
   'loadDonor',
   'rebuildFromOrder',
   'this.document.save()',
@@ -117,7 +124,7 @@ if (
   ]);
 }
 
-const structuralCommandTypes = [
+const persistentSessionCommandTypes = [
   'REORDER_PAGES',
   'REORDER_PAGES_BY_ORDER',
   'DELETE_PAGES',
@@ -126,6 +133,10 @@ const structuralCommandTypes = [
   'INSERT_PAGES',
   'REPLACE_PAGE',
   'MERGE_PDF',
+  'SPLIT_PAGES',
+  'SET_PAGE_LABELS',
+  'DRAW_TEXT_ON_PAGES',
+  'DRAW_REDACTION_BOX',
 ];
 
 requireContains(dispatch, dispatchPath, [
@@ -140,6 +151,10 @@ requireContains(dispatch, dispatchPath, [
   'mutationSession.insertPdf',
   'mutationSession.replacePage',
   'mutationSession.appendPdfs',
+  'mutationSession.setPageLabels',
+  'mutationSession.drawText',
+  'mutationSession.drawVisualMasks',
+  'commitStructuralMutationSession',
 ]);
 
 forbidContains(dispatch, dispatchPath, [
@@ -149,9 +164,12 @@ forbidContains(dispatch, dispatchPath, [
   'PdfEditAdapter.insertAt',
   'PdfEditAdapter.replacePage',
   'PdfEditAdapter.merge',
+  'PdfEditAdapter.removePages',
+  'PdfEditAdapter.drawTextOnPages',
+  'PdfEditAdapter.drawRedactionBoxes',
 ]);
 
-for (const commandType of structuralCommandTypes) {
+for (const commandType of persistentSessionCommandTypes) {
   const caseStart = dispatch.indexOf(
     `case '${commandType}': {`,
   );
@@ -171,7 +189,6 @@ for (const commandType of structuralCommandTypes) {
 
   requireContains(commandCase, dispatchPath, [
     'requirePersistentMutationSession',
-    'mutationSession.commit',
   ]);
 
   const requiredMutationCall = {
@@ -183,17 +200,24 @@ for (const commandType of structuralCommandTypes) {
     INSERT_PAGES: 'mutationSession.insertPdf',
     REPLACE_PAGE: 'mutationSession.replacePage',
     MERGE_PDF: 'mutationSession.appendPdfs',
+    SPLIT_PAGES: 'mutationSession.removePages',
+    SET_PAGE_LABELS: 'mutationSession.setPageLabels',
+    DRAW_TEXT_ON_PAGES: 'mutationSession.drawText',
+    DRAW_REDACTION_BOX: 'mutationSession.drawVisualMasks',
   }[commandType];
+
+  const requiredCommitCall = new Set([
+    'SET_PAGE_LABELS',
+    'DRAW_TEXT_ON_PAGES',
+    'DRAW_REDACTION_BOX',
+  ]).has(commandType)
+    ? 'mutationSession.commit'
+    : 'commitStructuralMutationSession';
 
   if (requiredMutationCall) {
     requireContains(commandCase, dispatchPath, [
       requiredMutationCall,
-    ]);
-  }
-
-  if (commandType === 'DELETE_PAGES') {
-    forbidContains(commandCase, dispatchPath, [
-      'PdfEditAdapter.removePages',
+      requiredCommitCall,
     ]);
   }
 }
@@ -209,9 +233,40 @@ if (splitStart >= 0) {
     splitEnd > splitStart ? splitEnd : undefined,
   );
   requireContains(splitCase, dispatchPath, [
+    'PdfEditAdapter.extractPages',
+    'mutationSession.removePages',
+    'commitStructuralMutationSession',
+  ]);
+  forbidContains(splitCase, dispatchPath, [
     'PdfEditAdapter.removePages',
   ]);
 }
+
+const pageLabelPlanPath =
+  'src/core/pages/pageLabelMutationPlan.ts';
+const pageLabelPlan = read(pageLabelPlanPath);
+requireContains(pageLabelPlan, pageLabelPlanPath, [
+  'planPdfPageLabelEntries',
+  'physicalIndexForPageId',
+]);
+forbidContains(pageLabelPlan, pageLabelPlanPath, [
+  'pdf-lib',
+  'PDFDocument',
+  'PDFName',
+]);
+
+const tokenPath =
+  'src/core/text/legacyPageTextTokens.ts';
+const tokenResolver = read(tokenPath);
+requireContains(tokenResolver, tokenPath, [
+  'resolveLegacyPageTextTokens',
+  '{{total_pages}}',
+  '{{file_name}}',
+]);
+forbidContains(tokenResolver, tokenPath, [
+  'pdf-lib',
+  'PDFDocument',
+]);
 
 const engineTestPath =
   'src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts';
@@ -228,6 +283,9 @@ requireContains(engineTest, engineTestPath, [
   'session.insertPdf',
   'session.appendPdfs',
   'session.replacePage',
+  'session.setPageLabels',
+  'session.drawText',
+  'session.drawVisualMasks',
   'session.commit',
   'loadSpy).toHaveBeenCalledTimes(4)',
 ]);
@@ -237,5 +295,5 @@ if (failed) {
 }
 
 console.log(
-  '[phase7-mutation-engine] rotation, structural, donor-session, and parse-scope guards passed',
+  '[phase7-mutation-engine] rotation, structural, donor, PageLabels, text, mask, and parse-scope guards passed',
 );
