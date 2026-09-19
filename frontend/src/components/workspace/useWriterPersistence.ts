@@ -1,6 +1,8 @@
 import React from 'react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import { createBestAvailableWriterPersistence } from '@/core/writer-v2/persistence/indexedDbWriterStore';
+import {
+  resolveWriterPersistenceAdapter,
+} from '@/core/writer-v2/persistence/writerPersistenceRuntime';
 import {
   loadWriterSessionFromPersistence,
   saveWriterSessionToPersistence,
@@ -15,7 +17,10 @@ export function useWriterPersistence({ documentKey }: UseWriterPersistenceArgs):
   const elements = useWriterV2Store((state) => state.elements);
   const assetRecords = useWriterV2Store((state) => state.assetRecords);
 
-  const adapter = React.useMemo(() => createBestAvailableWriterPersistence(), []);
+  const adapter = React.useMemo(
+    () => resolveWriterPersistenceAdapter(),
+    [],
+  );
 
   // Load writer session from IndexedDB on document change
   React.useEffect(() => {
