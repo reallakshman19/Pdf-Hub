@@ -39,15 +39,26 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const donorOperationRef = useRef<AbortController | null>(null);
-  const { workingBytes, documentKey, fileName, viewState } = useSessionStore(useShallow((state) => ({
+  const {
+    workingBytes,
+    documentKey,
+    fileName,
+    viewState,
+    pageGraph,
+  } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
     fileName: state.fileName,
     viewState: state.viewState,
+    pageGraph: state.pageGraph,
   })));
   const addToast = useToastStore((state) => state.addToast);
   const targetPages = selectedPages.includes(page) ? selectedPages : [page];
   const pageIndices = targetPages.map((value) => value - 1);
+  const pageIds = targetPages.flatMap((pageNumber) => {
+    const pageId = pageGraph?.pages[pageNumber - 1]?.pageId;
+    return pageId ? [pageId] : [];
+  });
   const [configKind, setConfigKind] = React.useState<ThumbnailMacroKind | null>(
     null,
   );
@@ -209,6 +220,7 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       <ThumbnailMacroConfigDialog
         kind={configKind}
         pageIndices={pageIndices}
+        pageIds={pageIds}
         onCancel={() => setConfigKind(null)}
         onApply={(command, message) => {
           setConfigKind(null);
