@@ -272,7 +272,10 @@ describe('PdfLibMutationEngine', () => {
         new Uint8Array(await donor.save()),
         9,
       ),
-    ).rejects.toThrow(/
+    ).rejects.toThrow(/Donor page index 9/);
+
+    session.dispose();
+  });
 
   it('writes PageLabels inside the active session before its single commit', async () => {
     const bytes = await createPdf();
@@ -319,11 +322,6 @@ describe('PdfLibMutationEngine', () => {
 
     session.dispose();
   });
-Donor page index 9/);
-
-    session.dispose();
-  });
-
 
   it('draws text and visual masks without reparsing the active revision', async () => {
     const bytes = await createPdf();
