@@ -28,7 +28,10 @@ export async function admitHeaderFooterImageFile(
   return {
     resourceId: createHeaderFooterImageResourceId(),
     fileName: file.name || 'image',
-    mimeType: admitted.mimeType,
+    mimeType:
+      admitted.format === 'png'
+        ? 'image/png'
+        : 'image/jpeg',
     width: admitted.width,
     height: admitted.height,
     bytes: admitted.bytes,
