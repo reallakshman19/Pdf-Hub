@@ -37,6 +37,27 @@ const viewport = {
   rotation: 0 as const,
 };
 
+function dragSelection(
+  layer: HTMLElement,
+  pointerId = 1,
+): void {
+  fireEvent.pointerDown(layer, {
+    pointerId,
+    clientX: 10,
+    clientY: 10,
+  });
+  fireEvent.pointerMove(layer, {
+    pointerId,
+    clientX: 40,
+    clientY: 40,
+  });
+  fireEvent.pointerUp(layer, {
+    pointerId,
+    clientX: 40,
+    clientY: 40,
+  });
+}
+
 function beginPendingSelection(): {
   signal: () => AbortSignal | null;
   rerender: (nextViewport: typeof viewport) => void;
@@ -73,21 +94,7 @@ function beginPendingSelection(): {
     'Select Box Copy layer page 1',
   );
 
-  fireEvent.pointerDown(layer, {
-    pointerId: 1,
-    clientX: 10,
-    clientY: 10,
-  });
-  fireEvent.pointerMove(layer, {
-    pointerId: 1,
-    clientX: 40,
-    clientY: 40,
-  });
-  fireEvent.pointerUp(layer, {
-    pointerId: 1,
-    clientX: 40,
-    clientY: 40,
-  });
+  dragSelection(layer);
 
   return {
     signal: () => observedSignal,
@@ -180,6 +187,76 @@ describe('SelectBoxCopyLayer renderer lifecycle', () => {
 
     await waitFor(() => {
       expect(pending.signal()?.aborted).toBe(true);
+    });
+  });
+
+  it('keeps the busy indicator for the newest selection after superseding an older one', async () => {
+    const signals: AbortSignal[] = [];
+
+    vi.mocked(
+      acquireActivePdfDocumentLease,
+    ).mockImplementation((_session, signal) => {
+      if (signal) signals.push(signal);
+
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener(
+          'abort',
+          () => reject(
+            new OperationCancelledError(
+              'test superseded Select Box acquisition',
+              signal.reason,
+            ),
+          ),
+          { once: true },
+        );
+      });
+    });
+
+    render(
+      <SelectBoxCopyLayer
+        pageNumber={1}
+        viewport={viewport}
+      />,
+    );
+
+    const layer = screen.getByLabelText(
+      'Select Box Copy layer page 1',
+    );
+
+    dragSelection(layer, 1);
+
+    await waitFor(() => {
+      expect(
+        acquireActivePdfDocumentLease,
+      ).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      screen.getByText('Extracting…'),
+    ).toBeInTheDocument();
+
+    dragSelection(layer, 2);
+
+    await waitFor(() => {
+      expect(
+        acquireActivePdfDocumentLease,
+      ).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(signals[0]?.aborted).toBe(true);
+    });
+
+    expect(
+      screen.getByText('Extracting…'),
+    ).toBeInTheDocument();
+
+    act(() => {
+      useWriterV2Store.setState({
+        activeWriterTool: 'select',
+      });
+    });
+
+    await waitFor(() => {
+      expect(signals[1]?.aborted).toBe(true);
     });
   });
 });
