@@ -17,7 +17,10 @@ import {
   assertRevisionStoreId,
   revisionSourceId,
 } from '@/core/revision-store/validation';
-import { commitOpfsRevisionBytes } from './opfsRevisionIo';
+import {
+  commitOpfsRevisionBytes,
+  isOpfsNotFoundError,
+} from './opfsRevisionIo';
 
 const OPFS_REVISION_CAPABILITIES: Readonly<RevisionStoreCapabilities> =
   Object.freeze({
@@ -136,7 +139,7 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
         expectedSize: file.size,
       });
     } catch (error) {
-      if (isNotFound(error)) {
+      if (isOpfsNotFoundError(error)) {
         throw this.notFoundError(revisionId);
       }
       if (error instanceof RevisionStoreError) {
@@ -167,7 +170,7 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
         this.fileName(revisionId),
       );
     } catch (error) {
-      if (isNotFound(error)) return;
+      if (isOpfsNotFoundError(error)) return;
       throw new RevisionStoreError(
         'REMOVE_FAILED',
         this.id,
@@ -210,7 +213,7 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       );
       return true;
     } catch (error) {
-      if (isNotFound(error)) return false;
+      if (isOpfsNotFoundError(error)) return false;
       throw new RevisionStoreError(
         'READ_FAILED',
         this.id,
@@ -293,16 +296,4 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       { revisionId },
     );
   }
-}
-
-function isNotFound(error: unknown): boolean {
-  return (
-    error instanceof DOMException
-    && error.name === 'NotFoundError'
-  ) || (
-    typeof error === 'object'
-    && error !== null
-    && 'name' in error
-    && error.name === 'NotFoundError'
-  );
 }
