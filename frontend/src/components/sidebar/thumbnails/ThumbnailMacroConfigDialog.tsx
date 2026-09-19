@@ -2,6 +2,8 @@ import React from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import type { PdfCommandDraft } from '@/core/commands/types';
+import type { PageId } from '@/core/pages/types';
+import { createSimpleHeaderFooterTextTemplate } from '@/core/header-footer/simpleTextTemplate';
 import { VISUAL_MASK_WARNING } from '@/core/redaction/capability';
 
 export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'watermark' | 'visualMask';
@@ -9,6 +11,7 @@ export type ThumbnailMacroKind = 'pageNumbers' | 'fileHeader' | 'textStamp' | 'w
 interface ThumbnailMacroConfigDialogProps {
   kind: ThumbnailMacroKind;
   pageIndices: number[];
+  pageIds: PageId[];
   onCancel: () => void;
   onApply: (command: PdfCommandDraft, successMessage: string) => void;
 }
@@ -41,7 +44,7 @@ const DEFAULTS: Record<
   }
 > = {
   pageNumbers: {
-    text: 'Page {page} of {pages}',
+    text: 'Page {{physicalPage}} of {{pageCount}}',
     align: 'center',
     fontSize: 10,
     color: '#475569',
@@ -51,7 +54,7 @@ const DEFAULTS: Record<
     y: 32,
   },
   fileHeader: {
-    text: '{file}',
+    text: '{{fileName}}',
     align: 'right',
     fontSize: 10,
     color: '#334155',
@@ -97,7 +100,7 @@ const DEFAULTS: Record<
 
 export const ThumbnailMacroConfigDialog: React.FC<
   ThumbnailMacroConfigDialogProps
-> = ({ kind, pageIndices, onCancel, onApply }) => {
+> = ({ kind, pageIndices, pageIds, onCancel, onApply }) => {
   const defaults = DEFAULTS[kind];
   const [text, setText] = React.useState(defaults.text);
   const [align, setAlign] = React.useState<Align>(defaults.align);
@@ -119,22 +122,32 @@ export const ThumbnailMacroConfigDialog: React.FC<
 
   const handleApply = () => {
     if (isHeaderFooter) {
+      if (pageIds.length !== pageIndices.length || pageIds.length === 0) {
+        return;
+      }
       const command: PdfCommandDraft = {
-        type: 'ADD_HEADER_FOOTER_TEXT',
+        type: 'APPLY_HEADER_FOOTER_TEMPLATE',
         payload: {
-          pageIndices,
-          options: {
-          zone: kind === 'pageNumbers' ? 'footer' : 'header',
-          text,
-          align,
-          marginX: 24,
-          marginY,
-          fontSize,
-          color,
-          opacity,
-          pageNumberToken: kind === 'pageNumbers',
-            fileNameToken: kind === 'fileHeader',
-          },
+          template: createSimpleHeaderFooterTextTemplate({
+            name:
+              kind === 'pageNumbers'
+                ? 'Thumbnail page numbers'
+                : 'Thumbnail file header',
+            selector: {
+              include: {
+                mode: 'pageIds',
+                pageIds,
+              },
+            },
+            zone: kind === 'pageNumbers' ? 'footer' : 'header',
+            text,
+            align,
+            marginXPt: 24,
+            marginYPt: marginY,
+            fontSizePt: fontSize,
+            color,
+            opacity,
+          }),
         },
       };
       onApply(
@@ -190,7 +203,7 @@ export const ThumbnailMacroConfigDialog: React.FC<
       <div className="flex flex-col gap-3">
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Applies to {pageCount} selected page{pageCount === 1 ? '' : 's'}.
-          {isHeaderFooter && ' Use {page}, {pages}, {file}, {date} as tokens.'}
+          {isHeaderFooter && ' Use {{physicalPage}}, {{pageCount}}, {{fileName}}, {{date}} as tokens.'}
           {isWatermark && ' Large diagonal text stamped across each page.'}
           {isVisualMask && ' Draws an opaque rectangle over content.'}
         </p>
