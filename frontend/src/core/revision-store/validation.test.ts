@@ -1,19 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
+import { RevisionStoreError } from './errors';
 import {
   assertRevisionId,
   assertRevisionStoreId,
   revisionSourceId,
 } from './validation';
 
+function errorFrom(action: () => void): RevisionStoreError {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(RevisionStoreError);
+    return error as RevisionStoreError;
+  }
+  throw new Error('Expected revision validation to throw.');
+}
+
 describe('revision-store validation', () => {
   it('rejects empty store and revision ids', () => {
-    expect(() => assertRevisionStoreId('   ')).toThrowError(
-      expect.objectContaining({ code: 'INVALID_STORE_ID' }),
-    );
-    expect(() => assertRevisionId('store-a', '')).toThrowError(
-      expect.objectContaining({ code: 'INVALID_REVISION_ID' }),
-    );
+    expect(
+      errorFrom(() => assertRevisionStoreId('   ')).code,
+    ).toBe('INVALID_STORE_ID');
+    expect(
+      errorFrom(() => assertRevisionId('store-a', '')).code,
+    ).toBe('INVALID_REVISION_ID');
   });
 
   it('creates deterministic encoded source ids', () => {
