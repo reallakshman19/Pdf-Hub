@@ -119,6 +119,9 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
 
   async open(revisionId: string): Promise<OpfsSource> {
     assertRevisionId(this.id, revisionId);
+    if (this.pending.has(revisionId)) {
+      throw this.notFoundError(revisionId);
+    }
     try {
       const handle = await this.directory.getFileHandle(
         this.fileName(revisionId),
@@ -147,6 +150,9 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
 
   async has(revisionId: string): Promise<boolean> {
     assertRevisionId(this.id, revisionId);
+    if (this.pending.has(revisionId)) {
+      return false;
+    }
     try {
       await this.directory.getFileHandle(
         this.fileName(revisionId),
