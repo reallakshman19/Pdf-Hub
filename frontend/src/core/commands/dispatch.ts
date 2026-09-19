@@ -373,7 +373,7 @@ interface ApplyMutationOptions {
 }
 
 async function applyMutation(
-  command: PdfCommand,
+  input: CommandExecutionInput,
   beforeBytes: Uint8Array,
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
@@ -383,6 +383,7 @@ async function applyMutation(
   nextPageGraph?: PageGraph<PageNode> | null,
   options?: ApplyMutationOptions,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
+  const { command } = input;
   return commitDocumentMutation({
     command,
     label: commandLabel(command),
@@ -395,11 +396,12 @@ async function applyMutation(
     nextPageGraph,
     ocrPagePolicy: options?.ocrPagePolicy,
     revisionMetadata: options?.revisionMetadata,
+    signal: input.signal,
   });
 }
 
 async function applyCommittedSessionMutation(
-  command: PdfCommand,
+  input: CommandExecutionInput,
   beforeBytes: Uint8Array,
   beforePageCount: number,
   committed: PdfMutationCommitResult,
@@ -411,7 +413,7 @@ async function applyCommittedSessionMutation(
   options?: Omit<ApplyMutationOptions, 'revisionMetadata'>,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   return applyMutation(
-    command,
+    input,
     beforeBytes,
     committed.bytes,
     nextAnnotations,
@@ -547,7 +549,7 @@ async function executeRotatePagesCommand(
 
     const result =
       await applyCommittedSessionMutation(
-        command,
+        input,
         context.workingBytes,
         pageCount,
         committed,
@@ -710,7 +712,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -759,7 +761,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -827,7 +829,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -888,7 +890,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -964,7 +966,7 @@ export async function dispatchPdfCommand(
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1019,7 +1021,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1122,7 +1124,7 @@ export async function dispatchPdfCommand(
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1184,7 +1186,7 @@ export async function dispatchPdfCommand(
           );
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1263,7 +1265,7 @@ export async function dispatchPdfCommand(
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1308,7 +1310,7 @@ export async function dispatchPdfCommand(
 
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1392,7 +1394,7 @@ export async function dispatchPdfCommand(
         ];
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1463,7 +1465,7 @@ export async function dispatchPdfCommand(
 
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1515,7 +1517,7 @@ export async function dispatchPdfCommand(
 
         const result =
           await applyCommittedSessionMutation(
-            command,
+            input,
             context.workingBytes,
             pageCount,
             committed,
@@ -1559,7 +1561,7 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const result = await applyMutation(
-          command,
+          input,
           context.workingBytes,
           nextBytes,
           nextAnnotations,
