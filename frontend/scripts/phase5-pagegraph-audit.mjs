@@ -391,17 +391,31 @@ for (const requiredToken of [
   }
 }
 
+const pageLabelCommand = requireContains(
+  'src/core/commands/pageLabelCommand.ts',
+  [
+    'validatePageLabelRanges',
+    'clearPageLabelRanges',
+    'withPageLabelRanges',
+    'writePdfPageLabels',
+  ],
+);
+
 for (const requiredToken of [
   "case 'SET_PAGE_LABELS'",
-  'validatePageLabelRanges',
-  'withPageLabelRanges',
-  'writePdfPageLabels',
+  'executePageLabelCommandMutation',
   'reanchorPageLabelRangesAfterGraphChange',
   'synchronizeStructuralPageLabels',
 ]) {
   if (!commandDispatch.includes(requiredToken)) {
     failures.push(`command dispatch missing PageLabels token: ${requiredToken}`);
   }
+}
+
+if (commandDispatch.includes("from '@/core/pages/pdfPageLabelWriter'")) {
+  failures.push(
+    'command dispatch must use the shared PageLabels command executor rather than importing the writer directly',
+  );
 }
 
 const labelSyncCount =
@@ -416,6 +430,7 @@ void pageLabelReader;
 void pageLabelTypes;
 void pageLabelDomain;
 void pageLabelWriter;
+void pageLabelCommand;
 
 const pageLabelEditing = requireContains('src/core/pages/pageLabelEditing.ts', [
   'buildPageLabelRangesForRestart',
@@ -482,6 +497,61 @@ void pageLabelsDialog;
 void organizeToolbar;
 void thumbnailSidebar;
 void viewToolbar;
+
+const macroTypesForPageLabels = read('src/core/macro/types.ts');
+if (
+  macroTypesForPageLabels.includes("op: 'set_page_labels'")
+  || macroTypesForPageLabels.includes('op: "set_page_labels"')
+) {
+  failures.push(
+    'PageLabels must not introduce a parallel macro DSL operation while legacy macro commits remain opaque',
+  );
+}
+
+const automateSidebar = requireContains(
+  'src/components/sidebar/AutomateSidebar.tsx',
+  [
+    'automate-page-labels',
+    'PageLabelsDialog',
+    "type: 'SET_PAGE_LABELS'",
+    "'macro-runner'",
+  ],
+);
+
+const headlessApi = requireContains('src/core/macro/headlessApi.ts', [
+  'inspectHeadlessPdfDocument',
+  'executeHeadlessPdfCommand',
+  "Extract<",
+  "{ type: 'SET_PAGE_LABELS' }",
+  "'api'",
+  'executePageLabelCommandMutation',
+]);
+
+const mainEntry = requireContains('src/main.tsx', [
+  "import '@/core/macro/headlessApi';",
+]);
+
+if (
+  automateSidebar.includes('writePdfPageLabels')
+  || automateSidebar.includes('pdfPageLabelWriter')
+) {
+  failures.push(
+    'Automate PageLabels must dispatch SET_PAGE_LABELS and must not call the PDF writer directly',
+  );
+}
+
+if (
+  headlessApi.includes('writePdfPageLabels')
+  || headlessApi.includes('pdfPageLabelWriter')
+) {
+  failures.push(
+    'headless PageLabels API must use the shared canonical command executor, not the PDF writer directly',
+  );
+}
+
+void automateSidebar;
+void headlessApi;
+void mainEntry;
 
 const admission = requireContains('src/core/pages/pageGraphAdmission.ts', [
   'PdfRendererAdapter.acquireDocument',

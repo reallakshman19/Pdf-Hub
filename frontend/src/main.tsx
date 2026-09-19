@@ -1,5 +1,6 @@
 import '@/core/annotations/register-all';
 import '@/core/macro/steps/register-all';
+import '@/core/macro/headlessApi';
 import { StrictMode } from 'react';
 import * as ReactDOMClient from 'react-dom/client';
 import './index.css';

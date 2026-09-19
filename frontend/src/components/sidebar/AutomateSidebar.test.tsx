@@ -8,6 +8,8 @@ import { upsertCustomMacroRecipe } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { AutomateSidebar } from './AutomateSidebar';
 
+const mockCommandExecute = vi.hoisted(() => vi.fn());
+
 vi.mock('@/core/macro/sessionRunner', () => ({
   runMacroRecipeAgainstSession: vi.fn().mockResolvedValue({
     success: true,
@@ -18,6 +20,12 @@ vi.mock('@/core/macro/sessionRunner', () => ({
     selectedPages: [],
     stepResults: [],
   }),
+}));
+
+vi.mock('@/core/commands/bus', () => ({
+  commandBus: {
+    execute: mockCommandExecute,
+  },
 }));
 
 vi.mock('./PsIsonoteRecipeBuilder', () => ({
@@ -57,6 +65,25 @@ describe('AutomateSidebar', () => {
       fileName: 'automate.pdf',
       bytes: new Uint8Array([1, 2, 3]),
       pageCount: 3,
+      pageGraph: {
+        pages: [1, 2, 3].map((pageNumber, index) => ({
+          pageId: `automate-doc::page::${pageNumber}`,
+          documentKey: 'automate-doc',
+          originalPageNumber: pageNumber,
+          currentIndex: index,
+          width: 595,
+          height: 842,
+          rotation: 0 as const,
+        })),
+      },
+    });
+    mockCommandExecute.mockResolvedValue({
+      success: true,
+      commandId: 'page-labels',
+      commandType: 'SET_PAGE_LABELS',
+      source: 'macro-runner',
+      mutated: true,
+      message: 'Logical page labels updated',
     });
   });
 
@@ -76,6 +103,36 @@ describe('AutomateSidebar', () => {
     expect(screen.queryByText('Advanced macro tools')).toBeNull();
     expect(screen.queryByText('Macro Panel')).toBeNull();
     expect(screen.queryByText('Built-ins')).toBeNull();
+  });
+
+  it('configures logical Page Labels through the canonical command bus', async () => {
+    render(<AutomateSidebar />);
+
+    expect(screen.getByTestId('automate-page-labels')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Configure labels' }));
+    expect(screen.getByRole('dialog', { name: 'Logical Page Labels' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply restart' }));
+
+    await waitFor(() => {
+      expect(mockCommandExecute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: expect.objectContaining({
+            type: 'SET_PAGE_LABELS',
+            source: 'macro-runner',
+            documentKey: 'automate-doc',
+            payload: {
+              ranges: [{
+                startPageId: 'automate-doc::page::1',
+                style: 'decimal',
+                startNumber: 1,
+              }],
+            },
+          }),
+        }),
+      );
+    });
+    expect(runMock).not.toHaveBeenCalled();
   });
 
   it('disables selection-dependent quick actions until pages are selected', () => {

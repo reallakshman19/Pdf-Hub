@@ -30,13 +30,7 @@ import {
   replacePageGraphContent,
 } from '@/core/pages/structuralPageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
-import {
-  clearPageLabelRanges,
-  reanchorPageLabelRangesAfterGraphChange,
-  validatePageLabelRanges,
-  withPageLabelRanges,
-} from '@/core/pages/pageLabels';
-import { writePdfPageLabels } from '@/core/pages/pdfPageLabelWriter';
+import { reanchorPageLabelRangesAfterGraphChange } from '@/core/pages/pageLabels';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 import {
@@ -62,6 +56,7 @@ import {
   isDocumentMutationTransactionError,
   type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
+import { executePageLabelCommandMutation } from './pageLabelCommand';
 import type {
   CommandArtifact,
   CommandErrorCode,
@@ -306,13 +301,18 @@ async function synchronizeStructuralPageLabels(
     return bytes;
   }
 
-  const writeResult = await writePdfPageLabels(
+  const mutation = await executePageLabelCommandMutation(
     bytes,
     afterGraph,
     afterGraph.pageLabelRanges ?? [],
     signal,
   );
-  return writeResult.bytes;
+  if (!mutation.ok) {
+    throw new Error(
+      `Unable to reconcile PageLabels after structural mutation: ${mutation.errors.join('; ')}`,
+    );
+  }
+  return mutation.bytes;
 }
 
 async function buildImportedDonorNodes(
@@ -996,41 +996,35 @@ export async function dispatchPdfCommand(
           input,
           pageCount,
         );
-        const ranges = command.payload.ranges.map((range) => ({ ...range }));
-        const validation = validatePageLabelRanges(pageGraph, ranges);
-        if (!validation.valid) {
+        const mutation = await executePageLabelCommandMutation(
+          context.workingBytes,
+          pageGraph,
+          command.payload.ranges,
+          input.signal,
+        );
+        if (!mutation.ok) {
           return commandError(
             command,
             'VALIDATION_FAILED',
             'The logical page-label configuration is invalid.',
-            validation.errors.join('; '),
+            mutation.errors.join('; '),
           );
         }
 
-        const nextPageGraph =
-          ranges.length === 0
-            ? clearPageLabelRanges(pageGraph)
-            : withPageLabelRanges(pageGraph, ranges);
-        const writeResult = await writePdfPageLabels(
-          context.workingBytes,
-          nextPageGraph,
-          nextPageGraph.pageLabelRanges ?? [],
-          input.signal,
-        );
         const result = await applyMutation(
           command,
           context.workingBytes,
-          writeResult.bytes,
+          mutation.bytes,
           undefined,
           undefined,
           undefined,
           undefined,
-          nextPageGraph,
+          mutation.pageGraph,
         );
         return commandSuccess(
           command,
           true,
-          ranges.length === 0
+          command.payload.ranges.length === 0
             ? 'Logical page labels cleared'
             : 'Logical page labels updated',
           result.nextBytes,
