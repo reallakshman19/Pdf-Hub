@@ -140,13 +140,22 @@ These are migration targets, not desired long-term architecture.
 
 PDF.js rendering is virtualized and cached. This is good and should be preserved.
 
-However, the file layer currently reads the complete PDF using `File.arrayBuffer()` and applies a 100 MB admission limit. Therefore the app is **not yet a genuine large-PDF architecture** even though the UI is virtualized.
+The app is **not yet a genuine large-PDF architecture** even though the UI is
+virtualized. The 100 MB primary admission policy and whole-byte working/history
+revisions still bound practical scale.
 
-Phase 8A now defines the engine-neutral `DocumentSource` random/range-read
-contract plus `MemorySource` and ranged `BrowserFileSource` adapters. These
-are not yet wired into primary admission or `DocumentSession`; the current
-`File.arrayBuffer()`, 100 MB policy and whole-byte working revisions remain
-until later Phase 8 slices.
+Phase 8A defined the engine-neutral `DocumentSource` random/range-read
+contract plus `MemorySource` and ranged `BrowserFileSource` adapters.
+
+Phase 8B now routes primary PDF admission through `BrowserFileSource`:
+format identification uses an at-most 1024-byte range read, and accepted files
+are materialized for current consumers through one explicit chunked
+`materializeDocumentSource(...)` bridge. Primary admission no longer calls
+whole-file `File.arrayBuffer()` directly.
+
+The immutable original source is retained out-of-band under a runtime
+`sourceId`; `DocumentSession` stores that ID separately from the SHA-256
+`documentKey`. Session working bytes are still materialized until Phase 8C.
 
 See `Docs/DOCUMENT_SOURCE.md` and issue #218.
 
@@ -547,7 +556,7 @@ Compatibility/non-session byte-replacement paths keep a guarded
 unchanged; this is not the Phase 8 OPFS/checkpoint-history migration.
 
 
-### Phase 8A DocumentSource boundary
+### Phase 8A/8B DocumentSource and admission boundary
 
 The core `DocumentSource` contract now defines exact random byte-range access
 with typed bounds/read errors and caller-owned read results. Concrete
@@ -555,6 +564,7 @@ with typed bounds/read errors and caller-owned read results. Concrete
 adapter boundary; the browser adapter materializes only the requested
 `Blob.slice(...)` range.
 
-This slice is contract-only. `DocumentSession`, open admission, rendering,
-mutation and history still use whole `Uint8Array` revisions until the
-subsequent Phase 8 migration slices.
+Primary admission now retains the original source out-of-band and stores only
+its `sourceId` in `DocumentSession`. Current PageGraph/render/mutation/history
+consumers still use one compatibility-materialized `Uint8Array`; file/OPFS-
+backed working revisions remain the next migration slice.

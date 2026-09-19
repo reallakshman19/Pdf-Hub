@@ -1,4 +1,10 @@
 import { beforeEach, describe, it, expect } from 'vitest';
+import { MemorySource } from '@/adapters/document-source/MemorySource';
+import {
+  clearDocumentSourceRegistryForTests,
+  registerDocumentSource,
+  resolveDocumentSource,
+} from '@/core/document-source/registry';
 import { useSessionStore } from '../store';
 
 function graph(ids: string[], documentKey = 'doc-nav') {
@@ -18,6 +24,7 @@ function graph(ids: string[], documentKey = 'doc-nav') {
 describe('Session Store', () => {
   beforeEach(() => {
     useSessionStore.getState().clearDocument();
+    clearDocumentSourceRegistryForTests();
   });
   it('tracks dirty states and save actions', () => {
     const store = useSessionStore.getState();
@@ -385,6 +392,102 @@ describe('Session Store', () => {
 
     expect(useSessionStore.getState().selectedPageIds).toEqual([]);
     expect(useSessionStore.getState().viewState.currentPageId).toBeNull();
+  });
+
+
+  it('retains only sourceId in session state and releases it on clear', () => {
+    const source = new MemorySource({
+      id: 'source:session',
+      bytes: Uint8Array.from([1, 2, 3]),
+    });
+    registerDocumentSource(source);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-source',
+      sourceId: source.id,
+      fileName: 'source.pdf',
+      bytes: Uint8Array.from([1, 2, 3]),
+      pageCount: 1,
+    });
+
+    expect(useSessionStore.getState().sourceId).toBe(
+      'source:session',
+    );
+    expect(
+      resolveDocumentSource('source:session'),
+    ).toBe(source);
+
+    useSessionStore.getState().replaceWorkingCopy(
+      Uint8Array.from([4, 5]),
+      1,
+    );
+    expect(useSessionStore.getState().sourceId).toBe(
+      'source:session',
+    );
+
+    useSessionStore.getState().commitWorkingCopy({
+      bytes: Uint8Array.from([6, 7]),
+      pageCount: 1,
+      documentKey: 'doc-source-saved',
+    });
+    expect(useSessionStore.getState().sourceId).toBe(
+      'source:session',
+    );
+    expect(
+      resolveDocumentSource('source:session'),
+    ).toBe(source);
+
+    useSessionStore.getState().clearDocument();
+    expect(useSessionStore.getState().sourceId).toBeNull();
+    expect(
+      resolveDocumentSource('source:session'),
+    ).toBeNull();
+  });
+
+  it('releases the prior source when a different document opens', () => {
+    const first = new MemorySource({
+      id: 'source:first',
+      bytes: Uint8Array.from([1]),
+    });
+    const second = new MemorySource({
+      id: 'source:second',
+      bytes: Uint8Array.from([2]),
+    });
+    registerDocumentSource(first);
+    registerDocumentSource(second);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-first',
+      sourceId: first.id,
+      fileName: 'first.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-second',
+      sourceId: second.id,
+      fileName: 'second.pdf',
+      bytes: Uint8Array.from([2]),
+      pageCount: 1,
+    });
+
+    expect(resolveDocumentSource(first.id)).toBeNull();
+    expect(resolveDocumentSource(second.id)).toBe(second);
+    expect(useSessionStore.getState().sourceId).toBe(
+      second.id,
+    );
+  });
+
+  it('rejects an unregistered sourceId on open', () => {
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-missing-source',
+        sourceId: 'source:missing',
+        fileName: 'missing.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/not registered/);
   });
 
 });

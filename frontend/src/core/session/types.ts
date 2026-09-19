@@ -76,6 +76,8 @@ export interface AnnotationAutosaveState {
 
 export interface DocumentSession {
   documentKey: string | null;
+  /** Runtime identity of the immutable original DocumentSource. */
+  sourceId: string | null;
   fileName: string | null;
   /**
    * Copy-on-write: the store holds whatever reference callers pass to

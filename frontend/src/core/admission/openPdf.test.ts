@@ -5,18 +5,40 @@ import {
   PRIMARY_PDF_OPEN_POLICY,
 } from './openPdf';
 import type { PageGraph, PageNode } from '@/core/pages/types';
+import {
+  clearDocumentSourceRegistryForTests,
+  resolveDocumentSource,
+} from '@/core/document-source/registry';
+
+type TestFile = File & {
+  arrayBuffer: ReturnType<typeof vi.fn>;
+  slice: ReturnType<typeof vi.fn>;
+};
 
 function createFile(
   bytes: Uint8Array,
   overrides: Partial<Pick<File, 'name' | 'type' | 'size'>> = {},
-): File & { arrayBuffer: ReturnType<typeof vi.fn> } {
-  const arrayBuffer = vi.fn(async () => bytes.slice().buffer);
+): TestFile {
+  const arrayBuffer = vi.fn(
+    async () => Uint8Array.from(bytes).buffer,
+  );
+  const slice = vi.fn(
+    (start = 0, end = bytes.byteLength) => {
+      const copy = bytes.slice(start, end);
+      return {
+        arrayBuffer: async () =>
+          Uint8Array.from(copy).buffer,
+      } as Blob;
+    },
+  );
+
   return {
     name: overrides.name ?? 'sample.pdf',
     type: overrides.type ?? 'application/pdf',
     size: overrides.size ?? bytes.byteLength,
     arrayBuffer,
-  } as unknown as File & { arrayBuffer: ReturnType<typeof vi.fn> };
+    slice,
+  } as unknown as TestFile;
 }
 
 function createDeferred<T>(): {
@@ -50,6 +72,7 @@ function pdfHeaderBytes(): Uint8Array {
 }
 
 afterEach(() => {
+  clearDocumentSourceRegistryForTests();
   vi.restoreAllMocks();
 });
 
@@ -74,6 +97,7 @@ describe('primary PDF admission coordinator', () => {
 
     expect(result.outcome).toBe('REJECTED_POLICY_LIMIT');
     expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).not.toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalled();
   });
 
@@ -88,6 +112,7 @@ describe('primary PDF admission coordinator', () => {
 
     expect(result.outcome).toBe('REJECTED_INVALID_FORMAT');
     expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).not.toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalled();
   });
 
@@ -103,8 +128,41 @@ describe('primary PDF admission coordinator', () => {
     });
 
     expect(result.outcome).toBe('REJECTED_INVALID_FORMAT');
+    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).toHaveBeenCalledTimes(1);
+    expect(file.slice).toHaveBeenCalledWith(
+      0,
+      file.size,
+    );
     expect(buildPageGraph).not.toHaveBeenCalled();
     expect(hashBytes).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('reads only the bounded signature prefix before rejecting a large non-PDF payload', async () => {
+    const bytes = new Uint8Array(4096);
+    const file = createFile(bytes);
+    const hashBytes = vi.spyOn(FileAdapter, 'hashBytes');
+    const buildPageGraph = vi.fn();
+    const commit = vi.fn();
+
+    const result = await admitAndOpenPdfFile(
+      file,
+      'LANDING_DROP',
+      {
+        commit,
+        buildPageGraph,
+      },
+    );
+
+    expect(result.outcome).toBe(
+      'REJECTED_INVALID_FORMAT',
+    );
+    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).toHaveBeenCalledTimes(1);
+    expect(file.slice).toHaveBeenCalledWith(0, 1024);
+    expect(hashBytes).not.toHaveBeenCalled();
+    expect(buildPageGraph).not.toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalled();
   });
 
@@ -120,15 +178,36 @@ describe('primary PDF admission coordinator', () => {
     });
 
     expect(result.outcome).toBe('ACCEPTED');
+    if (result.outcome !== 'ACCEPTED') return;
+
+    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).toHaveBeenCalledTimes(2);
+    expect(file.slice).toHaveBeenNthCalledWith(
+      1,
+      0,
+      file.size,
+    );
+    expect(file.slice).toHaveBeenNthCalledWith(
+      2,
+      0,
+      file.size,
+    );
     expect(commit).toHaveBeenCalledTimes(1);
     expect(commit).toHaveBeenCalledWith({
       documentKey: 'sha256:fixture',
+      sourceId: result.value.sourceId,
       fileName: 'sample.pdf',
       bytes: expect.any(Uint8Array),
       pageCount: 3,
       pageGraph: pageGraph(3),
       saveHandle: null,
     });
+    expect(result.value.sourceId).toMatch(
+      /^primary-pdf:/,
+    );
+    expect(
+      resolveDocumentSource(result.value.sourceId),
+    ).not.toBeNull();
     expect(result.evidence.measurements).toEqual([
       {
         metric: 'SOURCE_BYTES',
