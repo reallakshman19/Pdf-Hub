@@ -1,6 +1,6 @@
 # PDF Mutation Engine Contract
 
-Status: **Phase 7D.2 — canonical page/content/header-footer PDF writes on persistent mutation sessions**.
+Status: **Phase 7E — canonical mutation-session commits carry authoritative revision metadata into document transactions**.
 
 Tracking issue: #211.
 
@@ -186,15 +186,16 @@ Those fidelity limits remain explicit Phase 9 work.
 
 ### Parse-count scope
 
-The single-parse invariant in Phase 7A/7B applies to the **mutation session**.
-The current `commitDocumentMutation(...)` prepare stage still validates
-before/after page counts by calling `PdfEditAdapter.countPages(...)` on both
-byte revisions. Therefore a complete command transaction still performs
-additional parses today.
+As of Phase 7E, canonical commands whose output comes from a
+`PdfMutationSession.commit()` carry the session's authoritative
+`beforePageCount` and `afterPageCount` into `commitDocumentMutation(...)`.
+The transaction validates that metadata against the active session/PageGraph
+and does not call `PdfEditAdapter.countPages(...)` for those revisions.
 
-Removing those transaction-level count reparses and carrying authoritative
-session revision metadata into the commit boundary is planned for Phase 7E.
-Do not describe Phase 7B as a one-parse end-to-end transaction.
+Compatibility/non-session transaction callers still use the parse-based count
+fallback when revision metadata is unavailable. Donor admission and PDF.js
+PageGraph construction also retain their independent validation/rendering
+parses.
 
 
 ## Phase 7C donor-backed migration
@@ -237,9 +238,9 @@ PDF.js. Phase 7C deliberately leaves those validation/rendering parses in
 place; it only removes reparsing of the active PDF inside the donor mutation
 helper itself.
 
-The transaction prepare caveat from 7B remains: `commitDocumentMutation(...)`
-still reparses before/after revision bytes for page-count validation. That is
-Phase 7E work.
+Phase 7E removes the transaction-level before/after count reparses for the
+canonical mutation-session path. Donor admission and donor PageGraph parsing
+remain separate concerns.
 
 ### Fidelity behavior
 
@@ -290,8 +291,9 @@ The legacy standalone `writePdfPageLabels(...)` utility remains for direct
 utility tests and compatibility callers, but canonical command dispatch no
 longer reopens the PDF through it.
 
-The Phase 7E transaction caveat remains: `commitDocumentMutation(...)`
-still reparses before/after revision bytes for page-count validation.
+Phase 7E now propagates the mutation session's authoritative before/after page
+counts into the transaction, so this canonical path does not reparse either
+revision solely to count pages.
 
 
 ## Phase 7D.2 professional header/footer migration
@@ -333,6 +335,52 @@ The compatibility `executeHeaderFooterTemplateMutation(...)` and
 `pdfLibHeaderFooterWriter` remain for legacy macro/headless/direct utility
 callers. Canonical CommandBus dispatch does not use them.
 
-Phase 7E remains responsible for removing the separate
-`commitDocumentMutation(...)` before/after page-count reparses and carrying
-authoritative revision metadata across the transaction boundary.
+Phase 7E now carries authoritative mutation-session page-count metadata across
+the transaction boundary. Compatibility/non-session commits retain the old
+parse-based fallback when no authoritative revision metadata exists.
+
+
+## Phase 7E transaction revision metadata
+
+`commitDocumentMutation(...)` now accepts optional
+`DocumentMutationRevisionMetadata`:
+
+- `beforePageCount`
+- `afterPageCount`
+
+Canonical mutation-session commands never synthesize these values from the
+output bytes. `applyCommittedSessionMutation(...)` receives the active
+session's pre-mutation page count and the `PdfMutationCommitResult.pageCount`
+returned by the engine, then passes both values into the transaction.
+
+The transaction fast path validates:
+
+1. both values are positive integers;
+2. `beforePageCount` matches the active session page count;
+3. when an active PageGraph exists, `beforePageCount` matches its page count;
+4. the existing target-PageGraph check still validates `afterPageCount`.
+
+If any check fails, the transaction fails in the `prepare` stage before
+annotation persistence or in-memory store mutation.
+
+When metadata is present, transaction prepare performs the revision hash but
+does **not** call `PdfEditAdapter.countPages(...)` for either PDF revision.
+
+When metadata is absent, the existing two-count parse fallback remains. This is
+required for compatibility/non-session byte replacement paths such as
+`APPLY_WORKING_COPY`.
+
+### Resulting parse scope
+
+For a canonical mutation-session command, the active revision is parsed by the
+mutation engine once, mutated, saved once, and committed to application state
+without a second pair of transaction-only page-count parses.
+
+This does not imply a one-parse product pipeline in every case. Donor
+admission, donor PageGraph construction, artifact extraction, PDF.js rendering,
+and compatibility/headless flows may have independent parses for their own
+purposes.
+
+Phase 7E does not change history storage: history still retains whole-PDF byte
+snapshots under the existing byte budget. OPFS/checkpoint history remains
+Phase 8 work.
