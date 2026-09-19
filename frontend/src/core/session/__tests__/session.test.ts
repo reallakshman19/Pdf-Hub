@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect } from 'vitest';
 import { MemorySource } from '@/adapters/document-source/MemorySource';
 import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
+import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
 import {
   clearDocumentSourceRegistryForTests,
   registerDocumentSource,
@@ -11,6 +12,11 @@ import {
   registerWorkingRevisionStore,
   resolveWorkingRevisionStore,
 } from '@/core/revision-store/registry';
+import {
+  clearHistoryJournalStoreRegistryForTests,
+  registerHistoryJournalStore,
+  resolveHistoryJournalStore,
+} from '@/core/document-history/journal/registry';
 import { useSessionStore } from '../store';
 
 function graph(ids: string[], documentKey = 'doc-nav') {
@@ -32,6 +38,7 @@ describe('Session Store', () => {
     useSessionStore.getState().clearDocument();
     clearDocumentSourceRegistryForTests();
     clearWorkingRevisionStoreRegistryForTests();
+    clearHistoryJournalStoreRegistryForTests();
   });
   it('tracks dirty states and save actions', () => {
     const store = useSessionStore.getState();
@@ -521,6 +528,82 @@ describe('Session Store', () => {
       resolveWorkingRevisionStore(revisionStore.id),
     ).toBeNull();
   });
+
+  it('tracks and releases history journal identity with the document', () => {
+    const journalStore = new MemoryHistoryJournalStore({
+      id: 'session-history-journals',
+    });
+    registerHistoryJournalStore(journalStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-journal',
+      historyJournalStoreId: journalStore.id,
+      historyJournalId: 'history-session-1',
+      historyJournalPersistent: false,
+      fileName: 'journal.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    expect(useSessionStore.getState()).toMatchObject({
+      historyJournalStoreId: journalStore.id,
+      historyJournalId: 'history-session-1',
+      historyJournalPersistent: false,
+    });
+    expect(
+      resolveHistoryJournalStore(journalStore.id),
+    ).toBe(journalStore);
+
+    useSessionStore.getState().clearDocument();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      historyJournalStoreId: null,
+      historyJournalId: null,
+      historyJournalPersistent: false,
+    });
+    expect(
+      resolveHistoryJournalStore(journalStore.id),
+    ).toBeNull();
+  });
+
+  it('rejects incomplete or unregistered history journal metadata', () => {
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-journal',
+        historyJournalStoreId: 'missing-journal-store',
+        historyJournalId: 'history-missing',
+        fileName: 'missing-journal.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/historyJournalStoreId .* not registered/);
+
+    const journalStore = new MemoryHistoryJournalStore({
+      id: 'registered-journal-store',
+    });
+    registerHistoryJournalStore(journalStore);
+
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-journal',
+        historyJournalStoreId: journalStore.id,
+        fileName: 'partial-journal.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/historyJournalStoreId and historyJournalId must be provided together/);
+
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-journal',
+        historyJournalPersistent: true,
+        fileName: 'false-persistent.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/cannot mark history journal persistent/);
+  });
+
 
   it('retains only sourceId in session state and releases it on clear', () => {
     const source = new MemorySource({
