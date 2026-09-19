@@ -7,6 +7,10 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
+import type {
+  HistoryRevisionLocator,
+  HistoryState,
+} from '@/core/document-history/types';
 import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
@@ -152,6 +156,22 @@ async function publishMutationRevision(
     signal,
   });
   return revision.revisionId;
+}
+
+function revisionHistoryBacking(
+  storeId: string | null | undefined,
+  revisionId: string | null | undefined,
+): Pick<HistoryState, 'revision' | 'activeRevisionId'> | null {
+  if (!storeId || !revisionId) return null;
+
+  const revision: HistoryRevisionLocator = {
+    storeId,
+    revisionId,
+  };
+  return {
+    revision,
+    activeRevisionId: revisionId,
+  };
 }
 
 function writerHistorySnapshot() {
@@ -363,14 +383,27 @@ export async function commitDocumentMutation(
   };
 
   const previousAfter = historyState.undoStack.at(-1)?.after;
+  const beforeRevisionBacking = revisionHistoryBacking(
+    sessionSnapshot.revisionStoreId,
+    sessionSnapshot.activeRevisionId,
+  );
   const canSharePreviousSnapshot = Boolean(
-    sessionSnapshot.documentKey
-    && previousAfter?.documentKey === sessionSnapshot.documentKey
+    !beforeRevisionBacking
+    && previousAfter?.bytes
+    && sessionSnapshot.documentKey
+    && previousAfter.documentKey === sessionSnapshot.documentKey
     && previousAfter.pageCount === beforePageCount,
   );
-  const beforeHistoryBytes = canSharePreviousSnapshot && previousAfter
-    ? previousAfter.bytes
-    : new Uint8Array(input.beforeBytes);
+  const beforeHistoryBacking: Pick<
+    HistoryState,
+    'bytes' | 'revision' | 'activeRevisionId'
+  > = beforeRevisionBacking ?? {
+    bytes:
+      canSharePreviousSnapshot && previousAfter?.bytes
+        ? previousAfter.bytes
+        : new Uint8Array(input.beforeBytes),
+    activeRevisionId: sessionSnapshot.activeRevisionId,
+  };
 
   try {
     useSessionStore.getState().replaceWorkingCopy(
@@ -422,6 +455,17 @@ export async function commitDocumentMutation(
     }
 
     const sessionAfter = useSessionStore.getState();
+    const afterRevisionBacking = revisionHistoryBacking(
+      sessionAfter.revisionStoreId,
+      sessionAfter.activeRevisionId,
+    );
+    const afterHistoryBacking: Pick<
+      HistoryState,
+      'bytes' | 'revision' | 'activeRevisionId'
+    > = afterRevisionBacking ?? {
+      bytes: new Uint8Array(input.afterBytes),
+      activeRevisionId: sessionAfter.activeRevisionId,
+    };
     const annotationAfter = useAnnotationStore.getState();
     const writerAfter = writerHistorySnapshot();
     const ocrAfter = currentOcrPageState();
@@ -433,13 +477,12 @@ export async function commitDocumentMutation(
       timestamp: Date.now(),
       ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
       before: {
-        bytes: beforeHistoryBytes,
+        ...beforeHistoryBacking,
         pageCount: beforePageCount,
         pageGraph: sessionSnapshot.pageGraph
           ? clonePageGraph(sessionSnapshot.pageGraph)
           : null,
         documentKey: sessionSnapshot.documentKey,
-        activeRevisionId: sessionSnapshot.activeRevisionId,
         selectedPageIds: [...sessionSnapshot.selectedPageIds],
         selectedPages: [...sessionSnapshot.selectedPages],
         currentPageId: sessionSnapshot.viewState.currentPageId,
@@ -449,13 +492,12 @@ export async function commitDocumentMutation(
         ocr: cloneOcrPageAnchoredState(ocrBefore),
       },
       after: {
-        bytes: new Uint8Array(input.afterBytes),
+        ...afterHistoryBacking,
         pageCount: afterPageCount,
         pageGraph: sessionAfter.pageGraph
           ? clonePageGraph(sessionAfter.pageGraph)
           : null,
         documentKey: nextDocumentKey,
-        activeRevisionId: sessionAfter.activeRevisionId,
         selectedPageIds: [...sessionAfter.selectedPageIds],
         selectedPages: [...sessionAfter.selectedPages],
         currentPageId: sessionAfter.viewState.currentPageId,
