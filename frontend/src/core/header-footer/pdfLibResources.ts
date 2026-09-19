@@ -7,19 +7,9 @@ type PDFDocument = import('pdf-lib').PDFDocument;
 type PDFFont = import('pdf-lib').PDFFont;
 type PDFImage = import('pdf-lib').PDFImage;
 
-export interface HeaderFooterEmbeddedImage {
-  image: PDFImage;
-  widthPt: number;
-  heightPt: number;
-}
-
 export interface HeaderFooterPdfLibResources {
   fontFor(style: HeaderFooterTextStyle): Promise<PDFFont>;
-  imageFor(
-    resourceId: string,
-    requestedWidthPt: number,
-    requestedHeightPt?: number,
-  ): Promise<HeaderFooterEmbeddedImage>;
+  imageFor(resourceId: string): Promise<PDFImage>;
   warnings(): string[];
 }
 
@@ -43,7 +33,7 @@ export function createHeaderFooterPdfLibResources(
       return font;
     },
 
-    async imageFor(resourceId, requestedWidthPt, requestedHeightPt) {
+    async imageFor(resourceId) {
       let imagePromise = imageCache.get(resourceId);
       if (!imagePromise) {
         const bytes = binaryResources[resourceId];
@@ -56,16 +46,7 @@ export function createHeaderFooterPdfLibResources(
         imageCache.set(resourceId, imagePromise);
       }
 
-      const image = await imagePromise;
-      const heightPt =
-        requestedHeightPt
-        ?? requestedWidthPt * (image.height / image.width);
-
-      return {
-        image,
-        widthPt: requestedWidthPt,
-        heightPt,
-      };
+      return imagePromise;
     },
 
     warnings() {
