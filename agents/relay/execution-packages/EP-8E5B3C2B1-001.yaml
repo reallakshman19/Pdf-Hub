@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2B1-001",
+    "branch": "phase8/history-writer-ui-one-shot",
+    "base_ref": "0339b9b9b6ed9fb772deef44f7fe1f2ff333bb0f",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C1A",
+    "previous_join": "0339b9b9b6ed9fb772deef44f7fe1f2ff333bb0f",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-ui-one-shot",
+    "material_ref": "0339b9b9b6ed9fb772deef44f7fe1f2ff333bb0f",
+    "base_branch": "main",
+    "base_observed_ref": "0339b9b9b6ed9fb772deef44f7fe1f2ff333bb0f",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 256,
+  "outcome": {
+    "engineering": [
+      "One-shot direct Writer UI mutations route through durable dispatch.",
+      "Selection-only Writer UI commands remain synchronous.",
+      "Asset-bearing UI flows clean temporary in-memory assets when durable commit fails.",
+      "High-frequency Writer controls remain deferred pending coalescing."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make one-shot Writer UI commits crash-durable without journaling every transient pointer/input event.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Writer asset-before-journal prerequisite.",
+    "why_this_work_exists": "Direct UI callers still bypassed the durable Writer API after async helper migration.",
+    "deliberate_non_goals": [
+      "No high-frequency Writer table/inspector/property migration before coalescing.",
+      "No synchronous Writer helper API migration.",
+      "No OCR bridge or legacy consolidation migration.",
+      "No command replay, recovery UI or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Writer drag-end move/resize, editor save and overlay placement use durable UI dispatch while selection remains synchronous.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Writer Ribbon and Select Box image-bearing flows await durable asset-reference commits and clean temporary in-memory assets on failure.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Durable UI dispatch logs contextual failures and rethrows them to the caller.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "High-frequency Writer surfaces remain unmigrated until a coalescing boundary exists.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static audit verifies one-shot durable routing, selection-only synchronous dispatch, success ordering and deferred high-frequency surfaces.",
+      "proves": ["AC-01", "AC-02", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "durableWriterUiDispatch unit tests verify committed result pass-through and contextual error logging + rethrow.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Inherited Writer durable-history tests retain asset-before-journal and rollback guarantees.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2b1 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2B2 add coalesced durable commits for high-frequency Writer controls"
+  }
+}

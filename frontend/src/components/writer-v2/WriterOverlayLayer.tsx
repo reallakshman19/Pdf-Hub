@@ -6,6 +6,9 @@ import {
 } from '@/core/writer-v2/coordinateTransform';
 import { getVisibleWriterElements } from '@/core/writer-v2/writerCommandStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
 import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlacement';
 import { shouldWriterOverlayCapturePlacement } from '@/core/writer-v2/writerToolPolicy';
 import { useSessionStore } from '@/core/session/store';
@@ -51,7 +54,9 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
     [allElements, pageIndex],
   );
 
-  const placeWriterElement = (event: React.PointerEvent<HTMLDivElement>) => {
+  const placeWriterElement = async (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const pdfPoint = viewportToPdfPoint(
       {
@@ -88,12 +93,24 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
 
     if (!element) return;
 
-    dispatchWriterCommand({
-      type: 'ADD_WRITER_ELEMENT',
-      element,
-    });
+    try {
+      const result =
+        await dispatchDurableWriterUiCommand(
+          {
+            type: 'ADD_WRITER_ELEMENT',
+            element,
+          },
+          'WriterOverlayLayer placement',
+        );
 
-    setActiveWriterTool('select');
+      if (result.changed) {
+        setActiveWriterTool('select');
+      }
+    } catch {
+      // The shared UI dispatch helper records the
+      // durable failure. Keep the placement tool
+      // active so the user can retry.
+    }
   };
 
   return (
@@ -110,7 +127,7 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
         }
 
         if (shouldWriterOverlayCapturePlacement(activeWriterTool)) {
-          placeWriterElement(event);
+          void placeWriterElement(event);
           return;
         }
 
