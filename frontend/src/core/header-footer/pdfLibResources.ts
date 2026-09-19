@@ -1,4 +1,6 @@
-import type { HeaderFooterTextStyle } from './types';
+import type {
+  PdfMutationPdfMutationHeaderFooterTextStyle,
+} from '@/core/pdf-mutation/types';
 
 type PdfLibNs = Awaited<
   ReturnType<typeof import('@/core/pdf/lazyPdfLib').pdfLib>
@@ -8,7 +10,7 @@ type PDFFont = import('pdf-lib').PDFFont;
 type PDFImage = import('pdf-lib').PDFImage;
 
 export interface HeaderFooterPdfLibResources {
-  fontFor(style: HeaderFooterTextStyle): Promise<PDFFont>;
+  fontFor(style: PdfMutationHeaderFooterTextStyle): Promise<PDFFont>;
   imageFor(resourceId: string): Promise<PDFImage>;
   warnings(): string[];
 }
@@ -56,7 +58,7 @@ export function createHeaderFooterPdfLibResources(
 }
 
 function standardFontName(
-  style: HeaderFooterTextStyle,
+  style: PdfMutationHeaderFooterTextStyle,
   lib: PdfLibNs,
   warnings: Set<string>,
 ): string {
