@@ -83,19 +83,19 @@ function truncateAbandonedTail(
 
   manifest.entries = retainedEntries;
   manifest.checkpoints =
-    manifest.checkpoints.filter(
-      (checkpoint) =>
-        checkpoint.kind === 'ADMISSION'
-        || (
-          checkpoint.transactionId
-          && retainedTransactionIds.has(
-            checkpoint.transactionId,
-          )
-        )
-        || retainedRevisionIds.has(
-          checkpoint.revision.revisionId,
-        ),
-    );
+    manifest.checkpoints.filter((checkpoint) => {
+      if (checkpoint.kind === 'ADMISSION') {
+        return true;
+      }
+      if (checkpoint.transactionId) {
+        return retainedTransactionIds.has(
+          checkpoint.transactionId,
+        );
+      }
+      return retainedRevisionIds.has(
+        checkpoint.revision.revisionId,
+      );
+    });
 }
 
 export async function prepareHistoryJournalMutation(
