@@ -49,7 +49,7 @@ export function compileLegacyHeaderFooterTextStep(
       marginXPt: step.marginX,
       marginYPt: step.marginY,
       fontSizePt: step.fontSize,
-      color: step.color ?? '#374151',
+      color: normalizeLegacyHexColor(step.color ?? '#374151'),
       opacity: step.opacity ?? 0.9,
     }),
     variables: translated.variables,
@@ -125,4 +125,20 @@ function replaceAllForms(
     (current, form) => current.replaceAll(form, replacement),
     value,
   );
+}
+
+
+function normalizeLegacyHexColor(value: string): string {
+  const normalized = value.replace('#', '').trim();
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => character + character)
+          .join('')
+      : normalized.padEnd(6, '0').slice(0, 6);
+
+  return /^[0-9a-f]{6}$/i.test(expanded)
+    ? `#${expanded}`
+    : value;
 }
