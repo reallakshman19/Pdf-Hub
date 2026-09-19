@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAnnotationStore } from '@/core/annotations/store';
+import { MemorySource } from '@/adapters/document-source/MemorySource';
+import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import {
   materializePdfCommand,
@@ -9,10 +11,13 @@ import {
 import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
+import {
+  clearWorkingRevisionStoreRegistryForTests,
+  registerWorkingRevisionStore,
+} from '@/core/revision-store/registry';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   commitDocumentMutation,
-  type DocumentMutationTransactionError,
 } from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({
@@ -81,6 +86,7 @@ describe('document transaction history memory', () => {
     vi.clearAllMocks();
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
+    clearWorkingRevisionStoreRegistryForTests();
     useAnnotationStore.getState().setAnnotations([beforeAnnotation]);
     useOcrStore.getState().clearOcr();
     useSessionStore.getState().openDocument({
@@ -129,6 +135,142 @@ describe('document transaction history memory', () => {
       },
       selectedPageIndexes: [0],
     });
+  });
+
+  it('publishes a revision before commit and restores revision identity through undo/redo', async () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'transaction-revisions',
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'initial',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'hash-1',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    const result = await commitDocumentMutation({
+      command: command('hash-1', 'revision-rotate'),
+      label: 'Revision-aware rotation',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+
+    expect(result).toMatchObject({
+      nextDocumentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+    });
+    expect(await revisionStore.has('hash-2')).toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-2',
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-2',
+    });
+
+    const transaction =
+      useHistoryStore.getState().undoStack.at(-1);
+    expect(transaction?.before.activeRevisionId).toBe(
+      'hash-1',
+    );
+    expect(transaction?.after.activeRevisionId).toBe(
+      'hash-2',
+    );
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-1',
+      activeRevisionId: 'hash-1',
+    });
+
+    await expect(applyRedo()).resolves.toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+    });
+  });
+
+  it('aborts before annotation persistence and state commit when revision publication fails', async () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'failing-revisions',
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'initial',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    vi.spyOn(revisionStore, 'commit').mockRejectedValueOnce(
+      new Error('storage full'),
+    );
+    persistenceMocks.saveAnnotations.mockClear();
+
+    const failedMutation = commitDocumentMutation({
+      command: command('hash-1', 'failed-publication'),
+      label: 'Failed publication',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+    await expect(failedMutation).rejects.toMatchObject({
+      stage: 'persistence',
+    });
+    await expect(failedMutation).rejects.toThrow(
+      /working revision publication failed/,
+    );
+
+    expect(
+      persistenceMocks.saveAnnotations,
+    ).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'hash-1',
+      activeRevisionId: 'hash-1',
+      workingBytes: Uint8Array.from([1]),
+    });
+    expect(useHistoryStore.getState().undoStack).toHaveLength(
+      0,
+    );
   });
 
   it('shares adjacent byte snapshots and restores dependent state through undo and redo', async () => {
