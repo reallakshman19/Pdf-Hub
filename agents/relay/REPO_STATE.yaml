@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5B1-001",
-    "path": "agents/relay/execution-packages/EP-8E5B1-001.yaml",
+    "id": "EP-8E5B2-001",
+    "path": "agents/relay/execution-packages/EP-8E5B2-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-243",
+    "id": "PR-245",
     "path": null,
-    "merge_ref": "7e1f6ccd46b0c622d50b20bd30f7dd62dd658389",
-    "note": "Phase 8E.5A merged under documented #183 infrastructure exception; exact-head workflows executed no steps."
+    "merge_ref": "81161e7e7276092ebb3532b2bf91ec98194cfb45",
+    "note": "Phase 8E.5B1 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.5B1 durable transaction cursor, run cd frontend && pnpm run certify:phase8e5b1 when a runner is available, and keep issue #244 open until acceptance evidence is terminal."
+      "next_action": "Review Phase 8E.5B2 async durable state coordinator, run cd frontend && pnpm run certify:phase8e5b2 when a runner is available, and keep issue #246 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,7 +78,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.5B1 durable transaction cursor is implemented. Static source reconciliation is in progress; runner-executed evidence remains subject to #183.",
+      "summary": "Phase 8E.5B2 async durable state transaction coordinator is implemented. Annotation/Writer stores remain deliberately unwired. Runner-executed evidence remains subject to #183.",
       "not_run": [
         {
           "id": "TEST-04",
@@ -102,13 +102,13 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5B1-001",
+    "execution_ref": "EP-8E5B2-001",
     "receipt": null,
     "basis": [
-      "Issue #244 is the projected GitHub tracking issue for the active 8E.5B1 slice."
+      "Issue #246 is the projected GitHub tracking issue for the active 8E.5B2 slice."
     ],
     "observed": {
-      "issue": 244
+      "issue": 246
     },
     "superseded_operations": []
   },
