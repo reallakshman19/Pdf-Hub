@@ -474,11 +474,11 @@ The first Phase 7A implementation is
 `PdfMutationSession`. The session owns one parsed PDF revision and exposes
 engine-neutral page count, page metrics, rotation and commit operations.
 
-`ROTATE_PAGES` plus canonical reorder, delete, insert-blank and duplicate page
-commands now execute through this boundary. Their PageGraph, PageLabel,
-annotation, Writer, OCR and history semantics remain in core command/
-transaction code; only parsed PDF state and byte mutation live in the engine
-session.
+`ROTATE_PAGES`, canonical reorder/delete/insert-blank/duplicate, and donor-backed
+insert/replace/merge now execute through this boundary. Donor resources remain
+out-of-band: commands carry resource IDs, while only resolved donor bytes cross
+into the mutation session. PageGraph, PageLabel, admission, annotation, Writer,
+OCR and history semantics remain in core command/transaction code.
 
 The current transaction prepare stage still reparses before/after bytes for
 page-count validation. Phase 7E will remove that remaining transaction-level
