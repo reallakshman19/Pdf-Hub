@@ -1,5 +1,6 @@
 import { documentBus } from '../events/bus';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { pdfLibMutationEngine } from '@/adapters/pdf-mutation/PdfLibMutationEngine';
 import {
   consumeAdmittedDonorPdfs,
   inspectAdmittedDonorPdfs,
@@ -369,6 +370,145 @@ async function applyMutation(
   });
 }
 
+async function executeRotatePagesCommand(
+  input: CommandExecutionInput,
+  context: ResolvedCommandContext,
+  sessionPageGraph: PageGraph<PageNode> | null,
+): Promise<CommandResult> {
+  const { command } = input;
+  if (command.type !== 'ROTATE_PAGES') {
+    throw new Error('Rotation handler received a non-rotation command.');
+  }
+
+  const mutationSession = await pdfLibMutationEngine.open({
+    bytes: context.workingBytes,
+    signal: input.signal,
+  });
+
+  try {
+    const pageCount = mutationSession.pageCount;
+
+    if (
+      sessionPageGraph
+      && sessionPageGraph.pages.length !== pageCount
+    ) {
+      throw new Error(
+        `PageGraph count ${sessionPageGraph.pages.length} does not match mutation-session page count ${pageCount}.`,
+      );
+    }
+
+    const {
+      pageIndices: requested,
+      angle,
+    } = command.payload;
+    const pageIndices = sanitizePageIndices(
+      requested,
+      pageCount,
+    );
+
+    if (pageIndices.length === 0) {
+      return commandError(
+        command,
+        'VALIDATION_FAILED',
+        'No pages selected for rotation.',
+      );
+    }
+
+    const pageGraph = await resolveStructuralPageGraph(
+      context,
+      input,
+      pageCount,
+    );
+    const rotations = pageIndices.map((pageIndex) => {
+      const page = pageGraph.pages[pageIndex];
+      if (!page) {
+        throw new Error(
+          `PageGraph is missing page index ${pageIndex}`,
+        );
+      }
+
+      const metrics = mutationSession.getPageMetrics(
+        pageIndex,
+      );
+
+      return {
+        pageIndex,
+        angle,
+        width: metrics.width,
+        height: metrics.height,
+      };
+    });
+
+    const nextPageGraph = rotatePagesInGraph(
+      pageGraph,
+      pageIdsAtIndices(pageGraph, pageIndices),
+      angle,
+    );
+    const anchoredAnnotations =
+      normalizeAnnotationPageAnchors(
+        useAnnotationStore.getState().annotations,
+        pageGraph,
+      );
+    const nextAnnotations =
+      reanchorAnnotationsAfterPageGraphChange(
+        remapAfterRotate(
+          anchoredAnnotations,
+          rotations,
+        ),
+        pageGraph,
+        nextPageGraph,
+      );
+    const writerElements =
+      activePdfOverlayWriterElements();
+    const nextWriterElements = writerElements
+      ? reanchorWriterElementsAfterPageGraphChange(
+          remapWriterAfterRotate(
+            normalizeWriterPageAnchors(
+              writerElements,
+              pageGraph,
+            ),
+            rotations,
+          ),
+          pageGraph,
+          nextPageGraph,
+        )
+      : undefined;
+
+    mutationSession.rotatePages(pageIndices, angle);
+    const committed = await mutationSession.commit();
+
+    if (
+      committed.pageCount !==
+      nextPageGraph.pages.length
+    ) {
+      throw new Error(
+        `Mutation-session page count ${committed.pageCount} does not match target PageGraph count ${nextPageGraph.pages.length}.`,
+      );
+    }
+
+    const result = await applyMutation(
+      command,
+      context.workingBytes,
+      committed.bytes,
+      nextAnnotations,
+      nextWriterElements,
+      undefined,
+      undefined,
+      nextPageGraph,
+    );
+
+    return commandSuccess(
+      command,
+      true,
+      'Pages rotated',
+      result.nextBytes,
+      result.nextPageCount,
+    );
+  } finally {
+    mutationSession.dispose();
+  }
+}
+
 export async function dispatchPdfCommand(
   input: CommandExecutionInput,
 ): Promise<CommandResult> {
@@ -388,63 +528,24 @@ export async function dispatchPdfCommand(
 
   try {
     throwIfAborted(input.signal, `command ${command.type}: before execution`);
-    const sessionPageGraph = useSessionStore.getState().pageGraph;
+    const sessionPageGraph =
+      useSessionStore.getState().pageGraph;
+
+    if (command.type === 'ROTATE_PAGES') {
+      return await executeRotatePagesCommand(
+        input,
+        context,
+        sessionPageGraph,
+      );
+    }
+
     const pageCount =
       sessionPageGraph?.pages.length
-      ?? await PdfEditAdapter.countPages(context.workingBytes);
+      ?? await PdfEditAdapter.countPages(
+        context.workingBytes,
+      );
 
     switch (command.type) {
-      case 'ROTATE_PAGES': {
-        const { pageIndices: requested, angle } = command.payload;
-        const pageIndices = sanitizePageIndices(requested, pageCount);
-        if (pageIndices.length === 0) {
-          return commandError(command, 'VALIDATION_FAILED', 'No pages selected for rotation.');
-        }
-        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
-        const rotations = pageIndices.map((idx) => {
-          const page = pageGraph.pages[idx];
-          if (!page) throw new Error(`PageGraph is missing page index ${idx}`);
-          return { pageIndex: idx, angle, width: page.width, height: page.height };
-        });
-        const nextPageGraph = rotatePagesInGraph(
-          pageGraph,
-          pageIdsAtIndices(pageGraph, pageIndices),
-          angle,
-        );
-        const anchoredAnnotations = normalizeAnnotationPageAnchors(
-          useAnnotationStore.getState().annotations,
-          pageGraph,
-        );
-        const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          remapAfterRotate(anchoredAnnotations, rotations),
-          pageGraph,
-          nextPageGraph,
-        );
-        const writerElements = activePdfOverlayWriterElements();
-        const nextWriterElements = writerElements
-          ? reanchorWriterElementsAfterPageGraphChange(
-              remapWriterAfterRotate(
-                normalizeWriterPageAnchors(writerElements, pageGraph),
-                rotations,
-              ),
-              pageGraph,
-              nextPageGraph,
-            )
-          : undefined;
-        const nextBytes = await PdfEditAdapter.rotatePages(context.workingBytes, pageIndices, angle);
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
-          nextAnnotations,
-          nextWriterElements,
-          undefined,
-          undefined,
-          nextPageGraph,
-        );
-        return commandSuccess(command, true, 'Pages rotated', result.nextBytes, result.nextPageCount);
-      }
-
       case 'REORDER_PAGES': {
         const { fromIndex, toIndex } = command.payload;
         const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
