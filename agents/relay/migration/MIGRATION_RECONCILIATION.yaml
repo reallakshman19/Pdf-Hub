@@ -1,0 +1,103 @@
+{
+  "schema_version": "relay-v2.5-migration-reconciliation",
+  "status": "RECONCILED",
+  "source_inventory": "agents/relay/migration/MIGINV-0001.yaml",
+  "owner_intent": {
+    "authoritative_sources": [
+      "agents/relay/roadmap/owner-decisions/ODR-0001.yaml",
+      "ARCHITECTURE.md",
+      "GitHub issue #185",
+      "GitHub issue #218",
+      "GitHub issue #230"
+    ],
+    "unresolved_questions": []
+  },
+  "roadmap_mapping": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-004",
+      "PHASE-005",
+      "PHASE-006",
+      "PHASE-007",
+      "PHASE-008",
+      "PHASE-009",
+      "PHASE-010",
+      "PHASE-011",
+      "PHASE-012",
+      "PHASE-013",
+      "PHASE-014"
+    ],
+    "work_packages": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-010",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "current_position": {
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8D3"
+  },
+  "durable_inputs": [
+    "frontend/src/core/session/activePdfRendererInput.ts",
+    "frontend/src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts",
+    "frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts",
+    "GitHub issues #218, #227, #230"
+  ],
+  "benchmarks": [
+    "Issue #230 exit contract",
+    "Merged 8D.1/8D.2 revision-keyed source cache behavior and focused tests"
+  ],
+  "history_to_preserve": {
+    "checkpoints": [],
+    "evidence": [
+      "PR #231 merged 8D.1",
+      "PR #232 merged 8D.2",
+      "Issue #183 runner_id=0 / zero-step evidence remains unresolved"
+    ],
+    "decisions": [
+      "Breadth freeze and phase order from #185",
+      "Continue Phase 8 from 8D.3"
+    ]
+  },
+  "unresolved_work": [
+    "WP-8D3 active renderer consumers",
+    "WP-8E history journal/checkpoints",
+    "WP-8F incremental indexing",
+    "WP-8G performance corpus"
+  ],
+  "first_v25_ep": {
+    "create_only_after": [
+      "owner intent reconciled",
+      "current roadmap revision established",
+      "executable frontier computed",
+      "scope and acceptance made self-contained",
+      "cold-start inputs complete"
+    ],
+    "ep_id": "EP-8D3-001"
+  },
+  "notes": [
+    "No legacy narrative progress percentage was copied; PB-0001 is recalculated from explicit work-package units.",
+    "No predecessor checkpoint is fabricated; first V2.5 EP begins with previous_checkpoint NONE."
+  ]
+}

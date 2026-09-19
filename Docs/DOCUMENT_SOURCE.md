@@ -209,8 +209,14 @@ The previous workspace-open loop that extracted text from every page into
 walks `1..numPages` for search indexing. Phase 8F owns visible/nearby-first
 incremental indexing and background index persistence.
 
-Search, Bookmarks and Select Box Copy still have independent active-session
-byte reacquisition paths until Phase 8D.3.
+Phase 8D.3 removes the remaining active-session renderer byte
+reacquisition paths. Search, Bookmarks and Select Box Copy now acquire an
+explicit active-session lease from the same strict revision resolver used by
+the workspace. Uncached Search and native outline logic operate on the leased
+`PDFDocumentProxy`; Select Box exposes loaded-document text/image helpers.
+Standalone explicit-buffer wrappers remain supported and continue to own their
+own byte-backed lease lifecycle.
 
 Phase 8E will replace default whole-byte history retention with a journal and
-bounded checkpoints.
+bounded checkpoints. Phase 8F remains responsible for visible/nearby-first
+incremental search indexing rather than eager indexing during document open.

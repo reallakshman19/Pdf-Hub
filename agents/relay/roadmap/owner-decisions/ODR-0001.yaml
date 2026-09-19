@@ -1,0 +1,45 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0001",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "NO_CHANGE_CONFIRMATION",
+    "statement": "Continue the existing PDF Hub Phase 8D.3 product roadmap, while using the revised engineering-pr-delivery-v2.5 protocol from reallaksh19/Common for delivery control.",
+    "source": "Owner instruction received 2026-09-19T10:33:01Z and captured durably by this ODR."
+  },
+  "effects": {
+    "requirement_disposition": "SATISFIED",
+    "grants_material_write_authority": false,
+    "pending_items": []
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "PROCESS",
+      "LOCAL"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-008"
+    ],
+    "work_packages": [
+      "WP-8D3"
+    ],
+    "execution_packages": [
+      "EP-8D3-001"
+    ],
+    "issues": [
+      "ISSUE-230"
+    ]
+  },
+  "required_reconciliation": [
+    "Use the V2.5 relay root and recalculated progress basis for current execution.",
+    "Keep EP-8D3-001 on the existing WP-8D3 frontier.",
+    "Require candidate certification and the live material-write gate before product writes."
+  ],
+  "status": "APPLIED"
+}

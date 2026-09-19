@@ -200,10 +200,18 @@ The former workspace-open full-document text-indexing loop has been removed.
 Search indexing is no longer an automatic `1..numPages` side effect of opening
 a PDF; Phase 8F owns incremental visible/nearby-first indexing.
 
+Phase 8D.3 migrates the remaining active renderer consumers onto the same
+revision-keyed lease path. Uncached Search, native Bookmarks/outline loading,
+and active Select Box Copy now acquire the active revision through an explicit
+session-snapshot coordinator. Search operates on the leased
+`PDFDocumentProxy`; Select Box text/image helpers expose loaded-document
+operations while retaining their explicit-byte wrappers for standalone callers.
+All short-lived active leases are released in `finally`, and cancellation is
+propagated through source/page/render work.
+
 Session `originalBytes`/`workingBytes`, mutation-engine input, Save
-composition and history byte snapshots remain materialized. Search, Bookmarks
-and Select Box Copy still migrate in Phase 8D.3; Phase 8E later migrates
-history consumption.
+composition and history byte snapshots remain materialized. Phase 8E later
+migrates history consumption; Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

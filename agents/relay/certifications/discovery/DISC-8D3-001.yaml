@@ -1,0 +1,178 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-8D3-001",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-8D3-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8D3-001",
+    "ep_id": "EP-8D3-001",
+    "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "relay_protocol_basis_ref": "d9b84069683977b5c370f536f1c50095de926338",
+    "material_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "ep_contract_digest": "sha256:bddfa12778a5daabef66b63413bb0c316e938eafdfa74b0ccb1991e761ea9c2a",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "NONE",
+      "id": "NONE",
+      "path": null,
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active EP id and path",
+          "value": "EP-8D3-001 @ agents/relay/execution-packages/EP-8D3-001.yaml",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml at b588e3ac44d1f25cb9013f89e141b5fa8b5593ea"
+          ]
+        },
+        {
+          "name": "roadmap id and revision",
+          "value": "PDFHUB-READINESS-2026 / RM-0001",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml and agents/relay/roadmap/OVERALL_ROADMAP.yaml at b588e3ac44d1f25cb9013f89e141b5fa8b5593ea"
+          ]
+        },
+        {
+          "name": "current work package",
+          "value": "WP-8D3",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml at b588e3ac44d1f25cb9013f89e141b5fa8b5593ea"
+          ]
+        }
+      ],
+      "basis": [
+        "Repository relay readback from branch phase8/active-renderer-consumers at b588e3ac44d1f25cb9013f89e141b5fa8b5593ea."
+      ]
+    },
+    {
+      "id": "DSTEP-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "checked-out branch",
+          "value": "phase8/active-renderer-consumers",
+          "basis": [
+            "GitHub branch readback at b588e3ac44d1f25cb9013f89e141b5fa8b5593ea"
+          ]
+        },
+        {
+          "name": "current HEAD",
+          "value": "b588e3ac44d1f25cb9013f89e141b5fa8b5593ea",
+          "basis": [
+            "GitHub branch readback"
+          ]
+        },
+        {
+          "name": "material-ref ancestry result",
+          "value": "PASS: eb5429c344ec4f7a4d977a09987923833f1c0963 is an ancestor; branch is ahead by one relay-only commit and behind by zero.",
+          "basis": [
+            "GitHub compare eb5429c344ec4f7a4d977a09987923833f1c0963...phase8/active-renderer-consumers"
+          ]
+        },
+        {
+          "name": "base drift result",
+          "value": "UNCHANGED: main is eb5429c344ec4f7a4d977a09987923833f1c0963, equal to EP base_observed_ref.",
+          "basis": [
+            "GitHub main branch readback"
+          ]
+        }
+      ],
+      "basis": [
+        "GitHub branch and compare provider evidence observed after relay custody commit."
+      ]
+    },
+    {
+      "id": "DSTEP-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "search acquisition path",
+          "value": "SearchPanel uncached path calls PdfRendererAdapter.searchDocumentText(workingBytes, query, signal).",
+          "basis": [
+            "frontend/src/components/sidebar/SearchPanel.tsx at material basis"
+          ]
+        },
+        {
+          "name": "bookmarks acquisition path",
+          "value": "BookmarksSidebar native-outline effect calls PdfRendererAdapter.acquireDocument(workingBytes), then getOutlineFlat, then releases.",
+          "basis": [
+            "frontend/src/components/sidebar/panels/BookmarksSidebar.tsx at material basis"
+          ]
+        },
+        {
+          "name": "select box acquisition path",
+          "value": "SelectBoxCopyLayer derives sourceBytes and passes pdfBytes to extractSelectBoxCopyFromPdf/renderSelectBoxImageSnapshot; both helpers acquireDocument(pdfBytes).",
+          "basis": [
+            "SelectBoxCopyLayer.tsx, selectBoxCopyEngine.ts and imageSnapshot.ts at material basis"
+          ]
+        }
+      ],
+      "basis": [
+        "Repository source trace performed against the unchanged product tree at eb5429c344ec4f7a4d977a09987923833f1c0963."
+      ]
+    },
+    {
+      "id": "DSTEP-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active renderer resolver path",
+          "value": "core/session/activePdfRendererInput.ts strictly resolves revision-aware sessions through WorkingRevisionStore.open(activeRevisionId), with byte fallback only when all revision metadata is absent.",
+          "basis": [
+            "frontend/src/core/session/activePdfRendererInput.ts at material basis"
+          ]
+        },
+        {
+          "name": "source cache public identity",
+          "value": "PdfDocumentLeaseCache source acquisition uses caller-supplied active revision/content key as public cache identity with an internal source namespace.",
+          "basis": [
+            "frontend/src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts at material basis"
+          ]
+        },
+        {
+          "name": "byte compatibility path",
+          "value": "PdfRendererAdapter.acquireDocument(bytes) remains available and delegates to the byte-backed lease cache.",
+          "basis": [
+            "frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts at material basis"
+          ]
+        }
+      ],
+      "basis": [
+        "Merged 8D.1/8D.2 source files at eb5429c344ec4f7a4d977a09987923833f1c0963."
+      ]
+    },
+    {
+      "id": "DSTEP-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "GitHub issue #183 remains OPEN and documents jobs failing before runner assignment with runner_id 0 / zero executed steps; no runner-executed Phase 8D.3 certification evidence exists.",
+          "basis": [
+            "Verified provider readback of https://github.com/reallaksh19/Pdf-Hub/issues/183 on 2026-09-19"
+          ]
+        }
+      ],
+      "basis": [
+        "GitHub issue #183 provider readback."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

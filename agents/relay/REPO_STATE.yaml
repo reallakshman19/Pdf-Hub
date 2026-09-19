@@ -1,0 +1,165 @@
+{
+  "schema_version": "relay-v2.5",
+  "relay_state": "ACTIVE",
+  "repository": {
+    "name": "Pdf-Hub",
+    "remote": "reallaksh19/Pdf-Hub"
+  },
+  "relay_protocol": {
+    "version": "2.5",
+    "basis_ref": "d9b84069683977b5c370f536f1c50095de926338"
+  },
+  "roadmap": {
+    "id": "PDFHUB-READINESS-2026",
+    "revision": "RM-0001",
+    "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml"
+  },
+  "current_position": {
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8D3",
+    "work_packages": []
+  },
+  "execution_policy": {
+    "mode": "SERIAL"
+  },
+  "active_ep": {
+    "id": "EP-8D3-001",
+    "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "state": "ACTIVE",
+    "continuity_receipt": null
+  },
+  "last_checkpoint": {
+    "id": "NONE",
+    "path": null
+  },
+  "predecessor_join": {
+    "id": null,
+    "path": null
+  },
+  "predecessor_replan": {
+    "id": null,
+    "path": null
+  },
+  "takeover_admissions": [
+    {
+      "route_key": "SERIAL:EP-8D3-001",
+      "candidate": {
+        "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+      },
+      "discovery_receipt": {
+        "id": "DISC-8D3-004",
+        "path": "agents/relay/certifications/discovery/DISC-8D3-004.yaml"
+      },
+      "certification": {
+        "id": "TC-8D3-004",
+        "path": "agents/relay/certifications/takeover/TC-8D3-004.yaml"
+      }
+    }
+  ],
+  "progress": {
+    "overall_percent": 52.38,
+    "phase_percent": 63.64,
+    "ep_percent": 0,
+    "basis_revision": "PB-0001"
+  },
+  "status_planes": {
+    "execution": {
+      "state": "ACTIVE",
+      "can_continue": true,
+      "material_authority": "WRITE",
+      "next_action": "Execute cd frontend && pnpm run certify:phase8d3 on exact material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; keep WP-8D3 and PR #233 open/draft until required acceptance evidence is terminal."
+    },
+    "quality": {
+      "state": "NEEDS_ATTENTION",
+      "findings": [
+        {
+          "id": "QF-8D3-001",
+          "severity": "MEDIUM",
+          "disposition": "REMEDIATED",
+          "statement": "Select Box renderer work previously aborted only on component unmount, allowing an in-flight old revision/tool/viewport operation to complete against a newer render context."
+        },
+        {
+          "id": "QF-8D3-002",
+          "severity": "LOW",
+          "disposition": "REMEDIATED",
+          "statement": "A superseded older Select Box extraction could clear the visible busy indicator while a newer extraction was still active."
+        }
+      ]
+    },
+    "evidence": {
+      "state": "PARTIAL",
+      "summary": "Corrected 8D.3 material basis is 5e7266d696f6f288ba26f9109830ae28ee8a9f10. Static source/audit review is positive and two discovered Select Box lifecycle defects are remediated, but TEST-01 through TEST-05 have not executed; exact-head PR jobs all failed before runner allocation.",
+      "not_run": [
+        {
+          "id": "TEST-01",
+          "reason": "TEST-01 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-02",
+          "reason": "TEST-02 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-03",
+          "reason": "TEST-03 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-04",
+          "reason": "TEST-04 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-05",
+          "reason": "TEST-05 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "cause": "INFRASTRUCTURE"
+        }
+      ]
+    },
+    "stop": {
+      "active": false,
+      "category": "NONE",
+      "reason": "",
+      "basis": []
+    }
+  },
+  "projection": {
+    "required": false,
+    "state": "NOT_REQUIRED",
+    "operation_id": null,
+    "target": null,
+    "adapter": null,
+    "plan": null,
+    "roadmap_revision": "RM-0001",
+    "execution_ref": "EP-8D3-001",
+    "receipt": null,
+    "basis": [
+      "Issue #230 and its parent/design issues have already been verified by provider readback; no new GitHub issue projection is required to start this EP."
+    ],
+    "observed": null,
+    "superseded_operations": []
+  },
+  "delivery": {
+    "required": true,
+    "provider": "GITHUB",
+    "observation": {
+      "id": "DOBS-8D3-003",
+      "path": "agents/relay/delivery/DOBS-8D3-003.yaml"
+    },
+    "observations": [
+      {
+        "id": "DOBS-8D3-003",
+        "path": "agents/relay/delivery/DOBS-8D3-003.yaml"
+      }
+    ]
+  },
+  "relay_readiness": {
+    "baton_ready": true,
+    "projection_ready": true,
+    "handover_ready": true,
+    "reasons": []
+  },
+  "chat_context_required": false
+}

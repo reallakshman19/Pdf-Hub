@@ -360,6 +360,96 @@ describe('PdfRendererAdapter document lifecycle', () => {
     await lease.release();
   });
 
+  it('extracts text-layer items from an already-loaded PDF page', async () => {
+    vi.mocked(pdfjsLib.Util.transform).mockReturnValue([
+      1,
+      0,
+      0,
+      12,
+      24,
+      36,
+    ]);
+
+    const page = {
+      pageNumber: 2,
+      getViewport: vi.fn().mockReturnValue({
+        transform: [1, 0, 0, -1, 0, 100],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({
+        items: [{
+          str: 'Hello',
+          transform: [1, 0, 0, 12, 24, 36],
+          width: 5,
+        }],
+      }),
+    } as unknown as PDFPageProxy;
+
+    const items =
+      await PdfRendererAdapter.getPageTextItems(
+        page,
+        1,
+      );
+
+    expect(
+      pdfjsLib.Util.transform,
+    ).toHaveBeenCalledTimes(1);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: 'page-2-text-0',
+      text: 'Hello',
+      x: 24,
+      y: 24,
+      width: 5,
+      fontSize: 12,
+    });
+    expect(items[0]?.height).toBeGreaterThan(12);
+  });
+
+  it('flattens loaded-document outline destinations without reacquiring the PDF', async () => {
+    const destinationRef = {
+      num: 10,
+      gen: 0,
+    };
+    const getPageIndex =
+      vi.fn().mockResolvedValue(2);
+    const doc = {
+      getOutline: vi.fn().mockResolvedValue([
+        {
+          title: 'Chapter 1',
+          dest: [destinationRef],
+          items: [{
+            title: 'Child',
+            dest: null,
+            items: [],
+          }],
+        },
+      ]),
+      getPageIndex,
+      getDestination: vi.fn(),
+    } as unknown as PDFDocumentProxy;
+
+    const outline =
+      await PdfRendererAdapter.getOutlineFlat(doc);
+
+    expect(getPageIndex).toHaveBeenCalledWith(
+      destinationRef,
+    );
+    expect(outline).toEqual([
+      {
+        id: 'outline-0',
+        title: 'Chapter 1',
+        pageNumber: 3,
+        depth: 0,
+      },
+      {
+        id: 'outline-1',
+        title: 'Child',
+        pageNumber: null,
+        depth: 1,
+      },
+    ]);
+  });
+
   it('cancels an active PDF.js render task when its signal aborts', async () => {
     const controller = new AbortController();
     const cancel = vi.fn();

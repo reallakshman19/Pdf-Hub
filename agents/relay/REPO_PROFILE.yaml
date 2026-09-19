@@ -1,0 +1,59 @@
+{
+  "schema_version": "relay-v2.5",
+  "repository_type": "browser-only React/TypeScript application",
+  "default_branch": "main",
+  "important_paths": {
+    "source": [
+      "frontend/src",
+      "frontend/scripts"
+    ],
+    "tests": [
+      "frontend/src/**/*.test.ts",
+      "frontend/src/**/*.test.tsx"
+    ],
+    "documentation": [
+      "ARCHITECTURE.md",
+      "Docs",
+      "docs"
+    ],
+    "engineering_specs": [
+      "agents/relay",
+      "frontend/package.json"
+    ]
+  },
+  "commands": {
+    "unit_test": "cd frontend && pnpm run test:ci",
+    "e2e_test": "cd frontend && pnpm exec playwright test",
+    "lint": "cd frontend && pnpm run lint",
+    "typecheck": "cd frontend && pnpm run typecheck",
+    "build": "cd frontend && pnpm run build"
+  },
+  "protected_domains": [
+    {
+      "domain": "canonical command/session/history",
+      "rule": "Do not bypass CommandBus/DocumentTransaction for covered product mutations."
+    },
+    {
+      "domain": "stable page identity",
+      "rule": "PageId/PageGraph remains canonical identity; page indices are derived presentation/execution state."
+    },
+    {
+      "domain": "immutable original source and revision identity",
+      "rule": "Original source stays immutable; revision-aware rendering uses activeRevisionId/documentKey identity."
+    },
+    {
+      "domain": "breadth freeze",
+      "rule": "Do not add unrelated feature families while stabilization roadmap is active."
+    }
+  ],
+  "generated_paths": [
+    "frontend/dist",
+    "frontend/coverage"
+  ],
+  "repository_rules": [
+    "Root ARCHITECTURE.md and agents/relay authority objects govern current implementation; stale server-era docs are historical.",
+    "Primary product remains local-first and browser-only.",
+    "Do not claim GitHub Actions code certification while issue #183 shows zero-runner/zero-step failures.",
+    "Use narrow PRs and preserve standalone byte APIs unless the active work package explicitly migrates them."
+  ]
+}

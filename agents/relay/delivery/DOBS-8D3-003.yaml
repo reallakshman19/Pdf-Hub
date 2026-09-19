@@ -1,0 +1,123 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-8D3-003",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 233,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/233",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase8/active-renderer-consumers",
+      "sha": "5e7266d696f6f288ba26f9109830ae28ee8a9f10"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "eb5429c344ec4f7a4d977a09987923833f1c0963"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
+    "required": [
+      "Anti-drift guards",
+      "Frontend Certify",
+      "certify-writer-overlay-v2",
+      "OCR Workflow Certification",
+      "Frontend CI / Release gate",
+      "Frontend CI / End-to-end journeys"
+    ],
+    "observations": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35448332496,
+        "job_id": 105911049550,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35448332482,
+        "job_id": 105911049840,
+        "job": "Release gate",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35448332482,
+        "job_id": 105911049839,
+        "job": "End-to-end journeys",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Guards",
+        "run_id": 35448332484,
+        "job_id": 105911049587,
+        "job": "Anti-drift guards",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "OCR Workflow Certification",
+        "run_id": 35448332483,
+        "job_id": 105911049582,
+        "job": "ocr-workflow",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend Certify",
+        "run_id": 35448332485,
+        "job_id": 105911049507,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ]
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "body_digest": "sha256:7425a8f408a245e85525f5696f0e8a9bccaa6d2ca6beeb895d93df896c14e245",
+    "correlations": [
+      {
+        "issue_node": "ISSUE-230",
+        "issue_number": 230,
+        "ep_id": "EP-8D3-001",
+        "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+        "work_package": "WP-8D3",
+        "relationship": "IMPLEMENTS",
+        "meaning": "EP-8D3-001 delivers the authorized remaining active renderer-consumer migration owned by GitHub issue #230."
+      }
+    ]
+  },
+  "readback_basis": [
+    "GitHub PR #233 readback at exact material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10: open draft, mergeable=true, mergeable_state=unstable, base eb5429c344ec4f7a4d977a09987923833f1c0963.",
+    "GitHub PR reviews and review comments are empty at this observation.",
+    "All observed exact-head workflow jobs completed before runner allocation with runner_id 0 and steps []."
+  ]
+}

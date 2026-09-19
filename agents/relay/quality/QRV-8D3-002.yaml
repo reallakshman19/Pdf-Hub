@@ -1,0 +1,188 @@
+{
+  "schema_version": "relay-v2.5-quality-review",
+  "quality_review_id": "QRV-8D3-002",
+  "ep": {
+    "id": "EP-8D3-001",
+    "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "contract_digest": "sha256:90ea7b63c7351943eb5a0939b3b24cc7b392fefbbe34d946c653a58c15b02ec6"
+  },
+  "roadmap_revision": "RM-0001",
+  "material_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
+  "reviewer": {
+    "type": "AGENT",
+    "identity": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "router_snapshot": {
+    "applicable": [
+      {
+        "blueprint": "code-review",
+        "reason": "Renderer lifecycle and multiple active consumers are high-risk.",
+        "review_focus": [
+          "resource leaks",
+          "stale revision use",
+          "byte-path regression"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Production TypeScript changes.",
+        "review_focus": [
+          "failure semantics",
+          "cancellation",
+          "cleanup"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "Delivered through a tracked PR with V2.5 Issue-to-EP correlation/provider readback.",
+        "review_focus": [
+          "PR correlation",
+          "delivery observation",
+          "exact-head merge authorization"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Moves active callers onto an established contract while compatibility byte callers coexist.",
+        "review_focus": [
+          "old/new compatibility",
+          "standalone byte wrappers"
+        ]
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Eliminates avoidable whole-buffer renderer reacquisition/hash/clone pressure.",
+        "review_focus": [
+          "no workingBytes reacquisition",
+          "cache reuse",
+          "no open-time all-page indexing"
+        ]
+      },
+      {
+        "blueprint": "software-design",
+        "reason": "Changes active-session lease ownership boundaries.",
+        "review_focus": [
+          "dependency direction",
+          "lease ownership",
+          "strict revision fallback"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Requires focused regression coverage.",
+        "review_focus": [
+          "revision vs legacy paths",
+          "cancellation",
+          "compatibility wrappers"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility contract change.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "No numerical engineering method or tolerance changes.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intended visual/journey behavior change.",
+        "review_focus": []
+      }
+    ]
+  },
+  "procedure_results": [
+    {
+      "blueprint": "software-design",
+      "result": "CLEAR",
+      "evidence": [
+        "Explicit-session active lease coordinator preserves adapter/session dependency direction.",
+        "Strict active-revision resolution and source-cache identity are retained."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "coding",
+      "result": "CLEAR",
+      "evidence": [
+        "All migrated async consumers have explicit lease/page cleanup and cancellation boundaries.",
+        "Production module sizes remain within Phase 8 ratchets."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "testing",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "The final certify:phase8d3 command now covers range transport/cache, active resolver, workspace A→B→A, transaction undo/redo, Search, Bookmarks and Select Box, but no dependency-capable environment executed it; exact-head Actions jobs had runner_id 0 and steps [].",
+      "cause": "INFRASTRUCTURE"
+    },
+    {
+      "blueprint": "code-review",
+      "result": "CLEAR",
+      "evidence": [
+        "Source call paths, test inventory and certification command were reviewed against issue #230 and EP scope.",
+        "Static 8D.3 audit markers and module ratchets were manually reproduced with no failed contract check."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "performance",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "Structural removal of active-session byte reacquisition is verified, but no representative baseline/after runtime measurement has executed.",
+      "cause": "UNAVAILABLE_TOOL"
+    },
+    {
+      "blueprint": "migration",
+      "result": "CLEAR",
+      "evidence": [
+        "Active consumers moved to revision leases; standalone byte APIs are retained.",
+        "No Phase 8E/8F or mutation/Save/admission scope expansion occurred."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "github-delivery",
+      "result": "CLEAR",
+      "evidence": [
+        "DOBS-8D3-002 records PR #233 provider state at exact material head 701835c0801230c4ec72a6e16119e6742cc96abd.",
+        "PR body carries the V2.5 Issue #230 ↔ EP-8D3-001 ↔ WP-8D3 correlation.",
+        "No merge authority is claimed; Owner exact-head authorization remains required separately."
+      ],
+      "reason": null,
+      "cause": null
+    }
+  ],
+  "findings": [],
+  "overall_state": "NEEDS_ATTENTION",
+  "execution_effect": {
+    "blocks_execution": false,
+    "blocking_findings": []
+  },
+  "owner_report": {
+    "summary": "Implementation/static review and delivery correlation are clear; executable certification and runtime performance measurement remain unrun because no dependency-capable runner is available.",
+    "visible_risks": [
+      "TEST-01 through TEST-05 are NOT_RUN on the final material basis.",
+      "Runtime performance improvement is structurally expected but unmeasured.",
+      "PR #233 remains draft and unauthorized for merge."
+    ],
+    "decisions_required": []
+  },
+  "successor_handover": {
+    "unresolved_findings": [],
+    "follow_up": [
+      "Execute \"cd frontend && pnpm run certify:phase8d3\" against 701835c0801230c4ec72a6e16119e6742cc96abd in a dependency-capable checkout.",
+      "Record actual PASS/FAIL evidence; do not advance WP-8D3 on static inspection alone.",
+      "If performance evidence is required for closure, run a reproducible large-document baseline/after measurement on the same material basis."
+    ]
+  }
+}

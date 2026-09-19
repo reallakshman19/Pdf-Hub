@@ -1,0 +1,178 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-8D3-002",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-8D3-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8D3-001",
+    "ep_id": "EP-8D3-001",
+    "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "relay_protocol_basis_ref": "d9b84069683977b5c370f536f1c50095de926338",
+    "material_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+    "ep_contract_digest": "sha256:d817145d9246171da7e1cef408072f0268acd6bed7aaa62e3bcb86b7c6464cdb",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "NONE",
+      "id": "NONE",
+      "path": null,
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active EP id and path",
+          "value": "EP-8D3-001 @ agents/relay/execution-packages/EP-8D3-001.yaml",
+          "basis": [
+            "V2.5 relay route retained for WP-8D3."
+          ]
+        },
+        {
+          "name": "roadmap id and revision",
+          "value": "PDFHUB-READINESS-2026 / RM-0001",
+          "basis": [
+            "REPO_STATE and OVERALL_ROADMAP on the 8D.3 branch."
+          ]
+        },
+        {
+          "name": "current work package",
+          "value": "WP-8D3",
+          "basis": [
+            "Computed serial frontier remains WP-8D3 because certification is not terminal."
+          ]
+        }
+      ],
+      "basis": [
+        "Repository relay custody rechecked before material-basis freeze."
+      ]
+    },
+    {
+      "id": "DSTEP-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "checked-out branch",
+          "value": "phase8/active-renderer-consumers",
+          "basis": [
+            "GitHub branch provider readback."
+          ]
+        },
+        {
+          "name": "current HEAD",
+          "value": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+          "basis": [
+            "Reviewed code/docs material head before this relay-only recertification commit."
+          ]
+        },
+        {
+          "name": "material-ref ancestry result",
+          "value": "PASS: bd5434a506d8bd6a73ceae7eec33d4d90b6f8180 is the reviewed material ref and remains an ancestor of subsequent relay-only metadata commits.",
+          "basis": [
+            "GitHub commit ancestry."
+          ]
+        },
+        {
+          "name": "base drift result",
+          "value": "UNCHANGED: main remains eb5429c344ec4f7a4d977a09987923833f1c0963.",
+          "basis": [
+            "GitHub main ref provider readback immediately before recertification."
+          ]
+        }
+      ],
+      "basis": [
+        "Git context observed on 2026-09-19 before this atomic relay recertification."
+      ]
+    },
+    {
+      "id": "DSTEP-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "search acquisition path",
+          "value": "Cached SearchIndexer remains in-memory; uncached SearchPanel calls acquireActivePdfDocumentLease then searchDocumentTextInDocument on the leased proxy.",
+          "basis": [
+            "SearchPanel.tsx at reviewed material head."
+          ]
+        },
+        {
+          "name": "bookmarks acquisition path",
+          "value": "BookmarksSidebar calls acquireActivePdfDocumentLease then getOutlineFlat on the leased proxy and releases in finally.",
+          "basis": [
+            "BookmarksSidebar.tsx at reviewed material head."
+          ]
+        },
+        {
+          "name": "select box acquisition path",
+          "value": "Active SelectBoxCopyLayer acquires the active document lease and calls loaded-document text/image helpers; explicit-byte wrappers remain only in core compatibility functions.",
+          "basis": [
+            "SelectBoxCopyLayer.tsx, selectBoxCopyEngine.ts and imageSnapshot.ts at reviewed material head."
+          ]
+        }
+      ],
+      "basis": [
+        "Post-implementation source trace against the reviewed 8D.3 material head."
+      ]
+    },
+    {
+      "id": "DSTEP-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active renderer resolver path",
+          "value": "resolveActivePdfRendererInput still enforces strict revision-aware source resolution with legacy byte fallback only when all revision metadata is absent.",
+          "basis": [
+            "activePdfRendererInput.ts on reviewed material head."
+          ]
+        },
+        {
+          "name": "source cache public identity",
+          "value": "Source-backed cache identity remains activeRevisionId/documentKey with internal source namespace isolation.",
+          "basis": [
+            "PdfDocumentLeaseCache.ts and renderer-source audit contract."
+          ]
+        },
+        {
+          "name": "byte compatibility path",
+          "value": "PdfRendererAdapter.acquireDocument(bytes) and standalone byte wrappers remain supported for non-active-session callers.",
+          "basis": [
+            "PdfRendererAdapter.ts and Select Box compatibility wrappers."
+          ]
+        }
+      ],
+      "basis": [
+        "Merged 8D.1/8D.2 substrate plus 8D.3 compatibility review."
+      ]
+    },
+    {
+      "id": "DSTEP-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "Draft PR #233 at material head bd5434a... triggered Guards, OCR, Frontend Certify, Writer and Frontend CI jobs; every job had runner_id 0 and steps [], so executable certification remains NOT_RUN.",
+          "basis": [
+            "GitHub workflow/job provider readback; issue #183 comment 5741407805."
+          ]
+        }
+      ],
+      "basis": [
+        "Provider readback for PR #233 and issue #183."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

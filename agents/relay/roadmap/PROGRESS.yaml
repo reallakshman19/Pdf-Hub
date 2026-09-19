@@ -1,0 +1,301 @@
+{
+  "schema_version": "relay-v2.5",
+  "progress_basis": {
+    "id": "PB-0001",
+    "roadmap_revision": "RM-0001",
+    "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
+  },
+  "overall": {
+    "earned_weight": 11,
+    "total_weight": 21,
+    "percent": 52.38
+  },
+  "objectives": [
+    {
+      "id": "OBJ-READINESS",
+      "earned_weight": 11,
+      "total_weight": 21,
+      "percent": 52.38
+    }
+  ],
+  "phases": [
+    {
+      "id": "PHASE-004",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "PHASE-005",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "PHASE-006",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "PHASE-007",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "PHASE-008",
+      "earned_weight": 7,
+      "total_weight": 11,
+      "percent": 63.64
+    },
+    {
+      "id": "PHASE-009",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "PHASE-010",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "PHASE-011",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "PHASE-012",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "PHASE-013",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "PHASE-014",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "WP-004",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-005",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-006",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-007",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8A",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8B",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8C1",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8C2",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8C3",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8D1",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8D2",
+      "earned_weight": 1,
+      "total_weight": 1,
+      "percent": 100
+    },
+    {
+      "id": "WP-8D3",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-8E",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-8F",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-8G",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-009",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-010",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-011",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-012",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-013",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "WP-014",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    }
+  ],
+  "execution_packages": [
+    {
+      "id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 4,
+      "percent": 0
+    }
+  ],
+  "implementation_steps": [
+    {
+      "id": "STEP-01",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "STEP-02",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "STEP-03",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    },
+    {
+      "id": "STEP-04",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 1,
+      "percent": 0
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-01",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+      ]
+    },
+    {
+      "id": "AC-02",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+      ]
+    },
+    {
+      "id": "AC-03",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+      ]
+    },
+    {
+      "id": "AC-04",
+      "ep_id": "EP-8D3-001",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+      ]
+    }
+  ]
+}
