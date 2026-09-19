@@ -1,6 +1,10 @@
 import {
   materializeDocumentSource,
 } from '@/core/document-source/materialize';
+import {
+  isOperationCancelledError,
+  throwIfAborted,
+} from '@/core/cancellation/operationCancellation';
 import { MemorySource } from '@/adapters/document-source/MemorySource';
 import { RevisionStoreError } from '@/core/revision-store/errors';
 import type {
@@ -52,23 +56,42 @@ export class MemoryRevisionStore implements WorkingRevisionStore {
       throw this.existsError(input.revisionId);
     }
 
-    const bytes = await materializeDocumentSource(
-      input.source,
-      { signal: input.signal },
-    );
+    try {
+      const bytes = await materializeDocumentSource(
+        input.source,
+        { signal: input.signal },
+      );
+      throwIfAborted(
+        input.signal,
+        'commit in-memory working revision',
+      );
 
-    if (this.revisions.has(input.revisionId)) {
-      throw this.existsError(input.revisionId);
+      if (this.revisions.has(input.revisionId)) {
+        throw this.existsError(input.revisionId);
+      }
+
+      this.revisions.set(
+        input.revisionId,
+        Uint8Array.from(bytes),
+      );
+      return this.descriptor(
+        input.revisionId,
+        bytes.byteLength,
+      );
+    } catch (error) {
+      if (
+        error instanceof RevisionStoreError
+        || isOperationCancelledError(error)
+      ) {
+        throw error;
+      }
+      throw new RevisionStoreError(
+        'COMMIT_FAILED',
+        this.id,
+        `Failed to commit revision ${input.revisionId}.`,
+        { revisionId: input.revisionId, cause: error },
+      );
     }
-
-    this.revisions.set(
-      input.revisionId,
-      Uint8Array.from(bytes),
-    );
-    return this.descriptor(
-      input.revisionId,
-      bytes.byteLength,
-    );
   }
 
   async open(revisionId: string): Promise<MemorySource> {
