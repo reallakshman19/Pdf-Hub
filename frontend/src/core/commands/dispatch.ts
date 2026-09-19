@@ -59,7 +59,7 @@ import {
   type OcrPageMutationPolicy,
 } from './transaction/documentTransaction';
 import { planPageLabelCommandMutation } from './pageLabelCommand';
-import { executeHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
+import { prepareHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
 import { resolveLegacyPageTextTokens } from '@/core/text/legacyPageTextTokens';
 import type {
   CommandArtifact,
@@ -543,6 +543,7 @@ function usesPersistentMutationSession(
     || type === 'SET_PAGE_LABELS'
     || type === 'DRAW_TEXT_ON_PAGES'
     || type === 'DRAW_REDACTION_BOX'
+    || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
 }
 
@@ -1263,53 +1264,75 @@ export async function dispatchPdfCommand(
 
       case 'APPLY_HEADER_FOOTER_TEMPLATE': {
         const pageGraph =
-          sessionPageGraph && sessionPageGraph.pages.length === pageCount
+          sessionPageGraph
+          && sessionPageGraph.pages.length === pageCount
             ? sessionPageGraph
             : await buildPageGraphFromPdfBytes(
                 context.workingBytes,
                 context.documentKey,
                 input.signal,
               );
-        const mutation = await executeHeaderFooterTemplateMutation(
-          context.workingBytes,
-          pageGraph,
-          command.payload.template,
-          {
-            fileName: context.fileName,
-            now: new Date(command.createdAt),
-          },
-          input.resources?.binaries,
-          input.signal,
-        );
+        const prepared =
+          prepareHeaderFooterTemplateMutation(
+            pageGraph,
+            command.payload.template,
+            {
+              fileName: context.fileName,
+              now: new Date(command.createdAt),
+            },
+            input.resources?.binaries,
+          );
 
-        if (!mutation.ok) {
+        if (!prepared.ok) {
           return commandError(
             command,
-            mutation.code,
-            mutation.errors[0] ?? 'Header/footer template execution failed.',
-            mutation.errors.slice(1).join('; ') || undefined,
+            prepared.code,
+            prepared.errors[0]
+              ?? 'Header/footer template execution failed.',
+            prepared.errors.slice(1).join('; ')
+              || undefined,
           );
         }
 
-        if (!mutation.mutated) {
+        if (!prepared.mutated) {
           return commandSuccess(
             command,
             false,
-            mutation.warnings[0]
+            prepared.warnings[0]
               ?? 'Header/footer template matched no pages.',
           );
         }
 
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        const rendered =
+          await mutationSession.applyHeaderFooter(
+            prepared.pages,
+            prepared.binaryResources,
+          );
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Header/footer mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const warnings = [
+          ...prepared.warnings,
+          ...rendered.warnings,
+        ];
         const result = await applyMutation(
           command,
           context.workingBytes,
-          mutation.bytes,
+          committed.bytes,
         );
         return commandSuccess(
           command,
           true,
-          mutation.warnings.length > 0
-            ? `Header/footer template applied with ${mutation.warnings.length} warning(s)`
+          warnings.length > 0
+            ? `Header/footer template applied with ${warnings.length} warning(s)`
             : 'Header/footer template applied',
           result.nextBytes,
           result.nextPageCount,
