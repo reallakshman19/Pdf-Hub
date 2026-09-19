@@ -112,6 +112,9 @@ requireContains(selectLayer, selectLayerPath, [
   'renderSelectBoxImageSnapshotFromDocument',
   'operationAbortControllerRef',
   'await lease?.release()',
+  'Select Box Copy renderer session changed or layer deactivated',
+  'activeWriterTool,',
+  'activeRevisionId,',
 ]);
 forbidContains(selectLayer, selectLayerPath, [
   'sourceBytes',
@@ -184,6 +187,14 @@ requireContains(imageTest, imageTestPath, [
   'retains the byte wrapper and releases its lease',
 ]);
 
+const selectLayerTestPath =
+  'src/components/select-box-copy/SelectBoxCopyLayer.test.tsx';
+const selectLayerTest = read(selectLayerTestPath);
+requireContains(selectLayerTest, selectLayerTestPath, [
+  'aborts in-flight Select Box renderer work when the active revision changes',
+  'aborts in-flight Select Box renderer work when the tool is deactivated',
+]);
+
 const packagePath = 'package.json';
 const packageJson = JSON.parse(read(packagePath));
 const certifyCommand =
@@ -197,6 +208,7 @@ requireContains(certifyCommand, packagePath, [
   'documentTransaction.history.test.ts',
   'SearchPanel.test.tsx',
   'BookmarksSidebar.test.tsx',
+  'SelectBoxCopyLayer.test.tsx',
   'selectBoxCopyEngine.test.ts',
   'imageSnapshot.test.ts',
 ]);
