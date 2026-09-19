@@ -12,7 +12,7 @@ function fileHandle(
   const handle = {
     async getFile() {
       return new Blob([
-        Uint8Array.from(current),
+        Uint8Array.from(current).buffer,
       ]) as File;
     },
   } as FileSystemFileHandle;
