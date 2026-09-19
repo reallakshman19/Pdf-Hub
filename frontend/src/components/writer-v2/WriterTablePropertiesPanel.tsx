@@ -437,202 +437,332 @@ export const WriterTablePropertiesPanel: React.FC<
     builder: (
       latestElements: WriterElementV2[],
     ) => WriterTableCommandBridgeResult,
-  ) => {
-    void runDurableCommand(
+  ): Promise<TableDraftCommitResult> =>
+    runDurableCommand(
       context,
       builder,
-    ).catch(() => undefined);
-  };
+    ).then((result) => ({
+      changed: result?.changed ?? false,
+    }));
+
+  const freezeSelection = () => ({
+    elementId: effectiveSelection.elementId,
+    cells: effectiveSelection.cells.map(
+      (cell) => ({ ...cell }),
+    ),
+  });
 
   const setHorizontalAlignment = (
     alignment: NonNullable<WriterTableCellStyle['alignment']>,
   ) => {
-    runCommand(() =>
-      buildSetTableCellHorizontalAlignmentCommand(
-        elements,
-        effectiveSelection,
-        alignment,
-      ),
-    );
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties horizontal alignment',
+      (latestElements) =>
+        buildSetTableCellHorizontalAlignmentCommand(
+          latestElements,
+          selectionAtInvocation,
+          alignment,
+        ),
+    ).catch(() => undefined);
   };
 
   const setVerticalAlignment = (
     verticalAlign: NonNullable<WriterTableCellStyle['verticalAlign']>,
   ) => {
-    runCommand(() =>
-      buildSetTableCellVerticalAlignmentCommand(
-        elements,
-        effectiveSelection,
-        verticalAlign,
-      ),
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties vertical alignment',
+      (latestElements) =>
+        buildSetTableCellVerticalAlignmentCommand(
+          latestElements,
+          selectionAtInvocation,
+          verticalAlign,
+        ),
+    ).catch(() => undefined);
+  };
+
+  const setFill = (
+    backgroundColor: string,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    return runCommand(
+      'WriterTableProperties fill',
+      (latestElements) =>
+        buildSetTableCellFillCommand(
+          latestElements,
+          selectionAtInvocation,
+          backgroundColor || undefined,
+        ),
     );
   };
 
-  const setFill = (backgroundColor: string) => {
-    runCommand(() =>
-      buildSetTableCellFillCommand(
-        elements,
-        effectiveSelection,
-        backgroundColor || undefined,
-      ),
-    );
-  };
-
-  const setPadding = (padding: number) => {
-    runCommand(() =>
-      buildSetTableCellPaddingCommand(
-        elements,
-        effectiveSelection,
-        padding,
-      ),
+  const setPadding = (
+    padding: number,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    return runCommand(
+      'WriterTableProperties padding',
+      (latestElements) =>
+        buildSetTableCellPaddingCommand(
+          latestElements,
+          selectionAtInvocation,
+          padding,
+        ),
     );
   };
 
   const setBorder = (
-    style: WriterTableBorderStyle,
-    color: string,
-    width: number,
+    patch: Partial<{
+      style: WriterTableBorderStyle;
+      color: string;
+      width: number;
+    }>,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
+    const tableId = table.id;
+
+    return runCommand(
+      'WriterTableProperties border',
+      (latestElements) => {
+        const latestStyle =
+          resolveLatestTableCellStyle(
+            latestElements,
+            tableId,
+            rowIndex,
+            columnIndex,
+          );
+        const latestBorder =
+          latestStyle.borders?.top;
+
+        return buildSetTableCellBorderCommand(
+          latestElements,
+          selectionAtInvocation,
+          'all',
+          {
+            style:
+              patch.style
+              ?? latestBorder?.style
+              ?? 'single',
+            color:
+              patch.color
+              ?? latestBorder?.color
+              ?? '#CBD5E1',
+            width:
+              patch.width
+              ?? latestBorder?.width
+              ?? 0.5,
+          },
+        );
+      },
+    );
+  };
+
+  const setHeaderRow = (
+    hasHeaderRow: boolean,
   ) => {
-    runCommand(() =>
-      buildSetTableCellBorderCommand(
-        elements,
-        effectiveSelection,
-        'all',
-        {
-          style,
-          color,
+    const tableId = table.id;
+    void runCommand(
+      'WriterTableProperties header row',
+      (latestElements) =>
+        buildSetTableHeaderRowCommand(
+          latestElements,
+          tableId,
+          hasHeaderRow,
+        ),
+    ).catch(() => undefined);
+  };
+
+  const resizeColumn = (
+    width: number,
+  ): Promise<TableDraftCommitResult> => {
+    if (!currentColumn) {
+      return Promise.resolve({
+        changed: false,
+      });
+    }
+
+    const tableId = table.id;
+    const columnId = currentColumn.id;
+
+    return runCommand(
+      'WriterTableProperties column width',
+      (latestElements) =>
+        buildResizeTableColumnCommand(
+          latestElements,
+          tableId,
+          columnId,
           width,
-        },
-      ),
+        ),
     );
   };
 
-  const setHeaderRow = (hasHeaderRow: boolean) => {
-    runCommand(() =>
-      buildSetTableHeaderRowCommand(
-        elements,
-        table.id,
-        hasHeaderRow,
-      ),
-    );
-  };
+  const updateCellText = (
+    text: string,
+  ): Promise<TableDraftCommitResult> => {
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
 
-  const resizeColumn = (width: number) => {
-    if (!currentColumn) return;
-
-    runCommand(() =>
-      buildResizeTableColumnCommand(
-        elements,
-        table.id,
-        currentColumn.id,
-        width,
-      ),
-    );
-  };
-
-  const updateCellText = (text: string) => {
-    runCommand(() =>
-      buildUpdateTableCellTextCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        selectedCell.columnIndex,
-        text,
-      ),
+    return runCommand(
+      'WriterTableProperties cell text',
+      (latestElements) =>
+        buildUpdateTableCellTextCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          columnIndex,
+          text,
+        ),
     );
   };
 
   const insertRowAbove = () => {
-    runCommand(() =>
-      buildInsertTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        'above',
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties insert row above',
+      (latestElements) =>
+        buildInsertTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          'above',
+        ),
+    ).catch(() => undefined);
   };
 
   const insertRowBelow = () => {
-    runCommand(() =>
-      buildInsertTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        'below',
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties insert row below',
+      (latestElements) =>
+        buildInsertTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          'below',
+        ),
+    ).catch(() => undefined);
   };
 
   const deleteRow = () => {
-    runCommand(() =>
-      buildDeleteTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties delete row',
+      (latestElements) =>
+        buildDeleteTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const insertColumnLeft = () => {
-    runCommand(() =>
-      buildInsertTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-        'left',
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties insert column left',
+      (latestElements) =>
+        buildInsertTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+          'left',
+        ),
+    ).catch(() => undefined);
   };
 
   const insertColumnRight = () => {
-    runCommand(() =>
-      buildInsertTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-        'right',
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties insert column right',
+      (latestElements) =>
+        buildInsertTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+          'right',
+        ),
+    ).catch(() => undefined);
   };
 
   const deleteColumn = () => {
-    runCommand(() =>
-      buildDeleteTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties delete column',
+      (latestElements) =>
+        buildDeleteTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const mergeSelectedCells = () => {
-    runCommand(() =>
-      buildMergeTableCellsCommand(
-        elements,
-        effectiveSelection,
-      ),
-    );
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties merge cells',
+      (latestElements) =>
+        buildMergeTableCellsCommand(
+          latestElements,
+          selectionAtInvocation,
+        ),
+    ).catch(() => undefined);
   };
 
   const splitSelectedCell = () => {
-    runCommand(() =>
-      buildSplitTableCellCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        selectedCell.columnIndex,
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties split cell',
+      (latestElements) =>
+        buildSplitTableCellCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          columnIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const normalizeTable = () => {
-    runCommand(() =>
-      buildNormalizeTableCommand(
-        elements,
-        table.id,
-      ),
-    );
+    const tableId = table.id;
+    void runCommand(
+      'WriterTableProperties normalize table',
+      (latestElements) =>
+        buildNormalizeTableCommand(
+          latestElements,
+          tableId,
+        ),
+    ).catch(() => undefined);
   };
 
   return (
@@ -1030,6 +1160,25 @@ function IconButton({
       </Button>
     </Tooltip>
   );
+}
+
+function resolveLatestTableCellStyle(
+  elements: WriterElementV2[],
+  tableId: string,
+  rowIndex: number,
+  columnIndex: number,
+): WriterTableCellStyle {
+  const table = elements.find(
+    (element) =>
+      element.id === tableId
+      && element.type === 'tableBox',
+  );
+
+  return table?.tableData
+    ?.rows[rowIndex]
+    ?.cells[columnIndex]
+    ?.style
+    ?? {};
 }
 
 function normalizeColorInput(value: string | undefined): string {
