@@ -98,8 +98,9 @@ describe('history byte budget', () => {
   });
 
   it('retains a contiguous newest suffix when an older transaction exceeds the remaining budget', () => {
-    const newest = transaction('newest', new Uint8Array(3), new Uint8Array(3));
-    const middle = transaction('middle', new Uint8Array(20), newest.before.bytes);
+    const newestBefore = new Uint8Array(3);
+    const newest = transaction('newest', newestBefore, new Uint8Array(3));
+    const middle = transaction('middle', new Uint8Array(20), newestBefore);
     const oldest = transaction('oldest', new Uint8Array(1), new Uint8Array(1));
 
     const retained = retainHistorySuffix(
