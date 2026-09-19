@@ -581,6 +581,16 @@ export async function dispatchPdfCommand(
         bytes: context.workingBytes,
         signal: input.signal,
       });
+
+      if (
+        sessionPageGraph
+        && sessionPageGraph.pages.length
+          !== structuralMutationSession.pageCount
+      ) {
+        throw new Error(
+          `PageGraph count ${sessionPageGraph.pages.length} does not match mutation-session page count ${structuralMutationSession.pageCount}.`,
+        );
+      }
     }
 
     const pageCount =
