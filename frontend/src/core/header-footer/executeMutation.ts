@@ -1,4 +1,5 @@
 import type { PageGraph, PageNode } from '@/core/pages/types';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import type { CommandResources } from '@/core/commands/types';
 import type { HeaderFooterTemplate } from './types';
 import type { HeaderFooterResolutionContext } from './resolutionTypes';
@@ -84,6 +85,7 @@ export async function executeHeaderFooterTemplateMutation(
       warnings: [...plan.warnings, ...written.warnings],
     };
   } catch (error) {
+    if (isOperationCancelledError(error)) throw error;
     return {
       ok: false,
       code: 'EXECUTION_FAILED',
