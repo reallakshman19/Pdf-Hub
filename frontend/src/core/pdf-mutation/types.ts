@@ -30,6 +30,21 @@ export interface PdfMutationSession {
 
   duplicatePages(pageIndices: readonly number[]): Promise<void>;
 
+  insertPdf(
+    atIndex: number,
+    donorBytes: Uint8Array,
+  ): Promise<void>;
+
+  replacePage(
+    targetIndex: number,
+    donorBytes: Uint8Array,
+    donorPageIndex: number,
+  ): Promise<void>;
+
+  appendPdfs(
+    donorBytes: readonly Uint8Array[],
+  ): Promise<void>;
+
   commit(): Promise<PdfMutationCommitResult>;
 
   dispose(): void;
