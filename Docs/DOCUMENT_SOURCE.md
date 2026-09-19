@@ -1,6 +1,6 @@
 # DocumentSource Architecture
 
-Status: **Phase 8C.2 — source-aware admission plus revision-aware primary sessions**.
+Status: **Phase 8C.3 — source-aware admission, sessions and canonical mutation publication**.
 
 Tracking issue: #218.
 
@@ -139,8 +139,14 @@ Phase 8C.2 wires this into primary admission. After PDF validation, the
 SHA-256 `documentKey` is committed/reused as the initial working revision
 before session commit. `DocumentSession` stores only the runtime
 `revisionStoreId` plus `originalRevisionId` and `activeRevisionId`;
-actual store objects remain out-of-band. Current compatibility byte mutation
-invalidates `activeRevisionId` until Phase 8C.3 publishes mutation outputs.
+actual store objects remain out-of-band.
+
+Phase 8C.3 extends the same invariant to canonical document mutations.
+`DocumentTransaction` hashes the completed mutation, publishes/reuses the
+content-addressed revision through a short-lived no-full-copy
+`BorrowedBytesSource`, then persists annotations and switches application
+state. Undo/redo history carries the matching active revision identity, though
+history bytes remain snapshot-based until Phase 8E.
 
 See `Docs/WORKING_REVISION_STORE.md`.
 
