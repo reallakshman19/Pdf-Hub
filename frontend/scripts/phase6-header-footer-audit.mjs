@@ -38,6 +38,7 @@ const domainPaths = [
   'src/core/header-footer/tokenResolver.ts',
   'src/core/header-footer/resolver.ts',
   'src/core/header-footer/commandPlan.ts',
+  'src/core/header-footer/editorDraft.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -86,6 +87,33 @@ for (const relativePath of writerPaths) {
   if (lineCount > 300) {
     fail(
       `${relativePath} exceeds the Phase 6 300-line production-module guard (${lineCount})`,
+    );
+  }
+}
+
+const uiPaths = [
+  'src/components/dialogs/HeaderFooterDialog.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterSlotGrid.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterOptionsPanel.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterTokenBar.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterPreview.tsx',
+  'src/components/dialogs/header-footer/HeaderFooterPreviewPane.tsx',
+];
+
+for (const relativePath of uiPaths) {
+  const source = read(relativePath);
+  forbidContains(source, relativePath, [
+    'PdfEditAdapter',
+    "'pdf-lib'",
+    '"pdf-lib"',
+    'useSessionStore',
+    'CommandBus',
+    'ADD_HEADER_FOOTER_TEXT',
+  ]);
+  const lineCount = source.split('\n').length;
+  if (lineCount > 300) {
+    fail(
+      `${relativePath} exceeds the Phase 6 UI 300-line component guard (${lineCount})`,
     );
   }
 }
@@ -158,6 +186,51 @@ requireContains(resolver, resolverPath, [
   'sectionForPage',
   'mergeBand',
 ]);
+
+const editorDraftPath = 'src/core/header-footer/editorDraft.ts';
+const editorDraft = read(editorDraftPath);
+requireContains(editorDraft, editorDraftPath, [
+  'compileHeaderFooterEditorDraft',
+  "mode: 'pageIds'",
+  "mode: 'pageLabelRange'",
+  'selectedPageIds',
+  'currentPageId',
+]);
+
+const dialogPath = 'src/components/dialogs/HeaderFooterDialog.tsx';
+const dialog = read(dialogPath);
+requireContains(dialog, dialogPath, [
+  'compileHeaderFooterEditorDraft',
+  'resolveHeaderFooterTemplate',
+  'HeaderFooterSlotGrid',
+  'HeaderFooterPreviewPane',
+  'Logical PDF PageLabels remain',
+]);
+
+const previewPath =
+  'src/components/dialogs/header-footer/HeaderFooterPreview.tsx';
+const preview = read(previewPath);
+requireContains(preview, previewPath, [
+  'createHeaderFooterVisualGeometry',
+  'physicalPageNumber',
+  'logicalPageLabel',
+]);
+
+const toolbarOrganizePath = 'src/components/toolbar/ToolbarOrganize.tsx';
+const toolbarOrganize = read(toolbarOrganizePath);
+requireContains(toolbarOrganize, toolbarOrganizePath, [
+  'HeaderFooterDialog',
+  "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'aria-label="Header & Footer"',
+]);
+forbidContains(
+  toolbarOrganize.slice(
+    toolbarOrganize.indexOf('handleHeaderFooterApply'),
+    toolbarOrganize.indexOf('const handleMerge'),
+  ),
+  toolbarOrganizePath,
+  ['ADD_HEADER_FOOTER_TEXT', 'PdfEditAdapter'],
+);
 
 const pageTypesPath = 'src/core/pages/types.ts';
 const pageTypes = read(pageTypesPath);
