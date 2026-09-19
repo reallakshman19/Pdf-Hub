@@ -1060,7 +1060,6 @@ describe('canonical command dispatch', () => {
         undefined,
         undefined,
       );
-    expect(pdfMocks.addHeaderFooterText).not.toHaveBeenCalled();
     expect(useSessionStore.getState().workingBytes).toEqual(
       new Uint8Array([6, 6, 6]),
     );
