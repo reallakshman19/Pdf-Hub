@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
+import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
 import {
   admitAndOpenPdfFile,
   PRIMARY_PDF_OPEN_POLICY,
@@ -14,6 +15,9 @@ import {
   clearWorkingRevisionStoreRegistryForTests,
   resolveWorkingRevisionStore,
 } from '@/core/revision-store/registry';
+import {
+  clearHistoryJournalStoreRegistryForTests,
+} from '@/core/document-history/journal/registry';
 
 type TestFile = File & {
   arrayBuffer: ReturnType<typeof vi.fn>;
@@ -79,6 +83,7 @@ function pdfHeaderBytes(): Uint8Array {
 afterEach(() => {
   clearDocumentSourceRegistryForTests();
   clearWorkingRevisionStoreRegistryForTests();
+  clearHistoryJournalStoreRegistryForTests();
   vi.restoreAllMocks();
 });
 
@@ -180,11 +185,16 @@ describe('primary PDF admission coordinator', () => {
     const workingRevisionStore = new MemoryRevisionStore({
       id: 'test-working-revisions',
     });
+    const historyJournalStore =
+      new MemoryHistoryJournalStore({
+        id: 'test-history-journals',
+      });
 
     const result = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
       commit,
       buildPageGraph,
       workingRevisionStore,
+      historyJournalStore,
     });
 
     expect(result.outcome).toBe('ACCEPTED');
@@ -214,6 +224,9 @@ describe('primary PDF admission coordinator', () => {
       revisionStoreId: 'test-working-revisions',
       originalRevisionId: 'sha256:fixture',
       activeRevisionId: 'sha256:fixture',
+      historyJournalStoreId: 'test-history-journals',
+      historyJournalId: expect.stringMatching(/^history-/),
+      historyJournalPersistent: false,
       fileName: 'sample.pdf',
       bytes: expect.any(Uint8Array),
       pageCount: 3,
@@ -227,6 +240,9 @@ describe('primary PDF admission coordinator', () => {
       revisionStoreId: 'test-working-revisions',
       originalRevisionId: 'sha256:fixture',
       activeRevisionId: 'sha256:fixture',
+      historyJournalStoreId: 'test-history-journals',
+      historyJournalId: expect.stringMatching(/^history-/),
+      historyJournalPersistent: false,
     });
     expect(
       resolveDocumentSource(result.value.sourceId),
@@ -239,6 +255,28 @@ describe('primary PDF admission coordinator', () => {
     expect(
       await workingRevisionStore.has('sha256:fixture'),
     ).toBe(true);
+    const journalId = result.value.historyJournalId;
+    expect(journalId).not.toBeNull();
+    if (journalId) {
+      await expect(
+        historyJournalStore.load(journalId),
+      ).resolves.toMatchObject({
+        journalId,
+        revisionStoreId: 'test-working-revisions',
+        originalRevisionId: 'sha256:fixture',
+        activeRevisionId: 'sha256:fixture',
+        fileName: 'sample.pdf',
+        checkpoints: [{
+          kind: 'ADMISSION',
+          revision: {
+            storeId: 'test-working-revisions',
+            revisionId: 'sha256:fixture',
+          },
+        }],
+        entries: [],
+      });
+    }
+
     expect(result.evidence.measurements).toEqual([
       {
         metric: 'SOURCE_BYTES',
