@@ -19,6 +19,17 @@ export interface PdfMutationSession {
     deltaDegrees: 90 | 180 | 270,
   ): void;
 
+  reorderPages(order: readonly number[]): Promise<void>;
+
+  removePages(pageIndices: readonly number[]): Promise<void>;
+
+  insertBlankPage(
+    atIndex: number,
+    size: { width: number; height: number },
+  ): void;
+
+  duplicatePages(pageIndices: readonly number[]): Promise<void>;
+
   commit(): Promise<PdfMutationCommitResult>;
 
   dispose(): void;
