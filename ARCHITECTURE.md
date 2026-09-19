@@ -244,9 +244,23 @@ with the session recording whether the journal store is actually persistent.
 Stale/superseded admission removes its provisional journal manifest before
 returning.
 
-No transaction replay or revision deletion is enabled by this substrate.
-Appending transaction entries, reference-aware revision GC and bounded recovery
-checkpoints remain follow-on work. Phase 8F owns incremental search indexing.
+Phase 8E.4 appends durable metadata for canonical binary document mutations.
+The same transaction id is used by in-memory history and the journal entry.
+`SELF_CONTAINED_REPLAY` mutations append an entry only;
+`CHECKPOINT_REQUIRED` mutations append the entry plus a `BARRIER` checkpoint
+at the immutable after-revision. Undo/redo moves the manifest's active revision
+under the same rollback discipline as session/history state. If a new mutation
+is made after undo, the abandoned journal redo tail is truncated before the new
+branch is appended. Journal manifest replacement is required to be atomic; a
+failed durable save rolls session, annotation, Writer, OCR and in-memory history
+back to the pre-operation snapshot.
+
+This slice still does not make annotation/Writer state-only transactions
+durable journal entries. Their commands are descriptive rather than
+self-contained and require a separate state-checkpoint design. No command
+replay or revision deletion is enabled yet. Reference-aware revision GC and
+bounded recovery checkpoints remain follow-on work. Phase 8F owns incremental
+search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
