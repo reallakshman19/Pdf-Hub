@@ -10,6 +10,8 @@ import type {
   PdfMutationEngineOpenInput,
   PdfMutationPageMetrics,
   PdfMutationPageLabelEntry,
+  PdfMutationTextDrawOperation,
+  PdfMutationVisualMaskOperation,
   PdfMutationSession,
 } from '@/core/pdf-mutation/types';
 
@@ -327,6 +329,92 @@ class PdfLibMutationSession implements PdfMutationSession {
     );
   }
 
+
+  async drawText(
+    operations: readonly PdfMutationTextDrawOperation[],
+  ): Promise<void> {
+    this.assertOpen('draw text');
+    if (operations.length === 0) return;
+
+    const font = await raceWithAbort(
+      this.document.embedFont(
+        this.lib.StandardFonts.Helvetica,
+      ),
+      this.signal,
+      'draw text: embed font',
+    );
+
+    for (const operation of operations) {
+      this.assertPageIndex(operation.pageIndex);
+      throwIfAborted(this.signal, 'draw text');
+
+      const page = this.document.getPage(
+        operation.pageIndex,
+      );
+      const textWidth = font.widthOfTextAtSize(
+        operation.text,
+        operation.fontSizePt,
+      );
+      const x =
+        operation.align === 'left'
+          ? operation.xPt
+          : operation.align === 'center'
+            ? (page.getWidth() - textWidth) / 2
+            : page.getWidth()
+              - operation.xPt
+              - textWidth;
+
+      page.drawText(operation.text, {
+        x,
+        y: operation.yPt,
+        font,
+        size: operation.fontSizePt,
+        color: pdfLibColorFromHex(
+          operation.color,
+          this.lib,
+        ),
+        opacity: operation.opacity,
+        rotate:
+          operation.rotationDegrees !== undefined
+            ? this.lib.degrees(
+                operation.rotationDegrees,
+              )
+            : undefined,
+      });
+    }
+  }
+
+  drawVisualMasks(
+    operations: readonly PdfMutationVisualMaskOperation[],
+  ): void {
+    this.assertOpen('draw visual masks');
+
+    for (const operation of operations) {
+      this.assertPageIndex(operation.pageIndex);
+      throwIfAborted(this.signal, 'draw visual masks');
+
+      const page = this.document.getPage(
+        operation.pageIndex,
+      );
+      const drawY =
+        page.getHeight()
+        - operation.yFromTopPt
+        - operation.heightPt;
+
+      page.drawRectangle({
+        x: operation.xPt,
+        y: drawY,
+        width: operation.widthPt,
+        height: operation.heightPt,
+        color: pdfLibColorFromHex(
+          operation.fillColor,
+          this.lib,
+        ),
+        opacity: 1,
+      });
+    }
+  }
+
   async commit(): Promise<PdfMutationCommitResult> {
     this.assertOpen('commit mutation session');
     throwIfAborted(this.signal, 'commit mutation session');
@@ -411,4 +499,25 @@ function normalizePageIndices(
   return Array.from(new Set(pageIndices))
     .filter((pageIndex) => Number.isInteger(pageIndex))
     .sort((left, right) => left - right);
+}
+
+
+function pdfLibColorFromHex(
+  hex: string,
+  lib: PdfLibNamespace,
+): import('pdf-lib').Color {
+  const normalized = hex.replace('#', '').trim();
+  const safe =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => character + character)
+          .join('')
+      : normalized.padEnd(6, '0').slice(0, 6);
+
+  const red = parseInt(safe.slice(0, 2), 16) / 255;
+  const green = parseInt(safe.slice(2, 4), 16) / 255;
+  const blue = parseInt(safe.slice(4, 6), 16) / 255;
+
+  return lib.rgb(red, green, blue);
 }
