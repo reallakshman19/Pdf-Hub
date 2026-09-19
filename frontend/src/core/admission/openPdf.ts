@@ -1,6 +1,9 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { BrowserFileSource } from '@/adapters/document-source/BrowserFileSource';
 import {
+  getBrowserWorkingRevisionStore,
+} from '@/adapters/revision-store/browserWorkingRevisionStore';
+import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
@@ -12,6 +15,15 @@ import {
   registerDocumentSource,
   releaseDocumentSource,
 } from '@/core/document-source/registry';
+import {
+  ensureStoredRevision,
+} from '@/core/revision-store/ensureRevision';
+import {
+  registerWorkingRevisionStore,
+} from '@/core/revision-store/registry';
+import type {
+  WorkingRevisionStore,
+} from '@/core/revision-store/types';
 import { log, error as logError, warn } from '@/core/logger/service';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import type { PageGraph, PageNode } from '@/core/pages/types';
@@ -37,6 +49,9 @@ export type PrimaryPdfInputSource =
 export interface OpenedPdfDocument {
   readonly source: PrimaryPdfInputSource;
   readonly sourceId: string;
+  readonly revisionStoreId: string;
+  readonly originalRevisionId: string;
+  readonly activeRevisionId: string;
   readonly documentKey: string;
   readonly fileName: string;
   readonly bytes: Uint8Array;
@@ -50,6 +65,8 @@ export interface OpenPdfFileOptions {
   readonly saveHandle?: FileSystemFileHandle | null;
   readonly commit?: (payload: OpenDocumentPayload) => void;
   readonly buildPageGraph?: typeof buildPageGraphFromPdfBytes;
+  /** Test/host override; production resolves the browser OPFS/memory store. */
+  readonly workingRevisionStore?: WorkingRevisionStore;
 }
 
 export const PRIMARY_PDF_OPEN_POLICY = createAdmissionPolicy({
@@ -212,6 +229,42 @@ export async function admitAndOpenPdfFile(
       return reject('CANCELLED', source, measurements, diagnostics);
     }
 
+    const revisionSelection =
+      options.workingRevisionStore
+        ? {
+            store: options.workingRevisionStore,
+            backend: options.workingRevisionStore.kind,
+          }
+        : await getBrowserWorkingRevisionStore();
+    const revisionStore = revisionSelection.store;
+    registerWorkingRevisionStore(revisionStore);
+
+    const initialRevision = await ensureStoredRevision({
+      store: revisionStore,
+      revisionId: documentKey,
+      source: documentSource,
+      signal: options.signal,
+    });
+
+    assertAdmissionCommitAllowed(
+      options.signal,
+      'open admitted PDF after working revision publish',
+    );
+    if (generation !== latestOpenGeneration) {
+      diagnostics.push({
+        severity: 'info',
+        code: 'ADMISSION_STALE_OPERATION',
+        phase: 'COMMIT',
+        message: 'A newer PDF open operation superseded this result after revision publication.',
+      });
+      return reject(
+        'CANCELLED',
+        source,
+        measurements,
+        diagnostics,
+      );
+    }
+
     const saveHandle = options.saveHandle ?? null;
 
     registerDocumentSource(documentSource);
@@ -220,6 +273,9 @@ export async function admitAndOpenPdfFile(
     const payload: OpenDocumentPayload = {
       documentKey,
       sourceId,
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: initialRevision.revisionId,
+      activeRevisionId: initialRevision.revisionId,
       fileName: file.name,
       bytes,
       pageCount,
@@ -233,6 +289,9 @@ export async function admitAndOpenPdfFile(
     const value: OpenedPdfDocument = Object.freeze({
       source,
       sourceId,
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: initialRevision.revisionId,
+      activeRevisionId: initialRevision.revisionId,
       documentKey,
       fileName: file.name,
       bytes,
@@ -248,6 +307,8 @@ export async function admitAndOpenPdfFile(
       sourceBytes: file.size,
       pageCount,
       documentKey,
+      workingRevisionBackend: revisionStore.kind,
+      activeRevisionId: initialRevision.revisionId,
     });
 
     return Object.freeze({
