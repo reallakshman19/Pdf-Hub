@@ -1052,7 +1052,7 @@ export async function dispatchPdfCommand(
             fileName: context.fileName,
             now: new Date(command.createdAt),
           },
-          input.resources,
+          input.resources?.binaries,
           input.signal,
         );
 
