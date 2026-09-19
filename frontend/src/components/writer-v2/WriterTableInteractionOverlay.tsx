@@ -6,7 +6,6 @@ import type {
   WriterTableSelection,
 } from '@/core/writer-v2/table-pro/writerTableSelection';
 import {
-  computeResizedColumnWidths,
   computeWriterTableGridLayout,
   createTableSelectionFromDrag,
   createTableSelectionFromHit,
@@ -14,9 +13,11 @@ import {
   hitTestWriterTableResizeHandle,
 } from '@/core/writer-v2/table-pro/writerTableGeometry';
 import {
-  buildResizeTableColumnCommand,
-  buildResizeTableRowCommand,
-} from '@/core/writer-v2/table-pro/writerTableCommandBridge';
+  buildWriterTableDragResizeCommand,
+} from '@/core/writer-v2/table-pro/writerTableDragResize';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
 
 export interface WriterTableInteractionOverlayProps {
   element: WriterElementV2;
@@ -53,6 +54,7 @@ type DragState =
       columnIndex: number;
       startX: number;
       initialWidths: number[];
+      previewX: number;
     }
   | {
       type: 'resize-row';
@@ -60,6 +62,7 @@ type DragState =
       rowIndex: number;
       startY: number;
       initialHeight: number;
+      previewY: number;
     };
 
 export const WriterTableInteractionOverlay: React.FC<
@@ -71,9 +74,8 @@ export const WriterTableInteractionOverlay: React.FC<
   selection,
   onSelectionChange,
 }) => {
-  const elements = useWriterV2Store((state) => state.elements);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
-  const [dragState, setDragState] = React.useState<DragState | null>(null);
+  const [dragState, setDragState] =
+    React.useState<DragState | null>(null);
 
   const layout = React.useMemo(() => {
     return computeWriterTableGridLayout({
@@ -125,6 +127,7 @@ export const WriterTableInteractionOverlay: React.FC<
         columnIndex: resizeHit.index,
         startX: point.x,
         initialWidths: [...layout.columnWidths],
+        previewX: point.x,
       });
       return;
     }
@@ -138,6 +141,7 @@ export const WriterTableInteractionOverlay: React.FC<
         rowIndex: resizeHit.index,
         startY: point.y,
         initialHeight: row?.height ?? layout.rowHeight,
+        previewY: point.y,
       });
       return;
     }
@@ -193,56 +197,91 @@ export const WriterTableInteractionOverlay: React.FC<
     }
 
     if (dragState.type === 'resize-column') {
-      const delta = point.x - dragState.startX;
-      const nextWidths = computeResizedColumnWidths({
-        currentWidths: dragState.initialWidths,
-        columnIndex: dragState.columnIndex,
-        delta,
-      });
-
-      const column = element.tableData?.columns[dragState.columnIndex];
-
-      if (!column) return;
-
-      const result = buildResizeTableColumnCommand(
-        elements,
-        element.id,
-        column.id,
-        nextWidths[dragState.columnIndex],
+      setDragState((current) =>
+        current?.type === 'resize-column'
+        && current.pointerId === event.pointerId
+          ? {
+              ...current,
+              previewX: point.x,
+            }
+          : current,
       );
-
-      if (result.command) {
-        dispatchWriterCommand(result.command);
-      }
-
       return;
     }
 
     if (dragState.type === 'resize-row') {
-      const delta = dragState.startY - point.y;
-      const nextHeight = Math.max(8, dragState.initialHeight + delta);
-
-      const result = buildResizeTableRowCommand(
-        elements,
-        element.id,
-        dragState.rowIndex,
-        nextHeight,
+      setDragState((current) =>
+        current?.type === 'resize-row'
+        && current.pointerId === event.pointerId
+          ? {
+              ...current,
+              previewY: point.y,
+            }
+          : current,
       );
-
-      if (result.command) {
-        dispatchWriterCommand(result.command);
-      }
     }
   };
 
-  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+  const releasePointer = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      );
+    }
+  };
+
+  const onPointerUp = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    const drag = dragState;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      releasePointer(event);
+      return;
+    }
+
+    setDragState(null);
+
+    if (
+      drag.type === 'resize-column'
+      || drag.type === 'resize-row'
+    ) {
+      const point = getLocalPoint(event);
+      const result =
+        buildWriterTableDragResizeCommand({
+          drag,
+          point,
+          elements:
+            useWriterV2Store.getState().elements,
+          elementId: element.id,
+        });
+
+      if (result.command) {
+        void dispatchDurableWriterUiCommand(
+          result.command,
+          drag.type === 'resize-column'
+            ? 'WriterTableInteractionOverlay column resize'
+            : 'WriterTableInteractionOverlay row resize',
+        ).catch(() => undefined);
+      }
+    }
+
+    releasePointer(event);
+  };
+
+  const onPointerCancel = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
     if (dragState?.pointerId === event.pointerId) {
       setDragState(null);
     }
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    releasePointer(event);
   };
 
   return (
@@ -252,7 +291,7 @@ export const WriterTableInteractionOverlay: React.FC<
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={onPointerCancel}
       style={{
         touchAction: 'none',
       }}
@@ -280,6 +319,31 @@ export const WriterTableInteractionOverlay: React.FC<
           />
         );
       })}
+
+      {dragState?.type === 'resize-column' ? (
+        <div
+          data-writer-table-resize-preview="column"
+          className="absolute top-0 w-px bg-blue-500/70 pointer-events-none"
+          style={{
+            left:
+              dragState.previewX - rect.x,
+            height: rect.height,
+          }}
+        />
+      ) : null}
+
+      {dragState?.type === 'resize-row' ? (
+        <div
+          data-writer-table-resize-preview="row"
+          className="absolute left-0 h-px bg-blue-500/70 pointer-events-none"
+          style={{
+            top:
+              rect.height
+              - (dragState.previewY - rect.y),
+            width: rect.width,
+          }}
+        />
+      ) : null}
 
       {layout.columnHandles.map((handle) => (
         <div

@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2B2A-001",
+    "branch": "phase8/history-writer-table-drag-coalesce",
+    "base_ref": "cea78c340ee4989213eb84f7561636e4c1ef31bb",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2B1",
+    "previous_join": "cea78c340ee4989213eb84f7561636e4c1ef31bb",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-table-drag-coalesce",
+    "material_ref": "cea78c340ee4989213eb84f7561636e4c1ef31bb",
+    "base_branch": "main",
+    "base_observed_ref": "cea78c340ee4989213eb84f7561636e4c1ef31bb",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 260,
+  "outcome": {
+    "engineering": [
+      "Writer table pointermove no longer mutates canonical Writer state.",
+      "Column/row resize gestures render transient local preview guides.",
+      "Pointerup produces at most one durable Writer update per resize gesture.",
+      "Pointer cancel clears preview without history mutation."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Coalesce high-frequency Writer table resize into one crash-durable transaction per gesture.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged one-shot Writer UI durability.",
+    "why_this_work_exists": "The previous table interaction path dispatched an UPDATE_WRITER_ELEMENT on every pointermove, which would amplify durable checkpoints if migrated directly.",
+    "deliberate_non_goals": [
+      "No Writer inspector migration.",
+      "No Writer table-properties migration.",
+      "No synchronous helper API migration, OCR bridge or legacy consolidation."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Pointermove updates local preview only and contains no Writer mutation dispatch.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Pointerup derives one final resize command from captured geometry and emits one durable UI dispatch.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Pointer cancel clears transient preview without committing Writer state.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Inspector and table-properties high-frequency surfaces remain deferred to later coalescing slices.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static audit slices pointer handlers and forbids mutation dispatch from pointermove/cancel while requiring one durable pointerup path and local preview guides.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "writerTableDragResize unit tests verify final column/row command derivation from captured start geometry and fail-closed missing target behavior.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Inherited durable UI tests retain contextual failure logging and Writer rollback guarantees.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2b2a on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2B2B add inspector draft/commit coalescing"
+  }
+}
