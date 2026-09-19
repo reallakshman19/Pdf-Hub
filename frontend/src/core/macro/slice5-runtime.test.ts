@@ -17,7 +17,6 @@ vi.mock('../../adapters/pdf-edit/PdfEditAdapter', () => ({
     reorderPages: vi.fn(async () => new Uint8Array([9, 9])),
     getPageSize: vi.fn(async () => ({ width: 595, height: 842 })),
     drawTextOnPages: vi.fn(async () => new Uint8Array([7, 7])),
-    addHeaderFooterText: vi.fn(async () => new Uint8Array([7, 8])),
     insertImage: vi.fn(async () => new Uint8Array([7, 9])),
   },
 }));
