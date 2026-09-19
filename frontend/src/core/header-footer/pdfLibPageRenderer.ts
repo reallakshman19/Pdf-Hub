@@ -1,8 +1,8 @@
 import type {
-  ResolvedHeaderFooterBand,
-  ResolvedHeaderFooterContent,
-  ResolvedHeaderFooterPage,
-} from './resolutionTypes';
+  PdfMutationHeaderFooterBand,
+  PdfMutationHeaderFooterContent,
+  PdfMutationHeaderFooterPage,
+} from '@/core/pdf-mutation/types';
 import {
   createHeaderFooterVisualGeometry,
   visualPointToPdf,
@@ -19,9 +19,9 @@ type PdfLibNs = Awaited<
   ReturnType<typeof import('@/core/pdf/lazyPdfLib').pdfLib>
 >;
 
-export async function renderResolvedHeaderFooterPage(
+export async function renderPdfMutationHeaderFooterPage(
   page: PDFPage,
-  resolved: ResolvedHeaderFooterPage,
+  resolved: PdfMutationHeaderFooterPage,
   resources: HeaderFooterPdfLibResources,
   lib: PdfLibNs,
 ): Promise<void> {
@@ -58,10 +58,10 @@ export async function renderResolvedHeaderFooterPage(
 
 async function drawBand(
   page: PDFPage,
-  band: ResolvedHeaderFooterBand,
+  band: PdfMutationHeaderFooterBand,
   bandKind: 'header' | 'footer',
   geometry: HeaderFooterVisualGeometry,
-  layout: ResolvedHeaderFooterPage['layout'],
+  layout: PdfMutationHeaderFooterPage['layout'],
   resources: HeaderFooterPdfLibResources,
   lib: PdfLibNs,
 ): Promise<void> {
@@ -74,7 +74,7 @@ async function drawBand(
       .filter(
         (entry): entry is readonly [
           'left' | 'center' | 'right',
-          ResolvedHeaderFooterContent,
+          PdfMutationHeaderFooterContent,
         ] => Boolean(entry[1]),
       )
       .map(async ([slot, content]) => ({
@@ -130,7 +130,7 @@ function drawPreparedHeaderFooterContent(
   slot: 'left' | 'center' | 'right',
   bandKind: 'header' | 'footer',
   geometry: HeaderFooterVisualGeometry,
-  layout: ResolvedHeaderFooterPage['layout'],
+  layout: PdfMutationHeaderFooterPage['layout'],
   lib: PdfLibNs,
 ): void {
   const x =
@@ -186,11 +186,11 @@ function drawPreparedHeaderFooterContent(
 
 function drawSeparator(
   page: PDFPage,
-  separator: NonNullable<ResolvedHeaderFooterBand['separator']>,
+  separator: NonNullable<PdfMutationHeaderFooterBand['separator']>,
   bandKind: 'header' | 'footer',
   bandHeight: number,
   geometry: HeaderFooterVisualGeometry,
-  layout: ResolvedHeaderFooterPage['layout'],
+  layout: PdfMutationHeaderFooterPage['layout'],
   lib: PdfLibNs,
 ): void {
   const gap = 4;
