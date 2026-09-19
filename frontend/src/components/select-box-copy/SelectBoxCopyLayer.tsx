@@ -3,9 +3,20 @@ import type { WriterPageViewport } from '@/core/writer-v2/types';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
-  extractSelectBoxCopyFromPdf,
+  extractSelectBoxCopyFromDocument,
 } from '@/core/select-box-copy/selectBoxCopyEngine';
-import { renderSelectBoxImageSnapshot } from '@/core/select-box-copy/imageSnapshot';
+import {
+  renderSelectBoxImageSnapshotFromDocument,
+} from '@/core/select-box-copy/imageSnapshot';
+import {
+  acquireActivePdfDocumentLease,
+} from '@/adapters/pdf-renderer/activePdfDocumentLease';
+import type {
+  PdfDocumentLease,
+} from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import {
+  isOperationCancelledError,
+} from '@/core/cancellation/operationCancellation';
 import {
   writeSelectBoxCopyToClipboard,
   type SelectBoxCopyMode,
@@ -39,25 +50,85 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const addWriterAssets = useWriterV2Store((state) => state.addWriterAssets);
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
-  const originalBytes = useSessionStore((state) => state.originalBytes);
   const documentKey = useSessionStore((state) => state.documentKey);
+  const revisionStoreId = useSessionStore(
+    (state) => state.revisionStoreId,
+  );
+  const originalRevisionId = useSessionStore(
+    (state) => state.originalRevisionId,
+  );
+  const activeRevisionId = useSessionStore(
+    (state) => state.activeRevisionId,
+  );
   const fileName = useSessionStore((state) => state.fileName);
   const completeSaveOperation = useSessionStore((state) => state.completeSaveOperation);
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
 
-  const sourceBytes = workingBytes ?? originalBytes;
+  const hasActiveDocument = Boolean(
+    workingBytes || activeRevisionId,
+  );
+  const operationAbortControllerRef =
+    React.useRef<AbortController | null>(null);
   const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
 
   const [draftRect, setDraftRect] = React.useState<SelectBoxViewportRect | null>(null);
   const [result, setResult] = React.useState<SelectBoxCopyResult | null>(null);
   const [busy, setBusy] = React.useState(false);
 
+
+  const withActiveDocument = async <T,>(
+    operation: string,
+    work: (
+      doc: PdfDocumentLease['doc'],
+      signal: AbortSignal,
+    ) => Promise<T>,
+  ): Promise<T> => {
+    operationAbortControllerRef.current?.abort(
+      `Superseded Select Box operation: ${operation}`,
+    );
+    const controller = new AbortController();
+    operationAbortControllerRef.current = controller;
+    let lease: PdfDocumentLease | null = null;
+
+    try {
+      lease = await acquireActivePdfDocumentLease({
+        documentKey,
+        workingBytes,
+        revisionStoreId,
+        originalRevisionId,
+        activeRevisionId,
+      }, controller.signal);
+
+      if (!lease) {
+        throw new Error(
+          'Open a PDF before using Select Box Copy.',
+        );
+      }
+
+      return await work(lease.doc, controller.signal);
+    } finally {
+      await lease?.release();
+      if (
+        operationAbortControllerRef.current
+        === controller
+      ) {
+        operationAbortControllerRef.current = null;
+      }
+    }
+  };
+
+  React.useEffect(() => () => {
+    operationAbortControllerRef.current?.abort(
+      'Select Box Copy layer unmounted',
+    );
+  }, []);
+
   if (activeWriterTool !== 'selectBoxCopy') {
     return null;
   }
 
   const beginSelection = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!sourceBytes) {
+    if (!hasActiveDocument) {
       failSaveOperation('Open a PDF before using Select Box Copy.');
       setActiveWriterTool('select');
       return;
@@ -103,7 +174,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const finishSelection = async (event: React.PointerEvent<HTMLDivElement>) => {
     const rect = draftRect;
 
-    if (!sourceBytes || !rect) return;
+    if (!hasActiveDocument || !rect) return;
 
     event.stopPropagation();
     event.preventDefault();
@@ -121,12 +192,17 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     setBusy(true);
 
     try {
-      const extracted = await extractSelectBoxCopyFromPdf({
-        pdfBytes: sourceBytes,
-        pageNumber,
-        viewport,
-        viewportRect: normalized,
-      });
+      const extracted = await withActiveDocument(
+        'extract text',
+        (doc, signal) =>
+          extractSelectBoxCopyFromDocument({
+            doc,
+            pageNumber,
+            viewport,
+            viewportRect: normalized,
+            signal,
+          }),
+      );
 
       setResult(extracted);
       setDraftRect(normalized);
@@ -138,6 +214,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
             : `Select Box Copy captured ${extracted.items.length} text items.`,
       );
     } catch (error) {
+      if (isOperationCancelledError(error)) return;
       failSaveOperation(error instanceof Error ? error.message : String(error));
       setResult(null);
     } finally {
@@ -160,20 +237,26 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
             : 'Copied selected text.',
       );
     } catch (error) {
+      if (isOperationCancelledError(error)) return;
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
 
   const copyImage = async (effectiveResult: SelectBoxCopyResult) => {
-    if (!sourceBytes || !draftRect) return;
+    if (!hasActiveDocument || !draftRect) return;
 
     try {
-      const imageDataUrl = await renderSelectBoxImageSnapshot({
-        pdfBytes: sourceBytes,
-        pageNumber,
-        viewport,
-        viewportRect: draftRect,
-      });
+      const imageDataUrl = await withActiveDocument(
+        'copy image',
+        (doc, signal) =>
+          renderSelectBoxImageSnapshotFromDocument({
+            doc,
+            pageNumber,
+            viewport,
+            viewportRect: draftRect,
+            signal,
+          }),
+      );
 
       await writeSelectBoxCopyToClipboard({
         ...effectiveResult,
@@ -182,6 +265,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
 
       completeSaveOperation('Selected PDF area copied as image.');
     } catch (error) {
+      if (isOperationCancelledError(error)) return;
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
@@ -190,7 +274,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     mode: SelectBoxInsertMode,
     effectiveResult: SelectBoxCopyResult,
   ) => {
-    if (!sourceBytes || !draftRect) return;
+    if (!hasActiveDocument || !draftRect) return;
 
     try {
       const documentFingerprint =
@@ -207,12 +291,17 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       let imageAssetId: string | undefined;
 
       if (mode === 'image') {
-        const imageDataUrl = await renderSelectBoxImageSnapshot({
-          pdfBytes: sourceBytes,
-          pageNumber,
-          viewport,
-          viewportRect: draftRect,
-        });
+        const imageDataUrl = await withActiveDocument(
+          'insert image',
+          (doc, signal) =>
+            renderSelectBoxImageSnapshotFromDocument({
+              doc,
+              pageNumber,
+              viewport,
+              viewportRect: draftRect,
+              signal,
+            }),
+        );
 
         const asset = createSelectBoxImageAssetFromDataUrl({
           dataUrl: imageDataUrl,
@@ -241,6 +330,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       setResult(null);
       completeSaveOperation('Select Box Copy inserted into Writer V2.');
     } catch (error) {
+      if (isOperationCancelledError(error)) return;
       failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
