@@ -17,6 +17,8 @@ export interface HistoryState {
   pageCount: number;
   pageGraph: PageGraph<PageNode> | null;
   documentKey?: string | null;
+  /** Durable content-addressed revision matching bytes when available. */
+  activeRevisionId?: string | null;
   selectedPageIds: PageId[];
   selectedPages: number[];
   currentPageId: PageId | null;
