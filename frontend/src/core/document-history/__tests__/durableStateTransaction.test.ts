@@ -25,6 +25,7 @@ import type {
   StateHistorySnapshot,
 } from '../stateTransaction';
 import {
+  commitDurableStateMutation,
   commitDurableStateTransaction,
 } from '../durableStateTransaction';
 
@@ -218,6 +219,7 @@ describe('commitDurableStateTransaction', () => {
         after: state('after'),
         apply: () => {
           value = 'after';
+          useSessionStore.getState().setDirty(true);
         },
         rollback: () => {
           value = 'before';
@@ -226,6 +228,7 @@ describe('commitDurableStateTransaction', () => {
     ).rejects.toThrow(/journal write failed/);
 
     expect(value).toBe('before');
+    expect(useSessionStore.getState().isDirty).toBe(false);
     expect(
       useHistoryStore.getState().undoStack,
     ).toHaveLength(0);
@@ -235,6 +238,69 @@ describe('commitDurableStateTransaction', () => {
       activeTransactionId: null,
       entries: [],
     });
+  });
+
+  it('evaluates queued lazy mutation factories against sequential committed state', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'sha256:one',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    let value = 0;
+    const observedBefore: number[] = [];
+
+    const queueMutation = () =>
+      commitDurableStateMutation(() => {
+        const beforeValue = value;
+        observedBefore.push(beforeValue);
+        const afterValue = beforeValue + 1;
+
+        return {
+          command: command(),
+          label: `Increment to ${afterValue}`,
+          before: state(String(beforeValue)),
+          after: state(String(afterValue)),
+          apply: () => {
+            value = afterValue;
+          },
+          rollback: () => {
+            value = beforeValue;
+          },
+        };
+      });
+
+    const first = queueMutation();
+    const second = queueMutation();
+
+    await expect(first).resolves.toBe(true);
+    await expect(second).resolves.toBe(true);
+
+    expect(observedBefore).toEqual([0, 1]);
+    expect(value).toBe(2);
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(2);
+  });
+
+  it('does not apply anything when a lazy mutation factory throws', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'sha256:one',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    await expect(
+      commitDurableStateMutation(() => {
+        throw new Error('factory failed');
+      }),
+    ).rejects.toThrow(/factory failed/);
+
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(0);
   });
 
   it('retains legacy no-journal behavior through the coordinator', async () => {
