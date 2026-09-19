@@ -36,6 +36,21 @@ const corePaths = [
   'src/core/revision-store/index.ts',
 ];
 
+const productionPaths = [
+  ...corePaths,
+  'src/adapters/document-source/OpfsSource.ts',
+  'src/adapters/revision-store/MemoryRevisionStore.ts',
+  'src/adapters/revision-store/OpfsRevisionStore.ts',
+  'src/adapters/revision-store/opfsRevisionIo.ts',
+];
+
+for (const relativePath of productionPaths) {
+  const lineCount = read(relativePath).split('\n').length;
+  if (lineCount > 300) {
+    fail(`${relativePath} exceeds the Phase 8C production module limit: ${lineCount} lines`);
+  }
+}
+
 for (const relativePath of corePaths) {
   const source = read(relativePath);
   forbidContains(source, relativePath, [
@@ -111,15 +126,33 @@ requireContains(opfsStore, opfsStorePath, [
   'storage?.getDirectory',
   "input.directoryName ?? 'pdf-hub-revisions'",
   'encodeURIComponent(input.id)',
-  'createWritable',
-  'keepExistingData: false',
   'this.pending.add(input.revisionId)',
   'hasCommittedRevision',
-  'bestEffortRemove',
-  'source.read(offset, length)',
+  'commitOpfsRevisionBytes',
+  'isOpfsNotFoundError',
   'isOperationCancelledError',
 ]);
 forbidContains(opfsStore, opfsStorePath, [
+  'pdf-lib',
+  "from 'react'",
+  'zustand',
+  '@/core/session/',
+  '@/core/commands/',
+]);
+
+const opfsIoPath =
+  'src/adapters/revision-store/opfsRevisionIo.ts';
+const opfsIo = read(opfsIoPath);
+requireContains(opfsIo, opfsIoPath, [
+  'commitOpfsRevisionBytes',
+  'createWritable',
+  'keepExistingData: false',
+  'source.read(offset, length)',
+  'bestEffortAbort',
+  'bestEffortRemove',
+  'isOpfsNotFoundError',
+]);
+forbidContains(opfsIo, opfsIoPath, [
   'pdf-lib',
   "from 'react'",
   'zustand',
