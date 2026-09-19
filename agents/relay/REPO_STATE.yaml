@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E4-001",
-    "path": "agents/relay/execution-packages/EP-8E4-001.yaml",
+    "id": "EP-8E5A-001",
+    "path": "agents/relay/execution-packages/EP-8E5A-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-239",
+    "id": "PR-241",
     "path": null,
-    "merge_ref": "333c5987aa6b33bdf0474d4a298638c1e2d7cb2e",
-    "note": "Phase 8E.3 merged under documented #183 infrastructure exception; exact-head workflows executed no steps."
+    "merge_ref": "9bf21a95de4a55bb55f4c3046d70b3edebcd4f52",
+    "note": "Phase 8E.4 merged under documented #183 infrastructure exception; exact-head workflows executed no steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.4 durable binary mutation journal append, run cd frontend && pnpm run certify:phase8e4 when a runner is available, and keep issue #240 open until acceptance evidence is terminal."
+      "next_action": "Review Phase 8E.5A binary-safe state checkpoint codec, run cd frontend && pnpm run certify:phase8e5a when a runner is available, and keep issue #242 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,10 +78,10 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.4 durable binary mutation append/navigation/branch truncation is implemented on the active branch. Static source checks are pending final reconciliation; runner-executed evidence remains subject to #183.",
+      "summary": "Phase 8E.5A binary-safe state checkpoint codec and manifest validation are implemented. Synchronous stateTransaction remains deliberately unwired. Runner-executed evidence remains subject to #183.",
       "not_run": [
         {
-          "id": "TEST-05",
+          "id": "TEST-03",
           "reason": "GitHub-hosted Actions may fail before runner allocation under #183.",
           "cause": "INFRASTRUCTURE"
         }
@@ -102,13 +102,13 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E4-001",
+    "execution_ref": "EP-8E5A-001",
     "receipt": null,
     "basis": [
-      "Issue #240 is the projected GitHub tracking issue for the active 8E.4 slice."
+      "Issue #242 is the projected GitHub tracking issue for the active 8E.5A slice."
     ],
     "observed": {
-      "issue": 240
+      "issue": 242
     },
     "superseded_operations": []
   },
