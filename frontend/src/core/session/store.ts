@@ -199,15 +199,23 @@ function assertOpenHistoryJournalMetadata(input: {
       'OpenDocument cannot mark history journal persistent without journal identity.',
     );
   }
-  if (
-    input.historyJournalStoreId
-    && !resolveHistoryJournalStore(
+  if (input.historyJournalStoreId) {
+    const store = resolveHistoryJournalStore(
       input.historyJournalStoreId,
-    )
-  ) {
-    throw new Error(
-      `OpenDocument historyJournalStoreId ${input.historyJournalStoreId} is not registered.`,
     );
+    if (!store) {
+      throw new Error(
+        `OpenDocument historyJournalStoreId ${input.historyJournalStoreId} is not registered.`,
+      );
+    }
+    if (
+      input.historyJournalPersistent
+      !== store.capabilities.persistent
+    ) {
+      throw new Error(
+        `OpenDocument historyJournalPersistent ${input.historyJournalPersistent} does not match store capability ${store.capabilities.persistent}.`,
+      );
+    }
   }
 }
 
