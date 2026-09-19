@@ -285,11 +285,19 @@ pushes in-memory history, then atomically saves the updated journal manifest.
 Any failure after apply invokes caller rollback and restores the prior history
 stack. Unsafe state payloads fail before apply.
 
+Phase 8E.5B3A adds a lazy mutation factory evaluated inside the same
+document-operation queue. This prevents rapid UI edits from precomputing
+multiple state snapshots against the same stale store state before the first
+durable transaction applies. The compatibility prebuilt-input API remains
+available and both public APIs execute through one non-enqueuing transaction
+core. Rollback now restores the captured session snapshot as well as caller
+state and history, so optimistic dirty flags cannot leak after journal failure.
+
 The annotation and Writer stores still use the legacy synchronous recorder in
-this slice; Phase 8E.5B3 must migrate their PDF-backed mutation entrypoints to
-this coordinator. No command replay or revision deletion is enabled yet.
-Reference-aware revision GC and bounded recovery checkpoints remain follow-on
-work. Phase 8F owns incremental search indexing.
+this prerequisite slice. The next store-migration slice can now derive its
+before/after state lazily inside the queue. No command replay or revision
+deletion is enabled yet. Reference-aware revision GC and bounded recovery
+checkpoints remain follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

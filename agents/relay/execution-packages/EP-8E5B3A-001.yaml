@@ -1,0 +1,100 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3A-001",
+    "branch": "phase8/history-state-lazy-factory",
+    "base_ref": "f94bb4376ea8e06e0221710345a029593940621d",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B2",
+    "previous_join": "f94bb4376ea8e06e0221710345a029593940621d",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-state-lazy-factory",
+    "material_ref": "f94bb4376ea8e06e0221710345a029593940621d",
+    "base_branch": "main",
+    "base_observed_ref": "f94bb4376ea8e06e0221710345a029593940621d",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 248,
+  "outcome": {
+    "engineering": [
+      "Store migrations can derive state lazily inside the document-operation queue.",
+      "Rapid queued mutations observe sequential committed state instead of stale precomputed snapshots.",
+      "Session dirty state is restored with caller/history state on durable transaction rollback.",
+      "The B2 prebuilt coordinator API remains compatible."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make upcoming state-store migrations race-safe without duplicating coordinator logic.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B2 state coordinator.",
+    "why_this_work_exists": "Synchronous store entrypoints can be invoked repeatedly before an async journal preparation finishes; precomputed snapshots would race.",
+    "deliberate_non_goals": [
+      "No annotation store migration.",
+      "No Writer store migration.",
+      "No command replay or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "A lazy factory runs inside the document-operation queue and may produce a transaction or no-op.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Two rapid lazy mutations derive against sequential committed state.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Rollback restores caller state, in-memory history and captured session dirty metadata.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Prebuilt and lazy public APIs share one non-enqueuing transaction core and stores remain unwired.",
+      "weight": 15,
+      "verification": ["TEST-02", "TEST-03"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "durableStateTransaction tests cover sequential lazy factories, factory exceptions and session rollback.",
+      "proves": ["AC-01", "AC-02", "AC-03"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Static review confirms both public APIs delegate to one core and stores remain unwired.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3a on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3B migrate PDF-backed annotation mutations"
+  }
+}
