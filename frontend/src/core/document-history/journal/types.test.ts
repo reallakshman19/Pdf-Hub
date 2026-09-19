@@ -4,6 +4,7 @@ import {
   assertHistoryJournalManifest,
   cloneHistoryJournalManifest,
   createInitialHistoryJournalManifest,
+  resolveHistoryJournalActiveTransactionId,
 } from '../types';
 
 describe('history journal manifest', () => {
@@ -22,6 +23,7 @@ describe('history journal manifest', () => {
       revisionStoreId: 'revisions',
       originalRevisionId: 'sha256:initial',
       activeRevisionId: 'sha256:initial',
+      activeTransactionId: null,
       checkpoints: [{
         checkpointId: 'history-1:admission',
         kind: 'ADMISSION',
@@ -35,6 +37,60 @@ describe('history journal manifest', () => {
     expect(JSON.stringify(manifest)).not.toContain(
       '"bytes"',
     );
+  });
+
+  it('infers the cursor for legacy manifests and validates explicit cursor consistency', () => {
+    const manifest = createInitialHistoryJournalManifest({
+      journalId: 'history-cursor',
+      revisionStoreId: 'revisions',
+      revisionId: 'sha256:one',
+      fileName: 'fixture.pdf',
+    });
+
+    manifest.entries.push({
+      entryId: 'history-cursor:entry:tx-1',
+      transactionId: 'tx-1',
+      command: {
+        type: 'ROTATE_PAGES',
+        payload: {
+          pageIndices: [0],
+          angle: 90,
+        },
+        source: 'toolbar',
+        documentKey: 'sha256:one',
+        id: 'command-1',
+        createdAt: '2026-09-19T00:00:00.000Z',
+      },
+      disposition: 'SELF_CONTAINED_REPLAY',
+      barriers: [],
+      beforeRevision: {
+        storeId: 'revisions',
+        revisionId: 'sha256:one',
+      },
+      afterRevision: {
+        storeId: 'revisions',
+        revisionId: 'sha256:two',
+      },
+      createdAt: '2026-09-19T00:00:01.000Z',
+    });
+    manifest.activeRevisionId = 'sha256:two';
+    delete manifest.activeTransactionId;
+
+    expect(
+      resolveHistoryJournalActiveTransactionId(
+        manifest,
+      ),
+    ).toBe('tx-1');
+
+    manifest.activeTransactionId = 'tx-1';
+    expect(() =>
+      assertHistoryJournalManifest(manifest),
+    ).not.toThrow();
+
+    manifest.activeRevisionId = 'sha256:other';
+    expect(() =>
+      assertHistoryJournalManifest(manifest),
+    ).toThrow(/active transaction does not match active revision/);
   });
 
   it('rejects revision references from a different revision store', () => {
