@@ -522,7 +522,7 @@ const headlessApi = requireContains('src/core/macro/headlessApi.ts', [
   'inspectHeadlessPdfDocument',
   'executeHeadlessPdfCommand',
   "Extract<",
-  "{ type: 'SET_PAGE_LABELS' }",
+  "'SET_PAGE_LABELS'",
   "'api'",
   'executePageLabelCommandMutation',
 ]);
