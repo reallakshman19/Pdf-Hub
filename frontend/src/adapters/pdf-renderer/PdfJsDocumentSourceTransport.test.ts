@@ -53,7 +53,7 @@ async function flush(): Promise<void> {
 describe('PdfJsDocumentSourceTransport', () => {
   it('maps PDF.js [begin,end) requests to exact DocumentSource reads', async () => {
     const read = vi.fn(async (offset: number, length: number) =>
-      Uint8Array.from([offset, length]));
+      Uint8Array.from([offset, length, 9, 10]));
     const transport = new PdfJsDocumentSourceTransport({
       source: source(new Uint8Array(32), read),
       size: 32,
@@ -70,11 +70,11 @@ describe('PdfJsDocumentSourceTransport', () => {
     expect(onDataRange).toHaveBeenCalledTimes(1);
     expect(onDataRange).toHaveBeenCalledWith(
       8,
-      Uint8Array.from([8, 4]),
+      Uint8Array.from([8, 4, 9, 10]),
     );
     expect(transport.getDiagnostics()).toMatchObject({
       rangeRequests: 1,
-      rangeBytesDelivered: 2,
+      rangeBytesDelivered: 4,
       maxRequestedRangeBytes: 4,
       failed: false,
       aborted: false,
