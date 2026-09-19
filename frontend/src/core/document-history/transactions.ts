@@ -47,6 +47,14 @@ async function resolveHistoryPdfBytes(
       );
     }
 
+    const activeStoreId =
+      useSessionStore.getState().revisionStoreId;
+    if (activeStoreId !== state.revision.storeId) {
+      throw new Error(
+        `History revision store ${state.revision.storeId} does not match active session store ${activeStoreId ?? '(none)'}.`,
+      );
+    }
+
     const store = resolveWorkingRevisionStore(
       state.revision.storeId,
     );
