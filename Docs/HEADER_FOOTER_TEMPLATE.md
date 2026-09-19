@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6B canonical domain and resolution contract**.
+Status: **Phase 6A–6C canonical domain, resolution and command contract**.
 
 Tracking issue: #200.
 
@@ -199,6 +199,31 @@ rules override only the header/footer slots or separator they define.
 
 The resolved output contains no React, PDF.js or pdf-lib objects and is safe to
 feed into a later engine-specific renderer.
+
+## Canonical command and preflight
+
+The canonical document command is:
+
+```ts
+APPLY_HEADER_FOOTER_TEMPLATE {
+  template: HeaderFooterTemplate
+}
+```
+
+The command payload remains JSON-serializable. Image bytes are not stored in
+the command; the template references them with `binaryResourceId`.
+
+`planHeaderFooterTemplateCommand(...)` is the pure preflight boundary. It:
+
+- validates against the current PageGraph
+- resolves selectors and tokens
+- removes pages with no resolved header/footer content from the execution plan
+- enumerates sorted unique binary resource IDs required by image slots
+- returns a valid no-op plan with a warning if no pages match
+
+Phase 6C deliberately does not render or mutate PDF bytes. The command becomes
+executable when the Phase 6D writer is connected through the canonical
+dispatcher/transaction path.
 
 ## Legacy compatibility
 
