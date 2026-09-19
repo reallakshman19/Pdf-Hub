@@ -1,0 +1,1216 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8D3-001",
+    "branch": "phase8/active-renderer-consumers",
+    "base_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "execution_state": "EXECUTABLE",
+    "previous_checkpoint": "NONE",
+    "previous_join": null,
+    "previous_replan": null
+  },
+  "replan_inheritance": null,
+  "git_basis": {
+    "expected_branch": "phase8/active-renderer-consumers",
+    "material_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "base_branch": "main",
+    "base_observed_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8D3",
+    "generated_from_frontier": true
+  },
+  "outcome": {
+    "user_visible": [
+      "Search, native bookmarks, and Select Box Copy retain behavior while revision-aware sessions reuse the active source-backed PDF.js document."
+    ],
+    "engineering": [
+      "Primary active-session renderer consumers use explicit revision-keyed PdfDocumentLease ownership; standalone explicit-buffer workflows remain supported."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Complete the large-document renderer/source migration without expanding product breadth or weakening session invariants.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8D3 after merged 8D.1 range transport and 8D.2 workspace source rendering.",
+    "why_this_work_exists": "Three active UI paths still reacquire PDF.js from workingBytes, retaining avoidable full-buffer hash/clone pressure and bypassing the revision-keyed source cache.",
+    "current_architecture": "DocumentSession carries revisionStoreId and activeRevisionId; resolveActivePdfRendererInput opens the immutable active DocumentSource; PdfDocumentLeaseCache owns byte/source loading, ref counts, LRU eviction and destruction.",
+    "prior_owner_decisions": [
+      "ODR-0001 adopts engineering-pr-delivery-v2.5.",
+      "Issue #185 phase order and breadth freeze remain in force."
+    ],
+    "current_implementation_state": "DocumentWorkspace is source-backed; SearchPanel, BookmarksSidebar and active Select Box Copy still enter byte-backed renderer wrappers. The 8D.3 execution branch contains no product changes at this EP material basis.",
+    "known_problems": [
+      "Uncached SearchPanel uses searchDocumentText(workingBytes).",
+      "BookmarksSidebar uses acquireDocument(workingBytes).",
+      "SelectBoxCopyLayer passes working/original bytes into byte-owning helpers.",
+      "Issue #183 still prevents hosted runner execution."
+    ],
+    "deliberate_non_goals": [
+      "No Phase 8E history journal.",
+      "No Phase 8F background indexing.",
+      "No 100 MiB admission-policy removal.",
+      "No mutation-engine or Save source migration.",
+      "No feature breadth."
+    ],
+    "terminology": {
+      "active_revision": "DocumentSession.activeRevisionId, equal to documentKey in revision-aware sessions",
+      "source_backed_lease": "PdfDocumentLease acquired from DocumentSource with explicit revision identity",
+      "legacy_byte_session": "Session with all revision metadata absent"
+    }
+  },
+  "repository_discovery": [
+    {
+      "id": "DSTEP-01",
+      "action": "VERIFY",
+      "target": "agents/relay/REPO_STATE.yaml",
+      "question": "Does repository state route exactly to EP-8D3-001 on RM-0001 / WP-8D3?",
+      "expected_outputs": [
+        "active EP id and path",
+        "roadmap id and revision",
+        "current work package"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile relay custody before material execution."
+    },
+    {
+      "id": "DSTEP-02",
+      "action": "VERIFY_GIT",
+      "target": "live checkout",
+      "question": "Does the execution branch descend from the material ref and observe the same main base?",
+      "expected_outputs": [
+        "checked-out branch",
+        "current HEAD",
+        "material-ref ancestry result",
+        "base drift result"
+      ],
+      "receipt_required": true,
+      "on_failure": "Withhold WRITE and reconcile branch/base drift."
+    },
+    {
+      "id": "DSTEP-03",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/components/sidebar/SearchPanel.tsx",
+        "frontend/src/components/sidebar/panels/BookmarksSidebar.tsx",
+        "frontend/src/components/select-box-copy/SelectBoxCopyLayer.tsx",
+        "frontend/src/core/select-box-copy/selectBoxCopyEngine.ts",
+        "frontend/src/core/select-box-copy/imageSnapshot.ts"
+      ],
+      "question": "Which active UI paths still reacquire PDF.js from bytes?",
+      "expected_outputs": [
+        "search acquisition path",
+        "bookmarks acquisition path",
+        "select box acquisition path"
+      ],
+      "receipt_required": true,
+      "on_failure": "Update the EP before execution if the production call graph changed."
+    },
+    {
+      "id": "DSTEP-04",
+      "action": "VERIFY",
+      "targets": [
+        "frontend/src/core/session/activePdfRendererInput.ts",
+        "frontend/src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts",
+        "frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts"
+      ],
+      "question": "Are the strict revision resolver, source cache identity and byte compatibility boundaries still present?",
+      "expected_outputs": [
+        "active renderer resolver path",
+        "source cache public identity",
+        "byte compatibility path"
+      ],
+      "receipt_required": true,
+      "on_failure": "Stop because the merged 8D substrate changed."
+    },
+    {
+      "id": "DSTEP-05",
+      "action": "INSPECT",
+      "target": "GitHub issue #183",
+      "question": "What runner-executed certification evidence is currently available?",
+      "expected_outputs": [
+        "runner availability evidence"
+      ],
+      "receipt_required": true,
+      "on_failure": "Record runner evidence as unknown; do not fabricate certification status."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "INPUT-01",
+      "name": "8D.3 active-consumer contract",
+      "description": "Scope and exit criteria for remaining renderer consumers.",
+      "authority": "Phase 8 tracking/design issues",
+      "source": "GitHub issue #230 with parent #218 and design #227",
+      "value": "Migrate SearchPanel, BookmarksSidebar and active Select Box Copy to explicit revision-keyed leases; preserve standalone byte consumers.",
+      "resolution_method": "Read verified GitHub issues #218, #227 and #230.",
+      "type": "engineering contract",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03",
+        "STEP-04"
+      ],
+      "validation": [
+        "Provider readback verifies #230 names the three active consumers."
+      ],
+      "stale_if": [
+        "Issue #230 is superseded or Owner changes Phase 8D.3 intent."
+      ]
+    },
+    {
+      "id": "INPUT-02",
+      "name": "Merged source renderer substrate",
+      "description": "Strict active revision resolution and source/byte cache lifecycle established in 8D.1/8D.2.",
+      "authority": "Merged production code",
+      "source": "main at eb5429c344ec4f7a4d977a09987923833f1c0963",
+      "resolution_method": "Read activePdfRendererInput.ts, PdfDocumentLeaseCache.ts and PdfRendererAdapter.ts.",
+      "type": "production architecture",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03"
+      ],
+      "validation": [
+        "Revision-aware sessions are strict; source cache uses explicit revision identity; byte API remains available."
+      ],
+      "stale_if": [
+        "Those merged files change materially before execution."
+      ]
+    },
+    {
+      "id": "INPUT-03",
+      "name": "Current active byte call graph",
+      "description": "Actual remaining production byte reacquisition paths.",
+      "authority": "Current production source",
+      "source": "SearchPanel.tsx, BookmarksSidebar.tsx, SelectBoxCopyLayer.tsx, selectBoxCopyEngine.ts, imageSnapshot.ts",
+      "resolution_method": "Trace active UI calls to PdfRendererAdapter byte APIs.",
+      "type": "source call graph",
+      "units": "NA",
+      "editable": true,
+      "applicability": "CURRENT_STEP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03"
+      ],
+      "validation": [
+        "DSTEP-03 records exact calls before writes."
+      ],
+      "stale_if": [
+        "Any listed active caller changes before implementation."
+      ]
+    },
+    {
+      "id": "INPUT-04",
+      "name": "Hosted runner evidence",
+      "description": "CI availability affects evidence classification but not source scope.",
+      "authority": "Verified GitHub provider evidence",
+      "source": "GitHub issue #183",
+      "value": "Hosted jobs are documented as failing before runner assignment with zero executed steps.",
+      "resolution_method": "Read #183 and workflow data when available.",
+      "type": "evidence availability",
+      "units": "NA",
+      "editable": false,
+      "applicability": "INFORMATIONAL",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-04"
+      ],
+      "validation": [
+        "Zero-step runner failure is neither code failure nor test PASS."
+      ],
+      "stale_if": [
+        "A workflow obtains a runner and executes certification steps."
+      ]
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "BENCH-01",
+      "name": "Issue #230 exit contract",
+      "purpose": "Independent oracle for active consumers and retained explicit-buffer workflows.",
+      "source": "Verified GitHub issue #230",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "SearchPanel, BookmarksSidebar and active Select Box Copy use explicit leases; same activeRevisionId reuses one source-backed PDF.js document; standalone verification/macro buffers remain byte-based.",
+      "expected": "No primary active-session byte reacquisition in those three paths; standalone explicit-buffer APIs remain supported.",
+      "tolerance": null,
+      "independence": "Issue contract predates the implementation and is outside changed source files.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "TEST-04"
+      ],
+      "stale_if": [
+        "Issue #230 is superseded or materially revised."
+      ]
+    },
+    {
+      "id": "BENCH-02",
+      "name": "Merged 8D source-cache invariant",
+      "purpose": "Frozen architectural oracle that 8D.3 consumes rather than redesigns.",
+      "source": "Merged PR #231/#232 code at eb5429c344ec4f7a4d977a09987923833f1c0963",
+      "oracle_class": "FROZEN_GOLDEN",
+      "payload": "Strict active revision resolver plus source:<revisionKey> internal cache namespace and explicit public cache key.",
+      "expected": "Active consumers share the activeRevisionId cache entry; byte compatibility remains isolated.",
+      "tolerance": null,
+      "independence": "The oracle is already-merged substrate code/tests.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-04",
+        "TEST-01",
+        "TEST-02",
+        "TEST-03",
+        "TEST-04"
+      ],
+      "stale_if": [
+        "Merged substrate changes materially before checkpoint."
+      ]
+    }
+  ],
+  "scope": {
+    "allowed": [
+      {
+        "path": "frontend/src/adapters/pdf-renderer/",
+        "reason": "Add a small active-session lease coordinator and bounded loaded-document helper if needed."
+      },
+      {
+        "path": "frontend/src/components/sidebar/SearchPanel.tsx",
+        "reason": "Migrate uncached active search to revision-backed lease."
+      },
+      {
+        "path": "frontend/src/components/sidebar/panels/BookmarksSidebar.tsx",
+        "reason": "Migrate native outline loading to revision-backed lease."
+      },
+      {
+        "path": "frontend/src/components/select-box-copy/",
+        "reason": "Make active Select Box Copy own source-backed leases."
+      },
+      {
+        "path": "frontend/src/core/select-box-copy/",
+        "reason": "Expose loaded-document/page helpers while preserving byte wrappers."
+      },
+      {
+        "path": "frontend/src/**/*.test.ts*",
+        "reason": "Add focused regression coverage."
+      },
+      {
+        "path": "frontend/scripts/phase8-active-renderer-consumers-audit.mjs",
+        "reason": "Add the 8D.3 anti-drift guard."
+      },
+      {
+        "path": "frontend/package.json",
+        "reason": "Add 8D.3 audit/certification commands."
+      },
+      {
+        "path": "ARCHITECTURE.md",
+        "reason": "Record completed 8D.3 architecture truth."
+      },
+      {
+        "path": "Docs/DOCUMENT_SOURCE.md",
+        "reason": "Record consumer migration boundaries."
+      },
+      {
+        "path": "docs/PDFJS_DOCUMENT_LIFECYCLE.md",
+        "reason": "Record migrated lease ownership."
+      },
+      {
+        "path": "agents/relay/",
+        "reason": "Maintain V2.5 custody/evidence/quality/checkpoint/delivery state."
+      }
+    ],
+    "allowed_reads": [
+      {
+        "path": "frontend/src/core/session/activePdfRendererInput.ts",
+        "reason": "Active renderer-input authority."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts",
+        "reason": "Lease/cache lifecycle authority."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-renderer/PdfRendererAdapter.ts",
+        "reason": "Renderer operations and compatibility wrappers."
+      },
+      {
+        "path": "frontend/src/core/search/",
+        "reason": "Preserve SearchIndexer contracts."
+      },
+      {
+        "path": "frontend/src/core/writer-v2/",
+        "reason": "Preserve Select Box geometry/Writer contracts."
+      },
+      {
+        "path": "GitHub issues #183, #218, #227, #230",
+        "reason": "Scope and evidence authority."
+      }
+    ],
+    "protected": [
+      {
+        "invariant": "Revision-aware sessions fail on incomplete/stale revision metadata instead of falling back to workingBytes.",
+        "reason": "Prevents stale revision rendering."
+      },
+      {
+        "invariant": "Source public cache identity is activeRevisionId/documentKey and remains internally isolated from byte entries.",
+        "reason": "Prevents byte admission documents from masking range-backed rendering."
+      },
+      {
+        "invariant": "Every async active consumer owns/releases a PdfDocumentLease.",
+        "reason": "Preserves ref-count/destruction correctness."
+      },
+      {
+        "invariant": "Opening a document does not automatically scan all pages for search indexing.",
+        "reason": "Preserves the 8D.2 improvement; 8F owns incremental indexing."
+      },
+      {
+        "invariant": "Standalone explicit-buffer verification/macro/headless flows keep byte renderer APIs.",
+        "reason": "8D.3 migrates active-session consumers only."
+      }
+    ],
+    "prohibited": [
+      {
+        "domain": "Phase 8E history journal/checkpoints",
+        "reason": "Separate next work package."
+      },
+      {
+        "domain": "Phase 8F background/persisted indexing",
+        "reason": "Separate work package."
+      },
+      {
+        "domain": "100 MiB admission ceiling removal",
+        "reason": "Outside #230."
+      },
+      {
+        "domain": "PdfMutationEngine or Save source migration",
+        "reason": "Outside #230."
+      },
+      {
+        "domain": "new product feature breadth",
+        "reason": "Issue #185 breadth freeze remains active."
+      }
+    ],
+    "owner_reserved": [
+      {
+        "decision": "Change phase order or breadth freeze.",
+        "reason": "Requires Owner intent mutation."
+      },
+      {
+        "decision": "Expand 8D.3 into history/indexing/admission/mutation/Save.",
+        "reason": "Would change the roadmap work package."
+      },
+      {
+        "decision": "Authorize merge of a future 8D.3 PR.",
+        "reason": "V2.5 requires exact-PR-head delivery authorization."
+      }
+    ]
+  },
+  "anti_drift": {
+    "do_not": [
+      {
+        "id": "ADR-01",
+        "restriction": "Do not make PdfRendererAdapter import Zustand or session state.",
+        "reason": "Renderer remains session-agnostic."
+      },
+      {
+        "id": "ADR-02",
+        "restriction": "Do not replace explicit lease ownership with usePdfStore.pdfDoc sharing.",
+        "reason": "Lease cache owns PDF.js lifecycle."
+      },
+      {
+        "id": "ADR-03",
+        "restriction": "Do not delete byte wrappers used by standalone callers.",
+        "reason": "Issue #230 preserves those workflows."
+      },
+      {
+        "id": "ADR-04",
+        "restriction": "Do not add automatic full-document search indexing on open.",
+        "reason": "8D.2 removed it; 8F owns incremental indexing."
+      }
+    ],
+    "stale_if": [
+      {
+        "id": "STALE-01",
+        "condition": "RM-0001 no longer leaves WP-8D3 as the unique frontier.",
+        "effect": "STALE",
+        "rationale": "EP no longer matches roadmap authority."
+      },
+      {
+        "id": "STALE-02",
+        "condition": "main moves from the observed base into this EP's owned files/invariants without reconciled drift.",
+        "effect": "RECONCILE",
+        "rationale": "Live basis changed."
+      },
+      {
+        "id": "STALE-03",
+        "condition": "Issue #230 is superseded or materially changes scope.",
+        "effect": "STALE",
+        "rationale": "Coordination contract changed."
+      },
+      {
+        "id": "STALE-04",
+        "condition": "Strict resolver or source-cache identity changes materially.",
+        "effect": "RECONCILE",
+        "rationale": "Implementation/oracle basis changed."
+      }
+    ]
+  },
+  "implementation_plan": [
+    {
+      "id": "STEP-01",
+      "objective": "Create one reusable active-session PdfDocumentLease coordinator without Zustand coupling in PdfRendererAdapter.",
+      "targets": [
+        "frontend/src/adapters/pdf-renderer/activePdfDocumentLease.ts",
+        "focused helper test"
+      ],
+      "reads": [
+        "activePdfRendererInput.ts",
+        "PdfRendererAdapter.ts",
+        "operationCancellation.ts"
+      ],
+      "writes": [
+        "activePdfDocumentLease.ts",
+        "focused helper test"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-04"
+      ],
+      "tests": [
+        "TEST-04"
+      ],
+      "expected_state": "Callers acquire source-backed or legacy byte leases from an explicit session snapshot and cancellation cannot leak a late lease.",
+      "stop_conditions": [
+        "Stop if strict revision fallback or renderer dependency direction would be weakened."
+      ]
+    },
+    {
+      "id": "STEP-02",
+      "objective": "Migrate uncached SearchPanel and native BookmarksSidebar loading to active revision leases.",
+      "targets": [
+        "SearchPanel.tsx",
+        "BookmarksSidebar.tsx",
+        "focused tests",
+        "loaded-document search helper if required"
+      ],
+      "reads": [
+        "SearchIndexer",
+        "PdfRendererAdapter",
+        "STEP-01 helper"
+      ],
+      "writes": [
+        "SearchPanel.tsx",
+        "BookmarksSidebar.tsx",
+        "focused tests",
+        "bounded renderer helper if needed"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-01",
+        "AC-02",
+        "AC-04"
+      ],
+      "tests": [
+        "TEST-01",
+        "TEST-02",
+        "TEST-04"
+      ],
+      "expected_state": "Cached search remains; uncached search and outline use revision-keyed leases with cancellation/final release and no workingBytes reacquisition.",
+      "stop_conditions": [
+        "Stop if automatic background indexing or custom bookmark persistence would change."
+      ]
+    },
+    {
+      "id": "STEP-03",
+      "objective": "Migrate active Select Box Copy extraction/image actions to active revision leases while retaining byte wrappers.",
+      "targets": [
+        "SelectBoxCopyLayer.tsx",
+        "selectBoxCopyEngine.ts",
+        "imageSnapshot.ts",
+        "focused tests"
+      ],
+      "reads": [
+        "Select Box geometry/formatting/Writer contracts",
+        "STEP-01 helper"
+      ],
+      "writes": [
+        "SelectBoxCopyLayer.tsx",
+        "selectBoxCopyEngine.ts",
+        "imageSnapshot.ts",
+        "focused tests"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-03",
+        "AC-04"
+      ],
+      "tests": [
+        "TEST-03",
+        "TEST-04"
+      ],
+      "expected_state": "Active Select Box operations use the active revision PDF.js document; geometry/Writer behavior is unchanged; byte wrappers remain.",
+      "stop_conditions": [
+        "Stop if geometry or Writer domain contracts must change."
+      ]
+    },
+    {
+      "id": "STEP-04",
+      "objective": "Certify anti-drift, docs, quality, checkpoint and PR delivery correlation.",
+      "targets": [
+        "phase8-active-renderer-consumers audit",
+        "frontend/package.json",
+        "architecture docs",
+        "agents/relay",
+        "8D.3 PR"
+      ],
+      "reads": [
+        "all changed files",
+        "issues #183/#230",
+        "V2.5 quality/delivery contracts"
+      ],
+      "writes": [
+        "audit/package/docs",
+        "agents/relay quality/checkpoint/delivery/progress"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-04"
+      ],
+      "acceptance": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04"
+      ],
+      "tests": [
+        "TEST-04",
+        "TEST-05"
+      ],
+      "expected_state": "8D.3 has exact static/focused evidence, truthful runner evidence, QRV/checkpoint, reconciled frontier and verified PR correlation.",
+      "stop_conditions": [
+        "Do not claim runner PASS without executed steps; do not merge without exact-head Owner authorization."
+      ]
+    }
+  ],
+  "next_work": {
+    "phase_transition": false,
+    "steps": [
+      {
+        "order": 1,
+        "action": "Implement and test the active-session lease coordinator.",
+        "targets": [
+          "activePdfDocumentLease.ts",
+          "focused helper test"
+        ],
+        "inputs": [
+          "INPUT-01",
+          "INPUT-02",
+          "INPUT-03"
+        ],
+        "tests": [
+          "TEST-04"
+        ],
+        "benchmarks": [
+          "BENCH-02"
+        ],
+        "acceptance": [
+          "AC-04"
+        ],
+        "expected_result": "A reusable coordinator safely acquires source-backed or legacy byte leases.",
+        "stop_if": [
+          "Live write gate fails or strict revision/cache invariants cannot be preserved."
+        ],
+        "execution_requirement": null
+      },
+      {
+        "order": 2,
+        "action": "Migrate SearchPanel and BookmarksSidebar to the coordinator and loaded-document operations.",
+        "targets": [
+          "SearchPanel.tsx",
+          "BookmarksSidebar.tsx",
+          "focused tests"
+        ],
+        "inputs": [
+          "INPUT-01",
+          "INPUT-02",
+          "INPUT-03"
+        ],
+        "tests": [
+          "TEST-01",
+          "TEST-02",
+          "TEST-04"
+        ],
+        "benchmarks": [
+          "BENCH-01",
+          "BENCH-02"
+        ],
+        "acceptance": [
+          "AC-01",
+          "AC-02",
+          "AC-04"
+        ],
+        "expected_result": "No active search/outline path reacquires from workingBytes; existing behavior remains intact.",
+        "stop_if": [
+          "Automatic full-document indexing or custom bookmark semantics would change."
+        ],
+        "execution_requirement": null
+      },
+      {
+        "order": 3,
+        "action": "Migrate active Select Box Copy to active revision leases and preserve byte wrappers.",
+        "targets": [
+          "SelectBoxCopyLayer.tsx",
+          "selectBoxCopyEngine.ts",
+          "imageSnapshot.ts",
+          "focused tests"
+        ],
+        "inputs": [
+          "INPUT-01",
+          "INPUT-02",
+          "INPUT-03"
+        ],
+        "tests": [
+          "TEST-03",
+          "TEST-04"
+        ],
+        "benchmarks": [
+          "BENCH-01",
+          "BENCH-02"
+        ],
+        "acceptance": [
+          "AC-03",
+          "AC-04"
+        ],
+        "expected_result": "Text/image operations use the active revision cache without geometry/Writer changes.",
+        "stop_if": [
+          "Loaded-document refactor requires geometry or Writer model changes."
+        ],
+        "execution_requirement": null
+      },
+      {
+        "order": 4,
+        "action": "Run 8D.3 certification and close the V2.5 quality/checkpoint/PR-delivery transaction.",
+        "targets": [
+          "8D.3 audit",
+          "frontend/package.json",
+          "agents/relay",
+          "8D.3 PR"
+        ],
+        "inputs": [
+          "INPUT-01",
+          "INPUT-04"
+        ],
+        "tests": [
+          "TEST-04",
+          "TEST-05"
+        ],
+        "benchmarks": [
+          "BENCH-01",
+          "BENCH-02"
+        ],
+        "acceptance": [
+          "AC-01",
+          "AC-02",
+          "AC-03",
+          "AC-04"
+        ],
+        "expected_result": "Static/focused evidence, QRV/checkpoint and PR correlation are durable; runner evidence is truthfully classified.",
+        "stop_if": [
+          "A MUST_PASS source/static test fails or a protected invariant is violated."
+        ],
+        "execution_requirement": {
+          "id": "EXECREQ-8D3-01",
+          "type": "EXTERNAL_ENVIRONMENT",
+          "actor": "Repository owner or available CI/local checkout",
+          "environment": {
+            "kind": "Pdf-Hub checkout with installed frontend dependencies",
+            "description": "Environment capable of executing pnpm typecheck/Vitest/build; hosted Actions may remain unavailable under #183."
+          },
+          "command": "cd frontend && pnpm run certify:phase8d3",
+          "instruction": null,
+          "working_directory": "frontend",
+          "required_basis": [
+            "Exact 8D.3 checkpoint material head",
+            "frontend dependencies matching that head"
+          ],
+          "unavailable_here_reason": "The connected GitHub editing environment has no private repository checkout/dependencies, and #183 documents hosted jobs failing before runner allocation.",
+          "expected_evidence": [
+            "TEST-05"
+          ],
+          "blocks": [
+            "Runner-executed certification claim"
+          ],
+          "success_condition": "The command executes on the exact checkpoint head and records its actual result/log basis.",
+          "clears": [
+            "TEST-05 NOT_RUN evidence gap"
+          ]
+        }
+      }
+    ]
+  },
+  "qualification_boundary": {
+    "required": false,
+    "basis": [
+      "This EP stays within Phase 8D and extends the already-merged source-lease path to remaining callers.",
+      "It does not change source cache identity, strict revision invariant, input authority or verification/oracle class established by 8D.1/8D.2."
+    ]
+  },
+  "quality": {
+    "applicable": [
+      {
+        "blueprint": "software-design",
+        "reason": "Changes active-session lease ownership boundaries.",
+        "review_focus": [
+          "dependency direction",
+          "lease ownership",
+          "strict revision fallback"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Production TypeScript changes.",
+        "review_focus": [
+          "failure semantics",
+          "cancellation",
+          "cleanup"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Requires focused regression coverage.",
+        "review_focus": [
+          "revision vs legacy paths",
+          "cancellation",
+          "compatibility wrappers"
+        ]
+      },
+      {
+        "blueprint": "code-review",
+        "reason": "Renderer lifecycle and multiple active consumers are high-risk.",
+        "review_focus": [
+          "resource leaks",
+          "stale revision use",
+          "byte-path regression"
+        ]
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Eliminates avoidable whole-buffer renderer reacquisition/hash/clone pressure.",
+        "review_focus": [
+          "no workingBytes reacquisition",
+          "cache reuse",
+          "no open-time all-page indexing"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Moves active callers onto an established contract while compatibility byte callers coexist.",
+        "review_focus": [
+          "old/new compatibility",
+          "standalone byte wrappers"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "Delivered through a tracked PR with V2.5 Issue-to-EP correlation/provider readback.",
+        "review_focus": [
+          "PR correlation",
+          "delivery observation",
+          "exact-head merge authorization"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intended visual/journey behavior change."
+      },
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility contract change."
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "No numerical engineering method or tolerance changes."
+      }
+    ],
+    "review_contract": {
+      "required": true,
+      "required_before_checkpoint": true,
+      "receipt_namespace": "QRV-",
+      "required_outputs": [
+        "procedure_results",
+        "findings",
+        "owner_report",
+        "successor_handover"
+      ]
+    },
+    "findings_policy": "Quality findings remain quality state unless they map to acceptance, authority, protected-invariant, repository-state, or safety hard-stop conditions.",
+    "ordinary_findings_are_hard_stops": false
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Uncached active search uses a revision-keyed lease, preserves cached SearchIndexer behavior, and releases/cancels correctly.",
+      "weight": 25,
+      "verification": [
+        "TEST-01",
+        "TEST-04",
+        "BENCH-01"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "description": "Native outline loading uses a revision-keyed lease and custom bookmark behavior remains unchanged.",
+      "weight": 25,
+      "verification": [
+        "TEST-02",
+        "TEST-04",
+        "BENCH-01"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "description": "Active Select Box text/image operations use the active revision document while geometry/Writer behavior and byte wrappers remain intact.",
+      "weight": 25,
+      "verification": [
+        "TEST-03",
+        "TEST-04",
+        "BENCH-01"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "description": "Migrated consumers share activeRevisionId cache identity, preserve strict revision failure semantics, and do not reintroduce unconditional byte hash/clone or open-time full indexing.",
+      "weight": 25,
+      "verification": [
+        "TEST-01",
+        "TEST-02",
+        "TEST-03",
+        "TEST-04",
+        "TEST-05",
+        "BENCH-02"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Focused SearchPanel tests prove cached-index behavior plus uncached revision-source acquisition/cancellation/release.",
+      "proves": [
+        "AC-01",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Focused BookmarksSidebar tests prove source-backed outline lease ownership and unchanged custom bookmark behavior.",
+      "proves": [
+        "AC-02",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Focused Select Box tests prove active loaded-document text/image behavior plus retained byte wrapper compatibility.",
+      "proves": [
+        "AC-03",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Run the 8D.3 static audit and focused Vitest suite on the exact implementation head.",
+      "proves": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8d3 on the exact checkpoint head; use NOT_RUN if no executable dependency environment is available.",
+      "proves": [
+        "AC-04"
+      ]
+    }
+  ],
+  "failure_and_stop_conditions": {
+    "hard_stop_categories": [
+      "OWNER_DECISION_REQUIRED",
+      "ESSENTIAL_INPUT_MISSING",
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "SUPERSEDED_EP",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "report_contract": {
+    "sections": [
+      "Executive state",
+      "Overall / phase / EP progress",
+      "Work completed",
+      "Files changed",
+      "Acceptance matrix",
+      "Tests and evidence",
+      "Quality findings",
+      "Known limitations",
+      "Owner decisions required",
+      "GitHub issue changes",
+      "Roadmap changes",
+      "Exact next actions",
+      "Successor EP"
+    ],
+    "payloads": [
+      {
+        "id": "RPT-STATE",
+        "section": "Executive state",
+        "sources": [
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "relay_state",
+          "current_position",
+          "execution_state",
+          "material_authority",
+          "stop"
+        ]
+      },
+      {
+        "id": "RPT-PROGRESS",
+        "section": "Overall / phase / EP progress",
+        "sources": [
+          "PROGRESS",
+          "OVERALL_ROADMAP",
+          "EP"
+        ],
+        "required_fields": [
+          "progress_basis",
+          "overall",
+          "phase",
+          "work_package",
+          "step",
+          "acceptance"
+        ]
+      },
+      {
+        "id": "RPT-WORK",
+        "section": "Work completed",
+        "sources": [
+          "EP",
+          "CP"
+        ],
+        "required_fields": [
+          "completed_steps",
+          "implementation_result"
+        ]
+      },
+      {
+        "id": "RPT-FILES",
+        "section": "Files changed",
+        "sources": [
+          "CP"
+        ],
+        "required_fields": [
+          "files_changed"
+        ]
+      },
+      {
+        "id": "RPT-AC",
+        "section": "Acceptance matrix",
+        "sources": [
+          "EP",
+          "PROGRESS",
+          "CP"
+        ],
+        "required_fields": [
+          "criterion",
+          "status",
+          "percent",
+          "basis"
+        ]
+      },
+      {
+        "id": "RPT-EVIDENCE",
+        "section": "Tests and evidence",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "validation_id",
+          "obligation_class",
+          "status",
+          "basis_ref",
+          "not_run_reason"
+        ]
+      },
+      {
+        "id": "RPT-QUALITY",
+        "section": "Quality findings",
+        "sources": [
+          "EP",
+          "QRV",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "quality_review",
+          "procedures",
+          "findings",
+          "disposition",
+          "execution_effect"
+        ]
+      },
+      {
+        "id": "RPT-LIMITS",
+        "section": "Known limitations",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "limitations",
+          "evidence_gaps",
+          "deferred_items"
+        ]
+      },
+      {
+        "id": "RPT-OWNER",
+        "section": "Owner decisions required",
+        "sources": [
+          "ODR",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "decision_required",
+          "pending_items",
+          "authority_effect"
+        ]
+      },
+      {
+        "id": "RPT-ISSUES",
+        "section": "GitHub issue changes",
+        "sources": [
+          "ISSUE_GRAPH",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "operations",
+          "relationships",
+          "projection_state"
+        ]
+      },
+      {
+        "id": "RPT-ROADMAP",
+        "section": "Roadmap changes",
+        "sources": [
+          "OVERALL_ROADMAP",
+          "ROADMAP_REVISION",
+          "PROGRESS"
+        ],
+        "required_fields": [
+          "revision",
+          "topology_or_status_change",
+          "frontier_after",
+          "progress_basis_effect"
+        ]
+      },
+      {
+        "id": "RPT-NEXT",
+        "section": "Exact next actions",
+        "sources": [
+          "EP"
+        ],
+        "required_fields": [
+          "ordered_actions",
+          "targets",
+          "inputs",
+          "tests",
+          "benchmarks",
+          "acceptance",
+          "expected_result",
+          "stop_conditions"
+        ]
+      },
+      {
+        "id": "RPT-SUCCESSOR",
+        "section": "Successor EP",
+        "sources": [
+          "CP",
+          "OVERALL_ROADMAP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "successor_mode",
+          "next_frontier",
+          "ep_or_terminal_disposition"
+        ]
+      }
+    ]
+  },
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "duties": [
+      "reconcile current roadmap node",
+      "create checkpoint",
+      "update progress",
+      "update issue projection when applicable",
+      "compute next executable frontier",
+      "create successor EP when work continues",
+      "validate successor EP",
+      "run cold-start check",
+      "update REPO_STATE"
+    ],
+    "required_outputs": [
+      "checkpoint",
+      "progress_reconciliation",
+      "issue_projection_disposition",
+      "next_frontier",
+      "successor_ep_or_terminal_disposition"
+    ]
+  }
+}

@@ -1,3 +1,15 @@
+# PDF Hub V2.5 relay override — authoritative current execution entrypoint
+
+For current engineering delivery, start at `agents/relay/REPO_STATE.yaml` and follow the
+pinned `engineering-pr-delivery-v2.5` protocol referenced there. The relay roadmap,
+active execution package, root `ARCHITECTURE.md`, and current GitHub roadmap issues
+supersede historical server/PyMuPDF/FastAPI assumptions in the older sections below.
+
+Material product writes require the live V2.5 route/candidate write gate. Conversation,
+branch existence, and old task-state prose are not material write authority.
+
+---
+
 # DocCraft — AGENTS.md (v2)
 
 > Changes from v1:

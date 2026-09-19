@@ -1,0 +1,368 @@
+{
+  "schema_version": "relay-v2.5",
+  "roadmap": {
+    "id": "PDFHUB-READINESS-2026",
+    "revision": "RM-0001",
+    "title": "PDF Hub Professional / Personal / Basic readiness roadmap"
+  },
+  "objectives": [
+    {
+      "id": "OBJ-READINESS",
+      "title": "Complete PDF Hub readiness roadmap",
+      "state": "ACTIVE",
+      "definition": "DETAILED",
+      "weight": 100,
+      "phases": [
+        {
+          "id": "PHASE-004",
+          "title": "Canonical command/session/history",
+          "state": "COMPLETE",
+          "definition": "DETAILED",
+          "weight": 5,
+          "work_packages": [
+            {
+              "id": "WP-004",
+              "title": "Complete canonical command/session/history convergence",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 100,
+              "depends_on": [],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-005",
+          "title": "Stable PageId, PageGraph and PageLabels",
+          "state": "COMPLETE",
+          "definition": "DETAILED",
+          "weight": 5,
+          "work_packages": [
+            {
+              "id": "WP-005",
+              "title": "Complete stable page identity and logical PageLabels",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 100,
+              "depends_on": [
+                "WP-004"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-006",
+          "title": "Professional header/footer and numbering",
+          "state": "COMPLETE",
+          "definition": "DETAILED",
+          "weight": 5,
+          "work_packages": [
+            {
+              "id": "WP-006",
+              "title": "Complete professional header/footer engine",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 100,
+              "depends_on": [
+                "WP-005"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-007",
+          "title": "Persistent PDF mutation session",
+          "state": "COMPLETE",
+          "definition": "DETAILED",
+          "weight": 5,
+          "work_packages": [
+            {
+              "id": "WP-007",
+              "title": "Complete PdfMutationEngine and transaction-local mutation session",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 100,
+              "depends_on": [
+                "WP-006"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-008",
+          "title": "Genuine large-PDF architecture",
+          "state": "ACTIVE",
+          "definition": "DETAILED",
+          "weight": 20,
+          "work_packages": [
+            {
+              "id": "WP-8A",
+              "title": "DocumentSource contract and bounded adapters",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-007"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8B",
+              "title": "Source-aware primary admission",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8A"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8C1",
+              "title": "WorkingRevisionStore and OPFS/memory adapters",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8B"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8C2",
+              "title": "Revision-aware primary sessions",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8C1"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8C3",
+              "title": "Revision-first canonical mutation publication",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8C2"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8D1",
+              "title": "PDF.js DocumentSource range transport substrate",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8C3"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8D2",
+              "title": "Revision-backed primary workspace rendering",
+              "state": "COMPLETE",
+              "definition": "DETAILED",
+              "execution_status": "TERMINAL",
+              "weight": 10,
+              "depends_on": [
+                "WP-8D1"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8D3",
+              "title": "Migrate remaining active renderer consumers",
+              "state": "ACTIVE",
+              "definition": "DETAILED",
+              "execution_status": "ACTIVE",
+              "weight": 10,
+              "depends_on": [
+                "WP-8D2"
+              ],
+              "issue": 230
+            },
+            {
+              "id": "WP-8E",
+              "title": "History journal and bounded checkpoints",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 10,
+              "depends_on": [
+                "WP-8D3"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8F",
+              "title": "Incremental visible/nearby-first indexing",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 5,
+              "depends_on": [
+                "WP-8E"
+              ],
+              "issue": null
+            },
+            {
+              "id": "WP-8G",
+              "title": "Large-document performance corpus and certification",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 5,
+              "depends_on": [
+                "WP-8F"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-009",
+          "title": "PDF fidelity laboratory",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-009",
+              "title": "Permanent fidelity corpus and engine hardening",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-8G"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-010",
+          "title": "Native annotation interoperability",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-010",
+              "title": "External annotation appearance/interoperability hardening",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-009"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-011",
+          "title": "OCR internationalization and resumability",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-011",
+              "title": "Unicode multilingual OCR and resumable execution",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-010"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-012",
+          "title": "Public typed SDK/API",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-012",
+              "title": "Public SDK over canonical command/session model",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-011"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-013",
+          "title": "Bounded existing-PDF-text editing",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-013",
+              "title": "Safe native/reconstructed existing text editing",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-012"
+              ],
+              "issue": null
+            }
+          ]
+        },
+        {
+          "id": "PHASE-014",
+          "title": "Desktop/mobile workflow hardening",
+          "state": "PLANNED",
+          "definition": "DETAILED",
+          "weight": 10,
+          "work_packages": [
+            {
+              "id": "WP-014",
+              "title": "Final desktop/mobile workflow hardening",
+              "state": "PLANNED",
+              "definition": "DETAILED",
+              "execution_status": "WAITING",
+              "weight": 100,
+              "depends_on": [
+                "WP-013"
+              ],
+              "issue": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

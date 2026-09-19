@@ -1,0 +1,62 @@
+{
+  "schema_version": "relay-v2.5-migration-inventory",
+  "id": "MIGINV-0001",
+  "captured_at": "2026-09-19T10:33:01Z",
+  "source_state": {
+    "default_branch": "main",
+    "main_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "execution_branch": "phase8/active-renderer-consumers",
+    "execution_branch_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "protocol_before": "Legacy AGENTS.md / AGENT_PROTOCOL.md / task-state plus conversation-driven execution",
+    "protocol_target": "engineering-pr-delivery-v2.5 pinned to Common d9b84069683977b5c370f536f1c50095de926338"
+  },
+  "authoritative_sources": [
+    {
+      "source": "ARCHITECTURE.md",
+      "role": "current product/architecture authority"
+    },
+    {
+      "source": "GitHub issue #185",
+      "role": "post-merge roadmap and breadth freeze"
+    },
+    {
+      "source": "GitHub issue #218",
+      "role": "Phase 8 large-document work decomposition"
+    },
+    {
+      "source": "GitHub issue #227",
+      "role": "Phase 8D renderer/source design"
+    },
+    {
+      "source": "GitHub issue #230",
+      "role": "current 8D.3 work contract"
+    },
+    {
+      "source": "GitHub issue #183",
+      "role": "runner infrastructure evidence gap"
+    }
+  ],
+  "completed_material": [
+    {
+      "slice": "8D.1",
+      "pr": 231,
+      "merge_ref": "ee108b6a3bd8bb92c0d30227cf1f267a8f400d6f"
+    },
+    {
+      "slice": "8D.2",
+      "pr": 232,
+      "merge_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963"
+    }
+  ],
+  "unresolved_work": [
+    "8D.3 SearchPanel active-session source lease migration",
+    "8D.3 BookmarksSidebar active-session source lease migration",
+    "8D.3 Select Box Copy active-session source lease migration",
+    "Runner-executed Phase 8 certification remains unavailable while #183 persists",
+    "Phase 8E/8F/8G remain future frontier work after 8D.3"
+  ],
+  "legacy_ambiguities": [
+    "Root AGENTS.md contains historical server/PyMuPDF rules inconsistent with the current browser-only architecture; V2.5 relay and root ARCHITECTURE.md supersede those historical sections.",
+    "Issue #185 current-status header predates merged Phase 7/8 work; repository history plus #218 current Phase 8 tracking determine present execution position."
+  ]
+}
