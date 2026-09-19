@@ -15,6 +15,9 @@ import {
 } from '../ocr/ocrPageAnchor';
 import { recomputeOcrDerivedState, useOcrStore } from '../ocr/ocrStore';
 import { useHistoryStore } from './store';
+import {
+  prepareHistoryJournalNavigation,
+} from './journal/navigation';
 import type { HistoryState, Transaction } from './types';
 
 async function persistHistoryState(state: HistoryState): Promise<void> {
@@ -165,11 +168,21 @@ function restoreHistoryState(
 }
 
 function captureHistoryRestoreSnapshot() {
+  const history = useHistoryStore.getState();
   return {
     session: useSessionStore.getState(),
     annotations: useAnnotationStore.getState(),
     writer: useWriterV2Store.getState(),
     ocr: useOcrStore.getState(),
+    history: {
+      undoStack: [...history.undoStack],
+      redoStack: [...history.redoStack],
+      retainedBytes: history.retainedBytes,
+      droppedTransactions:
+        history.droppedTransactions,
+      lastTrimReason: history.lastTrimReason,
+      overBudget: history.overBudget,
+    },
   };
 }
 
@@ -180,6 +193,7 @@ function restoreHistoryRestoreSnapshot(
   useAnnotationStore.setState(snapshot.annotations);
   useWriterV2Store.setState(snapshot.writer);
   useOcrStore.setState(snapshot.ocr);
+  useHistoryStore.setState(snapshot.history);
   documentBus.emit({ type: 'DOCUMENT_REPLACED' });
 }
 
@@ -198,14 +212,31 @@ async function applyHistoryDirection(
       ? candidate.before
       : candidate.after;
 
-    // Resolve/materialize before mutating application or history state.
+    // Resolve/materialize and prepare journal navigation before mutating
+    // application or history state.
     const targetPdf = await resolveHistoryPdfBytes(target);
+    const currentSession = useSessionStore.getState();
+    const targetRevisionId =
+      target.revision?.revisionId
+      ?? target.activeRevisionId
+      ?? null;
+    const preparedJournal =
+      await prepareHistoryJournalNavigation({
+        journalStoreId:
+          currentSession.historyJournalStoreId,
+        journalId: currentSession.historyJournalId,
+        revisionStoreId:
+          currentSession.revisionStoreId,
+        currentRevisionId:
+          currentSession.activeRevisionId,
+        targetRevisionId,
+      });
     const restoreSnapshot = captureHistoryRestoreSnapshot();
 
     try {
-      // Restore first, persist the matching dependent state, then consume the
-      // history entry. Any restore/persistence failure leaves the stack intact
-      // and rolls application stores back to their pre-undo/redo state.
+      // Restore first, persist dependent state, move the in-memory stack, then
+      // atomically replace durable journal metadata. Any failure rolls
+      // session/dependent/history stores back to the pre-navigation snapshot.
       restoreHistoryState(target, targetPdf);
       await persistHistoryState(target);
 
@@ -216,6 +247,12 @@ async function applyHistoryDirection(
       if (!transaction || transaction.id !== candidate.id) {
         restoreHistoryRestoreSnapshot(restoreSnapshot);
         return false;
+      }
+
+      if (preparedJournal) {
+        await preparedJournal.store.save(
+          preparedJournal.manifest,
+        );
       }
 
       return true;
