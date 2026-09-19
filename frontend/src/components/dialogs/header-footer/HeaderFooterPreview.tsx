@@ -122,9 +122,24 @@ const PreviewBand: React.FC<{
         <Separator band={band} />
       )}
       <div className="grid grid-cols-3 items-start gap-1">
-        <Content content={band.left} align="left" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
-        <Content content={band.center} align="center" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
-        <Content content={band.right} align="right" imageUrls={imageUrls} slotWidthPt={slotWidthPt} />
+        <Content
+          content={band.left}
+          align="left"
+          imageUrls={imageUrls}
+          slotWidthPt={slotWidthPt}
+        />
+        <Content
+          content={band.center}
+          align="center"
+          imageUrls={imageUrls}
+          slotWidthPt={slotWidthPt}
+        />
+        <Content
+          content={band.right}
+          align="right"
+          imageUrls={imageUrls}
+          slotWidthPt={slotWidthPt}
+        />
       </div>
       {band.separator && position === 'header' && (
         <Separator band={band} />
