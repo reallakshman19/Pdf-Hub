@@ -17,6 +17,15 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
+import type {
+  WriterV2CommandResult,
+} from '@/core/writer-v2/writerCommandStore';
+import type {
+  WriterElementV2,
+} from '@/core/writer-v2/types';
 import type {
   WriterTableBorderStyle,
   WriterTableCellStyle,
@@ -49,6 +58,246 @@ export interface WriterTablePropertiesPanelProps {
   onTableSelectionChange?: (selection: WriterTableSelection | null) => void;
 }
 
+interface TableDraftCommitResult {
+  changed: boolean;
+}
+
+function TableDraftTextInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const cancelBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(value);
+      return;
+    }
+
+    if (draft === value) return;
+
+    void onCommit(draft)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(value);
+        }
+      })
+      .catch(() => {
+        setDraft(value);
+      });
+  };
+
+  return (
+    <input
+      className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+      value={draft}
+      onChange={(event) =>
+        setDraft(event.currentTarget.value)
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
+function TableDraftNumberInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+  min,
+  max,
+  step = 1,
+}: {
+  value: number;
+  onCommit: (
+    value: number,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  const [draft, setDraft] =
+    React.useState(String(value));
+  const cancelBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(String(value));
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(String(value));
+      return;
+    }
+
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+
+    const next = Math.max(
+      min ?? Number.NEGATIVE_INFINITY,
+      Math.min(
+        max ?? Number.POSITIVE_INFINITY,
+        parsed,
+      ),
+    );
+
+    setDraft(String(next));
+
+    if (next === value) return;
+
+    void onCommit(next)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(String(value));
+        }
+      })
+      .catch(() => {
+        setDraft(String(value));
+      });
+  };
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+      value={draft}
+      onChange={(event) =>
+        setDraft(event.currentTarget.value)
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(String(value));
+          event.currentTarget.blur();
+        }
+      }}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
+function TableDraftColorInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const timerRef =
+    React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setDraft(value);
+  }, [resetKey, value]);
+
+  React.useEffect(
+    () => () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleCommit = (next: string) => {
+    setDraft(next);
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = window.setTimeout(
+      () => {
+        timerRef.current = null;
+        if (next === value) return;
+
+        void onCommit(next)
+          .then((result) => {
+            if (!result.changed) {
+              setDraft(value);
+            }
+          })
+          .catch(() => {
+            setDraft(value);
+          });
+      },
+      250,
+    );
+  };
+
+  return (
+    <input
+      type="color"
+      className="mt-1 h-8 w-full rounded border border-slate-300"
+      value={draft}
+      onChange={(event) =>
+        scheduleCommit(
+          event.currentTarget.value,
+        )
+      }
+      aria-label={ariaLabel}
+    />
+  );
+}
+
 export const WriterTablePropertiesPanel: React.FC<
   WriterTablePropertiesPanelProps
 > = ({
@@ -58,7 +307,46 @@ export const WriterTablePropertiesPanel: React.FC<
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const tableCommitTailRef =
+    React.useRef<Promise<void>>(
+      Promise.resolve(),
+    );
+
+  const runDurableCommand =
+    React.useCallback((
+      context: string,
+      builder: (
+        latestElements: WriterElementV2[],
+      ) => WriterTableCommandBridgeResult,
+    ): Promise<WriterV2CommandResult | null> => {
+      const run =
+        tableCommitTailRef.current.then(
+          async () => {
+            const result = builder(
+              useWriterV2Store
+                .getState()
+                .elements,
+            );
+
+            if (!result.command) {
+              return null;
+            }
+
+            return dispatchDurableWriterUiCommand(
+              result.command,
+              context,
+            );
+          },
+        );
+
+      tableCommitTailRef.current =
+        run.then(
+          () => undefined,
+          () => undefined,
+        );
+
+      return run;
+    }, []);
 
   const table = React.useMemo(() => {
     const preferredId = activeId ?? selectedIds[0] ?? null;
@@ -145,13 +433,15 @@ export const WriterTablePropertiesPanel: React.FC<
   const canMergeCells = selectedCellCount >= 2;
 
   const runCommand = (
-    builder: () => WriterTableCommandBridgeResult,
+    context: string,
+    builder: (
+      latestElements: WriterElementV2[],
+    ) => WriterTableCommandBridgeResult,
   ) => {
-    const result = builder();
-
-    if (result.command) {
-      dispatchWriterCommand(result.command);
-    }
+    void runDurableCommand(
+      context,
+      builder,
+    ).catch(() => undefined);
   };
 
   const setHorizontalAlignment = (
