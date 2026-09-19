@@ -53,39 +53,44 @@ forbidContains(transport, transportPath, [
   'pdf-lib',
 ]);
 
-const rendererPath =
-  'src/adapters/pdf-renderer/PdfRendererAdapter.ts';
-const renderer = read(rendererPath);
-requireContains(renderer, rendererPath, [
+const cachePath =
+  'src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts';
+const cache = read(cachePath);
+requireContains(cache, cachePath, [
   'acquireDocumentSource(',
-  'sourceCacheKey(publicKey',
+  'sourceCacheKey(',
   'return `source:${publicKey}`',
   'range: transport',
   'rangeChunkSize: 64 * 1024',
   'disableRange: false',
   'disableStream: true',
   'disableAutoFetch: true',
-  'getDocumentSourceCacheDiagnostics',
+  'getSourceDiagnostics()',
   'entry.sourceTransport?.abort()',
+  'source entries never collide with byte entries',
 ]);
-
-forbidContains(renderer, rendererPath, [
+forbidContains(cache, cachePath, [
   '@/core/session/',
   'useSessionStore',
   'zustand',
+  'materializeDocumentSource',
+  'FileAdapter',
+  'pdf-lib',
 ]);
 
-const sourceStart = renderer.indexOf(
-  'static async acquireDocumentSource(',
+const sourceStart = cache.indexOf(
+  'async acquireDocumentSource(',
 );
-const sourceEnd = renderer.indexOf(
-  'private static async acquireEntry(',
+const sourceEnd = cache.indexOf(
+  'getDiagnostics()',
   sourceStart,
 );
 if (sourceStart < 0 || sourceEnd < 0) {
-  fail('Could not isolate acquireDocumentSource implementation.');
+  fail(
+    'Could not isolate PdfDocumentLeaseCache.acquireDocumentSource implementation.',
+  );
 } else {
-  const sourcePath = renderer.slice(
+  const sourcePath = cache.slice(
     sourceStart,
     sourceEnd,
   );
@@ -102,6 +107,23 @@ if (sourceStart < 0 || sourceEnd < 0) {
     }
   }
 }
+
+const rendererPath =
+  'src/adapters/pdf-renderer/PdfRendererAdapter.ts';
+const renderer = read(rendererPath);
+requireContains(renderer, rendererPath, [
+  'pdfDocumentLeaseCache.acquireDocument(',
+  'pdfDocumentLeaseCache.acquireDocumentSource(',
+  'pdfDocumentLeaseCache.getDiagnostics()',
+  'pdfDocumentLeaseCache.getSourceDiagnostics()',
+  'pdfDocumentLeaseCache.clear(options)',
+]);
+forbidContains(renderer, rendererPath, [
+  '@/core/session/',
+  'useSessionStore',
+  'zustand',
+  'materializeDocumentSource',
+]);
 
 const transportTestPath =
   'src/adapters/pdf-renderer/PdfJsDocumentSourceTransport.test.ts';
@@ -124,11 +146,19 @@ requireContains(rendererTest, rendererTestPath, [
   "cacheKey: 'sha256:source-one'",
 ]);
 
-const transportLines = transport.split('\n').length;
-if (transportLines > 220) {
-  fail(
-    `${transportPath} exceeds 220 lines (${transportLines}).`,
-  );
+const moduleLimits = [
+  [transportPath, transport, 220],
+  [cachePath, cache, 500],
+  [rendererPath, renderer, 600],
+];
+
+for (const [relativePath, source, limit] of moduleLimits) {
+  const lineCount = source.split('\n').length;
+  if (lineCount > limit) {
+    fail(
+      `${relativePath} exceeds ${limit} lines (${lineCount}).`,
+    );
+  }
 }
 
 if (failed) process.exit(1);
