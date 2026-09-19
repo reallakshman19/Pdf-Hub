@@ -384,8 +384,7 @@ export class PdfRendererAdapter {
     query: string,
     signal?: AbortSignal,
   ): Promise<TextSearchHit[]> {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return [];
+    if (!query.trim()) return [];
 
     throwIfAborted(signal, 'start PDF text search');
     const leasePromise = this.acquireDocument(bytes);
@@ -397,68 +396,112 @@ export class PdfRendererAdapter {
         void leasePromise.then((lateLease) => lateLease.release()).catch(() => undefined);
       },
     );
-    const doc = lease.doc;
 
     try {
-      const hits: TextSearchHit[] = [];
-      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
-        throwIfAborted(signal, `search PDF page ${pageNumber}`);
-        const pagePromise = doc.getPage(pageNumber);
-        const page = await raceWithAbort(
-          pagePromise,
-          signal,
-          `load PDF page ${pageNumber} for search`,
-          () => {
-            void pagePromise.then((latePage) => latePage.cleanup()).catch(() => undefined);
-          },
-        );
-        try {
-          const textItems = await this.getPageTextItems(page, 1.0, signal);
-          let fullText = '';
-          const itemMap: { start: number; end: number; item: TextLayerItem }[] = [];
-
-          for (const item of textItems) {
-            throwIfAborted(signal, `index PDF page ${pageNumber}`);
-            const start = fullText.length;
-            fullText += `${item.text} `;
-            itemMap.push({ start, end: fullText.length - 1, item });
-          }
-
-          const lowerText = fullText.toLowerCase();
-          let idx = lowerText.indexOf(normalizedQuery);
-          let hitCount = 0;
-          while (idx !== -1) {
-            throwIfAborted(signal, `collect search hits on PDF page ${pageNumber}`);
-            const matchEnd = idx + normalizedQuery.length;
-            const hitItems = itemMap.filter((entry) => entry.start < matchEnd && entry.end > idx);
-            const startSnippetIdx = Math.max(0, idx - 20);
-            const endSnippetIdx = Math.min(fullText.length, matchEnd + 20);
-            let snippet = fullText.substring(startSnippetIdx, endSnippetIdx);
-            if (startSnippetIdx > 0) snippet = `...${snippet}`;
-            if (endSnippetIdx < fullText.length) snippet = `${snippet}...`;
-
-            hits.push({
-              id: `hit-${pageNumber}-${hitCount}`,
-              pageNumber,
-              snippet,
-              rects: hitItems.map((entry) => ({
-                x: entry.item.x,
-                y: entry.item.y,
-                width: entry.item.width,
-                height: entry.item.height,
-              })),
-            });
-            hitCount += 1;
-            idx = lowerText.indexOf(normalizedQuery, idx + 1);
-          }
-        } finally {
-          page.cleanup();
-        }
-      }
-      return hits;
+      return await this.searchDocumentTextInDocument(
+        lease.doc,
+        query,
+        signal,
+      );
     } finally {
       await lease.release();
     }
+  }
+
+  static async searchDocumentTextInDocument(
+    doc: PDFDocumentProxy,
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<TextSearchHit[]> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return [];
+
+    throwIfAborted(signal, 'start loaded PDF text search');
+    const hits: TextSearchHit[] = [];
+
+    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+      throwIfAborted(signal, `search PDF page ${pageNumber}`);
+      const pagePromise = doc.getPage(pageNumber);
+      const page = await raceWithAbort(
+        pagePromise,
+        signal,
+        `load PDF page ${pageNumber} for search`,
+        () => {
+          void pagePromise.then((latePage) => latePage.cleanup()).catch(() => undefined);
+        },
+      );
+
+      try {
+        const textItems = await this.getPageTextItems(page, 1.0, signal);
+        let fullText = '';
+        const itemMap: {
+          start: number;
+          end: number;
+          item: TextLayerItem;
+        }[] = [];
+
+        for (const item of textItems) {
+          throwIfAborted(signal, `index PDF page ${pageNumber}`);
+          const start = fullText.length;
+          fullText += `${item.text} `;
+          itemMap.push({
+            start,
+            end: fullText.length - 1,
+            item,
+          });
+        }
+
+        const lowerText = fullText.toLowerCase();
+        let idx = lowerText.indexOf(normalizedQuery);
+        let hitCount = 0;
+
+        while (idx !== -1) {
+          throwIfAborted(
+            signal,
+            `collect search hits on PDF page ${pageNumber}`,
+          );
+          const matchEnd = idx + normalizedQuery.length;
+          const hitItems = itemMap.filter(
+            (entry) =>
+              entry.start < matchEnd && entry.end > idx,
+          );
+          const startSnippetIdx = Math.max(0, idx - 20);
+          const endSnippetIdx = Math.min(
+            fullText.length,
+            matchEnd + 20,
+          );
+          let snippet = fullText.substring(
+            startSnippetIdx,
+            endSnippetIdx,
+          );
+          if (startSnippetIdx > 0) snippet = `...${snippet}`;
+          if (endSnippetIdx < fullText.length) {
+            snippet = `${snippet}...`;
+          }
+
+          hits.push({
+            id: `hit-${pageNumber}-${hitCount}`,
+            pageNumber,
+            snippet,
+            rects: hitItems.map((entry) => ({
+              x: entry.item.x,
+              y: entry.item.y,
+              width: entry.item.width,
+              height: entry.item.height,
+            })),
+          });
+          hitCount += 1;
+          idx = lowerText.indexOf(
+            normalizedQuery,
+            idx + 1,
+          );
+        }
+      } finally {
+        page.cleanup();
+      }
+    }
+
+    return hits;
   }
 
   static async getOutlineFlat(
