@@ -32,8 +32,22 @@ function addedBytesForTransaction(
   transaction: Transaction,
   seenSnapshots: ReadonlySet<Uint8Array>,
 ): number {
-  return addedBytesForState(transaction.before, seenSnapshots)
-    + addedBytesForState(transaction.after, seenSnapshots);
+  const beforeBytes = transaction.before.bytes;
+  const afterBytes = transaction.after.bytes;
+  let addedBytes = addedBytesForState(
+    transaction.before,
+    seenSnapshots,
+  );
+
+  if (
+    afterBytes
+    && afterBytes !== beforeBytes
+    && !seenSnapshots.has(afterBytes)
+  ) {
+    addedBytes += afterBytes.byteLength;
+  }
+
+  return addedBytes;
 }
 
 function rememberTransactionSnapshots(
