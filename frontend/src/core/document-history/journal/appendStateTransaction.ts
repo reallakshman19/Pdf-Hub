@@ -15,6 +15,7 @@ import {
 import {
   assertHistoryJournalManifest,
   cloneHistoryJournalManifest,
+  resolveHistoryJournalActiveTransactionId,
   type HistoryJournalManifest,
   type HistoryJournalRevisionRef,
 } from './types';
@@ -28,6 +29,7 @@ export interface PrepareHistoryJournalStateTransactionInput {
   revisionStoreId: string | null;
   revisionId: string | null;
   transactionId: string;
+  currentTransactionId: string | null;
   command: PdfCommand;
   after: StateHistorySnapshot;
   createdAt?: string;
@@ -104,6 +106,18 @@ export async function prepareHistoryJournalStateTransaction(
   if (current.activeRevisionId !== input.revisionId) {
     throw new Error(
       `History journal active revision ${current.activeRevisionId} does not match state transaction revision ${input.revisionId}.`,
+    );
+  }
+  const activeTransactionId =
+    resolveHistoryJournalActiveTransactionId(
+      current,
+    );
+  if (
+    activeTransactionId
+    !== input.currentTransactionId
+  ) {
+    throw new Error(
+      `History journal active transaction ${activeTransactionId ?? '(origin)'} does not match in-memory history cursor ${input.currentTransactionId ?? '(origin)'}.`,
     );
   }
 
