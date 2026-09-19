@@ -39,6 +39,67 @@ export interface PdfMutationVisualMaskOperation {
   fillColor: string;
 }
 
+export interface PdfMutationHeaderFooterTextStyle {
+  fontFamily: string;
+  fontSizePt: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  color: string;
+  opacity: number;
+}
+
+export interface PdfMutationHeaderFooterTextContent {
+  kind: 'text';
+  text: string;
+  style: PdfMutationHeaderFooterTextStyle;
+}
+
+export interface PdfMutationHeaderFooterImageContent {
+  kind: 'image';
+  binaryResourceId: string;
+  widthPt: number;
+  heightPt?: number;
+  opacity: number;
+  fit: 'contain' | 'cover';
+}
+
+export type PdfMutationHeaderFooterContent =
+  | PdfMutationHeaderFooterTextContent
+  | PdfMutationHeaderFooterImageContent;
+
+export interface PdfMutationHeaderFooterSeparator {
+  thicknessPt: number;
+  color: string;
+  opacity: number;
+  insetLeftPt: number;
+  insetRightPt: number;
+}
+
+export interface PdfMutationHeaderFooterBand {
+  left?: PdfMutationHeaderFooterContent;
+  center?: PdfMutationHeaderFooterContent;
+  right?: PdfMutationHeaderFooterContent;
+  separator?: PdfMutationHeaderFooterSeparator;
+}
+
+export interface PdfMutationHeaderFooterLayout {
+  leftMarginPt: number;
+  rightMarginPt: number;
+  headerOffsetFromTopPt: number;
+  footerOffsetFromBottomPt: number;
+}
+
+export interface PdfMutationHeaderFooterPage {
+  pageIndex: number;
+  layout: PdfMutationHeaderFooterLayout;
+  header?: PdfMutationHeaderFooterBand;
+  footer?: PdfMutationHeaderFooterBand;
+}
+
+export interface PdfMutationHeaderFooterResult {
+  warnings: string[];
+}
+
 export interface PdfMutationCommitResult {
   bytes: Uint8Array;
   pageCount: number;
@@ -91,6 +152,11 @@ export interface PdfMutationSession {
   drawVisualMasks(
     operations: readonly PdfMutationVisualMaskOperation[],
   ): void;
+
+  applyHeaderFooter(
+    pages: readonly PdfMutationHeaderFooterPage[],
+    binaryResources: Readonly<Record<string, Uint8Array>>,
+  ): Promise<PdfMutationHeaderFooterResult>;
 
   commit(): Promise<PdfMutationCommitResult>;
 
