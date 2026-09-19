@@ -303,6 +303,10 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   ) => {
     if (!hasActiveDocument || !draftRect) return;
 
+    let imageAssetId: string | undefined;
+    const previousWriterDirty =
+      useWriterV2Store.getState().dirty;
+
     try {
       const documentFingerprint =
         currentDocumentFingerprint ??
@@ -314,10 +318,6 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
         (max, element) => Math.max(max, element.style.zIndex),
         0,
       );
-
-      let imageAssetId: string | undefined;
-      const previousWriterDirty =
-        useWriterV2Store.getState().dirty;
 
       if (mode === 'image') {
         const imageDataUrl = await withActiveDocument(
