@@ -45,6 +45,10 @@ type StorageManagerWithDirectory = StorageManager & {
   getDirectory?: () => Promise<FileSystemDirectoryHandle>;
 };
 
+type DirectoryWithEntries = FileSystemDirectoryHandle & {
+  entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+};
+
 /**
  * Persistent immutable working-revision store backed by OPFS.
  *
@@ -189,7 +193,8 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       );
     }
     try {
-      for await (const [name] of this.directory.entries()) {
+      const directory = this.directory as DirectoryWithEntries;
+      for await (const [name] of directory.entries()) {
         if (name.startsWith('revision-') && name.endsWith('.pdf')) {
           await this.directory.removeEntry(name);
         }
