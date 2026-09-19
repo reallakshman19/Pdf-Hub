@@ -143,6 +143,8 @@ requireContains(rendererTest, rendererTestPath, [
   'reuses one source-backed PDF.js document for the same revision key',
   'keeps source-backed cache entries isolated from byte-backed admission entries',
   'removes a failed source load so the revision can retry',
+  'force-clears a source-backed entry by aborting its transport and destroying its document',
+  'does not destroy a shared source load when only one waiting acquisition is cancelled',
   "cacheKey: 'sha256:source-one'",
 ]);
 
