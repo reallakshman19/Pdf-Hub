@@ -14,7 +14,7 @@ import {
   type MacroStepPath,
 } from '../../../core/macro/builder/recipeBuilderState';
 import {
-  getAllMacroOpSchemas,
+  getCreatableMacroOpSchemas,
   type MacroOpCategory,
   type MacroOpSchema,
 } from '../../../core/macro/schema/opSchema';
@@ -297,7 +297,7 @@ function useGroupedSchemas(): Record<MacroOpCategory, MacroOpSchema[]> {
       logic: [],
     };
 
-    for (const schema of getAllMacroOpSchemas()) {
+    for (const schema of getCreatableMacroOpSchemas()) {
       grouped[schema.category].push(schema);
     }
 
