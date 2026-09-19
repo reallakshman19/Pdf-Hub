@@ -269,6 +269,11 @@ without changing the template contract.
 PNG and JPEG image bytes are supplied out-of-band through command binary
 resources. Missing image resources fail before PDF writing.
 
+Image `contain` fit preserves aspect ratio. Width-only images preserve their
+natural aspect ratio. `cover` with an explicit height would require a clipping
+path; the current writer fails explicitly for that case rather than silently
+distorting or overflowing the image.
+
 ### Persistence and history
 
 Successful writes are committed through the same `applyMutation` /
