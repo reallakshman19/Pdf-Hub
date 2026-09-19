@@ -164,6 +164,25 @@ function restoreHistoryState(
   documentBus.emit({ type: 'DOCUMENT_REPLACED' });
 }
 
+function captureHistoryRestoreSnapshot() {
+  return {
+    session: useSessionStore.getState(),
+    annotations: useAnnotationStore.getState(),
+    writer: useWriterV2Store.getState(),
+    ocr: useOcrStore.getState(),
+  };
+}
+
+function restoreHistoryRestoreSnapshot(
+  snapshot: ReturnType<typeof captureHistoryRestoreSnapshot>,
+): void {
+  useSessionStore.setState(snapshot.session);
+  useAnnotationStore.setState(snapshot.annotations);
+  useWriterV2Store.setState(snapshot.writer);
+  useOcrStore.setState(snapshot.ocr);
+  documentBus.emit({ type: 'DOCUMENT_REPLACED' });
+}
+
 async function applyHistoryDirection(
   direction: 'undo' | 'redo',
 ): Promise<boolean> {
@@ -179,27 +198,31 @@ async function applyHistoryDirection(
       ? candidate.before
       : candidate.after;
 
-    // Resolve/materialize before persistence or stack movement so a missing
-    // durable revision cannot partially apply an undo/redo.
+    // Resolve/materialize before mutating application or history state.
     const targetPdf = await resolveHistoryPdfBytes(target);
-    await persistHistoryState(target);
+    const restoreSnapshot = captureHistoryRestoreSnapshot();
 
-    const transaction: Transaction | null = direction === 'undo'
-      ? useHistoryStore.getState().undo()
-      : useHistoryStore.getState().redo();
+    try {
+      // Restore first, persist the matching dependent state, then consume the
+      // history entry. Any restore/persistence failure leaves the stack intact
+      // and rolls application stores back to their pre-undo/redo state.
+      restoreHistoryState(target, targetPdf);
+      await persistHistoryState(target);
 
-    if (!transaction || transaction.id !== candidate.id) {
-      return false;
+      const transaction: Transaction | null = direction === 'undo'
+        ? useHistoryStore.getState().undo()
+        : useHistoryStore.getState().redo();
+
+      if (!transaction || transaction.id !== candidate.id) {
+        restoreHistoryRestoreSnapshot(restoreSnapshot);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      restoreHistoryRestoreSnapshot(restoreSnapshot);
+      throw error;
     }
-
-    restoreHistoryState(
-      direction === 'undo'
-        ? transaction.before
-        : transaction.after,
-      targetPdf,
-    );
-
-    return true;
   });
 }
 
