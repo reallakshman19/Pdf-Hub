@@ -11,6 +11,9 @@ import {
 } from '@/core/writer-v2/coordinateTransform';
 import { applyWriterRectSnap } from '@/core/writer-v2/writerSnapGuides';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
 import { WriterCalloutElement } from './WriterCalloutElement';
 import { WriterRichElementBox } from './WriterRichElementBox';
 import type { ResizeHandle } from './WriterSelectionHandles';
@@ -238,20 +241,28 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
     if (drag.mode === 'move') {
       const startPdfRect = viewportRectToPdfRect(drag.startViewportRect, viewport);
-      dispatchWriterCommand({
-        type: 'MOVE_WRITER_ELEMENT',
-        id: element.id,
-        dx: finalRect.x - startPdfRect.x,
-        dy: finalRect.y - startPdfRect.y,
-        pageBounds,
-      });
+      void dispatchDurableWriterUiCommand(
+        {
+          type: 'MOVE_WRITER_ELEMENT',
+          id: element.id,
+          dx:
+            finalRect.x - startPdfRect.x,
+          dy:
+            finalRect.y - startPdfRect.y,
+          pageBounds,
+        },
+        'WriterElementBox drag move',
+      ).catch(() => undefined);
     } else {
-      dispatchWriterCommand({
-        type: 'RESIZE_WRITER_ELEMENT',
-        id: element.id,
-        rect: finalRect,
-        pageBounds,
-      });
+      void dispatchDurableWriterUiCommand(
+        {
+          type: 'RESIZE_WRITER_ELEMENT',
+          id: element.id,
+          rect: finalRect,
+          pageBounds,
+        },
+        'WriterElementBox drag resize',
+      ).catch(() => undefined);
     }
   };
 
@@ -266,29 +277,69 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     beginEditingWriterElement(element.id);
   };
 
-  const handleSave = React.useCallback((payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => {
+  const handleSave = React.useCallback(async (
+    payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload,
+  ) => {
+    const store = useWriterV2Store.getState();
+    const previousDirty = store.dirty;
+    const addedAssetIds =
+      payload.assets?.map((asset) => asset.id)
+      ?? [];
+
     if (payload.assets?.length) {
-      useWriterV2Store.getState().addWriterAssets(payload.assets);
+      store.addWriterAssets(payload.assets);
     }
 
-    dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: element.id,
-      now: new Date().toISOString(),
-      patch: {
-        editorStateJson: payload.editorStateJson,
-        plainText: payload.plainText,
-        assetIds: payload.assets?.length
-          ? [
-              ...(element.assetIds ?? []),
-              ...payload.assets.map((asset) => asset.id),
-            ]
-          : element.assetIds,
-      },
-    });
+    try {
+      const result =
+        await dispatchDurableWriterUiCommand(
+          {
+            type: 'UPDATE_WRITER_ELEMENT',
+            id: element.id,
+            now: new Date().toISOString(),
+            patch: {
+              editorStateJson:
+                payload.editorStateJson,
+              plainText: payload.plainText,
+              assetIds:
+                payload.assets?.length
+                  ? [
+                      ...(element.assetIds ?? []),
+                      ...addedAssetIds,
+                    ]
+                  : element.assetIds,
+            },
+          },
+          'WriterElementBox editor save',
+        );
 
-    endEditingWriterElement();
-  }, [dispatchWriterCommand, element.id, element.assetIds, endEditingWriterElement]);
+      if (!result.changed && addedAssetIds.length > 0) {
+        for (const assetId of addedAssetIds) {
+          useWriterV2Store
+            .getState()
+            .removeWriterAsset(assetId);
+        }
+        useWriterV2Store.setState({
+          dirty: previousDirty,
+        });
+      }
+
+      endEditingWriterElement();
+    } catch {
+      for (const assetId of addedAssetIds) {
+        useWriterV2Store
+          .getState()
+          .removeWriterAsset(assetId);
+      }
+      useWriterV2Store.setState({
+        dirty: previousDirty,
+      });
+    }
+  }, [
+    element.id,
+    element.assetIds,
+    endEditingWriterElement,
+  ]);
 
   const commonProps = {
     element,
