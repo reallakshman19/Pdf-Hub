@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2A-001",
+    "branch": "phase8/history-writer-async-callers",
+    "base_ref": "4008a79c8fec4b7b0150eb7d6876ca154a2262a4",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C1",
+    "previous_join": "4008a79c8fec4b7b0150eb7d6876ca154a2262a4",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-async-callers",
+    "material_ref": "4008a79c8fec4b7b0150eb7d6876ca154a2262a4",
+    "base_branch": "main",
+    "base_observed_ref": "4008a79c8fec4b7b0150eb7d6876ca154a2262a4",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 254,
+  "outcome": {
+    "engineering": [
+      "Async Writer mutation helpers now await durable committed results.",
+      "Rich-box fit updates serialize all mutation calls through durable Writer dispatch.",
+      "Image replacement cleans temporary asset state when durable mutation fails or is rejected.",
+      "The durable Writer production caller set is explicitly allowlisted to the C2A tranche."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Migrate Writer callers without speculative success results or broad synchronous API churn.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B3C1 durable Writer dispatch primitive.",
+    "why_this_work_exists": "Helpers that already return promises can adopt the truthful durable Writer command contract without changing their public API.",
+    "deliberate_non_goals": [
+      "No direct UI mutation callback migration.",
+      "No synchronous Writer helper API migration.",
+      "No OCR bridge or legacy consolidation migration.",
+      "No final ban on synchronous PDF-overlay mutation dispatch."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Rich text creation, rich-box style and rich-box fit async helpers await durable Writer dispatch.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Async image replacement awaits durable dispatch and cleans admitted asset state on failure or unchanged result.",
+      "weight": 25,
+      "verification": ["TEST-02", "TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "A journal-aware public async helper persists a WRITER_CHANGE state checkpoint.",
+      "weight": 25,
+      "verification": ["TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Production durable Writer callers are restricted to the explicit C2A allowlist.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static migration audit verifies awaited durable dispatch and the exact caller allowlist.",
+      "proves": ["AC-01", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "writerImageBoxActions tests verify temporary asset cleanup and prior dirty-state restoration on durable failure.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "writerAsyncDurableHelpers test verifies a rich-box style helper creates a durable WRITER_CHANGE checkpoint.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2a on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2B migrate direct UI Writer mutation callbacks"
+  }
+}
