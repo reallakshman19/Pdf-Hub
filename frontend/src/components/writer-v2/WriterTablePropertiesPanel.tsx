@@ -933,11 +933,11 @@ export const WriterTablePropertiesPanel: React.FC<
       </PanelSection>
 
       <PanelSection title="Cell text" icon={CaseSensitive}>
-        <input
-          className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+        <TableDraftTextInput
           value={currentCell?.text ?? ''}
-          onChange={(event) => updateCellText(event.currentTarget.value)}
-          aria-label="Selected table cell text"
+          resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}`}
+          onCommit={updateCellText}
+          ariaLabel="Selected table cell text"
         />
       </PanelSection>
 
@@ -997,24 +997,30 @@ export const WriterTablePropertiesPanel: React.FC<
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs text-slate-600">
             Fill
-            <input
-              type="color"
-              className="mt-1 h-8 w-full rounded border border-slate-300"
-              value={normalizeColorInput(currentStyle.backgroundColor)}
-              onChange={(event) => setFill(event.currentTarget.value)}
+            <TableDraftColorInput
+              value={normalizeColorInput(
+                currentStyle.backgroundColor,
+              )}
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:fill`}
+              onCommit={setFill}
+              ariaLabel="Table cell fill"
             />
           </label>
 
           <label className="text-xs text-slate-600">
             Padding
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentStyle.padding
+                ?? tableData.defaultCellStyle?.padding
+                ?? 6
+              }
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:padding`}
               min={0}
               max={48}
               step={1}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentStyle.padding ?? tableData.defaultCellStyle?.padding ?? 6}
-              onChange={(event) => setPadding(Number(event.currentTarget.value))}
+              onCommit={setPadding}
+              ariaLabel="Table cell padding"
             />
           </label>
         </div>
@@ -1027,13 +1033,13 @@ export const WriterTablePropertiesPanel: React.FC<
             <select
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
               value={currentStyle.borders?.top?.style ?? 'single'}
-              onChange={(event) =>
-                setBorder(
-                  event.currentTarget.value as WriterTableBorderStyle,
-                  currentStyle.borders?.top?.color ?? '#CBD5E1',
-                  currentStyle.borders?.top?.width ?? 0.5,
-                )
-              }
+              onChange={(event) => {
+                void setBorder({
+                  style:
+                    event.currentTarget.value
+                    as WriterTableBorderStyle,
+                }).catch(() => undefined);
+              }}
             >
               <option value="single">Single</option>
               <option value="dashed">Dashed</option>
@@ -1045,36 +1051,33 @@ export const WriterTablePropertiesPanel: React.FC<
 
           <label className="text-xs text-slate-600">
             Color
-            <input
-              type="color"
-              className="mt-1 h-8 w-full rounded border border-slate-300"
-              value={normalizeColorInput(currentStyle.borders?.top?.color)}
-              onChange={(event) =>
-                setBorder(
-                  currentStyle.borders?.top?.style ?? 'single',
-                  event.currentTarget.value,
-                  currentStyle.borders?.top?.width ?? 0.5,
-                )
+            <TableDraftColorInput
+              value={normalizeColorInput(
+                currentStyle.borders?.top?.color,
+              )}
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:border-color`}
+              onCommit={(color) =>
+                setBorder({ color })
               }
+              ariaLabel="Table border color"
             />
           </label>
 
           <label className="text-xs text-slate-600">
             Width
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentStyle.borders?.top?.width
+                ?? 0.5
+              }
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:border-width`}
               min={0}
               max={6}
               step={0.25}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentStyle.borders?.top?.width ?? 0.5}
-              onChange={(event) =>
-                setBorder(
-                  currentStyle.borders?.top?.style ?? 'single',
-                  currentStyle.borders?.top?.color ?? '#CBD5E1',
-                  Number(event.currentTarget.value),
-                )
+              onCommit={(width) =>
+                setBorder({ width })
               }
+              ariaLabel="Table border width"
             />
           </label>
         </div>
@@ -1084,14 +1087,23 @@ export const WriterTablePropertiesPanel: React.FC<
         <div className="flex items-end gap-2">
           <label className="flex-1 text-xs text-slate-600">
             Width
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentColumn?.width
+                ?? Math.round(
+                  table.rect.width
+                  / Math.max(
+                    1,
+                    tableData.columns.length,
+                  ),
+                )
+              }
+              resetKey={`${table.id}:${currentColumn?.id ?? selectedCell.columnIndex}:column-width`}
               min={8}
               max={2000}
               step={1}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentColumn?.width ?? Math.round(table.rect.width / Math.max(1, tableData.columns.length))}
-              onChange={(event) => resizeColumn(Number(event.currentTarget.value))}
+              onCommit={resizeColumn}
+              ariaLabel="Table column width"
             />
           </label>
 
