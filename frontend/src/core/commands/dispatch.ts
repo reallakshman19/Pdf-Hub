@@ -510,7 +510,7 @@ async function executeRotatePagesCommand(
   }
 }
 
-function usesStructuralMutationSession(
+function usesPersistentMutationSession(
   type: PdfCommand['type'],
 ): boolean {
   return (
@@ -519,15 +519,18 @@ function usesStructuralMutationSession(
     || type === 'DELETE_PAGES'
     || type === 'INSERT_BLANK_PAGE'
     || type === 'DUPLICATE_PAGES'
+    || type === 'INSERT_PAGES'
+    || type === 'REPLACE_PAGE'
+    || type === 'MERGE_PDF'
   );
 }
 
-function requireStructuralMutationSession(
+function requirePersistentMutationSession(
   session: PdfMutationSession | null,
 ): PdfMutationSession {
   if (!session) {
     throw new Error(
-      'Structural PDF mutation session was not opened for this command.',
+      'Persistent PDF mutation session was not opened for this command.',
     );
   }
   return session;
@@ -561,7 +564,7 @@ export async function dispatchPdfCommand(
     );
   }
 
-  let structuralMutationSession: PdfMutationSession | null = null;
+  let commandMutationSession: PdfMutationSession | null = null;
 
   try {
     throwIfAborted(input.signal, `command ${command.type}: before execution`);
@@ -576,8 +579,8 @@ export async function dispatchPdfCommand(
       );
     }
 
-    if (usesStructuralMutationSession(command.type)) {
-      structuralMutationSession = await pdfLibMutationEngine.open({
+    if (usesPersistentMutationSession(command.type)) {
+      commandMutationSession = await pdfLibMutationEngine.open({
         bytes: context.workingBytes,
         signal: input.signal,
       });
@@ -585,17 +588,17 @@ export async function dispatchPdfCommand(
       if (
         sessionPageGraph
         && sessionPageGraph.pages.length
-          !== structuralMutationSession.pageCount
+          !== commandMutationSession.pageCount
       ) {
         throw new Error(
-          `PageGraph count ${sessionPageGraph.pages.length} does not match mutation-session page count ${structuralMutationSession.pageCount}.`,
+          `PageGraph count ${sessionPageGraph.pages.length} does not match mutation-session page count ${commandMutationSession.pageCount}.`,
         );
       }
     }
 
     const pageCount =
       sessionPageGraph?.pages.length
-      ?? structuralMutationSession?.pageCount
+      ?? commandMutationSession?.pageCount
       ?? await PdfEditAdapter.countPages(
         context.workingBytes,
       );
@@ -630,8 +633,8 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const mutationSession =
-          requireStructuralMutationSession(
-            structuralMutationSession,
+          requirePersistentMutationSession(
+            commandMutationSession,
           );
         await mutationSession.reorderPages(order);
         const committed = await mutationSession.commit();
@@ -682,8 +685,8 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const mutationSession =
-          requireStructuralMutationSession(
-            structuralMutationSession,
+          requirePersistentMutationSession(
+            commandMutationSession,
           );
         await mutationSession.reorderPages(order);
         const committed = await mutationSession.commit();
@@ -753,8 +756,8 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const mutationSession =
-          requireStructuralMutationSession(
-            structuralMutationSession,
+          requirePersistentMutationSession(
+            commandMutationSession,
           );
         await mutationSession.removePages(pageIndices);
         const committed = await mutationSession.commit();
@@ -882,15 +885,23 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const insertedBytes = await PdfEditAdapter.insertAt(
-          context.workingBytes,
-          resolved.bytes,
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession.insertPdf(
           command.payload.atIndex,
+          resolved.bytes,
+        );
+        const committed = await mutationSession.commit();
+        assertMutationSessionPageCount(
+          committed.pageCount,
+          nextPageGraph,
         );
         const nextBytes = await synchronizeStructuralPageLabels(
           pageGraph,
           nextPageGraph,
-          insertedBytes,
+          committed.bytes,
           input.signal,
         );
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
@@ -937,8 +948,8 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const mutationSession =
-          requireStructuralMutationSession(
-            structuralMutationSession,
+          requirePersistentMutationSession(
+            commandMutationSession,
           );
         mutationSession.insertBlankPage(atIndex, size);
         const committed = await mutationSession.commit();
@@ -1037,12 +1048,21 @@ export async function dispatchPdfCommand(
                 nextPageGraph,
               )
           : undefined;
-        const nextBytes = await PdfEditAdapter.replacePage(
-          context.workingBytes,
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession.replacePage(
           atIndex,
           resolved.bytes,
           donorPageIndex,
         );
+        const committed = await mutationSession.commit();
+        assertMutationSessionPageCount(
+          committed.pageCount,
+          nextPageGraph,
+        );
+        const nextBytes = committed.bytes;
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
         const result = await applyMutation(
           command,
@@ -1090,8 +1110,8 @@ export async function dispatchPdfCommand(
             )
           : undefined;
         const mutationSession =
-          requireStructuralMutationSession(
-            structuralMutationSession,
+          requirePersistentMutationSession(
+            commandMutationSession,
           );
         await mutationSession.duplicatePages(pageIndices);
         const committed = await mutationSession.commit();
@@ -1168,14 +1188,22 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const mergedBytes = await PdfEditAdapter.merge(
-          context.workingBytes,
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession.appendPdfs(
           donors.map((donor) => donor.bytes),
+        );
+        const committed = await mutationSession.commit();
+        assertMutationSessionPageCount(
+          committed.pageCount,
+          nextPageGraph,
         );
         const nextBytes = await synchronizeStructuralPageLabels(
           pageGraph,
           nextPageGraph,
-          mergedBytes,
+          committed.bytes,
           input.signal,
         );
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
@@ -1405,6 +1433,6 @@ export async function dispatchPdfCommand(
       : undefined;
     return commandError(command, 'EXECUTION_FAILED', message, details);
   } finally {
-    structuralMutationSession?.dispose();
+    commandMutationSession?.dispose();
   }
 }
