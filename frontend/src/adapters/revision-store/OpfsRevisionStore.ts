@@ -2,6 +2,7 @@ import {
   DEFAULT_DOCUMENT_SOURCE_CHUNK_BYTES,
 } from '@/core/document-source/materialize';
 import {
+  isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
@@ -242,7 +243,10 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     } catch (error) {
       await bestEffortAbort(writable);
       await bestEffortRemove(this.directory, fileName);
-      if (error instanceof RevisionStoreError) {
+      if (
+        error instanceof RevisionStoreError
+        || isOperationCancelledError(error)
+      ) {
         throw error;
       }
       throw new RevisionStoreError(
