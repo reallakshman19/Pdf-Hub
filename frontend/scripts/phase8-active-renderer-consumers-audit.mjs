@@ -73,6 +73,18 @@ requireContains(renderer, rendererPath, [
   'return await this.searchDocumentTextInDocument(',
 ]);
 
+const rendererTestPath =
+  'src/adapters/pdf-renderer/PdfRendererAdapter.test.ts';
+const rendererTest = read(rendererTestPath);
+requireContains(rendererTest, rendererTestPath, [
+  'extracts text-layer items from an already-loaded PDF page',
+  'flattens loaded-document outline destinations without reacquiring the PDF',
+  'loads a DocumentSource through PDF.js range transport without whole-source reads',
+  'reuses one source-backed PDF.js document for the same revision key',
+  'getDocumentSourceCacheDiagnostics',
+  'cancels an active PDF.js render task when its signal aborts',
+]);
+
 const searchPath =
   'src/components/sidebar/SearchPanel.tsx';
 const search = read(searchPath);
@@ -174,6 +186,19 @@ requireContains(bookmarksTest, bookmarksTestPath, [
   'loads the native outline through an active revision lease and releases it',
 ]);
 
+const thumbnailTestPath =
+  'src/components/sidebar/panels/ThumbnailSidebar.test.tsx';
+const thumbnailTest = read(thumbnailTestPath);
+requireContains(thumbnailTest, thumbnailTestPath, [
+  'renders scheduled thumbnails and handles keyboard navigation and selection',
+  'acquireScheduledThumbnail',
+]);
+forbidContains(thumbnailTest, thumbnailTestPath, [
+  "it.skip(",
+  'PdfRendererAdapter.acquireDocument',
+  'PdfRendererAdapter.getThumbnail',
+]);
+
 const selectTestPath =
   'src/core/select-box-copy/selectBoxCopyEngine.test.ts';
 const selectTest = read(selectTestPath);
@@ -209,10 +234,13 @@ requireContains(certifyCommand, packagePath, [
   'PdfRendererAdapter.test.ts',
   'activePdfDocumentLease.test.ts',
   'activePdfRendererInput.test.ts',
+  'pdfPageLabels.test.ts',
+  'pageGraphAdmission.test.ts',
   'DocumentWorkspace.test.tsx',
   'documentTransaction.history.test.ts',
   'SearchPanel.test.tsx',
   'BookmarksSidebar.test.tsx',
+  'ThumbnailSidebar.test.tsx',
   'SelectBoxCopyLayer.test.tsx',
   'selectBoxCopyEngine.test.ts',
   'imageSnapshot.test.ts',
