@@ -102,15 +102,13 @@ requireContains(sessionStore, sessionStorePath, [
   'originalRevisionId',
 ]);
 if (
-  !sessionStore.includes(
-    'replaceWorkingCopy: (bytes, pageCount) =>',
-  )
-  || !sessionStore.includes(
-    'workingBytes: bytes,\n      activeRevisionId: null',
-  )
+  !sessionStore.includes('replaceWorkingCopy:')
+  || !sessionStore.includes('activeRevisionId = null')
+  || !sessionStore.includes('workingBytes: bytes')
+  || !sessionStore.includes('activeRevisionId,')
 ) {
   fail(
-    'replaceWorkingCopy must invalidate activeRevisionId when compatibility bytes change.',
+    'replaceWorkingCopy must default to invalidating activeRevisionId unless a published revision is explicitly supplied.',
   );
 }
 
