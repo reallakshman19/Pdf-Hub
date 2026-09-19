@@ -88,8 +88,12 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     }
 
     const root = await storage.getDirectory();
-    const directory = await root.getDirectoryHandle(
+    const container = await root.getDirectoryHandle(
       input.directoryName ?? 'pdf-hub-revisions',
+      { create: true },
+    );
+    const directory = await container.getDirectoryHandle(
+      encodeURIComponent(input.id),
       { create: true },
     );
     return new OpfsRevisionStore({
@@ -103,15 +107,15 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     input: CommitRevisionInput,
   ): Promise<StoredRevision> {
     assertRevisionId(this.id, input.revisionId);
-    if (
-      this.pending.has(input.revisionId)
-      || await this.has(input.revisionId)
-    ) {
+    if (this.pending.has(input.revisionId)) {
       throw this.existsError(input.revisionId);
     }
 
     this.pending.add(input.revisionId);
     try {
+      if (await this.hasCommittedRevision(input.revisionId)) {
+        throw this.existsError(input.revisionId);
+      }
       return await this.commitNewRevision(input);
     } finally {
       this.pending.delete(input.revisionId);
@@ -154,24 +158,12 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     if (this.pending.has(revisionId)) {
       return false;
     }
-    try {
-      await this.directory.getFileHandle(
-        this.fileName(revisionId),
-      );
-      return true;
-    } catch (error) {
-      if (isNotFound(error)) return false;
-      throw new RevisionStoreError(
-        'READ_FAILED',
-        this.id,
-        `Failed to inspect revision ${revisionId}.`,
-        { revisionId, cause: error },
-      );
-    }
+    return this.hasCommittedRevision(revisionId);
   }
 
   async remove(revisionId: string): Promise<void> {
     assertRevisionId(this.id, revisionId);
+    this.assertNotPending(revisionId);
     try {
       await this.directory.removeEntry(
         this.fileName(revisionId),
@@ -188,6 +180,13 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
   }
 
   async clear(): Promise<void> {
+    if (this.pending.size > 0) {
+      throw new RevisionStoreError(
+        'REVISION_BUSY',
+        this.id,
+        'Cannot clear OPFS revision store while a revision commit is pending.',
+      );
+    }
     try {
       for await (const [name] of this.directory.entries()) {
         if (name.startsWith('revision-') && name.endsWith('.pdf')) {
@@ -202,6 +201,35 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
         { cause: error },
       );
     }
+  }
+
+  private async hasCommittedRevision(
+    revisionId: string,
+  ): Promise<boolean> {
+    try {
+      await this.directory.getFileHandle(
+        this.fileName(revisionId),
+      );
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw new RevisionStoreError(
+        'READ_FAILED',
+        this.id,
+        `Failed to inspect revision ${revisionId}.`,
+        { revisionId, cause: error },
+      );
+    }
+  }
+
+  private assertNotPending(revisionId: string): void {
+    if (!this.pending.has(revisionId)) return;
+    throw new RevisionStoreError(
+      'REVISION_BUSY',
+      this.id,
+      `Revision ${revisionId} is still being committed.`,
+      { revisionId },
+    );
   }
 
   private async commitNewRevision(
