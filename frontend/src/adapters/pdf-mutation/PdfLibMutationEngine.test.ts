@@ -406,4 +406,80 @@ describe('PdfLibMutationEngine', () => {
     }
   });
 
+
+  it('applies a resolved professional header/footer plan without reparsing the active revision', async () => {
+    const bytes = await createPdf();
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    const rendered = await session.applyHeaderFooter(
+      [
+        {
+          pageIndex: 0,
+          layout: {
+            leftMarginPt: 36,
+            rightMarginPt: 36,
+            headerOffsetFromTopPt: 24,
+            footerOffsetFromBottomPt: 24,
+          },
+          footer: {
+            right: {
+              kind: 'text',
+              text: 'HF SESSION',
+              style: {
+                fontFamily: 'Inter',
+                fontSizePt: 10,
+                fontWeight: 'normal',
+                fontStyle: 'normal',
+                color: '#202020',
+                opacity: 1,
+              },
+            },
+            separator: {
+              thicknessPt: 0.5,
+              color: '#808080',
+              opacity: 1,
+              insetLeftPt: 0,
+              insetRightPt: 0,
+            },
+          },
+        },
+      ],
+      {},
+    );
+
+    expect(rendered.warnings.join('\n')).toMatch(
+      /Helvetica fallback/,
+    );
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(committed.pageCount).toBe(3);
+    loadSpy.mockRestore();
+    session.dispose();
+
+    const pdf = await getDocument({
+      data: committed.bytes.slice(),
+    }).promise;
+    try {
+      const page = await pdf.getPage(1);
+      const textContent = await page.getTextContent();
+      expect(
+        textContent.items
+          .flatMap((item) =>
+            'str' in item && typeof item.str === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' '),
+      ).toContain('HF SESSION');
+      page.cleanup();
+    } finally {
+      await pdf.destroy();
+    }
+  });
+
 });
