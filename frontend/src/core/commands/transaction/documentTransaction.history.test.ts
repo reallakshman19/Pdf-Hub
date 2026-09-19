@@ -12,7 +12,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   commitDocumentMutation,
-  DocumentMutationTransactionError,
+  type DocumentMutationTransactionError,
 } from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({
