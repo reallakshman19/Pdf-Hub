@@ -78,6 +78,12 @@ export interface DocumentSession {
   documentKey: string | null;
   /** Runtime identity of the immutable original DocumentSource. */
   sourceId: string | null;
+  /** Process-local WorkingRevisionStore registry identity. */
+  revisionStoreId: string | null;
+  /** Immutable content-addressed recovery revision created at primary admission. */
+  originalRevisionId: string | null;
+  /** Durable revision matching workingBytes, or null when bytes are unpublished. */
+  activeRevisionId: string | null;
   fileName: string | null;
   /**
    * Copy-on-write: the store holds whatever reference callers pass to

@@ -14,3 +14,13 @@ export {
   assertRevisionStoreId,
   revisionSourceId,
 } from './validation';
+export {
+  WorkingRevisionStoreRegistryError,
+  registerWorkingRevisionStore,
+  resolveWorkingRevisionStore,
+  releaseWorkingRevisionStore,
+} from './registry';
+export {
+  ensureStoredRevision,
+  type EnsureStoredRevisionInput,
+} from './ensureRevision';

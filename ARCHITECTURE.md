@@ -157,16 +157,25 @@ The immutable original source is retained out-of-band under a runtime
 `sourceId`; `DocumentSession` stores that ID separately from the SHA-256
 `documentKey`.
 
-Phase 8C.1 adds the engine-neutral `WorkingRevisionStore` boundary with
+Phase 8C.1 added the engine-neutral `WorkingRevisionStore` boundary with
 `MemoryRevisionStore` fallback and persistent `OpfsRevisionStore`. Committed
 revision IDs are immutable: a new revision is fully written and verified before
 it can become visible, and cancellation/failure does not publish partial OPFS
 bytes. Committed OPFS revisions reopen through `OpfsSource`, which implements
 the same random-access `DocumentSource` contract.
 
-This boundary is not yet wired into `DocumentSession`; session
-`originalBytes`/`workingBytes`, renderer input and history snapshots remain
-materialized until the following Phase 8C/8D/8E migrations.
+Phase 8C.2 makes primary admission/session revision-aware. Browser admission
+prefers OPFS, falls back to memory when OPFS initialization fails, and
+publishes/reuses the SHA-256 `documentKey` as the initial immutable working
+revision before committing the session. `DocumentSession` now carries a
+runtime `revisionStoreId`, immutable `originalRevisionId`, and
+content-addressed `activeRevisionId`. Compatibility byte replacement clears
+the active revision pointer when the new bytes have not yet been published.
+
+Session `originalBytes`/`workingBytes`, renderer input, mutation-engine input
+and history snapshots remain materialized. Phase 8C.3 will publish canonical
+mutation outputs before state commit; Phase 8D/8E then migrate rendering and
+history consumption.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
