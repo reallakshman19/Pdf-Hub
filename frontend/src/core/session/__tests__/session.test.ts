@@ -602,6 +602,18 @@ describe('Session Store', () => {
         pageCount: 1,
       }),
     ).toThrow(/cannot mark history journal persistent/);
+
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'doc-journal',
+        historyJournalStoreId: journalStore.id,
+        historyJournalId: 'history-memory',
+        historyJournalPersistent: true,
+        fileName: 'false-capability.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/does not match store capability/);
   });
 
 
