@@ -132,6 +132,61 @@ describe('prepareHistoryJournalMutation', () => {
     });
   });
 
+  it('truncates an abandoned redo tail before appending a new branch', async () => {
+    const store = await setup();
+
+    const first = await prepareHistoryJournalMutation({
+      journalStoreId: store.id,
+      journalId: 'history-1',
+      revisionStoreId: 'revision-store',
+      beforeRevisionId: 'sha256:before',
+      afterRevisionId: 'sha256:two',
+      transactionId: 'tx-1',
+      command: rotateCommand(),
+    });
+    expect(first).not.toBeNull();
+    if (!first) return;
+    await first.store.save(first.manifest);
+
+    const second = await prepareHistoryJournalMutation({
+      journalStoreId: store.id,
+      journalId: 'history-1',
+      revisionStoreId: 'revision-store',
+      beforeRevisionId: 'sha256:two',
+      afterRevisionId: 'sha256:three',
+      transactionId: 'tx-2',
+      command: rotateCommand(),
+    });
+    expect(second).not.toBeNull();
+    if (!second) return;
+    await second.store.save(second.manifest);
+
+    const undone = await store.load('history-1');
+    expect(undone).not.toBeNull();
+    if (!undone) return;
+    undone.activeRevisionId = 'sha256:two';
+    await store.save(undone);
+
+    const branched = await prepareHistoryJournalMutation({
+      journalStoreId: store.id,
+      journalId: 'history-1',
+      revisionStoreId: 'revision-store',
+      beforeRevisionId: 'sha256:two',
+      afterRevisionId: 'sha256:branch',
+      transactionId: 'tx-branch',
+      command: rotateCommand(),
+    });
+
+    expect(
+      branched?.manifest.entries.map(
+        (entry) => entry.transactionId,
+      ),
+    ).toEqual(['tx-1', 'tx-branch']);
+    expect(
+      branched?.manifest.activeRevisionId,
+    ).toBe('sha256:branch');
+  });
+
   it('fails closed when journal active revision does not match mutation input', async () => {
     const store = await setup();
 
