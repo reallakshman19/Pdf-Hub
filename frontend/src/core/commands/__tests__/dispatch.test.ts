@@ -53,7 +53,6 @@ const pdfMocks = vi.hoisted(() => ({
   replacePage: vi.fn(),
   duplicatePages: vi.fn(),
   merge: vi.fn(),
-  addHeaderFooterText: vi.fn(),
   drawTextOnPages: vi.fn(),
   drawRedactionBoxes: vi.fn(),
   countPages: vi.fn(),
@@ -72,7 +71,6 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     replacePage: pdfMocks.replacePage,
     duplicatePages: pdfMocks.duplicatePages,
     merge: pdfMocks.merge,
-    addHeaderFooterText: pdfMocks.addHeaderFooterText,
     drawTextOnPages: pdfMocks.drawTextOnPages,
     drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
     countPages: pdfMocks.countPages,
@@ -1170,32 +1168,6 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
-  it('adds header/footer text', async () => {
-    pdfMocks.addHeaderFooterText.mockResolvedValue(new Uint8Array([2, 2, 2]));
-
-    const result = await execute(
-      {
-        type: 'ADD_HEADER_FOOTER_TEXT',
-        payload: {
-          pageIndices: [0, 1],
-          options: {
-            zone: 'footer',
-            text: 'Page {page}',
-            align: 'center',
-            marginX: 20,
-            marginY: 20,
-            fontSize: 10,
-            pageNumberToken: true,
-          },
-        },
-      },
-      { source: 'thumbnail-menu' },
-    );
-
-    expect(result.success).toBe(true);
-    expect(pdfMocks.addHeaderFooterText).toHaveBeenCalledTimes(1);
-  });
-
   it('draws text on selected pages', async () => {
     pdfMocks.drawTextOnPages.mockResolvedValue(new Uint8Array([3, 3, 3]));
 
@@ -1242,26 +1214,4 @@ describe('canonical command dispatch', () => {
     expect(useHistoryStore.getState().undoStack[0]?.label).toBe('Draw visual mask');
   });
 
-  it('returns validation error for empty header/footer target', async () => {
-    const result = await execute(
-      {
-        type: 'ADD_HEADER_FOOTER_TEXT',
-        payload: {
-          pageIndices: [],
-          options: {
-            zone: 'footer',
-            text: 'Page {page}',
-            align: 'center',
-            marginX: 20,
-            marginY: 20,
-            fontSize: 10,
-          },
-        },
-      },
-      { source: 'thumbnail-menu' },
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('VALIDATION_FAILED');
-  });
 });
