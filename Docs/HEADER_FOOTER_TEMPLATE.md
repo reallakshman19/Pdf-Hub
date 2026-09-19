@@ -287,6 +287,34 @@ Phase 7 will put this execution behind the broader `PdfMutationEngine`
 boundary and Phase 8 will address file-backed/large-document storage. The
 professional template contract is intentionally independent of that migration.
 
+## Professional editor UI
+
+Phase 6E.1 adds one Organize entry point: **Header & Footer**.
+
+The editor provides:
+
+- six text zones: header/footer × left/center/right
+- target compilation for all/current/selected/current-PageLabel-section
+- physical odd/even filtering
+- first/last physical-page exclusions
+- standard-font family/style controls
+- color, opacity and page-edge offsets
+- header/footer separators
+- canonical token insertion
+- a representative-page preview driven by the same canonical resolver used by execution
+
+Transient UI concepts such as "current" and "selected" never enter the
+canonical template. The editor compiler resolves them to stable PageIds before
+the command is created.
+
+The preview uses actual PageGraph dimensions/rotation and resolved token values.
+It is a layout preview, not a second PDF renderer.
+
+Phase 6E.1 intentionally covers text slots first. The canonical domain/writer
+already support out-of-band PNG/JPEG image resources; image/logo selection and
+preview are completed in the next narrow UI slice rather than expanding the
+dialog into another mega-component.
+
 ## Legacy compatibility
 
 The following remain legacy compatibility paths during Phase 6 migration:

@@ -12,6 +12,7 @@ import {
   Undo,
   Redo,
   Hash,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -39,12 +40,15 @@ import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
 import { PageLabelsDialog } from '../dialogs/PageLabelsDialog';
+import { HeaderFooterDialog } from '../dialogs/HeaderFooterDialog';
 import type { PageLabelRange } from '@/core/pages/types';
+import type { HeaderFooterTemplate } from '@/core/header-footer/types';
 
 export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
   const [isReplacePageDialogOpen, setIsReplacePageDialogOpen] = useState(false);
   const [isPageLabelsDialogOpen, setIsPageLabelsDialogOpen] = useState(false);
+  const [isHeaderFooterDialogOpen, setIsHeaderFooterDialogOpen] = useState(false);
   const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
   const donorOperationRef = useRef<{
     controller: AbortController;
@@ -54,6 +58,7 @@ export const ToolbarOrganize: React.FC = () => {
   const {
     workingBytes,
     documentKey,
+    fileName,
     pageCount,
     selectedPageIds,
     selectedPages,
@@ -64,6 +69,7 @@ export const ToolbarOrganize: React.FC = () => {
   } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
+    fileName: state.fileName,
     pageCount: state.pageCount,
     selectedPageIds: state.selectedPageIds,
     selectedPages: state.selectedPages,
@@ -251,6 +257,24 @@ export const ToolbarOrganize: React.FC = () => {
       ranges.length === 0
         ? 'Cleared logical page labels.'
         : 'Updated logical page labels.',
+      null,
+      { preserveSelection: true },
+    );
+
+    return Boolean(result);
+  };
+
+  const handleHeaderFooterApply = async (
+    template: HeaderFooterTemplate,
+  ): Promise<boolean> => {
+    if (!pageGraph) return false;
+
+    const result = await runMutation(
+      {
+        type: 'APPLY_HEADER_FOOTER_TEMPLATE',
+        payload: { template },
+      },
+      'Applied printed header/footer content.',
       null,
       { preserveSelection: true },
     );
@@ -508,6 +532,17 @@ export const ToolbarOrganize: React.FC = () => {
         maxPages={replaceDonorSet?.donors[0]?.pageCount ?? 1}
       />
       {pageGraph && (
+        <HeaderFooterDialog
+          isOpen={isHeaderFooterDialogOpen}
+          pageGraph={pageGraph}
+          currentPageId={viewState.currentPageId}
+          selectedPageIds={selectedPageIds}
+          fileName={fileName ?? 'document.pdf'}
+          onClose={() => setIsHeaderFooterDialogOpen(false)}
+          onApply={handleHeaderFooterApply}
+        />
+      )}
+      {pageGraph && (
         <PageLabelsDialog
           isOpen={isPageLabelsDialogOpen}
           pageGraph={pageGraph}
@@ -583,6 +618,19 @@ export const ToolbarOrganize: React.FC = () => {
         <Tooltip content="Insert blank page">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleInsertBlankPage} disabled={!workingBytes}>
             <FilePlus2 className="w-4 h-4" />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content="Header & Footer — visible printed content">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsHeaderFooterDialogOpen(true)}
+            disabled={!workingBytes || !pageGraph}
+            aria-label="Header & Footer"
+          >
+            <FileText className="w-4 h-4" />
           </Button>
         </Tooltip>
 

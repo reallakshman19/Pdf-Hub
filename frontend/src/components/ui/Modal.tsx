@@ -6,9 +6,23 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+const SIZE_CLASS: Record<NonNullable<ModalProps['size']>, string> = {
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+};
+
+export const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = 'md',
+}) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +99,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
       />
       <div
         ref={modalRef}
-        className="relative z-50 w-full max-w-md scale-100 transform overflow-hidden rounded-lg bg-white dark:bg-slate-900 p-6 text-left shadow-xl transition-all"
+        className={`relative z-50 w-full ${SIZE_CLASS[size]} max-h-[92vh] scale-100 transform overflow-y-auto rounded-lg bg-white dark:bg-slate-900 p-6 text-left shadow-xl transition-all`}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 id="modal-title" className="text-lg font-semibold leading-6 text-slate-900 dark:text-slate-100">
