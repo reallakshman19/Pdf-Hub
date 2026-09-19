@@ -226,9 +226,10 @@ durable replay journal exists. Canonical commands are classified as
 `SELF_CONTAINED_REPLAY`, `CHECKPOINT_REQUIRED` or `NON_MUTATING`.
 Donor-backed insert/replace/merge, opaque working-copy application,
 annotation/Writer descriptive state commands, image-bearing header/footer
-templates, and commands that actually depend on runtime file-name/locale
-context require checkpoints. Extract/split artifact commands are explicitly
-non-mutating and are not reconstruction-journal entries.
+templates, commands that actually depend on runtime file-name/locale context,
+and split operations with artifact side effects require checkpoints.
+`EXTRACT_PAGES` is explicitly non-mutating and is not a reconstruction-journal
+entry; `SPLIT_PAGES` is mutating and therefore cannot be treated as artifact-only.
 
 This classification is policy only. No command replay executor is enabled yet.
 Durable journal/checkpoint manifests, reference-aware revision GC and bounded
