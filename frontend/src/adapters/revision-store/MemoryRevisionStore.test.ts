@@ -75,8 +75,32 @@ describe('MemoryRevisionStore', () => {
         revisionId: 'failed',
         source: failing,
       }),
-    ).rejects.toThrow('fixture failure');
+    ).rejects.toMatchObject({
+      code: 'COMMIT_FAILED',
+      revisionId: 'failed',
+    });
     expect(await store.has('failed')).toBe(false);
+  });
+
+  it('preserves cancellation semantics without publishing bytes', async () => {
+    const store = new MemoryRevisionStore({ id: 'working-memory' });
+    const source = new MemorySource({
+      id: 'input',
+      bytes: Uint8Array.from([1, 2, 3]),
+    });
+    const controller = new AbortController();
+    controller.abort('cancel fixture');
+
+    await expect(
+      store.commit({
+        revisionId: 'cancelled',
+        source,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({
+      code: 'OPERATION_CANCELLED',
+    });
+    expect(await store.has('cancelled')).toBe(false);
   });
 
   it('removes individual revisions and clears the store', async () => {
