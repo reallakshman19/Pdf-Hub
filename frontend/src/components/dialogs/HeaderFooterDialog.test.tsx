@@ -4,7 +4,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createPageGraph } from '@/core/pages/pageGraph';
 import { withPageLabelRanges } from '@/core/pages/pageLabels';
@@ -47,6 +47,10 @@ function graph() {
     ],
   );
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('HeaderFooterDialog', () => {
   it('shows a resolved representative preview and keeps printed content separate from PageLabels', () => {
