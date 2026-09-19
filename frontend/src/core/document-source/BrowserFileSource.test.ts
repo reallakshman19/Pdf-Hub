@@ -13,10 +13,7 @@ function readableBlob(
       const copy = bytes.slice(start, end);
       return {
         arrayBuffer: async () =>
-          copy.buffer.slice(
-            copy.byteOffset,
-            copy.byteOffset + copy.byteLength,
-          ),
+          Uint8Array.from(copy).buffer,
       } as Blob;
     },
   };
