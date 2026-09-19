@@ -130,3 +130,15 @@ async function bestEffortRemove(
     // Cleanup must not mask the original commit failure.
   }
 }
+
+export function isOpfsNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof DOMException
+    && error.name === 'NotFoundError'
+  ) || (
+    typeof error === 'object'
+    && error !== null
+    && 'name' in error
+    && error.name === 'NotFoundError'
+  );
+}
