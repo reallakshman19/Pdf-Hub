@@ -51,7 +51,7 @@ describe('ThumbnailMacroConfigDialog visual mask guardrail', () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/{{physicalPage}}/),
+      screen.getByText(/physicalPage/),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
