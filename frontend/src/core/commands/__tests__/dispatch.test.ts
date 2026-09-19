@@ -43,7 +43,6 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 }));
 
 const pdfMocks = vi.hoisted(() => ({
-  rotatePages: vi.fn(),
   movePage: vi.fn(),
   reorderPages: vi.fn(),
   extractPages: vi.fn(),
@@ -61,7 +60,6 @@ const pdfMocks = vi.hoisted(() => ({
 
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
-    rotatePages: pdfMocks.rotatePages,
     movePage: pdfMocks.movePage,
     reorderPages: pdfMocks.reorderPages,
     extractPages: pdfMocks.extractPages,
@@ -75,6 +73,20 @@ vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
     drawRedactionBoxes: pdfMocks.drawRedactionBoxes,
     countPages: pdfMocks.countPages,
     getPageSize: pdfMocks.getPageSize,
+  },
+}));
+
+const mutationEngineMocks = vi.hoisted(() => ({
+  open: vi.fn(),
+  getPageMetrics: vi.fn(),
+  rotatePages: vi.fn(),
+  commit: vi.fn(),
+  dispose: vi.fn(),
+}));
+
+vi.mock('@/adapters/pdf-mutation/PdfLibMutationEngine', () => ({
+  pdfLibMutationEngine: {
+    open: mutationEngineMocks.open,
   },
 }));
 
@@ -247,6 +259,24 @@ describe('canonical command dispatch', () => {
     });
     pdfMocks.countPages.mockResolvedValue(3);
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
+    mutationEngineMocks.getPageMetrics.mockImplementation(
+      (pageIndex: number) => ({
+        width: 612,
+        height: 792,
+        rotation: pageIndex === 0 ? 0 : 0,
+      }),
+    );
+    mutationEngineMocks.commit.mockResolvedValue({
+      bytes: new Uint8Array([2, 2, 2]),
+      pageCount: 3,
+    });
+    mutationEngineMocks.open.mockImplementation(async () => ({
+      pageCount: 3,
+      getPageMetrics: mutationEngineMocks.getPageMetrics,
+      rotatePages: mutationEngineMocks.rotatePages,
+      commit: mutationEngineMocks.commit,
+      dispose: mutationEngineMocks.dispose,
+    }));
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
     );
@@ -265,7 +295,6 @@ describe('canonical command dispatch', () => {
         logicalLabel: ['i', 'ii', '1'][index],
       })),
     });
-    pdfMocks.rotatePages.mockResolvedValue(new Uint8Array([2, 2, 2]));
 
     const result = await execute({
       type: 'ROTATE_PAGES',
@@ -285,6 +314,14 @@ describe('canonical command dispatch', () => {
       logicalLabel: 'i',
     });
     expect(pdfMocks.getPageSize).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.open).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.getPageMetrics).toHaveBeenCalledWith(0);
+    expect(mutationEngineMocks.rotatePages).toHaveBeenCalledWith(
+      [0],
+      90,
+    );
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
+    expect(mutationEngineMocks.dispose).toHaveBeenCalledTimes(1);
   });
 
   it('does not mutate any store when annotation persistence fails', async () => {
@@ -478,7 +515,7 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('STALE_DOCUMENT');
-    expect(pdfMocks.rotatePages).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.open).not.toHaveBeenCalled();
   });
 
   it('reorders pages by explicit order', async () => {
