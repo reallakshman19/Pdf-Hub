@@ -53,7 +53,8 @@
     "certify:phase5h": "npm run typecheck && npm run audit:phase4 && npm run audit:phase5-pagegraph && vitest run src/core/commands/pageLabelCommand.test.ts src/core/macro/headlessApi.test.ts src/components/sidebar/AutomateSidebar.test.tsx src/components/dialogs/PageLabelsDialog.test.tsx src/core/commands/__tests__/dispatch.test.ts src/core/pages/pageLabels.test.ts --pool=forks --maxWorkers=1 && npm run build",
     "audit:phase6-header-footer": "node scripts/phase6-header-footer-audit.mjs",
     "certify:phase6a": "npm run typecheck && npm run audit:phase4 && npm run audit:phase5-pagegraph && npm run audit:phase6-header-footer && vitest run src/core/header-footer/validation.test.ts --pool=forks --maxWorkers=1 && npm run build",
-    "certify:phase6b": "npm run typecheck && npm run audit:phase4 && npm run audit:phase5-pagegraph && npm run audit:phase6-header-footer && vitest run src/core/header-footer/validation.test.ts src/core/header-footer/selectorResolver.test.ts src/core/header-footer/resolver.test.ts --pool=forks --maxWorkers=1 && npm run build"
+    "certify:phase6b": "npm run typecheck && npm run audit:phase4 && npm run audit:phase5-pagegraph && npm run audit:phase6-header-footer && vitest run src/core/header-footer/validation.test.ts src/core/header-footer/selectorResolver.test.ts src/core/header-footer/resolver.test.ts --pool=forks --maxWorkers=1 && npm run build",
+    "certify:phase6c": "npm run typecheck && npm run audit:phase4 && npm run audit:phase5-pagegraph && npm run audit:phase6-header-footer && vitest run src/core/header-footer/validation.test.ts src/core/header-footer/selectorResolver.test.ts src/core/header-footer/resolver.test.ts src/core/header-footer/commandPlan.test.ts src/core/commands/headerFooterCommand.test.ts --pool=forks --maxWorkers=1 && npm run build"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
