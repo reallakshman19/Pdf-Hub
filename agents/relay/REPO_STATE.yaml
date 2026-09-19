@@ -68,19 +68,39 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Publish DOBS/QRV for reviewed material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; keep executable certification NOT_RUN until pnpm run certify:phase8d3 actually executes."
+      "next_action": "Execute pnpm run certify:phase8d3 on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; keep WP-8D3/PR #233 open until required certification evidence is terminal."
     },
     "quality": {
-      "state": "CLEAR",
+      "state": "NEEDS_ATTENTION",
       "findings": []
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "8D.3 implementation and static anti-drift review are complete on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. Focused test files and certify:phase8d3 are present, but no dependency-capable environment has executed typecheck/Vitest/build; PR #233 Actions jobs still fail before runner allocation under #183.",
+      "summary": "Static 8D.3 design/source/audit review is positive on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. No project test/typecheck/build command has executed in a dependency-capable environment; PR #233 exact-head jobs at 80601e06d2b5bd7215359fd2ab71c53b448417da all have runner_id 0 and steps [].",
       "not_run": [
         {
+          "id": "TEST-01",
+          "reason": "TEST-01 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-02",
+          "reason": "TEST-02 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-03",
+          "reason": "TEST-03 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
+          "id": "TEST-04",
+          "reason": "TEST-04 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "cause": "INFRASTRUCTURE"
+        },
+        {
           "id": "TEST-05",
-          "reason": "No dependency-capable checkout has executed pnpm run certify:phase8d3; PR #233 hosted jobs have runner_id 0 and steps [].",
+          "reason": "TEST-05 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
           "cause": "INFRASTRUCTURE"
         }
       ]
@@ -109,13 +129,18 @@
     "superseded_operations": []
   },
   "delivery": {
-    "required": false,
-    "provider": null,
+    "required": true,
+    "provider": "GITHUB",
     "observation": {
-      "id": null,
-      "path": null
+      "id": "DOBS-8D3-001",
+      "path": "agents/relay/delivery/DOBS-8D3-001.yaml"
     },
-    "observations": []
+    "observations": [
+      {
+        "id": "DOBS-8D3-001",
+        "path": "agents/relay/delivery/DOBS-8D3-001.yaml"
+      }
+    ]
   },
   "relay_readiness": {
     "baton_ready": true,

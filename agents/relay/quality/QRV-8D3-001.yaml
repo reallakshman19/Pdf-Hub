@@ -1,0 +1,188 @@
+{
+  "schema_version": "relay-v2.5-quality-review",
+  "quality_review_id": "QRV-8D3-001",
+  "ep": {
+    "id": "EP-8D3-001",
+    "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "contract_digest": "sha256:d817145d9246171da7e1cef408072f0268acd6bed7aaa62e3bcb86b7c6464cdb"
+  },
+  "roadmap_revision": "RM-0001",
+  "material_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+  "reviewer": {
+    "type": "AGENT",
+    "identity": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "router_snapshot": {
+    "applicable": [
+      {
+        "blueprint": "code-review",
+        "reason": "Renderer lifecycle and multiple active consumers are high-risk.",
+        "review_focus": [
+          "resource leaks",
+          "stale revision use",
+          "byte-path regression"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Production TypeScript changes.",
+        "review_focus": [
+          "failure semantics",
+          "cancellation",
+          "cleanup"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "Delivered through a tracked PR with V2.5 Issue-to-EP correlation/provider readback.",
+        "review_focus": [
+          "PR correlation",
+          "delivery observation",
+          "exact-head merge authorization"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Moves active callers onto an established contract while compatibility byte callers coexist.",
+        "review_focus": [
+          "old/new compatibility",
+          "standalone byte wrappers"
+        ]
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Eliminates avoidable whole-buffer renderer reacquisition/hash/clone pressure.",
+        "review_focus": [
+          "no workingBytes reacquisition",
+          "cache reuse",
+          "no open-time all-page indexing"
+        ]
+      },
+      {
+        "blueprint": "software-design",
+        "reason": "Changes active-session lease ownership boundaries.",
+        "review_focus": [
+          "dependency direction",
+          "lease ownership",
+          "strict revision fallback"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Requires focused regression coverage.",
+        "review_focus": [
+          "revision vs legacy paths",
+          "cancellation",
+          "compatibility wrappers"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility contract change.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "No numerical engineering method or tolerance changes.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intended visual/journey behavior change.",
+        "review_focus": []
+      }
+    ]
+  },
+  "procedure_results": [
+    {
+      "blueprint": "software-design",
+      "result": "CLEAR",
+      "evidence": [
+        "activePdfDocumentLease accepts an explicit session snapshot and does not import Zustand/session store state.",
+        "Strict active revision resolution and revision-keyed source cache identity remain unchanged."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "coding",
+      "result": "CLEAR",
+      "evidence": [
+        "Search/Bookmarks/Select Box own short-lived leases and release in finally; cancellation is propagated.",
+        "Module-size ratchets remain within established limits: coordinator 68, renderer 571, Select Box engine 163, image snapshot 150 lines."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "testing",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "Focused tests and certify:phase8d3 are authored, but no dependency-capable checkout executed them. PR #233 exact-head Actions jobs all received runner_id 0 with steps [].",
+      "cause": "INFRASTRUCTURE"
+    },
+    {
+      "blueprint": "code-review",
+      "result": "CLEAR",
+      "evidence": [
+        "Changed production paths and PR file set were reviewed against EP allowed/protected/prohibited scope.",
+        "Manual reproduction of the exact 8D.3 audit markers found zero failed checks; all 13 required test/audit contract markers are present."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "performance",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "The code structurally removes active-session whole-buffer reacquisition, but no reproducible baseline/after runtime measurement was executed in a dependency-capable environment.",
+      "cause": "UNAVAILABLE_TOOL"
+    },
+    {
+      "blueprint": "migration",
+      "result": "CLEAR",
+      "evidence": [
+        "Active Search/Bookmarks/Select Box use loaded revision leases while standalone byte wrappers remain supported.",
+        "No Phase 8E/8F, admission-ceiling, mutation or Save scope was pulled into this migration."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "github-delivery",
+      "result": "CLEAR",
+      "evidence": [
+        "Draft PR #233 carries the relay-pr-correlation:v1 Issue #230 ↔ EP-8D3-001 ↔ WP-8D3 mapping.",
+        "Provider state is captured in DOBS-8D3-001 for observed head 80601e06d2b5bd7215359fd2ab71c53b448417da; zero-runner workflow results are classified NOT_RUN, not PASS.",
+        "No merge authorization is claimed; exact-head Owner authorization remains separate and Owner-reserved."
+      ],
+      "reason": null,
+      "cause": null
+    }
+  ],
+  "findings": [],
+  "overall_state": "NEEDS_ATTENTION",
+  "execution_effect": {
+    "blocks_execution": false,
+    "blocking_findings": []
+  },
+  "owner_report": {
+    "summary": "Static design/coding/code-review/migration and GitHub-delivery review is clear, but executable tests and runtime performance measurements have not run because no dependency-capable runner is available.",
+    "visible_risks": [
+      "TEST-01 through TEST-05 remain unexecuted on the reviewed material head; source-level inspection cannot replace Vitest/typecheck/build execution.",
+      "The intended reduction in byte hashing/cloning pressure is structurally evident but has no baseline/after runtime measurement yet.",
+      "PR #233 is draft and has no Owner merge authorization."
+    ],
+    "decisions_required": []
+  },
+  "successor_handover": {
+    "unresolved_findings": [],
+    "follow_up": [
+      "Execute \"cd frontend && pnpm run certify:phase8d3\" against material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180 in a dependency-capable environment and record the actual result.",
+      "Run a representative large-document before/after renderer-consumer performance measurement if performance certification is required before closing WP-8D3.",
+      "Keep WP-8D3 active until issue #230 certification evidence is terminal."
+    ]
+  }
+}
