@@ -156,9 +156,17 @@ const inherited = read(inheritedPath);
 forbidContains(inherited, inheritedPath, [
   "'src/components/writer-v2/WriterV2Inspector.tsx',",
 ]);
-requireContains(inherited, inheritedPath, [
-  "'src/components/writer-v2/WriterTablePropertiesPanel.tsx'",
-]);
+const tablePropertiesPath =
+  'src/components/writer-v2/WriterTablePropertiesPanel.tsx';
+const tableProperties = read(tablePropertiesPath);
+requireContains(
+  tableProperties,
+  tablePropertiesPath,
+  [
+    'tableCommitTailRef',
+    'dispatchDurableWriterUiCommand(',
+  ],
+);
 
 if (failed) process.exit(1);
 
