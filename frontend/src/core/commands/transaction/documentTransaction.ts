@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { BorrowedBytesSource } from '@/adapters/document-source/BorrowedBytesSource';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
@@ -9,6 +10,8 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
+import { ensureStoredRevision } from '@/core/revision-store/ensureRevision';
+import { resolveWorkingRevisionStore } from '@/core/revision-store/registry';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { normalizeWriterPageAnchors } from '@/core/writer-v2/writerPageAnchor';
@@ -60,12 +63,14 @@ export interface CommitDocumentMutationInput {
   nextOcrState?: OcrPageAnchoredState | null;
   ocrPagePolicy?: OcrPageMutationPolicy;
   revisionMetadata?: DocumentMutationRevisionMetadata;
+  signal?: AbortSignal;
 }
 
 export interface CommittedDocumentMutation {
   nextBytes: Uint8Array;
   nextPageCount: number;
   nextDocumentKey: string;
+  activeRevisionId: string | null;
 }
 
 function validatedRevisionPageCounts(
@@ -116,6 +121,37 @@ function toTransactionError(
   if (error instanceof DocumentMutationTransactionError) return error;
   const reason = error instanceof Error ? error.message : String(error);
   return new DocumentMutationTransactionError(stage, `${message}: ${reason}`, error);
+}
+
+async function publishMutationRevision(
+  session: ReturnType<typeof useSessionStore.getState>,
+  documentKey: string,
+  bytes: Uint8Array,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!session.revisionStoreId) {
+    return null;
+  }
+
+  const store = resolveWorkingRevisionStore(
+    session.revisionStoreId,
+  );
+  if (!store) {
+    throw new Error(
+      `WorkingRevisionStore ${session.revisionStoreId} is not registered.`,
+    );
+  }
+
+  const revision = await ensureStoredRevision({
+    store,
+    revisionId: documentKey,
+    source: new BorrowedBytesSource({
+      id: `mutation:${documentKey}`,
+      bytes,
+    }),
+    signal,
+  });
+  return revision.revisionId;
 }
 
 function writerHistorySnapshot() {
@@ -281,6 +317,22 @@ export async function commitDocumentMutation(
     nextDocumentKey,
   );
 
+  let publishedRevisionId: string | null;
+  try {
+    publishedRevisionId = await publishMutationRevision(
+      sessionSnapshot,
+      nextDocumentKey,
+      input.afterBytes,
+      input.signal,
+    );
+  } catch (error) {
+    throw toTransactionError(
+      'persistence',
+      'Document mutation was not committed because working revision publication failed',
+      error,
+    );
+  }
+
   try {
     await saveAnnotations(nextDocumentKey, annotationsToPersist);
   } catch (error) {
@@ -321,7 +373,11 @@ export async function commitDocumentMutation(
     : new Uint8Array(input.beforeBytes);
 
   try {
-    useSessionStore.getState().replaceWorkingCopy(input.afterBytes, afterPageCount);
+    useSessionStore.getState().replaceWorkingCopy(
+      input.afterBytes,
+      afterPageCount,
+      publishedRevisionId,
+    );
     useSessionStore.getState().setDocumentKey(nextDocumentKey);
     useSessionStore.getState().setPageGraph(
       pageGraphForCommit
@@ -383,6 +439,7 @@ export async function commitDocumentMutation(
           ? clonePageGraph(sessionSnapshot.pageGraph)
           : null,
         documentKey: sessionSnapshot.documentKey,
+        activeRevisionId: sessionSnapshot.activeRevisionId,
         selectedPageIds: [...sessionSnapshot.selectedPageIds],
         selectedPages: [...sessionSnapshot.selectedPages],
         currentPageId: sessionSnapshot.viewState.currentPageId,
@@ -398,6 +455,7 @@ export async function commitDocumentMutation(
           ? clonePageGraph(sessionAfter.pageGraph)
           : null,
         documentKey: nextDocumentKey,
+        activeRevisionId: sessionAfter.activeRevisionId,
         selectedPageIds: [...sessionAfter.selectedPageIds],
         selectedPages: [...sessionAfter.selectedPages],
         currentPageId: sessionAfter.viewState.currentPageId,
@@ -420,6 +478,7 @@ export async function commitDocumentMutation(
     nextBytes: input.afterBytes,
     nextPageCount: afterPageCount,
     nextDocumentKey,
+    activeRevisionId: publishedRevisionId,
   };
 }
 
