@@ -16,7 +16,7 @@ function fail(message) {
 function requireContains(source, relativePath, markers) {
   for (const marker of markers) {
     if (!source.includes(marker)) {
-      fail(`${relativePath} missing required Phase 6A marker: ${marker}`);
+      fail(`${relativePath} missing required Phase 6 marker: ${marker}`);
     }
   }
 }
@@ -24,7 +24,7 @@ function requireContains(source, relativePath, markers) {
 function forbidContains(source, relativePath, markers) {
   for (const marker of markers) {
     if (source.includes(marker)) {
-      fail(`${relativePath} contains forbidden Phase 6A dependency/token: ${marker}`);
+      fail(`${relativePath} contains forbidden Phase 6 dependency/token: ${marker}`);
     }
   }
 }
@@ -33,6 +33,10 @@ const domainPaths = [
   'src/core/header-footer/types.ts',
   'src/core/header-footer/validation.ts',
   'src/core/header-footer/contentValidation.ts',
+  'src/core/header-footer/resolutionTypes.ts',
+  'src/core/header-footer/selectorResolver.ts',
+  'src/core/header-footer/tokenResolver.ts',
+  'src/core/header-footer/resolver.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -51,7 +55,9 @@ for (const { relativePath, source } of domain) {
 
   const lineCount = source.split('\n').length;
   if (lineCount > 300) {
-    fail(`${relativePath} exceeds the Phase 6A 300-line production-module guard (${lineCount})`);
+    fail(
+      `${relativePath} exceeds the Phase 6 300-line production-module guard (${lineCount})`,
+    );
   }
 }
 
@@ -88,6 +94,42 @@ requireContains(contentValidation, contentValidationPath, [
   'validateHeaderFooterTextStyle',
 ]);
 
+const selectorPath = 'src/core/header-footer/selectorResolver.ts';
+const selector = read(selectorPath);
+requireContains(selector, selectorPath, [
+  'matchesHeaderFooterSelector',
+  'sectionForPage',
+  'pageLabelRanges',
+  'Math.min(start, end)',
+  'physicalPageNumber',
+]);
+
+const tokenPath = 'src/core/header-footer/tokenResolver.ts';
+const tokenResolver = read(tokenPath);
+requireContains(tokenResolver, tokenPath, [
+  'resolveHeaderFooterText',
+  "case 'pageLabel'",
+  "case 'sectionPage'",
+  "case 'sectionPageCount'",
+  "token.startsWith('metadata:')",
+  "token.startsWith('var:')",
+  'toISOString()',
+]);
+forbidContains(tokenResolver, tokenPath, [
+  'toLocaleDateString',
+  'toLocaleTimeString',
+]);
+
+const resolverPath = 'src/core/header-footer/resolver.ts';
+const resolver = read(resolverPath);
+requireContains(resolver, resolverPath, [
+  'resolveHeaderFooterTemplate',
+  'validateHeaderFooterTemplate',
+  'matchesHeaderFooterSelector',
+  'sectionForPage',
+  'mergeBand',
+]);
+
 const pageTypesPath = 'src/core/pages/types.ts';
 const pageTypes = read(pageTypesPath);
 const pageLabelStyleDeclarations =
@@ -105,7 +147,7 @@ if (pageLabelRangeDeclarations !== 1) {
 const commandTypesPath = 'src/core/commands/types.ts';
 const commandTypes = read(commandTypesPath);
 if (!commandTypes.includes("'ADD_HEADER_FOOTER_TEXT'")) {
-  fail('Phase 6A must not remove the legacy header/footer compatibility command');
+  fail('Phase 6 migration must not prematurely remove the legacy compatibility command');
 }
 
 if (failures.length > 0) {
