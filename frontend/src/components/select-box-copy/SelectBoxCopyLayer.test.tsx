@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -128,10 +129,12 @@ describe('SelectBoxCopyLayer renderer lifecycle', () => {
     });
     expect(pending.signal()?.aborted).toBe(false);
 
-    useSessionStore.setState({
-      documentKey: 'sha256:B',
-      activeRevisionId: 'sha256:B',
-      workingBytes: Uint8Array.from([4, 5, 6]),
+    act(() => {
+      useSessionStore.setState({
+        documentKey: 'sha256:B',
+        activeRevisionId: 'sha256:B',
+        workingBytes: Uint8Array.from([4, 5, 6]),
+      });
     });
 
     await waitFor(() => {
@@ -149,8 +152,10 @@ describe('SelectBoxCopyLayer renderer lifecycle', () => {
     });
     expect(pending.signal()?.aborted).toBe(false);
 
-    useWriterV2Store.setState({
-      activeWriterTool: 'select',
+    act(() => {
+      useWriterV2Store.setState({
+        activeWriterTool: 'select',
+      });
     });
 
     await waitFor(() => {
