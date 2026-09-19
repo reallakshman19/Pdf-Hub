@@ -69,6 +69,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   );
   const operationAbortControllerRef =
     React.useRef<AbortController | null>(null);
+  const selectionOperationIdRef = React.useRef(0);
   const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
 
   const [draftRect, setDraftRect] = React.useState<SelectBoxViewportRect | null>(null);
@@ -201,6 +202,10 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       return;
     }
 
+    const selectionOperationId =
+      selectionOperationIdRef.current + 1;
+    selectionOperationIdRef.current =
+      selectionOperationId;
     setBusy(true);
 
     try {
@@ -230,7 +235,12 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       failSaveOperation(error instanceof Error ? error.message : String(error));
       setResult(null);
     } finally {
-      setBusy(false);
+      if (
+        selectionOperationIdRef.current
+        === selectionOperationId
+      ) {
+        setBusy(false);
+      }
     }
   };
 
