@@ -256,4 +256,78 @@ describe('HeaderFooterDialog', () => {
     });
   });
 
+
+  it('applies a printed-numbering preset without changing the selected target', async () => {
+    const onApply = vi.fn().mockResolvedValue(true);
+    render(
+      <HeaderFooterDialog
+        isOpen
+        pageGraph={graph()}
+        currentPageId="body-2"
+        selectedPageIds={[]}
+        fileName="report.pdf"
+        onClose={vi.fn()}
+        onApply={onApply}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'Apply to' }),
+      { target: { value: 'current-page-label-section' } },
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Preset: Section N of M' }),
+    );
+
+    expect(
+      screen.getByRole('textbox', { name: 'Footer center' }),
+    ).toHaveValue('Page {{sectionPage}} of {{sectionPageCount}}');
+    expect(
+      screen.getByRole('textbox', { name: 'Footer right' }),
+    ).toHaveValue('');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Apply header & footer' }),
+    );
+
+    await waitFor(() => {
+      expect(onApply).toHaveBeenCalledTimes(1);
+    });
+
+    const template = onApply.mock.calls[0]?.[0];
+    expect(template.rules[0].selector.include).toEqual({
+      mode: 'pageLabelRange',
+      startPageId: 'body-1',
+    });
+    expect(template.rules[0].footer.center).toEqual({
+      kind: 'text',
+      template: 'Page {{sectionPage}} of {{sectionPageCount}}',
+    });
+  });
+
+  it('prefills the appendix pattern as editable canonical text', () => {
+    render(
+      <HeaderFooterDialog
+        isOpen
+        pageGraph={graph()}
+        currentPageId="body-1"
+        selectedPageIds={[]}
+        fileName="report.pdf"
+        onClose={vi.fn()}
+        onApply={vi.fn().mockResolvedValue(true)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Preset: Appendix label' }),
+    );
+
+    expect(
+      screen.getByRole('textbox', { name: 'Footer right' }),
+    ).toHaveValue('Appendix A — {{pageLabel}}');
+    expect(
+      screen.getByRole('textbox', { name: 'Footer center' }),
+    ).toHaveValue('');
+  });
+
 });
