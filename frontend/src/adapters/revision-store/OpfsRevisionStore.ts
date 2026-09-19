@@ -1,9 +1,7 @@
 import {
   DEFAULT_DOCUMENT_SOURCE_CHUNK_BYTES,
 } from '@/core/document-source/materialize';
-import {
-  isOperationCancelledError,
-} from '@/core/cancellation/operationCancellation';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { OpfsSource } from '@/adapters/document-source/OpfsSource';
 import { RevisionStoreError } from '@/core/revision-store/errors';
 import type {
@@ -59,7 +57,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
   readonly id: string;
   readonly kind = 'opfs' as const;
   readonly capabilities = OPFS_REVISION_CAPABILITIES;
-
   private readonly directory: FileSystemDirectoryHandle;
   private readonly chunkBytes: number;
   private readonly pending = new Set<string>();
@@ -77,7 +74,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     this.directory = input.directory;
     this.chunkBytes = chunkBytes;
   }
-
   static async create(
     input: CreateOpfsRevisionStoreInput,
   ): Promise<OpfsRevisionStore> {
@@ -107,7 +103,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       chunkBytes: input.chunkBytes,
     });
   }
-
   async commit(
     input: CommitRevisionInput,
   ): Promise<StoredRevision> {
@@ -126,7 +121,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       this.pending.delete(input.revisionId);
     }
   }
-
   async open(revisionId: string): Promise<OpfsSource> {
     assertRevisionId(this.id, revisionId);
     if (this.pending.has(revisionId)) {
@@ -157,7 +151,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
       );
     }
   }
-
   async has(revisionId: string): Promise<boolean> {
     assertRevisionId(this.id, revisionId);
     if (this.pending.has(revisionId)) {
@@ -165,7 +158,6 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     }
     return this.hasCommittedRevision(revisionId);
   }
-
   async remove(revisionId: string): Promise<void> {
     assertRevisionId(this.id, revisionId);
     this.assertNotPending(revisionId);
