@@ -11,21 +11,21 @@
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0001",
+    "revision": "RM-0002",
     "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml"
   },
   "current_position": {
     "objective": "OBJ-READINESS",
     "phase": "PHASE-008",
-    "work_package": "WP-8D3",
+    "work_package": "WP-8E",
     "work_packages": []
   },
   "execution_policy": {
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8D3-001",
-    "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "id": "EP-8E1-001",
+    "path": "agents/relay/execution-packages/EP-8E1-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,8 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": null,
-    "path": null
+    "id": "PR-233",
+    "path": null,
+    "merge_ref": "61a4829e1264db0a5c3721027a7194945488a227",
+    "note": "Phase 8D.3 merged under documented #183 infrastructure exception; runner-executed certification remained NOT_RUN."
   },
   "predecessor_replan": {
     "id": null,
@@ -59,7 +61,7 @@
   ],
   "progress": {
     "overall_percent": 52.38,
-    "phase_percent": 63.64,
+    "phase_percent": 80,
     "ep_percent": 0,
     "basis_revision": "PB-0001"
   },
@@ -68,52 +70,19 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Execute cd frontend && pnpm run certify:phase8d3 on exact material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; keep WP-8D3 and PR #233 open/draft until required acceptance evidence is terminal."
+      "next_action": "Review exact Phase 8E.1 branch, run cd frontend && pnpm run certify:phase8e1 when a runner is available, and keep issue #234 / the 8E.1 PR open until executable evidence is terminal."
     },
     "quality": {
-      "state": "NEEDS_ATTENTION",
-      "findings": [
-        {
-          "id": "QF-8D3-001",
-          "severity": "MEDIUM",
-          "disposition": "REMEDIATED",
-          "statement": "Select Box renderer work previously aborted only on component unmount, allowing an in-flight old revision/tool/viewport operation to complete against a newer render context."
-        },
-        {
-          "id": "QF-8D3-002",
-          "severity": "LOW",
-          "disposition": "REMEDIATED",
-          "statement": "A superseded older Select Box extraction could clear the visible busy indicator while a newer extraction was still active."
-        }
-      ]
+      "state": "PENDING_EXECUTION",
+      "findings": []
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Corrected 8D.3 material basis is 5e7266d696f6f288ba26f9109830ae28ee8a9f10. Static source/audit review is positive and two discovered Select Box lifecycle defects are remediated, but TEST-01 through TEST-05 have not executed; exact-head PR jobs all failed before runner allocation.",
+      "summary": "Phase 8E.1 implementation and static anti-drift coverage are present on the active branch. Runner-executed typecheck/Vitest/audit/build evidence is not yet available because #183 remains unresolved.",
       "not_run": [
         {
-          "id": "TEST-01",
-          "reason": "TEST-01 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
-          "cause": "INFRASTRUCTURE"
-        },
-        {
-          "id": "TEST-02",
-          "reason": "TEST-02 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
-          "cause": "INFRASTRUCTURE"
-        },
-        {
-          "id": "TEST-03",
-          "reason": "TEST-03 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
-          "cause": "INFRASTRUCTURE"
-        },
-        {
           "id": "TEST-04",
-          "reason": "TEST-04 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
-          "cause": "INFRASTRUCTURE"
-        },
-        {
-          "id": "TEST-05",
-          "reason": "TEST-05 has not executed on corrected material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10; GitHub-hosted jobs have runner_id 0 and steps [], and this connector environment has no dependency checkout.",
+          "reason": "GitHub-hosted Actions currently fail before runner allocation under #183.",
           "cause": "INFRASTRUCTURE"
         }
       ]
@@ -132,28 +101,22 @@
     "target": null,
     "adapter": null,
     "plan": null,
-    "roadmap_revision": "RM-0001",
-    "execution_ref": "EP-8D3-001",
+    "roadmap_revision": "RM-0002",
+    "execution_ref": "EP-8E1-001",
     "receipt": null,
     "basis": [
-      "Issue #230 and its parent/design issues have already been verified by provider readback; no new GitHub issue projection is required to start this EP."
+      "Issue #234 is the projected GitHub tracking issue for the active 8E.1 slice."
     ],
-    "observed": null,
+    "observed": {
+      "issue": 234
+    },
     "superseded_operations": []
   },
   "delivery": {
     "required": true,
     "provider": "GITHUB",
-    "observation": {
-      "id": "DOBS-8D3-003",
-      "path": "agents/relay/delivery/DOBS-8D3-003.yaml"
-    },
-    "observations": [
-      {
-        "id": "DOBS-8D3-003",
-        "path": "agents/relay/delivery/DOBS-8D3-003.yaml"
-      }
-    ]
+    "observation": null,
+    "observations": []
   },
   "relay_readiness": {
     "baton_ready": true,
