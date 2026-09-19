@@ -189,10 +189,21 @@ Source-backed cache entries are internally namespaced away from byte-backed
 entries so admission-time byte loading cannot silently mask the range path.
 Existing lease/ref-count/LRU behavior remains authoritative.
 
-Session `originalBytes`/`workingBytes`, current workspace renderer input,
-mutation-engine input, Save composition and history byte snapshots remain
-materialized. Phase 8D.2 migrates the active workspace and removes its eager
-all-page search indexing; Phase 8E later migrates history consumption.
+Phase 8D.2 migrates the primary workspace onto that source path. A small
+session-side resolver maps complete revision metadata to
+`WorkingRevisionStore.open(activeRevisionId)`; byte fallback is allowed only
+for legacy sessions with no revision metadata at all. The workspace lease
+reacts to revision identity changes and passes cancellation into source
+acquisition.
+
+The former workspace-open full-document text-indexing loop has been removed.
+Search indexing is no longer an automatic `1..numPages` side effect of opening
+a PDF; Phase 8F owns incremental visible/nearby-first indexing.
+
+Session `originalBytes`/`workingBytes`, mutation-engine input, Save
+composition and history byte snapshots remain materialized. Search, Bookmarks
+and Select Box Copy still migrate in Phase 8D.3; Phase 8E later migrates
+history consumption.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
