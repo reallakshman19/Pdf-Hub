@@ -1,0 +1,217 @@
+{
+  "schema_version": "relay-v2.5-quality-review",
+  "quality_review_id": "QRV-8D3-003",
+  "ep": {
+    "id": "EP-8D3-001",
+    "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "contract_digest": "sha256:9e24fb67b35ffe0f3c8380ae043a1e7c5bffbc814e0bb4ba0e527a097431eb48"
+  },
+  "roadmap_revision": "RM-0001",
+  "material_ref": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
+  "reviewer": {
+    "type": "AGENT",
+    "identity": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "router_snapshot": {
+    "applicable": [
+      {
+        "blueprint": "code-review",
+        "reason": "Renderer lifecycle and multiple active consumers are high-risk.",
+        "review_focus": [
+          "resource leaks",
+          "stale revision use",
+          "byte-path regression"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Production TypeScript changes.",
+        "review_focus": [
+          "failure semantics",
+          "cancellation",
+          "cleanup"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "Delivered through a tracked PR with V2.5 Issue-to-EP correlation/provider readback.",
+        "review_focus": [
+          "PR correlation",
+          "delivery observation",
+          "exact-head merge authorization"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Moves active callers onto an established contract while compatibility byte callers coexist.",
+        "review_focus": [
+          "old/new compatibility",
+          "standalone byte wrappers"
+        ]
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Eliminates avoidable whole-buffer renderer reacquisition/hash/clone pressure.",
+        "review_focus": [
+          "no workingBytes reacquisition",
+          "cache reuse",
+          "no open-time all-page indexing"
+        ]
+      },
+      {
+        "blueprint": "software-design",
+        "reason": "Changes active-session lease ownership boundaries.",
+        "review_focus": [
+          "dependency direction",
+          "lease ownership",
+          "strict revision fallback"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Requires focused regression coverage.",
+        "review_focus": [
+          "revision vs legacy paths",
+          "cancellation",
+          "compatibility wrappers"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility contract change.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "No numerical engineering method or tolerance changes.",
+        "review_focus": []
+      },
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intended visual/journey behavior change.",
+        "review_focus": []
+      }
+    ]
+  },
+  "procedure_results": [
+    {
+      "blueprint": "software-design",
+      "result": "CLEAR",
+      "evidence": [
+        "Explicit-session active lease coordinator preserves adapter/session dependency direction.",
+        "Strict revision resolution and revision-keyed cache identity remain unchanged."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "coding",
+      "result": "FINDINGS",
+      "evidence": [
+        "Source review found two Select Box lifecycle/concurrency defects and both are remediated on the exact material head.",
+        "All migrated async consumers retain explicit lease/page cleanup and cancellation boundaries."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "testing",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "The final certify:phase8d3 command now includes source transport/cache, loaded text/outline, PageLabels/admission, workspace A→B→A, transaction undo/redo, Search, Bookmarks, scheduled thumbnails and Select Box, but no dependency-capable checkout executed it; exact-head Actions jobs have runner_id 0 and steps [].",
+      "cause": "INFRASTRUCTURE"
+    },
+    {
+      "blueprint": "code-review",
+      "result": "CLEAR",
+      "evidence": [
+        "Manual exact-head review reproduced 32/32 required 8D.3 static markers with no failed contract check.",
+        "Thumbnail regression is no longer skipped and no longer mocks deprecated PdfRendererAdapter thumbnail byte APIs."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "performance",
+      "result": "NOT_RUN",
+      "evidence": [],
+      "reason": "The active-session byte reacquisition removal is structurally verified, but no reproducible large-document baseline/after runtime measurement has executed.",
+      "cause": "UNAVAILABLE_TOOL"
+    },
+    {
+      "blueprint": "migration",
+      "result": "CLEAR",
+      "evidence": [
+        "Active Search/Bookmarks/Select Box remain revision-leased while standalone explicit-buffer wrappers are retained.",
+        "Certification now also protects unchanged PageLabels, thumbnails and revision-transition behavior without pulling Phase 8E/8F into scope."
+      ],
+      "reason": null,
+      "cause": null
+    },
+    {
+      "blueprint": "github-delivery",
+      "result": "CLEAR",
+      "evidence": [
+        "DOBS-8D3-003 records PR #233 at exact material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10.",
+        "PR body still carries the V2.5 Issue #230 ↔ EP-8D3-001 ↔ WP-8D3 correlation.",
+        "No merge authorization is claimed; exact-head Owner authorization remains separate."
+      ],
+      "reason": null,
+      "cause": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "QF-8D3-001",
+      "blueprint": "coding",
+      "classification": "DESIGN",
+      "severity": "MEDIUM",
+      "disposition": "REMEDIATED",
+      "statement": "Select Box renderer work previously aborted only on component unmount, allowing an in-flight old revision/tool/viewport operation to complete against a newer render context.",
+      "evidence": [
+        "SelectBoxCopyLayer now aborts on activeWriterTool, document/revision identity, page and primitive viewport changes.",
+        "SelectBoxCopyLayer.test.tsx covers revision, tool and viewport invalidation."
+      ],
+      "blocks_execution": false,
+      "hard_stop": null
+    },
+    {
+      "id": "QF-8D3-002",
+      "blueprint": "coding",
+      "classification": "UX",
+      "severity": "LOW",
+      "disposition": "REMEDIATED",
+      "statement": "A superseded older Select Box extraction could clear the visible busy indicator while a newer extraction was still active.",
+      "evidence": [
+        "selectionOperationIdRef now makes busy-state clearing generation-safe.",
+        "SelectBoxCopyLayer.test.tsx proves the newest selection stays busy after superseding an older one."
+      ],
+      "blocks_execution": false,
+      "hard_stop": null
+    }
+  ],
+  "overall_state": "NEEDS_ATTENTION",
+  "execution_effect": {
+    "blocks_execution": false,
+    "blocking_findings": []
+  },
+  "owner_report": {
+    "summary": "Two Select Box lifecycle defects found during review were remediated and the #230 certification surface was expanded. Static design/code/migration/delivery review is now clear apart from recorded remediated findings; executable tests and runtime performance measurement remain unrun because no dependency-capable runner is available.",
+    "visible_risks": [
+      "TEST-01 through TEST-05 remain NOT_RUN on the corrected material head.",
+      "Runtime performance improvement remains unmeasured.",
+      "PR #233 is draft and has no Owner merge authorization."
+    ],
+    "decisions_required": []
+  },
+  "successor_handover": {
+    "unresolved_findings": [],
+    "follow_up": [
+      "Execute \"cd frontend && pnpm run certify:phase8d3\" against 5e7266d696f6f288ba26f9109830ae28ee8a9f10 in a dependency-capable checkout.",
+      "Record actual PASS/FAIL evidence; do not advance WP-8D3 on static inspection alone.",
+      "If required for closure, run a reproducible large-document baseline/after performance measurement on the same material basis."
+    ]
+  }
+}

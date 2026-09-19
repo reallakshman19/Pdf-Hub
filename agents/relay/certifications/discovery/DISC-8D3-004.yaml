@@ -1,0 +1,178 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-8D3-004",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-8D3-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8D3-001",
+    "ep_id": "EP-8D3-001",
+    "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "relay_protocol_basis_ref": "d9b84069683977b5c370f536f1c50095de926338",
+    "material_ref": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
+    "ep_contract_digest": "sha256:9e24fb67b35ffe0f3c8380ae043a1e7c5bffbc814e0bb4ba0e527a097431eb48",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "NONE",
+      "id": "NONE",
+      "path": null,
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active EP id and path",
+          "value": "EP-8D3-001 @ agents/relay/execution-packages/EP-8D3-001.yaml",
+          "basis": [
+            "Current relay route remains WP-8D3 / EP-8D3-001."
+          ]
+        },
+        {
+          "name": "roadmap id and revision",
+          "value": "PDFHUB-READINESS-2026 / RM-0001",
+          "basis": [
+            "REPO_STATE and OVERALL_ROADMAP."
+          ]
+        },
+        {
+          "name": "current work package",
+          "value": "WP-8D3",
+          "basis": [
+            "Acceptance-derived progress is non-terminal; WP-8D3 remains the unique serial frontier."
+          ]
+        }
+      ],
+      "basis": [
+        "Repository relay custody checked against the corrected material head."
+      ]
+    },
+    {
+      "id": "DSTEP-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "checked-out branch",
+          "value": "phase8/active-renderer-consumers",
+          "basis": [
+            "GitHub branch provider readback."
+          ]
+        },
+        {
+          "name": "current HEAD",
+          "value": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
+          "basis": [
+            "Exact reviewed implementation/test/audit/documentation head before this relay-only freeze commit."
+          ]
+        },
+        {
+          "name": "material-ref ancestry result",
+          "value": "PASS: material head is the current reviewed engineering head and will remain an ancestor of the relay receipt commit.",
+          "basis": [
+            "GitHub branch/commit readback."
+          ]
+        },
+        {
+          "name": "base drift result",
+          "value": "UNCHANGED: main remains eb5429c344ec4f7a4d977a09987923833f1c0963.",
+          "basis": [
+            "GitHub main ref readback."
+          ]
+        }
+      ],
+      "basis": [
+        "Git basis rechecked immediately before receipt publication."
+      ]
+    },
+    {
+      "id": "DSTEP-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "search acquisition path",
+          "value": "Cached SearchIndexer remains in-memory; uncached SearchPanel acquires the active revision lease and searches the loaded document.",
+          "basis": [
+            "SearchPanel.tsx and SearchPanel.test.tsx."
+          ]
+        },
+        {
+          "name": "bookmarks acquisition path",
+          "value": "BookmarksSidebar acquires the active revision lease, resolves the loaded-document outline, propagates AbortSignal and releases in finally.",
+          "basis": [
+            "BookmarksSidebar.tsx, BookmarksSidebar.test.tsx and direct getOutlineFlat adapter test."
+          ]
+        },
+        {
+          "name": "select box acquisition path",
+          "value": "Active Select Box text/image operations use loaded-document helpers. In-flight work is invalidated on revision/tool/page/viewport changes and superseded extraction busy state is generation-safe; explicit-byte wrappers remain for standalone callers.",
+          "basis": [
+            "SelectBoxCopyLayer.tsx plus component/core regression tests."
+          ]
+        }
+      ],
+      "basis": [
+        "Post-remediation call-graph and lifecycle review."
+      ]
+    },
+    {
+      "id": "DSTEP-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active renderer resolver path",
+          "value": "Strict resolveActivePdfRendererInput semantics remain unchanged.",
+          "basis": [
+            "activePdfRendererInput.ts and focused tests."
+          ]
+        },
+        {
+          "name": "source cache public identity",
+          "value": "Source-backed cache remains revision-keyed, byte/source namespaces remain isolated, and diagnostics expose range counts/bytes without retaining buffers.",
+          "basis": [
+            "PdfDocumentLeaseCache/PdfRendererAdapter source tests and Phase 8D.1 audit."
+          ]
+        },
+        {
+          "name": "byte compatibility path",
+          "value": "Standalone explicit-buffer renderer, verification and Select Box APIs remain supported.",
+          "basis": [
+            "PdfRendererAdapter.ts and compatibility wrapper tests."
+          ]
+        }
+      ],
+      "basis": [
+        "Merged 8D substrate plus current certification audit."
+      ]
+    },
+    {
+      "id": "DSTEP-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "PR #233 exact-head runs for Writer, Frontend CI, Guards, OCR and Frontend Certify all completed with runner_id 0 and steps [], so executable certification remains NOT_RUN.",
+          "basis": [
+            "Runs 35448332496, 35448332482, 35448332484, 35448332483 and 35448332485."
+          ]
+        }
+      ],
+      "basis": [
+        "Exact-head GitHub Actions provider readback."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

@@ -3,7 +3,7 @@
   "identity": {
     "ep_id": "EP-8D3-001",
     "branch": "phase8/active-renderer-consumers",
-    "base_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
+    "base_ref": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
     "execution_state": "ACTIVE",
     "previous_checkpoint": "NONE",
     "previous_join": null,
@@ -12,7 +12,7 @@
   "replan_inheritance": null,
   "git_basis": {
     "expected_branch": "phase8/active-renderer-consumers",
-    "material_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
+    "material_ref": "5e7266d696f6f288ba26f9109830ae28ee8a9f10",
     "base_branch": "main",
     "base_observed_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
     "drift_policy": "RECHECK_BEFORE_WRITE",
@@ -43,7 +43,7 @@
       "ODR-0001 adopts engineering-pr-delivery-v2.5.",
       "Issue #185 phase order and breadth freeze remain in force."
     ],
-    "current_implementation_state": "STEP-01 through STEP-03 and the complete issue-#230 certification command are implemented on reviewed material head 701835c0801230c4ec72a6e16119e6742cc96abd. STEP-04 remains evidence execution/closeout; no acceptance progress is earned while the mapped test command is unrun.",
+    "current_implementation_state": "STEP-01 through STEP-03 are implemented on reviewed material head 5e7266d696f6f288ba26f9109830ae28ee8a9f10. Review also remediated stale Select Box work on revision/tool/page/viewport changes, made extraction busy state generation-safe, restored scheduled-thumbnail regression coverage, and expanded certify:phase8d3 to the full issue-#230 surface. STEP-04 remains executable evidence/closeout; acceptance is still unearned while the mapped command is unrun.",
     "known_problems": [
       "GitHub Actions issue #183 still prevents runner allocation; exact-head PR jobs on the current material basis have runner_id 0 and steps [].",
       "No dependency-capable environment has executed certify:phase8d3, so TEST-01 through TEST-05 remain NOT_RUN.",
