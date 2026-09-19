@@ -142,7 +142,13 @@ PDF.js rendering is virtualized and cached. This is good and should be preserved
 
 However, the file layer currently reads the complete PDF using `File.arrayBuffer()` and applies a 100 MB admission limit. Therefore the app is **not yet a genuine large-PDF architecture** even though the UI is virtualized.
 
-The target is a `DocumentSource` abstraction supporting random/range reads and OPFS/native-file-backed working data.
+Phase 8A now defines the engine-neutral `DocumentSource` random/range-read
+contract plus `MemorySource` and ranged `BrowserFileSource` adapters. These
+are not yet wired into primary admission or `DocumentSession`; the current
+`File.arrayBuffer()`, 100 MB policy and whole-byte working revisions remain
+until later Phase 8 slices.
+
+See `Docs/DOCUMENT_SOURCE.md` and issue #218.
 
 ## OCR architecture
 
@@ -207,12 +213,17 @@ For structural mutations, test:
 
 ## Roadmap authority
 
-The active product roadmap is tracked in GitHub issue **#167**.
+The active post-merge execution sequence is tracked in GitHub issue **#185**.
+Issue **#167** remains the original Professional / Personal / Basic
+requirements record, but its phase numbering is historical where #185
+supersedes it. Phase-specific tracking issues such as #218 may refine a slice
+without changing #185's order.
 
 When an old design/work-item document conflicts with:
 1. this file,
-2. issue #167, or
-3. current production code,
+2. issue #185,
+3. the active phase tracking issue, or
+4. current production code,
 
 treat the old document as historical unless it has been explicitly re-authorized.
 
@@ -534,3 +545,16 @@ the before/after PDF bytes solely to count pages.
 Compatibility/non-session byte-replacement paths keep a guarded
 `PdfEditAdapter.countPages(...)` fallback. Whole-byte history remains
 unchanged; this is not the Phase 8 OPFS/checkpoint-history migration.
+
+
+### Phase 8A DocumentSource boundary
+
+The core `DocumentSource` contract now defines exact random byte-range access
+with typed bounds/read errors and caller-owned read results. Concrete
+`MemorySource` and `BrowserFileSource` implementations live under the
+adapter boundary; the browser adapter materializes only the requested
+`Blob.slice(...)` range.
+
+This slice is contract-only. `DocumentSession`, open admission, rendering,
+mutation and history still use whole `Uint8Array` revisions until the
+subsequent Phase 8 migration slices.
