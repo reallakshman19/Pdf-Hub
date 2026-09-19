@@ -1,0 +1,100 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5A-001",
+    "branch": "phase8/history-state-checkpoints",
+    "base_ref": "9bf21a95de4a55bb55f4c3046d70b3edebcd4f52",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E4",
+    "previous_join": "9bf21a95de4a55bb55f4c3046d70b3edebcd4f52",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-state-checkpoints",
+    "material_ref": "9bf21a95de4a55bb55f4c3046d70b3edebcd4f52",
+    "base_branch": "main",
+    "base_observed_ref": "9bf21a95de4a55bb55f4c3046d70b3edebcd4f52",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 242,
+  "outcome": {
+    "engineering": [
+      "State checkpoint payloads are versioned and JSON-clone-safe.",
+      "Inline data URIs and binary/object shapes that would make checkpoint recovery ambiguous are rejected.",
+      "Journal manifests validate embedded state payloads while admission checkpoints remain state-free.",
+      "Synchronous state-history recording remains intentionally unwired until async durability coordination exists."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Define a binary-safe state checkpoint contract before making annotation/Writer state-only history crash-durable.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.4 durable binary mutation journal.",
+    "why_this_work_exists": "State-only commands are descriptive, Writer assets are external references, annotation custom stamps may inline binary data, and the current synchronous state transaction API cannot await IndexedDB safely.",
+    "deliberate_non_goals": [
+      "No async state durability coordinator.",
+      "No state-only journal append from production stores.",
+      "No command replay, recovery UI or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Checkpoint payload schema accepts clone-safe annotation and Writer history state with asset references.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Codec rejects inline data URIs, typed/binary values, cycles, non-finite numbers, symbols and non-plain objects.",
+      "weight": 35,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Journal manifest validation validates statePayload and forbids it on ADMISSION checkpoints.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-03"]
+    },
+    {
+      "id": "AC-04",
+      "description": "recordStateTransaction remains synchronous and unwired to durable persistence in this slice.",
+      "weight": 15,
+      "verification": ["TEST-03"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "stateCheckpoint tests cover accepted Writer asset references and all binary/JSON-safety rejection cases.",
+      "proves": ["AC-01", "AC-02"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "journal manifest tests validate embedded statePayload and reject state on ADMISSION.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5a on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B async durable state-only transaction coordinator"
+  }
+}

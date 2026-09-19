@@ -255,12 +255,25 @@ branch is appended. Journal manifest replacement is required to be atomic; a
 failed durable save rolls session, annotation, Writer, OCR and in-memory history
 back to the pre-operation snapshot.
 
-This slice still does not make annotation/Writer state-only transactions
-durable journal entries. Their commands are descriptive rather than
-self-contained and require a separate state-checkpoint design. No command
-replay or revision deletion is enabled yet. Reference-aware revision GC and
-bounded recovery checkpoints remain follow-on work. Phase 8F owns incremental
-search indexing.
+Phase 8E.5A defines that state-checkpoint design without wiring it into
+the synchronous state transaction path yet. A versioned `statePayload` may be
+attached to `BARRIER` or `PERIODIC` journal checkpoints. The payload contains
+annotation state plus Writer history state, but its codec rejects inline data
+URIs, typed binary data, Blob/File objects, non-finite numbers, cycles,
+symbol-keyed data, non-plain objects and other JSON-unsafe values. Writer image
+elements remain safe because history carries only asset ids; binary Writer
+assets continue to live in the Writer persistence subsystem. Custom annotation
+stamps with inline `stampImageDataUrl` cannot be journal-checkpointed until
+their binary is externalized.
+
+This slice deliberately does not persist state-only transactions because
+`recordStateTransaction` is synchronous and currently records history after
+the annotation/Writer Zustand mutation has happened. Phase 8E.5B must introduce
+an async durability coordinator so journal persistence can be awaited and
+failed writes can roll back optimistic state safely. No command replay or
+revision deletion is enabled yet. Reference-aware revision GC and bounded
+recovery checkpoints remain follow-on work. Phase 8F owns incremental search
+indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
