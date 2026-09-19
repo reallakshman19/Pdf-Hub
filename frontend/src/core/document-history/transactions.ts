@@ -230,6 +230,8 @@ async function applyHistoryDirection(
         currentRevisionId:
           currentSession.activeRevisionId,
         targetRevisionId,
+        direction,
+        transactionId: candidate.id,
       });
     const restoreSnapshot = captureHistoryRestoreSnapshot();
 
