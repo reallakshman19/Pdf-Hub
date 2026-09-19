@@ -31,7 +31,7 @@ export const HeaderFooterNumberingPresetBar: React.FC<
       ))}
     </div>
     <p className="mt-1 text-[10px] text-slate-500">
-      Presets replace footer text for their target slot; targeting and styles
+      Presets replace the footer text layout; targeting, header content and styles
       stay unchanged.
     </p>
   </div>
