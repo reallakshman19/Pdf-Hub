@@ -48,12 +48,12 @@
         "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
       },
       "discovery_receipt": {
-        "id": "DISC-8D3-002",
-        "path": "agents/relay/certifications/discovery/DISC-8D3-002.yaml"
+        "id": "DISC-8D3-003",
+        "path": "agents/relay/certifications/discovery/DISC-8D3-003.yaml"
       },
       "certification": {
-        "id": "TC-8D3-002",
-        "path": "agents/relay/certifications/takeover/TC-8D3-002.yaml"
+        "id": "TC-8D3-003",
+        "path": "agents/relay/certifications/takeover/TC-8D3-003.yaml"
       }
     }
   ],
@@ -68,7 +68,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Execute pnpm run certify:phase8d3 on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; implementation is present but acceptance-derived EP progress remains 0% until required evidence is terminal."
+      "next_action": "Execute cd frontend && pnpm run certify:phase8d3 on exact material head 701835c0801230c4ec72a6e16119e6742cc96abd; keep WP-8D3 and PR #233 open/draft until required acceptance evidence is terminal."
     },
     "quality": {
       "state": "NEEDS_ATTENTION",
@@ -76,31 +76,31 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Static 8D.3 design/source/audit review is positive on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. No project test/typecheck/build command has executed in a dependency-capable environment; PR #233 exact-head jobs at 80601e06d2b5bd7215359fd2ab71c53b448417da all have runner_id 0 and steps [].",
+      "summary": "Final 8D.3 material basis is 701835c0801230c4ec72a6e16119e6742cc96abd. Static design/source/audit review and certification coverage review are positive, but TEST-01 through TEST-05 have not executed; exact-head PR jobs all failed before runner allocation.",
       "not_run": [
         {
           "id": "TEST-01",
-          "reason": "TEST-01 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "reason": "TEST-01 has not executed on final material head 701835c0801230c4ec72a6e16119e6742cc96abd; GitHub-hosted jobs have runner_id 0 and steps [], and the connector environment has no dependency checkout.",
           "cause": "INFRASTRUCTURE"
         },
         {
           "id": "TEST-02",
-          "reason": "TEST-02 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "reason": "TEST-02 has not executed on final material head 701835c0801230c4ec72a6e16119e6742cc96abd; GitHub-hosted jobs have runner_id 0 and steps [], and the connector environment has no dependency checkout.",
           "cause": "INFRASTRUCTURE"
         },
         {
           "id": "TEST-03",
-          "reason": "TEST-03 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "reason": "TEST-03 has not executed on final material head 701835c0801230c4ec72a6e16119e6742cc96abd; GitHub-hosted jobs have runner_id 0 and steps [], and the connector environment has no dependency checkout.",
           "cause": "INFRASTRUCTURE"
         },
         {
           "id": "TEST-04",
-          "reason": "TEST-04 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "reason": "TEST-04 has not executed on final material head 701835c0801230c4ec72a6e16119e6742cc96abd; GitHub-hosted jobs have runner_id 0 and steps [], and the connector environment has no dependency checkout.",
           "cause": "INFRASTRUCTURE"
         },
         {
           "id": "TEST-05",
-          "reason": "TEST-05 has not executed on material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; hosted PR jobs fail before runner assignment and this connector environment has no checkout/dependency tree.",
+          "reason": "TEST-05 has not executed on final material head 701835c0801230c4ec72a6e16119e6742cc96abd; GitHub-hosted jobs have runner_id 0 and steps [], and the connector environment has no dependency checkout.",
           "cause": "INFRASTRUCTURE"
         }
       ]
@@ -132,13 +132,13 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8D3-001",
-      "path": "agents/relay/delivery/DOBS-8D3-001.yaml"
+      "id": "DOBS-8D3-002",
+      "path": "agents/relay/delivery/DOBS-8D3-002.yaml"
     },
     "observations": [
       {
-        "id": "DOBS-8D3-001",
-        "path": "agents/relay/delivery/DOBS-8D3-001.yaml"
+        "id": "DOBS-8D3-002",
+        "path": "agents/relay/delivery/DOBS-8D3-002.yaml"
       }
     ]
   },

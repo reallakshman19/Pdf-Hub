@@ -1,0 +1,178 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-8D3-003",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-8D3-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8D3-001",
+    "ep_id": "EP-8D3-001",
+    "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "relay_protocol_basis_ref": "d9b84069683977b5c370f536f1c50095de926338",
+    "material_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
+    "ep_contract_digest": "sha256:90ea7b63c7351943eb5a0939b3b24cc7b392fefbbe34d946c653a58c15b02ec6",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "NONE",
+      "id": "NONE",
+      "path": null,
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active EP id and path",
+          "value": "EP-8D3-001 @ agents/relay/execution-packages/EP-8D3-001.yaml",
+          "basis": [
+            "Current relay route remains WP-8D3 / EP-8D3-001."
+          ]
+        },
+        {
+          "name": "roadmap id and revision",
+          "value": "PDFHUB-READINESS-2026 / RM-0001",
+          "basis": [
+            "REPO_STATE / OVERALL_ROADMAP."
+          ]
+        },
+        {
+          "name": "current work package",
+          "value": "WP-8D3",
+          "basis": [
+            "Acceptance-derived progress remains non-terminal, so WP-8D3 remains the unique serial frontier."
+          ]
+        }
+      ],
+      "basis": [
+        "Repository relay rechecked against material head 701835c0801230c4ec72a6e16119e6742cc96abd."
+      ]
+    },
+    {
+      "id": "DSTEP-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "checked-out branch",
+          "value": "phase8/active-renderer-consumers",
+          "basis": [
+            "GitHub branch readback."
+          ]
+        },
+        {
+          "name": "current HEAD",
+          "value": "701835c0801230c4ec72a6e16119e6742cc96abd",
+          "basis": [
+            "Exact reviewed implementation/certification-wiring material head."
+          ]
+        },
+        {
+          "name": "material-ref ancestry result",
+          "value": "PASS: material head is the current implementation head before this relay-only freeze commit.",
+          "basis": [
+            "GitHub branch/commit provider readback."
+          ]
+        },
+        {
+          "name": "base drift result",
+          "value": "UNCHANGED: main remains eb5429c344ec4f7a4d977a09987923833f1c0963.",
+          "basis": [
+            "GitHub main ref provider readback."
+          ]
+        }
+      ],
+      "basis": [
+        "Live git basis checked immediately before final material freeze."
+      ]
+    },
+    {
+      "id": "DSTEP-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "search acquisition path",
+          "value": "Cached SearchIndexer stays in-memory; uncached SearchPanel acquires active lease and calls searchDocumentTextInDocument.",
+          "basis": [
+            "SearchPanel.tsx on material head."
+          ]
+        },
+        {
+          "name": "bookmarks acquisition path",
+          "value": "BookmarksSidebar acquires active lease, calls getOutlineFlat with AbortSignal, and releases in finally.",
+          "basis": [
+            "BookmarksSidebar.tsx on material head."
+          ]
+        },
+        {
+          "name": "select box acquisition path",
+          "value": "Active Select Box uses loaded-document text/image helpers under component-owned leases; core explicit-byte wrappers remain for standalone callers.",
+          "basis": [
+            "SelectBoxCopyLayer.tsx/selectBoxCopyEngine.ts/imageSnapshot.ts on material head."
+          ]
+        }
+      ],
+      "basis": [
+        "Post-implementation call-graph trace."
+      ]
+    },
+    {
+      "id": "DSTEP-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "active renderer resolver path",
+          "value": "Strict resolveActivePdfRendererInput semantics remain unchanged.",
+          "basis": [
+            "activePdfRendererInput.ts."
+          ]
+        },
+        {
+          "name": "source cache public identity",
+          "value": "Source-backed cache remains keyed by active revision identity and isolated from byte entries.",
+          "basis": [
+            "PdfDocumentLeaseCache/PdfRendererAdapter tests and audits."
+          ]
+        },
+        {
+          "name": "byte compatibility path",
+          "value": "Standalone PdfRendererAdapter and Select Box byte APIs remain supported.",
+          "basis": [
+            "PdfRendererAdapter.ts and Select Box wrappers."
+          ]
+        }
+      ],
+      "basis": [
+        "Merged 8D substrate and current audit review."
+      ]
+    },
+    {
+      "id": "DSTEP-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "PR #233 exact material head triggered Guards, Frontend Certify, Writer, OCR and Frontend CI jobs; all completed with runner_id 0 and steps [], so executable certification is NOT_RUN.",
+          "basis": [
+            "Runs 35440395188, 35440395209, 35440395181, 35440395355, 35440395229."
+          ]
+        }
+      ],
+      "basis": [
+        "Exact-head GitHub Actions provider readback."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

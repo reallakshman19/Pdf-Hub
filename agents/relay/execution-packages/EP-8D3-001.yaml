@@ -3,7 +3,7 @@
   "identity": {
     "ep_id": "EP-8D3-001",
     "branch": "phase8/active-renderer-consumers",
-    "base_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+    "base_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
     "execution_state": "ACTIVE",
     "previous_checkpoint": "NONE",
     "previous_join": null,
@@ -12,7 +12,7 @@
   "replan_inheritance": null,
   "git_basis": {
     "expected_branch": "phase8/active-renderer-consumers",
-    "material_ref": "bd5434a506d8bd6a73ceae7eec33d4d90b6f8180",
+    "material_ref": "701835c0801230c4ec72a6e16119e6742cc96abd",
     "base_branch": "main",
     "base_observed_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
     "drift_policy": "RECHECK_BEFORE_WRITE",
@@ -43,9 +43,11 @@
       "ODR-0001 adopts engineering-pr-delivery-v2.5.",
       "Issue #185 phase order and breadth freeze remain in force."
     ],
-    "current_implementation_state": "STEP-01 through STEP-03 are implemented on reviewed material head bd5434a506d8bd6a73ceae7eec33d4d90b6f8180. STEP-04 remains: provider delivery observation, QRV, executable certification evidence, checkpoint/merge closeout.",
+    "current_implementation_state": "STEP-01 through STEP-03 and the complete issue-#230 certification command are implemented on reviewed material head 701835c0801230c4ec72a6e16119e6742cc96abd. STEP-04 remains evidence execution/closeout; no acceptance progress is earned while the mapped test command is unrun.",
     "known_problems": [
-      "GitHub Actions issue #183 still prevents runner allocation, so typecheck/Vitest/build certification has not executed on this material head.",
+      "GitHub Actions issue #183 still prevents runner allocation; exact-head PR jobs on the current material basis have runner_id 0 and steps [].",
+      "No dependency-capable environment has executed certify:phase8d3, so TEST-01 through TEST-05 remain NOT_RUN.",
+      "Runtime baseline/after performance measurement has not executed.",
       "Phase 8E history snapshots and Phase 8F incremental indexing remain deliberately outside this EP."
     ],
     "deliberate_non_goals": [
