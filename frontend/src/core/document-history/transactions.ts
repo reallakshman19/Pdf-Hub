@@ -27,7 +27,11 @@ async function persistHistoryState(state: HistoryState): Promise<void> {
 function restoreHistoryState(state: HistoryState): void {
   const session = useSessionStore.getState();
 
-  session.replaceWorkingCopy(state.bytes, state.pageCount);
+  session.replaceWorkingCopy(
+    state.bytes,
+    state.pageCount,
+    state.activeRevisionId ?? null,
+  );
 
   if (state.documentKey !== undefined) {
     useSessionStore.getState().setDocumentKey(state.documentKey);

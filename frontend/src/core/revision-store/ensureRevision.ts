@@ -67,7 +67,12 @@ export async function ensureStoredRevision(
 async function ensureStoredRevisionUncoordinated(
   input: EnsureStoredRevisionInput,
 ): Promise<StoredRevision> {
-  if (await input.store.has(input.revisionId)) {
+  const exists = await raceWithAbort(
+    input.store.has(input.revisionId),
+    input.signal,
+    'ensure working revision: existence check',
+  );
+  if (exists) {
     return descriptorForExisting(input);
   }
 
@@ -93,7 +98,11 @@ async function descriptorForExisting(
   input: EnsureStoredRevisionInput,
 ): Promise<StoredRevision> {
   const [storedSource, incomingSize] = await Promise.all([
-    input.store.open(input.revisionId),
+    raceWithAbort(
+      input.store.open(input.revisionId),
+      input.signal,
+      'ensure working revision: open stored revision',
+    ),
     raceWithAbort(
       input.source.size(),
       input.signal,

@@ -11,3 +11,7 @@ export {
   OpfsSource,
   type OpfsSourceInput,
 } from './OpfsSource';
+export {
+  BorrowedBytesSource,
+  type BorrowedBytesSourceInput,
+} from './BorrowedBytesSource';

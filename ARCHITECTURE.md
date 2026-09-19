@@ -167,15 +167,22 @@ the same random-access `DocumentSource` contract.
 Phase 8C.2 makes primary admission/session revision-aware. Browser admission
 prefers OPFS, falls back to memory when OPFS initialization fails, and
 publishes/reuses the SHA-256 `documentKey` as the initial immutable working
-revision before committing the session. `DocumentSession` now carries a
-runtime `revisionStoreId`, immutable `originalRevisionId`, and
-content-addressed `activeRevisionId`. Compatibility byte replacement clears
-the active revision pointer when the new bytes have not yet been published.
+revision before committing the session. `DocumentSession` carries a runtime
+`revisionStoreId`, immutable `originalRevisionId`, and content-addressed
+`activeRevisionId`.
 
-Session `originalBytes`/`workingBytes`, renderer input, mutation-engine input
-and history snapshots remain materialized. Phase 8C.3 will publish canonical
-mutation outputs before state commit; Phase 8D/8E then migrate rendering and
-history consumption.
+Phase 8C.3 applies the same revision-first rule to canonical PDF mutations.
+After the mutation engine produces output bytes, `DocumentTransaction`
+validates/hashes them, publishes or reuses the matching immutable working
+revision, then persists annotations and switches session/PageGraph/Writer/OCR
+state. Revision publication receives the command cancellation signal. A
+revision-aware transaction fails instead of silently degrading if its working
+revision store cannot publish. PDF history records the matching active revision
+id for undo/redo, while still retaining compatibility byte snapshots.
+
+Session `originalBytes`/`workingBytes`, renderer input, mutation-engine input,
+Save composition and history byte snapshots remain materialized. Phase 8D/8E
+next migrate rendering and history consumption.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

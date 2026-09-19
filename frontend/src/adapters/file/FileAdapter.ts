@@ -126,7 +126,18 @@ export class FileAdapter {
   }
 
   private static toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-    const sliced = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    if (
+      bytes.byteOffset === 0
+      && bytes.byteLength === bytes.buffer.byteLength
+      && bytes.buffer instanceof ArrayBuffer
+    ) {
+      return bytes.buffer;
+    }
+
+    const sliced = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    );
     if (sliced instanceof ArrayBuffer) {
       return sliced;
     }
