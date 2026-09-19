@@ -42,6 +42,11 @@ export interface OcrPageMutationPolicy {
   clearIfPageCountChanged?: boolean;
 }
 
+export interface DocumentMutationRevisionMetadata {
+  beforePageCount: number;
+  afterPageCount: number;
+}
+
 export interface CommitDocumentMutationInput {
   command: PdfCommand;
   label: string;
@@ -54,12 +59,53 @@ export interface CommitDocumentMutationInput {
   nextPageGraph?: PageGraph<PageNode> | null;
   nextOcrState?: OcrPageAnchoredState | null;
   ocrPagePolicy?: OcrPageMutationPolicy;
+  revisionMetadata?: DocumentMutationRevisionMetadata;
 }
 
 export interface CommittedDocumentMutation {
   nextBytes: Uint8Array;
   nextPageCount: number;
   nextDocumentKey: string;
+}
+
+function validatedRevisionPageCounts(
+  metadata: DocumentMutationRevisionMetadata,
+  sessionPageCount: number,
+  sessionHasDocument: boolean,
+  sessionPageGraph: PageGraph<PageNode> | null,
+): readonly [number, number] {
+  const { beforePageCount, afterPageCount } = metadata;
+
+  for (const [name, value] of [
+    ['beforePageCount', beforePageCount],
+    ['afterPageCount', afterPageCount],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(
+        `Revision metadata ${name} must be a positive integer; received ${value}.`,
+      );
+    }
+  }
+
+  if (
+    sessionHasDocument
+    && sessionPageCount !== beforePageCount
+  ) {
+    throw new Error(
+      `Revision metadata beforePageCount ${beforePageCount} does not match active session page count ${sessionPageCount}.`,
+    );
+  }
+
+  if (
+    sessionPageGraph
+    && sessionPageGraph.pages.length !== beforePageCount
+  ) {
+    throw new Error(
+      `Revision metadata beforePageCount ${beforePageCount} does not match active PageGraph count ${sessionPageGraph.pages.length}.`,
+    );
+  }
+
+  return [beforePageCount, afterPageCount] as const;
 }
 
 function toTransactionError(
@@ -139,17 +185,37 @@ export async function commitDocumentMutation(
   let afterPageCount: number;
   let nextDocumentKey: string;
 
+  const sessionSnapshot = useSessionStore.getState();
+
   try {
-    [beforePageCount, afterPageCount, nextDocumentKey] = await Promise.all([
-      PdfEditAdapter.countPages(input.beforeBytes),
-      PdfEditAdapter.countPages(input.afterBytes),
+    const pageCountsPromise = input.revisionMetadata
+      ? Promise.resolve(
+          validatedRevisionPageCounts(
+            input.revisionMetadata,
+            sessionSnapshot.pageCount,
+            sessionSnapshot.workingBytes !== null,
+            sessionSnapshot.pageGraph,
+          ),
+        )
+      : Promise.all([
+          PdfEditAdapter.countPages(input.beforeBytes),
+          PdfEditAdapter.countPages(input.afterBytes),
+        ]);
+
+    const [pageCounts, documentKey] = await Promise.all([
+      pageCountsPromise,
       FileAdapter.hashBytes(input.afterBytes),
     ]);
-  } catch (error) {
-    throw toTransactionError('prepare', 'Unable to prepare document mutation', error);
-  }
 
-  const sessionSnapshot = useSessionStore.getState();
+    [beforePageCount, afterPageCount] = pageCounts;
+    nextDocumentKey = documentKey;
+  } catch (error) {
+    throw toTransactionError(
+      'prepare',
+      'Unable to prepare document mutation',
+      error,
+    );
+  }
   const pageGraphForCommit =
     input.nextPageGraph === undefined
       ? sessionSnapshot.pageGraph

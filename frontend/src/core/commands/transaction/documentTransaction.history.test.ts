@@ -10,7 +10,10 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import { commitDocumentMutation } from './documentTransaction';
+import {
+  commitDocumentMutation,
+  type DocumentMutationTransactionError,
+} from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({
   saveAnnotations: vi.fn(),
@@ -28,9 +31,13 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
   },
 }));
 
+const pdfMocks = vi.hoisted(() => ({
+  countPages: vi.fn().mockResolvedValue(1),
+}));
+
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
-    countPages: vi.fn().mockResolvedValue(1),
+    countPages: pdfMocks.countPages,
   },
 }));
 
@@ -194,4 +201,72 @@ describe('document transaction history memory', () => {
     expect(useOcrStore.getState().documentFingerprint).toBe('hash-2');
     expect(useOcrStore.getState().result?.pages[0]?.pageId).toBe('stable-page');
   });
+
+  it('uses supplied revision metadata without reparsing PDF page counts', async () => {
+    const result = await commitDocumentMutation({
+      command: command('hash-1', 'metadata-rotation'),
+      label: 'Metadata rotation',
+      beforeBytes: new Uint8Array([1]),
+      afterBytes: new Uint8Array([4]),
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+
+    expect(result.nextPageCount).toBe(1);
+    expect(pdfMocks.countPages).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([4]),
+    );
+    expect(useHistoryStore.getState().undoStack.at(-1)).toMatchObject({
+      before: { pageCount: 1 },
+      after: { pageCount: 1 },
+    });
+  });
+
+  it('rejects stale revision metadata during prepare before persistence or store mutation', async () => {
+    const beforeBytes =
+      useSessionStore.getState().workingBytes;
+
+    await expect(
+      commitDocumentMutation({
+        command: command('hash-1', 'stale-metadata'),
+        label: 'Stale metadata',
+        beforeBytes: new Uint8Array([1]),
+        afterBytes: new Uint8Array([5]),
+        revisionMetadata: {
+          beforePageCount: 2,
+          afterPageCount: 2,
+        },
+      }),
+    ).rejects.toMatchObject({
+      stage: 'prepare',
+    } satisfies Partial<DocumentMutationTransactionError>);
+
+    expect(pdfMocks.countPages).not.toHaveBeenCalled();
+    expect(
+      persistenceMocks.saveAnnotations,
+    ).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().workingBytes).toBe(
+      beforeBytes,
+    );
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('retains parse-based page-count fallback when revision metadata is absent', async () => {
+    pdfMocks.countPages
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1);
+
+    await commitDocumentMutation({
+      command: command('hash-1', 'fallback-count'),
+      label: 'Fallback count',
+      beforeBytes: new Uint8Array([1]),
+      afterBytes: new Uint8Array([6]),
+    });
+
+    expect(pdfMocks.countPages).toHaveBeenCalledTimes(2);
+  });
+
 });

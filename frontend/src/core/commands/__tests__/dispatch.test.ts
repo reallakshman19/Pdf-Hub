@@ -370,10 +370,6 @@ describe('canonical command dispatch', () => {
   it('splits pages and returns extracted artifact', async () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
-    pdfMocks.countPages
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(2);
-
     const result = await execute({
       type: 'SPLIT_PAGES',
       payload: { pageIndices: [0] },
@@ -475,9 +471,6 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([4, 4]),
       pageCount: 2,
     });
-    pdfMocks.countPages
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(2);
 
     const result = await execute({
       type: 'DELETE_PAGES',
@@ -497,6 +490,7 @@ describe('canonical command dispatch', () => {
       'test-doc::stable::3',
     ]);
     expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(pdfMocks.countPages).not.toHaveBeenCalled();
   });
 
   it('returns validation error when delete is requested with empty page list', async () => {
@@ -650,10 +644,7 @@ describe('canonical command dispatch', () => {
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
-    pdfMocks.countPages
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(6);
+    pdfMocks.countPages.mockResolvedValueOnce(3);
     const donor = await admitDonor('INSERT_PAGES');
     mutationEngineMocks.commit.mockResolvedValueOnce({
       bytes: new Uint8Array([1, 9, 1]),
@@ -733,9 +724,7 @@ describe('canonical command dispatch', () => {
   it('preserves admitted merge order and dispatches the mutation once', async () => {
     pdfMocks.countPages
       .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(9);
+      .mockResolvedValueOnce(3);
     const firstBytes = new TextEncoder().encode('%PDF-1.7\nfirst');
     const secondBytes = new TextEncoder().encode('%PDF-1.7\nsecond');
     const admitted = await admitDonorPdfFiles(
@@ -868,9 +857,6 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([1, 0, 1]),
       pageCount: 4,
     });
-    pdfMocks.countPages
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(4);
 
     const result = await execute({
       type: 'INSERT_BLANK_PAGE',
@@ -906,9 +892,6 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([8, 8, 8]),
       pageCount: 4,
     });
-    pdfMocks.countPages
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(4);
 
     const result = await execute({
       type: 'DUPLICATE_PAGES',
