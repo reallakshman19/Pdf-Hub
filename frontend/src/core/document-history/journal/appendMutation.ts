@@ -32,7 +32,7 @@ export interface PreparedHistoryJournalMutation {
   manifest: HistoryJournalManifest;
 }
 
-function truncateAbandonedTail(
+export function truncateAbandonedTail(
   manifest: HistoryJournalManifest,
 ): void {
   const activeTransactionId =

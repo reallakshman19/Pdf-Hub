@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B2-001",
+    "branch": "phase8/history-state-coordinator",
+    "base_ref": "81161e7e7276092ebb3532b2bf91ec98194cfb45",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B1",
+    "previous_join": "81161e7e7276092ebb3532b2bf91ec98194cfb45",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-state-coordinator",
+    "material_ref": "81161e7e7276092ebb3532b2bf91ec98194cfb45",
+    "base_branch": "main",
+    "base_observed_ref": "81161e7e7276092ebb3532b2bf91ec98194cfb45",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 246,
+  "outcome": {
+    "engineering": [
+      "State-only journal metadata is prepared as a same-revision descriptive barrier with an after-state payload.",
+      "One async coordinator owns prepare/apply/history-push/journal-save ordering and rollback.",
+      "Legacy synchronous and new async paths share one state-history transaction builder.",
+      "Session and history cursor drift fail before state application."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Provide a correct async transaction primitive before migrating PDF-backed annotation and Writer mutations.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.5B1 transaction cursor.",
+    "why_this_work_exists": "State-only edits need awaited journal persistence and rollback guarantees, but existing stores mutate synchronously.",
+    "deliberate_non_goals": [
+      "No annotation store migration.",
+      "No Writer store migration.",
+      "No command replay, recovery UI or revision GC."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "State-only journal preparation produces same-revision entries and BARRIER state payload checkpoints.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Coordinator ordering is prepare -> apply -> history push -> journal save.",
+      "weight": 25,
+      "verification": ["TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Unsafe payload, session drift, cursor drift or durable save failure cannot leave a committed state/history transaction.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Legacy recordStateTransaction and async coordinator share one transaction builder while stores remain unwired.",
+      "weight": 15,
+      "verification": ["TEST-03", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "appendStateTransaction tests cover same-revision checkpoint creation and cursor mismatch failure.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "durableStateTransaction tests cover success, unsafe-state preflight, journal-save rollback and legacy no-journal behavior.",
+      "proves": ["AC-02", "AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Static review confirms old and new paths share buildStateHistoryTransaction and stores do not import the coordinator yet.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b2 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3 migrate PDF-backed annotation and Writer mutation entrypoints"
+  }
+}
