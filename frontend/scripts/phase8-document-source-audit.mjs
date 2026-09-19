@@ -42,6 +42,8 @@ const corePaths = [
   'src/core/document-source/types.ts',
   'src/core/document-source/errors.ts',
   'src/core/document-source/validation.ts',
+  'src/core/document-source/registry.ts',
+  'src/core/document-source/materialize.ts',
   'src/core/document-source/index.ts',
 ];
 
@@ -101,6 +103,41 @@ const coreIndex = read(coreIndexPath);
 forbidContains(coreIndex, coreIndexPath, [
   'MemorySource',
   'BrowserFileSource',
+]);
+
+const registryPath =
+  'src/core/document-source/registry.ts';
+const registry = read(registryPath);
+requireContains(registry, registryPath, [
+  'registerDocumentSource',
+  'resolveDocumentSource',
+  'releaseDocumentSource',
+  'new Map<string, DocumentSource>()',
+]);
+forbidContains(registry, registryPath, [
+  '@/adapters/',
+  '@/core/session/',
+  'File',
+  'Blob',
+]);
+
+const materializePath =
+  'src/core/document-source/materialize.ts';
+const materialize = read(materializePath);
+requireContains(materialize, materializePath, [
+  'DEFAULT_DOCUMENT_SOURCE_CHUNK_BYTES',
+  'source.size()',
+  'source.read(offset, length)',
+  'new Uint8Array(size)',
+  'output.set(chunk, offset)',
+  'maxBytes',
+  'throwIfAborted',
+]);
+forbidContains(materialize, materializePath, [
+  'File',
+  'Blob',
+  'arrayBuffer()',
+  '@/adapters/',
 ]);
 
 const memoryPath =
@@ -168,10 +205,68 @@ requireContains(browserTest, browserTestPath, [
   "'READ_FAILED'",
 ]);
 
+const openPdfPath =
+  'src/core/admission/openPdf.ts';
+const openPdf = read(openPdfPath);
+requireContains(openPdf, openPdfPath, [
+  'new BrowserFileSource',
+  'Math.min(file.size, 1024)',
+  'materializeDocumentSource',
+  'maxBytes: FileAdapter.MAX_PDF_SIZE_BYTES',
+  'registerDocumentSource(documentSource)',
+  'sourceId',
+]);
+forbidContains(openPdf, openPdfPath, [
+  'file.arrayBuffer()',
+]);
+
+const openPdfTestPath =
+  'src/core/admission/openPdf.test.ts';
+const openPdfTest = read(openPdfTestPath);
+requireContains(openPdfTest, openPdfTestPath, [
+  'reads only the bounded signature prefix before rejecting a large non-PDF payload',
+  'expect(file.arrayBuffer).not.toHaveBeenCalled()',
+  'toHaveBeenCalledWith(0, 1024)',
+  'resolveDocumentSource(result.value.sourceId)',
+]);
+
+const sessionTypesPath =
+  'src/core/session/types.ts';
+const sessionTypes = read(sessionTypesPath);
+requireContains(sessionTypes, sessionTypesPath, [
+  'sourceId: string | null',
+]);
+forbidContains(sessionTypes, sessionTypesPath, [
+  'DocumentSource;',
+  'File;',
+  'Blob;',
+]);
+
+const sessionStorePath =
+  'src/core/session/store.ts';
+const sessionStore = read(sessionStorePath);
+requireContains(sessionStore, sessionStorePath, [
+  'sourceId?: string | null',
+  'resolveDocumentSource(sourceId)',
+  'releaseDocumentSource(previousSourceId)',
+  'releaseDocumentSource(get().sourceId)',
+  'sourceId: null',
+]);
+
+const sessionTestPath =
+  'src/core/session/__tests__/session.test.ts';
+const sessionTest = read(sessionTestPath);
+requireContains(sessionTest, sessionTestPath, [
+  'retains only sourceId in session state and releases it on clear',
+  'releases the prior source when a different document opens',
+  'rejects an unregistered sourceId on open',
+  'commitWorkingCopy',
+]);
+
 if (failed) {
   process.exit(1);
 }
 
 console.log(
-  '[phase8-document-source] contract, adapter boundary, range, and immutable-read guards passed',
+  '[phase8-document-source] contract, range adapters, source-aware admission, registry lifecycle, and compatibility materialization guards passed',
 );
