@@ -7,6 +7,7 @@ import type {
 import {
   assertHistoryJournalManifest,
   cloneHistoryJournalManifest,
+  resolveHistoryJournalActiveTransactionId,
   type HistoryJournalManifest,
 } from './types';
 
@@ -16,6 +17,8 @@ export interface PrepareHistoryJournalNavigationInput {
   revisionStoreId: string | null;
   currentRevisionId: string | null;
   targetRevisionId: string | null;
+  direction: 'undo' | 'redo';
+  transactionId: string;
   updatedAt?: string;
 }
 
@@ -74,24 +77,70 @@ export async function prepareHistoryJournalNavigation(
     );
   }
 
-  const knownRevisionIds = new Set([
-    current.originalRevisionId,
-    ...current.entries.flatMap((entry) => [
-      entry.beforeRevision.revisionId,
-      entry.afterRevision.revisionId,
-    ]),
-    ...current.checkpoints.map(
-      (checkpoint) => checkpoint.revision.revisionId,
-    ),
-  ]);
-  if (!knownRevisionIds.has(input.targetRevisionId)) {
+  const candidateIndex = current.entries.findIndex(
+    (entry) =>
+      entry.transactionId === input.transactionId,
+  );
+  if (candidateIndex < 0) {
     throw new Error(
-      `History journal does not contain target revision ${input.targetRevisionId}.`,
+      `History journal does not contain transaction ${input.transactionId}.`,
+    );
+  }
+
+  const candidate = current.entries[candidateIndex]!;
+  const previousTransactionId =
+    current.entries[candidateIndex - 1]
+      ?.transactionId
+    ?? null;
+  const activeTransactionId =
+    resolveHistoryJournalActiveTransactionId(
+      current,
+    );
+
+  let targetTransactionId: string | null;
+  let expectedTargetRevisionId: string;
+
+  if (input.direction === 'undo') {
+    if (
+      activeTransactionId
+      !== input.transactionId
+    ) {
+      throw new Error(
+        `History journal active transaction ${activeTransactionId ?? '(origin)'} does not match undo candidate ${input.transactionId}.`,
+      );
+    }
+    targetTransactionId =
+      previousTransactionId;
+    expectedTargetRevisionId =
+      candidate.beforeRevision.revisionId;
+  } else {
+    if (
+      activeTransactionId
+      !== previousTransactionId
+    ) {
+      throw new Error(
+        `History journal active transaction ${activeTransactionId ?? '(origin)'} is not immediately before redo candidate ${input.transactionId}.`,
+      );
+    }
+    targetTransactionId =
+      input.transactionId;
+    expectedTargetRevisionId =
+      candidate.afterRevision.revisionId;
+  }
+
+  if (
+    expectedTargetRevisionId
+    !== input.targetRevisionId
+  ) {
+    throw new Error(
+      `History journal transaction ${input.transactionId} expects target revision ${expectedTargetRevisionId}, received ${input.targetRevisionId}.`,
     );
   }
 
   const manifest = cloneHistoryJournalManifest(current);
   manifest.activeRevisionId = input.targetRevisionId;
+  manifest.activeTransactionId =
+    targetTransactionId;
   manifest.updatedAt =
     input.updatedAt ?? new Date().toISOString();
   assertHistoryJournalManifest(manifest);
