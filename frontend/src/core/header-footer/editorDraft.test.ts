@@ -192,4 +192,58 @@ describe('header/footer editor draft compiler', () => {
       }),
     ).toThrow(/editable canonical PageLabel section/);
   });
+
+  it('compiles an image-only band to an out-of-band resource reference', () => {
+    const draft = createDefaultHeaderFooterEditorDraft();
+    draft.header = { left: '', center: '', right: '' };
+    draft.footer = { left: '', center: '', right: '' };
+    draft.image = {
+      resourceId: 'header-footer-image:logo',
+      fileName: 'logo.png',
+      band: 'header',
+      slot: 'left',
+      widthPt: 48,
+      altText: 'Company logo',
+    };
+
+    const template = compileHeaderFooterEditorDraft(draft, {
+      pageGraph: graph(),
+      currentPageId: 'body-1',
+      selectedPageIds: [],
+    });
+
+    expect(template.rules[0]?.header?.left).toEqual({
+      kind: 'image',
+      binaryResourceId: 'header-footer-image:logo',
+      widthPt: 48,
+      fit: 'contain',
+      altText: 'Company logo',
+    });
+    expect(JSON.stringify(template)).not.toContain('Uint8Array');
+  });
+
+  it('uses image placement as an explicit slot replacement over text', () => {
+    const draft = createDefaultHeaderFooterEditorDraft();
+    draft.header.left = 'Confidential';
+    draft.image = {
+      resourceId: 'header-footer-image:logo',
+      fileName: 'logo.png',
+      band: 'header',
+      slot: 'left',
+      widthPt: 40,
+    };
+
+    const template = compileHeaderFooterEditorDraft(draft, {
+      pageGraph: graph(),
+      currentPageId: 'body-1',
+      selectedPageIds: [],
+    });
+
+    expect(template.rules[0]?.header?.left).toMatchObject({
+      kind: 'image',
+      binaryResourceId: 'header-footer-image:logo',
+      widthPt: 40,
+    });
+  });
+
 });
