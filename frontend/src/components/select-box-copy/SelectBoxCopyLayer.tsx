@@ -3,6 +3,9 @@ import type { WriterPageViewport } from '@/core/writer-v2/types';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
+import {
   extractSelectBoxCopyFromDocument,
 } from '@/core/select-box-copy/selectBoxCopyEngine';
 import {
@@ -46,8 +49,10 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
   const currentDocumentFingerprint = useWriterV2Store((state) => state.currentDocumentFingerprint);
   const allElements = useWriterV2Store((state) => state.elements);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
-  const addWriterAssets = useWriterV2Store((state) => state.addWriterAssets);
+  const addWriterAssets =
+    useWriterV2Store(
+      (state) => state.addWriterAssets,
+    );
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const documentKey = useSessionStore((state) => state.documentKey);
@@ -311,6 +316,8 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
       );
 
       let imageAssetId: string | undefined;
+      const previousWriterDirty =
+        useWriterV2Store.getState().dirty;
 
       if (mode === 'image') {
         const imageDataUrl = await withActiveDocument(
@@ -342,18 +349,53 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
         imageAssetId,
       });
 
-      dispatchWriterCommand({
-        type: 'ADD_WRITER_ELEMENT',
-        element,
-      });
+      const insertResult =
+        await dispatchDurableWriterUiCommand(
+          {
+            type: 'ADD_WRITER_ELEMENT',
+            element,
+          },
+          'SelectBoxCopy insert into Writer',
+        );
+
+      if (!insertResult.changed) {
+        if (imageAssetId) {
+          useWriterV2Store
+            .getState()
+            .removeWriterAsset(
+              imageAssetId,
+            );
+          useWriterV2Store.setState({
+            dirty: previousWriterDirty,
+          });
+        }
+        throw new Error(
+          insertResult.reason
+          || 'Writer insertion made no change.',
+        );
+      }
 
       setActiveWriterTool('select');
       setDraftRect(null);
       setResult(null);
-      completeSaveOperation('Select Box Copy inserted into Writer V2.');
+      completeSaveOperation(
+        'Select Box Copy inserted into Writer V2.',
+      );
     } catch (error) {
+      if (imageAssetId) {
+        useWriterV2Store
+          .getState()
+          .removeWriterAsset(imageAssetId);
+        useWriterV2Store.setState({
+          dirty: previousWriterDirty,
+        });
+      }
       if (isOperationCancelledError(error)) return;
-      failSaveOperation(error instanceof Error ? error.message : String(error));
+      failSaveOperation(
+        error instanceof Error
+          ? error.message
+          : String(error),
+      );
     }
   };
 
