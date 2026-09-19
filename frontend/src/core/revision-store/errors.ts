@@ -3,6 +3,7 @@ export type RevisionStoreErrorCode =
   | 'INVALID_REVISION_ID'
   | 'REVISION_EXISTS'
   | 'REVISION_NOT_FOUND'
+  | 'REVISION_BUSY'
   | 'COMMIT_FAILED'
   | 'READ_FAILED'
   | 'REMOVE_FAILED'
