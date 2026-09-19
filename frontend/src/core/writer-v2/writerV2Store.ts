@@ -214,7 +214,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     let committedResult: WriterV2CommandResult | null =
       null;
 
-    await commitDurableStateMutation(() => {
+    await commitDurableStateMutation(async () => {
       const beforeStore = get();
       const session = useSessionStore.getState();
 
