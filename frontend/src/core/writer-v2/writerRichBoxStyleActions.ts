@@ -121,16 +121,17 @@ export async function patchActiveRichBoxStyle(
     };
   }
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id,
-    patch: {
-      style: {
-        ...element.style,
-        ...stylePatch,
+  const result =
+    await store.dispatchWriterCommandDurable({
+      type: 'UPDATE_WRITER_ELEMENT',
+      id,
+      patch: {
+        style: {
+          ...element.style,
+          ...stylePatch,
+        },
       },
-    },
-  });
+    });
 
   return {
     changed: result.changed,
