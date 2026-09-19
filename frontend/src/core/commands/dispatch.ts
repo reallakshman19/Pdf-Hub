@@ -545,11 +545,13 @@ async function executeRotatePagesCommand(
       );
     }
 
-    const result = await applyMutation(
-      command,
-      context.workingBytes,
-      committed.bytes,
-      nextAnnotations,
+    const result =
+      await applyCommittedSessionMutation(
+        command,
+        context.workingBytes,
+        pageCount,
+        committed,
+        nextAnnotations,
       nextWriterElements,
       undefined,
       undefined,
@@ -700,16 +702,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.reorderPages(order);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -747,16 +751,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.reorderPages(order);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -813,16 +819,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.removePages(pageIndices);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -872,16 +880,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.removePages(pageIndices);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -945,17 +955,19 @@ export async function dispatchPdfCommand(
           command.payload.atIndex,
           resolved.bytes,
         );
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
         assertDonorCommandCurrent(context, input, 'insert donor pages: before commit');
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -999,16 +1011,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         mutationSession.insertBlankPage(atIndex, size);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -1099,17 +1113,19 @@ export async function dispatchPdfCommand(
           resolved.bytes,
           donorPageIndex,
         );
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
         assertDonorCommandCurrent(context, input, 'replace page: before commit');
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -1160,16 +1176,18 @@ export async function dispatchPdfCommand(
             commandMutationSession,
           );
         await mutationSession.duplicatePages(pageIndices);
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -1236,17 +1254,19 @@ export async function dispatchPdfCommand(
         await mutationSession.appendPdfs(
           donors.map((donor) => donor.bytes),
         );
-        const nextBytes =
+        const committed =
           await commitStructuralMutationSession(
             mutationSession,
             pageGraph,
             nextPageGraph,
           );
         assertDonorCommandCurrent(context, input, 'merge donor PDFs: before commit');
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          nextBytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           nextAnnotations,
           nextWriterElements,
           undefined,
@@ -1286,10 +1306,12 @@ export async function dispatchPdfCommand(
           plan.pageGraph,
         );
 
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          committed.bytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
           undefined,
           undefined,
           undefined,
@@ -1368,10 +1390,12 @@ export async function dispatchPdfCommand(
           ...prepared.warnings,
           ...rendered.warnings,
         ];
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          committed.bytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
         );
         return commandSuccess(
           command,
@@ -1437,10 +1461,12 @@ export async function dispatchPdfCommand(
           );
         }
 
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          committed.bytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
         );
         return commandSuccess(
           command,
@@ -1487,10 +1513,12 @@ export async function dispatchPdfCommand(
           );
         }
 
-        const result = await applyMutation(
-          command,
-          context.workingBytes,
-          committed.bytes,
+        const result =
+          await applyCommittedSessionMutation(
+            command,
+            context.workingBytes,
+            pageCount,
+            committed,
         );
         return commandSuccess(
           command,
