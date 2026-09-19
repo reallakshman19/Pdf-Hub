@@ -1,6 +1,6 @@
 # PDF Mutation Engine Contract
 
-Status: **Phase 7A — contract and rotation proof**.
+Status: **Phase 7B — canonical rotation and core structural page operations on persistent mutation sessions**.
 
 Tracking issue: #211.
 
@@ -39,6 +39,10 @@ UI / Mobile / Automate / SDK / Agent
 - `PdfMutationSession.pageCount`
 - `PdfMutationSession.getPageMetrics(...)`
 - `PdfMutationSession.rotatePages(...)`
+- `PdfMutationSession.reorderPages(...)`
+- `PdfMutationSession.removePages(...)`
+- `PdfMutationSession.insertBlankPage(...)`
+- `PdfMutationSession.duplicatePages(...)`
 - `PdfMutationSession.commit()`
 - `PdfMutationSession.dispose()`
 
@@ -60,6 +64,10 @@ open() ----> parsed PDF
                +--> pageCount
                +--> getPageMetrics()
                +--> rotatePages()
+               +--> reorderPages()
+               +--> removePages()
+               +--> insertBlankPage()
+               +--> duplicatePages()
                |
                v
              commit()
@@ -129,3 +137,47 @@ For one canonical rotate command affecting N pages:
 - one `save()` commits the revision
 
 The focused engine test asserts this single-parse behavior.
+
+
+## Phase 7B structural migration
+
+The following canonical commands now open a transaction-local mutation session
+for the active PDF revision:
+
+- `REORDER_PAGES`
+- `REORDER_PAGES_BY_ORDER`
+- `DELETE_PAGES`
+- `INSERT_BLANK_PAGE`
+- `DUPLICATE_PAGES`
+
+They reuse the active parsed document for the PDF mutation itself. PageGraph,
+PageLabel-range reanchoring, annotation/Writer/OCR anchoring, selection and
+history remain in core command/transaction code.
+
+`SPLIT_PAGES` is deliberately not included in 7B because it combines an
+artifact-producing extraction with mutation. It still uses the legacy
+`PdfEditAdapter.removePages` path and will move in a later slice.
+
+Donor-backed `INSERT_PAGES`, `REPLACE_PAGE`, and `MERGE_PDF` remain 7C.
+
+### Fidelity behavior is intentionally unchanged
+
+For reorder/delete/duplicate, `PdfLibMutationEngine` currently rebuilds a
+page-only output document using pdf-lib `copyPages`, matching the previous
+`PdfEditAdapter` behavior. Phase 7 changes the mutation-session boundary; it
+does **not** claim to fix document-level fidelity for outlines, forms,
+attachments, tagging, signatures, or other catalog structures.
+
+Those fidelity limits remain explicit Phase 9 work.
+
+### Parse-count scope
+
+The single-parse invariant in Phase 7A/7B applies to the **mutation session**.
+The current `commitDocumentMutation(...)` prepare stage still validates
+before/after page counts by calling `PdfEditAdapter.countPages(...)` on both
+byte revisions. Therefore a complete command transaction still performs
+additional parses today.
+
+Removing those transaction-level count reparses and carrying authoritative
+session revision metadata into the commit boundary is planned for Phase 7E.
+Do not describe Phase 7B as a one-parse end-to-end transaction.
