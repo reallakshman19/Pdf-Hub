@@ -1,10 +1,29 @@
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
+import type {
+  PdfMutationHeaderFooterPage,
+} from '@/core/pdf-mutation/types';
 import type { HeaderFooterTemplate } from './types';
 import type { HeaderFooterResolutionContext } from './resolutionTypes';
 import { planHeaderFooterTemplateCommand } from './commandPlan';
+import { compileHeaderFooterMutationPlan } from './mutationPlan';
 import type { HeaderFooterPdfWriter } from './pdfWriter';
 import { pdfLibHeaderFooterWriter } from './pdfLibHeaderFooterWriter';
+
+export type PrepareHeaderFooterTemplateMutationResult =
+  | {
+      ok: true;
+      mutated: boolean;
+      pages: PdfMutationHeaderFooterPage[];
+      binaryResources: Readonly<Record<string, Uint8Array>>;
+      warnings: string[];
+    }
+  | {
+      ok: false;
+      code: 'VALIDATION_FAILED' | 'RESOURCE_MISSING';
+      errors: string[];
+      warnings: string[];
+    };
 
 export type ExecuteHeaderFooterTemplateMutationResult =
   | {
@@ -20,15 +39,12 @@ export type ExecuteHeaderFooterTemplateMutationResult =
       warnings: string[];
     };
 
-export async function executeHeaderFooterTemplateMutation(
-  baseBytes: Uint8Array,
+export function prepareHeaderFooterTemplateMutation(
   pageGraph: PageGraph<PageNode>,
   template: HeaderFooterTemplate,
   context: HeaderFooterResolutionContext,
   binaryResources: Readonly<Record<string, Uint8Array>> | undefined,
-  signal?: AbortSignal,
-  writer: HeaderFooterPdfWriter = pdfLibHeaderFooterWriter,
-): Promise<ExecuteHeaderFooterTemplateMutationResult> {
+): PrepareHeaderFooterTemplateMutationResult {
   const plan = planHeaderFooterTemplateCommand(
     template,
     pageGraph,
@@ -44,9 +60,11 @@ export async function executeHeaderFooterTemplateMutation(
     };
   }
 
-  const availableBinaryResources = binaryResources ?? {};
+  const availableBinaryResources =
+    binaryResources ?? {};
   const missing = plan.requiredBinaryResourceIds.filter(
-    (resourceId) => availableBinaryResources[resourceId] === undefined,
+    (resourceId) =>
+      availableBinaryResources[resourceId] === undefined,
   );
   if (missing.length > 0) {
     return {
@@ -60,20 +78,53 @@ export async function executeHeaderFooterTemplateMutation(
     };
   }
 
-  if (plan.pages.length === 0) {
+  return {
+    ok: true,
+    mutated: plan.pages.length > 0,
+    pages: compileHeaderFooterMutationPlan(
+      plan.pages,
+    ),
+    binaryResources: availableBinaryResources,
+    warnings: plan.warnings,
+  };
+}
+
+export async function executeHeaderFooterTemplateMutation(
+  baseBytes: Uint8Array,
+  pageGraph: PageGraph<PageNode>,
+  template: HeaderFooterTemplate,
+  context: HeaderFooterResolutionContext,
+  binaryResources: Readonly<Record<string, Uint8Array>> | undefined,
+  signal?: AbortSignal,
+  writer: HeaderFooterPdfWriter = pdfLibHeaderFooterWriter,
+): Promise<ExecuteHeaderFooterTemplateMutationResult> {
+  const prepared =
+    prepareHeaderFooterTemplateMutation(
+      pageGraph,
+      template,
+      context,
+      binaryResources,
+    );
+
+  if (!prepared.ok) {
+    return prepared;
+  }
+
+  if (!prepared.mutated) {
     return {
       ok: true,
       mutated: false,
       bytes: baseBytes,
-      warnings: plan.warnings,
+      warnings: prepared.warnings,
     };
   }
 
   try {
     const written = await writer.write({
       baseBytes,
-      pages: plan.pages,
-      binaryResources: availableBinaryResources,
+      pages: prepared.pages,
+      binaryResources:
+        prepared.binaryResources,
       signal,
     });
 
@@ -81,10 +132,16 @@ export async function executeHeaderFooterTemplateMutation(
       ok: true,
       mutated: written.bytes !== baseBytes,
       bytes: written.bytes,
-      warnings: [...plan.warnings, ...written.warnings],
+      warnings: [
+        ...prepared.warnings,
+        ...written.warnings,
+      ],
     };
   } catch (error) {
-    if (isOperationCancelledError(error)) throw error;
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
     return {
       ok: false,
       code: 'EXECUTION_FAILED',
@@ -93,7 +150,7 @@ export async function executeHeaderFooterTemplateMutation(
           ? error.message
           : String(error),
       ],
-      warnings: plan.warnings,
+      warnings: prepared.warnings,
     };
   }
 }

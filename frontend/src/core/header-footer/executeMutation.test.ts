@@ -4,7 +4,10 @@ import { OperationCancelledError } from '@/core/cancellation/operationCancellati
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import type { HeaderFooterTemplate } from './types';
 import type { HeaderFooterPdfWriter } from './pdfWriter';
-import { executeHeaderFooterTemplateMutation } from './executeMutation';
+import {
+  executeHeaderFooterTemplateMutation,
+  prepareHeaderFooterTemplateMutation,
+} from './executeMutation';
 
 function graph(): PageGraph<PageNode> {
   return {
@@ -178,6 +181,35 @@ describe('executeHeaderFooterTemplateMutation', () => {
         writer,
       ),
     ).rejects.toBeInstanceOf(OperationCancelledError);
+  });
+
+
+  it('prepares an engine-neutral page-index plan without PDF bytes', () => {
+    const result = prepareHeaderFooterTemplateMutation(
+      graph(),
+      template('text'),
+      {
+        fileName: 'test.pdf',
+        now: new Date('2026-09-19T00:00:00Z'),
+      },
+      undefined,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.mutated).toBe(true);
+    expect(result.pages).toEqual([
+      expect.objectContaining({
+        pageIndex: 0,
+        footer: {
+          right: expect.objectContaining({
+            kind: 'text',
+            text: '1',
+          }),
+        },
+      }),
+    ]);
   });
 
 });

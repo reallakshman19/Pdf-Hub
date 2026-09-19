@@ -5,6 +5,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, degrees } from 'pdf
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { writePdfPageLabels } from '@/core/pages/pdfPageLabelWriter';
 import type { ResolvedHeaderFooterPage } from './resolutionTypes';
+import { compileHeaderFooterMutationPlan } from './mutationPlan';
 import { pdfLibHeaderFooterWriter } from './pdfLibHeaderFooterWriter';
 
 const onePixelPng = Uint8Array.from(
@@ -106,7 +107,7 @@ describe('pdfLibHeaderFooterWriter', () => {
 
     const result = await pdfLibHeaderFooterWriter.write({
       baseBytes: before,
-      pages: resolvedPages(),
+      pages: compileHeaderFooterMutationPlan(resolvedPages()),
       binaryResources: {
         logo: onePixelPng,
       },
@@ -146,7 +147,7 @@ describe('pdfLibHeaderFooterWriter', () => {
 
     const result = await pdfLibHeaderFooterWriter.write({
       baseBytes: labeled.bytes,
-      pages: resolvedPages(),
+      pages: compileHeaderFooterMutationPlan(resolvedPages()),
       binaryResources: {
         logo: onePixelPng,
       },
@@ -174,7 +175,7 @@ describe('pdfLibHeaderFooterWriter', () => {
 
     const result = await pdfLibHeaderFooterWriter.write({
       baseBytes: before,
-      pages: [first],
+      pages: compileHeaderFooterMutationPlan([first]),
       binaryResources: {},
     });
 
@@ -183,8 +184,12 @@ describe('pdfLibHeaderFooterWriter', () => {
 
   it('rejects an execution plan whose physical page is outside the PDF', async () => {
     const before = await basePdf();
-    const invalid = resolvedPages()[0]!;
-    invalid.physicalPageNumber = 99;
+    const [invalid] =
+      compileHeaderFooterMutationPlan([
+        resolvedPages()[0]!,
+      ]);
+    if (!invalid) throw new Error('Missing test plan');
+    invalid.pageIndex = 98;
 
     await expect(
       pdfLibHeaderFooterWriter.write({

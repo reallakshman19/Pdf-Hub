@@ -74,6 +74,7 @@ const mutationEngineMocks = vi.hoisted(() => ({
   setPageLabels: vi.fn(),
   drawText: vi.fn(),
   drawVisualMasks: vi.fn(),
+  applyHeaderFooter: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -89,7 +90,7 @@ const pageGraphMocks = vi.hoisted(() => ({
 }));
 
 const headerFooterMutationMocks = vi.hoisted(() => ({
-  executeHeaderFooterTemplateMutation: vi.fn(),
+  prepareHeaderFooterTemplateMutation: vi.fn(),
 }));
 
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
@@ -97,8 +98,8 @@ vi.mock('@/core/pages/pageGraphAdmission', () => ({
 }));
 
 vi.mock('@/core/header-footer/executeMutation', () => ({
-  executeHeaderFooterTemplateMutation:
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation,
+  prepareHeaderFooterTemplateMutation:
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation,
 }));
 
 function pageGraph(
@@ -270,6 +271,7 @@ describe('canonical command dispatch', () => {
       setPageLabels: mutationEngineMocks.setPageLabels,
       drawText: mutationEngineMocks.drawText,
       drawVisualMasks: mutationEngineMocks.drawVisualMasks,
+      applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -1167,11 +1169,44 @@ describe('canonical command dispatch', () => {
         },
       ],
     };
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+    const preparedPages = [
+      {
+        pageIndex: 0,
+        layout: {
+          leftMarginPt: 36,
+          rightMarginPt: 36,
+          headerOffsetFromTopPt: 24,
+          footerOffsetFromBottomPt: 24,
+        },
+        footer: {
+          right: {
+            kind: 'text' as const,
+            text: 'Page 1',
+            style: {
+              fontFamily: 'Helvetica',
+              fontSizePt: 10,
+              fontWeight: 'normal' as const,
+              fontStyle: 'normal' as const,
+              color: '#202020',
+              opacity: 1,
+            },
+          },
+        },
+      },
+    ];
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation.mockReturnValueOnce({
       ok: true,
       mutated: true,
-      bytes: new Uint8Array([6, 6, 6]),
+      pages: preparedPages,
+      binaryResources: {},
       warnings: [],
+    });
+    mutationEngineMocks.applyHeaderFooter.mockResolvedValueOnce({
+      warnings: [],
+    });
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([6, 6, 6]),
+      pageCount: 3,
     });
 
     const result = await execute({
@@ -1181,22 +1216,30 @@ describe('canonical command dispatch', () => {
 
     expect(result.success).toBe(true);
     expect(result.mutated).toBe(true);
-    expect(headerFooterMutationMocks.executeHeaderFooterTemplateMutation)
-      .toHaveBeenCalledWith(
-        new Uint8Array([1, 1, 1]),
-        expect.objectContaining({
-          pages: expect.arrayContaining([
-            expect.objectContaining({ pageId: 'test-doc::stable::1' }),
-          ]),
-        }),
-        template,
-        {
-          fileName: 'test.pdf',
-          now: new Date('2026-09-18T00:00:00.000Z'),
-        },
-        undefined,
-        undefined,
-      );
+    expect(
+      headerFooterMutationMocks.prepareHeaderFooterTemplateMutation,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pages: expect.arrayContaining([
+          expect.objectContaining({
+            pageId: 'test-doc::stable::1',
+          }),
+        ]),
+      }),
+      template,
+      {
+        fileName: 'test.pdf',
+        now: new Date('2026-09-18T00:00:00.000Z'),
+      },
+      undefined,
+    );
+    expect(
+      mutationEngineMocks.applyHeaderFooter,
+    ).toHaveBeenCalledWith(
+      preparedPages,
+      {},
+    );
+    expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
     expect(useSessionStore.getState().workingBytes).toEqual(
       new Uint8Array([6, 6, 6]),
     );
@@ -1207,10 +1250,11 @@ describe('canonical command dispatch', () => {
   });
 
   it('does not create history when a canonical header/footer template is a no-op', async () => {
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation.mockReturnValueOnce({
       ok: true,
       mutated: false,
-      bytes: new Uint8Array([1, 1, 1]),
+      pages: [],
+      binaryResources: {},
       warnings: ['Header/footer template matches no pages.'],
     });
 
@@ -1256,7 +1300,7 @@ describe('canonical command dispatch', () => {
   });
 
   it('maps missing canonical header/footer resources to RESOURCE_MISSING', async () => {
-    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+    headerFooterMutationMocks.prepareHeaderFooterTemplateMutation.mockReturnValueOnce({
       ok: false,
       code: 'RESOURCE_MISSING',
       errors: ['Header/footer binary resource is unavailable: logo'],

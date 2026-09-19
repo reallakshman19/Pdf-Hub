@@ -46,6 +46,7 @@ requireContains(contract, contractPath, [
   'setPageLabels',
   'drawText',
   'drawVisualMasks',
+  'applyHeaderFooter',
   'commit()',
   'dispose()',
 ]);
@@ -75,6 +76,8 @@ requireContains(adapter, adapterPath, [
   'setPageLabels',
   'drawText',
   'drawVisualMasks',
+  'applyHeaderFooter',
+  'applyPdfLibHeaderFooterPlan',
   'applyPdfLibPageLabels',
   'loadDonor',
   'rebuildFromOrder',
@@ -137,6 +140,7 @@ const persistentSessionCommandTypes = [
   'SET_PAGE_LABELS',
   'DRAW_TEXT_ON_PAGES',
   'DRAW_REDACTION_BOX',
+  'APPLY_HEADER_FOOTER_TEMPLATE',
 ];
 
 requireContains(dispatch, dispatchPath, [
@@ -154,6 +158,7 @@ requireContains(dispatch, dispatchPath, [
   'mutationSession.setPageLabels',
   'mutationSession.drawText',
   'mutationSession.drawVisualMasks',
+  'mutationSession.applyHeaderFooter',
   'commitStructuralMutationSession',
 ]);
 
@@ -204,12 +209,15 @@ for (const commandType of persistentSessionCommandTypes) {
     SET_PAGE_LABELS: 'mutationSession.setPageLabels',
     DRAW_TEXT_ON_PAGES: 'mutationSession.drawText',
     DRAW_REDACTION_BOX: 'mutationSession.drawVisualMasks',
+    APPLY_HEADER_FOOTER_TEMPLATE:
+      'mutationSession.applyHeaderFooter',
   }[commandType];
 
   const requiredCommitCall = new Set([
     'SET_PAGE_LABELS',
     'DRAW_TEXT_ON_PAGES',
     'DRAW_REDACTION_BOX',
+    'APPLY_HEADER_FOOTER_TEMPLATE',
   ]).has(commandType)
     ? 'mutationSession.commit'
     : 'commitStructuralMutationSession';
@@ -268,6 +276,77 @@ forbidContains(tokenResolver, tokenPath, [
   'PDFDocument',
 ]);
 
+const headerFooterPlanPath =
+  'src/core/header-footer/mutationPlan.ts';
+const headerFooterPlan = read(headerFooterPlanPath);
+requireContains(
+  headerFooterPlan,
+  headerFooterPlanPath,
+  [
+    'compileHeaderFooterMutationPlan',
+    'physicalPageNumber - 1',
+    'PdfMutationHeaderFooterPage',
+  ],
+);
+forbidContains(
+  headerFooterPlan,
+  headerFooterPlanPath,
+  [
+    'pdf-lib',
+    'PDFDocument',
+    'PdfEditAdapter',
+  ],
+);
+
+const headerFooterAdapterPath =
+  'src/adapters/pdf-mutation/pdfLibHeaderFooter.ts';
+const headerFooterAdapter = read(
+  headerFooterAdapterPath,
+);
+requireContains(
+  headerFooterAdapter,
+  headerFooterAdapterPath,
+  [
+    'applyPdfLibHeaderFooterPlan',
+    'renderPdfMutationHeaderFooterPage',
+    'document.getPage(resolved.pageIndex)',
+  ],
+);
+
+const headerFooterCaseStart = dispatch.indexOf(
+  "case 'APPLY_HEADER_FOOTER_TEMPLATE': {",
+);
+if (headerFooterCaseStart >= 0) {
+  const headerFooterCaseEnd = dispatch.indexOf(
+    "\n      case '",
+    headerFooterCaseStart + 1,
+  );
+  const headerFooterCase = dispatch.slice(
+    headerFooterCaseStart,
+    headerFooterCaseEnd > headerFooterCaseStart
+      ? headerFooterCaseEnd
+      : undefined,
+  );
+  requireContains(
+    headerFooterCase,
+    dispatchPath,
+    [
+      'prepareHeaderFooterTemplateMutation',
+      'mutationSession.applyHeaderFooter',
+      'mutationSession.commit',
+    ],
+  );
+  forbidContains(
+    headerFooterCase,
+    dispatchPath,
+    [
+      'executeHeaderFooterTemplateMutation',
+      'pdfLibHeaderFooterWriter',
+      'PDFDocument.load',
+    ],
+  );
+}
+
 const engineTestPath =
   'src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts';
 const engineTest = read(engineTestPath);
@@ -286,6 +365,7 @@ requireContains(engineTest, engineTestPath, [
   'session.setPageLabels',
   'session.drawText',
   'session.drawVisualMasks',
+  'session.applyHeaderFooter',
   'session.commit',
   'loadSpy).toHaveBeenCalledTimes(4)',
 ]);
@@ -295,5 +375,5 @@ if (failed) {
 }
 
 console.log(
-  '[phase7-mutation-engine] rotation, structural, donor, PageLabels, text, mask, and parse-scope guards passed',
+  '[phase7-mutation-engine] rotation, structural, donor, PageLabels, text, mask, header/footer, and parse-scope guards passed',
 );

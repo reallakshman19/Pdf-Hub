@@ -1,6 +1,6 @@
 import type {
-  ResolvedHeaderFooterContent,
-} from './resolutionTypes';
+  PdfMutationHeaderFooterContent,
+} from '@/core/pdf-mutation/types';
 import type { HeaderFooterPdfLibResources } from './pdfLibResources';
 
 type PDFFont = import('pdf-lib').PDFFont;
@@ -25,7 +25,7 @@ export type PreparedHeaderFooterContent =
     };
 
 export async function prepareHeaderFooterContent(
-  content: ResolvedHeaderFooterContent,
+  content: PdfMutationHeaderFooterContent,
   resources: HeaderFooterPdfLibResources,
 ): Promise<PreparedHeaderFooterContent> {
   if (content.kind === 'text') {

@@ -477,13 +477,13 @@ The first Phase 7A implementation is
 engine-neutral page count, page metrics, rotation and commit operations.
 
 `ROTATE_PAGES`, canonical structural/donor page mutations, logical PageLabels,
-simple text overlays, and visual masks now execute through this boundary.
-Donor resources remain out-of-band: commands carry resource IDs, while only
-resolved donor bytes cross into the mutation session. Stable PageId PageLabel
-ranges and text token expansion remain in core; the engine receives resolved
-physical PageLabel/text/mask write operations. PageGraph, admission,
-annotation, Writer, OCR and history semantics remain in core command/
-transaction code.
+simple text overlays, visual masks, and professional header/footer PDF writes
+now execute through this boundary. Donor/image resources remain out-of-band.
+Stable PageId PageLabel ranges, header/footer selectors/tokens/layout
+resolution, and simple text token expansion remain in core; the engine receives
+resolved physical PageLabel/text/mask/header-footer write operations.
+PageGraph, admission, annotation, Writer, OCR and history semantics remain in
+core command/transaction code.
 
 The current transaction prepare stage still reparses before/after bytes for
 page-count validation. Phase 7E will remove that remaining transaction-level
@@ -507,3 +507,13 @@ active `PdfMutationSession`. Structural PageLabels are applied before the
 session's single save rather than reopening committed bytes in a separate
 writer. The richer professional header/footer writer remains the next Phase 7D
 slice; transaction-level before/after page-count reparses remain Phase 7E.
+
+
+### Phase 7D.2 professional header/footer writes
+
+Professional header/footer selectors, tokens, PageLabel/section semantics and
+resource preflight remain in the Phase 6 domain. Canonical command dispatch now
+compiles the resolved result to an engine-neutral physical write plan and calls
+`PdfMutationSession.applyHeaderFooter(...)`; it no longer opens a separate
+pdf-lib document through the compatibility writer. Legacy direct/headless
+compatibility callers may still use `executeHeaderFooterTemplateMutation(...)`.

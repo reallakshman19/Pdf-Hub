@@ -1,6 +1,6 @@
 # PDF Mutation Engine Contract
 
-Status: **Phase 7D.1 — canonical page mutation, PageLabels, text overlays, and visual masks on persistent mutation sessions**.
+Status: **Phase 7D.2 — canonical page/content/header-footer PDF writes on persistent mutation sessions**.
 
 Tracking issue: #211.
 
@@ -49,6 +49,7 @@ UI / Mobile / Automate / SDK / Agent
 - `PdfMutationSession.setPageLabels(...)`
 - `PdfMutationSession.drawText(...)`
 - `PdfMutationSession.drawVisualMasks(...)`
+- `PdfMutationSession.applyHeaderFooter(...)`
 - `PdfMutationSession.commit()`
 - `PdfMutationSession.dispose()`
 
@@ -80,6 +81,7 @@ open() ----> parsed PDF
                +--> setPageLabels(entries)
                +--> drawText(resolved operations)
                +--> drawVisualMasks(operations)
+               +--> applyHeaderFooter(resolved plan)
                |
                v
              commit()
@@ -290,3 +292,47 @@ longer reopens the PDF through it.
 
 The Phase 7E transaction caveat remains: `commitDocumentMutation(...)`
 still reparses before/after revision bytes for page-count validation.
+
+
+## Phase 7D.2 professional header/footer migration
+
+The canonical `APPLY_HEADER_FOOTER_TEMPLATE` command now uses the persistent
+mutation session for its PDF write.
+
+The existing Phase 6 domain remains authoritative for:
+
+- template validation
+- PageId/range/parity selection
+- logical PageLabel/section semantics
+- metadata/variable/date/time token resolution
+- cascade/override rules
+- binary resource preflight
+
+`prepareHeaderFooterTemplateMutation(...)` performs that work without reading
+or mutating PDF bytes. It then compiles the resolved pages into the
+engine-neutral `PdfMutationHeaderFooterPage` plan:
+
+- one zero-based physical `pageIndex`
+- explicit page margins/offsets
+- already-resolved text or image content
+- explicit font/style/color/opacity data
+- explicit separator data
+- out-of-band image resource IDs
+
+PageId, logical labels, section counters, template selectors and token syntax
+do not cross into `PdfMutationSession`.
+
+The pdf-lib page geometry, font/image resource preparation and actual drawing
+logic are still shared with the Phase 6 compatibility writer. The loaded-
+document helper `applyPdfLibHeaderFooterPlan(...)` accepts an already parsed
+PDF document, so canonical dispatch no longer performs a second
+`PDFDocument.load() -> render -> save` cycle for professional headers and
+footers.
+
+The compatibility `executeHeaderFooterTemplateMutation(...)` and
+`pdfLibHeaderFooterWriter` remain for legacy macro/headless/direct utility
+callers. Canonical CommandBus dispatch does not use them.
+
+Phase 7E remains responsible for removing the separate
+`commitDocumentMutation(...)` before/after page-count reparses and carrying
+authoritative revision metadata across the transaction boundary.
