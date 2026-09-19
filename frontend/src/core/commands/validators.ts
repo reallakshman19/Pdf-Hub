@@ -180,6 +180,30 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       break;
     }
 
+    case 'APPLY_HEADER_FOOTER_TEMPLATE': {
+      const template = command.payload.template;
+      if (!template || typeof template !== 'object') {
+        errors.push('payload.template is required.');
+        break;
+      }
+      if (template.schemaVersion !== 1) {
+        errors.push('payload.template.schemaVersion must be 1.');
+      }
+      if (!template.layout || typeof template.layout !== 'object') {
+        errors.push('payload.template.layout is required.');
+      }
+      if (
+        !template.defaultTextStyle
+        || typeof template.defaultTextStyle !== 'object'
+      ) {
+        errors.push('payload.template.defaultTextStyle is required.');
+      }
+      if (!Array.isArray(template.rules) || template.rules.length === 0) {
+        errors.push('payload.template.rules must contain at least one rule.');
+      }
+      break;
+    }
+
     case 'ADD_HEADER_FOOTER_TEXT':
       validatePageIndices(command.payload.pageIndices, 'payload.pageIndices', errors);
       requireNonEmpty(command.payload.options.text, 'payload.options.text', errors);
