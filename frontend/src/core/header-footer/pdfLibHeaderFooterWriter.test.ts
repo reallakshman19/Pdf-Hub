@@ -7,7 +7,7 @@ import { pdfLibHeaderFooterWriter } from './pdfLibHeaderFooterWriter';
 
 const onePixelPng = Uint8Array.from(
   Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlSW9sAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
     'base64',
   ),
 );
