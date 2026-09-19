@@ -6,7 +6,10 @@ import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import type { WriterElementV2 } from '../writer-v2/types';
 import { useHistoryStore } from './store';
-import type { WriterHistoryState } from './types';
+import type {
+  Transaction,
+  WriterHistoryState,
+} from './types';
 
 export interface StateHistorySnapshot {
   annotations: PdfAnnotation[];
@@ -44,68 +47,110 @@ export function cloneAnnotations(
   }));
 }
 
-export function recordStateTransaction(
+export interface BuildStateHistoryTransactionOptions {
+  transactionId?: string;
+  timestamp?: number;
+  session?: ReturnType<typeof useSessionStore.getState>;
+}
+
+export function buildStateHistoryTransaction(
   input: RecordStateTransactionInput,
-): boolean {
-  const session = useSessionStore.getState();
+  options: BuildStateHistoryTransactionOptions = {},
+): Transaction | null {
+  const session =
+    options.session ?? useSessionStore.getState();
 
   const hasDurableRevision = Boolean(
-    session.revisionStoreId && session.activeRevisionId,
+    session.revisionStoreId
+    && session.activeRevisionId,
   );
 
   if (
     !session.documentKey
     || (!hasDurableRevision && !session.workingBytes)
   ) {
-    return false;
+    return null;
   }
 
-  if (input.command.documentKey !== session.documentKey) {
-    return false;
+  if (
+    input.command.documentKey
+    !== session.documentKey
+  ) {
+    return null;
   }
 
   const pdfBacking = hasDurableRevision
     ? {
         revision: {
-          storeId: session.revisionStoreId as string,
-          revisionId: session.activeRevisionId as string,
+          storeId:
+            session.revisionStoreId as string,
+          revisionId:
+            session.activeRevisionId as string,
         },
-        activeRevisionId: session.activeRevisionId,
+        activeRevisionId:
+          session.activeRevisionId,
       }
     : {
-        bytes: session.workingBytes as Uint8Array,
-        activeRevisionId: session.activeRevisionId,
+        bytes:
+          session.workingBytes as Uint8Array,
+        activeRevisionId:
+          session.activeRevisionId,
       };
 
   const baseState = {
     ...pdfBacking,
     pageCount: session.pageCount,
-    pageGraph: session.pageGraph ? clonePageGraph(session.pageGraph) : null,
+    pageGraph: session.pageGraph
+      ? clonePageGraph(session.pageGraph)
+      : null,
     documentKey: session.documentKey,
-    selectedPageIds: [...session.selectedPageIds],
+    selectedPageIds: [
+      ...session.selectedPageIds,
+    ],
     selectedPages: [...session.selectedPages],
-    currentPageId: session.viewState.currentPageId,
+    currentPageId:
+      session.viewState.currentPageId,
     currentPage: session.viewState.currentPage,
   };
 
-  useHistoryStore.getState().push({
-    id: uuidv4(),
+  return {
+    id: options.transactionId ?? uuidv4(),
     command: input.command,
     label: input.label,
-    timestamp: Date.now(),
-    ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
+    timestamp:
+      options.timestamp ?? Date.now(),
+    ...(input.command.groupId
+      ? { groupId: input.command.groupId }
+      : {}),
     before: {
       ...baseState,
-      annotations: cloneAnnotations(input.before.annotations),
-      writer: writerHistoryState(input.before.writer),
+      annotations: cloneAnnotations(
+        input.before.annotations,
+      ),
+      writer: writerHistoryState(
+        input.before.writer,
+      ),
     },
     after: {
       ...baseState,
-      annotations: cloneAnnotations(input.after.annotations),
-      writer: writerHistoryState(input.after.writer),
+      annotations: cloneAnnotations(
+        input.after.annotations,
+      ),
+      writer: writerHistoryState(
+        input.after.writer,
+      ),
     },
-  });
+  };
+}
 
+export function recordStateTransaction(
+  input: RecordStateTransactionInput,
+): boolean {
+  const transaction =
+    buildStateHistoryTransaction(input);
+  if (!transaction) return false;
+
+  useHistoryStore.getState().push(transaction);
   return true;
 }
 
