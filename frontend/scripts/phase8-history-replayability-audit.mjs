@@ -42,6 +42,7 @@ requireContains(policy, policyPath, [
   "'EXTERNAL_FILE_NAME_CONTEXT'",
   "'LOCALE_SENSITIVE_DATE_CONTEXT'",
   "'EXTERNAL_TEMPLATE_CONTEXT'",
+  "'ARTIFACT_SIDE_EFFECT'",
   'classifyHistoryReplayability',
   'classifyHeaderFooter',
   'classifyDrawText',
@@ -63,6 +64,7 @@ const test = read(testPath);
 requireContains(test, testPath, [
   'satisfies Record<PdfCommandType, HistoryReplayDisposition>',
   'keeps the policy command set exhaustive with PdfCommandType',
+  'reports the split artifact side-effect barrier',
   'reports exact donor and binary resource barriers',
   'requires a checkpoint for image-bearing or external-context header/footer templates',
   'treats deterministic header/footer date and page tokens as replayable',
