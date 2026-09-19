@@ -1,6 +1,6 @@
 # DocumentSource Architecture
 
-Status: **Phase 8C.3 — source-aware admission, sessions and canonical mutation publication**.
+Status: **Phase 8D.1 — PDF.js range-transport substrate added; workspace migration pending**.
 
 Tracking issue: #218.
 
@@ -150,7 +150,42 @@ history bytes remain snapshot-based until Phase 8E.
 
 See `Docs/WORKING_REVISION_STORE.md`.
 
-Phase 8D will bridge renderer consumption toward range-backed revisions.
+## Phase 8D.1 PDF.js source bridge substrate
+
+The renderer adapter now has an explicit source-backed acquisition path using
+`PDFDataRangeTransport`:
+
+```text
+DocumentSource
+    |
+    +-- size()
+    |
+    +-- read(begin, end - begin)
+            |
+            v
+PdfJsDocumentSourceTransport
+            |
+            v
+PDF.js
+```
+
+The source path:
+- uses the caller-supplied content/revision id as public cache identity;
+- does not hash, clone or materialize the complete source;
+- keeps source-backed cache entries internally separate from byte-backed
+  admission entries;
+- preserves the existing document lease/LRU lifecycle;
+- exposes range request/byte diagnostics without retaining buffers; and
+- keeps the existing byte renderer API for compatibility/standalone workflows.
+
+Phase 8D.1 does **not** yet change `DocumentWorkspace`. Workspace, Search,
+Bookmarks and Select Box Copy are migrated in the following 8D slices. This
+distinction prevents the architecture docs from claiming range-backed product
+behavior before production callers actually use the new path.
+
+Phase 8D.2 will resolve `revisionStoreId + activeRevisionId` to the immutable
+active revision source and migrate the primary workspace while removing its
+eager all-page text indexing.
 
 Phase 8E will replace default whole-byte history retention with a journal and
 bounded checkpoints.

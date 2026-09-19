@@ -180,9 +180,19 @@ revision-aware transaction fails instead of silently degrading if its working
 revision store cannot publish. PDF history records the matching active revision
 id for undo/redo, while still retaining compatibility byte snapshots.
 
-Session `originalBytes`/`workingBytes`, renderer input, mutation-engine input,
-Save composition and history byte snapshots remain materialized. Phase 8D/8E
-next migrate rendering and history consumption.
+Phase 8D.1 adds the renderer-side source substrate without changing production
+workspace acquisition yet. `PdfJsDocumentSourceTransport` maps PDF.js range
+requests directly to `DocumentSource.read(...)`, and
+`PdfRendererAdapter.acquireDocumentSource(...)` uses an explicit
+content-addressed revision key instead of hashing/cloning the whole PDF.
+Source-backed cache entries are internally namespaced away from byte-backed
+entries so admission-time byte loading cannot silently mask the range path.
+Existing lease/ref-count/LRU behavior remains authoritative.
+
+Session `originalBytes`/`workingBytes`, current workspace renderer input,
+mutation-engine input, Save composition and history byte snapshots remain
+materialized. Phase 8D.2 migrates the active workspace and removes its eager
+all-page search indexing; Phase 8E later migrates history consumption.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

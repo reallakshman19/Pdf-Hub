@@ -1,6 +1,5 @@
 import {
   AnnotationMode,
-  getDocument,
   GlobalWorkerOptions,
   type PageViewport,
   Util,
@@ -14,7 +13,21 @@ import {
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
+import { pdfDocumentLeaseCache } from './PdfDocumentLeaseCache';
+import type {
+  AcquirePdfDocumentSourceInput,
+  PdfDocumentCacheDiagnostics,
+  PdfDocumentLease,
+  PdfDocumentSourceCacheDiagnostics,
+} from './PdfDocumentLeaseCache';
 import type { RenderToken } from './types';
+
+export type {
+  AcquirePdfDocumentSourceInput,
+  PdfDocumentCacheDiagnostics,
+  PdfDocumentLease,
+  PdfDocumentSourceCacheDiagnostics,
+};
 
 export interface RenderedPage {
   width: number;
@@ -66,27 +79,6 @@ export interface OutlineItem {
   depth: number;
 }
 
-export interface PdfDocumentLease {
-  readonly doc: PDFDocumentProxy;
-  readonly cacheKey: string;
-  release: () => Promise<void>;
-}
-
-export interface PdfDocumentCacheDiagnostics {
-  entries: number;
-  activeLeases: number;
-  idleEntries: number;
-  maxEntries: number;
-}
-
-interface PdfDocumentCacheEntry {
-  key: string;
-  docPromise: Promise<PDFDocumentProxy>;
-  doc: PDFDocumentProxy | null;
-  refCount: number;
-  lastUsed: number;
-}
-
 function isTransformItem(
   value: unknown,
 ): value is { str: string; transform: number[]; width: number } {
@@ -104,21 +96,6 @@ function isTransportDestroyedError(err: unknown): boolean {
   return String(err).toLowerCase().includes('transport destroyed');
 }
 
-function clonePdfBytes(buffer: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {
-  return buffer instanceof Uint8Array
-    ? Uint8Array.from(buffer)
-    : new Uint8Array(buffer.slice(0));
-}
-
-function digestHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  const digestInput = Uint8Array.from(bytes).buffer;
-  return crypto.subtle.digest('SHA-256', digestInput).then((digest) =>
-    Array.from(new Uint8Array(digest))
-      .map((value) => value.toString(16).padStart(2, '0'))
-      .join(''),
-  );
-}
-
 function canvasToBlob(
   canvas: HTMLCanvasElement,
   type: string,
@@ -129,140 +106,36 @@ function canvasToBlob(
 
 export class PdfRendererAdapter {
   private static workerConfigured = false;
-  private static readonly MAX_CACHED_DOCUMENTS = 2;
-  private static documentCache = new Map<string, PdfDocumentCacheEntry>();
-  private static sourceKeyCache = new WeakMap<object, Promise<string>>();
-  private static accessCounter = 0;
-
-  static configureWorker(options: {
-    workerSrc: string;
-    cMapUrl?: string;
-    standardFontDataUrl?: string;
-  }): void {
-    if (PdfRendererAdapter.workerConfigured) return;
-    GlobalWorkerOptions.workerSrc = options.workerSrc;
-    PdfRendererAdapter.workerConfigured = true;
-  }
-
-  private static keyForBuffer(buffer: Uint8Array | ArrayBuffer): Promise<string> {
-    const source = buffer as object;
-    const cached = this.sourceKeyCache.get(source);
-    if (cached) return cached;
-
-    const keyPromise = digestHex(clonePdfBytes(buffer)).then((hex) => `sha256:${hex}`);
-    this.sourceKeyCache.set(source, keyPromise);
-    return keyPromise;
-  }
-
-  private static createCacheEntry(
-    key: string,
-    buffer: Uint8Array | ArrayBuffer,
-  ): PdfDocumentCacheEntry {
-    const entry: PdfDocumentCacheEntry = {
-      key,
-      docPromise: Promise.resolve(null as unknown as PDFDocumentProxy),
-      doc: null,
-      refCount: 0,
-      lastUsed: ++this.accessCounter,
-    };
-    const task = getDocument({ data: clonePdfBytes(buffer) });
-    entry.docPromise = task.promise
-      .then((doc) => {
-        entry.doc = doc;
-        return doc;
-      })
-      .catch((loadError) => {
-        if (this.documentCache.get(key) === entry) {
-          this.documentCache.delete(key);
-        }
-        throw loadError;
-      });
-    void entry.docPromise.catch(() => undefined);
-    this.documentCache.set(key, entry);
-    return entry;
-  }
-
-  private static async destroyEntry(entry: PdfDocumentCacheEntry): Promise<void> {
-    const doc = entry.doc ?? await entry.docPromise.catch(() => null);
-    if (!doc) return;
-
-    try {
-      await doc.destroy();
-    } catch (destroyError) {
-      error('pdf-renderer', 'Failed to destroy cached PDF document', {
-        cacheKey: entry.key,
-        error: String(destroyError),
-      });
-    }
-  }
-
-  private static async evictIdleDocuments(): Promise<void> {
-    while (this.documentCache.size > this.MAX_CACHED_DOCUMENTS) {
-      const candidate = Array.from(this.documentCache.values())
-        .filter((entry) => entry.refCount === 0 && entry.doc !== null)
-        .sort((left, right) => left.lastUsed - right.lastUsed)[0];
-      if (!candidate) return;
-
-      this.documentCache.delete(candidate.key);
-      await this.destroyEntry(candidate);
-    }
-  }
-
-  static async acquireDocument(
+  static acquireDocument(
     buffer: Uint8Array | ArrayBuffer,
   ): Promise<PdfDocumentLease> {
-    const key = await this.keyForBuffer(buffer);
-    const entry = this.documentCache.get(key) ?? this.createCacheEntry(key, buffer);
-    entry.refCount += 1;
-    entry.lastUsed = ++this.accessCounter;
-
-    try {
-      const doc = await entry.docPromise;
-      await this.evictIdleDocuments();
-      let released = false;
-
-      return {
-        doc,
-        cacheKey: key,
-        release: async () => {
-          if (released) return;
-          released = true;
-
-          if (this.documentCache.get(key) !== entry) return;
-          entry.refCount = Math.max(0, entry.refCount - 1);
-          entry.lastUsed = ++this.accessCounter;
-          await this.evictIdleDocuments();
-        },
-      };
-    } catch (loadError) {
-      entry.refCount = Math.max(0, entry.refCount - 1);
-      if (this.documentCache.get(key) === entry) {
-        this.documentCache.delete(key);
-      }
-      error('pdf-renderer', 'Failed to load document', { error: String(loadError) });
-      throw loadError;
-    }
+    return pdfDocumentLeaseCache.acquireDocument(
+      buffer,
+    );
   }
 
-  static getDocumentCacheDiagnostics(): PdfDocumentCacheDiagnostics {
-    const entries = Array.from(this.documentCache.values());
-    return {
-      entries: entries.length,
-      activeLeases: entries.reduce((sum, entry) => sum + entry.refCount, 0),
-      idleEntries: entries.filter((entry) => entry.refCount === 0).length,
-      maxEntries: this.MAX_CACHED_DOCUMENTS,
-    };
+  static acquireDocumentSource(
+    input: AcquirePdfDocumentSourceInput,
+  ): Promise<PdfDocumentLease> {
+    return pdfDocumentLeaseCache.acquireDocumentSource(
+      input,
+    );
   }
 
-  static async clearDocumentCache(options: { force?: boolean } = {}): Promise<void> {
-    const targets = Array.from(this.documentCache.values())
-      .filter((entry) => options.force === true || entry.refCount === 0);
+  static getDocumentCacheDiagnostics():
+  PdfDocumentCacheDiagnostics {
+    return pdfDocumentLeaseCache.getDiagnostics();
+  }
 
-    for (const entry of targets) {
-      if (this.documentCache.get(entry.key) !== entry) continue;
-      this.documentCache.delete(entry.key);
-      await this.destroyEntry(entry);
-    }
+  static getDocumentSourceCacheDiagnostics():
+  PdfDocumentSourceCacheDiagnostics[] {
+    return pdfDocumentLeaseCache.getSourceDiagnostics();
+  }
+
+  static clearDocumentCache(
+    options: { force?: boolean } = {},
+  ): Promise<void> {
+    return pdfDocumentLeaseCache.clear(options);
   }
 
   static isTransportDestroyedError(err: unknown): boolean {

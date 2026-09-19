@@ -1,11 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import type { DocumentSource } from '@/core/document-source/types';
 import { PdfRendererAdapter } from './PdfRendererAdapter';
 import * as pdfjsLib from 'pdfjs-dist';
 
 vi.mock('pdfjs-dist', () => ({
+  AnnotationMode: { DISABLE: 0 },
   GlobalWorkerOptions: { workerSrc: '' },
   Util: { transform: vi.fn() },
+  PDFDataRangeTransport: class {
+    constructor(
+      readonly length: number,
+      readonly initialData: Uint8Array | null,
+    ) {}
+
+    onDataRange(
+      _begin: number,
+      _chunk: Uint8Array,
+    ): void {}
+
+    requestDataRange(
+      _begin: number,
+      _end: number,
+    ): void {}
+
+    abort(): void {}
+  },
   getDocument: vi.fn(),
 }));
 
@@ -15,6 +35,31 @@ function mockDocument(id: string): PDFDocumentProxy {
     destroy: vi.fn().mockResolvedValue(undefined),
     fingerprint: id,
   } as unknown as PDFDocumentProxy;
+}
+
+function mockSource(bytes: Uint8Array): DocumentSource & {
+  size: ReturnType<typeof vi.fn>;
+  read: ReturnType<typeof vi.fn>;
+} {
+  return {
+    id: 'revision:test',
+    kind: 'opfs',
+    capabilities: {
+      randomAccess: true,
+      immutableReads: true,
+      persistent: true,
+    },
+    size: vi.fn().mockResolvedValue(bytes.byteLength),
+    read: vi.fn(async (offset: number, length: number) =>
+      bytes.slice(offset, offset + length)),
+  };
+}
+
+function loadingTask(doc: PDFDocumentProxy) {
+  return {
+    promise: Promise.resolve(doc),
+    destroy: vi.fn().mockResolvedValue(undefined),
+  } as ReturnType<typeof pdfjsLib.getDocument>;
 }
 
 describe('PdfRendererAdapter document lifecycle', () => {
@@ -87,6 +132,232 @@ describe('PdfRendererAdapter document lifecycle', () => {
     });
 
     await third.release();
+  });
+
+  it('loads a DocumentSource through PDF.js range transport without whole-source reads', async () => {
+    const doc = mockDocument('source-one');
+    const source = mockSource(
+      Uint8Array.from([1, 2, 3, 4, 5, 6]),
+    );
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue(
+      loadingTask(doc),
+    );
+
+    const lease = await PdfRendererAdapter.acquireDocumentSource({
+      source,
+      cacheKey: 'sha256:source-one',
+    });
+
+    expect(source.size).toHaveBeenCalledTimes(1);
+    expect(source.read).not.toHaveBeenCalled();
+    expect(lease.doc).toBe(doc);
+    expect(lease.cacheKey).toBe('sha256:source-one');
+
+    const parameters = vi.mocked(pdfjsLib.getDocument)
+      .mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(parameters).toMatchObject({
+      rangeChunkSize: 64 * 1024,
+      disableRange: false,
+      disableStream: true,
+      disableAutoFetch: true,
+    });
+    expect(parameters).toHaveProperty('range');
+    expect(parameters).not.toHaveProperty('data');
+
+    expect(
+      PdfRendererAdapter.getDocumentSourceCacheDiagnostics(),
+    ).toEqual([
+      expect.objectContaining({
+        cacheKey: 'sha256:source-one',
+        sourceId: 'revision:test',
+        sourceKind: 'opfs',
+        sourceSize: 6,
+        activeLeases: 1,
+        loaded: true,
+        rangeRequests: 0,
+        rangeBytesDelivered: 0,
+      }),
+    ]);
+
+    await lease.release();
+  });
+
+  it('reuses one source-backed PDF.js document for the same revision key', async () => {
+    const doc = mockDocument('source-reuse');
+    const source = mockSource(new Uint8Array(8));
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue(
+      loadingTask(doc),
+    );
+
+    const first = await PdfRendererAdapter.acquireDocumentSource({
+      source,
+      cacheKey: 'sha256:reuse',
+    });
+    const second = await PdfRendererAdapter.acquireDocumentSource({
+      source,
+      cacheKey: 'sha256:reuse',
+    });
+
+    expect(pdfjsLib.getDocument).toHaveBeenCalledTimes(1);
+    expect(source.size).toHaveBeenCalledTimes(1);
+    expect(first.doc).toBe(doc);
+    expect(second.doc).toBe(doc);
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 1,
+      activeLeases: 2,
+    });
+
+    await first.release();
+    await second.release();
+  });
+
+  it('keeps source-backed cache entries isolated from byte-backed admission entries', async () => {
+    const byteDoc = mockDocument('byte');
+    const sourceDoc = mockDocument('source');
+    vi.mocked(pdfjsLib.getDocument)
+      .mockReturnValueOnce(loadingTask(byteDoc))
+      .mockReturnValueOnce(loadingTask(sourceDoc));
+
+    const bytes = Uint8Array.from([9, 8, 7, 6]);
+    const byteLease =
+      await PdfRendererAdapter.acquireDocument(bytes);
+    await byteLease.release();
+
+    const source = mockSource(bytes);
+    const sourceLease =
+      await PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: byteLease.cacheKey,
+      });
+
+    expect(pdfjsLib.getDocument).toHaveBeenCalledTimes(2);
+    expect(sourceLease.doc).toBe(sourceDoc);
+    expect(sourceLease.cacheKey).toBe(byteLease.cacheKey);
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 2,
+      activeLeases: 1,
+      idleEntries: 1,
+    });
+
+    await sourceLease.release();
+  });
+
+  it('removes a failed source load so the revision can retry', async () => {
+    const source = mockSource(new Uint8Array(4));
+    const retryDoc = mockDocument('source-retry');
+    vi.mocked(pdfjsLib.getDocument)
+      .mockReturnValueOnce({
+        promise: Promise.reject(
+          new Error('source parse failed'),
+        ),
+        destroy: vi.fn().mockResolvedValue(undefined),
+      } as ReturnType<typeof pdfjsLib.getDocument>)
+      .mockReturnValueOnce(loadingTask(retryDoc));
+
+    await expect(
+      PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-retry',
+      }),
+    ).rejects.toThrow('source parse failed');
+
+    const retry =
+      await PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-retry',
+      });
+
+    expect(retry.doc).toBe(retryDoc);
+    expect(pdfjsLib.getDocument).toHaveBeenCalledTimes(2);
+    await retry.release();
+  });
+
+  it('force-clears a source-backed entry by aborting its transport and destroying its document', async () => {
+    const doc = mockDocument('source-clear');
+    const source = mockSource(new Uint8Array(16));
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue(
+      loadingTask(doc),
+    );
+
+    const lease =
+      await PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-clear',
+      });
+
+    const parameters = vi.mocked(pdfjsLib.getDocument)
+      .mock.calls[0]?.[0] as {
+        range?: { abort: () => void };
+      };
+    expect(parameters.range).toBeDefined();
+    const abort = vi.spyOn(parameters.range!, 'abort');
+
+    await PdfRendererAdapter.clearDocumentCache({
+      force: true,
+    });
+
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(doc.destroy).toHaveBeenCalledTimes(1);
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 0,
+      activeLeases: 0,
+    });
+
+    await lease.release();
+  });
+
+  it('does not destroy a shared source load when only one waiting acquisition is cancelled', async () => {
+    const doc = mockDocument('source-shared');
+    const source = mockSource(new Uint8Array(16));
+    let resolveLoad!: (value: PDFDocumentProxy) => void;
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({
+      promise: new Promise<PDFDocumentProxy>((resolve) => {
+        resolveLoad = resolve;
+      }),
+      destroy,
+    } as ReturnType<typeof pdfjsLib.getDocument>);
+
+    const controller = new AbortController();
+    const cancelled =
+      PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-shared',
+        signal: controller.signal,
+      });
+    const surviving =
+      PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-shared',
+      });
+
+    await Promise.resolve();
+    controller.abort('cancel only first waiter');
+
+    await expect(cancelled).rejects.toMatchObject({
+      code: 'OPERATION_CANCELLED',
+    });
+
+    resolveLoad(doc);
+    const lease = await surviving;
+
+    expect(lease.doc).toBe(doc);
+    expect(pdfjsLib.getDocument).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 1,
+      activeLeases: 1,
+    });
+
+    await lease.release();
   });
 
   it('cancels an active PDF.js render task when its signal aborts', async () => {
