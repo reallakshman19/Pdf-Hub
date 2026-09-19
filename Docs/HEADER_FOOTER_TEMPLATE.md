@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6E.2 canonical domain, writer, professional editor and image-resource UI contract**.
+Status: **Phase 6A–6F canonical domain, writer, professional editor and printed-numbering preset contract**.
 
 Tracking issue: #200.
 
@@ -324,6 +324,43 @@ removed, closed or unmounted.
 
 The representative preview renders the admitted image and scales its requested
 PDF-point width against the actual usable slot width.
+
+## Printed numbering presets
+
+Phase 6F defines task presets as thin compilers over the canonical template
+model. There is no separate printed-numbering schema or command.
+
+The built-in presets are:
+
+- **Page N** → `Page {{physicalPage}}`
+- **Page N of M** → `Page {{physicalPage}} of {{pageCount}}`
+- **Logical label** → `{{pageLabel}}`
+- **Section N of M** → `Page {{sectionPage}} of {{sectionPageCount}}`
+- **Appendix label** → `Appendix A — {{pageLabel}}` by default
+
+`createPrintedNumberingRule(...)` accepts a caller-owned canonical
+`HeaderFooterPageSelector`, so future Automate/headless callers can use the
+same preset definition with stable PageIds or PageLabel-range starts.
+
+The professional dialog uses
+`applyPrintedNumberingPresetToDraft(...)` to prefill the existing six-zone
+editor. Applying a preset preserves targeting, parity, exclusions, typography,
+margins and header content. It replaces footer text for the preset target slot;
+a conflicting footer image in that exact slot is removed because one canonical
+slot can contain only one content value.
+
+Presets only generate printed content. They never call `SET_PAGE_LABELS`,
+`writePdfPageLabels`, or otherwise mutate the PDF `/PageLabels` tree.
+
+The Phase 6F acceptance test covers:
+
+- cover with no printed number
+- front matter i–iv using the logical-label preset
+- body section using section page/section total
+- appendix A using `Appendix A — A-1` style output
+
+and verifies the PageGraph logical labels and canonical PageLabel ranges remain
+unchanged after resolution.
 
 ## Legacy compatibility
 
