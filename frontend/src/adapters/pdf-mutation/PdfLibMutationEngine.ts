@@ -20,7 +20,7 @@ class PdfLibMutationSession implements PdfMutationSession {
   private state: SessionState = 'open';
 
   constructor(
-    private readonly document: PdfLibDocument,
+    private document: PdfLibDocument,
     private readonly lib: PdfLibNamespace,
     private readonly signal?: AbortSignal,
   ) {}
@@ -62,6 +62,119 @@ class PdfLibMutationSession implements PdfMutationSession {
       );
       page.setRotation(this.lib.degrees(nextRotation));
     }
+  }
+
+
+  async reorderPages(
+    order: readonly number[],
+  ): Promise<void> {
+    this.assertOpen('reorder pages');
+    const pageCount = this.document.getPageCount();
+
+    if (order.length !== pageCount) {
+      throw new Error(
+        'Reorder list length does not match page count',
+      );
+    }
+
+    const sorted = [...order].sort((left, right) => left - right);
+    for (let index = 0; index < pageCount; index += 1) {
+      throwIfAborted(this.signal, 'reorder pages');
+      if (sorted[index] !== index) {
+        throw new Error(
+          'Reorder list is not a valid page permutation',
+        );
+      }
+    }
+
+    this.document = await this.rebuildFromOrder(
+      order,
+      'reorder pages',
+    );
+  }
+
+  async removePages(
+    pageIndices: readonly number[],
+  ): Promise<void> {
+    this.assertOpen('remove pages');
+    const toRemove = new Set(normalizePageIndices(pageIndices));
+    const keepIndices = this.document
+      .getPageIndices()
+      .filter((index) => !toRemove.has(index));
+
+    if (keepIndices.length === 0) {
+      throw new Error(
+        'Cannot remove all pages from the document',
+      );
+    }
+
+    this.document = await this.rebuildFromOrder(
+      keepIndices,
+      'remove pages',
+    );
+  }
+
+  insertBlankPage(
+    atIndex: number,
+    size: { width: number; height: number },
+  ): void {
+    this.assertOpen('insert blank page');
+    throwIfAborted(this.signal, 'insert blank page');
+
+    const targetIndex = Math.max(
+      0,
+      Math.min(atIndex, this.document.getPageCount()),
+    );
+    this.document.insertPage(
+      targetIndex,
+      [size.width, size.height],
+    );
+  }
+
+  async duplicatePages(
+    pageIndices: readonly number[],
+  ): Promise<void> {
+    this.assertOpen('duplicate pages');
+    const selected = new Set(
+      normalizePageIndices(pageIndices),
+    );
+    const order: number[] = [];
+
+    for (const index of this.document.getPageIndices()) {
+      throwIfAborted(this.signal, 'duplicate pages');
+      order.push(index);
+      if (selected.has(index)) order.push(index);
+    }
+
+    this.document = await this.rebuildFromOrder(
+      order,
+      'duplicate pages',
+    );
+  }
+
+  private async rebuildFromOrder(
+    order: readonly number[],
+    operation: string,
+  ): Promise<PdfLibDocument> {
+    throwIfAborted(this.signal, operation);
+
+    const output = await raceWithAbort(
+      this.lib.PDFDocument.create(),
+      this.signal,
+      `${operation}: create output`,
+    );
+    const copied = await raceWithAbort(
+      output.copyPages(this.document, [...order]),
+      this.signal,
+      `${operation}: copy pages`,
+    );
+
+    for (const page of copied) {
+      throwIfAborted(this.signal, `${operation}: add page`);
+      output.addPage(page);
+    }
+
+    return output;
   }
 
   async commit(): Promise<PdfMutationCommitResult> {
@@ -139,4 +252,13 @@ export const pdfLibMutationEngine = new PdfLibMutationEngine();
 
 function normalizeDegrees(value: number): number {
   return ((value % 360) + 360) % 360;
+}
+
+
+function normalizePageIndices(
+  pageIndices: readonly number[],
+): number[] {
+  return Array.from(new Set(pageIndices))
+    .filter((pageIndex) => Number.isInteger(pageIndex))
+    .sort((left, right) => left - right);
 }
