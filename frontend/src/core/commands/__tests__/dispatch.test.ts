@@ -263,7 +263,7 @@ describe('canonical command dispatch', () => {
       (pageIndex: number) => ({
         width: 612,
         height: 792,
-        rotation: pageIndex === 0 ? 0 : 0,
+        rotation: 0,
       }),
     );
     mutationEngineMocks.commit.mockResolvedValue({
