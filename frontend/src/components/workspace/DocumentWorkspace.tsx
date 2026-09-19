@@ -12,6 +12,9 @@ import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annot
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
+import {
+  resolveActivePdfRendererInput,
+} from '@/core/session/activePdfRendererInput';
 import { useReviewStore } from '@/core/review/store';
 import { annotationRegistry } from '../../core/annotations/registry';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
@@ -22,7 +25,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
 
 import { useSearchStore } from '@/core/search/store';
-import { SearchIndexer } from '@/core/search/indexer';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admission/openPdf';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
@@ -102,12 +104,18 @@ export const DocumentWorkspace: React.FC = () => {
   const {
     workingBytes,
     documentKey,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
     viewState,
     setPage,
     setZoom,
   } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
+    revisionStoreId: state.revisionStoreId,
+    originalRevisionId: state.originalRevisionId,
+    activeRevisionId: state.activeRevisionId,
     viewState: state.viewState,
     setPage: state.setPage,
     setZoom: state.setZoom,
@@ -189,8 +197,8 @@ export const DocumentWorkspace: React.FC = () => {
 
   React.useEffect(() => {
     let cancelled = false;
-    let loadFinished = false;
     let lease: PdfDocumentLease | null = null;
+    const controller = new AbortController();
 
     const releaseLease = async () => {
       if (!lease) return;
@@ -200,11 +208,13 @@ export const DocumentWorkspace: React.FC = () => {
     };
 
     const load = async () => {
-      if (!workingBytes) {
+      const hasActiveDocument = Boolean(
+        workingBytes || activeRevisionId,
+      );
+      if (!hasActiveDocument) {
         setPdfDoc(null);
         setSharedPdfDoc(null);
         setLoadError(null);
-        loadFinished = true;
         return;
       }
 
@@ -212,30 +222,34 @@ export const DocumentWorkspace: React.FC = () => {
       setLoadError(null);
 
       try {
-        lease = await PdfRendererAdapter.acquireDocument(workingBytes);
-        if (cancelled) return;
-        const doc = lease.doc;
+        const rendererInput =
+          await resolveActivePdfRendererInput({
+            documentKey,
+            revisionStoreId,
+            originalRevisionId,
+            activeRevisionId,
+            workingBytes,
+          });
+        if (!rendererInput || cancelled) return;
 
+        lease = rendererInput.kind === 'source'
+          ? await PdfRendererAdapter.acquireDocumentSource({
+              source: rendererInput.source,
+              cacheKey: rendererInput.cacheKey,
+              signal: controller.signal,
+            })
+          : await PdfRendererAdapter.acquireDocument(
+              rendererInput.bytes,
+            );
+
+        if (cancelled) {
+          await releaseLease();
+          return;
+        }
+
+        const doc = lease.doc;
         setPdfDoc(doc);
         setSharedPdfDoc(doc);
-
-        if (documentKey && !SearchIndexer.getCache(documentKey)) {
-          const pagesText: Record<number, import('@/core/search/types').PageTextItem[]> = {};
-          for (let i = 1; i <= doc.numPages; i++) {
-            if (cancelled) break;
-            const pageProxy = await doc.getPage(i);
-            try {
-              const textItems = await PdfRendererAdapter.getPageTextItems(pageProxy, 1.0);
-              pagesText[i] = textItems.map(item => ({
-                str: item.text,
-                rect: { x: item.x, y: item.y, width: item.width, height: item.height },
-              }));
-            } finally {
-              pageProxy.cleanup();
-            }
-          }
-          if (!cancelled) SearchIndexer.setCache(documentKey, pagesText);
-        }
       } catch (err) {
         await releaseLease();
         if (!cancelled) {
@@ -244,8 +258,6 @@ export const DocumentWorkspace: React.FC = () => {
           setSharedPdfDoc(null);
         }
       } finally {
-        loadFinished = true;
-        if (cancelled) await releaseLease();
         if (!cancelled) setLoading(false);
       }
     };
@@ -254,9 +266,19 @@ export const DocumentWorkspace: React.FC = () => {
 
     return () => {
       cancelled = true;
-      if (loadFinished) void releaseLease();
+      controller.abort(
+        'PDF workspace document changed or unmounted',
+      );
+      void releaseLease();
     };
-  }, [workingBytes, documentKey, setSharedPdfDoc]);
+  }, [
+    workingBytes,
+    documentKey,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+    setSharedPdfDoc,
+  ]);
 
   // Reset drawing state when tool changes
   React.useEffect(() => {
@@ -474,7 +496,7 @@ export const DocumentWorkspace: React.FC = () => {
 
   const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
 
-  if (!workingBytes) {
+  if (!workingBytes && !activeRevisionId) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4">
         <div className={[
