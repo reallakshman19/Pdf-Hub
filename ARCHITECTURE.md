@@ -462,3 +462,25 @@ The headless command type is an `Extract<PdfCommandDraft, { type: 'SET_PAGE_LABE
 Headless PageIds are derived during inspection from the exact source-byte document hash. After a successful mutation the PDF bytes/documentKey change, so integrations must inspect the new bytes again before constructing another PageId-anchored command.
 
 This is a narrow integration bridge, not the final public SDK. The later SDK phase should generalize the same canonical command/session model rather than layering a second API contract over it.
+
+
+## Mutation engine migration
+
+Phase 7 is introducing an engine-neutral `PdfMutationEngine` beneath canonical
+commands and document transactions.
+
+The first Phase 7A implementation is
+`PdfLibMutationEngine`, which opens a transaction-local
+`PdfMutationSession`. The session owns one parsed PDF revision and exposes
+engine-neutral page count, page metrics, rotation and commit operations.
+
+`ROTATE_PAGES` is the first canonical command on this boundary. Its PageGraph,
+annotation, Writer, OCR and history semantics remain in core command/
+transaction code; only parsed PDF state and byte mutation moved into the
+engine session.
+
+This is intentionally not yet the Phase 8 large-document substrate:
+`DocumentSession` still stores `Uint8Array` revisions, and OPFS /
+`DocumentSource` / checkpoint history remain future work.
+
+See `Docs/PDF_MUTATION_ENGINE.md` and issue #211.
