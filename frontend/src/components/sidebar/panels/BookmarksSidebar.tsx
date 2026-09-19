@@ -5,13 +5,30 @@ import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import {
+  acquireActivePdfDocumentLease,
+} from '@/adapters/pdf-renderer/activePdfDocumentLease';
+import {
+  isOperationCancelledError,
+} from '@/core/cancellation/operationCancellation';
 import { loadAppBookmarks, saveAppBookmarks } from '@/core/bookmarks/persistence';
 import type { AppBookmark } from '@/core/bookmarks/types';
 
 const BookmarksSidebar: React.FC = () => {
-  const { workingBytes, documentKey, viewState, setPage } = useSessionStore(useShallow((state) => ({
+  const {
+    workingBytes,
+    documentKey,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+    viewState,
+    setPage,
+  } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     documentKey: state.documentKey,
+    revisionStoreId: state.revisionStoreId,
+    originalRevisionId: state.originalRevisionId,
+    activeRevisionId: state.activeRevisionId,
     viewState: state.viewState,
     setPage: state.setPage,
   })));
@@ -23,28 +40,62 @@ const BookmarksSidebar: React.FC = () => {
   const [title, setTitle] = React.useState('');
 
   React.useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const load = async () => {
-      if (!workingBytes) {
+      if (!workingBytes && !activeRevisionId) {
         setNativeBookmarks([]);
         return;
       }
 
-      const lease = await PdfRendererAdapter.acquireDocument(workingBytes);
+      let lease: Awaited<
+        ReturnType<typeof acquireActivePdfDocumentLease>
+      > = null;
+
       try {
-        const outline = await PdfRendererAdapter.getOutlineFlat(lease.doc);
-        if (!cancelled) setNativeBookmarks(outline);
+        lease = await acquireActivePdfDocumentLease({
+          documentKey,
+          workingBytes,
+          revisionStoreId,
+          originalRevisionId,
+          activeRevisionId,
+        }, controller.signal);
+        if (!lease) {
+          setNativeBookmarks([]);
+          return;
+        }
+
+        const outline = await PdfRendererAdapter.getOutlineFlat(
+          lease.doc,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) {
+          setNativeBookmarks(outline);
+        }
+      } catch (loadError) {
+        if (
+          isOperationCancelledError(loadError)
+          || controller.signal.aborted
+        ) {
+          return;
+        }
+        setNativeBookmarks([]);
       } finally {
-        await lease.release();
+        await lease?.release();
       }
     };
 
     void load();
     return () => {
-      cancelled = true;
+      controller.abort('Bookmarks sidebar document changed or unmounted');
     };
-  }, [workingBytes]);
+  }, [
+    workingBytes,
+    documentKey,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+  ]);
 
   React.useEffect(() => {
     const load = async () => {
@@ -81,7 +132,7 @@ const BookmarksSidebar: React.FC = () => {
     await persistCustomBookmarks(customBookmarks.filter((bookmark) => bookmark.id !== id));
   };
 
-  if (!workingBytes) {
+  if (!workingBytes && !activeRevisionId) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 text-center">
