@@ -3,7 +3,13 @@ import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
-import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import {
+  PdfRendererAdapter,
+  type PdfDocumentLease,
+} from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import {
+  acquireActivePdfDocumentLease,
+} from '@/adapters/pdf-renderer/activePdfDocumentLease';
 import { SearchIndexer } from '@/core/search/indexer';
 import type { SearchOptions } from '@/core/search/types';
 import { Button } from '@/components/ui/Button';
@@ -12,9 +18,19 @@ import { useToastStore } from '@/core/toast/store';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 
 export const SearchPanel: React.FC = () => {
-  const { documentKey, workingBytes, setPage } = useSessionStore(useShallow((state) => ({
+  const {
+    documentKey,
+    workingBytes,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+    setPage,
+  } = useSessionStore(useShallow((state) => ({
     documentKey: state.documentKey,
     workingBytes: state.workingBytes,
+    revisionStoreId: state.revisionStoreId,
+    originalRevisionId: state.originalRevisionId,
+    activeRevisionId: state.activeRevisionId,
     setPage: state.setPage,
   })));
   const {
@@ -56,6 +72,10 @@ export const SearchPanel: React.FC = () => {
     useRegex: false,
   });
 
+  const hasActiveDocument = Boolean(
+    workingBytes || activeRevisionId,
+  );
+
   const [prevQuery, setPrevQuery] = useState(query);
   if (query !== prevQuery) {
     setPrevQuery(query);
@@ -66,7 +86,7 @@ export const SearchPanel: React.FC = () => {
     searchQuery: string,
     options: SearchOptions = searchOptions,
   ) => {
-    if (!workingBytes || !documentKey) return;
+    if (!hasActiveDocument || !documentKey) return;
     if (!searchQuery.trim()) {
       searchAbortControllerRef.current?.abort('Search cleared');
       clearSearch();
@@ -77,6 +97,8 @@ export const SearchPanel: React.FC = () => {
     const controller = new AbortController();
     searchAbortControllerRef.current = controller;
     setIsSearching(true);
+    let lease: PdfDocumentLease | null = null;
+
     try {
       const cache = SearchIndexer.getCache(documentKey);
       if (cache) {
@@ -90,11 +112,21 @@ export const SearchPanel: React.FC = () => {
           rects: [result.rect],
         })));
       } else {
-        const results = await PdfRendererAdapter.searchDocumentText(
+        lease = await acquireActivePdfDocumentLease({
+          documentKey,
           workingBytes,
-          searchQuery,
-          controller.signal,
-        );
+          revisionStoreId,
+          originalRevisionId,
+          activeRevisionId,
+        }, controller.signal);
+        if (!lease) return;
+
+        const results =
+          await PdfRendererAdapter.searchDocumentTextInDocument(
+            lease.doc,
+            searchQuery,
+            controller.signal,
+          );
         if (!controller.signal.aborted) setHits(results);
       }
     } catch (searchError) {
@@ -104,12 +136,26 @@ export const SearchPanel: React.FC = () => {
       logError('pdf-renderer', 'Search failed in sidebar panel', { error: message });
       addToast({ type: 'error', title: 'Search Failed', message });
     } finally {
+      await lease?.release();
       if (searchAbortControllerRef.current === controller) {
         searchAbortControllerRef.current = null;
         setIsSearching(false);
       }
     }
-  }, [workingBytes, documentKey, searchOptions, clearSearch, setIsSearching, setHits, setError, addToast]);
+  }, [
+    hasActiveDocument,
+    documentKey,
+    workingBytes,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+    searchOptions,
+    clearSearch,
+    setIsSearching,
+    setHits,
+    setError,
+    addToast,
+  ]);
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLocalQuery(e.target.value);
