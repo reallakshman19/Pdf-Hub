@@ -1,6 +1,6 @@
 # PDF Mutation Engine Contract
 
-Status: **Phase 7B — canonical rotation and core structural page operations on persistent mutation sessions**.
+Status: **Phase 7C — canonical rotation, structural, and donor-backed page operations on persistent mutation sessions**.
 
 Tracking issue: #211.
 
@@ -43,6 +43,9 @@ UI / Mobile / Automate / SDK / Agent
 - `PdfMutationSession.removePages(...)`
 - `PdfMutationSession.insertBlankPage(...)`
 - `PdfMutationSession.duplicatePages(...)`
+- `PdfMutationSession.insertPdf(...)`
+- `PdfMutationSession.replacePage(...)`
+- `PdfMutationSession.appendPdfs(...)`
 - `PdfMutationSession.commit()`
 - `PdfMutationSession.dispose()`
 
@@ -68,6 +71,9 @@ open() ----> parsed PDF
                +--> removePages()
                +--> insertBlankPage()
                +--> duplicatePages()
+               +--> insertPdf(donorBytes)
+               +--> replacePage(donorBytes)
+               +--> appendPdfs(donorBytes[])
                |
                v
              commit()
@@ -181,3 +187,52 @@ additional parses today.
 Removing those transaction-level count reparses and carrying authoritative
 session revision metadata into the commit boundary is planned for Phase 7E.
 Do not describe Phase 7B as a one-parse end-to-end transaction.
+
+
+## Phase 7C donor-backed migration
+
+The canonical donor-backed page commands now use the same active-document
+mutation session:
+
+- `INSERT_PAGES` → `session.insertPdf(...)`
+- `REPLACE_PAGE` → `session.replacePage(...)`
+- `MERGE_PDF` → `session.appendPdfs(...)`
+
+The command model remains unchanged. Commands carry donor **resource IDs** only.
+Actual donor bytes remain inside the existing admitted donor-resource boundary
+and are resolved out-of-band immediately before execution.
+
+Admission semantics are preserved:
+
+1. donor metadata/bytes are admitted and bound to the active document context
+2. dispatch inspects the admitted resource
+3. PageGraph information is derived for product-state planning
+4. the donor is consumed exactly once
+5. only the resolved `Uint8Array` crosses into `PdfMutationSession`
+6. filenames, handles, admission objects and donor registry state never enter
+   the mutation-engine contract or command/history record
+
+### Parse scope for donor commands
+
+The active PDF revision is loaded once when its mutation session opens.
+Each donor PDF is parsed once by the pdf-lib mutation adapter when that donor
+is consumed for insert/replace/merge.
+
+A focused engine test performs insert + merge + replace in one active session
+and asserts four total `PDFDocument.load()` calls: one active-document parse
+plus three donor parses. The active revision is never reparsed between those
+mutations.
+
+Donor PageGraph inspection still uses the separate PDF.js admission/PageGraph
+path. Phase 7C does not attempt to unify rendering metadata and mutation-engine
+donor parsing.
+
+The transaction prepare caveat from 7B remains: `commitDocumentMutation(...)`
+still reparses before/after revision bytes for page-count validation. That is
+Phase 7E work.
+
+### Fidelity behavior
+
+Insert/merge use pdf-lib page copying into the active parsed document, matching
+the previous adapter behavior. Replace retains the previous page-only rebuild
+semantics. Phase 7C therefore does not claim improved document-level fidelity.
