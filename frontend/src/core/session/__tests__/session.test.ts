@@ -425,6 +425,18 @@ describe('Session Store', () => {
       'source:session',
     );
 
+    useSessionStore.getState().commitWorkingCopy({
+      bytes: Uint8Array.from([6, 7]),
+      pageCount: 1,
+      documentKey: 'doc-source-saved',
+    });
+    expect(useSessionStore.getState().sourceId).toBe(
+      'source:session',
+    );
+    expect(
+      resolveDocumentSource('source:session'),
+    ).toBe(source);
+
     useSessionStore.getState().clearDocument();
     expect(useSessionStore.getState().sourceId).toBeNull();
     expect(
