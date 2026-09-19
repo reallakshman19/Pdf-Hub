@@ -36,7 +36,11 @@ export interface SessionActions {
   setDocumentKey: (documentKey: string | null) => void;
   setPageGraph: (pageGraph: PageGraph<PageNode> | null) => void;
   openDocument: (payload: OpenDocumentPayload) => void;
-  replaceWorkingCopy: (bytes: Uint8Array, pageCount: number) => void;
+  replaceWorkingCopy: (
+    bytes: Uint8Array,
+    pageCount: number,
+    activeRevisionId?: string | null,
+  ) => void;
   commitWorkingCopy: (payload: CommitWorkingCopyPayload) => void;
   setPage: (pageNumber: number) => void;
   setPageById: (pageId: PageId) => void;
@@ -355,26 +359,53 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     });
   },
 
-  replaceWorkingCopy: (bytes, pageCount) => {
+  replaceWorkingCopy: (
+    bytes,
+    pageCount,
+    activeRevisionId = null,
+  ) => {
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
-    return set((state) => ({
-      workingBytes: bytes,
-      activeRevisionId: null,
-      pageCount,
-      pageGraph: null,
-      isDirty: true,
-      isDocumentDirty: true,
-      isSessionDirty: true,
-      saveState: {
-        status: 'idle',
-        message: 'Unsaved document changes',
-      },
-      selectedPages: validSelectedPages(state.selectedPages, pageCount),
-      viewState: {
-        ...state.viewState,
-        currentPage: clampPage(state.viewState.currentPage, pageCount),
-      },
-    }));
+    return set((state) => {
+      const revisionStoreId = state.revisionStoreId;
+      if (activeRevisionId && !revisionStoreId) {
+        throw new Error(
+          'Cannot install activeRevisionId without a registered revisionStoreId.',
+        );
+      }
+      if (
+        activeRevisionId
+        && revisionStoreId
+        && !resolveWorkingRevisionStore(revisionStoreId)
+      ) {
+        throw new Error(
+          `Cannot install activeRevisionId because revisionStoreId ${revisionStoreId} is not registered.`,
+        );
+      }
+      return {
+        workingBytes: bytes,
+        activeRevisionId,
+        pageCount,
+        pageGraph: null,
+        isDirty: true,
+        isDocumentDirty: true,
+        isSessionDirty: true,
+        saveState: {
+          status: 'idle',
+          message: 'Unsaved document changes',
+        },
+        selectedPages: validSelectedPages(
+          state.selectedPages,
+          pageCount,
+        ),
+        viewState: {
+          ...state.viewState,
+          currentPage: clampPage(
+            state.viewState.currentPage,
+            pageCount,
+          ),
+        },
+      };
+    });
   },
 
   commitWorkingCopy: ({
