@@ -115,6 +115,7 @@ const approvedDurableCallers = new Set([
   'src/core/writer-v2/writerRichBoxStyleActions.ts',
   'src/core/writer-v2/writerRichBoxFitActions.ts',
   'src/core/writer-v2/writerImageBoxActions.ts',
+  'src/core/writer-v2/durableWriterUiDispatch.ts',
 ]);
 
 const observedDurableCallers = new Set();
