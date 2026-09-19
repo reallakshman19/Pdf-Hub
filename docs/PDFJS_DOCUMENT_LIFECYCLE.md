@@ -65,9 +65,14 @@ delivery from bounded Blob/OPFS reads that were already in flight. Invalid
 ranges, read failures and exact-length violations fail closed and stop future
 delivery.
 
-The source path deliberately keeps the existing byte API. Phase 8D.1 only
-establishes the renderer substrate; the active workspace remains on the byte
-path until Phase 8D.2.
+The source path deliberately keeps the existing byte API. Phase 8D.2 now uses
+the source path for revision-aware primary workspace sessions. Legacy sessions
+with no revision metadata continue to use the byte path.
+
+Workspace ownership remains lease-based: revision changes abort the waiting
+source acquisition and release the prior lease. A revision-aware session with
+missing/stale revision metadata fails instead of silently reopening
+`workingBytes`.
 
 ## Source diagnostics
 
