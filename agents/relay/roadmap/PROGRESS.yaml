@@ -3,7 +3,7 @@
   "progress_basis": {
     "id": "PB-0001",
     "roadmap_revision": "RM-0001",
-    "method": "Explicit V2.5 migration basis: each roadmap work package contributes one unit; active EP steps/acceptance begin at zero until evidenced."
+    "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
   },
   "overall": {
     "earned_weight": 11,
@@ -217,39 +217,39 @@
   "execution_packages": [
     {
       "id": "EP-8D3-001",
-      "earned_weight": 3.5,
+      "earned_weight": 0,
       "total_weight": 4,
-      "percent": 87.5
+      "percent": 0
     }
   ],
   "implementation_steps": [
     {
       "id": "STEP-01",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 1,
+      "earned_weight": 0,
       "total_weight": 1,
-      "percent": 100
+      "percent": 0
     },
     {
       "id": "STEP-02",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 1,
+      "earned_weight": 0,
       "total_weight": 1,
-      "percent": 100
+      "percent": 0
     },
     {
       "id": "STEP-03",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 1,
+      "earned_weight": 0,
       "total_weight": 1,
-      "percent": 100
+      "percent": 0
     },
     {
       "id": "STEP-04",
       "ep_id": "EP-8D3-001",
-      "earned_weight": 0.5,
+      "earned_weight": 0,
       "total_weight": 1,
-      "percent": 50
+      "percent": 0
     }
   ],
   "acceptance_criteria": [
@@ -261,7 +261,7 @@
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
       ]
     },
     {
@@ -272,7 +272,7 @@
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
       ]
     },
     {
@@ -283,7 +283,7 @@
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
       ]
     },
     {
@@ -294,7 +294,7 @@
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Static source/audit review is positive on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180; executable certification remains NOT_RUN under #183."
+        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
       ]
     }
   ]
