@@ -234,6 +234,16 @@ if (
   ]);
 }
 
+const contentPreparationPath =
+  'src/core/header-footer/pdfLibContentPreparation.ts';
+const contentPreparation = read(contentPreparationPath);
+requireContains(contentPreparation, contentPreparationPath, [
+  'prepareHeaderFooterContent',
+  "content.fit === 'cover'",
+  'containScale',
+  'requires clipping',
+]);
+
 const writerPath = 'src/core/header-footer/pdfLibHeaderFooterWriter.ts';
 const writer = read(writerPath);
 requireContains(writer, writerPath, [
