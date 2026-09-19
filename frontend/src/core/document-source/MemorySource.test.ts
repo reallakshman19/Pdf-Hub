@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DocumentSourceError } from './errors';
+import type { DocumentSourceError } from './errors';
 import { MemorySource } from './MemorySource';
 
 describe('MemorySource', () => {
