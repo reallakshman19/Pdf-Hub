@@ -70,19 +70,39 @@ const mutationActions = [
   'updateStyleForSelection',
 ];
 
+const implementationStart = store.indexOf(
+  'export const useAnnotationStore',
+);
+if (implementationStart < 0) {
+  fail('Annotation store implementation export is missing');
+}
+
+const implementation = store.slice(implementationStart);
+
 for (let index = 0; index < mutationActions.length; index += 1) {
   const action = mutationActions[index];
-  const start = store.indexOf(`  ${action}:`);
+  const start = implementation.indexOf(
+    `  ${action}:`,
+  );
   const nextAction = mutationActions
     .slice(index + 1)
-    .map((name) => store.indexOf(`  ${name}:`, start + 1))
+    .map((name) =>
+      implementation.indexOf(
+        `  ${name}:`,
+        start + 1,
+      )
+    )
     .filter((position) => position > start)
-    .sort((a, b) => a - b)[0] ?? store.length;
+    .sort((a, b) => a - b)[0]
+    ?? implementation.length;
   if (start < 0) {
     fail(`Missing annotation mutation action ${action}`);
     continue;
   }
-  const block = store.slice(start, nextAction);
+  const block = implementation.slice(
+    start,
+    nextAction,
+  );
   if (!block.includes('runMutation')) {
     fail(
       `Annotation mutation action ${action} does not route through runMutation`,
@@ -98,17 +118,27 @@ for (const action of [
   'setAnnotations',
   'copySelection',
 ]) {
-  const start = store.indexOf(`  ${action}:`);
+  const start = implementation.indexOf(
+    `  ${action}:`,
+  );
   if (start < 0) {
     fail(`Missing synchronous annotation action ${action}`);
     continue;
   }
-  const end = store.indexOf('\n  ', start + 3);
-  const block = store.slice(
-    start,
-    end > start ? end : store.length,
+  const end = implementation.indexOf(
+    '\n  ',
+    start + 3,
   );
-  if (!block.includes('set(') && !block.includes('set({')) {
+  const block = implementation.slice(
+    start,
+    end > start
+      ? end
+      : implementation.length,
+  );
+  if (
+    !block.includes('set(')
+    && !block.includes('set({')
+  ) {
     fail(
       `Annotation non-history action ${action} is no longer synchronous`,
     );
