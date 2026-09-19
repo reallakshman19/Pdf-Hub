@@ -37,6 +37,7 @@ const domainPaths = [
   'src/core/header-footer/selectorResolver.ts',
   'src/core/header-footer/tokenResolver.ts',
   'src/core/header-footer/resolver.ts',
+  'src/core/header-footer/commandPlan.ts',
 ];
 
 const domain = domainPaths.map((relativePath) => ({
@@ -144,11 +145,40 @@ if (pageLabelRangeDeclarations !== 1) {
   fail(`${pageTypesPath} must contain exactly one PageLabelRange declaration`);
 }
 
+const commandPlanPath = 'src/core/header-footer/commandPlan.ts';
+const commandPlan = read(commandPlanPath);
+requireContains(commandPlan, commandPlanPath, [
+  'planHeaderFooterTemplateCommand',
+  'requiredBinaryResourceIds',
+  'resolveHeaderFooterTemplate',
+  'Header/footer template matches no pages.',
+]);
+
 const commandTypesPath = 'src/core/commands/types.ts';
 const commandTypes = read(commandTypesPath);
+requireContains(commandTypes, commandTypesPath, [
+  "'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'ApplyHeaderFooterTemplateCommand',
+  'HeaderFooterTemplate',
+]);
 if (!commandTypes.includes("'ADD_HEADER_FOOTER_TEXT'")) {
   fail('Phase 6 migration must not prematurely remove the legacy compatibility command');
 }
+
+const validatorsPath = 'src/core/commands/validators.ts';
+const validators = read(validatorsPath);
+requireContains(validators, validatorsPath, [
+  "case 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'payload.template.schemaVersion must be 1.',
+  'payload.template.rules must contain at least one rule.',
+]);
+
+const dispatchPath = 'src/core/commands/dispatch.ts';
+const dispatch = read(dispatchPath);
+requireContains(dispatch, dispatchPath, [
+  "case 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  "'Apply header/footer template'",
+]);
 
 if (failures.length > 0) {
   console.error('Phase 6 header/footer audit failed:');
