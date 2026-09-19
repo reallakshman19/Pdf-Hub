@@ -160,17 +160,36 @@ async function prepareContent(
     };
   }
 
-  const embedded = await resources.imageFor(
-    content.binaryResourceId,
-    content.widthPt,
-    content.heightPt,
+  const image = await resources.imageFor(content.binaryResourceId);
+  const boxWidthPt = content.widthPt;
+  const boxHeightPt = content.heightPt;
+
+  if (content.fit === 'cover' && boxHeightPt !== undefined) {
+    throw new Error(
+      'Header/footer image fit "cover" with an explicit height requires clipping and is not supported by the current PDF writer.',
+    );
+  }
+
+  if (boxHeightPt === undefined) {
+    return {
+      kind: 'image',
+      image,
+      widthPt: boxWidthPt,
+      heightPt: boxWidthPt * (image.height / image.width),
+      opacity: content.opacity,
+    };
+  }
+
+  const containScale = Math.min(
+    boxWidthPt / image.width,
+    boxHeightPt / image.height,
   );
 
   return {
     kind: 'image',
-    image: embedded.image,
-    widthPt: embedded.widthPt,
-    heightPt: embedded.heightPt,
+    image,
+    widthPt: image.width * containScale,
+    heightPt: image.height * containScale,
     opacity: content.opacity,
   };
 }
