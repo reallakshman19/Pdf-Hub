@@ -4,6 +4,20 @@ export interface PdfMutationPageMetrics {
   rotation: number;
 }
 
+export type PdfMutationPageLabelStyle =
+  | 'decimal'
+  | 'roman-lower'
+  | 'roman-upper'
+  | 'letters-lower'
+  | 'letters-upper';
+
+export interface PdfMutationPageLabelEntry {
+  startPageIndex: number;
+  style?: PdfMutationPageLabelStyle;
+  prefix?: string;
+  startNumber?: number;
+}
+
 export interface PdfMutationCommitResult {
   bytes: Uint8Array;
   pageCount: number;
@@ -44,6 +58,10 @@ export interface PdfMutationSession {
   appendPdfs(
     donorBytes: readonly Uint8Array[],
   ): Promise<void>;
+
+  setPageLabels(
+    entries: readonly PdfMutationPageLabelEntry[],
+  ): void;
 
   commit(): Promise<PdfMutationCommitResult>;
 
