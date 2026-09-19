@@ -21,6 +21,8 @@ import {
 import { HeaderFooterOptionsPanel } from './header-footer/HeaderFooterOptionsPanel';
 import { HeaderFooterTokenBar } from './header-footer/HeaderFooterTokenBar';
 import { HeaderFooterPreviewPane } from './header-footer/HeaderFooterPreviewPane';
+import { HeaderFooterImagePanel } from './header-footer/HeaderFooterImagePanel';
+import { useHeaderFooterImageEditor } from './header-footer/useHeaderFooterImageEditor';
 
 interface HeaderFooterDialogProps {
   isOpen: boolean;
@@ -29,7 +31,10 @@ interface HeaderFooterDialogProps {
   selectedPageIds: PageId[];
   fileName: string;
   onClose: () => void;
-  onApply: (template: HeaderFooterTemplate) => Promise<boolean>;
+  onApply: (
+    template: HeaderFooterTemplate,
+    binaryResources?: Readonly<Record<string, Uint8Array>>,
+  ) => Promise<boolean>;
 }
 
 export const HeaderFooterDialog: React.FC<
@@ -54,6 +59,11 @@ export const HeaderFooterDialog: React.FC<
     () => new Date(),
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const imageEditor = useHeaderFooterImageEditor({
+    isOpen,
+    image: draft.image,
+    setDraft,
+  });
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -170,7 +180,10 @@ export const HeaderFooterDialog: React.FC<
     if (!preview.template || preview.error) return;
     setSubmitting(true);
     try {
-      const applied = await onApply(preview.template);
+      const applied = await onApply(
+        preview.template,
+        imageEditor.binaryResources,
+      );
       if (applied) onClose();
     } finally {
       setSubmitting(false);
@@ -203,6 +216,8 @@ export const HeaderFooterDialog: React.FC<
 
         <HeaderFooterTokenBar onInsert={insertToken} />
 
+        <HeaderFooterImagePanel {...imageEditor.panelProps} />
+
         <div className="border-t border-slate-200 pt-3 dark:border-slate-800">
           <HeaderFooterOptionsPanel
             draft={draft}
@@ -218,6 +233,7 @@ export const HeaderFooterDialog: React.FC<
           previewPageId={previewPageId}
           error={preview.error}
           warnings={preview.warnings}
+          imageUrls={imageEditor.imageUrls}
           onPreviewPageChange={setPreviewPageId}
         />
 
@@ -238,6 +254,7 @@ export const HeaderFooterDialog: React.FC<
             onClick={() => void handleApply()}
             disabled={
               submitting
+              || imageEditor.busy
               || Boolean(preview.error)
               || !preview.template
               || preview.pages.length === 0

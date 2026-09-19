@@ -21,6 +21,15 @@ export interface HeaderFooterEditorSlots {
   right: string;
 }
 
+export interface HeaderFooterEditorImageDraft {
+  resourceId: string;
+  fileName: string;
+  band: 'header' | 'footer';
+  slot: HeaderFooterHorizontalSlot;
+  widthPt: number;
+  altText?: string;
+}
+
 export interface HeaderFooterEditorDraft {
   name: string;
   targetMode: HeaderFooterEditorTargetMode;
@@ -29,6 +38,7 @@ export interface HeaderFooterEditorDraft {
   excludeLastPhysicalPage: boolean;
   header: HeaderFooterEditorSlots;
   footer: HeaderFooterEditorSlots;
+  image: HeaderFooterEditorImageDraft | null;
   fontFamily: string;
   fontSizePt: number;
   fontWeight: 'normal' | 'bold';
@@ -66,6 +76,7 @@ export function createDefaultHeaderFooterEditorDraft(): HeaderFooterEditorDraft 
       center: '',
       right: 'Page {{physicalPage}} of {{pageCount}}',
     },
+    image: null,
     fontFamily: 'Helvetica',
     fontSizePt: 10,
     fontWeight: 'normal',
@@ -86,13 +97,17 @@ export function compileHeaderFooterEditorDraft(
   input: HeaderFooterEditorCompileInput,
 ): HeaderFooterTemplate {
   const header = compileBand(
+    'header',
     draft.header,
+    draft.image,
     draft.headerSeparator,
     draft.color,
     draft.opacity,
   );
   const footer = compileBand(
+    'footer',
     draft.footer,
+    draft.image,
     draft.footerSeparator,
     draft.color,
     draft.opacity,
@@ -136,7 +151,9 @@ export function compileHeaderFooterEditorDraft(
 }
 
 function compileBand(
+  bandName: 'header' | 'footer',
   slots: HeaderFooterEditorSlots,
+  image: HeaderFooterEditorImageDraft | null,
   separator: boolean,
   color: string,
   opacity: number,
@@ -150,11 +167,22 @@ function compileBand(
       : [];
   });
 
-  if (entries.length === 0) return undefined;
+  const hasImage = image?.band === bandName;
+  if (entries.length === 0 && !hasImage) return undefined;
 
   const band: HeaderFooterBandTemplate = {};
   for (const [slot, content] of entries) {
     assignSlot(band, slot, content);
+  }
+
+  if (hasImage && image) {
+    assignSlot(band, image.slot, {
+      kind: 'image',
+      binaryResourceId: image.resourceId,
+      widthPt: image.widthPt,
+      fit: 'contain',
+      ...(image.altText ? { altText: image.altText } : {}),
+    });
   }
 
   if (separator) {

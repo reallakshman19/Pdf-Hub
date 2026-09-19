@@ -266,6 +266,7 @@ export const ToolbarOrganize: React.FC = () => {
 
   const handleHeaderFooterApply = async (
     template: HeaderFooterTemplate,
+    binaryResources?: Readonly<Record<string, Uint8Array>>,
   ): Promise<boolean> => {
     if (!pageGraph) return false;
 
@@ -276,7 +277,12 @@ export const ToolbarOrganize: React.FC = () => {
       },
       'Applied printed header/footer content.',
       null,
-      { preserveSelection: true },
+      {
+        preserveSelection: true,
+        ...(binaryResources
+          ? { resources: { binaries: binaryResources } }
+          : {}),
+      },
     );
 
     return Boolean(result);
