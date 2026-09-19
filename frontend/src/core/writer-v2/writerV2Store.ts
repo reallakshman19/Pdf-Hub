@@ -742,8 +742,16 @@ function writerStoreSnapshot(
 
 function usesGlobalWriterHistory(state: WriterV2StoreState): boolean {
   const session = useSessionStore.getState();
+  const hasDurableRevision = Boolean(
+    session.revisionStoreId
+    && session.activeRevisionId,
+  );
+
   return state.documentMeta?.mode === 'pdfOverlay'
-    && Boolean(session.documentKey && session.workingBytes);
+    && Boolean(
+      session.documentKey
+      && (hasDurableRevision || session.workingBytes),
+    );
 }
 
 function writerCommandState(state: WriterV2StoreState): WriterV2State {
