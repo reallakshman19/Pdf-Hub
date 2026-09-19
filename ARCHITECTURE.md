@@ -310,10 +310,24 @@ state diff, including deletions, rather than from whatever selection happens to
 be live when the queue reaches the edit. The durable annotation path depends on
 revision/journal identity, not compatibility PDF bytes.
 
-Writer still uses the legacy synchronous recorder in this slice and is the next
-state-store migration target. No command replay or revision deletion is enabled
-yet. Reference-aware revision GC and bounded recovery checkpoints remain
-follow-on work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3C1 adds an explicit async
+`dispatchWriterCommandDurable(...)` primitive for journal-aware PDF-overlay
+mutations. It derives the Writer command result lazily inside the same serialized
+document-operation queue, normalizes PageId anchors against the current
+PageGraph, clears Writer-local undo/redo, constructs canonical
+`WRITER_CHANGE` before/after state, applies only after state-checkpoint
+preflight, and returns the actual committed `WriterV2CommandResult`. Durable
+failure rolls Writer state back through the shared coordinator. Revision-backed
+Writer undo ownership no longer depends on compatibility `workingBytes`.
+
+The existing synchronous `dispatchWriterCommand(...)` remains available and
+production mutation callers are deliberately not migrated in C1. Non-mutating
+selection commands and blank/legacy sessions still delegate to the synchronous
+path. Phase 8E.5B3C2 must migrate production PDF-overlay mutation callers to the
+durable API before synchronous PDF-overlay mutation dispatch can be prohibited.
+No command replay or revision deletion is enabled yet. Reference-aware revision
+GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
+incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
