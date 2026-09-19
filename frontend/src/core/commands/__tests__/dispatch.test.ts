@@ -88,12 +88,21 @@ const pageLabelWriterMocks = vi.hoisted(() => ({
   writePdfPageLabels: vi.fn(),
 }));
 
+const headerFooterMutationMocks = vi.hoisted(() => ({
+  executeHeaderFooterTemplateMutation: vi.fn(),
+}));
+
 vi.mock('@/core/pages/pageGraphAdmission', () => ({
   buildPageGraphFromPdfBytes: pageGraphMocks.buildPageGraphFromPdfBytes,
 }));
 
 vi.mock('@/core/pages/pdfPageLabelWriter', () => ({
   writePdfPageLabels: pageLabelWriterMocks.writePdfPageLabels,
+}));
+
+vi.mock('@/core/header-footer/executeMutation', () => ({
+  executeHeaderFooterTemplateMutation:
+    headerFooterMutationMocks.executeHeaderFooterTemplateMutation,
 }));
 
 function pageGraph(
@@ -991,6 +1000,174 @@ describe('canonical command dispatch', () => {
     expect(
       useSessionStore.getState().pageGraph?.pages.map((page) => page.logicalLabel),
     ).toEqual(['1', 'i', 'Cover']);
+  });
+
+  it('applies the canonical header/footer template through document history', async () => {
+    const template = {
+      schemaVersion: 1 as const,
+      layout: {
+        leftMarginPt: 36,
+        rightMarginPt: 36,
+        headerOffsetFromTopPt: 24,
+        footerOffsetFromBottomPt: 24,
+      },
+      defaultTextStyle: {
+        fontFamily: 'Helvetica',
+        fontSizePt: 10,
+        fontWeight: 'normal' as const,
+        fontStyle: 'normal' as const,
+        color: '#202020',
+        opacity: 1,
+      },
+      rules: [
+        {
+          id: 'body-footer',
+          selector: { include: { mode: 'all' as const } },
+          footer: {
+            right: {
+              kind: 'text' as const,
+              template: 'Page {{physicalPage}}',
+            },
+          },
+        },
+      ],
+    };
+    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+      ok: true,
+      mutated: true,
+      bytes: new Uint8Array([6, 6, 6]),
+      warnings: [],
+    });
+
+    const result = await execute({
+      type: 'APPLY_HEADER_FOOTER_TEMPLATE',
+      payload: { template },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.mutated).toBe(true);
+    expect(headerFooterMutationMocks.executeHeaderFooterTemplateMutation)
+      .toHaveBeenCalledWith(
+        new Uint8Array([1, 1, 1]),
+        expect.objectContaining({
+          pages: expect.arrayContaining([
+            expect.objectContaining({ pageId: 'test-doc::stable::1' }),
+          ]),
+        }),
+        template,
+        {
+          fileName: 'test.pdf',
+          now: new Date('2026-09-18T00:00:00.000Z'),
+        },
+        undefined,
+        undefined,
+      );
+    expect(pdfMocks.addHeaderFooterText).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().workingBytes).toEqual(
+      new Uint8Array([6, 6, 6]),
+    );
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect(useHistoryStore.getState().undoStack[0]?.command.type).toBe(
+      'APPLY_HEADER_FOOTER_TEMPLATE',
+    );
+  });
+
+  it('does not create history when a canonical header/footer template is a no-op', async () => {
+    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+      ok: true,
+      mutated: false,
+      bytes: new Uint8Array([1, 1, 1]),
+      warnings: ['Header/footer template matches no pages.'],
+    });
+
+    const result = await execute({
+      type: 'APPLY_HEADER_FOOTER_TEMPLATE',
+      payload: {
+        template: {
+          schemaVersion: 1,
+          layout: {
+            leftMarginPt: 36,
+            rightMarginPt: 36,
+            headerOffsetFromTopPt: 24,
+            footerOffsetFromBottomPt: 24,
+          },
+          defaultTextStyle: {
+            fontFamily: 'Helvetica',
+            fontSizePt: 10,
+            fontWeight: 'normal',
+            fontStyle: 'normal',
+            color: '#202020',
+            opacity: 1,
+          },
+          rules: [
+            {
+              id: 'none',
+              selector: { include: { mode: 'all' } },
+              footer: {
+                center: {
+                  kind: 'text',
+                  template: '{{physicalPage}}',
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.mutated).toBe(false);
+    expect(result.message).toMatch(/matches no pages/);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('maps missing canonical header/footer resources to RESOURCE_MISSING', async () => {
+    headerFooterMutationMocks.executeHeaderFooterTemplateMutation.mockResolvedValueOnce({
+      ok: false,
+      code: 'RESOURCE_MISSING',
+      errors: ['Header/footer binary resource is unavailable: logo'],
+      warnings: [],
+    });
+
+    const result = await execute({
+      type: 'APPLY_HEADER_FOOTER_TEMPLATE',
+      payload: {
+        template: {
+          schemaVersion: 1,
+          layout: {
+            leftMarginPt: 36,
+            rightMarginPt: 36,
+            headerOffsetFromTopPt: 24,
+            footerOffsetFromBottomPt: 24,
+          },
+          defaultTextStyle: {
+            fontFamily: 'Helvetica',
+            fontSizePt: 10,
+            fontWeight: 'normal',
+            fontStyle: 'normal',
+            color: '#202020',
+            opacity: 1,
+          },
+          rules: [
+            {
+              id: 'logo',
+              selector: { include: { mode: 'all' } },
+              footer: {
+                right: {
+                  kind: 'image',
+                  binaryResourceId: 'logo',
+                  widthPt: 20,
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('RESOURCE_MISSING');
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 
   it('adds header/footer text', async () => {
