@@ -250,10 +250,7 @@ export class PdfDocumentLeaseCache {
             this.documentCache.delete(key);
           }
           rejectFatal(fatalError);
-          if (task) {
-            void task.destroy()
-              .catch(() => undefined);
-          }
+          void this.destroyEntry(entry);
           error(
             'pdf-renderer',
             'PDF.js DocumentSource range load failed',
