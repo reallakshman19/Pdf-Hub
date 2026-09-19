@@ -41,7 +41,22 @@
     "id": null,
     "path": null
   },
-  "takeover_admissions": [],
+  "takeover_admissions": [
+    {
+      "route_key": "SERIAL:EP-8D3-001",
+      "candidate": {
+        "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+      },
+      "discovery_receipt": {
+        "id": "DISC-8D3-001",
+        "path": "agents/relay/certifications/discovery/DISC-8D3-001.yaml"
+      },
+      "certification": {
+        "id": "TC-8D3-001",
+        "path": "agents/relay/certifications/takeover/TC-8D3-001.yaml"
+      }
+    }
+  ],
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 63.64,
@@ -52,8 +67,8 @@
     "execution": {
       "state": "READY",
       "can_continue": true,
-      "material_authority": "READ_ONLY",
-      "next_action": "Complete repository-grounded DISC/TC admission for EP-8D3-001, then re-evaluate live write readiness before product changes."
+      "material_authority": "WRITE",
+      "next_action": "Implement STEP-01: active-session PdfDocumentLease coordinator over resolveActivePdfRendererInput and PdfRendererAdapter, then add focused tests."
     },
     "quality": {
       "state": "CLEAR",

@@ -1,0 +1,65 @@
+{
+  "schema_version": "relay-v2.5-takeover-certification",
+  "id": "TC-8D3-001",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
+  },
+  "evaluated_by": {
+    "type": "DETERMINISTIC_VALIDATOR",
+    "identity": "validate_takeover_certification.py",
+    "basis": [
+      "Pinned V2.5 validator basis d9b84069683977b5c370f536f1c50095de926338; validator reopens current EP, DISC, route basis and repository profile rather than trusting candidate claims."
+    ]
+  },
+  "self_certification": {
+    "allowed": false
+  },
+  "route": {
+    "route_key": "SERIAL:EP-8D3-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8D3-001",
+    "ep_id": "EP-8D3-001",
+    "ep_path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0001",
+    "relay_protocol_basis_ref": "d9b84069683977b5c370f536f1c50095de926338",
+    "material_ref": "eb5429c344ec4f7a4d977a09987923833f1c0963",
+    "ep_contract_digest": "sha256:bddfa12778a5daabef66b63413bb0c316e938eafdfa74b0ccb1991e761ea9c2a",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "NONE",
+      "id": "NONE",
+      "path": null,
+      "digest": null
+    }
+  },
+  "discovery_receipt": {
+    "id": "DISC-8D3-001",
+    "path": "agents/relay/certifications/discovery/DISC-8D3-001.yaml"
+  },
+  "qualification": {
+    "required": false,
+    "status": "NOT_REQUIRED",
+    "receipt_id": null,
+    "receipt_path": null,
+    "receipt_digest": null
+  },
+  "checks": {
+    "baton_semantics": "PASS",
+    "repository_discovery": "PASS",
+    "route_grounding": "PASS",
+    "input_oracle_readiness": "PASS",
+    "scope_understood": "PASS",
+    "report_successor_contract": "PASS"
+  },
+  "result": "PASS",
+  "conversation_context_used": false
+}
