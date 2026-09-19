@@ -1,0 +1,126 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E1-001",
+    "branch": "phase8/history-revision-locators",
+    "base_ref": "61a4829e1264db0a5c3721027a7194945488a227",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8D3",
+    "previous_join": "61a4829e1264db0a5c3721027a7194945488a227",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-revision-locators",
+    "material_ref": "61a4829e1264db0a5c3721027a7194945488a227",
+    "base_branch": "main",
+    "base_observed_ref": "61a4829e1264db0a5c3721027a7194945488a227",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 234,
+  "outcome": {
+    "user_visible": [
+      "Undo/redo behavior remains unchanged while revision-aware documents stop retaining duplicate full-PDF history snapshots."
+    ],
+    "engineering": [
+      "Revision-aware HistoryState values retain immutable working-revision locators; inline PDF bytes remain only as legacy/no-revision fallback.",
+      "Undo/redo resolves and materializes one target revision before persistence or stack movement."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Continue Phase 8 large-document architecture by removing whole-PDF byte retention from revision-aware in-memory history.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Phase 8D.3.",
+    "why_this_work_exists": "PDF.js read paths are source-backed after 8D.3, but canonical history still duplicates complete PDF revisions under a 256 MiB byte budget.",
+    "current_architecture": "Canonical mutations publish immutable WorkingRevisionStore revisions before session/history commit and history already records activeRevisionId.",
+    "known_problems": [
+      "DocumentSession.workingBytes remains a compatibility requirement, so undo/redo must still materialize the selected target revision.",
+      "There is no durable history/session recovery manifest or revision enumeration/GC contract yet.",
+      "Commands using donor or binary resources are not universally replayable and require future checkpoint barriers.",
+      "GitHub Actions issue #183 still prevents runner-executed certification."
+    ],
+    "deliberate_non_goals": [
+      "No command replay journal in this slice.",
+      "No revision pruning or garbage collection.",
+      "No durable recovery manifest.",
+      "No Save/mutation-engine source migration.",
+      "No product feature breadth."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Revision-aware binary mutation history retains before/after revision locators and no PDF snapshot bytes.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Revision-aware state-only annotation/Writer history reuses the active revision locator without retaining PDF bytes.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Undo/redo materializes the exact immutable target revision before stack movement and restores dependent state.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Legacy/no-revision history keeps its current inline-byte behavior and byte-budget accounting.",
+      "weight": 20,
+      "verification": ["TEST-03", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Focused documentTransaction.history tests cover revision locator retention, undo/redo materialization and unavailable-store failure.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Annotation and Writer canonical-history tests cover state-only history semantics.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Document history and historyBudget tests preserve legacy inline-byte undo/redo and accounting.",
+      "proves": ["AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e1 on the exact implementation head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "failure_and_stop_conditions": {
+    "hard_stop_categories": [
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.2 replayability and checkpoint-barrier classification"
+  }
+}
