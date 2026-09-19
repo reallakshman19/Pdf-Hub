@@ -142,4 +142,17 @@ describe('legacy header/footer macro compatibility compiler', () => {
       text: `Page 3 of 3 | report.pdf | ${now.toLocaleDateString()}`,
     });
   });
+
+  it('normalizes legacy shorthand colors before canonical validation', () => {
+    const compilation = compileLegacyHeaderFooterTextStep(
+      baseStep({ color: '#abc' }),
+      ['p1'],
+      new Date('2026-09-19T03:00:00.000Z'),
+    );
+
+    expect(compilation.template.defaultTextStyle.color).toBe(
+      '#aabbcc',
+    );
+  });
+
 });
