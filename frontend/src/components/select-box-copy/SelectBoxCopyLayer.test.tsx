@@ -38,6 +38,7 @@ const viewport = {
 
 function beginPendingSelection(): {
   signal: () => AbortSignal | null;
+  rerender: (nextViewport: typeof viewport) => void;
 } {
   let observedSignal: AbortSignal | null = null;
 
@@ -60,7 +61,7 @@ function beginPendingSelection(): {
     });
   });
 
-  render(
+  const rendered = render(
     <SelectBoxCopyLayer
       pageNumber={1}
       viewport={viewport}
@@ -89,6 +90,14 @@ function beginPendingSelection(): {
 
   return {
     signal: () => observedSignal,
+    rerender: (nextViewport) => {
+      rendered.rerender(
+        <SelectBoxCopyLayer
+          pageNumber={1}
+          viewport={nextViewport}
+        />,
+      );
+    },
   };
 }
 
@@ -142,6 +151,26 @@ describe('SelectBoxCopyLayer renderer lifecycle', () => {
 
     useWriterV2Store.setState({
       activeWriterTool: 'select',
+    });
+
+    await waitFor(() => {
+      expect(pending.signal()?.aborted).toBe(true);
+    });
+  });
+
+  it('aborts in-flight Select Box renderer work when viewport geometry changes', async () => {
+    const pending = beginPendingSelection();
+
+    await waitFor(() => {
+      expect(
+        acquireActivePdfDocumentLease,
+      ).toHaveBeenCalledTimes(1);
+    });
+    expect(pending.signal()?.aborted).toBe(false);
+
+    pending.rerender({
+      ...viewport,
+      scale: 2,
     });
 
     await waitFor(() => {
