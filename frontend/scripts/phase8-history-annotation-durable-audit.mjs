@@ -110,40 +110,18 @@ for (let index = 0; index < mutationActions.length; index += 1) {
   }
 }
 
-for (const action of [
-  'setActiveAnnotationId',
-  'setSelection',
-  'toggleSelection',
-  'clearSelection',
-  'setAnnotations',
-  'copySelection',
-]) {
-  const start = implementation.indexOf(
-    `  ${action}:`,
-  );
-  if (start < 0) {
-    fail(`Missing synchronous annotation action ${action}`);
-    continue;
-  }
-  const end = implementation.indexOf(
-    '\n  ',
-    start + 3,
-  );
-  const block = implementation.slice(
-    start,
-    end > start
-      ? end
-      : implementation.length,
-  );
-  if (
-    !block.includes('set(')
-    && !block.includes('set({')
-  ) {
-    fail(
-      `Annotation non-history action ${action} is no longer synchronous`,
-    );
-  }
-}
+requireContains(
+  implementation,
+  storePath,
+  [
+    "setActiveAnnotationId: (id) =>\n    set(",
+    "setSelection: (ids) =>\n    set(",
+    "toggleSelection: (id) =>\n    set(",
+    "clearSelection: () =>\n    set({",
+    "setAnnotations: (annotations) =>\n    set({",
+    "copySelection: () =>\n    set(",
+  ],
+);
 
 requireContains(store, storePath, [
   'const targetIds = [',
