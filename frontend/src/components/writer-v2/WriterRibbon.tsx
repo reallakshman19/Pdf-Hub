@@ -53,6 +53,9 @@ import { WriterRichAuthoringStatus } from './WriterRichAuthoringStatus';
 import { WriterRichBoxStyleControl } from './WriterRichBoxStyleControl';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
 import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
 import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
@@ -515,52 +518,142 @@ export const WriterRibbon: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const asset: WriterAssetRecordV2 = {
-        id: 'asset_' + Math.random().toString(36).substring(2, 11),
-        documentFingerprint,
-        kind: 'image',
-        mimeType: file.type,
-        dataUrl,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      void (async () => {
+        const dataUrl = reader.result as string;
+        const asset: WriterAssetRecordV2 = {
+          id:
+            'asset_'
+            + Math.random()
+              .toString(36)
+              .substring(2, 11),
+          documentFingerprint,
+          kind: 'image',
+          mimeType: file.type,
+          dataUrl,
+          createdAt:
+            new Date().toISOString(),
+          updatedAt:
+            new Date().toISOString(),
+        };
 
-      useWriterV2Store.getState().addWriterAssets([asset]);
+        const writer =
+          useWriterV2Store.getState();
+        const previousDirty = writer.dirty;
+        writer.addWriterAssets([asset]);
 
-      const editingId = useWriterV2Store.getState().editingId;
-      const elements = useWriterV2Store.getState().elements;
-      const editingElement = elements.find((el) => el.id === editingId);
-      if (editingElement) {
-        useWriterV2Store.getState().dispatchWriterCommand({
-          type: 'UPDATE_WRITER_ELEMENT',
-          id: editingElement.id,
-          now: new Date().toISOString(),
-          patch: { assetIds: [...(editingElement.assetIds ?? []), asset.id] },
-        });
-      }
+        const editingId =
+          useWriterV2Store.getState().editingId;
+        const elements =
+          useWriterV2Store.getState().elements;
+        const editingElement =
+          elements.find(
+            (element) =>
+              element.id === editingId,
+          );
 
-      void runOrQueueRichCommand(
-        'insertImage',
-        {
-          type: 'insertImage',
-          src: dataUrl,
-          altText: file.name,
-        },
-        (editor) => {
-          editor.focus(() => {
-            editor.update(() => {
-              const selection = $getSelection();
-              const imageNode = $createImageNode(dataUrl, file.name);
-              if ($isRangeSelection(selection)) {
-                selection.insertNodes([imageNode]);
-              } else {
-                $getRoot().append(imageNode);
-              }
-            });
+        if (!editingElement) {
+          useWriterV2Store
+            .getState()
+            .removeWriterAsset(asset.id);
+          useWriterV2Store.setState({
+            dirty: previousDirty,
           });
-        },
-      );
+          logError(
+            'writer',
+            'Writer image upload has no active editable element',
+            { assetId: asset.id },
+          );
+          return;
+        }
+
+        try {
+          const result =
+            await dispatchDurableWriterUiCommand(
+              {
+                type:
+                  'UPDATE_WRITER_ELEMENT',
+                id: editingElement.id,
+                now:
+                  new Date().toISOString(),
+                patch: {
+                  assetIds: [
+                    ...(editingElement.assetIds
+                      ?? []),
+                    asset.id,
+                  ],
+                },
+              },
+              'WriterRibbon image asset link',
+            );
+
+          if (!result.changed) {
+            useWriterV2Store
+              .getState()
+              .removeWriterAsset(asset.id);
+            useWriterV2Store.setState({
+              dirty: previousDirty,
+            });
+            return;
+          }
+        } catch {
+          useWriterV2Store
+            .getState()
+            .removeWriterAsset(asset.id);
+          useWriterV2Store.setState({
+            dirty: previousDirty,
+          });
+          return;
+        }
+
+        try {
+          await runOrQueueRichCommand(
+            'insertImage',
+            {
+              type: 'insertImage',
+              src: dataUrl,
+              altText: file.name,
+            },
+            (editor) => {
+              editor.focus(() => {
+                editor.update(() => {
+                  const selection =
+                    $getSelection();
+                  const imageNode =
+                    $createImageNode(
+                      dataUrl,
+                      file.name,
+                    );
+                  if (
+                    $isRangeSelection(
+                      selection,
+                    )
+                  ) {
+                    selection.insertNodes([
+                      imageNode,
+                    ]);
+                  } else {
+                    $getRoot().append(
+                      imageNode,
+                    );
+                  }
+                });
+              });
+            },
+          );
+        } catch (error) {
+          logError(
+            'writer',
+            'Writer rich editor image insertion failed after durable asset link',
+            {
+              assetId: asset.id,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error),
+            },
+          );
+        }
+      })();
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) {
