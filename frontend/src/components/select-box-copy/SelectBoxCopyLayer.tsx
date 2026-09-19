@@ -359,16 +359,6 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
         );
 
       if (!insertResult.changed) {
-        if (imageAssetId) {
-          useWriterV2Store
-            .getState()
-            .removeWriterAsset(
-              imageAssetId,
-            );
-          useWriterV2Store.setState({
-            dirty: previousWriterDirty,
-          });
-        }
         throw new Error(
           insertResult.reason
           || 'Writer insertion made no change.',
