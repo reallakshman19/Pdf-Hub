@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A canonical domain contract**.
+Status: **Phase 6A–6B canonical domain and resolution contract**.
 
 Tracking issue: #200.
 
@@ -23,6 +23,9 @@ The authoritative model lives in:
 
 - `frontend/src/core/header-footer/types.ts`
 - `frontend/src/core/header-footer/validation.ts`
+- `frontend/src/core/header-footer/selectorResolver.ts`
+- `frontend/src/core/header-footer/tokenResolver.ts`
+- `frontend/src/core/header-footer/resolver.ts`
 
 A template contains:
 
@@ -139,6 +142,63 @@ Phase 6D will introduce a font-resolution/rendering seam. Helvetica may be an in
 - invalid image resource references
 
 Validation may emit non-blocking warnings where a valid selector can resolve to no pages, such as excluding first and last page in a one-page document.
+
+
+## Resolution semantics
+
+`resolveHeaderFooterTemplate(template, pageGraph, context)` is the canonical
+pure resolution boundary.
+
+It validates first, then produces concrete per-page header/footer content for
+the current PageGraph order. It does not load or mutate PDF bytes.
+
+### Sections
+
+Canonical PageLabel range starts define section boundaries. For a page inside a
+canonical range:
+
+- `sectionPage` is one-based within that range
+- `sectionPageCount` is the number of physical pages until the next canonical
+  PageLabel range start
+
+If no canonical PageLabel range model exists, the whole document is treated as
+one section.
+
+`pageLabel` uses the resolved logical PageLabel when present. If no logical
+label exists, it falls back to the one-based physical page number as text.
+
+### Range and parity behavior
+
+PageId ranges resolve against **current physical order**. The two PageId bounds
+are inclusive and may be supplied in either order.
+
+Odd/even filtering is always based on one-based physical position after the
+include selector matches.
+
+### Date and time
+
+Resolution is deterministic and locale-independent by default:
+
+- date: UTC `YYYY-MM-DD`
+- time: UTC `HH:MM:SSZ`
+
+A caller that owns a product locale may supply explicit `dateText` and
+`timeText` in the resolution context. The canonical resolver never calls
+locale-sensitive browser formatting itself.
+
+### Missing dynamic values
+
+A missing `{{metadata:key}}` or `{{var:key}}` resolves to an empty string
+and emits a deduplicated warning. Template validation still rejects unknown
+token syntax.
+
+### Rule application
+
+For each page, matching rules are evaluated in template order. Later matching
+rules override only the header/footer slots or separator they define.
+
+The resolved output contains no React, PDF.js or pdf-lib objects and is safe to
+feed into a later engine-specific renderer.
 
 ## Legacy compatibility
 
