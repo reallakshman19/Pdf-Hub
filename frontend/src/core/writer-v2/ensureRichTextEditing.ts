@@ -76,12 +76,19 @@ export async function ensureRichTextEditing(
     zIndex: maxZIndex + 1,
   });
 
-  writer.dispatchWriterCommand({
-    type: 'ADD_WRITER_ELEMENT',
-    element,
-  });
+  const addResult =
+    await writer.dispatchWriterCommandDurable({
+      type: 'ADD_WRITER_ELEMENT',
+      element,
+    });
 
-  useWriterV2Store.getState().beginEditingWriterElement(element.id);
+  if (!addResult.changed) {
+    return null;
+  }
+
+  useWriterV2Store
+    .getState()
+    .beginEditingWriterElement(element.id);
 
   if (options.includeStarterTable) {
     useRichEditorCommandQueue.getState().enqueue({
