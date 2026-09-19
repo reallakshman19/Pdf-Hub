@@ -81,10 +81,11 @@ function standardFontName(
 ): string {
   const normalized = style.fontFamily.trim().toLowerCase();
   const family =
-    normalized.includes('times') || normalized.includes('serif')
-      ? 'times'
-      : normalized.includes('courier') || normalized.includes('mono')
-        ? 'courier'
+    normalized.includes('courier') || normalized.includes('mono')
+      ? 'courier'
+      : normalized.includes('times')
+        || (normalized.includes('serif') && !normalized.includes('sans'))
+        ? 'times'
         : 'helvetica';
 
   if (
