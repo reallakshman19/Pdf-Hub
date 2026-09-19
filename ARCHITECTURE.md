@@ -355,20 +355,29 @@ ADD before it clears the selection panel or reports success, and cleans temporar
 image assets on failed/unchanged insertion. The shared UI dispatch helper logs
 context + command type before rethrowing durable failures.
 
+Phase 8E.5B3C2B2A adds the first explicit high-frequency
+coalescing boundary for Writer table resize. Pointer-down captures the original
+column widths or row height. Pointer-move updates only local React preview
+coordinates and renders a transient resize guide; canonical Writer state and
+history are untouched throughout the drag. Pointer-up derives one final
+`UPDATE_WRITER_ELEMENT` command from the captured geometry plus final pointer
+position and sends it through the durable UI dispatch boundary. Pointer-cancel
+clears the local preview without committing. Table selection activation remains
+synchronous.
+
 Synchronous `dispatchWriterCommand(...)` remains available for non-mutating
 selection, blank/legacy sessions and the remaining synchronous Writer helper
-APIs. Writer table pointer-resize, Writer inspector transform/style/callout
-inputs and Writer table-properties controls remain deliberately synchronous in
-B1 because they emit at pointer/input frequency. Phase 8E.5B3C2B2 must give
-those surfaces an explicit preview/coalescing boundary so one user gesture
-produces one durable history transaction rather than one checkpoint per event.
-Multi-step legacy consolidation also remains synchronous because hiding source
-objects and adding the consolidated rich box must be made atomic before
-migration. Phase 8E.5B3C2C owns synchronous helper contracts and remaining
-bridges. Synchronous PDF-overlay mutation dispatch must not be prohibited until
-those migrations are complete. No command replay or revision deletion is
-enabled yet. Reference-aware revision GC and bounded recovery checkpoints remain
-follow-on work. Phase 8F owns incremental search indexing.
+APIs. Writer inspector transform/style/callout inputs and Writer table-properties
+controls are still high-frequency mutation surfaces and remain deliberately
+unmigrated after B2A. Phase 8E.5B3C2B2B owns inspector draft/commit semantics;
+Phase 8E.5B3C2B2C owns table-properties coalescing. Multi-step legacy
+consolidation also remains synchronous because hiding source objects and adding
+the consolidated rich box must be made atomic before migration. Phase
+8E.5B3C2C owns synchronous helper contracts and remaining bridges. Synchronous
+PDF-overlay mutation dispatch must not be prohibited until those migrations are
+complete. No command replay or revision deletion is enabled yet. Reference-aware
+revision GC and bounded recovery checkpoints remain follow-on work. Phase 8F
+owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
