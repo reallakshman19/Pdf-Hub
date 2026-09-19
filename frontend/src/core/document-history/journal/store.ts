@@ -10,6 +10,10 @@ export interface HistoryJournalStore {
   readonly id: string;
   readonly capabilities: Readonly<HistoryJournalStoreCapabilities>;
 
+  /**
+   * Atomically replace one manifest. A rejected save must leave the previously
+   * visible manifest unchanged so document transactions can roll back safely.
+   */
   save(
     manifest: HistoryJournalManifest,
   ): Promise<void>;
