@@ -167,8 +167,6 @@ function compileBand(
       : [];
   });
 
-  if (entries.length === 0) return undefined;
-
   const hasImage = image?.band === bandName;
   if (entries.length === 0 && !hasImage) return undefined;
 
