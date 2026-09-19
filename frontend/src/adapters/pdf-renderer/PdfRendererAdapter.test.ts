@@ -276,6 +276,90 @@ describe('PdfRendererAdapter document lifecycle', () => {
     await retry.release();
   });
 
+  it('force-clears a source-backed entry by aborting its transport and destroying its document', async () => {
+    const doc = mockDocument('source-clear');
+    const source = mockSource(new Uint8Array(16));
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue(
+      loadingTask(doc),
+    );
+
+    const lease =
+      await PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-clear',
+      });
+
+    const parameters = vi.mocked(pdfjsLib.getDocument)
+      .mock.calls[0]?.[0] as {
+        range?: { abort: () => void };
+      };
+    expect(parameters.range).toBeDefined();
+    const abort = vi.spyOn(parameters.range!, 'abort');
+
+    await PdfRendererAdapter.clearDocumentCache({
+      force: true,
+    });
+
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(doc.destroy).toHaveBeenCalledTimes(1);
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 0,
+      activeLeases: 0,
+    });
+
+    await lease.release();
+  });
+
+  it('does not destroy a shared source load when only one waiting acquisition is cancelled', async () => {
+    const doc = mockDocument('source-shared');
+    const source = mockSource(new Uint8Array(16));
+    let resolveLoad!: (value: PDFDocumentProxy) => void;
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({
+      promise: new Promise<PDFDocumentProxy>((resolve) => {
+        resolveLoad = resolve;
+      }),
+      destroy,
+    } as ReturnType<typeof pdfjsLib.getDocument>);
+
+    const controller = new AbortController();
+    const cancelled =
+      PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-shared',
+        signal: controller.signal,
+      });
+    const surviving =
+      PdfRendererAdapter.acquireDocumentSource({
+        source,
+        cacheKey: 'sha256:source-shared',
+      });
+
+    await Promise.resolve();
+    controller.abort('cancel only first waiter');
+
+    await expect(cancelled).rejects.toMatchObject({
+      code: 'OPERATION_CANCELLED',
+    });
+
+    resolveLoad(doc);
+    const lease = await surviving;
+
+    expect(lease.doc).toBe(doc);
+    expect(pdfjsLib.getDocument).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+    expect(
+      PdfRendererAdapter.getDocumentCacheDiagnostics(),
+    ).toMatchObject({
+      entries: 1,
+      activeLeases: 1,
+    });
+
+    await lease.release();
+  });
+
   it('cancels an active PDF.js render task when its signal aborts', async () => {
     const controller = new AbortController();
     const cancel = vi.fn();
