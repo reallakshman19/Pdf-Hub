@@ -87,3 +87,32 @@ entries without retaining any PDF byte buffers:
 - total range bytes delivered;
 - maximum requested range size;
 - aborted/failed transport state.
+
+
+## Phase 8D.3 active consumer ownership
+
+The remaining active-session renderer consumers now use the revision-keyed
+lease path rather than independently reacquiring PDF.js from
+`DocumentSession.workingBytes`:
+
+- uncached Search acquires the active session lease and runs
+  `searchDocumentTextInDocument(...)` against that proxy;
+- native Bookmarks/outline loading acquires the active session lease and
+  releases it after outline resolution; and
+- active Select Box Copy acquires a lease per extraction/image operation and
+  delegates to loaded-document helpers.
+
+`activePdfDocumentLease.ts` is a narrow coordinator over the session-side
+renderer-input resolver. It receives an explicit session snapshot and therefore
+does not make `PdfRendererAdapter` depend on Zustand/session state. Revision-
+aware sessions use `acquireDocumentSource(...)`; legacy sessions with no
+revision metadata retain the byte path.
+
+Cancellation is part of lease ownership. Waiting active operations receive an
+`AbortSignal`, late byte-backed acquisition is released if cancellation wins,
+page proxies call `cleanup()`, and Select Box render tasks are cancelled.
+
+Standalone APIs that intentionally receive explicit bytes remain valid:
+`searchDocumentText(bytes,...)`, `extractSelectBoxCopyFromPdf(...)`, and
+`renderSelectBoxImageSnapshot(...)` keep their byte-backed compatibility
+behavior and own their own leases.
