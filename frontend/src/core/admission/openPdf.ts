@@ -4,6 +4,9 @@ import {
   getBrowserWorkingRevisionStore,
 } from '@/adapters/revision-store/browserWorkingRevisionStore';
 import {
+  getBrowserHistoryJournalStore,
+} from '@/adapters/history-journal/browserHistoryJournalStore';
+import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
@@ -21,6 +24,16 @@ import {
 import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
+import {
+  registerHistoryJournalStore,
+} from '@/core/document-history/journal/registry';
+import type {
+  HistoryJournalStore,
+} from '@/core/document-history/journal/store';
+import {
+  createHistoryJournalId,
+  createInitialHistoryJournalManifest,
+} from '@/core/document-history/journal/types';
 import type {
   WorkingRevisionStore,
 } from '@/core/revision-store/types';
@@ -52,6 +65,9 @@ export interface OpenedPdfDocument {
   readonly revisionStoreId: string;
   readonly originalRevisionId: string;
   readonly activeRevisionId: string;
+  readonly historyJournalStoreId: string | null;
+  readonly historyJournalId: string | null;
+  readonly historyJournalPersistent: boolean;
   readonly documentKey: string;
   readonly fileName: string;
   readonly bytes: Uint8Array;
@@ -67,6 +83,8 @@ export interface OpenPdfFileOptions {
   readonly buildPageGraph?: typeof buildPageGraphFromPdfBytes;
   /** Test/host override; production resolves the browser OPFS/memory store. */
   readonly workingRevisionStore?: WorkingRevisionStore;
+  /** Test/host override; production resolves IndexedDB with memory fallback. */
+  readonly historyJournalStore?: HistoryJournalStore;
 }
 
 export const PRIMARY_PDF_OPEN_POLICY = createAdmissionPolicy({
@@ -105,6 +123,10 @@ export async function admitAndOpenPdfFile(
   const sourceId =
     `primary-pdf:${generation}:${file.size}`;
   let registeredSourceId: string | null = null;
+  let provisionalJournal: {
+    store: HistoryJournalStore;
+    journalId: string;
+  } | null = null;
 
   const sizeDiagnostic = evaluateAdmissionMetric(
     PRIMARY_PDF_OPEN_POLICY,
@@ -265,6 +287,95 @@ export async function admitAndOpenPdfFile(
       );
     }
 
+    let historyJournalStoreId: string | null = null;
+    let historyJournalId: string | null = null;
+    let historyJournalPersistent = false;
+
+    try {
+      const journalSelection =
+        options.historyJournalStore
+          ? {
+              store: options.historyJournalStore,
+              backend:
+                options.historyJournalStore.capabilities.persistent
+                  ? 'indexeddb' as const
+                  : 'memory' as const,
+            }
+          : await getBrowserHistoryJournalStore();
+      const journalStore = journalSelection.store;
+      registerHistoryJournalStore(journalStore);
+
+      const journalId = createHistoryJournalId();
+      const manifest = createInitialHistoryJournalManifest({
+        journalId,
+        revisionStoreId: revisionStore.id,
+        revisionId: initialRevision.revisionId,
+        fileName: file.name,
+      });
+      await raceWithAbort(
+        journalStore.save(manifest),
+        options.signal,
+        'open PDF: initialize history journal',
+      );
+
+      historyJournalStoreId = journalStore.id;
+      historyJournalId = journalId;
+      historyJournalPersistent =
+        journalStore.capabilities.persistent;
+      provisionalJournal = {
+        store: journalStore,
+        journalId,
+      };
+    } catch (journalError) {
+      if (isOperationCancelledError(journalError)) {
+        throw journalError;
+      }
+      warn(
+        'history',
+        'History journal initialization failed; opening PDF without recovery journal metadata',
+        {
+          fileName: file.name,
+          error: String(journalError),
+        },
+      );
+    }
+
+    assertAdmissionCommitAllowed(
+      options.signal,
+      'open admitted PDF after history journal initialization',
+    );
+    if (generation !== latestOpenGeneration) {
+      if (provisionalJournal) {
+        try {
+          await provisionalJournal.store.remove(
+            provisionalJournal.journalId,
+          );
+        } catch (cleanupError) {
+          warn(
+            'history',
+            'Unable to remove stale provisional history journal',
+            {
+              journalId: provisionalJournal.journalId,
+              error: String(cleanupError),
+            },
+          );
+        }
+        provisionalJournal = null;
+      }
+      diagnostics.push({
+        severity: 'info',
+        code: 'ADMISSION_STALE_OPERATION',
+        phase: 'COMMIT',
+        message: 'A newer PDF open operation superseded this result after history journal initialization.',
+      });
+      return reject(
+        'CANCELLED',
+        source,
+        measurements,
+        diagnostics,
+      );
+    }
+
     const saveHandle = options.saveHandle ?? null;
 
     registerDocumentSource(documentSource);
@@ -276,6 +387,9 @@ export async function admitAndOpenPdfFile(
       revisionStoreId: revisionStore.id,
       originalRevisionId: initialRevision.revisionId,
       activeRevisionId: initialRevision.revisionId,
+      historyJournalStoreId,
+      historyJournalId,
+      historyJournalPersistent,
       fileName: file.name,
       bytes,
       pageCount,
@@ -285,6 +399,7 @@ export async function admitAndOpenPdfFile(
     const commit = options.commit ?? useSessionStore.getState().openDocument;
     commit(payload);
     registeredSourceId = null;
+    provisionalJournal = null;
 
     const value: OpenedPdfDocument = Object.freeze({
       source,
@@ -292,6 +407,9 @@ export async function admitAndOpenPdfFile(
       revisionStoreId: revisionStore.id,
       originalRevisionId: initialRevision.revisionId,
       activeRevisionId: initialRevision.revisionId,
+      historyJournalStoreId,
+      historyJournalId,
+      historyJournalPersistent,
       documentKey,
       fileName: file.name,
       bytes,
@@ -309,6 +427,13 @@ export async function admitAndOpenPdfFile(
       documentKey,
       workingRevisionBackend: revisionStore.kind,
       activeRevisionId: initialRevision.revisionId,
+      historyJournalBackend:
+        historyJournalStoreId
+          ? historyJournalPersistent
+            ? 'indexeddb'
+            : 'memory'
+          : 'unavailable',
+      historyJournalId,
     });
 
     return Object.freeze({
@@ -317,6 +442,24 @@ export async function admitAndOpenPdfFile(
       evidence,
     });
   } catch (error) {
+    if (provisionalJournal) {
+      try {
+        await provisionalJournal.store.remove(
+          provisionalJournal.journalId,
+        );
+      } catch (cleanupError) {
+        warn(
+          'history',
+          'Unable to remove provisional history journal after admission failure',
+          {
+            journalId: provisionalJournal.journalId,
+            error: String(cleanupError),
+          },
+        );
+      }
+      provisionalJournal = null;
+    }
+
     if (registeredSourceId) {
       releaseDocumentSource(registeredSourceId);
       registeredSourceId = null;

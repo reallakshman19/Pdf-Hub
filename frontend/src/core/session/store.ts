@@ -10,6 +10,10 @@ import {
   releaseWorkingRevisionStore,
   resolveWorkingRevisionStore,
 } from '@/core/revision-store/registry';
+import {
+  releaseHistoryJournalStore,
+  resolveHistoryJournalStore,
+} from '@/core/document-history/journal/registry';
 
 export interface OpenDocumentPayload {
   documentKey: string;
@@ -17,6 +21,9 @@ export interface OpenDocumentPayload {
   revisionStoreId?: string | null;
   originalRevisionId?: string | null;
   activeRevisionId?: string | null;
+  historyJournalStoreId?: string | null;
+  historyJournalId?: string | null;
+  historyJournalPersistent?: boolean;
   fileName: string;
   bytes: Uint8Array;
   pageCount: number;
@@ -171,6 +178,47 @@ function assertOpenRevisionMetadata(input: {
   }
 }
 
+function assertOpenHistoryJournalMetadata(input: {
+  historyJournalStoreId: string | null;
+  historyJournalId: string | null;
+  historyJournalPersistent: boolean;
+}): void {
+  const hasStore = input.historyJournalStoreId !== null;
+  const hasJournal = input.historyJournalId !== null;
+
+  if (hasStore !== hasJournal) {
+    throw new Error(
+      'OpenDocument historyJournalStoreId and historyJournalId must be provided together.',
+    );
+  }
+  if (
+    input.historyJournalPersistent
+    && (!hasStore || !hasJournal)
+  ) {
+    throw new Error(
+      'OpenDocument cannot mark history journal persistent without journal identity.',
+    );
+  }
+  if (input.historyJournalStoreId) {
+    const store = resolveHistoryJournalStore(
+      input.historyJournalStoreId,
+    );
+    if (!store) {
+      throw new Error(
+        `OpenDocument historyJournalStoreId ${input.historyJournalStoreId} is not registered.`,
+      );
+    }
+    if (
+      input.historyJournalPersistent
+      !== store.capabilities.persistent
+    ) {
+      throw new Error(
+        `OpenDocument historyJournalPersistent ${input.historyJournalPersistent} does not match store capability ${store.capabilities.persistent}.`,
+      );
+    }
+  }
+}
+
 function resolveNavigationForGraph(
   state: Pick<DocumentSession, 'pageGraph' | 'selectedPageIds' | 'selectedPages' | 'viewState'>,
   pageGraph: PageGraph<PageNode>,
@@ -212,6 +260,9 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
   revisionStoreId: null,
   originalRevisionId: null,
   activeRevisionId: null,
+  historyJournalStoreId: null,
+  historyJournalId: null,
+  historyJournalPersistent: false,
   fileName: null,
   originalBytes: null,
   workingBytes: null,
@@ -280,6 +331,9 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     revisionStoreId = null,
     originalRevisionId = null,
     activeRevisionId = null,
+    historyJournalStoreId = null,
+    historyJournalId = null,
+    historyJournalPersistent = false,
     fileName,
     bytes,
     pageCount,
@@ -302,6 +356,11 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       originalRevisionId,
       activeRevisionId,
     });
+    assertOpenHistoryJournalMetadata({
+      historyJournalStoreId,
+      historyJournalId,
+      historyJournalPersistent,
+    });
 
     const previousSourceId = get().sourceId;
     if (
@@ -309,6 +368,18 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       && previousSourceId !== sourceId
     ) {
       releaseDocumentSource(previousSourceId);
+    }
+
+    const previousHistoryJournalStoreId =
+      get().historyJournalStoreId;
+    if (
+      previousHistoryJournalStoreId
+      && previousHistoryJournalStoreId
+        !== historyJournalStoreId
+    ) {
+      releaseHistoryJournalStore(
+        previousHistoryJournalStoreId,
+      );
     }
 
     const previousRevisionStoreId =
@@ -329,6 +400,9 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       revisionStoreId,
       originalRevisionId,
       activeRevisionId,
+      historyJournalStoreId,
+      historyJournalId,
+      historyJournalPersistent,
       fileName,
       originalBytes: bytes,
       workingBytes: bytes,
@@ -617,12 +691,18 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     releaseWorkingRevisionStore(
       get().revisionStoreId,
     );
+    releaseHistoryJournalStore(
+      get().historyJournalStoreId,
+    );
     return set({
       documentKey: null,
       sourceId: null,
       revisionStoreId: null,
       originalRevisionId: null,
       activeRevisionId: null,
+      historyJournalStoreId: null,
+      historyJournalId: null,
+      historyJournalPersistent: false,
       fileName: null,
       originalBytes: null,
       workingBytes: null,

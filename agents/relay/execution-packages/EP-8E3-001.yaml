@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E3-001",
+    "branch": "phase8/history-journal-manifest",
+    "base_ref": "b2d41ec3bb295c525f2f80e4504831e2ae18e179",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E2",
+    "previous_join": "b2d41ec3bb295c525f2f80e4504831e2ae18e179",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-journal-manifest",
+    "material_ref": "b2d41ec3bb295c525f2f80e4504831e2ae18e179",
+    "base_branch": "main",
+    "base_observed_ref": "b2d41ec3bb295c525f2f80e4504831e2ae18e179",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 238,
+  "outcome": {
+    "engineering": [
+      "A stable historyJournalId identifies one editing session independently of changing documentKey values.",
+      "A versioned journal manifest stores only reconstruction metadata and immutable revision references, never PDF byte snapshots.",
+      "Primary admission creates an ADMISSION checkpoint after initial revision publication and before session commit.",
+      "Browser metadata persistence prefers IndexedDB and records memory fallback as non-persistent."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Create durable recovery metadata before journal transaction append, replay, checkpoint pruning or revision GC.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.2 replayability policy.",
+    "why_this_work_exists": "Revision files are persistent but currently have no durable session/history manifest that identifies recovery roots or checkpoint boundaries.",
+    "deliberate_non_goals": [
+      "No command replay executor.",
+      "No transaction-entry append from production history yet.",
+      "No revision enumeration, pruning or garbage collection.",
+      "No recovery UI or automatic restore."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Journal manifests are versioned, byte-free, and reference one WorkingRevisionStore identity.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "IndexedDB and memory journal adapters implement the same clone-safe store contract with original-revision discovery.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Admission creates the initial checkpoint after revision publication, handles supersession cleanup, and commits journal identity to session state.",
+      "weight": 35,
+      "verification": ["TEST-03", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Session journal durability claims match the actual registered store capability and clear with the active document.",
+      "weight": 20,
+      "verification": ["TEST-03", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Manifest schema tests prove admission checkpoint construction, revision-store validation and clone isolation.",
+      "proves": ["AC-01"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Memory store and browser-selector tests prove clone-safe round-trip and persistent-to-memory fallback semantics.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Admission/session tests prove journal creation ordering, journal identity and lifecycle validation.",
+      "proves": ["AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e3 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.4 append durable transaction metadata and checkpoint barriers"
+  }
+}

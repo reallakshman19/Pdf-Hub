@@ -232,9 +232,21 @@ and split operations with artifact side effects require checkpoints.
 entry; `SPLIT_PAGES` is mutating and therefore cannot be treated as artifact-only.
 
 This classification is policy only. No command replay executor is enabled yet.
-Durable journal/checkpoint manifests, reference-aware revision GC and bounded
-recovery checkpoints remain follow-on work. Phase 8F owns incremental search
-indexing.
+
+Phase 8E.3 adds the durable journal-manifest substrate. Each admitted
+revision-aware document receives a stable `historyJournalId` distinct from the
+changing `documentKey`. After the initial immutable working revision is
+published, admission creates a versioned journal manifest with an `ADMISSION`
+checkpoint that references that revision. Journal metadata contains revision
+references and future replay/checkpoint metadata only; it must not contain PDF
+byte snapshots. Browser persistence prefers IndexedDB and falls back to memory,
+with the session recording whether the journal store is actually persistent.
+Stale/superseded admission removes its provisional journal manifest before
+returning.
+
+No transaction replay or revision deletion is enabled by this substrate.
+Appending transaction entries, reference-aware revision GC and bounded recovery
+checkpoints remain follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
