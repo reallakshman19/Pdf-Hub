@@ -72,6 +72,7 @@ describe('prepareHistoryJournalMutation', () => {
 
     expect(prepared?.manifest).toMatchObject({
       activeRevisionId: 'sha256:after',
+      activeTransactionId: 'tx-1',
       entries: [{
         transactionId: 'tx-1',
         disposition: 'SELF_CONTAINED_REPLAY',
@@ -165,6 +166,7 @@ describe('prepareHistoryJournalMutation', () => {
     expect(undone).not.toBeNull();
     if (!undone) return;
     undone.activeRevisionId = 'sha256:two';
+    undone.activeTransactionId = 'tx-1';
     await store.save(undone);
 
     const branched = await prepareHistoryJournalMutation({
