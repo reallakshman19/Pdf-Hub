@@ -104,6 +104,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label="Page numbers"
           onClick={() => {
             if (targetPageIds.length !== targetPages.length) return;
             handleCommand({
@@ -138,6 +139,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label="Header file name"
           onClick={() => {
             if (targetPageIds.length !== targetPages.length) return;
             handleCommand({
