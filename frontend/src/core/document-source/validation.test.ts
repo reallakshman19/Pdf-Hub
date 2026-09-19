@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DocumentSourceError } from './errors';
 import {
   assertDocumentSourceId,
   assertDocumentSourceReadRange,
@@ -9,11 +8,9 @@ import {
 
 describe('DocumentSource validation', () => {
   it('rejects empty source ids', () => {
-    expect(() => assertDocumentSourceId('   ')).toThrowError(
-      expect.objectContaining({
-        code: 'INVALID_SOURCE_ID',
-      }) as DocumentSourceError,
-    );
+    expect(() =>
+      assertDocumentSourceId('   '),
+    ).toThrowError(/must not be empty/);
   });
 
   it.each([-1, 1.25, Number.POSITIVE_INFINITY])(
@@ -22,9 +19,7 @@ describe('DocumentSource validation', () => {
       expect(() =>
         assertDocumentSourceSize('source', size),
       ).toThrowError(
-        expect.objectContaining({
-          code: 'INVALID_SOURCE_SIZE',
-        }) as DocumentSourceError,
+        /non-negative safe integer/,
       );
     },
   );
