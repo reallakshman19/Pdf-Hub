@@ -1,0 +1,100 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E2-001",
+    "branch": "phase8/history-replayability-policy",
+    "base_ref": "f531685439e83cc24163233ac7c2e27661e663d0",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E1",
+    "previous_join": "f531685439e83cc24163233ac7c2e27661e663d0",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-replayability-policy",
+    "material_ref": "f531685439e83cc24163233ac7c2e27661e663d0",
+    "base_branch": "main",
+    "base_observed_ref": "f531685439e83cc24163233ac7c2e27661e663d0",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 236,
+  "outcome": {
+    "engineering": [
+      "Every canonical PdfCommand has an explicit reconstruction disposition.",
+      "Checkpoint barriers identify exact donor, binary, state or runtime-context dependencies.",
+      "Artifact-only commands are excluded from future document reconstruction journals."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Define safe reconstruction boundaries before persisting any command replay journal.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged 8E.1 revision-backed history.",
+    "why_this_work_exists": "Serialized commands are JSON-safe but not uniformly self-contained; donor PDFs, working-copy binaries, image resources, descriptive state commands and runtime token context can make replay incomplete or non-deterministic.",
+    "deliberate_non_goals": [
+      "No journal replay executor.",
+      "No durable manifest.",
+      "No revision GC or pruning.",
+      "No command execution behavior changes."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "All PdfCommandType values are explicitly classified as SELF_CONTAINED_REPLAY, CHECKPOINT_REQUIRED or NON_MUTATING.",
+      "weight": 35,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Donor, binary and descriptive state commands produce machine-readable checkpoint barriers.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Header/footer and legacy text commands are classified conditionally when external binary/context inputs are actually referenced.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Extract/split artifact commands are marked NON_MUTATING and no replay executor is introduced.",
+      "weight": 15,
+      "verification": ["TEST-01", "TEST-02", "TEST-03"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Focused replayability.test.ts covers exhaustive dispositions and conditional barriers.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Static source review confirms no replay execution or revision deletion path is introduced.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e2 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.3 durable journal/checkpoint manifest"
+  }
+}
