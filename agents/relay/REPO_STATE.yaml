@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5B3C2B2A-001",
-    "path": "agents/relay/execution-packages/EP-8E5B3C2B2A-001.yaml",
+    "id": "EP-8E5B3C2B2B-001",
+    "path": "agents/relay/execution-packages/EP-8E5B3C2B2B-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-259",
+    "id": "PR-261",
     "path": null,
-    "merge_ref": "cea78c340ee4989213eb84f7561636e4c1ef31bb",
-    "note": "Phase 8E.5B3C2B1 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
+    "merge_ref": "91787e1311816d349fb377406c07c0f742f58434",
+    "note": "Phase 8E.5B3C2B2A merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.5B3C2B2A table drag coalescing, run cd frontend && pnpm run certify:phase8e5b3c2b2a when a runner is available, and keep issue #260 open until acceptance evidence is terminal."
+      "next_action": "Review Phase 8E.5B3C2B2B Writer Inspector coalescing, run cd frontend && pnpm run certify:phase8e5b3c2b2b when a runner is available, and keep issue #262 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,7 +78,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.5B3C2B2A makes Writer table resize pointermove transient-only and commits one durable resize on pointerup. Runner-executed evidence remains subject to #183.",
+      "summary": "Phase 8E.5B3C2B2B adds local draft/coalescing semantics for direct Inspector transform/style/callout controls and serializes durable commits against latest Writer state. Runner-executed evidence remains subject to #183.",
       "not_run": [
         {
           "id": "TEST-04",
@@ -102,14 +102,14 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5B3C2B2A-001",
+    "execution_ref": "EP-8E5B3C2B2B-001",
     "receipt": null,
     "basis": [
-      "Issue #260 tracks the active Writer table drag coalescing slice.",
-      "Inspector and table-properties high-frequency controls remain follow-on B2B/B2C work."
+      "Issue #262 tracks the active Writer Inspector coalescing slice.",
+      "Writer Table Properties remains the final high-frequency direct UI surface for B2C."
     ],
     "observed": {
-      "issue": 260
+      "issue": 262
     },
     "superseded_operations": []
   },
