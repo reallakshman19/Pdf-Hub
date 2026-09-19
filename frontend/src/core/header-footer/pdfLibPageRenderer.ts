@@ -9,31 +9,15 @@ import {
   type HeaderFooterVisualGeometry,
 } from './pdfWriterGeometry';
 import type { HeaderFooterPdfLibResources } from './pdfLibResources';
+import {
+  prepareHeaderFooterContent,
+  type PreparedHeaderFooterContent,
+} from './pdfLibContentPreparation';
 
 type PDFPage = import('pdf-lib').PDFPage;
-type PDFFont = import('pdf-lib').PDFFont;
-type PDFImage = import('pdf-lib').PDFImage;
 type PdfLibNs = Awaited<
   ReturnType<typeof import('@/core/pdf/lazyPdfLib').pdfLib>
 >;
-
-type PreparedContent =
-  | {
-      kind: 'text';
-      text: string;
-      font: PDFFont;
-      widthPt: number;
-      heightPt: number;
-      color: string;
-      opacity: number;
-    }
-  | {
-      kind: 'image';
-      image: PDFImage;
-      widthPt: number;
-      heightPt: number;
-      opacity: number;
-    };
 
 export async function renderResolvedHeaderFooterPage(
   page: PDFPage,
@@ -95,7 +79,7 @@ async function drawBand(
       )
       .map(async ([slot, content]) => ({
         slot,
-        prepared: await prepareContent(content, resources),
+        prepared: await prepareHeaderFooterContent(content, resources),
       })),
   );
 
@@ -116,7 +100,7 @@ async function drawBand(
   );
 
   for (const { slot, prepared } of entries) {
-    drawPreparedContent(
+    drawPreparedHeaderFooterContent(
       page,
       prepared,
       slot,
@@ -143,7 +127,7 @@ async function drawBand(
 async function prepareContent(
   content: ResolvedHeaderFooterContent,
   resources: HeaderFooterPdfLibResources,
-): Promise<PreparedContent> {
+): Promise<PreparedHeaderFooterContent> {
   if (content.kind === 'text') {
     const font = await resources.fontFor(content.style);
     return {
@@ -194,9 +178,9 @@ async function prepareContent(
   };
 }
 
-function drawPreparedContent(
+function drawPreparedHeaderFooterContent(
   page: PDFPage,
-  content: PreparedContent,
+  content: PreparedHeaderFooterContent,
   slot: 'left' | 'center' | 'right',
   bandKind: 'header' | 'footer',
   geometry: HeaderFooterVisualGeometry,
