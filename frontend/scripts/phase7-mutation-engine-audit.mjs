@@ -40,6 +40,9 @@ requireContains(contract, contractPath, [
   'removePages',
   'insertBlankPage',
   'duplicatePages',
+  'insertPdf',
+  'replacePage',
+  'appendPdfs',
   'commit()',
   'dispose()',
 ]);
@@ -63,6 +66,10 @@ requireContains(adapter, adapterPath, [
   'removePages',
   'insertBlankPage',
   'duplicatePages',
+  'insertPdf',
+  'replacePage',
+  'appendPdfs',
+  'loadDonor',
   'rebuildFromOrder',
   'this.document.save()',
   "type SessionState = 'open' | 'committed' | 'disposed'",
@@ -116,23 +123,32 @@ const structuralCommandTypes = [
   'DELETE_PAGES',
   'INSERT_BLANK_PAGE',
   'DUPLICATE_PAGES',
+  'INSERT_PAGES',
+  'REPLACE_PAGE',
+  'MERGE_PDF',
 ];
 
 requireContains(dispatch, dispatchPath, [
-  'usesStructuralMutationSession',
-  'requireStructuralMutationSession',
+  'usesPersistentMutationSession',
+  'requirePersistentMutationSession',
   'assertMutationSessionPageCount',
-  'structuralMutationSession?.dispose()',
+  'commandMutationSession?.dispose()',
   'mutationSession.reorderPages',
   'mutationSession.removePages',
   'mutationSession.insertBlankPage',
   'mutationSession.duplicatePages',
+  'mutationSession.insertPdf',
+  'mutationSession.replacePage',
+  'mutationSession.appendPdfs',
 ]);
 
 forbidContains(dispatch, dispatchPath, [
   'PdfEditAdapter.reorderPages',
   'PdfEditAdapter.insertBlankPage',
   'PdfEditAdapter.duplicatePages',
+  'PdfEditAdapter.insertAt',
+  'PdfEditAdapter.replacePage',
+  'PdfEditAdapter.merge',
 ]);
 
 for (const commandType of structuralCommandTypes) {
@@ -154,14 +170,28 @@ for (const commandType of structuralCommandTypes) {
   );
 
   requireContains(commandCase, dispatchPath, [
-    'requireStructuralMutationSession',
+    'requirePersistentMutationSession',
     'mutationSession.commit',
   ]);
 
-  if (commandType === 'DELETE_PAGES') {
+  const requiredMutationCall = {
+    REORDER_PAGES: 'mutationSession.reorderPages',
+    REORDER_PAGES_BY_ORDER: 'mutationSession.reorderPages',
+    DELETE_PAGES: 'mutationSession.removePages',
+    INSERT_BLANK_PAGE: 'mutationSession.insertBlankPage',
+    DUPLICATE_PAGES: 'mutationSession.duplicatePages',
+    INSERT_PAGES: 'mutationSession.insertPdf',
+    REPLACE_PAGE: 'mutationSession.replacePage',
+    MERGE_PDF: 'mutationSession.appendPdfs',
+  }[commandType];
+
+  if (requiredMutationCall) {
     requireContains(commandCase, dispatchPath, [
-      'mutationSession.removePages',
+      requiredMutationCall,
     ]);
+  }
+
+  if (commandType === 'DELETE_PAGES') {
     forbidContains(commandCase, dispatchPath, [
       'PdfEditAdapter.removePages',
     ]);
@@ -195,7 +225,11 @@ requireContains(engineTest, engineTestPath, [
   'session.duplicatePages',
   'session.removePages',
   'session.insertBlankPage',
+  'session.insertPdf',
+  'session.appendPdfs',
+  'session.replacePage',
   'session.commit',
+  'loadSpy).toHaveBeenCalledTimes(4)',
 ]);
 
 if (failed) {
@@ -203,5 +237,5 @@ if (failed) {
 }
 
 console.log(
-  '[phase7-mutation-engine] contract, rotation/structural sessions, and single-parse guards passed',
+  '[phase7-mutation-engine] rotation, structural, donor-session, and parse-scope guards passed',
 );
