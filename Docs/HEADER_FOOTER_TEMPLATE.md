@@ -1,6 +1,6 @@
 # Header/Footer Template Contract
 
-Status: **Phase 6A–6F canonical domain, writer, professional editor and printed-numbering preset contract**.
+Status: **Phase 6A–6G canonical domain, writer, professional editor, presets and Automate/headless contract**.
 
 Tracking issue: #200.
 
@@ -362,6 +362,49 @@ The Phase 6F acceptance test covers:
 
 and verifies the PageGraph logical labels and canonical PageLabel ranges remain
 unchanged after resolution.
+
+## Automate and headless API
+
+Phase 6G exposes the professional template through the same canonical command
+contract outside the Organize toolbar.
+
+### Automate
+
+Automate has a focused **Header & Footer** quick task that reuses the same
+`HeaderFooterDialog`. Apply materializes exactly:
+
+```ts
+APPLY_HEADER_FOOTER_TEMPLATE {
+  template: HeaderFooterTemplate
+}
+```
+
+with command source `macro-runner`. Image bytes, when present, are supplied
+only through `CommandResources.binaries`.
+
+This quick task does not create or execute a MacroStep. In particular, Phase
+6G does not add a new `header_footer_template` macro operation.
+
+### Headless API
+
+`executeHeadlessPdfCommand(...)` accepts the canonical
+`APPLY_HEADER_FOOTER_TEMPLATE` draft in addition to `SET_PAGE_LABELS`.
+It inspects the exact source bytes to obtain the PageGraph, materializes and
+validates the canonical command, then delegates to
+`executeHeaderFooterTemplateMutation(...)`.
+
+Headless callers may provide:
+
+- `fileName` for filename tokens
+- `createdAt` for deterministic date/time resolution
+- `binaryResources` for image resource IDs
+- `abortSignal` for cancellation
+
+Raw binary resources remain out-of-band from the command payload.
+
+The legacy Macro DSL operation `header_footer_text` remains readable and
+executable only as a compatibility path until the explicit Phase 6H migration.
+New Automate/headless work must use the canonical template command.
 
 ## Legacy compatibility
 
