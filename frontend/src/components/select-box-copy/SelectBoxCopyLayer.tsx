@@ -128,6 +128,11 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     revisionStoreId,
     originalRevisionId,
     activeRevisionId,
+    pageNumber,
+    viewport.pdfWidth,
+    viewport.pdfHeight,
+    viewport.scale,
+    viewport.rotation,
   ]);
 
   if (activeWriterTool !== 'selectBoxCopy') {
