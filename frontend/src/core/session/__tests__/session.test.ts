@@ -1,10 +1,16 @@
 import { beforeEach, describe, it, expect } from 'vitest';
 import { MemorySource } from '@/adapters/document-source/MemorySource';
+import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
 import {
   clearDocumentSourceRegistryForTests,
   registerDocumentSource,
   resolveDocumentSource,
 } from '@/core/document-source/registry';
+import {
+  clearWorkingRevisionStoreRegistryForTests,
+  registerWorkingRevisionStore,
+  resolveWorkingRevisionStore,
+} from '@/core/revision-store/registry';
 import { useSessionStore } from '../store';
 
 function graph(ids: string[], documentKey = 'doc-nav') {
@@ -25,6 +31,7 @@ describe('Session Store', () => {
   beforeEach(() => {
     useSessionStore.getState().clearDocument();
     clearDocumentSourceRegistryForTests();
+    clearWorkingRevisionStoreRegistryForTests();
   });
   it('tracks dirty states and save actions', () => {
     const store = useSessionStore.getState();
@@ -394,6 +401,126 @@ describe('Session Store', () => {
     expect(useSessionStore.getState().viewState.currentPageId).toBeNull();
   });
 
+
+  it('tracks registered immutable revision identity across working-copy changes', () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'session-revisions',
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'sha256:initial',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'sha256:initial',
+      activeRevisionId: 'sha256:initial',
+      fileName: 'revision-aware.pdf',
+      bytes: Uint8Array.from([1, 2, 3]),
+      pageCount: 1,
+    });
+
+    expect(useSessionStore.getState()).toMatchObject({
+      revisionStoreId: 'session-revisions',
+      originalRevisionId: 'sha256:initial',
+      activeRevisionId: 'sha256:initial',
+    });
+
+    useSessionStore.getState().replaceWorkingCopy(
+      Uint8Array.from([4, 5, 6]),
+      1,
+    );
+
+    expect(useSessionStore.getState()).toMatchObject({
+      originalRevisionId: 'sha256:initial',
+      activeRevisionId: null,
+    });
+
+    useSessionStore.getState().commitWorkingCopy({
+      bytes: Uint8Array.from([7, 8, 9]),
+      pageCount: 1,
+      documentKey: 'sha256:saved',
+      activeRevisionId: 'sha256:saved',
+    });
+
+    expect(useSessionStore.getState()).toMatchObject({
+      documentKey: 'sha256:saved',
+      originalRevisionId: 'sha256:initial',
+      activeRevisionId: 'sha256:saved',
+    });
+  });
+
+  it('rejects incomplete, unregistered or stale revision metadata', () => {
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'sha256:one',
+        revisionStoreId: 'missing-store',
+        originalRevisionId: 'sha256:one',
+        activeRevisionId: 'sha256:one',
+        fileName: 'missing.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/revisionStoreId .* not registered/);
+
+    const revisionStore = new MemoryRevisionStore({
+      id: 'registered-store',
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'sha256:one',
+        revisionStoreId: revisionStore.id,
+        originalRevisionId: 'sha256:one',
+        fileName: 'partial.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/must provide revisionStoreId, originalRevisionId and activeRevisionId together/);
+
+    expect(() =>
+      useSessionStore.getState().openDocument({
+        documentKey: 'sha256:one',
+        revisionStoreId: revisionStore.id,
+        originalRevisionId: 'sha256:one',
+        activeRevisionId: 'sha256:other',
+        fileName: 'stale.pdf',
+        bytes: Uint8Array.from([1]),
+        pageCount: 1,
+      }),
+    ).toThrow(/activeRevisionId .* must match documentKey/);
+  });
+
+  it('releases the process-local revision store reference on clear', () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'clear-revisions',
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'sha256:clear',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'sha256:clear',
+      activeRevisionId: 'sha256:clear',
+      fileName: 'clear.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    expect(
+      resolveWorkingRevisionStore(revisionStore.id),
+    ).toBe(revisionStore);
+
+    useSessionStore.getState().clearDocument();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      revisionStoreId: null,
+      originalRevisionId: null,
+      activeRevisionId: null,
+    });
+    expect(
+      resolveWorkingRevisionStore(revisionStore.id),
+    ).toBeNull();
+  });
 
   it('retains only sourceId in session state and releases it on clear', () => {
     const source = new MemorySource({
