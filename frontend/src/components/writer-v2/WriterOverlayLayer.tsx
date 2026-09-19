@@ -6,6 +6,9 @@ import {
 } from '@/core/writer-v2/coordinateTransform';
 import { getVisibleWriterElements } from '@/core/writer-v2/writerCommandStore';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
 import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlacement';
 import { shouldWriterOverlayCapturePlacement } from '@/core/writer-v2/writerToolPolicy';
 import { useSessionStore } from '@/core/session/store';
@@ -88,12 +91,14 @@ export const WriterOverlayLayer: React.FC<WriterOverlayLayerProps> = ({
 
     if (!element) return;
 
-    dispatchWriterCommand({
-      type: 'ADD_WRITER_ELEMENT',
-      element,
-    });
-
     setActiveWriterTool('select');
+    void dispatchDurableWriterUiCommand(
+      {
+        type: 'ADD_WRITER_ELEMENT',
+        element,
+      },
+      'WriterOverlayLayer placement',
+    ).catch(() => undefined);
   };
 
   return (
