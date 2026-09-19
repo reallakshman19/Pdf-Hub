@@ -671,11 +671,20 @@ export async function dispatchPdfCommand(
               nextPageGraph,
             )
           : undefined;
-        const reorderedBytes = await PdfEditAdapter.reorderPages(context.workingBytes, order);
+        const mutationSession =
+          requireStructuralMutationSession(
+            structuralMutationSession,
+          );
+        await mutationSession.reorderPages(order);
+        const committed = await mutationSession.commit();
+        assertMutationSessionPageCount(
+          committed.pageCount,
+          nextPageGraph,
+        );
         const nextBytes = await synchronizeStructuralPageLabels(
           pageGraph,
           nextPageGraph,
-          reorderedBytes,
+          committed.bytes,
           input.signal,
         );
         const result = await applyMutation(
