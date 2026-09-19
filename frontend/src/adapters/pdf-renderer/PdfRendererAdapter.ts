@@ -4,6 +4,7 @@ import {
   GlobalWorkerOptions,
   type PageViewport,
   Util,
+  type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
   type PDFPageProxy,
 } from 'pdfjs-dist';
@@ -14,6 +15,11 @@ import {
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
+import type { DocumentSource } from '@/core/document-source/types';
+import {
+  PdfJsDocumentSourceTransport,
+  type PdfJsRangeTransportDiagnostics,
+} from './PdfJsDocumentSourceTransport';
 import type { RenderToken } from './types';
 
 export interface RenderedPage {
@@ -79,12 +85,31 @@ export interface PdfDocumentCacheDiagnostics {
   maxEntries: number;
 }
 
+export interface AcquirePdfDocumentSourceInput {
+  readonly source: DocumentSource;
+  readonly cacheKey: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface PdfDocumentSourceCacheDiagnostics
+  extends PdfJsRangeTransportDiagnostics {
+  readonly cacheKey: string;
+  readonly activeLeases: number;
+  readonly loaded: boolean;
+}
+
 interface PdfDocumentCacheEntry {
+  /** Internal cache namespace; source entries are isolated from byte entries. */
   key: string;
+  /** Content/revision identity exposed to callers. */
+  publicKey: string;
   docPromise: Promise<PDFDocumentProxy>;
   doc: PDFDocumentProxy | null;
+  loadingTask: PDFDocumentLoadingTask | null;
+  sourceTransport: PdfJsDocumentSourceTransport | null;
   refCount: number;
   lastUsed: number;
+  destroyed: boolean;
 }
 
 function isTransformItem(
@@ -160,12 +185,17 @@ export class PdfRendererAdapter {
   ): PdfDocumentCacheEntry {
     const entry: PdfDocumentCacheEntry = {
       key,
+      publicKey: key,
       docPromise: Promise.resolve(null as unknown as PDFDocumentProxy),
       doc: null,
+      loadingTask: null,
+      sourceTransport: null,
       refCount: 0,
       lastUsed: ++this.accessCounter,
+      destroyed: false,
     };
     const task = getDocument({ data: clonePdfBytes(buffer) });
+    entry.loadingTask = task;
     entry.docPromise = task.promise
       .then((doc) => {
         entry.doc = doc;
@@ -182,15 +212,99 @@ export class PdfRendererAdapter {
     return entry;
   }
 
+  private static createSourceCacheEntry(
+    publicKey: string,
+    source: DocumentSource,
+    size: number,
+  ): PdfDocumentCacheEntry {
+    const key = this.sourceCacheKey(publicKey);
+    let rejectFatal!: (error: Error) => void;
+    const fatalPromise = new Promise<never>((_resolve, reject) => {
+      rejectFatal = reject;
+    });
+    let task: PDFDocumentLoadingTask | null = null;
+    let entry!: PdfDocumentCacheEntry;
+
+    const transport = new PdfJsDocumentSourceTransport({
+      source,
+      size,
+      onFatalError: (fatalError) => {
+        if (this.documentCache.get(key) === entry) {
+          this.documentCache.delete(key);
+        }
+        rejectFatal(fatalError);
+        if (task) {
+          void task.destroy().catch(() => undefined);
+        }
+        error('pdf-renderer', 'PDF.js DocumentSource range load failed', {
+          cacheKey: publicKey,
+          sourceId: source.id,
+          sourceKind: source.kind,
+          error: fatalError.message,
+        });
+      },
+    });
+
+    entry = {
+      key,
+      publicKey,
+      docPromise: Promise.resolve(null as unknown as PDFDocumentProxy),
+      doc: null,
+      loadingTask: null,
+      sourceTransport: transport,
+      refCount: 0,
+      lastUsed: ++this.accessCounter,
+      destroyed: false,
+    };
+
+    task = getDocument({
+      range: transport,
+      rangeChunkSize: 64 * 1024,
+      disableRange: false,
+      disableStream: true,
+      disableAutoFetch: true,
+    });
+    entry.loadingTask = task;
+    void task.promise.catch(() => undefined);
+    entry.docPromise = Promise.race([
+      task.promise,
+      fatalPromise,
+    ])
+      .then((doc) => {
+        entry.doc = doc;
+        return doc;
+      })
+      .catch((loadError) => {
+        if (this.documentCache.get(key) === entry) {
+          this.documentCache.delete(key);
+        }
+        throw loadError;
+      });
+    void entry.docPromise.catch(() => undefined);
+    this.documentCache.set(key, entry);
+    return entry;
+  }
+
+  private static sourceCacheKey(publicKey: string): string {
+    return `source:${publicKey}`;
+  }
+
   private static async destroyEntry(entry: PdfDocumentCacheEntry): Promise<void> {
-    const doc = entry.doc ?? await entry.docPromise.catch(() => null);
-    if (!doc) return;
+    if (entry.destroyed) return;
+    entry.destroyed = true;
+    entry.sourceTransport?.abort();
 
     try {
-      await doc.destroy();
+      if (entry.doc) {
+        await entry.doc.destroy();
+        return;
+      }
+      if (entry.loadingTask) {
+        await entry.loadingTask.destroy();
+      }
     } catch (destroyError) {
       error('pdf-renderer', 'Failed to destroy cached PDF document', {
-        cacheKey: entry.key,
+        cacheKey: entry.publicKey,
         error: String(destroyError),
       });
     }
@@ -212,34 +326,112 @@ export class PdfRendererAdapter {
     buffer: Uint8Array | ArrayBuffer,
   ): Promise<PdfDocumentLease> {
     const key = await this.keyForBuffer(buffer);
-    const entry = this.documentCache.get(key) ?? this.createCacheEntry(key, buffer);
+    const entry = this.documentCache.get(key)
+      ?? this.createCacheEntry(key, buffer);
+    return this.acquireEntry(entry);
+  }
+
+  static async acquireDocumentSource(
+    input: AcquirePdfDocumentSourceInput,
+  ): Promise<PdfDocumentLease> {
+    const publicKey = input.cacheKey.trim();
+    if (!publicKey) {
+      throw new Error(
+        'PDF.js DocumentSource cacheKey must not be empty.',
+      );
+    }
+
+    throwIfAborted(
+      input.signal,
+      'acquire PDF.js DocumentSource',
+    );
+
+    const key = this.sourceCacheKey(publicKey);
+    let entry = this.documentCache.get(key);
+    if (!entry) {
+      const size = await raceWithAbort(
+        input.source.size(),
+        input.signal,
+        'inspect PDF.js DocumentSource size',
+      );
+      throwIfAborted(
+        input.signal,
+        'create PDF.js DocumentSource transport',
+      );
+      entry = this.documentCache.get(key)
+        ?? this.createSourceCacheEntry(
+          publicKey,
+          input.source,
+          size,
+        );
+    }
+
+    return this.acquireEntry(entry, input.signal);
+  }
+
+  private static async acquireEntry(
+    entry: PdfDocumentCacheEntry,
+    signal?: AbortSignal,
+  ): Promise<PdfDocumentLease> {
     entry.refCount += 1;
     entry.lastUsed = ++this.accessCounter;
 
     try {
-      const doc = await entry.docPromise;
+      const doc = signal
+        ? await raceWithAbort(
+            entry.docPromise,
+            signal,
+            `load PDF document ${entry.publicKey}`,
+          )
+        : await entry.docPromise;
       await this.evictIdleDocuments();
       let released = false;
 
       return {
         doc,
-        cacheKey: key,
+        cacheKey: entry.publicKey,
         release: async () => {
           if (released) return;
           released = true;
 
-          if (this.documentCache.get(key) !== entry) return;
-          entry.refCount = Math.max(0, entry.refCount - 1);
+          if (
+            this.documentCache.get(entry.key)
+            !== entry
+          ) {
+            return;
+          }
+          entry.refCount = Math.max(
+            0,
+            entry.refCount - 1,
+          );
           entry.lastUsed = ++this.accessCounter;
           await this.evictIdleDocuments();
         },
       };
     } catch (loadError) {
-      entry.refCount = Math.max(0, entry.refCount - 1);
-      if (this.documentCache.get(key) === entry) {
-        this.documentCache.delete(key);
+      entry.refCount = Math.max(
+        0,
+        entry.refCount - 1,
+      );
+
+      if (
+        isOperationCancelledError(loadError)
+        && signal?.aborted
+      ) {
+        throw loadError;
       }
-      error('pdf-renderer', 'Failed to load document', { error: String(loadError) });
+
+      if (
+        this.documentCache.get(entry.key)
+        === entry
+      ) {
+        this.documentCache.delete(entry.key);
+      }
+      await this.destroyEntry(entry);
+      error('pdf-renderer', 'Failed to load document', {
+        cacheKey: entry.publicKey,
+        error: String(loadError),
+      });
       throw loadError;
     }
   }
@@ -252,6 +444,20 @@ export class PdfRendererAdapter {
       idleEntries: entries.filter((entry) => entry.refCount === 0).length,
       maxEntries: this.MAX_CACHED_DOCUMENTS,
     };
+  }
+
+  static getDocumentSourceCacheDiagnostics(): PdfDocumentSourceCacheDiagnostics[] {
+    return Array.from(this.documentCache.values())
+      .flatMap((entry) => {
+        const transport = entry.sourceTransport;
+        if (!transport) return [];
+        return [{
+          cacheKey: entry.publicKey,
+          activeLeases: entry.refCount,
+          loaded: entry.doc !== null,
+          ...transport.getDiagnostics(),
+        }];
+      });
   }
 
   static async clearDocumentCache(options: { force?: boolean } = {}): Promise<void> {
