@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getDocument } from 'pdfjs-dist';
 import {
   PDFArray,
   PDFDict,
@@ -321,6 +322,90 @@ describe('PdfLibMutationEngine', () => {
 Donor page index 9/);
 
     session.dispose();
+  });
+
+
+  it('draws text and visual masks without reparsing the active revision', async () => {
+    const bytes = await createPdf();
+    const loadSpy = vi.spyOn(PDFDocument, 'load');
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes });
+
+    await session.drawText([
+      {
+        pageIndex: 0,
+        text: 'SESSION TEXT',
+        xPt: 40,
+        yPt: 100,
+        fontSizePt: 12,
+        color: '#112233',
+        opacity: 0.9,
+        align: 'left',
+      },
+      {
+        pageIndex: 1,
+        text: 'CENTERED',
+        xPt: 20,
+        yPt: 80,
+        fontSizePt: 10,
+        color: '#000000',
+        opacity: 1,
+        align: 'center',
+        rotationDegrees: 90,
+      },
+    ]);
+    session.drawVisualMasks([
+      {
+        pageIndex: 0,
+        xPt: 30,
+        yFromTopPt: 40,
+        widthPt: 90,
+        heightPt: 20,
+        fillColor: '#ffffff',
+      },
+    ]);
+
+    const committed = await session.commit();
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(committed.pageCount).toBe(3);
+    loadSpy.mockRestore();
+    session.dispose();
+
+    const pdf = await getDocument({
+      data: committed.bytes.slice(),
+    }).promise;
+    try {
+      const first = await pdf.getPage(1);
+      const firstText = await first.getTextContent();
+      expect(
+        firstText.items
+          .flatMap((item) =>
+            'str' in item && typeof item.str === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' '),
+      ).toContain('SESSION TEXT');
+
+      const second = await pdf.getPage(2);
+      const secondText = await second.getTextContent();
+      expect(
+        secondText.items
+          .flatMap((item) =>
+            'str' in item && typeof item.str === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' '),
+      ).toContain('CENTERED');
+
+      first.cleanup();
+      second.cleanup();
+    } finally {
+      await pdf.destroy();
+    }
   });
 
 });
