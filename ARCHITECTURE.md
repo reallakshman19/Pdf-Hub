@@ -124,13 +124,15 @@ The current implementation does **not yet satisfy this target**. See `Docs/SAVE_
 
 `DocumentSession` currently stores original and working PDF bytes as `Uint8Array`.
 
-Page mutations are dispatched through `core/commands/dispatch.ts` into `PdfEditAdapter`, with document transactions coordinating PDF bytes, annotations and history.
+Canonical PDF mutations are dispatched through `core/commands/dispatch.ts` into the engine-neutral `PdfMutationEngine` / transaction-local `PdfMutationSession`. `PdfLibMutationEngine` is the current implementation. Legacy `PdfEditAdapter` helpers remain for compatibility and artifact-producing paths that have not yet migrated.
+
+Document transactions still coordinate committed PDF bytes, PageGraph state, annotations, Writer, OCR and history above the engine boundary.
 
 Current limitations:
-- page identity is primarily index/number based;
 - document history retains whole-PDF byte snapshots under a byte budget;
-- several subsystems retain their own undo/history mechanisms;
-- many structural operations load/rewrite the complete PDF.
+- the transaction prepare stage still reparses before/after PDF bytes for page-count validation;
+- several compatibility/artifact paths still use `PdfEditAdapter`;
+- many structural mutations still rebuild or save the complete PDF even though they now reuse one parsed active revision inside the mutation session.
 
 These are migration targets, not desired long-term architecture.
 
