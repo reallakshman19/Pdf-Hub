@@ -159,7 +159,7 @@ export class PdfDocumentLeaseCache {
   }
 
   getSourceDiagnostics():
-  PdfDocumentSourceCacheDiagnostics[] {
+    PdfDocumentSourceCacheDiagnostics[] {
     return Array.from(this.documentCache.values())
       .flatMap((entry) => {
         const transport = entry.sourceTransport;
@@ -318,6 +318,9 @@ export class PdfDocumentLeaseCache {
     const tracked = promise
       .then((doc) => {
         entry.doc = doc;
+        if (entry.refCount === 0) {
+          void this.evictIdleDocuments();
+        }
         return doc;
       })
       .catch((loadError) => {
@@ -408,7 +411,7 @@ export class PdfDocumentLeaseCache {
   }
 
   private async evictIdleDocuments():
-  Promise<void> {
+    Promise<void> {
     while (
       this.documentCache.size
       > PdfDocumentLeaseCache.MAX_CACHED_DOCUMENTS
