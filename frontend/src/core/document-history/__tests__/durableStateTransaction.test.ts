@@ -6,6 +6,9 @@ import {
   materializePdfCommand,
 } from '@/core/commands/types';
 import {
+  resetDocumentOperationQueueForTests,
+} from '@/core/commands/documentOperationQueue';
+import {
   clearHistoryJournalStoreRegistryForTests,
   registerHistoryJournalStore,
 } from '../journal/registry';
@@ -32,7 +35,7 @@ function state(
     annotations: annotationText
       ? [{
           id: 'annotation-1',
-          type: 'text',
+          type: 'textbox',
           pageNumber: 1,
           rect: {
             x: 10,
@@ -76,6 +79,7 @@ function command() {
 
 describe('commitDurableStateTransaction', () => {
   beforeEach(() => {
+    resetDocumentOperationQueueForTests();
     useHistoryStore.getState().clear();
     useSessionStore.getState().clearDocument();
     clearWorkingRevisionStoreRegistryForTests();
