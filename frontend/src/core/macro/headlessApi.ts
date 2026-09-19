@@ -11,6 +11,7 @@ import {
 } from '@/core/commands/types';
 import { validateCommand } from '@/core/commands/validators';
 import { executePageLabelCommandMutation } from '@/core/commands/pageLabelCommand';
+import { executeHeaderFooterTemplateMutation } from '@/core/header-footer/executeMutation';
 import { raceWithAbort } from '@/core/cancellation/operationCancellation';
 import { macroValidator } from './validator';
 import {
@@ -26,6 +27,9 @@ export interface HeadlessMacroOptions {
 
 export interface HeadlessCommandOptions {
   abortSignal?: AbortSignal;
+  fileName?: string;
+  binaryResources?: Readonly<Record<string, Uint8Array>>;
+  createdAt?: string;
 }
 
 export interface HeadlessDocumentInspection {
@@ -35,7 +39,11 @@ export interface HeadlessDocumentInspection {
 
 export type HeadlessSupportedPdfCommandDraft = Extract<
   PdfCommandDraft,
-  { type: 'SET_PAGE_LABELS' }
+  {
+    type:
+      | 'SET_PAGE_LABELS'
+      | 'APPLY_HEADER_FOOTER_TEMPLATE';
+  }
 >;
 
 /**
@@ -60,11 +68,11 @@ export async function inspectHeadlessPdfDocument(
 }
 
 /**
- * Executes the same canonical SET_PAGE_LABELS draft used by session/UI code.
+ * Executes supported canonical PDF command drafts against exact source bytes.
  *
- * Call inspectHeadlessPdfDocument() first to obtain PageIds for the exact
- * source bytes. Re-inspect after a successful mutation because the byte hash
- * (documentKey) changes.
+ * Call inspectHeadlessPdfDocument() first when constructing PageId-anchored
+ * selectors. Re-inspect after a successful mutation because the byte hash
+ * (documentKey) changes. Binary assets remain out-of-band in options.
  */
 export async function executeHeadlessPdfCommand(
   basePdfBytes: Uint8Array,
@@ -76,6 +84,7 @@ export async function executeHeadlessPdfCommand(
     draft,
     'api',
     inspection.documentKey,
+    options.createdAt ? { createdAt: options.createdAt } : undefined,
   );
   const validation = validateCommand(command);
   if (!validation.ok) {
@@ -84,19 +93,47 @@ export async function executeHeadlessPdfCommand(
     );
   }
 
-  const mutation = await executePageLabelCommandMutation(
-    basePdfBytes,
-    inspection.pageGraph,
-    command.payload.ranges,
-    options.abortSignal,
-  );
-  if (!mutation.ok) {
-    throw new Error(
-      `Invalid PageLabel ranges: ${mutation.errors.join('; ')}`,
-    );
-  }
+  switch (command.type) {
+    case 'SET_PAGE_LABELS': {
+      const mutation = await executePageLabelCommandMutation(
+        basePdfBytes,
+        inspection.pageGraph,
+        command.payload.ranges,
+        options.abortSignal,
+      );
+      if (!mutation.ok) {
+        throw new Error(
+          `Invalid PageLabel ranges: ${mutation.errors.join('; ')}`,
+        );
+      }
+      return mutation.bytes;
+    }
 
-  return mutation.bytes;
+    case 'APPLY_HEADER_FOOTER_TEMPLATE': {
+      const mutation = await executeHeaderFooterTemplateMutation(
+        basePdfBytes,
+        inspection.pageGraph,
+        command.payload.template,
+        {
+          fileName: options.fileName ?? 'headless.pdf',
+          now: new Date(command.createdAt),
+        },
+        options.binaryResources,
+        options.abortSignal,
+      );
+      if (!mutation.ok) {
+        throw new Error(
+          `Invalid header/footer template: ${mutation.errors.join('; ')}`,
+        );
+      }
+      return mutation.bytes;
+    }
+
+    default:
+      throw new Error(
+        `Unsupported headless PDF command: ${command.type}`,
+      );
+  }
 }
 
 export async function executeHeadlessMacro(

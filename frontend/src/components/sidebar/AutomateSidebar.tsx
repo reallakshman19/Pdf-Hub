@@ -40,6 +40,7 @@ import { downloadBlob } from '@/core/document/download';
 import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
 import { MacroBatchRunPanel } from '@/components/macro/advanced/MacroBatchRunPanel';
 import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
+import { AutomateHeaderFooterQuickAction } from './automate/AutomateHeaderFooterQuickAction';
 import {
   MacroOutputQueue,
   type MacroOutputQueueItem,
@@ -318,6 +319,22 @@ export const AutomateSidebar: React.FC = () => {
       <div className="flex-1 overflow-auto p-3">
         {tab === 'quick' ? (
           <>
+            <AutomateHeaderFooterQuickAction
+              disabled={
+                !workingBytes
+                || !pageGraph
+                || runningRecipeId !== null
+                || generationBusy
+                || batchBusy
+                || specializedOpen
+              }
+              documentKey={documentKey}
+              fileName={fileName}
+              pageGraph={pageGraph}
+              currentPageId={currentPageId}
+              selectedPageIds={selectedPageIds}
+            />
+
             <PageLabelsQuickAction
               disabled={
                 !workingBytes

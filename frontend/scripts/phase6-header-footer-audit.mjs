@@ -313,6 +313,87 @@ if (
   );
 }
 
+const automateHeaderFooterPath =
+  'src/components/sidebar/automate/AutomateHeaderFooterQuickAction.tsx';
+const automateHeaderFooter = read(automateHeaderFooterPath);
+requireContains(automateHeaderFooter, automateHeaderFooterPath, [
+  'automate-header-footer',
+  'HeaderFooterDialog',
+  "type: 'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'payload: { template }',
+  "'macro-runner'",
+  'binaries: binaryResources',
+  'Logical PageLabels are unchanged',
+]);
+forbidContains(automateHeaderFooter, automateHeaderFooterPath, [
+  'ADD_HEADER_FOOTER_TEXT',
+  'header_footer_text',
+  'PdfEditAdapter',
+  "'pdf-lib'",
+  '"pdf-lib"',
+  'MacroStep',
+]);
+if (automateHeaderFooter.split('\n').length > 300) {
+  fail('Automate header/footer task exceeds the Phase 6 300-line component guard');
+}
+
+const automateSidebarPath = 'src/components/sidebar/AutomateSidebar.tsx';
+const automateSidebar = read(automateSidebarPath);
+requireContains(automateSidebar, automateSidebarPath, [
+  'AutomateHeaderFooterQuickAction',
+]);
+
+const headlessApiPath = 'src/core/macro/headlessApi.ts';
+const headlessApi = read(headlessApiPath);
+requireContains(headlessApi, headlessApiPath, [
+  'HeadlessSupportedPdfCommandDraft',
+  "'SET_PAGE_LABELS'",
+  "'APPLY_HEADER_FOOTER_TEMPLATE'",
+  'executeHeaderFooterTemplateMutation',
+  'options.binaryResources',
+  "fileName: options.fileName ?? 'headless.pdf'",
+  "now: new Date(command.createdAt)",
+]);
+const headlessCommandStart = headlessApi.indexOf(
+  'export async function executeHeadlessPdfCommand',
+);
+const headlessMacroStart = headlessApi.indexOf(
+  'export async function executeHeadlessMacro',
+  headlessCommandStart,
+);
+if (headlessCommandStart < 0 || headlessMacroStart <= headlessCommandStart) {
+  fail('Headless canonical command boundary is missing');
+} else {
+  forbidContains(
+    headlessApi.slice(headlessCommandStart, headlessMacroStart),
+    headlessApiPath,
+    [
+      'header_footer_text',
+      'ADD_HEADER_FOOTER_TEXT',
+      'PdfEditAdapter',
+      'executeMacroRecipe',
+    ],
+  );
+}
+
+const macroTypesPath = 'src/core/macro/types.ts';
+const macroTypes = read(macroTypesPath);
+if (
+  macroTypes.includes("op: 'header_footer_template'")
+  || macroTypes.includes('op: "header_footer_template"')
+  || macroTypes.includes("op: 'apply_header_footer_template'")
+  || macroTypes.includes('op: "apply_header_footer_template"')
+) {
+  fail(
+    'Phase 6G must not introduce a parallel macro-specific header/footer template operation',
+  );
+}
+if (!macroTypes.includes("op: 'header_footer_text'")) {
+  fail(
+    'Phase 6G must retain legacy header_footer_text until the explicit 6H migration slice',
+  );
+}
+
 const pageTypesPath = 'src/core/pages/types.ts';
 const pageTypes = read(pageTypesPath);
 const pageLabelStyleDeclarations =

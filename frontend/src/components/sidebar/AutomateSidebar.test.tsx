@@ -91,6 +91,7 @@ describe('AutomateSidebar', () => {
     render(<AutomateSidebar />);
 
     expect(screen.getByTestId('automate-quick-actions')).toBeInTheDocument();
+    expect(screen.getByTestId('automate-header-footer')).toBeInTheDocument();
     expect(screen.getByText('Footer Page Numbers')).toBeInTheDocument();
     expect(screen.getByText('Rotate Selected Pages 90°')).toBeInTheDocument();
 
@@ -103,6 +104,21 @@ describe('AutomateSidebar', () => {
     expect(screen.queryByText('Advanced macro tools')).toBeNull();
     expect(screen.queryByText('Macro Panel')).toBeNull();
     expect(screen.queryByText('Built-ins')).toBeNull();
+  });
+
+  it('opens the professional Header & Footer editor from Automate without a macro recipe', () => {
+    render(<AutomateSidebar />);
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Configure printed content',
+      }),
+    );
+
+    expect(
+      screen.getByRole('dialog', { name: 'Header & Footer' }),
+    ).toBeInTheDocument();
+    expect(runMock).not.toHaveBeenCalled();
   });
 
   it('configures logical Page Labels through the canonical command bus', async () => {
