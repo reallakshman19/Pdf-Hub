@@ -19,7 +19,7 @@
       "generatorId": "native-text-basic",
       "baseline": [
         {
-          "structure": "pages/text",
+          "structure": "pages-text",
           "expected": "Two pages with extractable Helvetica text and stable page count/geometry."
         }
       ],
@@ -29,7 +29,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (rotate).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -39,7 +39,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (reorder).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -49,7 +49,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (delete).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -59,7 +59,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (duplicate).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -69,7 +69,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -79,7 +79,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -89,7 +89,7 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (donor-append).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -99,12 +99,15 @@
           "rationale": "Page-only content/resources and page count/geometry must remain semantically readable for this baseline (save-export).",
           "expectedStructures": [
             {
-              "structure": "pages/text",
+              "structure": "pages-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "pages-text"
+      ]
     },
     {
       "id": "scanned-image-only",
@@ -123,7 +126,7 @@
       "generatorId": "scanned-image-only",
       "baseline": [
         {
-          "structure": "image-only pages",
+          "structure": "image-only-pages",
           "expected": "Raster page content is present and text extraction has no native text layer."
         }
       ],
@@ -133,7 +136,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (rotate).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -143,7 +146,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (reorder).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -153,7 +156,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (delete).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -163,7 +166,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (duplicate).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -173,7 +176,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -183,7 +186,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -193,7 +196,7 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (donor-append).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -203,12 +206,15 @@
           "rationale": "Structural mutations must preserve reachable image resources and geometry (save-export).",
           "expectedStructures": [
             {
-              "structure": "image-only pages",
+              "structure": "image-only-pages",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "image-only-pages"
+      ]
     },
     {
       "id": "mixed-geometry-boxes",
@@ -228,11 +234,11 @@
       "generatorId": "mixed-geometry-boxes",
       "baseline": [
         {
-          "structure": "page geometry",
+          "structure": "page-geometry-boxes",
           "expected": "Three pages have different MediaBox sizes/rotations."
         },
         {
-          "structure": "CropBox/MediaBox",
+          "structure": "page-geometry-boxes",
           "expected": "At least one page has a non-zero box origin and CropBox distinct from MediaBox."
         }
       ],
@@ -242,7 +248,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (rotate).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -252,7 +258,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (reorder).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -262,7 +268,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (delete).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -272,7 +278,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (duplicate).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -282,7 +288,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -292,7 +298,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -302,7 +308,7 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (donor-append).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -312,12 +318,15 @@
           "rationale": "Page geometry and boxes must remain associated with the same semantic pages (save-export).",
           "expectedStructures": [
             {
-              "structure": "page geometry and boxes",
+              "structure": "page-geometry-boxes",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "page-geometry-boxes"
+      ]
     },
     {
       "id": "nested-outlines",
@@ -336,7 +345,7 @@
       "generatorId": "nested-outlines",
       "baseline": [
         {
-          "structure": "outline tree",
+          "structure": "outline-tree",
           "expected": "Nested outline nodes resolve to declared semantic page destinations."
         }
       ],
@@ -346,7 +355,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (rotate).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -356,7 +365,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (reorder).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -366,7 +375,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (delete).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -376,7 +385,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (duplicate).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -386,7 +395,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -396,7 +405,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -406,7 +415,7 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (donor-append).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -416,12 +425,15 @@
           "rationale": "Outline hierarchy and destinations must remain semantically reachable or be explicitly transformed when page identity changes (save-export).",
           "expectedStructures": [
             {
-              "structure": "outline tree/destinations",
+              "structure": "outline-tree",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "outline-tree"
+      ]
     },
     {
       "id": "catalog-structures",
@@ -443,23 +455,23 @@
       "generatorId": "catalog-structures",
       "baseline": [
         {
-          "structure": "PageLabels",
+          "structure": "page-labels",
           "expected": "Catalog PageLabels number tree produces Cover then A-1/A-2 labels."
         },
         {
-          "structure": "AcroForm",
+          "structure": "acroform",
           "expected": "One text field named project.code has populated value PH9-001 and a reachable widget."
         },
         {
-          "structure": "native annotation",
+          "structure": "native-annotations",
           "expected": "Page 2 contains a reachable Text annotation with stable NM marker phase9-note."
         },
         {
-          "structure": "embedded attachment",
+          "structure": "embedded-files",
           "expected": "Names/EmbeddedFiles exposes phase9-note.txt with deterministic payload."
         },
         {
-          "structure": "document metadata",
+          "structure": "metadata",
           "expected": "Title, author and subject values are present."
         }
       ],
@@ -469,7 +481,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (rotate).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -479,7 +507,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (reorder).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -489,7 +533,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (delete).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -499,7 +559,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (duplicate).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -509,7 +585,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -519,7 +611,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -529,7 +637,23 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (donor-append).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -539,12 +663,35 @@
           "rationale": "Catalog structures must not disappear merely because a supported page mutation succeeds (save-export).",
           "expectedStructures": [
             {
-              "structure": "PageLabels/form/annotation/attachment/metadata",
+              "structure": "page-labels",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "acroform",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "native-annotations",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "embedded-files",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "metadata",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "page-labels",
+        "acroform",
+        "native-annotations",
+        "embedded-files",
+        "metadata"
+      ]
     },
     {
       "id": "tagged-structure-tree",
@@ -563,7 +710,7 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "StructTreeRoot",
+          "structure": "tagged-structure",
           "expected": "Tagged structure tree and marked-content relationships are reachable."
         }
       ],
@@ -573,7 +720,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (rotate).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -583,7 +730,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (reorder).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -593,7 +740,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (delete).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -603,7 +750,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (duplicate).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -613,7 +760,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -623,7 +770,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -633,7 +780,7 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (donor-append).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -643,12 +790,15 @@
           "rationale": "Supported structural mutations must preserve or explicitly transform tag structure (save-export).",
           "expectedStructures": [
             {
-              "structure": "tagged structure tree",
+              "structure": "tagged-structure",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "tagged-structure"
+      ]
     },
     {
       "id": "complex-font-unicode",
@@ -668,11 +818,11 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "font resources",
+          "structure": "font-resources",
           "expected": "CID/subset font subtype/encoding identity is declared."
         },
         {
-          "structure": "Unicode extraction",
+          "structure": "unicode-text",
           "expected": "Arabic/CJK/RTL expected text/order is declared independently of renderer output."
         }
       ],
@@ -682,7 +832,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (rotate).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -692,7 +846,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (reorder).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -702,7 +860,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (delete).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -712,7 +874,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (duplicate).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -722,7 +888,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -732,7 +902,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -742,7 +916,11 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (donor-append).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -752,12 +930,20 @@
           "rationale": "Structural page operations must not silently damage font resources or declared Unicode extraction (save-export).",
           "expectedStructures": [
             {
-              "structure": "font resources and Unicode text",
+              "structure": "font-resources",
+              "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
+            },
+            {
+              "structure": "unicode-text",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "font-resources",
+        "unicode-text"
+      ]
     },
     {
       "id": "object-stream-input",
@@ -776,7 +962,7 @@
       "generatorId": "object-stream-input",
       "baseline": [
         {
-          "structure": "object streams",
+          "structure": "object-streams",
           "expected": "PDF is saved with pdf-lib object streams enabled and remains independently readable."
         }
       ],
@@ -786,7 +972,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (rotate).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -796,7 +982,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (reorder).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -806,7 +992,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (delete).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -816,7 +1002,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (duplicate).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -826,7 +1012,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -836,7 +1022,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -846,7 +1032,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-append).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -856,12 +1042,15 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (save-export).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "object-streams",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "object-streams"
+      ]
     },
     {
       "id": "incremental-update-input",
@@ -880,7 +1069,7 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "incremental update",
+          "structure": "incremental-updates",
           "expected": "At least two revision sections are present and the latest semantic state is independently readable."
         }
       ],
@@ -890,7 +1079,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (rotate).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -900,7 +1089,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (reorder).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -910,7 +1099,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (delete).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -920,7 +1109,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (duplicate).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -930,7 +1119,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -940,7 +1129,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -950,7 +1139,7 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (donor-append).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
@@ -960,12 +1149,15 @@
           "rationale": "Supported operations may normalize serialization but must preserve semantic readability and declared structures (save-export).",
           "expectedStructures": [
             {
-              "structure": "semantic readability after object-stream/incremental input",
+              "structure": "incremental-updates",
               "expected": "Equivalent reachable semantics remain after both save/reopen cycles."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "incremental-updates"
+      ]
     },
     {
       "id": "encrypted-protected",
@@ -984,7 +1176,7 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "encryption state",
+          "structure": "encryption",
           "expected": "Encryption/protection state is detectable and support disposition is explicit."
         }
       ],
@@ -994,7 +1186,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (rotate).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1004,7 +1196,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (reorder).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1014,7 +1206,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (delete).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1024,7 +1216,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (duplicate).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1034,7 +1226,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1044,7 +1236,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1054,7 +1246,7 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (donor-append).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1064,12 +1256,15 @@
           "rationale": "Until corpus-backed support is proven, canonical mutation must fail explicitly rather than normalize an encrypted input unsafely (save-export).",
           "expectedStructures": [
             {
-              "structure": "encryption state",
+              "structure": "encryption",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "encryption"
+      ]
     },
     {
       "id": "signed-document",
@@ -1088,7 +1283,7 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "signature state",
+          "structure": "signatures",
           "expected": "Signature field/presence is detectable and baseline validity is independently characterized."
         }
       ],
@@ -1098,7 +1293,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (rotate).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1108,7 +1303,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (reorder).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1118,7 +1313,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (delete).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1128,7 +1323,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (duplicate).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1138,7 +1333,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1148,7 +1343,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1158,7 +1353,7 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (donor-append).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
@@ -1168,12 +1363,15 @@
           "rationale": "Content-changing mutation must never be represented as retaining cryptographic signature validity (save-export).",
           "expectedStructures": [
             {
-              "structure": "signature state",
+              "structure": "signatures",
               "expected": "Structure remains detectable while validity is explicitly classified as invalidated."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "signatures"
+      ]
     },
     {
       "id": "malformed-readable-xref",
@@ -1192,7 +1390,7 @@
       "generatorId": null,
       "baseline": [
         {
-          "structure": "xref/readability",
+          "structure": "xref-readability",
           "expected": "PDF.js can reopen/read the input while canonical mutation-engine compatibility is independently classified."
         }
       ],
@@ -1202,7 +1400,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (rotate).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1212,7 +1410,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (reorder).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1222,7 +1420,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (delete).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1232,7 +1430,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (duplicate).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1242,7 +1440,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (donor-insert).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1252,7 +1450,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (donor-replace).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1262,7 +1460,7 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (donor-append).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
@@ -1272,12 +1470,15 @@
           "rationale": "Until safe load/save is proven for the exact malformed fixture, fail explicitly rather than silently normalize/corrupt it (save-export).",
           "expectedStructures": [
             {
-              "structure": "malformed-input readability",
+              "structure": "xref-readability",
               "expected": "Operation is explicitly rejected before destructive publication."
             }
           ]
         }
-      }
+      },
+      "structures": [
+        "xref-readability"
+      ]
     }
   ]
 }
