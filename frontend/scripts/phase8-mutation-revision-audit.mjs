@@ -106,7 +106,8 @@ const publishIndex = transaction.indexOf(
   'publishedRevisionId = await publishMutationRevision',
 );
 const annotationPersistIndex = transaction.indexOf(
-  'await saveAnnotations(nextDocumentKey, annotationsToPersist)',
+  'await saveAnnotations(',
+  publishIndex,
 );
 const sessionCommitIndex = transaction.indexOf(
   'useSessionStore.getState().replaceWorkingCopy',
