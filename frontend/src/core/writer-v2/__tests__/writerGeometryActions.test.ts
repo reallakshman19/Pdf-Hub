@@ -42,10 +42,10 @@ describe('writerGeometryActions', () => {
     });
   });
 
-  it('updates selected Writer element geometry', () => {
+  it('updates selected Writer element geometry', async () => {
     hydrateSelection([makeElement()], ['box-1']);
 
-    const result = updateActiveWriterElementGeometry({
+    const result = await updateActiveWriterElementGeometry({
       x: 72,
       y: 120,
       width: 220,
@@ -64,10 +64,10 @@ describe('writerGeometryActions', () => {
     expect(useWriterV2Store.getState().dirty).toBe(true);
   });
 
-  it('rejects geometry update when selection is not exactly one element', () => {
+  it('rejects geometry update when selection is not exactly one element', async () => {
     hydrateSelection([makeElement(), makeElement('box-2')], ['box-1', 'box-2']);
 
-    const result = updateActiveWriterElementGeometry({ x: 72 });
+    const result = await updateActiveWriterElementGeometry({ x: 72 });
 
     expect(result.changed).toBe(false);
     expect(result.message).toMatch(/exactly one/i);
