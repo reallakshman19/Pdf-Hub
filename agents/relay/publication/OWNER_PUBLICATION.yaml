@@ -1,23 +1,16 @@
 {
   "schema_version": "relay-v2.5-owner-publication",
   "publication": {
-    "id": "PUB-0001",
-    "sequence": 1,
-    "event_class": "INITIAL_SNAPSHOT",
+    "id": "PUB-0002",
+    "sequence": 2,
+    "event_class": "CONTROL_STATE_CHANGE",
     "changed_dimensions": [
       "task",
-      "evidence",
-      "quality",
-      "delivery_or_custody",
-      "execution",
-      "roadmap",
-      "next_work",
-      "issues",
-      "owner_decisions"
+      "issues"
     ],
-    "owner_view_digest": "sha256:32a8cab1556f271933983f1c752967d0850b93743e5878fe2c9f0a542d618309",
-    "report_projection_digest": "sha256:fcd46538915fc67a1e7bff0c2298589a8eefd45435abfc71fdf1306f8cc2fdef",
-    "normalized_report_digest": "sha256:f427513023c24864714da501d9634f12ad844bbf986e20ae562a85c4fa4eff6e"
+    "owner_view_digest": "sha256:26578cb49f11d8cf84553e203fe8b5caa9404086a0c57c47cab7be84e6249920",
+    "report_projection_digest": "sha256:ca32d4b36ba57a509b20f11839403f6269900ab3f857735260d1bf63ecd6e7e7",
+    "normalized_report_digest": "sha256:a510df631e5001af1d64461a236564c016e1a85745c964993dcc6a7b19d9561a"
   },
   "source": {
     "report_sources": {
@@ -25,7 +18,7 @@
       "progress_basis": "PB-0002",
       "repo_state_digest": "sha256:fa963f1cda3a2606a32a026f5f1b6d1ef8e941048ca554d1af2a8f51bb0c525f",
       "roadmap_digest": "sha256:988a0bece3f81bce54d30318084a9ba47c2cbdc0b623ed8b3a0714bdd4c80f39",
-      "progress_digest": "sha256:934fc5393e69d3ace295a1d0432eb93650904a77e992440839553dfd64c1c233",
+      "progress_digest": "sha256:353472196873b1caab7997672754cdca618c800d6de7991096e21324fdf6b3a1",
       "issue_graph_digest": "sha256:6ac906a101161366282718498e8069c336cab16a1a77d17143b750b5de1a5a8e",
       "owner_decisions_digest": "sha256:bba8267541f2c44160f57bbb616136113be1cb41879b8e2b305271dfb2b94257",
       "ep_id": "EP-9-001",
@@ -43,7 +36,7 @@
     "ep_id": "EP-9-001"
   },
   "baseline": {
-    "digest": "sha256:f427513023c24864714da501d9634f12ad844bbf986e20ae562a85c4fa4eff6e",
+    "digest": "sha256:a510df631e5001af1d64461a236564c016e1a85745c964993dcc6a7b19d9561a",
     "report": {
       "task": {
         "acceptance": [
@@ -54,7 +47,7 @@
             "basis": [
               "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
               "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
-              "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
+              "Pinned-protocol takeover must be refreshed through QSET-9-003 before further material writes. No AC-9-01 weight is earned."
             ]
           },
           {
@@ -64,7 +57,7 @@
             "basis": [
               "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
               "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
-              "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
+              "Pinned-protocol takeover must be refreshed through QSET-9-003 before further material writes. No AC-9-01 weight is earned."
             ]
           },
           {
