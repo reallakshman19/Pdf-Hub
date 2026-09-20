@@ -469,8 +469,62 @@ describe('executeHistoryRecovery', () => {
         .getState()
         .activeRevisionId,
     ).toBe(ACTIVE_REVISION_ID);
+    expect(
+      useWriterV2Store
+        .getState()
+        .currentDocumentFingerprint,
+    ).toBe(ACTIVE_REVISION_ID);
+    expect(
+      useWriterV2Store
+        .getState()
+        .documentMeta
+        ?.documentFingerprint,
+    ).toBe(ACTIVE_REVISION_ID);
     expect(dispatch)
       .toHaveBeenCalledTimes(1);
+  });
+
+  it('fails before mutation when the durable journal changes after planning', async () => {
+    const recoveryPlan = plan();
+    const resolved =
+      await setup(recoveryPlan);
+    const journal =
+      (await import('../registry'))
+        .resolveHistoryJournalStore(
+          JOURNAL_STORE_ID,
+        );
+    expect(journal).not.toBeNull();
+    if (!journal) return;
+
+    const changed =
+      await journal.load(JOURNAL_ID);
+    expect(changed).not.toBeNull();
+    if (!changed) return;
+    changed.fileName = 'changed.pdf';
+    await journal.save(changed);
+
+    const preSession =
+      useSessionStore.getState();
+
+    await expect(
+      executeHistoryRecovery({
+        resolved,
+        journalStoreId:
+          JOURNAL_STORE_ID,
+        dependencies: {
+          persistAnnotations:
+            async () => undefined,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name:
+        'HistoryRecoveryExecutionError',
+      code: 'JOURNAL_CHANGED',
+    });
+
+    expect(
+      useSessionStore.getState(),
+    ).toEqual(preSession);
   });
 
   it('restores all live stores when replay fails after checkpoint application', async () => {
