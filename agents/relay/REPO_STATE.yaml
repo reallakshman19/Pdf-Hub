@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "d9b84069683977b5c370f536f1c50095de926338"
+    "basis_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,20 +24,20 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5B3C2C3-001",
-    "path": "agents/relay/execution-packages/EP-8E5B3C2C3-001.yaml",
+    "id": "EP-8E5C1-001",
+    "path": "agents/relay/execution-packages/EP-8E5C1-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "NONE",
+    "id": "INFRA-EXCEPTION-8E5B3C2C3",
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-269",
+    "id": "PR-271",
     "path": null,
-    "merge_ref": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
-    "note": "Phase 8E.5B3C2C2 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
+    "merge_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
+    "note": "Phase 8E.5B3C2C3 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions failed before runner assignment."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,22 +70,16 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.5B3C2C3 final Writer bridge durability, run cd frontend && pnpm run certify:phase8e5b3c2c3 when a runner is available, and keep issue #270 open until acceptance evidence is terminal."
+      "next_action": "Implement Phase 8E.5C1 recovery-complete history checkpoint payload v2, keep legacy v1 manifests valid, and attach full committed after-state to CHECKPOINT_REQUIRED binary barriers before durable manifest save."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
       "findings": []
     },
     "evidence": {
-      "state": "PARTIAL",
-      "summary": "Phase 8E.5B3C2C3 migrates OCR Writer insertion and legacy consolidation to durable dispatch, adds an atomic mixed batch command, and enforces the final backed-PDF synchronous mutation boundary. Runner-executed evidence remains subject to #183.",
-      "not_run": [
-        {
-          "id": "TEST-06",
-          "reason": "GitHub-hosted Actions may fail before runner allocation under #183.",
-          "cause": "INFRASTRUCTURE"
-        }
-      ]
+      "state": "PENDING",
+      "summary": "Phase 8E.5C1 is the serial WP-8E frontier after merged #271. It makes barrier checkpoints recovery-complete without adding replay execution, automatic recovery, periodic cadence, or revision GC.",
+      "not_run": []
     },
     "stop": {
       "active": false,
@@ -102,14 +96,14 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5B3C2C3-001",
+    "execution_ref": "EP-8E5C1-001",
     "receipt": null,
     "basis": [
-      "Issue #270 tracks the final Writer mutation-bridge durability slice.",
-      "After C2C3, synchronous active Writer dispatch is limited to selection-only commands and explicit blank-document insertion surfaces."
+      "Issue #272 explicitly starts after merged Phase 8E.5B3C2C3 / #271.",
+      "WP-8E remains ACTIVE and WP-8F remains WAITING on WP-8E."
     ],
     "observed": {
-      "issue": 270
+      "issue": 272
     },
     "superseded_operations": []
   },
