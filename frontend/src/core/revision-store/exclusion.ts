@@ -147,15 +147,22 @@ export async function acquireRevisionStoreGcBlockerLease(
     return noOpLease(storeId);
   }
 
-  return acquireWebLockLease({
-    storeId,
-    lockManager,
-    name:
-      revisionStoreGcBlockerLockName(
-        storeId,
-      ),
-    mode: 'shared',
-  });
+  const lease =
+    await acquireWebLockLease({
+      storeId,
+      lockManager,
+      name:
+        revisionStoreGcBlockerLockName(
+          storeId,
+        ),
+      mode: 'shared',
+    });
+  if (!lease) {
+    throw new Error(
+      'Shared revision GC blocker lock was unexpectedly unavailable.',
+    );
+  }
+  return lease;
 }
 
 /**
