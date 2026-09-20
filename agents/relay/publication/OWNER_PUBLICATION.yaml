@@ -1,0 +1,857 @@
+{
+  "schema_version": "relay-v2.5-owner-publication",
+  "publication": {
+    "id": "PUB-0001",
+    "sequence": 1,
+    "event_class": "INITIAL_SNAPSHOT",
+    "changed_dimensions": [
+      "task",
+      "evidence",
+      "quality",
+      "delivery_or_custody",
+      "execution",
+      "roadmap",
+      "next_work",
+      "issues",
+      "owner_decisions"
+    ],
+    "owner_view_digest": "sha256:32a8cab1556f271933983f1c752967d0850b93743e5878fe2c9f0a542d618309",
+    "report_projection_digest": "sha256:fcd46538915fc67a1e7bff0c2298589a8eefd45435abfc71fdf1306f8cc2fdef",
+    "normalized_report_digest": "sha256:f427513023c24864714da501d9634f12ad844bbf986e20ae562a85c4fa4eff6e"
+  },
+  "source": {
+    "report_sources": {
+      "roadmap_revision": "RM-0003",
+      "progress_basis": "PB-0002",
+      "repo_state_digest": "sha256:fa963f1cda3a2606a32a026f5f1b6d1ef8e941048ca554d1af2a8f51bb0c525f",
+      "roadmap_digest": "sha256:988a0bece3f81bce54d30318084a9ba47c2cbdc0b623ed8b3a0714bdd4c80f39",
+      "progress_digest": "sha256:934fc5393e69d3ace295a1d0432eb93650904a77e992440839553dfd64c1c233",
+      "issue_graph_digest": "sha256:6ac906a101161366282718498e8069c336cab16a1a77d17143b750b5de1a5a8e",
+      "owner_decisions_digest": "sha256:bba8267541f2c44160f57bbb616136113be1cb41879b8e2b305271dfb2b94257",
+      "ep_id": "EP-9-001",
+      "ep_digest": "sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c",
+      "checkpoint_id": "INFRA-EXCEPTION-8F",
+      "checkpoint_digest": null,
+      "quality_review_id": null,
+      "quality_review_digest": null,
+      "delivery_observation_id": "DOBS-9-004",
+      "delivery_observation_digest": "sha256:3768ea3f0202b2ef1210a65b4bec330118bbf4b34784c31b469933e3f06d315e"
+    },
+    "roadmap_revision": "RM-0003",
+    "progress_basis": "PB-0002",
+    "checkpoint_id": "INFRA-EXCEPTION-8F",
+    "ep_id": "EP-9-001"
+  },
+  "baseline": {
+    "digest": "sha256:f427513023c24864714da501d9634f12ad844bbf986e20ae562a85c4fa4eff6e",
+    "report": {
+      "task": {
+        "acceptance": [
+          {
+            "id": "AC-9-01",
+            "status": "IN_PROGRESS",
+            "percent": 0,
+            "basis": [
+              "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
+              "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
+              "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
+            ]
+          },
+          {
+            "id": "AC-9-01",
+            "status": "IN_PROGRESS",
+            "percent": 0,
+            "basis": [
+              "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
+              "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
+              "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
+            ]
+          },
+          {
+            "id": "AC-9-02",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-02; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-02",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-02; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-03",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-03; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-03",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-03; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-04",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-04; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-04",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-04; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          },
+          {
+            "id": "AC-9-05",
+            "status": "NOT_STARTED",
+            "percent": 0,
+            "basis": [
+              "No acceptance weight is earned for AC-9-05; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+            ]
+          }
+        ],
+        "progress_basis": {
+          "id": "PB-0002",
+          "roadmap_revision": "RM-0003",
+          "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
+        },
+        "overall_percent": 66.67,
+        "phase_percent": 0,
+        "work_package_percent": 0,
+        "ep_percent": 0
+      },
+      "implementation": {
+        "checkpoint_id": null,
+        "summary": null,
+        "completed_steps": [],
+        "files_changed": []
+      },
+      "evidence": {
+        "plane": {
+          "state": "PARTIAL",
+          "summary": "Phase 9 STEP-9-01 product substrate remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, EP-9-001 now contains the required external-execution delegation and QSET-9-003 is the current qualification set. The delegation is published/read back on issue #286. Read-only upstream provenance/semantic evidence for the two retained PDFs is durable, but no fresh candidate DISC/QUAL/TC or TEST-9-01 execution exists and no Phase 9 acceptance is earned.",
+          "not_run": [
+            {
+              "command": "Pinned-protocol Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1",
+              "reason": "The delegated local-agent handoff is published on issue #286, but no fresh independent candidate response has been posted yet.",
+              "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
+            },
+            {
+              "command": "npm run certify:phase9-step1",
+              "reason": "Candidate-specific TAKEOVER_CERTIFIED and live MATERIAL_WRITE_READY are not yet established for the refreshed QSET-9-003 route.",
+              "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
+            },
+            {
+              "command": "npm run certify:phase8g",
+              "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
+              "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
+            }
+          ]
+        },
+        "validation_results": []
+      },
+      "quality": {
+        "plane": {
+          "state": "OPEN_FINDINGS",
+          "findings": [
+            "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 are stale for further writes under the pinned Common basis/current EP contract.",
+            "QSET-9-003 is the current outgoing-preparer qualification set, bound to EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
+            "EP-9-001 now carries EXECREQ-9-QUAL-STEP1 with a LOCAL_AGENT delegation published and provider-read-back on issue #286; a 60-minute response check is scheduled.",
+            "Read-only provenance trace proves ArabicCIDTrueType.pdf is byte-identical to Mozilla PDF.js test/pdfs/ArabicCIDTrueType.pdf and encrypted-with-images.pdf is byte-identical to qpdf qpdf/qtest/qpdf/encrypted-with-images.pdf; neither manifest entry is promoted by this evidence alone.",
+            "STEP-9-01 still has three required-pending specialist obligations: complex-font/unicode, encrypted, signed.",
+            "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
+          ]
+        },
+        "findings": [],
+        "known_limitations": []
+      },
+      "delivery_or_custody": {
+        "projection": {
+          "required": false,
+          "state": "NOT_REQUIRED",
+          "operation_id": null,
+          "target": null,
+          "adapter": null,
+          "plan": null,
+          "roadmap_revision": "RM-0003",
+          "execution_ref": "EP-9-001",
+          "receipt": null,
+          "basis": [
+            "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
+            "ODR-0004 / RM-0003 make WP-009 the sole serial frontier.",
+            "Issue #286 is the provider coordination contract for Phase 9.",
+            "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+            "EP-9-001 is frozen against Phase 9 product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and now includes EXECREQ-9-QUAL-STEP1.",
+            "QSET-9-003 is the current qualification set with EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
+            "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain history only.",
+            "Issue #286 comment 5752971346 is the verified local-agent delegation handoff; comment 5753014419 records read-only retained-fixture provenance/semantic evidence.",
+            "DOBS-9-004 observes the refreshed delegated takeover route at exact Relay head 61984c4061bdc27ecf6e204258c7db474f423484; product material remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd."
+          ],
+          "observed": {
+            "issue": 286,
+            "pull_request": 287,
+            "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+            "fresh_candidate_handoff_comment": 5752971346,
+            "retained_fixture_evidence_comment": 5753014419,
+            "response_check_minutes": 60
+          },
+          "superseded_operations": []
+        },
+        "relay_readiness": {
+          "baton_ready": true,
+          "projection_ready": true,
+          "handover_ready": true,
+          "reasons": []
+        },
+        "takeover_admissions": [],
+        "delivery": {
+          "applicability": "APPLICABLE",
+          "provider": "GITHUB",
+          "repository": "reallaksh19/Pdf-Hub",
+          "observation_id": "DOBS-9-004",
+          "observation_path": "agents/relay/delivery/DOBS-9-004.yaml",
+          "vehicle": {
+            "kind": "PULL_REQUEST",
+            "number": 287,
+            "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+            "lifecycle": "DRAFT",
+            "head": {
+              "ref": "phase9/pdf-fidelity-laboratory",
+              "sha": "61984c4061bdc27ecf6e204258c7db474f423484"
+            },
+            "base": {
+              "ref": "phase8/large-document-performance",
+              "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+            }
+          },
+          "mergeability": {
+            "state": "MERGEABLE"
+          },
+          "checks": {
+            "state": "NOT_RUN",
+            "head_sha": "61984c4061bdc27ecf6e204258c7db474f423484",
+            "observed": [
+              {
+                "workflow": "certify-writer-overlay-v2",
+                "run_id": 35540836305,
+                "job_id": 106158056570,
+                "job": "certify",
+                "provider_conclusion": "failure",
+                "runner_id": 0,
+                "steps_executed": 0,
+                "classification": "NOT_RUN_INFRASTRUCTURE"
+              }
+            ],
+            "note": "The only observed exact-head job completed before runner assignment with zero steps; no executable PASS or code-level failure is inferred."
+          },
+          "review": {
+            "state": "PENDING",
+            "unresolved_threads": 0,
+            "change_requests": 0
+          },
+          "description_contract": {
+            "marker": "<!-- relay-pr-correlation:v1 -->",
+            "marker_present": true,
+            "correlations": [
+              {
+                "issue_node": "ISSUE-286",
+                "issue_number": 286,
+                "ep_id": "EP-9-001",
+                "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                "work_package": "WP-009",
+                "relationship": "IMPLEMENTS"
+              }
+            ]
+          },
+          "correlations": [
+            {
+              "issue_node": "ISSUE-286",
+              "issue_number": 286,
+              "ep_id": "EP-9-001",
+              "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+              "work_package": "WP-009",
+              "relationship": "IMPLEMENTS"
+            }
+          ],
+          "readback_basis": [],
+          "ready_for_review": {
+            "state": "NO",
+            "reason": "The pull request is still draft."
+          },
+          "technical_ready_to_merge": {
+            "state": "NO",
+            "reasons": [
+              "current acceptance criteria are not complete",
+              "engineering evidence is PARTIAL",
+              "pull request lifecycle is DRAFT",
+              "exact-head checks are NOT_RUN",
+              "review state is PENDING"
+            ]
+          },
+          "merge_authorization": {
+            "state": "NOT_GRANTED",
+            "basis": [],
+            "reason": "No applied Owner merge authorization is bound to this exact PR/head."
+          },
+          "unmerged_prs": [
+            {
+              "provider": "GITHUB",
+              "repository": "reallaksh19/Pdf-Hub",
+              "observation_id": "DOBS-9-004",
+              "observation_path": "agents/relay/delivery/DOBS-9-004.yaml",
+              "vehicle": {
+                "kind": "PULL_REQUEST",
+                "number": 287,
+                "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+                "lifecycle": "DRAFT",
+                "head": {
+                  "ref": "phase9/pdf-fidelity-laboratory",
+                  "sha": "61984c4061bdc27ecf6e204258c7db474f423484"
+                },
+                "base": {
+                  "ref": "phase8/large-document-performance",
+                  "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+                }
+              },
+              "mergeability": {
+                "state": "MERGEABLE"
+              },
+              "checks": {
+                "state": "NOT_RUN",
+                "head_sha": "61984c4061bdc27ecf6e204258c7db474f423484",
+                "observed": [
+                  {
+                    "workflow": "certify-writer-overlay-v2",
+                    "run_id": 35540836305,
+                    "job_id": 106158056570,
+                    "job": "certify",
+                    "provider_conclusion": "failure",
+                    "runner_id": 0,
+                    "steps_executed": 0,
+                    "classification": "NOT_RUN_INFRASTRUCTURE"
+                  }
+                ],
+                "note": "The only observed exact-head job completed before runner assignment with zero steps; no executable PASS or code-level failure is inferred."
+              },
+              "review": {
+                "state": "PENDING",
+                "unresolved_threads": 0,
+                "change_requests": 0
+              },
+              "description_contract": {
+                "marker": "<!-- relay-pr-correlation:v1 -->",
+                "marker_present": true,
+                "correlations": [
+                  {
+                    "issue_node": "ISSUE-286",
+                    "issue_number": 286,
+                    "ep_id": "EP-9-001",
+                    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                    "work_package": "WP-009",
+                    "relationship": "IMPLEMENTS"
+                  }
+                ]
+              },
+              "correlations": [
+                {
+                  "issue_node": "ISSUE-286",
+                  "issue_number": 286,
+                  "ep_id": "EP-9-001",
+                  "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                  "work_package": "WP-009",
+                  "relationship": "IMPLEMENTS"
+                }
+              ],
+              "readback_basis": [],
+              "ready_for_review": {
+                "state": "NO",
+                "reason": "The pull request is still draft."
+              },
+              "technical_ready_to_merge": {
+                "state": "NO",
+                "reasons": [
+                  "current acceptance criteria are not complete",
+                  "engineering evidence is PARTIAL",
+                  "pull request lifecycle is DRAFT",
+                  "exact-head checks are NOT_RUN",
+                  "review state is PENDING"
+                ]
+              },
+              "merge_authorization": {
+                "state": "NOT_GRANTED",
+                "basis": [],
+                "reason": "No applied Owner merge authorization is bound to this exact PR/head."
+              }
+            },
+            {
+              "provider": "GITHUB",
+              "repository": "reallaksh19/Pdf-Hub",
+              "observation_id": "DOBS-9-001",
+              "observation_path": "agents/relay/delivery/DOBS-9-001.yaml",
+              "vehicle": {
+                "kind": "PULL_REQUEST",
+                "number": 287,
+                "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+                "lifecycle": "DRAFT",
+                "head": {
+                  "ref": "phase9/pdf-fidelity-laboratory",
+                  "sha": "c34e8b3f3726a3cb454691a49cf55980471383fc"
+                },
+                "base": {
+                  "ref": "phase8/large-document-performance",
+                  "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+                }
+              },
+              "mergeability": {
+                "state": "MERGEABLE"
+              },
+              "checks": {
+                "state": "NOT_RUN",
+                "head_sha": "c34e8b3f3726a3cb454691a49cf55980471383fc",
+                "observed": [
+                  {
+                    "workflow": "certify-writer-overlay-v2",
+                    "run_id": 35533931418,
+                    "job_id": 106139449116,
+                    "job": "certify",
+                    "provider_conclusion": "failure",
+                    "runner_id": 0,
+                    "steps_executed": 0,
+                    "classification": "NOT_RUN_INFRASTRUCTURE"
+                  }
+                ],
+                "note": "Only the listed workflow was observed on this exact head. Its job completed before runner assignment with zero steps; no executable PASS or code-level failure is inferred."
+              },
+              "review": {
+                "state": "PENDING",
+                "unresolved_threads": 0,
+                "change_requests": 0
+              },
+              "description_contract": {
+                "marker": "<!-- relay-pr-correlation:v1 -->",
+                "marker_present": true,
+                "correlations": [
+                  {
+                    "issue_node": "ISSUE-286",
+                    "issue_number": 286,
+                    "ep_id": "EP-9-001",
+                    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                    "work_package": "WP-009",
+                    "relationship": "IMPLEMENTS"
+                  }
+                ]
+              },
+              "correlations": [
+                {
+                  "issue_node": "ISSUE-286",
+                  "issue_number": 286,
+                  "ep_id": "EP-9-001",
+                  "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                  "work_package": "WP-009",
+                  "relationship": "IMPLEMENTS"
+                }
+              ],
+              "readback_basis": [],
+              "ready_for_review": {
+                "state": "NO",
+                "reason": "The pull request is still draft."
+              },
+              "technical_ready_to_merge": {
+                "state": "NO",
+                "reasons": [
+                  "current acceptance criteria are not complete",
+                  "engineering evidence is PARTIAL",
+                  "pull request lifecycle is DRAFT",
+                  "exact-head checks are NOT_RUN",
+                  "review state is PENDING"
+                ]
+              },
+              "merge_authorization": {
+                "state": "NOT_GRANTED",
+                "basis": [],
+                "reason": "No applied Owner merge authorization is bound to this exact PR/head."
+              }
+            },
+            {
+              "provider": "GITHUB",
+              "repository": "reallaksh19/Pdf-Hub",
+              "observation_id": "DOBS-9-002",
+              "observation_path": "agents/relay/delivery/DOBS-9-002.yaml",
+              "vehicle": {
+                "kind": "PULL_REQUEST",
+                "number": 287,
+                "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+                "lifecycle": "DRAFT",
+                "head": {
+                  "ref": "phase9/pdf-fidelity-laboratory",
+                  "sha": "bc99073dcbd31527fde393332dfc3502e6d92059"
+                },
+                "base": {
+                  "ref": "phase8/large-document-performance",
+                  "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+                }
+              },
+              "mergeability": {
+                "state": "UNKNOWN",
+                "provider_value": null,
+                "provider_mergeable_state": "unknown"
+              },
+              "checks": {
+                "material_head": {
+                  "state": "NOT_RUN_INFRASTRUCTURE",
+                  "head_sha": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+                  "observed": [
+                    {
+                      "workflow": "certify-writer-overlay-v2",
+                      "run_id": 35535210788,
+                      "job_id": 106142897499,
+                      "job": "certify",
+                      "provider_conclusion": "failure",
+                      "runner_id": 0,
+                      "steps_executed": 0
+                    }
+                  ]
+                },
+                "relay_tail": {
+                  "state": "NO_WORKFLOW_OBSERVED",
+                  "head_sha": "bc99073dcbd31527fde393332dfc3502e6d92059"
+                }
+              },
+              "review": {
+                "state": "PENDING"
+              },
+              "description_contract": {
+                "marker": "<!-- relay-pr-correlation:v1 -->",
+                "correlations": [
+                  {
+                    "issue_node": "ISSUE-286",
+                    "issue_number": 286,
+                    "ep_id": "EP-9-001",
+                    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                    "work_package": "WP-009",
+                    "relationship": "IMPLEMENTS"
+                  }
+                ]
+              },
+              "correlations": [
+                {
+                  "issue_node": "ISSUE-286",
+                  "issue_number": 286,
+                  "ep_id": "EP-9-001",
+                  "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                  "work_package": "WP-009",
+                  "relationship": "IMPLEMENTS"
+                }
+              ],
+              "readback_basis": [],
+              "ready_for_review": {
+                "state": "NO",
+                "reason": "The pull request is still draft."
+              },
+              "technical_ready_to_merge": {
+                "state": "NO",
+                "reasons": [
+                  "current acceptance criteria are not complete",
+                  "engineering evidence is PARTIAL",
+                  "pull request lifecycle is DRAFT",
+                  "exact-head checks are undefined",
+                  "review state is PENDING",
+                  "mergeability is unknown"
+                ]
+              },
+              "merge_authorization": {
+                "state": "NOT_GRANTED",
+                "basis": [],
+                "reason": "No applied Owner merge authorization is bound to this exact PR/head."
+              }
+            },
+            {
+              "provider": "GITHUB",
+              "repository": "reallaksh19/Pdf-Hub",
+              "observation_id": "DOBS-9-003",
+              "observation_path": "agents/relay/delivery/DOBS-9-003.yaml",
+              "vehicle": {
+                "kind": "PULL_REQUEST",
+                "number": 287,
+                "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+                "lifecycle": "DRAFT",
+                "observed_head": {
+                  "ref": "phase9/pdf-fidelity-laboratory",
+                  "sha": "3cedbbd88040828d63afbca9b91f87569e94a236"
+                },
+                "base": {
+                  "ref": "phase8/large-document-performance",
+                  "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+                }
+              },
+              "mergeability": {
+                "state": "UNKNOWN"
+              },
+              "checks": {
+                "material_head": {
+                  "head_sha": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+                  "classification": "NOT_RUN_INFRASTRUCTURE",
+                  "workflow": "certify-writer-overlay-v2",
+                  "run_id": 35535210788,
+                  "job_id": 106142897499,
+                  "runner_id": 0,
+                  "steps_executed": 0
+                },
+                "relay_tail": {
+                  "head_sha": "3cedbbd88040828d63afbca9b91f87569e94a236",
+                  "classification": "NO_WORKFLOW_OBSERVED"
+                }
+              },
+              "review": {
+                "state": "UNKNOWN"
+              },
+              "description_contract": {
+                "marker": "<!-- relay-pr-correlation:v1 -->",
+                "marker_present": true,
+                "correlations": [
+                  {
+                    "issue_node": "ISSUE-286",
+                    "issue_number": 286,
+                    "ep_id": "EP-9-001",
+                    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                    "work_package": "WP-009",
+                    "relationship": "IMPLEMENTS",
+                    "meaning": "EP-9-001 owns the Phase 9 fidelity corpus, semantic oracle, bounded hardening and certification."
+                  }
+                ]
+              },
+              "correlations": [
+                {
+                  "issue_node": "ISSUE-286",
+                  "issue_number": 286,
+                  "ep_id": "EP-9-001",
+                  "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+                  "work_package": "WP-009",
+                  "relationship": "IMPLEMENTS",
+                  "meaning": "EP-9-001 owns the Phase 9 fidelity corpus, semantic oracle, bounded hardening and certification."
+                }
+              ],
+              "readback_basis": [],
+              "ready_for_review": {
+                "state": "NO",
+                "reason": "The pull request is still draft."
+              },
+              "technical_ready_to_merge": {
+                "state": "NO",
+                "reasons": [
+                  "current acceptance criteria are not complete",
+                  "engineering evidence is PARTIAL",
+                  "pull request lifecycle is DRAFT",
+                  "exact-head checks are undefined",
+                  "mergeability is undefined",
+                  "review state is undefined"
+                ]
+              },
+              "merge_authorization": {
+                "state": "NOT_GRANTED",
+                "basis": [],
+                "reason": "No applied Owner merge authorization is bound to this exact PR/head."
+              }
+            }
+          ]
+        }
+      },
+      "execution": {
+        "state": "ACTIVE",
+        "can_continue": true,
+        "material_authority": "WRITE",
+        "next_action": "Wait for the delegated fresh independent candidate on issue #286 to reconstruct EP-9-001/QSET-9-003 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain pinned-validator DISC/QUAL/TC and live MATERIAL_WRITE_READY, then complete only the bounded STEP-9-01 retained-fixture/signed-fixture slice. The route remains WRITE-capable; no current candidate is admitted."
+      },
+      "stop": {
+        "active": false,
+        "category": "NONE",
+        "reason": "",
+        "basis": []
+      },
+      "roadmap": {
+        "summary": {
+          "id": "PDFHUB-READINESS-2026",
+          "revision": "RM-0003",
+          "title": "PDF Hub Professional / Personal / Basic readiness roadmap"
+        },
+        "reconciliation": {}
+      },
+      "next_work": {
+        "phase_transition": true,
+        "steps": [
+          {
+            "order": 1,
+            "action": "A fresh independent local candidate reconstructs the current Phase 9 route under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answers QSET-9-003 from repository evidence, obtains current DISC/QUAL/TC and live MATERIAL_WRITE_READY, then continues only STEP-9-01 by validating/binding the retained CID/Arabic and encrypted fixtures and sourcing the signed fixture.",
+            "targets": [
+              "agents/relay/certifications",
+              "frontend/fidelity/phase9/manifest.json",
+              "frontend/fidelity/phase9/retained/",
+              "frontend/scripts/phase9-fidelity-corpus-audit.mjs",
+              "frontend/src/core/pdf-fidelity/manifestValidation.test.ts"
+            ],
+            "inputs": [
+              "INPUT-9-01",
+              "INPUT-9-02",
+              "INPUT-9-03",
+              "INPUT-9-04"
+            ],
+            "tests": [
+              "TEST-9-01"
+            ],
+            "benchmarks": [
+              "BENCH-9-01",
+              "BENCH-9-04"
+            ],
+            "acceptance": [
+              "AC-9-01"
+            ],
+            "expected_result": "The pinned-protocol candidate is takeover-certified on the exact current EP/material basis; STEP-9-01 then reduces the manifest's three required-pending specialist obligations without claiming coverage from unvalidated binaries.",
+            "stop_if": [
+              "QSET-9-003 / current DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+              "Retained fixture provenance or semantic structure does not establish the required class.",
+              "Any fixture source lacks legal redistribution/ownership evidence.",
+              "The proposed work expands into mutation-engine hardening before AC-9-01 corpus readiness."
+            ],
+            "execution_requirement": {
+              "id": "EXECREQ-9-QUAL-STEP1",
+              "type": "EXTERNAL_ENVIRONMENT",
+              "actor": "FRESH_INDEPENDENT_LOCAL_CANDIDATE",
+              "environment": {
+                "kind": "LOCAL_AGENT_WITH_REPOSITORY_CHECKOUT",
+                "description": "An independent agent/session with a local Pdf-Hub checkout, access to Common at pinned commit 65518fd5340599b2a0fb88db5041f6c96389ccb8, and the ability to run the pinned V2.5 validators plus frontend corpus validation commands."
+              },
+              "command": null,
+              "instruction": "Reconstruct EP-9-001/QSET-9-003 from repository state only; create and validate fresh DISC/QUAL/TC under the pinned Common basis; derive live MATERIAL_WRITE_READY; only if WRITE, complete the bounded STEP-9-01 retained-fixture/signed-fixture slice and run TEST-9-01 evidence. Post all evidence back to issue #286.",
+              "working_directory": "<local-checkout>/Pdf-Hub",
+              "required_basis": [
+                "repository reallaksh19/Pdf-Hub",
+                "branch phase9/pdf-fidelity-laboratory",
+                "roadmap RM-0003 / WP-009",
+                "issue #286 / draft PR #287",
+                "frozen product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+                "Common engineering-pr-delivery-v2.5 pinned to 65518fd5340599b2a0fb88db5041f6c96389ccb8",
+                "current EP-9-001 and QSET-9-003 as read from the repository at execution time",
+                "Phase 8G issue #284 remains PENDING_NOT_SATISFIED"
+              ],
+              "unavailable_here_reason": "This session prepared the Phase 9 qualification set and cannot validly act as the independent incoming candidate/evaluator; the current tool environment also has no separate-agent spawn semantics or runnable local repository checkout.",
+              "expected_evidence": [
+                "TEST-9-01"
+              ],
+              "blocks": [
+                "candidate-specific TAKEOVER_CERTIFIED for the refreshed Phase 9 route",
+                "candidate-specific MATERIAL_WRITE_READY",
+                "further STEP-9-01 product/test-support writes"
+              ],
+              "success_condition": "A non-preparer candidate posts repository-only DISC/QUAL/TC accepted by the pinned validators, derives MATERIAL_WRITE_READY on the live route, completes only the authorized STEP-9-01 fixture-binding/signed-fixture slice, and posts TEST-9-01 plus corpus-audit evidence to issue #286.",
+              "clears": [
+                "fresh pinned-protocol takeover admission for EP-9-001",
+                "authorization for the qualified candidate to perform the bounded STEP-9-01 material slice",
+                "the current external-execution wait for TEST-9-01 evidence"
+              ],
+              "delegation": {
+                "mode": "LOCAL_AGENT",
+                "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase9/pdf-fidelity-laboratory. Work from a local checkout root. Governing protocol: reallaksh19/Common@65518fd5340599b2a0fb88db5041f6c96389ccb8/skills/engineering-pr-delivery-v2.5. Current roadmap route: RM-0003 / WP-009 / issue #286 / draft PR #287. Frozen product/material basis: 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Read agents/relay/REPO_STATE.yaml, EP-9-001.yaml and QSET-9-003.yaml from the repository; do not rely on predecessor chat. Use a candidate identity different from chatgpt-gpt56-sol-20260921-phase9-delegation-refresh-preparer. Create a fresh DISC-9-* covering every receipt-required DSTEP with conversation_context_used:false and the pinned protocol/profile/predecessor/material/EP digests. Answer Q1-Q5 exactly from QSET-9-003 and create a fresh QUAL-9-* using evaluated_by.type DETERMINISTIC_VALIDATOR and evaluated_by.identity validate_qualification_receipt.py; self_evaluation.allowed:false; all five evaluations must PASS. Create a fresh TC-9-* using validate_takeover_certification.py and the exact DISC/QUAL digest; all takeover checks must PASS. Update REPO_STATE.takeover_admissions only after pinned validators accept the chain. Run material_write_ready.py with your candidate id and do not touch product files unless it returns WRITE. If WRITE, stay strictly inside STEP-9-01: independently verify the retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf provenance plus actual required semantics; bind only those that pass; source/generate the signed fixture using repository-owned or legally redistributable non-production certificate material; run the manifest validator, npm run audit:phase9-fidelity-corpus, and the focused TEST-9-01/certify:phase9-step1 path. Do not begin STEP-9-02, do not modify PdfLibMutationEngine, do not close Phase 8G, do not use production credentials, and do not weaken fixture expectations. Post back to issue #286: candidate id; DISC/QUAL/TC ids/paths/digests; validator outputs; material_write_ready result; exact head; files changed; provenance evidence; TEST-9-01/audit commands and results; remaining pending fixtures; any stop condition.",
+                "publication": {
+                  "target": "CURRENT_WORK_ISSUE",
+                  "method": "COMMENT",
+                  "local_result_update": "SAME_LOCATION",
+                  "readback_required": true
+                },
+                "response_check": {
+                  "timer_required": true,
+                  "timer_title": "Phase 9 local takeover check",
+                  "after_minutes": 60,
+                  "selection_reason": "The delegated work includes local setup, pinned validator execution, candidate takeover, fixture provenance/semantic checks and focused corpus validation, so it is a multi-step local verification rather than a short command.",
+                  "on_due": "Read issue #286 for the delegated local-agent response, validate DISC/QUAL/TC and TEST-9-01 evidence against the current route/pinned Common basis, then reconcile REPO_STATE/progress before any further material work.",
+                  "on_no_response": "Report WAITING truthfully and schedule another check only if the external qualification remains useful; do not infer takeover or material-write readiness."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "issues": [
+        {
+          "id": "ISSUE-286",
+          "engineering_state": "ACTIVE",
+          "github_state": "OPEN",
+          "issue_number": 286,
+          "url": "https://github.com/reallaksh19/Pdf-Hub/issues/286"
+        }
+      ],
+      "owner_decisions": [
+        {
+          "id": "ODR-0001",
+          "path": "agents/relay/roadmap/owner-decisions/ODR-0001.yaml",
+          "status": "APPLIED",
+          "kind": "NO_CHANGE_CONFIRMATION",
+          "statement": "Continue the existing PDF Hub Phase 8D.3 product roadmap, while using the revised engineering-pr-delivery-v2.5 protocol from reallaksh19/Common for delivery control.",
+          "source": "Owner instruction received 2026-09-19T10:33:01Z and captured durably by this ODR.",
+          "requirement_disposition": "SATISFIED",
+          "grants_material_write_authority": false,
+          "pending_items": [],
+          "delivery_authorization": null
+        },
+        {
+          "id": "ODR-0002",
+          "path": "agents/relay/roadmap/owner-decisions/ODR-0002.yaml",
+          "status": "APPLIED",
+          "kind": "EXPLICIT_PROTOCOL_EXCEPTION",
+          "statement": "Proceed with WP-8G implementation in the current agent session without waiting for the fresh-candidate DISC/QUAL/TC sequence.",
+          "source": "Owner instruction received 2026-09-20T16:53:25Z: \"override, no questions\".",
+          "requirement_disposition": "EXCEPTION_RECORDED",
+          "grants_material_write_authority": false,
+          "pending_items": [
+            "This instruction does not make TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY true under engineering-pr-delivery-v2.5.",
+            "Any implementation performed under this decision must remain explicitly classified as owner-directed protocol-exception work, not qualified V2.5 work."
+          ],
+          "delivery_authorization": null
+        },
+        {
+          "id": "ODR-0003",
+          "path": "agents/relay/roadmap/owner-decisions/ODR-0003.yaml",
+          "status": "APPLIED",
+          "kind": "DEFERRAL",
+          "statement": "Skip the Phase 8G certification run for now, record it as a pending item on the GitHub issue, and proceed with the next roadmap work.",
+          "source": "Owner instruction received 2026-09-20T19:45:35Z.",
+          "requirement_disposition": "PENDING_NOT_SATISFIED",
+          "grants_material_write_authority": false,
+          "pending_items": [
+            "Run npm run certify:phase8g on an exact-head usable runner for product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af.",
+            "Retain and reconcile Node/Chromium benchmark reports plus phase8g-certification-evidence-v1.",
+            "Reconcile TEST-04/TEST-05, measured supported limits, QRV/checkpoint/progress and PR #285 delivery state."
+          ],
+          "delivery_authorization": null
+        },
+        {
+          "id": "ODR-0004",
+          "path": "agents/relay/roadmap/owner-decisions/ODR-0004.yaml",
+          "status": "APPLIED",
+          "kind": "INTENT_MUTATION",
+          "statement": "Proceed with the next roadmap work while Phase 8G certification remains deferred and unsatisfied.",
+          "source": "Owner instruction received 2026-09-20T19:45:35Z.",
+          "requirement_disposition": "NOT_APPLICABLE",
+          "grants_material_write_authority": false,
+          "pending_items": [
+            "ODR-0003 deferred Phase 8G certification obligations remain pending."
+          ],
+          "delivery_authorization": null
+        }
+      ]
+    }
+  }
+}
