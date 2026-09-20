@@ -631,6 +631,17 @@ For structural mutations, test:
 7. save again
 8. reopen again
 
+Phase 9 owns the permanent machine-readable fidelity corpus under
+`frontend/fidelity/phase9/`. Its manifest separates declared required classes
+from actual fixture readiness: `generated` or future legally redistributable
+`retained` entries are executable corpus material, while
+`required-pending` entries are explicit unsatisfied obligations and must not
+earn acceptance. Every fixture declares provenance, baseline semantic
+expectations and an operation-specific preserve/transform/invalidate/reject
+disposition. Generated PDFs are reproducible build artifacts rather than checked
+in binary fixtures. Rendering remains an independent consumer, never the sole
+semantic oracle.
+
 ## Roadmap authority
 
 The active post-merge execution sequence is tracked in GitHub issue **#185**.
