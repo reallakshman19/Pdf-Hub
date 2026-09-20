@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSearchStore } from '@/core/search/store';
@@ -11,13 +11,12 @@ import {
 } from '@/adapters/pdf-renderer/activePdfDocumentLease';
 import { SearchIndexer } from '@/core/search/indexer';
 import {
-  IncrementalSearchResults,
-} from '@/core/search/incrementalResults';
-import {
   EMPTY_SEARCH_INDEX_PROGRESS,
-  type SearchIndexProgress,
   type SearchOptions,
 } from '@/core/search/types';
+import {
+  useSearchResultPublisher,
+} from './useSearchResultPublisher';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
@@ -78,10 +77,6 @@ export const SearchPanel: React.FC = () => {
   })));
   const addToast = useToastStore((state) => state.addToast);
   const indexAbortControllerRef = React.useRef<AbortController | null>(null);
-  const incrementalResultsRef =
-    React.useRef(
-      new IncrementalSearchResults(),
-    );
 
   const [localQuery, setLocalQuery] = useState(query);
   const [searchOptions, setSearchOptions] = useState<SearchOptions>({
@@ -100,104 +95,17 @@ export const SearchPanel: React.FC = () => {
     setLocalQuery(query);
   }
 
-  const searchOptionsRef = React.useRef(searchOptions);
-  searchOptionsRef.current = searchOptions;
-
-  const publishSearchResults = useCallback((
-    searchQuery: string,
-    options: SearchOptions = searchOptionsRef.current,
-  ) => {
-    if (!activeRevisionId || !pageGraph) {
-      incrementalResultsRef.current.clear();
-      setHits([]);
-      setIndexProgress({
-        ...EMPTY_SEARCH_INDEX_PROGRESS,
-      });
-      setIsSearching(false);
-      return;
-    }
-
-    SearchIndexer.prepareRevision(
-      activeRevisionId,
-      pageGraph,
-    );
-    const progress =
-      SearchIndexer.getProgress(
-        activeRevisionId,
-        pageGraph,
-      );
-    setIndexProgress(progress);
-
-    setHits(
-      incrementalResultsRef.current
-        .rebuild(
-          activeRevisionId,
-          pageGraph,
-          searchQuery,
-          options,
-        ),
-    );
-    setIsSearching(
-      Boolean(searchQuery.trim())
-      && !progress.complete,
-    );
-  }, [
+  const {
+    publishSearchResults,
+    publishIndexedPageResults,
+  } = useSearchResultPublisher({
     activeRevisionId,
     pageGraph,
+    searchOptions,
     setHits,
     setIndexProgress,
     setIsSearching,
-  ]);
-
-  const publishIndexedPageResults =
-    useCallback((
-      pageId: Parameters<
-        IncrementalSearchResults['updatePage']
-      >[2],
-      pageNumber: number,
-      progress: SearchIndexProgress,
-    ) => {
-      if (!activeRevisionId || !pageGraph) {
-        return;
-      }
-
-      const searchQuery =
-        useSearchStore
-          .getState()
-          .query;
-      if (!searchQuery.trim()) {
-        setIsSearching(false);
-        return;
-      }
-
-      const nextHits =
-        incrementalResultsRef.current
-          .updatePage(
-            activeRevisionId,
-            pageGraph,
-            pageId,
-            pageNumber,
-            searchQuery,
-            searchOptionsRef.current,
-          );
-      if (nextHits === null) {
-        publishSearchResults(
-          searchQuery,
-        );
-        return;
-      }
-
-      setHits(nextHits);
-      setIsSearching(
-        !progress.complete,
-      );
-    }, [
-      activeRevisionId,
-      pageGraph,
-      publishSearchResults,
-      setHits,
-      setIsSearching,
-    ]);
+  });
 
   React.useEffect(() => {
     if (
