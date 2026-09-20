@@ -8,11 +8,16 @@ import {
 import {
   expect,
   test,
-  type Page,
 } from '@playwright/test';
 import {
   stubNativeFilePickers,
 } from './fixtures/stubNativeFilePickers';
+import {
+  jumpToPhase8gPage,
+  phase8gMedian,
+  phase8gRendererDiagnostics,
+  waitForPhase8gRenderedPage,
+} from './phase8gBrowserBenchmarkSupport';
 
 interface FixtureRecord {
   fixture_id: string;
@@ -37,157 +42,6 @@ interface Observation {
     string,
     string | number | boolean | null
   >;
-}
-
-interface SourceDiagnostic {
-  cacheKey: string;
-  sourceKind: string;
-  sourceSize: number;
-  rangeRequests: number;
-  rangeBytesDelivered: number;
-  maxRequestedRangeBytes: number;
-}
-
-const FIXTURE_DIR =
-  path.resolve(
-    process.cwd(),
-    process.env.PHASE8G_FIXTURE_DIR
-      ?? 'performance/fixtures/phase8g',
-  );
-const OUTPUT_PATH =
-  path.resolve(
-    process.cwd(),
-    process.env.PHASE8G_BROWSER_OBSERVATION_PATH
-      ?? 'performance/results/phase8g-browser-observation.json',
-  );
-
-function gitHead(): string {
-  return execFileSync(
-    'git',
-    ['rev-parse', 'HEAD'],
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    },
-  ).trim();
-}
-
-async function rendererDiagnostics(
-  page: Page,
-): Promise<SourceDiagnostic[]> {
-  return page.evaluate(
-    async () => {
-      const moduleUrl =
-        new URL(
-          'src/adapters/pdf-renderer/PdfRendererAdapter.ts',
-          document.baseURI,
-        ).href;
-      const dynamicImport =
-        new Function(
-          'url',
-          'return import(url)',
-        ) as (
-          url: string,
-        ) => Promise<{
-          PdfRendererAdapter: {
-            getDocumentSourceCacheDiagnostics:
-              () => SourceDiagnostic[];
-          };
-        }>;
-      const module =
-        await dynamicImport(
-          moduleUrl,
-        );
-      return module
-        .PdfRendererAdapter
-        .getDocumentSourceCacheDiagnostics();
-    },
-  );
-}
-
-async function waitForRenderedPage(
-  page: Page,
-  pageNumber: number,
-): Promise<void> {
-  const surface =
-    page.locator(
-      `[data-page="${pageNumber}"]`,
-    );
-  await expect(surface)
-    .toBeVisible({
-      timeout: 60_000,
-    });
-
-  await page.waitForFunction(
-    (target) => {
-      const surface =
-        document.querySelector(
-          `[data-page="${target}"]`,
-        );
-      const canvas =
-        surface?.querySelector(
-          'canvas',
-        );
-      return Boolean(
-        canvas
-        && (
-          canvas.width > 300
-          || canvas.height > 150
-        ),
-      );
-    },
-    pageNumber,
-    {
-      timeout: 60_000,
-    },
-  );
-}
-
-async function jumpToPage(
-  page: Page,
-  pageNumber: number,
-): Promise<number> {
-  const input =
-    page.locator(
-      'input[inputmode="numeric"][aria-label^="Page "]',
-    ).first();
-  const started =
-    performance.now();
-  await input.fill(
-    String(pageNumber),
-  );
-  await input.press('Enter');
-  await waitForRenderedPage(
-    page,
-    pageNumber,
-  );
-  return (
-    performance.now()
-    - started
-  );
-}
-
-function median(
-  values: readonly number[],
-): number {
-  const ordered =
-    [...values].sort(
-      (left, right) =>
-        left - right,
-    );
-  const middle =
-    Math.floor(
-      ordered.length / 2,
-    );
-  if (
-    ordered.length % 2 === 0
-  ) {
-    return (
-      ordered[middle - 1]!
-      + ordered[middle]!
-    ) / 2;
-  }
-  return ordered[middle] ?? 0;
 }
 
 test(
@@ -343,7 +197,7 @@ test(
         Buffer.from(bytes),
     });
 
-    await waitForRenderedPage(
+    await waitForPhase8gRenderedPage(
       page,
       1,
     );
@@ -355,7 +209,7 @@ test(
     );
 
     const firstDiagnostics =
-      await rendererDiagnostics(
+      await phase8gRendererDiagnostics(
         page,
       );
     const sourceDiagnostic =
@@ -396,7 +250,7 @@ test(
       const target of targets
     ) {
       latencies.push(
-        await jumpToPage(
+        await jumpToPhase8gPage(
           page,
           target,
         ),
@@ -483,7 +337,7 @@ test(
               ...latencies,
             ),
           median_navigation_ms:
-            median(latencies),
+            phase8gMedian(latencies),
           navigation_samples:
             latencies.length,
           peak_js_heap_bytes:
