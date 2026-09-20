@@ -11,22 +11,22 @@
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0002",
+    "revision": "RM-0003",
     "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml"
   },
   "current_position": {
     "objective": "OBJ-READINESS",
-    "phase": "PHASE-008",
-    "work_package": "WP-8G",
+    "phase": "PHASE-009",
+    "work_package": "WP-009",
     "work_packages": []
   },
   "execution_policy": {
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8G-001",
-    "path": "agents/relay/execution-packages/EP-8G-001.yaml",
-    "state": "ACTIVE",
+    "id": "NONE",
+    "path": null,
+    "state": "NONE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -46,46 +46,32 @@
   "takeover_admissions": [],
   "progress": {
     "overall_percent": 66.67,
-    "phase_percent": 90.91,
+    "phase_percent": 0,
     "ep_percent": 0,
-    "basis_revision": "PB-0001"
+    "basis_revision": "PB-0002"
   },
   "status_planes": {
     "execution": {
-      "state": "ACTIVE",
+      "state": "RECONCILING",
       "can_continue": true,
-      "material_authority": "WRITE",
-      "next_action": "Execute `npm run certify:phase8g` on a usable exact-head runner at product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af. The chain now performs predecessor certification, static audit, focused regressions, build, full Phase 8G benchmarks and exact-head evidence certification. If it executes, reconcile TEST-04/TEST-05 results, measured supported limits, QRV/checkpoint/progress and delivery. Do not make further performance claims before execution."
+      "material_authority": "READ_ONLY",
+      "next_action": "Create the Phase 9 successor branch and semantic EP/QSET for WP-009 / issue #286. Phase 8G certification remains deferred under ODR-0003 and must not be treated as complete."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "The WP-8F active-query repeated-rescan defect is remediated in source by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
-        "Incremental indexing scheduler state checks use metadata-only getPageState() rather than deep-cloning indexed text records.",
-        "STEP-03/04 executable measurement drivers exist for Node renderer/search, Chromium render/navigation/heap/long tasks, mutation/save and canonical recovery.",
-        "STEP-05 now requires benchmark:phase8g plus exact-head Node/Chromium PASS evidence before certify:phase8g can complete successfully.",
-        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is measured separately from range-backed viewing.",
-        "ODR-0002 remains an owner-directed qualification-bypass exception; no DISC-8G, QUAL-8G, TC-8G, TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY claim exists.",
-        "GitHub Actions #183 still prevents runner execution; exact product-head jobs at 2bd1333d158897bc9c3e91dc3fb731e9b396a1af have runner_id 0 and zero steps."
+        "Phase 8G executable certification remains PENDING_NOT_SATISFIED under ODR-0003 and issue #284.",
+        "RM-0003 resequences WP-009 as the sole frontier without awarding Phase 8G acceptance.",
+        "Phase 9 requires fresh qualification because the phase and fidelity/oracle boundary change."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Owner-directed WP-8G implementation and STEP-05 certification wiring are present at product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af. DOBS-8G-005 records exact-head provider readback. The full fixture, remediation, benchmark, evaluator, exact-head evidence gate and documentation surfaces exist, but no repository command or benchmark has executed on a usable runner. Acceptance remains 0%.",
+      "summary": "Phase 8G implementation/certification wiring is frozen, but its exact-head executable certification is Owner-deferred. RM-0003 moves the serial frontier to WP-009 / Phase 9. No Phase 9 product implementation or acceptance evidence exists yet.",
       "not_run": [
         {
           "command": "npm run certify:phase8g",
-          "reason": "Exact product-head GitHub jobs completed with runner_id 0 and zero steps under #183.",
-          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
-        },
-        {
-          "command": "npm run benchmark:phase8g",
-          "reason": "The benchmark suite is wired into certification but has not executed on a usable runner.",
-          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
-        },
-        {
-          "command": "npm run certify:phase8g:evidence",
-          "reason": "No Node/Chromium benchmark reports exist from an executed exact-head run, so the evidence gate has not executed.",
+          "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
           "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
         }
       ]
@@ -104,26 +90,23 @@
     "target": null,
     "adapter": null,
     "plan": null,
-    "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8G-001",
+    "roadmap_revision": "RM-0003",
+    "execution_ref": "NONE",
     "receipt": null,
     "basis": [
-      "PR #283 merged WP-8F at f42f0c27785e3dc097dc41ca0325698156b32181 and issue #282 is closed.",
-      "Issue #284 is the verified coordination contract for WP-8G.",
-      "EP-8G-001 and QSET-8G-001 remain the semantic route contract.",
-      "ODR-0002 records the owner's explicit instruction to proceed without waiting for fresh-candidate DISC/QUAL/TC; this is a protocol exception rather than qualification evidence.",
-      "Draft PR #285 tracks the active WP-8G material and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation.",
-      "DOBS-8G-005 observes product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af with STEP-01 through STEP-05 wiring present and all executable evidence still NOT_RUN."
+      "ODR-0003 defers Phase 8G executable certification without satisfaction.",
+      "ODR-0004 plus RM-0003 resequence WP-009 as the sole computed frontier.",
+      "Issue #286 is the Phase 9 coordination contract."
     ],
     "observed": {
-      "issue": 284,
-      "pull_request": 285,
+      "issue": 286,
+      "pull_request": null,
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
     },
     "superseded_operations": []
   },
   "delivery": {
-    "required": true,
+    "required": false,
     "provider": "GITHUB",
     "observation": {
       "id": "DOBS-8G-005",
@@ -153,10 +136,12 @@
     ]
   },
   "relay_readiness": {
-    "baton_ready": true,
+    "baton_ready": false,
     "projection_ready": true,
-    "handover_ready": true,
-    "reasons": []
+    "handover_ready": false,
+    "reasons": [
+      "Phase 9 successor EP/QSET has not yet been created on its execution branch."
+    ]
   },
   "chat_context_required": false
 }
