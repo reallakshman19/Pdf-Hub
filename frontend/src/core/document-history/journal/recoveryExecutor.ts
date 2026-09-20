@@ -145,7 +145,7 @@ export function executeHistoryRecovery(
 async function executeHistoryRecoveryUnqueued(
   input: ExecuteHistoryRecoveryInput,
 ): Promise<HistoryRecoveryExecutionResult> {
-  const { plan, checkpointBytes } =
+  const { plan } =
     input.resolved;
   const dispatch =
     input.dependencies?.dispatch
