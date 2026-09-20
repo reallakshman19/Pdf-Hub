@@ -377,6 +377,36 @@ export class SearchIndexer {
     };
   }
 
+  static searchPage(
+    revisionId: string,
+    pageId: PageId,
+    pageNumber: number,
+    query: string,
+    options: SearchOptions,
+  ): SearchHit[] {
+    if (!query.trim()) return [];
+
+    const record =
+      revisionIndexes
+        .get(revisionId)
+        ?.get(pageId);
+    if (
+      !record
+      || record.status !== 'indexed'
+    ) {
+      return [];
+    }
+
+    return searchIndexedPageText({
+      revisionId,
+      pageId,
+      pageNumber,
+      items: record.items,
+      query,
+      options,
+    });
+  }
+
   static searchRevision(
     revisionId: string,
     pageGraph: PageGraph<PageNode>,
@@ -385,30 +415,15 @@ export class SearchIndexer {
   ): SearchHit[] {
     if (!query.trim()) return [];
 
-    const index =
-      revisionIndexes.get(revisionId);
-    if (!index) return [];
-
     return pageGraph.pages.flatMap(
-      (page, pageIndex) => {
-        const record =
-          index.get(page.pageId);
-        if (
-          !record
-          || record.status !== 'indexed'
-        ) {
-          return [];
-        }
-
-        return searchIndexedPageText({
+      (page, pageIndex) =>
+        this.searchPage(
           revisionId,
-          pageId: page.pageId,
-          pageNumber: pageIndex + 1,
-          items: record.items,
+          page.pageId,
+          pageIndex + 1,
           query,
           options,
-        });
-      },
+        ),
     );
   }
 
