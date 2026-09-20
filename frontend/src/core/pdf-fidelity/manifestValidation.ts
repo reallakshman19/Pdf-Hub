@@ -1,6 +1,7 @@
 import {
   PHASE9_MUTATION_CLASSES,
   PHASE9_REQUIRED_FIXTURE_CLASSES,
+  PHASE9_STRUCTURE_KINDS,
   type FidelityCorpusManifest,
   type FidelityFixtureClass,
   type FidelityManifestDiagnostic,
@@ -10,6 +11,10 @@ import {
 const REQUIRED_CLASS_SET =
   new Set<string>(
     PHASE9_REQUIRED_FIXTURE_CLASSES,
+  );
+const STRUCTURE_KIND_SET =
+  new Set<string>(
+    PHASE9_STRUCTURE_KINDS,
   );
 
 export function validateFidelityCorpusManifest(
@@ -85,6 +90,41 @@ export function validateFidelityCorpusManifest(
     }
 
     if (
+      fixture.structures.length === 0
+      || fixture.structures.some(
+        (structure) =>
+          !STRUCTURE_KIND_SET.has(
+            structure,
+          ),
+      )
+    ) {
+      diagnostics.push({
+        code: 'INVALID_MANIFEST',
+        fixtureId: fixture.id,
+        message:
+          `Fixture ${fixture.id} must declare at least one known semantic structure key.`,
+      });
+    }
+
+    const declaredStructures =
+      new Set(fixture.structures);
+    if (
+      fixture.baseline.some(
+        (expectation) =>
+          !declaredStructures.has(
+            expectation.structure,
+          ),
+      )
+    ) {
+      diagnostics.push({
+        code: 'INVALID_MANIFEST',
+        fixtureId: fixture.id,
+        message:
+          `Fixture ${fixture.id} baseline references a semantic structure outside its declared structure set.`,
+      });
+    }
+
+    if (
       !fixture.provenance.source.trim()
       || !fixture.provenance
         .licenseOrOwnership.trim()
@@ -151,6 +191,13 @@ export function validateFidelityCorpusManifest(
         || expectation
           .expectedStructures.length
           === 0
+        || expectation
+          .expectedStructures.some(
+            (structure) =>
+              !declaredStructures.has(
+                structure.structure,
+              ),
+          )
       ) {
         diagnostics.push({
           code:
