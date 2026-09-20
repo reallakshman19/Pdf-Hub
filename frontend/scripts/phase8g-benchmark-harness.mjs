@@ -304,6 +304,27 @@ function evaluate(measurement) {
       }
     }
   } else if (
+    operation
+    === 'browser_navigation'
+  ) {
+    for (
+      const field
+      of [
+        'max_navigation_ms',
+        'median_navigation_ms',
+        'navigation_samples',
+        'peak_js_heap_bytes',
+      ]
+    ) {
+      numeric(
+        metrics,
+        field,
+        failures,
+      );
+    }
+    details.classification =
+      'OBSERVATION_ONLY';
+  } else if (
     operation === 'long_task'
   ) {
     const value =
