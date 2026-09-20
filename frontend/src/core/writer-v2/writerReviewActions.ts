@@ -6,6 +6,9 @@ import type {
   WriterReviewStatus,
 } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 
 export interface WriterReviewActionResult {
   changed: boolean;
@@ -54,10 +57,10 @@ export async function ensureActiveWriterReviewMetadata(): Promise<WriterReviewAc
   }
 
   const elementId = element.id;
-  const store = useWriterV2Store.getState();
-
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer review metadata',
+
       (state) => {
         const current = state.elements.find(
           (item) => item.id === elementId,
@@ -126,10 +129,10 @@ export async function updateWriterReviewMetadataById(
   elementId: string,
   patch: WriterReviewPatch,
 ): Promise<WriterReviewActionResult> {
-  const store = useWriterV2Store.getState();
-
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer review metadata',
+
       (state) => {
         const current = state.elements.find(
           (item) => item.id === elementId,
@@ -208,10 +211,10 @@ export async function clearActiveWriterReviewMetadata(): Promise<WriterReviewAct
   }
 
   const elementId = element.id;
-  const store = useWriterV2Store.getState();
-
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer review metadata',
+
       (state) => {
         const current = state.elements.find(
           (item) => item.id === elementId,
