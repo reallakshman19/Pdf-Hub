@@ -12,7 +12,7 @@
     "lane_id": null,
     "roadmap_revision": "RM-0003",
     "work_package": "WP-009",
-    "ep_contract_digest": "sha256:9e3b143d88a3be09be0684b4c76edc40d7595d0dd96865d0971db1d44612ea41"
+    "ep_contract_digest": "sha256:2fcb1663951a67e41914e2e43ef244c45eeee4eebcbb86f571d62c0c247420ec"
   },
   "boundary": {
     "trigger": "PHASE_CHANGED",
@@ -36,7 +36,7 @@
       "focus": "PRODUCTION_PATH",
       "anchors": [
         "WP-009",
-        "INPUT-02"
+        "INPUT-9-02"
       ],
       "prompt": "Trace the canonical structural-mutation production path Phase 9 will harden. Identify the command/session entrypoint, the mutation-session state owner, the authority for page identity/order and immutable revision publication, and the downstream save/reopen consumer used to detect document-level fidelity loss. Explain where page-only rebuild/copy behavior can omit catalog structures.",
       "required_output_keys": [
@@ -52,8 +52,8 @@
       "focus": "ENGINEERING_PROBLEM",
       "anchors": [
         "WP-009",
-        "INPUT-03",
-        "AC-02"
+        "INPUT-9-03",
+        "AC-9-02"
       ],
       "prompt": "Reconstruct the fidelity failure logically from the supplied fixture model without relying on implementation comments. A 10-page PDF has a nested outline destination to page 5, PageLabels, one populated AcroForm field/widget, one native annotation and one embedded attachment. A reorder implementation creates a new PDFDocument and copies only pages in the requested order. Derive which semantic structures are at risk even if all 10 pages still render, and predict what the repeated save/reopen oracle must detect.",
       "reconstruction_mode": "LOGIC_RECONSTRUCTION",
@@ -96,8 +96,8 @@
       "focus": "BOUNDARIES_INVARIANTS",
       "anchors": [
         "WP-009",
-        "AC-03",
-        "AC-04"
+        "AC-9-03",
+        "AC-9-04"
       ],
       "prompt": "State the consequence if a proposed fidelity fix makes the output render successfully but silently drops a fixture-declared outline/form/attachment/tagged structure, or reports a content-mutated signed PDF as still cryptographically valid. Name the protected invariant and the exact observation that falsifies a safe implementation.",
       "mutation": {
@@ -116,21 +116,21 @@
       "id": "Q4",
       "focus": "VERIFICATION",
       "anchors": [
-        "AC-02",
-        "AC-03",
-        "AC-04",
-        "TEST-02",
-        "TEST-03",
-        "TEST-04",
-        "BENCH-01",
-        "BENCH-02",
-        "BENCH-03"
+        "AC-9-02",
+        "AC-9-03",
+        "AC-9-04",
+        "TEST-9-02",
+        "TEST-9-03",
+        "TEST-9-04",
+        "BENCH-9-01",
+        "BENCH-9-02",
+        "BENCH-9-03"
       ],
       "prompt": "Design an independent verification for Phase 9 fidelity. It must compare fixture-declared semantic inventories before and after the full two-cycle mutation/save/reopen sequence, use PDF.js/reopen rendering only as an independent consumer rather than the sole oracle, and separately verify signed/encrypted explicitness. Predict the expected result and state exactness/tolerance.",
       "oracle_refs": [
-        "BENCH-01",
-        "BENCH-02",
-        "BENCH-03"
+        "BENCH-9-01",
+        "BENCH-9-02",
+        "BENCH-9-03"
       ],
       "independence_requirement": "Use predeclared fixture manifests, frozen repeat-cycle requirements and explicit signature/encryption semantics; do not derive expected preservation from the mutation implementation under test.",
       "required_output_keys": [
@@ -144,13 +144,13 @@
       "id": "Q5",
       "focus": "FIRST_SAFE_SLICE",
       "anchors": [
-        "STEP-01",
-        "AC-01",
-        "TEST-01"
+        "STEP-9-01",
+        "AC-9-01",
+        "TEST-9-01"
       ],
       "prompt": "Name the first bounded implementation slice after takeover certification. State the pre-change observation, predicted post-change observation and exact verification. Do not begin by rewriting PdfLibMutationEngine; first establish the permanent corpus, provenance and fixture-specific expectation manifest.",
       "step_refs": [
-        "STEP-01"
+        "STEP-9-01"
       ],
       "required_output_keys": [
         "first_change",
