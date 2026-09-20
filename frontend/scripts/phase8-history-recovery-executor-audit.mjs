@@ -76,7 +76,10 @@ requireContains(planner, plannerPath, [
   'validatePageGraph',
   "'RECOVERY_CHECKPOINT_INVALID'",
   "'RECOVERY_SUFFIX_BLOCKED'",
-  "entry.disposition !== 'SELF_CONTAINED_REPLAY'",
+  'classifyHistoryReplayability',
+  'entry.disposition',
+  "'SELF_CONTAINED_REPLAY'",
+  'currentClassification.disposition',
   'replayEntries: replayEntries.map(cloneEntry)',
 ]);
 forbidContains(planner, plannerPath, [
@@ -132,6 +135,9 @@ requireContains(executor, executorPath, [
   'restoreRecoverySnapshot(snapshot)',
   'rekeyRecoveredWriterState',
   'liveCheckpoint.statePayload',
+  'liveReplayEntries',
+  'resolveWorkingRevisionStore',
+  "'REVISION_STORE_UNAVAILABLE'",
   "documentBus.emit({",
   "type: 'DOCUMENT_REPLACED'",
 ]);
@@ -239,6 +245,7 @@ requireContains(
     'plans from the latest recovery-complete checkpoint through a replayable suffix',
     'fails closed when replay to the active cursor crosses a checkpoint-required entry',
     'does not treat a legacy v1 state checkpoint as recovery-complete',
+    'reclassifies suffix commands instead of trusting a forged persisted disposition',
   ],
 );
 
@@ -270,6 +277,8 @@ requireContains(
     'restores pre-recovery state when final annotation persistence fails',
     'hydrates referenced Writer assets before installing checkpoint state',
     'fails before mutating state when checkpoint Writer assets are unresolved',
+    'fails before mutation when the revision store disappears after resolution',
+    'fails before mutation when a planned replay entry changes in durable journal storage',
   ],
 );
 
