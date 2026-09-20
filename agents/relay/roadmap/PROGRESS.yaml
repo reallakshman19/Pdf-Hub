@@ -2,7 +2,7 @@
   "schema_version": "relay-v2.5",
   "progress_basis": {
     "id": "PB-0001",
-    "roadmap_revision": "RM-0001",
+    "roadmap_revision": "RM-0002",
     "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
   },
   "overall": {
@@ -216,85 +216,67 @@
   ],
   "execution_packages": [
     {
-      "id": "EP-8D3-001",
-      "earned_weight": 0,
-      "total_weight": 4,
-      "percent": 0
-    }
-  ],
-  "implementation_steps": [
-    {
-      "id": "STEP-01",
-      "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
-      "total_weight": 1,
-      "percent": 0
-    },
-    {
-      "id": "STEP-02",
-      "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
-      "total_weight": 1,
-      "percent": 0
-    },
-    {
-      "id": "STEP-03",
-      "ep_id": "EP-8D3-001",
-      "earned_weight": 0,
-      "total_weight": 1,
-      "percent": 0
-    },
-    {
-      "id": "STEP-04",
-      "ep_id": "EP-8D3-001",
+      "id": "EP-8E5C1-001",
       "earned_weight": 0,
       "total_weight": 1,
       "percent": 0
     }
   ],
+  "implementation_steps": [],
   "acceptance_criteria": [
     {
       "id": "AC-01",
-      "ep_id": "EP-8D3-001",
+      "ep_id": "EP-8E5C1-001",
       "earned_weight": 0,
-      "total_weight": 25,
+      "total_weight": 30,
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+        "Implementation is active; acceptance remains unearned until mapped executable certification is terminal."
       ]
     },
     {
       "id": "AC-02",
-      "ep_id": "EP-8D3-001",
+      "ep_id": "EP-8E5C1-001",
       "earned_weight": 0,
-      "total_weight": 25,
+      "total_weight": 15,
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+        "Legacy v1 compatibility is implemented on the active branch but still requires exact-head executable certification."
       ]
     },
     {
       "id": "AC-03",
-      "ep_id": "EP-8D3-001",
+      "ep_id": "EP-8E5C1-001",
       "earned_weight": 0,
-      "total_weight": 25,
+      "total_weight": 20,
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+        "State-only v2 durability changes are implemented on the active branch; certification evidence is pending."
       ]
     },
     {
       "id": "AC-04",
-      "ep_id": "EP-8D3-001",
+      "ep_id": "EP-8E5C1-001",
       "earned_weight": 0,
       "total_weight": 25,
       "percent": 0,
       "status": "IN_PROGRESS",
       "basis": [
-        "Implementation/static review exists on bd5434a506d8bd6a73ceae7eec33d4d90b6f8180, but acceptance is not earned until the mapped executable certification evidence runs and is terminal."
+        "Binary barrier after-state attachment is implemented on the active branch; certification evidence is pending."
+      ]
+    },
+    {
+      "id": "AC-05",
+      "ep_id": "EP-8E5C1-001",
+      "earned_weight": 0,
+      "total_weight": 10,
+      "percent": 0,
+      "status": "IN_PROGRESS",
+      "basis": [
+        "Rollback regression coverage is retained/extended but acceptance remains unearned until executable certification runs."
       ]
     }
   ]
