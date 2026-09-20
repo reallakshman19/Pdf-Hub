@@ -72,6 +72,28 @@ function command(documentKey: string, id: string): PdfCommand {
   );
 }
 
+function checkpointBarrierCommand(
+  documentKey: string,
+  id: string,
+): PdfCommand {
+  return materializePdfCommand(
+    {
+      type: 'REPLACE_PAGE',
+      payload: {
+        atIndex: 0,
+        donorResourceId: 'donor-a',
+        donorPageIndex: 0,
+      },
+    },
+    'toolbar',
+    documentKey,
+    {
+      id,
+      createdAt: '2026-09-18T00:00:00.000Z',
+    },
+  );
+}
+
 const beforeAnnotation: PdfAnnotation = {
   id: 'annotation-before',
   type: 'highlight',
@@ -280,6 +302,119 @@ describe('document transaction history memory', () => {
       activeRevisionId: 'hash-2',
       entries: [{ transactionId: transaction?.id }],
     });
+  });
+
+  it('attaches recovery-complete after-state to a binary checkpoint barrier before journal save', async () => {
+    const revisionStore = new MemoryRevisionStore({
+      id: 'barrier-revisions',
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'barrier-initial',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(revisionStore);
+
+    const journalStore = new MemoryHistoryJournalStore({
+      id: 'barrier-history-journal',
+    });
+    registerHistoryJournalStore(journalStore);
+    await journalStore.save(
+      createInitialHistoryJournalManifest({
+        journalId: 'history-barrier',
+        revisionStoreId: revisionStore.id,
+        revisionId: 'hash-1',
+        fileName: 'fixture.pdf',
+      }),
+    );
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId: revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      historyJournalStoreId: journalStore.id,
+      historyJournalId: 'history-barrier',
+      historyJournalPersistent: false,
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'hash-1',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    await commitDocumentMutation({
+      command: checkpointBarrierCommand(
+        'hash-1',
+        'barrier-replace',
+      ),
+      label: 'Replace page from donor',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      nextAnnotations: [afterAnnotation],
+      revisionMetadata: {
+        beforePageCount: 1,
+        afterPageCount: 1,
+      },
+    });
+
+    const durable = await journalStore.load(
+      'history-barrier',
+    );
+    const checkpoint =
+      durable?.checkpoints.find(
+        (candidate) =>
+          candidate.transactionId
+          === useHistoryStore.getState().peekUndo()?.id,
+      );
+
+    expect(checkpoint).toMatchObject({
+      kind: 'BARRIER',
+      revision: {
+        storeId: revisionStore.id,
+        revisionId: 'hash-2',
+      },
+      statePayload: {
+        schemaVersion: 2,
+        pageCount: 1,
+        documentKey: 'hash-2',
+        pageGraph: {
+          pages: [{
+            pageId: 'stable-page',
+            documentKey: 'hash-2',
+          }],
+        },
+        annotations: [{
+          id: 'annotation-after',
+        }],
+        writer: {
+          elements: [],
+          selectedIds: [],
+          activeId: null,
+        },
+        ocr: {
+          documentFingerprint: 'hash-2',
+          selectedPageIndexes: [0],
+        },
+      },
+    });
+    expect(
+      JSON.stringify(checkpoint?.statePayload),
+    ).not.toContain('"revision"');
+    expect(
+      JSON.stringify(checkpoint?.statePayload),
+    ).not.toContain('"bytes"');
   });
 
   it('rolls undo state and stacks back when journal navigation save fails', async () => {

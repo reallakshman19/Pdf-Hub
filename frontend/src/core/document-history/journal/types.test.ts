@@ -161,6 +161,65 @@ describe('history journal manifest', () => {
     ).toThrow(/inline data URI/);
   });
 
+  it('validates recovery-complete v2 payloads embedded in barrier checkpoints', () => {
+    const manifest = createInitialHistoryJournalManifest({
+      journalId: 'history-recovery-state',
+      revisionStoreId: 'revisions',
+      revisionId: 'sha256:initial',
+      fileName: 'fixture.pdf',
+    });
+
+    manifest.checkpoints.push({
+      checkpointId: 'history-recovery-state:barrier:tx-1',
+      kind: 'BARRIER',
+      revision: {
+        storeId: 'revisions',
+        revisionId: 'sha256:next',
+      },
+      createdAt: '2026-09-20T00:00:01.000Z',
+      transactionId: 'tx-1',
+      statePayload: {
+        schemaVersion: 2,
+        pageCount: 1,
+        pageGraph: {
+          pages: [{
+            pageId: 'page-1',
+            documentKey: 'sha256:next',
+            originalPageNumber: 1,
+            currentIndex: 0,
+            width: 595,
+            height: 842,
+            rotation: 0,
+          }],
+        },
+        documentKey: 'sha256:next',
+        selectedPageIds: ['page-1'],
+        selectedPages: [1],
+        currentPageId: 'page-1',
+        currentPage: 1,
+        annotations: [],
+        writer: {
+          documentMode: 'pdfOverlay',
+          elements: [],
+          selectedIds: [],
+          activeId: null,
+        },
+        ocr: {
+          documentFingerprint: 'sha256:next',
+          result: null,
+          corrections: [],
+          regions: [],
+          selectedPageIndexes: [0],
+          reviewFocus: null,
+        },
+      },
+    });
+
+    expect(() =>
+      assertHistoryJournalManifest(manifest),
+    ).not.toThrow();
+  });
+
   it('forbids state payloads on admission checkpoints', () => {
     const manifest = createInitialHistoryJournalManifest({
       journalId: 'history-admission-state',

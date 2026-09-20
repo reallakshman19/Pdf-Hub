@@ -11,7 +11,9 @@ import {
 import {
   createInitialHistoryJournalManifest,
 } from '../types';
+import type { HistoryState } from '../types';
 import {
+  attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
 } from '../appendMutation';
 
@@ -31,6 +33,48 @@ function rotateCommand() {
       createdAt: '2026-09-19T00:00:00.000Z',
     },
   );
+}
+
+function recoveryAfterState(): HistoryState {
+  return {
+    revision: {
+      storeId: 'revision-store',
+      revisionId: 'sha256:after',
+    },
+    activeRevisionId: 'sha256:after',
+    pageCount: 1,
+    pageGraph: {
+      pages: [{
+        pageId: 'page-1',
+        documentKey: 'sha256:after',
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0,
+      }],
+    },
+    documentKey: 'sha256:after',
+    selectedPageIds: ['page-1'],
+    selectedPages: [1],
+    currentPageId: 'page-1',
+    currentPage: 1,
+    annotations: [],
+    writer: {
+      documentMode: 'pdfOverlay',
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+    },
+    ocr: {
+      documentFingerprint: 'sha256:after',
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [0],
+      reviewFocus: null,
+    },
+  };
 }
 
 describe('prepareHistoryJournalMutation', () => {
@@ -85,6 +129,16 @@ describe('prepareHistoryJournalMutation', () => {
       }],
     });
     expect(prepared?.manifest.checkpoints).toHaveLength(1);
+    expect(prepared).not.toBeNull();
+    if (!prepared) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: prepared.manifest,
+        transactionId: 'tx-1',
+        after: recoveryAfterState(),
+      }),
+    ).toBe(false);
+    expect(prepared.manifest.checkpoints).toHaveLength(1);
   });
 
   it('adds a barrier checkpoint for donor-backed mutation', async () => {
@@ -129,6 +183,32 @@ describe('prepareHistoryJournalMutation', () => {
       transactionId: 'tx-barrier',
       revision: {
         revisionId: 'sha256:after',
+      },
+    });
+
+    expect(prepared).not.toBeNull();
+    if (!prepared) return;
+
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: prepared.manifest,
+        transactionId: 'tx-barrier',
+        after: recoveryAfterState(),
+      }),
+    ).toBe(true);
+    expect(
+      prepared.manifest.checkpoints[1],
+    ).toMatchObject({
+      statePayload: {
+        schemaVersion: 2,
+        pageCount: 1,
+        documentKey: 'sha256:after',
+        pageGraph: {
+          pages: [{ pageId: 'page-1' }],
+        },
+        ocr: {
+          documentFingerprint: 'sha256:after',
+        },
       },
     });
   });

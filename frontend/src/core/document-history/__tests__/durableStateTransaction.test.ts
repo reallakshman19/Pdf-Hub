@@ -20,6 +20,7 @@ import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import { useSessionStore } from '@/core/session/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
 import { useHistoryStore } from '../store';
 import type {
   StateHistorySnapshot,
@@ -83,6 +84,7 @@ describe('commitDurableStateTransaction', () => {
     resetDocumentOperationQueueForTests();
     useHistoryStore.getState().clear();
     useSessionStore.getState().clearDocument();
+    useOcrStore.getState().clearOcr();
     clearWorkingRevisionStoreRegistryForTests();
     clearHistoryJournalStoreRegistryForTests();
   });
@@ -168,9 +170,20 @@ describe('commitDurableStateTransaction', () => {
           kind: 'BARRIER',
           transactionId: transaction?.id,
           statePayload: {
+            schemaVersion: 2,
+            pageCount: 1,
+            documentKey: 'sha256:one',
+            currentPage: 1,
             annotations: [{
               data: { text: 'after' },
             }],
+            ocr: {
+              result: null,
+              corrections: [],
+              regions: [],
+              selectedPageIndexes: [],
+              reviewFocus: null,
+            },
           },
         },
       ],

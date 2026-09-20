@@ -1,4 +1,5 @@
 import type { PdfCommand } from '@/core/commands/types';
+import type { HistoryState } from '../types';
 import {
   classifyHistoryReplayability,
 } from '../replayability';
@@ -8,6 +9,9 @@ import {
 import type {
   HistoryJournalStore,
 } from './store';
+import {
+  createHistoryStateCheckpointPayload,
+} from './stateCheckpoint';
 import {
   assertHistoryJournalManifest,
   cloneHistoryJournalManifest,
@@ -93,6 +97,53 @@ export function truncateAbandonedTail(
         checkpoint.revision.revisionId,
       );
     });
+}
+
+export function attachHistoryJournalBarrierState(input: {
+  manifest: HistoryJournalManifest;
+  transactionId: string;
+  after: HistoryState;
+}): boolean {
+  const entry = input.manifest.entries.find(
+    (candidate) =>
+      candidate.transactionId === input.transactionId,
+  );
+  if (!entry) {
+    throw new Error(
+      `History journal cannot attach checkpoint state for missing transaction ${input.transactionId}.`,
+    );
+  }
+  if (entry.disposition !== 'CHECKPOINT_REQUIRED') {
+    return false;
+  }
+
+  const checkpoint = input.manifest.checkpoints.find(
+    (candidate) =>
+      candidate.kind === 'BARRIER'
+      && candidate.transactionId === input.transactionId,
+  );
+  if (!checkpoint) {
+    throw new Error(
+      `History journal checkpoint-required transaction ${input.transactionId} has no barrier checkpoint.`,
+    );
+  }
+
+  if (
+    !input.after.revision
+    || input.after.revision.storeId
+      !== checkpoint.revision.storeId
+    || input.after.revision.revisionId
+      !== checkpoint.revision.revisionId
+  ) {
+    throw new Error(
+      `History journal barrier ${input.transactionId} after-state revision does not match checkpoint revision.`,
+    );
+  }
+
+  checkpoint.statePayload =
+    createHistoryStateCheckpointPayload(input.after);
+  assertHistoryJournalManifest(input.manifest);
+  return true;
 }
 
 export async function prepareHistoryJournalMutation(
