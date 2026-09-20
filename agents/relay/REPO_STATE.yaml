@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5B3C2C1-001",
-    "path": "agents/relay/execution-packages/EP-8E5B3C2C1-001.yaml",
+    "id": "EP-8E5B3C2C2-001",
+    "path": "agents/relay/execution-packages/EP-8E5B3C2C2-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-265",
+    "id": "PR-267",
     "path": null,
-    "merge_ref": "7decfe69d8ed2637cd1de4c372a0c66a31d334d7",
-    "note": "Phase 8E.5B3C2B2C merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
+    "merge_ref": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
+    "note": "Phase 8E.5B3C2C1 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.5B3C2C1 latest-state durable Writer helper migration, run cd frontend && pnpm run certify:phase8e5b3c2c1 when a runner is available, and keep issue #266 open until acceptance evidence is terminal."
+      "next_action": "Review Phase 8E.5B3C2C2 batch Writer durability, run cd frontend && pnpm run certify:phase8e5b3c2c2 when a runner is available, and keep issue #268 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,7 +78,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.5B3C2C1 adds latest-state durable Writer command construction and migrates review, geometry, table-box, image-clear and quick-template metadata helpers. Runner-executed evidence remains subject to #183.",
+      "summary": "Phase 8E.5B3C2C2 migrates Writer selection/arrange and clipboard mutations to latest-state durable dispatch while retaining synchronous selection-only UI state. Runner-executed evidence remains subject to #183.",
       "not_run": [
         {
           "id": "TEST-05",
@@ -102,14 +102,14 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5B3C2C1-001",
+    "execution_ref": "EP-8E5B3C2C2-001",
     "receipt": null,
     "basis": [
-      "Issue #266 tracks the active single-element Writer helper durability slice.",
-      "Batch Writer mutations remain C2C2; OCR and atomic legacy consolidation remain C2C3."
+      "Issue #268 tracks the active batch Writer helper durability slice.",
+      "OCR Writer insertion and atomic legacy consolidation remain the C2C3 frontier."
     ],
     "observed": {
-      "issue": 266
+      "issue": 268
     },
     "superseded_operations": []
   },
