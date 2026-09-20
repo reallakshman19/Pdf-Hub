@@ -55,30 +55,31 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Fresh incoming candidate qualification is required on QSET-9-002 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 before any further Phase 9 material write. After current DISC/QUAL/TC and live MATERIAL_WRITE_READY, continue STEP-9-01 by validating/binding retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf, then source/generate the signed fixture."
+      "next_action": "Wait for the delegated fresh independent candidate on issue #286 to reconstruct EP-9-001/QSET-9-003 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain pinned-validator DISC/QUAL/TC and live MATERIAL_WRITE_READY, then complete only the bounded STEP-9-01 retained-fixture/signed-fixture slice. The route remains WRITE-capable; no current candidate is admitted."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "The previously recorded DISC-9-001 / QUAL-9-001 / TC-9-001 chain is stale under the pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 contract: prior protocol basis, QUAL/TC shape/evaluator, and EP digest no longer match current route requirements.",
-        "QSET-9-002 is the current outgoing-preparer qualification set and is bound to the refreshed EP-9-001 contract on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd.",
-        "STEP-9-01 has 12 manifest entries: 9 generator-backed and 3 required-pending (complex-font/unicode, encrypted, signed).",
-        "Two retained candidate PDFs exist but are not accepted coverage until provenance/redistribution authority and semantic structure are independently verified.",
+        "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 are stale for further writes under the pinned Common basis/current EP contract.",
+        "QSET-9-003 is the current outgoing-preparer qualification set, bound to EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
+        "EP-9-001 now carries EXECREQ-9-QUAL-STEP1 with a LOCAL_AGENT delegation published and provider-read-back on issue #286; a 60-minute response check is scheduled.",
+        "Read-only provenance trace proves ArabicCIDTrueType.pdf is byte-identical to Mozilla PDF.js test/pdfs/ArabicCIDTrueType.pdf and encrypted-with-images.pdf is byte-identical to qpdf qpdf/qtest/qpdf/encrypted-with-images.pdf; neither manifest entry is promoted by this evidence alone.",
+        "STEP-9-01 still has three required-pending specialist obligations: complex-font/unicode, encrypted, signed.",
         "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 9 STEP-9-01 substrate exists on frozen material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd, but the Owner pinned a newer V2.5 protocol basis. Prior takeover evidence is therefore historical/stale for further writes. QSET-9-002 refreshes the baton; no new candidate is currently certified. No Phase 9 acceptance weight is earned.",
+      "summary": "Phase 9 STEP-9-01 product substrate remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, EP-9-001 now contains the required external-execution delegation and QSET-9-003 is the current qualification set. The delegation is published/read back on issue #286. Read-only upstream provenance/semantic evidence for the two retained PDFs is durable, but no fresh candidate DISC/QUAL/TC or TEST-9-01 execution exists and no Phase 9 acceptance is earned.",
       "not_run": [
         {
-          "command": "Pinned-protocol Phase 9 takeover qualification",
-          "reason": "QSET-9-002 is prepared but no fresh incoming candidate DISC/QUAL/TC exists yet under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "command": "Pinned-protocol Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1",
+          "reason": "The delegated local-agent handoff is published on issue #286, but no fresh independent candidate response has been posted yet.",
           "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         },
         {
           "command": "npm run certify:phase9-step1",
-          "reason": "No valid current takeover admission exists on the pinned protocol basis; no new material or acceptance claim is made from the prior static mirror.",
+          "reason": "Candidate-specific TAKEOVER_CERTIFIED and live MATERIAL_WRITE_READY are not yet established for the refreshed QSET-9-003 route.",
           "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         },
         {
@@ -109,16 +110,19 @@
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
       "ODR-0004 / RM-0003 make WP-009 the sole serial frontier.",
       "Issue #286 is the provider coordination contract for Phase 9.",
-      "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 for this continuation.",
-      "EP-9-001 is refreshed on frozen material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and QSET-9-002 is the current qualification set.",
-      "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 are retained as prior evidence but do not currently certify further writes.",
-      "DOBS-9-003 records the pinned-protocol PR/issue handoff and exact fresh-candidate requirement."
+      "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+      "EP-9-001 is frozen against Phase 9 product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and now includes EXECREQ-9-QUAL-STEP1.",
+      "QSET-9-003 is the current qualification set with EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
+      "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain history only.",
+      "Issue #286 comment 5752971346 is the verified local-agent delegation handoff; comment 5753014419 records read-only retained-fixture provenance/semantic evidence."
     ],
     "observed": {
       "issue": 286,
       "pull_request": 287,
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-      "fresh_candidate_handoff_comment": 5752971346
+      "fresh_candidate_handoff_comment": 5752971346,
+      "retained_fixture_evidence_comment": 5753014419,
+      "response_check_minutes": 60
     },
     "superseded_operations": []
   },
