@@ -135,6 +135,23 @@ requireContains(ocrConnected, ocrConnectedPath, [
   "'Writer update failed. '",
 ]);
 
+const ocrConnectedTestsPath =
+  'src/components/ocr/__tests__/OcrPanelWriterConnected.test.tsx';
+const ocrConnectedTests = read(
+  ocrConnectedTestsPath,
+);
+requireContains(
+  ocrConnectedTests,
+  ocrConnectedTestsPath,
+  [
+    'reports durable Writer insertion failure without clearing the queued OCR item',
+    "'data-status'",
+    "'success'",
+    "'error'",
+    "'journal write failed'",
+  ],
+);
+
 const ocrTestsPath =
   'src/core/ocr/__tests__/ocrWriterBridge.test.ts';
 const ocrTests = read(ocrTestsPath);
