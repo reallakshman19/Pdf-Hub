@@ -282,7 +282,12 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         };
       }
 
-      return get().dispatchWriterCommand(command);
+      return get().dispatchWriterCommand(
+        command,
+        {
+          allowPdfOverlayMutation: true,
+        },
+      );
     }
 
     let committedResult:
