@@ -11,44 +11,87 @@ export interface WriterGeometryPatch {
 
 const MIN_GEOMETRY_SIZE = 12;
 
-export function updateActiveWriterElementGeometry(
+export async function updateActiveWriterElementGeometry(
   patch: WriterGeometryPatch,
-): WriterSelectionActionResult {
+): Promise<WriterSelectionActionResult> {
   const store = useWriterV2Store.getState();
-  const id = store.activeId ?? store.selectedIds.at(-1) ?? null;
+  const id =
+    store.activeId
+    ?? store.selectedIds.at(-1)
+    ?? null;
 
   if (!id || store.selectedIds.length !== 1) {
     return {
       changed: false,
       ids: [],
-      message: 'Select exactly one Writer V2 element to edit geometry.',
+      message:
+        'Select exactly one Writer V2 element to edit geometry.',
     };
   }
 
-  const element = store.elements.find((candidate) => candidate.id === id);
+  const current = store.elements.find(
+    (candidate) => candidate.id === id,
+  );
 
-  if (!element || element.locked || element.hidden) {
+  if (
+    !current
+    || current.locked
+    || current.hidden
+  ) {
     return {
       changed: false,
-      ids: id ? [id] : [],
-      message: 'Selected Writer V2 element geometry cannot be edited.',
+      ids: [id],
+      message:
+        'Selected Writer V2 element geometry cannot be edited.',
     };
   }
 
-  const rect = normalizeWriterGeometryRect({
-    x: patch.x ?? element.rect.x,
-    y: patch.y ?? element.rect.y,
-    width: patch.width ?? element.rect.width,
-    height: patch.height ?? element.rect.height,
-  }, getPageBoundsForElement(element.pageIndex));
+  const result =
+    await store.dispatchWriterCommandDurableLatest(
+      (state) => {
+        const element = state.elements.find(
+          (candidate) =>
+            candidate.id === id,
+        );
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id,
-    patch: {
-      rect,
-    },
-  });
+        if (
+          !element
+          || element.locked
+          || element.hidden
+        ) {
+          return null;
+        }
+
+        const rect =
+          normalizeWriterGeometryRect(
+            {
+              x:
+                patch.x
+                ?? element.rect.x,
+              y:
+                patch.y
+                ?? element.rect.y,
+              width:
+                patch.width
+                ?? element.rect.width,
+              height:
+                patch.height
+                ?? element.rect.height,
+            },
+            getPageBoundsForElement(
+              element.pageIndex,
+            ),
+          );
+
+        return {
+          type: 'UPDATE_WRITER_ELEMENT',
+          id,
+          patch: {
+            rect,
+          },
+        };
+      },
+    );
 
   return {
     changed: result.changed,
@@ -58,6 +101,7 @@ export function updateActiveWriterElementGeometry(
       : result.reason,
   };
 }
+
 
 export function normalizeWriterGeometryRect(
   rect: PdfRect,
