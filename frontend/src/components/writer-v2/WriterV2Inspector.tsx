@@ -78,6 +78,78 @@ interface DraftCommitResult {
   changed: boolean;
 }
 
+function DraftTextInput({
+  value,
+  onCommit,
+  resetKey,
+  style,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<DraftCommitResult>;
+  resetKey: string;
+  style?: React.CSSProperties;
+  ariaLabel?: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const cancelBlurRef =
+    React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(value);
+      return;
+    }
+
+    if (draft === value) return;
+
+    void onCommit(draft)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(value);
+        }
+      })
+      .catch(() => {
+        setDraft(value);
+      });
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(event) =>
+        setDraft(
+          event.currentTarget.value,
+        )
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+      style={style}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
 function DraftNumberInput({
   value,
   onCommit,
@@ -755,28 +827,28 @@ export const WriterV2Inspector: React.FC = () => {
           <Row>
             <button
               type="button"
-              onClick={() => addActiveTableRow()}
+              onClick={() => { void addActiveTableRow(); }}
               style={btnStyle}
             >
               + Row
             </button>
             <button
               type="button"
-              onClick={() => removeActiveTableRow()}
+              onClick={() => { void removeActiveTableRow(); }}
               style={btnStyle}
             >
               - Row
             </button>
             <button
               type="button"
-              onClick={() => addActiveTableColumn()}
+              onClick={() => { void addActiveTableColumn(); }}
               style={btnStyle}
             >
               + Col
             </button>
             <button
               type="button"
-              onClick={() => removeActiveTableColumn()}
+              onClick={() => { void removeActiveTableColumn(); }}
               style={btnStyle}
             >
               - Col
@@ -803,12 +875,16 @@ export const WriterV2Inspector: React.FC = () => {
               }}
             >
               {selected.tableData.columns.map((column) => (
-                <input
+                <DraftTextInput
                   key={column.id}
-                  aria-label={`Column label ${column.label ?? column.id}`}
+                  ariaLabel={`Column label ${column.label ?? column.id}`}
+                  resetKey={`${selected.id}:${column.id}`}
                   value={column.label ?? ''}
-                  onChange={(event) =>
-                    updateActiveTableColumnLabel(column.id, event.currentTarget.value)
+                  onCommit={(value) =>
+                    updateActiveTableColumnLabel(
+                      column.id,
+                      value,
+                    )
                   }
                   style={tableInputStyle}
                 />
@@ -828,13 +904,23 @@ export const WriterV2Inspector: React.FC = () => {
                   const cell = row.cells[columnIndex];
 
                   return (
-                    <input
+                    <DraftTextInput
                       key={cell?.id ?? `${row.id}-${column.id}`}
-                      aria-label={`Table cell ${rowIndex + 1}-${columnIndex + 1}`}
+                      ariaLabel={`Table cell ${rowIndex + 1}-${columnIndex + 1}`}
+                      resetKey={`${selected.id}:${row.id}:${cell?.id ?? column.id}`}
                       value={cell?.text ?? ''}
-                      onChange={(event) => {
-                        if (!cell) return;
-                        updateActiveTableCell(row.id, cell.id, event.currentTarget.value);
+                      onCommit={(value) => {
+                        if (!cell) {
+                          return Promise.resolve({
+                            changed: false,
+                          });
+                        }
+
+                        return updateActiveTableCell(
+                          row.id,
+                          cell.id,
+                          value,
+                        );
                       }}
                       style={tableInputStyle}
                     />
@@ -858,7 +944,7 @@ export const WriterV2Inspector: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => clearActiveImageBoxAsset()}
+              onClick={() => { void clearActiveImageBoxAsset(); }}
               style={btnStyle}
             >
               Clear
@@ -907,7 +993,7 @@ export const WriterV2Inspector: React.FC = () => {
             <Row>
               <button
                 type="button"
-                onClick={() => ensureActiveWriterReviewMetadata()}
+                onClick={() => { void ensureActiveWriterReviewMetadata(); }}
                 style={btnStyle}
               >
                 Add Review Metadata
@@ -919,11 +1005,13 @@ export const WriterV2Inspector: React.FC = () => {
                 <Label>Status</Label>
                 <select
                   value={selected.review.status}
-                  onChange={(event) =>
-                    updateActiveWriterReviewMetadata({
-                      status: event.currentTarget.value as WriterReviewStatus,
-                    })
-                  }
+                  onChange={(event) => {
+                    void updateActiveWriterReviewMetadata({
+                      status:
+                        event.currentTarget.value
+                        as WriterReviewStatus,
+                    });
+                  }}
                   style={selectStyle}
                 >
                   <option value="open">Open</option>
@@ -937,11 +1025,13 @@ export const WriterV2Inspector: React.FC = () => {
                 <Label>Priority</Label>
                 <select
                   value={selected.review.priority}
-                  onChange={(event) =>
-                    updateActiveWriterReviewMetadata({
-                      priority: event.currentTarget.value as WriterReviewPriority,
-                    })
-                  }
+                  onChange={(event) => {
+                    void updateActiveWriterReviewMetadata({
+                      priority:
+                        event.currentTarget.value
+                        as WriterReviewPriority,
+                    });
+                  }}
                   style={selectStyle}
                 >
                   <option value="low">Low</option>
@@ -955,11 +1045,13 @@ export const WriterV2Inspector: React.FC = () => {
                 <Label>Category</Label>
                 <select
                   value={selected.review.category}
-                  onChange={(event) =>
-                    updateActiveWriterReviewMetadata({
-                      category: event.currentTarget.value as WriterReviewCategory,
-                    })
-                  }
+                  onChange={(event) => {
+                    void updateActiveWriterReviewMetadata({
+                      category:
+                        event.currentTarget.value
+                        as WriterReviewCategory,
+                    });
+                  }}
                   style={selectStyle}
                 >
                   <option value="general">General</option>
@@ -974,11 +1066,13 @@ export const WriterV2Inspector: React.FC = () => {
 
               <Row>
                 <Label>Assignee</Label>
-                <input
+                <DraftTextInput
                   value={selected.review.assignee ?? ''}
-                  onChange={(event) =>
+                  resetKey={`${selected.id}:review-assignee`}
+                  ariaLabel="Writer review assignee"
+                  onCommit={(value) =>
                     updateActiveWriterReviewMetadata({
-                      assignee: event.currentTarget.value,
+                      assignee: value,
                     })
                   }
                   style={inputStyle}
@@ -990,11 +1084,12 @@ export const WriterV2Inspector: React.FC = () => {
                 <input
                   type="date"
                   value={selected.review.dueDate ?? ''}
-                  onChange={(event) =>
-                    updateActiveWriterReviewMetadata({
-                      dueDate: event.currentTarget.value,
-                    })
-                  }
+                  onChange={(event) => {
+                    void updateActiveWriterReviewMetadata({
+                      dueDate:
+                        event.currentTarget.value,
+                    });
+                  }}
                   style={inputStyle}
                 />
               </Row>
@@ -1002,14 +1097,14 @@ export const WriterV2Inspector: React.FC = () => {
               <Row>
                 <button
                   type="button"
-                  onClick={() => markActiveWriterReviewResolved()}
+                  onClick={() => { void markActiveWriterReviewResolved(); }}
                   style={btnStyle}
                 >
                   Mark Resolved
                 </button>
                 <button
                   type="button"
-                  onClick={() => clearActiveWriterReviewMetadata()}
+                  onClick={() => { void clearActiveWriterReviewMetadata(); }}
                   style={btnStyle}
                 >
                   Clear

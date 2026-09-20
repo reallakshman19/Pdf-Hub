@@ -61,50 +61,50 @@ describe('writerTableBoxActions', () => {
     });
   });
 
-  it('updates a cell', () => {
-    const result = updateActiveTableCell('row-1', 'cell-1', 'Updated');
+  it('updates a cell', async () => {
+    const result = await updateActiveTableCell('row-1', 'cell-1', 'Updated');
 
     expect(result.changed).toBe(true);
     expect(useWriterV2Store.getState().elements[0].tableData?.rows[0].cells[0].text).toBe('Updated');
   });
 
-  it('adds and removes rows', () => {
-    addActiveTableRow();
+  it('adds and removes rows', async () => {
+    await addActiveTableRow();
 
     expect(useWriterV2Store.getState().elements[0].tableData?.rows).toHaveLength(2);
 
-    removeActiveTableRow();
+    await removeActiveTableRow();
 
     expect(useWriterV2Store.getState().elements[0].tableData?.rows).toHaveLength(1);
   });
 
-  it('adds and removes columns', () => {
-    addActiveTableColumn();
+  it('adds and removes columns', async () => {
+    await addActiveTableColumn();
 
     const afterAdd = useWriterV2Store.getState().elements[0].tableData;
     expect(afterAdd?.columns).toHaveLength(3);
     expect(afterAdd?.rows[0].cells).toHaveLength(3);
 
-    removeActiveTableColumn();
+    await removeActiveTableColumn();
 
     const afterRemove = useWriterV2Store.getState().elements[0].tableData;
     expect(afterRemove?.columns).toHaveLength(2);
     expect(afterRemove?.rows[0].cells).toHaveLength(2);
   });
 
-  it('updates a column label', () => {
-    updateActiveTableColumnLabel('col-1', 'New A');
+  it('updates a column label', async () => {
+    await updateActiveTableColumnLabel('col-1', 'New A');
 
     expect(useWriterV2Store.getState().elements[0].tableData?.columns[0].label).toBe('New A');
   });
 
-  it('does not remove final row or column', () => {
-    removeActiveTableRow();
+  it('does not remove final row or column', async () => {
+    await removeActiveTableRow();
 
     expect(useWriterV2Store.getState().elements[0].tableData?.rows).toHaveLength(1);
 
-    removeActiveTableColumn();
-    removeActiveTableColumn();
+    await removeActiveTableColumn();
+    await removeActiveTableColumn();
 
     expect(useWriterV2Store.getState().elements[0].tableData?.columns).toHaveLength(1);
   });

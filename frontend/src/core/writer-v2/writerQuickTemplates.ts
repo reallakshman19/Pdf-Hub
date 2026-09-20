@@ -7,6 +7,9 @@ import type {
 import { useWriterV2Store } from './writerV2Store';
 import { ensureRichTextEditing } from './ensureRichTextEditing';
 import {
+  updateWriterReviewMetadataById,
+} from './writerReviewActions';
+import {
   useRichEditorCommandQueue,
   type PendingRichTemplateBlock,
 } from './richEditorCommandQueue';
@@ -387,7 +390,10 @@ export async function insertWriterQuickTemplate(
     };
   }
 
-  applyTemplateReviewMetadata(elementId, template);
+  await applyTemplateReviewMetadata(
+    elementId,
+    template,
+  );
 
   return {
     changed: true,
@@ -481,40 +487,22 @@ function templateTextStyle(template: WriterQuickTemplate): string {
   return parts.join('; ');
 }
 
-function applyTemplateReviewMetadata(
+async function applyTemplateReviewMetadata(
   elementId: string,
   template: WriterQuickTemplate,
-): void {
+): Promise<void> {
   if (!template.review) return;
 
-  const store = useWriterV2Store.getState();
-  const element = store.elements.find((item) => item.id === elementId);
+  const result =
+    await updateWriterReviewMetadataById(
+      elementId,
+      template.review,
+    );
 
-  if (!element) return;
-
-  const now = new Date().toISOString();
-
-  store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: elementId,
-    patch: {
-      review: {
-        ...element.review,
-        ...template.review,
-        commentId: element.review?.commentId ?? createReviewId(),
-        createdAt: element.review?.createdAt ?? now,
-        updatedAt: now,
-      },
-    },
-  });
-}
-
-function createReviewId(): string {
-  if (globalThis.crypto?.randomUUID) {
-    return `review-${globalThis.crypto.randomUUID()}`;
+  if (!result.changed) {
+    throw new Error(
+      result.message
+      || 'Unable to apply Writer review metadata.',
+    );
   }
-
-  return `review-${Date.now().toString(36)}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
 }

@@ -9,6 +9,63 @@ import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterV2Inspector } from './WriterV2Inspector';
 
+function tableElement(): WriterElementV2 {
+  return {
+    id: 'table-1',
+    documentFingerprint: 'doc-1',
+    pageIndex: 0,
+    type: 'tableBox',
+    rect: {
+      x: 10,
+      y: 20,
+      width: 300,
+      height: 140,
+    },
+    plainText: 'Table 2x1',
+    tableData: {
+      columns: [
+        {
+          id: 'col-1',
+          label: 'A',
+          width: 150,
+        },
+        {
+          id: 'col-2',
+          label: 'B',
+          width: 150,
+        },
+      ],
+      rows: [{
+        id: 'row-1',
+        cells: [
+          {
+            id: 'cell-1',
+            text: 'A1',
+          },
+          {
+            id: 'cell-2',
+            text: 'B1',
+          },
+        ],
+      }],
+    },
+    style: {
+      zIndex: 1,
+      backgroundColor: '#ffffff',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      padding: 0,
+      opacity: 1,
+    },
+    createdAt:
+      '2026-01-01T00:00:00.000Z',
+    updatedAt:
+      '2026-01-01T00:00:00.000Z',
+    locked: false,
+    hidden: false,
+  };
+}
+
 function element(id: string): WriterElementV2 {
   return {
     id,
@@ -176,6 +233,55 @@ describe('WriterV2Inspector', () => {
     expect(
       (xInput as HTMLInputElement).value,
     ).toBe('10');
+  });
+
+  it('keeps helper-backed table cell text local until blur', async () => {
+    useWriterV2Store
+      .getState()
+      .hydrateWriterSession({
+        documentFingerprint: 'doc-1',
+        elements: [tableElement()],
+      });
+    useWriterV2Store
+      .getState()
+      .dispatchWriterCommand({
+        type: 'SET_ACTIVE_WRITER_ELEMENT',
+        id: 'table-1',
+      });
+
+    render(<WriterV2Inspector />);
+
+    const input = screen.getByLabelText(
+      'Table cell 1-1',
+    );
+
+    fireEvent.change(input, {
+      target: { value: 'Draft A1' },
+    });
+
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements[0]
+        .tableData
+        ?.rows[0]
+        .cells[0]
+        .text,
+    ).toBe('A1');
+
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(
+        useWriterV2Store
+          .getState()
+          .elements[0]
+          .tableData
+          ?.rows[0]
+          .cells[0]
+          .text,
+      ).toBe('Draft A1');
+    });
   });
 
   it('duplicates selected writer element', () => {

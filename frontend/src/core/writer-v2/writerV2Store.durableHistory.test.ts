@@ -382,6 +382,85 @@ describe('Writer V2 durable command dispatch', () => {
     ).toEqual(['writer-1', 'writer-2']);
   });
 
+  it('builds queued durable commands from the latest committed Writer state', async () => {
+    await openJournalAwareWriterSession();
+
+    await useWriterV2Store
+      .getState()
+      .dispatchWriterCommandDurable({
+        type: 'ADD_WRITER_ELEMENT',
+        element: element('writer-1'),
+      });
+
+    const first = useWriterV2Store
+      .getState()
+      .dispatchWriterCommandDurableLatest(
+        (state) => {
+          const current =
+            state.elements.find(
+              (item) =>
+                item.id === 'writer-1',
+            );
+          if (!current) return null;
+
+          return {
+            type:
+              'UPDATE_WRITER_ELEMENT',
+            id: current.id,
+            patch: {
+              style: {
+                ...current.style,
+                backgroundColor:
+                  '#fee2e2',
+              },
+            },
+          };
+        },
+      );
+
+    const second = useWriterV2Store
+      .getState()
+      .dispatchWriterCommandDurableLatest(
+        (state) => {
+          const current =
+            state.elements.find(
+              (item) =>
+                item.id === 'writer-1',
+            );
+          if (!current) return null;
+
+          return {
+            type:
+              'UPDATE_WRITER_ELEMENT',
+            id: current.id,
+            patch: {
+              style: {
+                ...current.style,
+                borderWidth: 4,
+              },
+            },
+          };
+        },
+      );
+
+    await expect(first).resolves.toMatchObject({
+      changed: true,
+    });
+    await expect(second).resolves.toMatchObject({
+      changed: true,
+    });
+
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements[0]
+        .style,
+    ).toMatchObject({
+      backgroundColor: '#fee2e2',
+      borderWidth: 4,
+    });
+  });
+
   it('rolls Writer and history state back when journal save fails', async () => {
     const journal =
       await openJournalAwareWriterSession();

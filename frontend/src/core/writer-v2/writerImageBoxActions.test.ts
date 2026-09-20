@@ -55,8 +55,8 @@ describe('writerImageBoxActions', () => {
     });
   });
 
-  it('clears an active image asset', () => {
-    const result = clearActiveImageBoxAsset();
+  it('clears an active image asset', async () => {
+    const result = await clearActiveImageBoxAsset();
 
     expect(result.changed).toBe(true);
     expect(useWriterV2Store.getState().elements[0].imageAssetId).toBeUndefined();
