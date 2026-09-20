@@ -53,7 +53,13 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
   }), [documentKey, fileName, originalBytes, workingBytes, sessionPageCount, selectedPages]);
 
   const sessionSummary = createOcrPdfSourceSummary(ocrPdfSource);
-  const [lastInsertSummary, setLastInsertSummary] = React.useState<string | null>(null);
+  const [
+    lastInsertSummary,
+    setLastInsertSummary,
+  ] = React.useState<{
+    message: string;
+    success: boolean;
+  } | null>(null);
 
   const effectiveDocumentFingerprint = props.documentFingerprint ?? ocrPdfSource.documentFingerprint ?? writerDocumentFingerprint ?? 'ocr-writer-document';
   const effectivePdfBytes = props.pdfBytes ?? ocrPdfSource.pdfBytes;
@@ -103,9 +109,11 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
         ? ` Failure: ${result.failureReason}`
         : '';
 
-      setLastInsertSummary(
-        `${prefix} Writer element(s). Diagnostics: ${diagnostics.errors} error(s), ${diagnostics.warnings} warning(s).${failure}`,
-      );
+      setLastInsertSummary({
+        message:
+          `${prefix} Writer element(s). Diagnostics: ${diagnostics.errors} error(s), ${diagnostics.warnings} warning(s).${failure}`,
+        success: result.commandApplied,
+      });
 
       if (!result.commandApplied) {
         throw new Error(
@@ -125,7 +133,20 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
     <div data-testid="ocr-panel-writer-connected" className="h-full">
       <OcrAssistantShell
         header={<OcrHeaderSummary fileName={headerSummary.fileName} documentFingerprint={headerSummary.documentFingerprint} hasPdfBytes={headerSummary.hasPdfBytes} bytesSource={headerSummary.bytesSource} pageCount={headerSummary.pageCount} selectedPageCount={headerSummary.selectedPageCount} />}
-        writerStatus={lastInsertSummary ? <WriterStatus message={lastInsertSummary} /> : null}
+        writerStatus={
+          lastInsertSummary
+            ? (
+                <WriterStatus
+                  message={
+                    lastInsertSummary.message
+                  }
+                  success={
+                    lastInsertSummary.success
+                  }
+                />
+              )
+            : null
+        }
         main={<OcrPanel documentFingerprint={effectiveDocumentFingerprint} selectedPageIndexes={effectiveSelectedPageIndexes} pageCount={effectivePageCount} currentPageIndex={effectiveCurrentPageIndex} pages={props.pages} pdfBytes={effectivePdfBytes} onSearchablePdfExported={props.onSearchablePdfExported} onInsertWriterElements={insertIntoWriter} />}
         sourceDefaultOpen={!headerSummary.hasPdfBytes || sourceWarnings.length > 0}
         sourceDetails={<SourceDetails summary={headerSummary} warnings={sourceWarnings.map((item) => item.message)} />}
@@ -134,8 +155,33 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
   );
 };
 
-function WriterStatus({ message }: { message: string }) {
-  return <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200" data-testid="ocr-writer-connected-summary"><span className="font-semibold">Writer updated. </span>{message}</div>;
+function WriterStatus({
+  message,
+  success,
+}: {
+  message: string;
+  success: boolean;
+}) {
+  return (
+    <div
+      className={
+        success
+          ? 'rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+          : 'rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 shadow-sm dark:border-red-900 dark:bg-red-950/40 dark:text-red-200'
+      }
+      data-testid="ocr-writer-connected-summary"
+      data-status={
+        success ? 'success' : 'error'
+      }
+    >
+      <span className="font-semibold">
+        {success
+          ? 'Writer updated. '
+          : 'Writer update failed. '}
+      </span>
+      {message}
+    </div>
+  );
 }
 
 function SourceDetails({ summary, warnings }: { summary: OcrConnectedSummary; warnings: string[] }) {
