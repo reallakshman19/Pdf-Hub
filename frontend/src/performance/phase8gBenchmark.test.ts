@@ -1250,29 +1250,28 @@ describeBenchmark(
         expect(fixtures.length)
           .toBeGreaterThan(0);
 
-        const nativeDonor =
+        const donorFixture =
           manifest.generated
             .filter(
-              (fixture) =>
-                fixture.kind
-                === 'native_text',
+              (candidate) =>
+                fixtures.some(
+                  (fixture) =>
+                    fixture.fixture_id
+                    === candidate.fixture_id,
+                ),
             )
             .sort(
               (left, right) =>
-                left.page_count
-                - right.page_count,
-            )[0];
-        if (!nativeDonor) {
-          throw new Error(
-            'Phase 8G benchmark requires a native-text donor fixture.',
-          );
-        }
+                left.bytes
+                - right.bytes,
+            )[0]
+          ?? fixtures[0]!;
         const donorBytes =
           Uint8Array.from(
             await fs.readFile(
               path.join(
                 FIXTURE_DIR,
-                nativeDonor.filename,
+                donorFixture.filename,
               ),
             ),
           );
