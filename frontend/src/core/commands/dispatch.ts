@@ -420,6 +420,8 @@ async function applyMutation(
     ocrPagePolicy: options?.ocrPagePolicy,
     revisionMetadata: options?.revisionMetadata,
     executionMode: input.executionMode,
+    recoveryRevision:
+      input.recoveryRevision,
     signal: input.signal,
   });
 }
