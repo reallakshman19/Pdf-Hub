@@ -8,6 +8,9 @@ import {
 
 import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
 import {
+  createMemoryWriterPersistence,
+} from '@/core/writer-v2/persistence/indexedDbWriterStore';
+import {
   resetDocumentOperationQueueForTests,
 } from '@/core/commands/documentOperationQueue';
 import {
@@ -671,6 +674,84 @@ describe('executeHistoryRecovery', () => {
     ).toEqual(preSession);
   });
 
+  it('hydrates referenced Writer assets before installing checkpoint state', async () => {
+    const recoveryPlan = plan();
+    recoveryPlan.state.writer.elements = [{
+      id: 'image-1',
+      documentFingerprint:
+        'sha256:stale-writer-fingerprint',
+      pageId: 'page-1',
+      pageIndex: 0,
+      type: 'imageBox',
+      rect: {
+        x: 10,
+        y: 10,
+        width: 20,
+        height: 20,
+      },
+      imageAssetId: 'asset-1',
+      style: {
+        zIndex: 1,
+      },
+      createdAt:
+        '2026-09-20T08:00:00.000Z',
+      updatedAt:
+        '2026-09-20T08:00:00.000Z',
+      locked: false,
+      hidden: false,
+    }];
+
+    const writerPersistence =
+      createMemoryWriterPersistence();
+    await writerPersistence.saveAsset({
+      id: 'asset-1',
+      documentFingerprint:
+        'sha256:older-revision',
+      kind: 'image',
+      mimeType: 'image/png',
+      dataUrl:
+        'data:image/png;base64,AA==',
+      createdAt:
+        '2026-09-20T08:00:00.000Z',
+      updatedAt:
+        '2026-09-20T08:00:00.000Z',
+    });
+
+    const resolved =
+      await setup(recoveryPlan);
+
+    await executeHistoryRecovery({
+      resolved,
+      journalStoreId:
+        JOURNAL_STORE_ID,
+      dependencies: {
+        writerPersistence,
+        persistAnnotations:
+          async () => undefined,
+      },
+    });
+
+    const writer =
+      useWriterV2Store.getState();
+    expect(
+      writer.elements[0],
+    ).toMatchObject({
+      id: 'image-1',
+      documentFingerprint:
+        CHECKPOINT_REVISION_ID,
+      imageAssetId: 'asset-1',
+    });
+    expect(
+      writer.assetRecords,
+    ).toEqual([
+      expect.objectContaining({
+        id: 'asset-1',
+        documentFingerprint:
+          CHECKPOINT_REVISION_ID,
+      }),
+    ]);
+  });
+
   it('fails before mutating state when checkpoint Writer assets are unresolved', async () => {
     const recoveryPlan = plan();
     recoveryPlan.state.writer.elements = [{
@@ -708,6 +789,10 @@ describe('executeHistoryRecovery', () => {
         resolved,
         journalStoreId:
           JOURNAL_STORE_ID,
+        dependencies: {
+          writerPersistence:
+            createMemoryWriterPersistence(),
+        },
       }),
     ).rejects.toMatchObject({
       name:
