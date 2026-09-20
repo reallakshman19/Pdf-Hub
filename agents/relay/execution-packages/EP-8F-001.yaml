@@ -4,18 +4,18 @@
     "ep_id": "EP-8F-001",
     "branch": "phase8/incremental-search-index",
     "base_ref": "d9fc2001006794f0aca1203ff027e38902db0c62",
-    "execution_state": "ACTIVE",
+    "execution_state": "TERMINAL",
     "previous_checkpoint": "INFRA-EXCEPTION-8E-CLOSURE",
     "previous_join": "8abe904008fe473be82d114016c0561d629f8b55",
     "previous_replan": null
   },
   "git_basis": {
     "expected_branch": "phase8/incremental-search-index",
-    "material_ref": "d9fc2001006794f0aca1203ff027e38902db0c62",
+    "material_ref": "aabc1765244353ea263ecb94635a3188d2b77153",
     "base_branch": "main",
     "base_observed_ref": "d9fc2001006794f0aca1203ff027e38902db0c62",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": null
+    "drift_receipt": "Incremental search implementation and static 8F/inherited renderer-consumer guard review are clean through aabc1765; exact-head Actions received no runner and executed zero steps under open #183."
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -149,10 +149,39 @@
     }
   ],
   "checkpoint_contract": {
-    "required": true
+    "required": true,
+    "status": "SATISFIED_WITH_INFRA_EXCEPTION",
+    "checkpoint_id": "INFRA-EXCEPTION-8F"
   },
   "successor_relay": {
     "required": true,
-    "next_expected_slice": "WP-8G large-document performance corpus/certification only after WP-8F is terminal."
+    "next_expected_slice": "WP-8G large-document performance corpus/certification after PR #283 merges and main/Relay reconciliation."
+  },
+  "implementation": {
+    "state": "COMPLETE",
+    "head_ref": "aabc1765244353ea263ecb94635a3188d2b77153",
+    "highlights": [
+      "Replaced whole-document SearchIndexer cache with revision/PageId page-state indexing.",
+      "Separated pure indexed-page query matching from index-state ownership.",
+      "Added bounded PDF.js incremental population with current/nearby priority, page cleanup, yielding and cancellation.",
+      "SearchPanel owns revision-backed indexing and publishes partial hits/progress.",
+      "TopNav only updates the shared query/search surface.",
+      "Same-revision PageId records survive PageGraph reorder; revision changes invalidate stale text.",
+      "Migrated inherited 8D3 anti-drift guard away from the retired active full-document search path.",
+      "Added audit:phase8-search-index and certify:phase8f."
+    ]
+  },
+  "evidence": {
+    "state": "TERMINAL_NOT_RUN",
+    "infrastructure_issue": 183,
+    "observed_head": "aabc1765244353ea263ecb94635a3188d2b77153",
+    "workflow_runs": [
+      35515873864,
+      35515873857,
+      35515873849,
+      35515873879,
+      35515873865
+    ],
+    "observation": "All exact-head jobs had runner_id 0 and steps []; no runner-executed TypeScript, Vitest, audit or build result exists."
   }
 }
