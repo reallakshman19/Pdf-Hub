@@ -322,7 +322,9 @@ export async function showAllWriterElements(): Promise<WriterSelectionActionResu
         : [],
     message: result.changed
       ? `Showed ${affectedIds.length} Writer V2 element(s).`
-      : result.reason,
+      : affectedIds.length === 0
+        ? 'No hidden Writer V2 elements to show.'
+        : result.reason,
   };
 }
 
@@ -572,7 +574,9 @@ async function commitEditableSelectionUpdate(
         : [],
     message: result.changed
       ? message(affectedIds.length)
-      : result.reason,
+      : affectedIds.length === 0
+        ? emptyMessage
+        : result.reason,
   };
 }
 
