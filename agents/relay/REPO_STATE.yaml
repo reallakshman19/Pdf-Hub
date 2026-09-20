@@ -55,36 +55,37 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Owner exception ODR-0002 authorizes continued WP-8G execution outside the normal candidate-qualification gate. First obtain executable validation of material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f with `npm run certify:phase8g` on a usable runner. If clean, execute STEP-03 admission/range/render/search measurements, then STEP-04 mutation/save/recovery measurements. Do not claim acceptance from static review."
+      "next_action": "STEP-05: make certify:phase8g consume exact-head benchmark evidence and retain truthful NOT_RUN behavior until a usable runner executes TEST-04/TEST-05. Product material through STEP-04 is frozen at 3ffb3727b01cf535ebbf4ae47af5902fafd8c915; Relay-only evidence tail may advance independently."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "The WP-8F active-query repeated-rescan defect is remediated in source at material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
-        "Incremental indexing scheduler state checks now use metadata-only getPageState() rather than deep-cloning indexed text records.",
-        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is explicitly represented in the Phase 8G benchmark contract; measured costs remain NOT_RUN.",
+        "The WP-8F active-query repeated-rescan defect is remediated in source at product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
+        "Incremental indexing scheduler state checks use metadata-only getPageState() rather than deep-cloning indexed text records.",
+        "STEP-03/04 executable measurement drivers now exist for renderer/search, browser navigation/heap/long tasks, mutation/save and canonical recovery, but no measurements have executed.",
+        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is explicitly measured separately from range-backed viewing.",
         "ODR-0002 is an owner-directed protocol exception. No DISC-8G, QUAL-8G, TC-8G, TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY claim exists.",
-        "GitHub Actions #183 still prevents runner execution; exact-head workflow failures at the observed material head have runner_id 0 and zero steps."
+        "GitHub Actions #183 still prevents runner execution; exact material-head jobs at 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 have runner_id 0 and zero steps."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Owner-directed WP-8G implementation is present at material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f. STEP-01 corpus/budget/evaluator/certification surfaces and the bounded STEP-02 search-complexity remediation are implemented. DOBS-8G-003 records exact-head provider readback. Executable typecheck/tests, fixture generation and benchmark runs remain NOT_RUN; no acceptance progress is earned.",
+      "summary": "Owner-directed WP-8G implementation is present through STEP-04 at product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915. DOBS-8G-004 records exact material-head provider readback. Deterministic corpus, O(N) search remediation, Node/browser performance drivers, mutation/save/recovery drivers, evaluator and documentation exist. Executable typecheck/tests, fixture generation and benchmark runs remain NOT_RUN; no acceptance progress is earned.",
       "not_run": [
         {
           "command": "npm run certify:phase8g",
-          "reason": "No usable runner was allocated; current exact-head GitHub jobs completed with runner_id 0 and steps [].",
-          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+          "reason": "No usable runner was allocated; exact material-head GitHub jobs completed with runner_id 0 and steps [].",
+          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
         },
         {
           "command": "npm run generate:phase8g-fixtures",
-          "reason": "Fixture generation requires the repository dependencies; the available execution environment did not contain a fetchable checkout/dependency installation.",
-          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+          "reason": "No runnable repository checkout with installed dependencies is available in the execution container.",
+          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
         },
         {
-          "command": "Phase 8G benchmark execution",
-          "reason": "Benchmark measurements have not executed; checked-in budgets and evaluator are contracts only.",
-          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+          "command": "npm run benchmark:phase8g",
+          "reason": "STEP-03/04 benchmark drivers are implemented but have not executed; supported limits remain unclaimed.",
+          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
         }
       ]
     },
@@ -111,7 +112,7 @@
       "EP-8G-001 and QSET-8G-001 remain the semantic route contract.",
       "ODR-0002 records the owner's explicit instruction to proceed without waiting for fresh-candidate DISC/QUAL/TC; this is a protocol exception rather than qualification evidence.",
       "Draft PR #285 tracks the active WP-8G material and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation.",
-      "DOBS-8G-003 observes owner-exception material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f."
+      "DOBS-8G-004 observes product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 with STEP-03/04 measurement surfaces implemented and executable evidence still NOT_RUN."
     ],
     "observed": {
       "issue": 284,
@@ -124,8 +125,8 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8G-003",
-      "path": "agents/relay/delivery/DOBS-8G-003.yaml"
+      "id": "DOBS-8G-004",
+      "path": "agents/relay/delivery/DOBS-8G-004.yaml"
     },
     "observations": [
       {
@@ -139,6 +140,10 @@
       {
         "id": "DOBS-8G-003",
         "path": "agents/relay/delivery/DOBS-8G-003.yaml"
+      },
+      {
+        "id": "DOBS-8G-004",
+        "path": "agents/relay/delivery/DOBS-8G-004.yaml"
       }
     ]
   },
