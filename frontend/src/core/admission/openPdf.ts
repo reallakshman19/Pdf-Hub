@@ -22,6 +22,9 @@ import {
   ensureStoredRevision,
 } from '@/core/revision-store/ensureRevision';
 import {
+  acquireRevisionStoreExclusiveLease,
+} from '@/core/revision-store/exclusion';
+import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import {
@@ -261,6 +264,12 @@ export async function admitAndOpenPdfFile(
     const revisionStore = revisionSelection.store;
     registerWorkingRevisionStore(revisionStore);
 
+    const revisionLease =
+      await acquireRevisionStoreExclusiveLease({
+        storeId: revisionStore.id,
+      });
+
+    try {
     const initialRevision = await ensureStoredRevision({
       store: revisionStore,
       revisionId: documentKey,
@@ -441,6 +450,9 @@ export async function admitAndOpenPdfFile(
       value,
       evidence,
     });
+    } finally {
+      revisionLease.release();
+    }
   } catch (error) {
     if (provisionalJournal) {
       try {
