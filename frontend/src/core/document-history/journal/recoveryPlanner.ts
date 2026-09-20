@@ -165,6 +165,10 @@ export function planHistoryRecovery(
 
         return [{
           checkpoint,
+          statePayload:
+            checkpoint.statePayload,
+          transactionId:
+            checkpoint.transactionId,
           entryIndex,
           manifestIndex,
         }];
@@ -181,6 +185,9 @@ export function planHistoryRecovery(
   for (
     const {
       checkpoint,
+      statePayload,
+      transactionId:
+        checkpointTransactionId,
       entryIndex:
         checkpointEntryIndex,
     } of checkpointCandidates
@@ -189,14 +196,15 @@ export function planHistoryRecovery(
       validateRecoveryCheckpoint(
         manifest,
         checkpoint,
-        checkpoint.statePayload,
+        statePayload,
         checkpointEntryIndex,
       );
     if (validationErrors.length > 0) {
       diagnostics.push(...validationErrors.map((message) => ({
         code: 'RECOVERY_CHECKPOINT_INVALID' as const,
         checkpointId: checkpoint.checkpointId,
-        transactionId: checkpoint.transactionId,
+        transactionId:
+          checkpointTransactionId,
         message,
       })));
       continue;
@@ -277,13 +285,12 @@ export function planHistoryRecovery(
         fileName: manifest.fileName,
         originalRevisionId: manifest.originalRevisionId,
         checkpointId: checkpoint.checkpointId,
-        checkpointTransactionId:
-          checkpoint.transactionId,
+        checkpointTransactionId,
         activeTransactionId,
         revision: { ...checkpoint.revision },
         state:
           cloneHistoryStateCheckpointPayload(
-            checkpoint.statePayload,
+            statePayload,
           ) as HistoryStateCheckpointPayloadV2,
         replayEntries: replayEntries.map(cloneEntry),
       },
