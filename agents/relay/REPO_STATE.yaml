@@ -114,7 +114,8 @@
       "EP-9-001 is frozen against Phase 9 product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and now includes EXECREQ-9-QUAL-STEP1.",
       "QSET-9-003 is the current qualification set with EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
       "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain history only.",
-      "Issue #286 comment 5752971346 is the verified local-agent delegation handoff; comment 5753014419 records read-only retained-fixture provenance/semantic evidence."
+      "Issue #286 comment 5752971346 is the verified local-agent delegation handoff; comment 5753014419 records read-only retained-fixture provenance/semantic evidence.",
+      "DOBS-9-004 observes the refreshed delegated takeover route at exact Relay head 61984c4061bdc27ecf6e204258c7db474f423484; product material remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd."
     ],
     "observed": {
       "issue": 286,
@@ -130,8 +131,8 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-9-003",
-      "path": "agents/relay/delivery/DOBS-9-003.yaml"
+      "id": "DOBS-9-004",
+      "path": "agents/relay/delivery/DOBS-9-004.yaml"
     },
     "observations": [
       {
@@ -145,6 +146,10 @@
       {
         "id": "DOBS-9-003",
         "path": "agents/relay/delivery/DOBS-9-003.yaml"
+      },
+      {
+        "id": "DOBS-9-004",
+        "path": "agents/relay/delivery/DOBS-9-004.yaml"
       }
     ]
   },
