@@ -25,6 +25,7 @@ function fakeOpfsStore(
     commit: (input) => memory.commit(input),
     open: (revisionId) => memory.open(revisionId),
     has: (revisionId) => memory.has(revisionId),
+    listRevisionIds: () => memory.listRevisionIds(),
     remove: (revisionId) => memory.remove(revisionId),
     clear: () => memory.clear(),
   };
