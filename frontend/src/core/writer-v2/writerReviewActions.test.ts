@@ -49,8 +49,8 @@ describe('writerReviewActions', () => {
     });
   });
 
-  it('adds review metadata to active object', () => {
-    const result = ensureActiveWriterReviewMetadata();
+  it('adds review metadata to active object', async () => {
+    const result = await ensureActiveWriterReviewMetadata();
 
     expect(result.changed).toBe(true);
 
@@ -60,10 +60,10 @@ describe('writerReviewActions', () => {
     expect(review?.category).toBe('qa');
   });
 
-  it('updates review metadata', () => {
-    ensureActiveWriterReviewMetadata();
+  it('updates review metadata', async () => {
+    await ensureActiveWriterReviewMetadata();
 
-    updateActiveWriterReviewMetadata({
+    await updateActiveWriterReviewMetadata({
       status: 'inProgress',
       priority: 'high',
       category: 'engineering',
@@ -80,18 +80,18 @@ describe('writerReviewActions', () => {
     expect(review?.dueDate).toBe('2026-06-30');
   });
 
-  it('marks review resolved', () => {
-    ensureActiveWriterReviewMetadata();
+  it('marks review resolved', async () => {
+    await ensureActiveWriterReviewMetadata();
 
-    markActiveWriterReviewResolved();
+    await markActiveWriterReviewResolved();
 
     expect(useWriterV2Store.getState().elements[0].review?.status).toBe('resolved');
   });
 
-  it('clears review metadata', () => {
-    ensureActiveWriterReviewMetadata();
+  it('clears review metadata', async () => {
+    await ensureActiveWriterReviewMetadata();
 
-    clearActiveWriterReviewMetadata();
+    await clearActiveWriterReviewMetadata();
 
     expect(useWriterV2Store.getState().elements[0].review).toBeUndefined();
   });
