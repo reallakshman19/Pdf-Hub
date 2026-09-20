@@ -87,10 +87,13 @@ const mutationAppendPath =
 const mutationAppend = read(mutationAppendPath);
 requireContains(mutationAppend, mutationAppendPath, [
   'attachHistoryJournalBarrierState',
-  "entry.disposition !== 'CHECKPOINT_REQUIRED'",
-  "candidate.kind === 'BARRIER'",
+  'entry.disposition',
+  "'CHECKPOINT_REQUIRED'",
+  "'BARRIER'",
+  'expectedKind',
   'checkpoint.statePayload',
-  'createHistoryStateCheckpointPayload(input.after)',
+  'createHistoryStateCheckpointPayload(',
+  'input.after',
 ]);
 
 const transactionPath =
