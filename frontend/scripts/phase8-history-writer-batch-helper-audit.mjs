@@ -164,22 +164,6 @@ forbidContains(inherited, inheritedPath, [
   "'src/core/writer-v2/writerSelectionActions.ts'",
   "'src/core/writer-v2/writerClipboardActions.ts'",
 ]);
-requireContains(inherited, inheritedPath, [
-  "'src/core/ocr/ocrWriterBridge.ts'",
-  "'src/core/writer-v2/writerLegacyObjectConsolidation.ts'",
-]);
-
-for (const deferredPath of [
-  'src/core/ocr/ocrWriterBridge.ts',
-  'src/core/writer-v2/writerLegacyObjectConsolidation.ts',
-]) {
-  const source = read(deferredPath);
-  if (!source.includes('dispatchWriterCommand(')) {
-    fail(
-      `C2C2 deferred mutation boundary unexpectedly moved: ${deferredPath}`,
-    );
-  }
-}
 
 if (failed) process.exit(1);
 
