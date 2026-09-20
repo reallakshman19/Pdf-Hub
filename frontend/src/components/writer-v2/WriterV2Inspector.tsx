@@ -78,6 +78,78 @@ interface DraftCommitResult {
   changed: boolean;
 }
 
+function DraftTextInput({
+  value,
+  onCommit,
+  resetKey,
+  style,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<DraftCommitResult>;
+  resetKey: string;
+  style?: React.CSSProperties;
+  ariaLabel?: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const cancelBlurRef =
+    React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(value);
+      return;
+    }
+
+    if (draft === value) return;
+
+    void onCommit(draft)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(value);
+        }
+      })
+      .catch(() => {
+        setDraft(value);
+      });
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(event) =>
+        setDraft(
+          event.currentTarget.value,
+        )
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+      style={style}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
 function DraftNumberInput({
   value,
   onCommit,
