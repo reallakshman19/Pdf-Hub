@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import type { WriterElementV2 } from './types';
 import { useSessionStore } from '@/core/session/store';
@@ -84,6 +90,28 @@ describe('writerLegacyObjectConsolidation', () => {
     expect(rich?.review?.category).toBe('engineering');
     expect(state.elements.filter((element) => element.id.startsWith('legacy-')).every((element) => element.hidden)).toBe(true);
     expect(state.editingId).toBe(rich?.id);
+    expect(state.undoStack).toHaveLength(1);
+
+    const undo = state.undoWriter();
+
+    expect(undo.changed).toBe(true);
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .filter((element) =>
+          element.id.startsWith('legacy-'),
+        )
+        .every((element) => !element.hidden),
+    ).toBe(true);
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .some((element) =>
+          element.type === 'richTextBox',
+        ),
+    ).toBe(false);
   });
 
   it('consolidates table data into rich table JSON', async () => {
@@ -117,6 +145,61 @@ describe('writerLegacyObjectConsolidation', () => {
     expect(rich?.editorStateJson).toContain('"type":"table"');
     expect(rich?.editorStateJson).toContain('A1');
     expect(rich?.editorStateJson).toContain('B1');
+  });
+
+  it('leaves every legacy object untouched when durable consolidation fails', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [
+        legacyElement(
+          'legacy-1',
+          'textStamp',
+          'REVIEWED',
+        ),
+        legacyElement(
+          'legacy-2',
+          'richNote',
+          'Note:',
+        ),
+      ],
+    });
+
+    const dispatchSpy = vi
+      .spyOn(
+        useWriterV2Store.getState(),
+        'dispatchWriterCommandDurableLatest',
+      )
+      .mockRejectedValueOnce(
+        new Error('journal write failed'),
+      );
+
+    const result =
+      await consolidateCurrentPageLegacyWriterObjects();
+
+    expect(result.changed).toBe(false);
+    expect(result.convertedCount).toBe(0);
+    expect(result.message).toMatch(
+      /journal write failed/i,
+    );
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .filter((element) =>
+          element.id.startsWith('legacy-'),
+        )
+        .every((element) => !element.hidden),
+    ).toBe(true);
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .some((element) =>
+          element.type === 'richTextBox',
+        ),
+    ).toBe(false);
+
+    dispatchSpy.mockRestore();
   });
 
   it('returns unchanged when no legacy objects exist', async () => {

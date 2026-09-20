@@ -8,6 +8,9 @@ import type {
 } from './types';
 import { createRichTextBoxElement } from './writerElementFactory';
 import { useWriterV2Store } from './writerV2Store';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 
 export interface WriterLegacyConsolidationResult {
   changed: boolean;
@@ -51,108 +54,200 @@ export async function consolidateLegacyWriterObjectsOnPage(
   pageIndex: number,
   sourceBytes: Uint8Array,
 ): Promise<WriterLegacyConsolidationResult> {
-  const store = useWriterV2Store.getState();
-  const candidates = store.elements
-    .filter((element) =>
-      element.pageIndex === pageIndex &&
-      !element.hidden &&
-      !element.locked &&
-      LEGACY_CONSOLIDATABLE_TYPES.has(element.type),
-    )
-    .sort((a, b) => {
-      const topDelta = (b.rect.y + b.rect.height) - (a.rect.y + a.rect.height);
-      if (Math.abs(topDelta) > 2) return topDelta;
-      return a.rect.x - b.rect.x;
-    });
-
-  if (candidates.length === 0) {
-    return {
-      changed: false,
-      convertedCount: 0,
-      message: 'No legacy Writer objects found on this page.',
-    };
-  }
-
   const { PDFDocument } = await pdfLib();
   const pdf = await PDFDocument.load(sourceBytes);
-  const page = pdf.getPage(Math.max(0, Math.min(pageIndex, pdf.getPageCount() - 1)));
+  const page = pdf.getPage(
+    Math.max(
+      0,
+      Math.min(
+        pageIndex,
+        pdf.getPageCount() - 1,
+      ),
+    ),
+  );
   const pageSize = page.getSize();
-  const boundingRect = clampRectToPage(
-    expandRect(unionRects(candidates.map((element) => element.rect)), 18),
-    pageSize.width,
-    pageSize.height,
-  );
-  const richBoxRect = normalizeRichBoxRect(boundingRect, pageSize.width, pageSize.height);
-  const assetById = new Map(store.assetRecords.map((asset) => [asset.id, asset]));
-  const editorStateJson = createConsolidatedEditorStateJson(candidates, assetById);
-  const plainText = candidates
-    .map((element) => element.plainText ?? element.type)
-    .filter(Boolean)
-    .join('\n');
-  const maxZIndex = store.elements.reduce(
-    (max, element) => Math.max(max, element.style.zIndex),
-    0,
-  );
-  const documentFingerprint =
-    store.currentDocumentFingerprint ??
-    useSessionStore.getState().documentKey ??
-    useSessionStore.getState().fileName ??
-    'writer-v2-unsaved-document';
-  const consolidated = createRichTextBoxElement({
-    documentFingerprint,
-    pageIndex,
-    rect: richBoxRect,
-    text: plainText,
-    editorStateJson,
-    zIndex: maxZIndex + 1,
-  });
 
-  const now = new Date().toISOString();
-  const review = mergeReviewMetadata(candidates, now);
+  let consolidatedId:
+    | string
+    | undefined;
+  let convertedCount = 0;
 
-  for (const element of candidates) {
-    store.dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: element.id,
-      patch: {
-        hidden: true,
-        updatedAt: now,
+  const result =
+    await dispatchDurableWriterHelperLatest(
+      'Writer legacy consolidation',
+      (state) => {
+        const candidates = state.elements
+          .filter((element) =>
+            element.pageIndex === pageIndex
+            && !element.hidden
+            && !element.locked
+            && LEGACY_CONSOLIDATABLE_TYPES.has(
+              element.type,
+            ),
+          )
+          .sort((a, b) => {
+            const topDelta =
+              (
+                b.rect.y
+                + b.rect.height
+              )
+              - (
+                a.rect.y
+                + a.rect.height
+              );
+
+            if (Math.abs(topDelta) > 2) {
+              return topDelta;
+            }
+
+            return a.rect.x - b.rect.x;
+          });
+
+        if (candidates.length === 0) {
+          return null;
+        }
+
+        const boundingRect =
+          clampRectToPage(
+            expandRect(
+              unionRects(
+                candidates.map(
+                  (element) =>
+                    element.rect,
+                ),
+              ),
+              18,
+            ),
+            pageSize.width,
+            pageSize.height,
+          );
+        const richBoxRect =
+          normalizeRichBoxRect(
+            boundingRect,
+            pageSize.width,
+            pageSize.height,
+          );
+        const assetById = new Map(
+          state.assetRecords.map(
+            (asset) => [
+              asset.id,
+              asset,
+            ],
+          ),
+        );
+        const editorStateJson =
+          createConsolidatedEditorStateJson(
+            candidates,
+            assetById,
+          );
+        const plainText = candidates
+          .map(
+            (element) =>
+              element.plainText
+              ?? element.type,
+          )
+          .filter(Boolean)
+          .join('\n');
+        const maxZIndex =
+          state.elements.reduce(
+            (max, element) =>
+              Math.max(
+                max,
+                element.style.zIndex,
+              ),
+            0,
+          );
+        const session =
+          useSessionStore.getState();
+        const documentFingerprint =
+          state.currentDocumentFingerprint
+          ?? session.documentKey
+          ?? session.fileName
+          ?? 'writer-v2-unsaved-document';
+        const consolidated =
+          createRichTextBoxElement({
+            documentFingerprint,
+            pageIndex,
+            rect: richBoxRect,
+            text: plainText,
+            editorStateJson,
+            zIndex: maxZIndex + 1,
+          });
+        const now =
+          new Date().toISOString();
+        const review =
+          mergeReviewMetadata(
+            candidates,
+            now,
+          );
+        const replacement: WriterElementV2 = {
+          ...consolidated,
+          review,
+          style: {
+            ...consolidated.style,
+            backgroundColor: '#ffffff',
+            borderColor: '#2563eb',
+            borderWidth: 1,
+            padding: 12,
+            opacity: 1,
+            zIndex: maxZIndex + 1,
+          },
+        };
+
+        consolidatedId =
+          replacement.id;
+        convertedCount =
+          candidates.length;
+
+        return {
+          type:
+            'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS',
+          updates: candidates.map(
+            (element) => ({
+              id: element.id,
+              patch: {
+                hidden: true,
+                updatedAt: now,
+              },
+            }),
+          ),
+          elements: [replacement],
+          selectIds: [
+            replacement.id,
+          ],
+          activeId:
+            replacement.id,
+          now,
+        };
       },
-    });
-  }
+    );
 
-  const addResult = useWriterV2Store.getState().dispatchWriterCommand({
-    type: 'ADD_WRITER_ELEMENT',
-    element: {
-      ...consolidated,
-      review,
-      style: {
-        ...consolidated.style,
-        backgroundColor: '#ffffff',
-        borderColor: '#2563eb',
-        borderWidth: 1,
-        padding: 12,
-        opacity: 1,
-        zIndex: maxZIndex + 1,
-      },
-    },
-  });
-
-  if (!addResult.changed) {
+  if (
+    !result.changed
+    || !consolidatedId
+  ) {
     return {
       changed: false,
       convertedCount: 0,
-      message: addResult.reason ?? 'Failed to add consolidated rich box.',
+      message:
+        convertedCount === 0
+          ? 'No legacy Writer objects found on this page.'
+          : result.reason,
     };
   }
 
-  useWriterV2Store.getState().beginEditingWriterElement(consolidated.id);
+  useWriterV2Store
+    .getState()
+    .beginEditingWriterElement(
+      consolidatedId,
+    );
 
   return {
     changed: true,
-    id: consolidated.id,
-    convertedCount: candidates.length,
-    message: `Consolidated ${candidates.length} legacy Writer object(s) into one rich box.`,
+    id: consolidatedId,
+    convertedCount,
+    message:
+      `Consolidated ${convertedCount} legacy Writer object(s) into one rich box.`,
   };
 }
 

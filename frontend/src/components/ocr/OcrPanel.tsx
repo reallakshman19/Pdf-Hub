@@ -53,7 +53,9 @@ export interface OcrPanelProps {
    * Future Writer integration point.
    * Caller can connect this to writerV2Store insertion actions.
    */
-  onInsertWriterElements?: (elements: WriterElementV2[]) => void;
+  onInsertWriterElements?: (
+    elements: WriterElementV2[],
+  ) => void | Promise<void>;
 
   /**
    * Optional original PDF bytes for searchable PDF export.

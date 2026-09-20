@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { WriterElementV2 } from '../../writer-v2/types';
 import { useWriterV2Store } from '../../writer-v2/writerV2Store';
 import {
@@ -50,8 +56,8 @@ describe('ocrWriterBridge', () => {
     expect(normalized.updatedAt).toBe('2026-02-01T00:00:00.000Z');
   });
 
-  it('inserts OCR Writer elements into Writer V2 store', () => {
-    const result = insertOcrWriterElementsIntoWriterV2Store({
+  it('inserts OCR Writer elements into Writer V2 store', async () => {
+    const result = await insertOcrWriterElementsIntoWriterV2Store({
       elements: [makeTextElement()],
       documentFingerprint: 'writer-doc',
       selectAll: true,
@@ -71,7 +77,7 @@ describe('ocrWriterBridge', () => {
     expect(writerState.dirty).toBe(true);
   });
 
-  it('inserts queue into Writer V2 store', () => {
+  it('inserts queue into Writer V2 store', async () => {
     const queue = createOcrWriterInsertionQueue([
       createOcrWriterInsertionCandidate({
         source: 'ocrRegion',
@@ -81,7 +87,7 @@ describe('ocrWriterBridge', () => {
       }),
     ]);
 
-    const result = insertOcrWriterQueueIntoWriterV2Store({
+    const result = await insertOcrWriterQueueIntoWriterV2Store({
       queue,
       documentFingerprint: 'writer-doc',
     });
@@ -93,8 +99,8 @@ describe('ocrWriterBridge', () => {
     expect(writerState.elements[0].id).toBe('ocr-text-queue');
   });
 
-  it('rejects invalid elements and does not apply command', () => {
-    const result = insertOcrWriterElementsIntoWriterV2Store({
+  it('rejects invalid elements and does not apply command', async () => {
+    const result = await insertOcrWriterElementsIntoWriterV2Store({
       elements: [
         {
           ...makeTextElement(),
@@ -120,8 +126,8 @@ describe('ocrWriterBridge', () => {
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === 'INVALID_RECT')).toBe(true);
   });
 
-  it('uses Writer store currentDocumentFingerprint when not supplied', () => {
-    const result = insertOcrWriterElementsIntoWriterV2Store({
+  it('uses Writer store currentDocumentFingerprint when not supplied', async () => {
+    const result = await insertOcrWriterElementsIntoWriterV2Store({
       elements: [
         {
           ...makeTextElement(),
@@ -135,6 +141,35 @@ describe('ocrWriterBridge', () => {
 
     expect(result.commandApplied).toBe(true);
     expect(writerState.elements[0].documentFingerprint).toBe('writer-doc');
+  });
+
+  it('does not report insertion when durable Writer dispatch rejects', async () => {
+    const dispatchSpy = vi
+      .spyOn(
+        useWriterV2Store.getState(),
+        'dispatchWriterCommandDurable',
+      )
+      .mockRejectedValueOnce(
+        new Error('journal write failed'),
+      );
+
+    const result =
+      await insertOcrWriterElementsIntoWriterV2Store({
+        elements: [makeTextElement()],
+        documentFingerprint: 'writer-doc',
+      });
+
+    expect(result.commandApplied).toBe(false);
+    expect(result.insertedElements).toEqual([]);
+    expect(result.rejectedElements).toHaveLength(1);
+    expect(result.failureReason).toBe(
+      'journal write failed',
+    );
+    expect(
+      useWriterV2Store.getState().elements,
+    ).toHaveLength(0);
+
+    dispatchSpy.mockRestore();
   });
 
   it('builds diagnostics summary', () => {

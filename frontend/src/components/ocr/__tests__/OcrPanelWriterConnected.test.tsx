@@ -211,8 +211,100 @@ describe('OcrPanelWriterConnected', () => {
     expect(writerState.elements[0].documentFingerprint).toBe('writer-connected-doc');
     expect(writerState.elements[0].plainText).toContain('This scan contains');
     expect(writerState.selectedIds).toEqual([writerState.elements[0].id]);
-    expect(screen.getByTestId('ocr-writer-connected-summary')).toBeTruthy();
-    expect(screen.getByText(/Inserted 1 Writer element/)).toBeTruthy();
+    const writerSummary =
+      screen.getByTestId(
+        'ocr-writer-connected-summary',
+      );
+    expect(writerSummary).toBeTruthy();
+    expect(
+      writerSummary.getAttribute(
+        'data-status',
+      ),
+    ).toBe('success');
+    expect(
+      screen.getByText(
+        /Inserted 1 Writer element/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('reports durable Writer insertion failure without clearing the queued OCR item', async () => {
+    const dispatchSpy = vi
+      .spyOn(
+        useWriterV2Store.getState(),
+        'dispatchWriterCommandDurable',
+      )
+      .mockRejectedValueOnce(
+        new Error('journal write failed'),
+      );
+
+    render(
+      <OcrPanelWriterConnected
+        documentFingerprint="writer-connected-doc"
+        selectedPageIndexes={[0]}
+        pages={[pageInput]}
+      />,
+    );
+
+    await revealConnectedRegionTools();
+    await addAndSelectRegion(
+      'writer-connected-doc',
+    );
+
+    fireEvent.click(
+      screen.getByTestId(
+        'ocr-region-run',
+      ),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId(
+          'ocr-region-result-preview',
+        ),
+      ).toBeTruthy();
+    });
+
+    fireEvent.click(
+      screen.getByTestId(
+        'ocr-region-convert',
+      ),
+    );
+    fireEvent.click(
+      screen.getByTestId(
+        'ocr-writer-insert-button',
+      ),
+    );
+
+    await waitFor(() => {
+      const summary =
+        screen.getByTestId(
+          'ocr-writer-connected-summary',
+        );
+
+      expect(
+        summary.getAttribute(
+          'data-status',
+        ),
+      ).toBe('error');
+      expect(summary.textContent).toMatch(
+        /Writer update failed/i,
+      );
+      expect(summary.textContent).toMatch(
+        /journal write failed/i,
+      );
+    });
+
+    expect(
+      useWriterV2Store.getState().elements,
+    ).toHaveLength(0);
+    expect(
+      screen.getByTestId(
+        'ocr-writer-insert-panel',
+      ),
+    ).toBeTruthy();
+
+    dispatchSpy.mockRestore();
   });
 
   it('uses writer store current document fingerprint when prop is omitted', async () => {

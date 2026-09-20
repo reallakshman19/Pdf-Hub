@@ -68,7 +68,12 @@ export interface WriterV2StoreState extends WriterV2State {
   tableSelection: WriterTableSelection | null;
   setTableSelection: (selection: WriterTableSelection | null) => void;
 
-  dispatchWriterCommand: (command: WriterCommand) => WriterV2CommandResult;
+  dispatchWriterCommand: (
+    command: WriterCommand,
+    options?: {
+      allowPdfOverlayMutation?: boolean;
+    },
+  ) => WriterV2CommandResult;
   dispatchWriterCommandDurable: (
     command: WriterCommand,
   ) => Promise<WriterV2CommandResult>;
@@ -134,10 +139,47 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     });
   },
 
-  dispatchWriterCommand: (command) => {
+  dispatchWriterCommand: (
+    command,
+    options,
+  ) => {
     const beforeStore = get();
     const previousEditingId = beforeStore.editingId;
     const session = useSessionStore.getState();
+    const hasPdfBacking = Boolean(
+      session.documentKey
+      && (
+        session.activeRevisionId
+        || session.workingBytes
+      ),
+    );
+    const isPdfOverlaySession =
+      (
+        beforeStore.documentMeta?.mode
+          === 'pdfOverlay'
+        && hasPdfBacking
+      )
+      || (
+        !beforeStore.documentMeta
+        && Boolean(
+          session.pageGraph
+          && session.workingBytes,
+        )
+      );
+
+    if (
+      isMutationCommand(command)
+      && isPdfOverlaySession
+      && !options?.allowPdfOverlayMutation
+    ) {
+      return {
+        state:
+          writerCommandState(beforeStore),
+        changed: false,
+        reason:
+          'PDF-backed Writer mutations require durable dispatch.',
+      };
+    }
     const result = executeWriterCommandForSession(
       beforeStore,
       command,
@@ -213,7 +255,12 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         initialSession,
       )
     ) {
-      return get().dispatchWriterCommand(command);
+      return get().dispatchWriterCommand(
+        command,
+        {
+          allowPdfOverlayMutation: true,
+        },
+      );
     }
 
     return get().dispatchWriterCommandDurableLatest(
@@ -245,7 +292,12 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         };
       }
 
-      return get().dispatchWriterCommand(command);
+      return get().dispatchWriterCommand(
+        command,
+        {
+          allowPdfOverlayMutation: true,
+        },
+      );
     }
 
     let committedResult:
@@ -268,6 +320,10 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         committedResult = fallbackCommand
           ? get().dispatchWriterCommand(
               fallbackCommand,
+              {
+                allowPdfOverlayMutation:
+                  true,
+              },
             )
           : {
               state:
@@ -723,6 +779,42 @@ function normalizeWriterCommandElements(
     });
   }
 
+  if (command.type === 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS') {
+    const targetById = new Map<string, number>();
+
+    for (const element of command.elements) {
+      targetById.set(
+        element.id,
+        element.pageIndex,
+      );
+    }
+
+    for (const update of command.updates) {
+      if (
+        typeof update.patch.pageIndex
+        === 'number'
+      ) {
+        targetById.set(
+          update.id,
+          update.patch.pageIndex,
+        );
+      }
+    }
+
+    retargeted = retargeted.map((element) => {
+      const pageIndex =
+        targetById.get(element.id);
+
+      return pageIndex === undefined
+        ? element
+        : writerElementForTargetPage(
+            element,
+            graph,
+            pageIndex,
+          );
+    });
+  }
+
   if (
     command.type === 'UPDATE_WRITER_ELEMENT'
     && typeof command.patch.pageIndex === 'number'
@@ -879,6 +971,20 @@ function writerCommandState(state: WriterV2StoreState): WriterV2State {
 }
 
 function writerCommandElementIds(command: WriterCommand): string[] {
+  if (
+    command.type
+    === 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS'
+  ) {
+    return [
+      ...command.updates.map(
+        (update) => update.id,
+      ),
+      ...command.elements.map(
+        (element) => element.id,
+      ),
+    ];
+  }
+
   if ('id' in command && typeof command.id === 'string') return [command.id];
   if ('element' in command) return [command.element.id];
   if ('elements' in command) return command.elements.map((element) => element.id);
@@ -907,6 +1013,8 @@ function writerCommandLabel(command: WriterCommand): string {
     BATCH_ADD_WRITER_ELEMENTS: 'Add Writer elements',
     BATCH_UPDATE_WRITER_ELEMENTS: 'Edit Writer elements',
     BATCH_DELETE_WRITER_ELEMENTS: 'Delete Writer elements',
+    BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS:
+      'Consolidate Writer elements',
   };
   return labels[command.type];
 }

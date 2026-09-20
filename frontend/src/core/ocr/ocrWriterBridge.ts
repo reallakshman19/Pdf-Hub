@@ -25,6 +25,7 @@ export interface OcrWriterBridgeInsertResult {
   diagnostics: OcrWriterInsertionDiagnostic[];
   command: WriterCommand | null;
   commandApplied: boolean;
+  failureReason?: string;
 }
 
 export interface InsertOcrWriterElementsIntoStoreInput extends OcrWriterBridgeInsertOptions {
@@ -37,9 +38,9 @@ export interface InsertOcrWriterQueueIntoStoreInput extends OcrWriterBridgeInser
   writerStore?: WriterV2StoreState;
 }
 
-export function insertOcrWriterElementsIntoWriterV2Store(
+export async function insertOcrWriterElementsIntoWriterV2Store(
   input: InsertOcrWriterElementsIntoStoreInput,
-): OcrWriterBridgeInsertResult {
+): Promise<OcrWriterBridgeInsertResult> {
   const queue = createOcrWriterInsertionQueue(
     input.elements.map((element) =>
       createOcrWriterInsertionCandidate({
@@ -59,9 +60,9 @@ export function insertOcrWriterElementsIntoWriterV2Store(
   });
 }
 
-export function insertOcrWriterQueueIntoWriterV2Store(
+export async function insertOcrWriterQueueIntoWriterV2Store(
   input: InsertOcrWriterQueueIntoStoreInput,
-): OcrWriterBridgeInsertResult {
+): Promise<OcrWriterBridgeInsertResult> {
   const writerStore = input.writerStore ?? useWriterV2Store.getState();
   const documentFingerprint =
     input.documentFingerprint
@@ -109,18 +110,59 @@ export function insertOcrWriterQueueIntoWriterV2Store(
     selectAll: input.selectAll ?? true,
   });
 
-  writerStore.dispatchWriterCommand(command);
+  try {
+    const dispatchResult =
+      await writerStore.dispatchWriterCommandDurable(
+        command,
+      );
 
-  return {
-    insertedElements: normalizedElements,
-    rejectedElements,
-    diagnostics: [
-      ...insertionResult.diagnostics,
-      ...validationDiagnostics,
-    ],
-    command,
-    commandApplied: true,
-  };
+    if (!dispatchResult.changed) {
+      return {
+        insertedElements: [],
+        rejectedElements: [
+          ...rejectedElements,
+          ...normalizedElements,
+        ],
+        diagnostics: [
+          ...insertionResult.diagnostics,
+          ...validationDiagnostics,
+        ],
+        command,
+        commandApplied: false,
+        failureReason:
+          dispatchResult.reason,
+      };
+    }
+
+    return {
+      insertedElements: normalizedElements,
+      rejectedElements,
+      diagnostics: [
+        ...insertionResult.diagnostics,
+        ...validationDiagnostics,
+      ],
+      command,
+      commandApplied: true,
+    };
+  } catch (error) {
+    return {
+      insertedElements: [],
+      rejectedElements: [
+        ...rejectedElements,
+        ...normalizedElements,
+      ],
+      diagnostics: [
+        ...insertionResult.diagnostics,
+        ...validationDiagnostics,
+      ],
+      command,
+      commandApplied: false,
+      failureReason:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    };
+  }
 }
 
 export function createOcrWriterBatchInsertCommand(

@@ -342,6 +342,122 @@ describe('writer-v2 command store', () => {
     expect(state.undoStack).toHaveLength(0);
   });
 
+  it('atomically updates existing elements and adds a replacement', () => {
+    const state = createInitialWriterV2State({
+      elements: [
+        element('legacy-1'),
+        element('legacy-2'),
+      ],
+      selectedIds: ['legacy-1'],
+      activeId: 'legacy-1',
+    });
+
+    const result = executeWriterCommand(
+      state,
+      {
+        type:
+          'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS',
+        updates: [
+          {
+            id: 'legacy-1',
+            patch: {
+              hidden: true,
+            },
+          },
+          {
+            id: 'legacy-2',
+            patch: {
+              hidden: true,
+            },
+          },
+        ],
+        elements: [
+          element('rich-1', {
+            type: 'richTextBox',
+            plainText: 'Consolidated',
+            style: {
+              zIndex: 3,
+            },
+          } as Partial<WriterElementV2>),
+        ],
+        selectIds: ['rich-1'],
+        activeId: 'rich-1',
+        now: '2026-01-02T00:00:00.000Z',
+      },
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.state.elements).toHaveLength(3);
+    expect(
+      result.state.elements
+        .filter((item) =>
+          item.id.startsWith('legacy-'),
+        )
+        .every((item) => item.hidden),
+    ).toBe(true);
+    expect(result.state.selectedIds).toEqual([
+      'rich-1',
+    ]);
+    expect(result.state.activeId).toBe(
+      'rich-1',
+    );
+    expect(result.state.undoStack).toHaveLength(1);
+  });
+
+  it('rejects an atomic mixed batch without applying any partial changes', () => {
+    const state = createInitialWriterV2State({
+      elements: [
+        element('legacy-1'),
+        element('legacy-2', {
+          locked: true,
+        }),
+      ],
+    });
+
+    const result = executeWriterCommand(
+      state,
+      {
+        type:
+          'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS',
+        updates: [
+          {
+            id: 'legacy-1',
+            patch: {
+              hidden: true,
+            },
+          },
+          {
+            id: 'legacy-2',
+            patch: {
+              plainText:
+                'Locked target cannot change',
+            },
+          },
+        ],
+        elements: [
+          element('rich-1'),
+        ],
+        selectIds: ['rich-1'],
+        activeId: 'rich-1',
+      },
+    );
+
+    expect(result.changed).toBe(false);
+    expect(result.state).toBe(state);
+    expect(
+      result.state.elements.find(
+        (item) =>
+          item.id === 'legacy-1',
+      )?.hidden,
+    ).toBe(false);
+    expect(
+      result.state.elements.some(
+        (item) => item.id === 'rich-1',
+      ),
+    ).toBe(false);
+    expect(result.state.undoStack).toHaveLength(0);
+  });
+
   it('supports undo and redo for mutations', () => {
     let state = createInitialWriterV2State();
 

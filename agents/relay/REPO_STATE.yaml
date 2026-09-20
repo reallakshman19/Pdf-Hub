@@ -24,8 +24,8 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5B3C2C2-001",
-    "path": "agents/relay/execution-packages/EP-8E5B3C2C2-001.yaml",
+    "id": "EP-8E5B3C2C3-001",
+    "path": "agents/relay/execution-packages/EP-8E5B3C2C3-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-267",
+    "id": "PR-269",
     "path": null,
-    "merge_ref": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
-    "note": "Phase 8E.5B3C2C1 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
+    "merge_ref": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
+    "note": "Phase 8E.5B3C2C2 merged under documented #183 infrastructure exception; exact-head workflows executed no validation steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Review Phase 8E.5B3C2C2 batch Writer durability, run cd frontend && pnpm run certify:phase8e5b3c2c2 when a runner is available, and keep issue #268 open until acceptance evidence is terminal."
+      "next_action": "Review Phase 8E.5B3C2C3 final Writer bridge durability, run cd frontend && pnpm run certify:phase8e5b3c2c3 when a runner is available, and keep issue #270 open until acceptance evidence is terminal."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,10 +78,10 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8E.5B3C2C2 migrates Writer selection/arrange and clipboard mutations to latest-state durable dispatch while retaining synchronous selection-only UI state. Runner-executed evidence remains subject to #183.",
+      "summary": "Phase 8E.5B3C2C3 migrates OCR Writer insertion and legacy consolidation to durable dispatch, adds an atomic mixed batch command, and enforces the final backed-PDF synchronous mutation boundary. Runner-executed evidence remains subject to #183.",
       "not_run": [
         {
-          "id": "TEST-05",
+          "id": "TEST-06",
           "reason": "GitHub-hosted Actions may fail before runner allocation under #183.",
           "cause": "INFRASTRUCTURE"
         }
@@ -102,14 +102,14 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5B3C2C2-001",
+    "execution_ref": "EP-8E5B3C2C3-001",
     "receipt": null,
     "basis": [
-      "Issue #268 tracks the active batch Writer helper durability slice.",
-      "OCR Writer insertion and atomic legacy consolidation remain the C2C3 frontier."
+      "Issue #270 tracks the final Writer mutation-bridge durability slice.",
+      "After C2C3, synchronous active Writer dispatch is limited to selection-only commands and explicit blank-document insertion surfaces."
     ],
     "observed": {
-      "issue": 268
+      "issue": 270
     },
     "superseded_operations": []
   },

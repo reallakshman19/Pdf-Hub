@@ -109,6 +109,14 @@ export type WriterCommand =
   | {
       type: 'BATCH_DELETE_WRITER_ELEMENTS';
       ids: string[];
+    }
+  | {
+      type: 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS';
+      updates: WriterElementBatchPatch[];
+      elements: WriterElementV2[];
+      selectIds?: string[];
+      activeId?: string | null;
+      now?: string;
     };
 
 export function isMutationCommand(command: WriterCommand): boolean {

@@ -33,7 +33,9 @@ export interface OcrReviewWorkspaceProps {
   pdfBytes?: Uint8Array | null;
   writerInsertionQueue: OcrWriterInsertionQueueState;
   onWriterInsertionQueueChange: React.Dispatch<React.SetStateAction<OcrWriterInsertionQueueState>>;
-  onInsertWriterElements?: (elements: WriterElementV2[]) => void;
+  onInsertWriterElements?: (
+    elements: WriterElementV2[],
+  ) => void | Promise<void>;
 }
 
 export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
@@ -381,9 +383,13 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
           <OcrWriterInsertPanel
             queue={currentWriterInsertionQueue}
             onQueueChange={handleCurrentWriterInsertionQueueChange}
-            onInsertElements={(elements) => {
-              onInsertWriterElements?.(elements);
-              setLastInsertedWriterCount(elements.length);
+            onInsertElements={async (elements) => {
+              await onInsertWriterElements?.(
+                elements,
+              );
+              setLastInsertedWriterCount(
+                elements.length,
+              );
             }}
           />
           {lastInsertedWriterCount !== null ? (
