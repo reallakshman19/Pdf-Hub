@@ -369,6 +369,26 @@ describe('executeHistoryRecovery', () => {
 
   it('atomically installs a checkpoint and persists only the final annotation state', async () => {
     const recoveryPlan = plan();
+    recoveryPlan.state.ocr.corrections = [{
+      id: 'correction-1',
+      documentFingerprint:
+        'sha256:stale-ocr-fingerprint',
+      pageIndex: 0,
+      targetId: 'word-1',
+      targetType: 'word',
+      originalText: 'Valve',
+      correctedText: 'VALVE',
+      bbox: {
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 12,
+      },
+      createdAt:
+        '2026-09-20T08:00:00.000Z',
+      updatedAt:
+        '2026-09-20T08:00:00.000Z',
+    }];
     const resolved =
       await setup(recoveryPlan);
     const persistAnnotations =
@@ -431,6 +451,16 @@ describe('executeHistoryRecovery', () => {
     ).toBe(
       CHECKPOINT_REVISION_ID,
     );
+    expect(
+      useOcrStore
+        .getState()
+        .corrections[0],
+    ).toMatchObject({
+      documentFingerprint:
+        CHECKPOINT_REVISION_ID,
+      pageId: 'page-1',
+      pageIndex: 0,
+    });
     expect(
       useHistoryStore
         .getState()
