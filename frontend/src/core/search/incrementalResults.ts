@@ -26,11 +26,14 @@ function signatureFor(
 
 export class IncrementalSearchResults {
   private signature: string | null = null;
+  private pageGraph:
+    PageGraph<PageNode> | null = null;
   private readonly hitsByPageId =
     new Map<PageId, SearchHit[]>();
 
   clear(): void {
     this.signature = null;
+    this.pageGraph = null;
     this.hitsByPageId.clear();
   }
 
@@ -41,6 +44,7 @@ export class IncrementalSearchResults {
     options: SearchOptions,
   ): SearchHit[] {
     this.hitsByPageId.clear();
+    this.pageGraph = pageGraph;
     this.signature =
       signatureFor(
         revisionId,
@@ -81,12 +85,13 @@ export class IncrementalSearchResults {
     options: SearchOptions,
   ): SearchHit[] | null {
     if (
-      this.signature
-      !== signatureFor(
-        revisionId,
-        query,
-        options,
-      )
+      this.pageGraph !== pageGraph
+      || this.signature
+        !== signatureFor(
+          revisionId,
+          query,
+          options,
+        )
     ) {
       return null;
     }
