@@ -376,6 +376,68 @@ describe(
       ]);
     });
 
+    it('rejects execution when active session identity changes without changing reachable revisions', async () => {
+      const revisions =
+        new MemoryRevisionStore({
+          id: STORE_ID,
+        });
+      const journals =
+        new MemoryHistoryJournalStore({
+          id: JOURNAL_STORE_ID,
+        });
+      registerStores(
+        revisions,
+        journals,
+      );
+      await seed(revisions, [
+        'keep',
+        'orphan',
+      ]);
+      await saveJournal(journals, {
+        journalId: 'journal-keep',
+        original: 'keep',
+      });
+
+      useSessionStore.setState({
+        documentKey: 'keep',
+        revisionStoreId: STORE_ID,
+        originalRevisionId: 'keep',
+        activeRevisionId: 'keep',
+        historyJournalStoreId:
+          JOURNAL_STORE_ID,
+        historyJournalId:
+          'journal-keep',
+      });
+
+      const plan =
+        await planLiveRevisionGarbageCollection({
+          storeId: STORE_ID,
+          journalStoreId:
+            JOURNAL_STORE_ID,
+        });
+      expect(plan.candidates)
+        .toEqual(['orphan']);
+
+      useSessionStore.setState({
+        historyJournalId:
+          'replacement-session',
+      });
+
+      await expect(
+        executeRevisionGarbageCollection(
+          plan,
+        ),
+      ).rejects.toMatchObject({
+        code: 'STALE_PLAN',
+      });
+      await expect(
+        revisions.listRevisionIds(),
+      ).resolves.toEqual([
+        'keep',
+        'orphan',
+      ]);
+    });
+
     it('returns partial failure and safely retries the same plan', async () => {
       const revisions =
         new FailOnceMemoryRevisionStore({
