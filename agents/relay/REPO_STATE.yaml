@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d"
+    "basis_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -43,7 +43,26 @@
     "id": null,
     "path": null
   },
-  "takeover_admissions": [],
+  "takeover_admissions": [
+    {
+      "route_key": "SERIAL:EP-9-001",
+      "candidate": {
+        "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9"
+      },
+      "discovery_receipt": {
+        "id": "DISC-9-001",
+        "path": "agents/relay/certifications/discovery/DISC-9-001.yaml"
+      },
+      "qualification": {
+        "id": "QUAL-9-001",
+        "path": "agents/relay/certifications/qualification/QUAL-9-001.yaml"
+      },
+      "certification": {
+        "id": "TC-9-001",
+        "path": "agents/relay/certifications/takeover/TC-9-001.yaml"
+      }
+    }
+  ],
   "progress": {
     "overall_percent": 66.67,
     "phase_percent": 0,
@@ -54,26 +73,21 @@
     "execution": {
       "state": "ACTIVE",
       "can_continue": true,
-      "material_authority": "READ_ONLY",
-      "next_action": "A fresh incoming candidate must reconstruct RM-0003 / issue #286 / EP-9-001 from repository state, answer QSET-9-001, obtain independent QUAL and route-bound TC, and reach MATERIAL_WRITE_READY before Phase 9 product writes."
+      "material_authority": "WRITE",
+      "next_action": "MATERIAL_WRITE_READY: execute STEP-9-01 only—establish the permanent fidelity corpus manifest/schema, provenance and deterministic fixture declarations/generators before any mutation-engine hardening."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Phase 9 phase-transition qualification is required and not yet satisfied.",
+        "Phase 9 phase-transition qualification passed: DISC-9-001 / QUAL-9-001 / TC-9-001 establish the production path, fidelity risk model, protected invariants, independent oracle and bounded first slice.",
         "Known pre-Phase9 document-level fidelity risks include page-only rebuild loss of catalog structures, complex-font/Unicode limits, and explicit signed/encrypted/malformed support semantics.",
         "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284 and must not be reported as complete."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "RM-0003, issue #286, EP-9-001 and QSET-9-001 prepare the Phase 9 fidelity-laboratory route. No Phase 9 product implementation, QUAL/TC, acceptance or executable certification evidence exists yet. Phase 8G certification remains Owner-deferred and pending.",
+      "summary": "Phase 9 fresh repository-only qualification is satisfied by DISC-9-001 / QUAL-9-001 / TC-9-001 on the pinned EP-9-001 digest. Product implementation may begin at STEP-9-01. Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003.",
       "not_run": [
-        {
-          "command": "Phase 9 qualification",
-          "reason": "No incoming DISC/Q1-Q5/QUAL/TC has been produced for EP-9-001.",
-          "head_ref": null
-        },
         {
           "command": "npm run certify:phase8g",
           "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
@@ -116,8 +130,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-9-001",
-      "path": "agents/relay/delivery/DOBS-9-001.yaml"
+      "pull_request": 287,
+      "issue": 286,
+      "head_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca",
+      "state": "MATERIAL_WRITE_READY"
     },
     "observations": [
       {
