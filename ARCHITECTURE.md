@@ -516,8 +516,18 @@ is retry-safe only when the missing inventory consists solely of candidates
 already deleted by that plan. No age-only deletion, journal/checkpoint pruning,
 automatic startup GC or UI-owned GC trigger is part of 8E.5C4.
 
-After 8E.5C4, WP-8E still requires closure/recovery certification before Phase
-8F incremental search indexing can start.
+WP-8E closure certification exercises the complete durable stack as one system:
+process-death reconstruction starts from retained revision/journal backing with
+fresh process-local registries and restores the recovery-complete checkpoint plus
+its validated SELF_CONTAINED_REPLAY suffix. The closure fixture verifies
+PageGraph/navigation, annotation, Writer V2 asset-backed state and OCR
+page-anchored state after reconstruction, then runs safe revision GC and repeats
+the same recovery from the retained graph. A deliberately damaged recovery graph
+(missing required immutable revision) must fail before live-state mutation, and
+GC must also fail closed rather than compound that damage.
+
+WP-8F incremental search indexing remains blocked until this WP-8E closure
+certification reaches a terminal accepted state.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
