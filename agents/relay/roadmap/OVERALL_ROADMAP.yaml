@@ -225,9 +225,9 @@
             {
               "id": "WP-8G",
               "title": "Large-document performance corpus and certification",
-              "state": "PLANNED",
+              "state": "ACTIVE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "ACTIVE",
               "weight": 5,
               "depends_on": [
                 "WP-8F"
