@@ -270,7 +270,7 @@ requireContains(
   [
     'matches exactly one newly indexed page per active-query arrival across 1000 pages',
     '.toHaveBeenCalledTimes(1000)',
-    'requires rebuild after a query signature changes',
+    'requires rebuild after a query or PageGraph signature changes',
   ],
 );
 
