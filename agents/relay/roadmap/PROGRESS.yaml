@@ -6,16 +6,16 @@
     "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
   },
   "overall": {
-    "earned_weight": 11,
+    "earned_weight": 14,
     "total_weight": 21,
-    "percent": 52.38
+    "percent": 66.67
   },
   "objectives": [
     {
       "id": "OBJ-READINESS",
-      "earned_weight": 11,
+      "earned_weight": 14,
       "total_weight": 21,
-      "percent": 52.38
+      "percent": 66.67
     }
   ],
   "phases": [
@@ -45,9 +45,9 @@
     },
     {
       "id": "PHASE-008",
-      "earned_weight": 7,
+      "earned_weight": 10,
       "total_weight": 11,
-      "percent": 63.64
+      "percent": 90.91
     },
     {
       "id": "PHASE-009",
@@ -155,21 +155,21 @@
     },
     {
       "id": "WP-8D3",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "WP-8E",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "WP-8F",
-      "earned_weight": 0,
+      "earned_weight": 1,
       "total_weight": 1,
-      "percent": 0
+      "percent": 100
     },
     {
       "id": "WP-8G",
@@ -216,67 +216,103 @@
   ],
   "execution_packages": [
     {
-      "id": "EP-8E5C1-001",
+      "id": "EP-8G-001",
       "earned_weight": 0,
-      "total_weight": 1,
+      "total_weight": 100,
       "percent": 0
     }
   ],
-  "implementation_steps": [],
+  "implementation_steps": [
+    {
+      "id": "STEP-01",
+      "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-02",
+      "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-03",
+      "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-04",
+      "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-05",
+      "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    }
+  ],
   "acceptance_criteria": [
     {
       "id": "AC-01",
-      "ep_id": "EP-8E5C1-001",
+      "ep_id": "EP-8G-001",
+      "status": "NOT_STARTED",
       "earned_weight": 0,
-      "total_weight": 30,
+      "total_weight": 20,
       "percent": 0,
-      "status": "IN_PROGRESS",
       "basis": [
-        "Implementation is active; acceptance remains unearned until mapped executable certification is terminal."
+        "EP-8G-001 prepared; implementation has not started."
       ]
     },
     {
       "id": "AC-02",
-      "ep_id": "EP-8E5C1-001",
+      "ep_id": "EP-8G-001",
+      "status": "NOT_STARTED",
       "earned_weight": 0,
-      "total_weight": 15,
+      "total_weight": 25,
       "percent": 0,
-      "status": "IN_PROGRESS",
       "basis": [
-        "Legacy v1 compatibility is implemented on the active branch but still requires exact-head executable certification."
+        "Known active-query rescan risk is carried into BENCH-01/TEST-02 but no 8G acceptance is yet earned."
       ]
     },
     {
       "id": "AC-03",
-      "ep_id": "EP-8E5C1-001",
+      "ep_id": "EP-8G-001",
+      "status": "NOT_STARTED",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0,
-      "status": "IN_PROGRESS",
       "basis": [
-        "State-only v2 durability changes are implemented on the active branch; certification evidence is pending."
+        "Large-document rendering/range measurements have not run."
       ]
     },
     {
       "id": "AC-04",
-      "ep_id": "EP-8E5C1-001",
+      "ep_id": "EP-8G-001",
+      "status": "NOT_STARTED",
       "earned_weight": 0,
-      "total_weight": 25,
+      "total_weight": 20,
       "percent": 0,
-      "status": "IN_PROGRESS",
       "basis": [
-        "Binary barrier after-state attachment is implemented on the active branch; certification evidence is pending."
+        "Mutation/save/recovery measurements have not run."
       ]
     },
     {
       "id": "AC-05",
-      "ep_id": "EP-8E5C1-001",
+      "ep_id": "EP-8G-001",
+      "status": "NOT_STARTED",
       "earned_weight": 0,
-      "total_weight": 10,
+      "total_weight": 15,
       "percent": 0,
-      "status": "IN_PROGRESS",
       "basis": [
-        "Rollback regression coverage is retained/extended but acceptance remains unearned until executable certification runs."
+        "8G certification/delivery evidence has not been produced."
       ]
     }
   ]
