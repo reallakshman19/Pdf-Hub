@@ -277,6 +277,31 @@ describe('document transaction history memory', () => {
           revisionId: 'hash-2',
         },
       }],
+      checkpoints: [
+        { kind: 'ADMISSION' },
+        {
+          kind: 'PERIODIC',
+          transactionId:
+            transaction?.id,
+          revision: {
+            revisionId: 'hash-2',
+          },
+          statePayload: {
+            schemaVersion: 2,
+            documentKey: 'hash-2',
+            pageGraph: {
+              pages: [{
+                pageId: 'stable-page',
+                documentKey: 'hash-2',
+              }],
+            },
+            ocr: {
+              documentFingerprint:
+                'hash-2',
+            },
+          },
+        },
+      ],
     });
 
     await expect(applyUndo()).resolves.toBe(true);
