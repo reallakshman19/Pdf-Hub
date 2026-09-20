@@ -137,7 +137,8 @@
     "generate:phase8g-fixtures": "node scripts/phase8g-generate-fixtures.mjs",
     "audit:phase8-large-document-performance": "node scripts/phase8-large-document-performance-audit.mjs",
     "certify:phase8g": "npm run certify:phase8f && npm run audit:phase8-large-document-performance && vitest run src/core/search/incrementalResults.test.ts src/core/search/indexer.test.ts src/components/sidebar/SearchPanel.test.tsx --pool=forks --maxWorkers=1 && npm run build",
-    "benchmark:phase8g:evaluate": "node scripts/phase8g-benchmark-harness.mjs"
+    "benchmark:phase8g:evaluate": "node scripts/phase8g-benchmark-harness.mjs",
+    "benchmark:phase8g": "node scripts/phase8g-run-benchmarks.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
