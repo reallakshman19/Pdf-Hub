@@ -74,6 +74,8 @@ describe(
         );
       searchPage.mockClear();
 
+      let finalHits = null;
+
       for (
         let index = 0;
         index < pageGraph.pages.length;
@@ -121,13 +123,22 @@ describe(
           );
         expect(hits)
           .not.toBeNull();
+        finalHits = hits;
       }
 
       expect(searchPage)
         .toHaveBeenCalledTimes(1000);
+      expect(finalHits)
+        .toHaveLength(1000);
+      expect(
+        finalHits?.[999],
+      ).toMatchObject({
+        pageNumber: 1000,
+        snippet: 'needle page 1000',
+      });
     });
 
-    it('requires rebuild after a query signature changes', () => {
+    it('requires rebuild after a query or PageGraph signature changes', () => {
       const revisionId = 'rev-a';
       const pageGraph =
         graph(revisionId, 1);
@@ -152,6 +163,22 @@ describe(
           pageGraph.pages[0].pageId,
           1,
           'different',
+          OPTIONS,
+        ),
+      ).toBeNull();
+
+      const reordered = {
+        pages: [
+          ...pageGraph.pages,
+        ].reverse(),
+      };
+      expect(
+        results.updatePage(
+          revisionId,
+          reordered,
+          reordered.pages[0].pageId,
+          1,
+          'needle',
           OPTIONS,
         ),
       ).toBeNull();
