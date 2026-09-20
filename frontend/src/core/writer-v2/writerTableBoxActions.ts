@@ -5,6 +5,9 @@ import type {
   WriterTableRow,
 } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 
 export interface WriterTableActionResult {
   changed: boolean;
@@ -220,10 +223,9 @@ async function commitTableMutation(
   mutate: TableMutation,
   message: string,
 ): Promise<WriterTableActionResult> {
-  const store = useWriterV2Store.getState();
-
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer table-box update',
       (state) => {
         const table = state.elements.find(
           (item) => item.id === tableId,
