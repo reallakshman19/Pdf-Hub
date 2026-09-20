@@ -110,15 +110,25 @@ describe('MemoryRevisionStore', () => {
       bytes: Uint8Array.from([7, 8]),
     });
 
-    await store.commit({ revisionId: 'a', source });
     await store.commit({ revisionId: 'b', source });
+    await store.commit({ revisionId: 'a', source });
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual(['a', 'b']);
+
     await store.remove('a');
 
     expect(await store.has('a')).toBe(false);
     expect(await store.has('b')).toBe(true);
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual(['b']);
 
     await store.clear();
     expect(await store.has('b')).toBe(false);
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual([]);
     await expect(store.open('b')).rejects.toMatchObject({
       code: 'REVISION_NOT_FOUND',
     });
