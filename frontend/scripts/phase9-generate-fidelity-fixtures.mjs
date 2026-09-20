@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  PDFArray,
   PDFDocument,
+  PDFHexString,
   PDFName,
   PDFNumber,
   PDFString,
@@ -179,7 +179,6 @@ function installNestedOutlines(
         PDFString.of(
           'Nested destination',
         ),
-      Parent: null,
       Dest: [
         secondPage.ref,
         PDFName.of('Fit'),
@@ -255,26 +254,40 @@ function installPageLabels(
   doc,
 ) {
   const cover =
-    doc.context.obj({
-      P: 'Cover',
-  });
+    doc.context.obj({});
+  cover.set(
+    PDFName.of('P'),
+    PDFHexString.fromText(
+      'Cover',
+    ),
+  );
+
   const body =
-    doc.context.obj({
-      S: 'D',
-      P: 'A-',
-      St: 1,
-  });
+    doc.context.obj({});
+  body.set(
+    PDFName.of('S'),
+    PDFName.of('D'),
+  );
+  body.set(
+    PDFName.of('P'),
+    PDFHexString.fromText(
+      'A-',
+    ),
+  );
+
   const nums =
-    doc.context.obj([
-      PDFNumber.of(0),
-      cover,
-      PDFNumber.of(1),
-      body,
-  ]);
+    doc.context.obj([]);
+  nums.push(PDFNumber.of(0));
+  nums.push(cover);
+  nums.push(PDFNumber.of(1));
+  nums.push(body);
+
   const tree =
-    doc.context.obj({
-      Nums: nums,
-  });
+    doc.context.obj({});
+  tree.set(
+    PDFName.of('Nums'),
+    nums,
+  );
   doc.catalog.set(
     PDFName.of('PageLabels'),
     tree,
