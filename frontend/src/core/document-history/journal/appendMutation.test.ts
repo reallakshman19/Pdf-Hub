@@ -471,6 +471,13 @@ describe('prepareHistoryJournalMutation', () => {
     expect(
       branched?.manifest.activeRevisionId,
     ).toBe('sha256:branch');
+    expect(
+      branched?.manifest.checkpoints.some(
+        (checkpoint) =>
+          checkpoint.transactionId
+          === 'tx-2',
+      ),
+    ).toBe(false);
   });
 
   it('fails closed when journal active revision does not match mutation input', async () => {
