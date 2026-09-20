@@ -65,8 +65,8 @@ import {
 import {
   materializePdfCommand,
 } from '@/core/commands/types';
-import type {
-  WriterPersistenceAdapterV2,
+import {
+  createMemoryWriterPersistence,
 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 
 interface FixtureRecord {
@@ -928,22 +928,8 @@ implements HistoryJournalStore {
   }
 }
 
-const writerPersistence:
-WriterPersistenceAdapterV2 = {
-  async saveDocument() {},
-  async loadDocument() {
-    return null;
-  },
-  async deleteDocument() {},
-  async saveAsset() {},
-  async loadAsset() {
-    return null;
-  },
-  async listAssets() {
-    return [];
-  },
-  async deleteAsset() {},
-};
+const writerPersistence =
+  createMemoryWriterPersistence();
 
 function recoveryManifest(
   fixture: FixtureRecord,
