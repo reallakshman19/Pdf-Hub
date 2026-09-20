@@ -771,7 +771,14 @@ describe('document transaction history memory', () => {
       journalStore.load('history-failure'),
     ).resolves.toMatchObject({
       activeRevisionId: 'hash-1',
+      activeTransactionId: null,
       entries: [],
+      checkpoints: [{
+        kind: 'ADMISSION',
+        revision: {
+          revisionId: 'hash-1',
+        },
+      }],
     });
   });
 
