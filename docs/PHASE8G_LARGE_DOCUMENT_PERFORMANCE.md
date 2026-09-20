@@ -66,8 +66,11 @@ Targeted runs can set `PHASE8G_KINDS` and `PHASE8G_PAGES`. The runner also suppo
 - `npm run benchmark:phase8g`
 - `npm run audit:phase8-large-document-performance`
 - `npm run benchmark:phase8g:evaluate -- --input=<observation.json> --out=<report.json>`
+- `npm run certify:phase8g:evidence`
 - `npm run certify:phase8g`
 
 The static audit validates the corpus/budget contract, the single-page search publication path, the 1,000-page matcher-count regression, both benchmark drivers, range diagnostics, recovery measurement path, and the explicit mutation materialization boundary. The benchmark evaluator requires environment metadata and fixture identity, applies checked-in thresholds to independently captured observations, and emits `phase8g-benchmark-report-v1` PASS/FAIL JSON.
+
+`certify:phase8g` now runs the predecessor certification, static audit, focused search regressions, build, full Phase 8G benchmark runner, and then `certify:phase8g:evidence`. The evidence gate requires both Node and Chromium benchmark reports to be PASS, requires each report's recorded commit SHA to equal the current Git HEAD, verifies the complete required fixture matrix/operation set, and emits `phase8g-certification-evidence-v1`. Static checks alone therefore cannot produce a Phase 8G certification PASS.
 
 Measured supported limits remain unclaimed until benchmark execution produces exact-head result artifacts.
