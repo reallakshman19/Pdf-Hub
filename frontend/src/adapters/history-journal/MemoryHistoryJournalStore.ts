@@ -57,6 +57,16 @@ implements HistoryJournalStore {
       .map(cloneHistoryJournalManifest);
   }
 
+  async listAll(): Promise<HistoryJournalManifest[]> {
+    return [...this.manifests.values()]
+      .sort((left, right) =>
+        left.journalId.localeCompare(
+          right.journalId,
+        ),
+      )
+      .map(cloneHistoryJournalManifest);
+  }
+
   async remove(journalId: string): Promise<void> {
     this.manifests.delete(journalId);
   }
