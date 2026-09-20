@@ -1,0 +1,121 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-9-004",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 287,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "61984c4061bdc27ecf6e204258c7db474f423484"
+    },
+    "base": {
+      "ref": "phase8/large-document-performance",
+      "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "route": {
+    "roadmap_revision": "RM-0003",
+    "work_package": "WP-009",
+    "issue": 286,
+    "execution_package": "EP-9-001",
+    "question_set": "QSET-9-003",
+    "ep_contract_digest": "sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c",
+    "protocol_basis": "65518fd5340599b2a0fb88db5041f6c96389ccb8"
+  },
+  "qualification": {
+    "required": true,
+    "state": "PENDING_DELEGATED",
+    "takeover_admissions": [],
+    "current_candidate": null,
+    "execution_requirement": "EXECREQ-9-QUAL-STEP1",
+    "issue_comment": 5752971346,
+    "response_check_minutes": 60,
+    "material_write_ready": false
+  },
+  "material": {
+    "frozen_product_head": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+    "implementation_started": true,
+    "current_tail_is_relay_only": true,
+    "tail_changed_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/certifications/qualification/QSET-9-002.yaml",
+      "agents/relay/certifications/qualification/QSET-9-003.yaml",
+      "agents/relay/delivery/DOBS-9-002.yaml",
+      "agents/relay/delivery/DOBS-9-003.yaml",
+      "agents/relay/execution-packages/EP-9-001.yaml",
+      "agents/relay/roadmap/PROGRESS.yaml"
+    ],
+    "acceptance_earned": false
+  },
+  "read_only_evidence": {
+    "comment_id": 5753014419,
+    "arabic_fixture": {
+      "local_blob": "0821ccdbd7616c4fcbcf6e476ab8a1595c2b15cb",
+      "upstream_repository": "mozilla/pdf.js",
+      "upstream_path": "test/pdfs/ArabicCIDTrueType.pdf",
+      "upstream_blob": "0821ccdbd7616c4fcbcf6e476ab8a1595c2b15cb",
+      "byte_identity": "EXACT",
+      "semantic_evidence": "PDF.js loads the fixture as Arabic CID TrueType/text and current search tests verify normalized Arabic U+0629/U+FE94 matches.",
+      "manifest_promoted": false
+    },
+    "encrypted_fixture": {
+      "local_blob": "dbceb4454f6f37ee83edfe519a0d4c46935a9a57",
+      "upstream_repository": "qpdf/qpdf",
+      "upstream_path": "qpdf/qtest/qpdf/encrypted-with-images.pdf",
+      "upstream_blob": "dbceb4454f6f37ee83edfe519a0d4c46935a9a57",
+      "byte_identity": "EXACT",
+      "semantic_evidence": "qpdf encryption/content-preservation tests process this exact fixture and verify preserved encryption, including R=3/P=-4 with empty user password in the tested path.",
+      "manifest_promoted": false
+    }
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "61984c4061bdc27ecf6e204258c7db474f423484",
+    "observed": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35540836305,
+        "job_id": 106158056570,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "The only observed exact-head job completed before runner assignment with zero steps; no executable PASS or code-level failure is inferred."
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "correlations": [
+      {
+        "issue_node": "ISSUE-286",
+        "issue_number": 286,
+        "ep_id": "EP-9-001",
+        "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+        "work_package": "WP-009",
+        "relationship": "IMPLEMENTS"
+      }
+    ]
+  },
+  "evidence_truth": {
+    "route_material_authority": "WRITE",
+    "current_candidate_takeover": "UNSATISFIED",
+    "product_write_after_refresh": "NONE",
+    "phase9_acceptance_progress": 0,
+    "phase8g_deferred_certification": "PENDING_NOT_SATISFIED"
+  }
+}
