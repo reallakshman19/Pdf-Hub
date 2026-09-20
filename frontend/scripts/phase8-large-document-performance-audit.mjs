@@ -184,7 +184,10 @@ requireContains(
   runnerPath,
   [
     'phase8g-generate-fixtures.mjs',
-    'src/performance/phase8gBenchmark.test.ts',
+    'src/performance/phase8gRendererBenchmark.test.ts',
+    'src/performance/phase8gMutationBenchmark.test.ts',
+    'src/performance/phase8gRecoveryBenchmark.test.ts',
+    'phase8g-merge-observations.mjs',
     'e2e/phase8g-browser-performance.spec.ts',
     'PHASE8G_SKIP_NODE',
     'PHASE8G_SKIP_BROWSER',
@@ -192,25 +195,92 @@ requireContains(
   ],
 );
 
-const nodeBenchmarkPath =
-  'src/performance/phase8gBenchmark.test.ts';
-const nodeBenchmark =
-  read(nodeBenchmarkPath);
+const rendererBenchmarkPath =
+  'src/performance/phase8gRendererBenchmark.test.ts';
+const rendererBenchmark =
+  read(rendererBenchmarkPath);
+const rendererSupportPath =
+  'src/performance/phase8gRendererBenchmarkSupport.ts';
+const rendererSupport =
+  read(rendererSupportPath);
 requireContains(
-  nodeBenchmark,
-  nodeBenchmarkPath,
+  rendererSupport,
+  rendererSupportPath,
   [
-    'PdfRendererAdapter.acquireDocumentSource',
+    'PdfRendererAdapter',
+    'acquireDocumentSource',
     'indexPdfDocumentIncrementally',
+    'active_query_page_arrival_matching',
     'query_change_reextraction',
     'cancellation_reprioritization',
-    'pdfLibMutationEngine.open',
+  ],
+);
+requireContains(
+  rendererBenchmark,
+  rendererBenchmarkPath,
+  [
+    'observePhase8gRange',
+    'observePhase8gIndexing',
+    'observePhase8gReprioritization',
+    'writePhase8gObservation',
+  ],
+);
+
+const mutationBenchmarkPath =
+  'src/performance/phase8gMutationBenchmark.test.ts';
+const mutationBenchmark =
+  read(mutationBenchmarkPath);
+requireContains(
+  mutationBenchmark,
+  mutationBenchmarkPath,
+  [
+    'pdfLibMutationEngine',
     'mutation_reorder',
     'mutation_append_donor',
+    'save_export',
+    'input_full_byte_materialization',
+    'output_full_byte_materialization',
+  ],
+);
+
+const recoveryBenchmarkPath =
+  'src/performance/phase8gRecoveryBenchmark.test.ts';
+const recoveryBenchmark =
+  read(recoveryBenchmarkPath);
+const recoverySupportPath =
+  'src/performance/phase8gRecoveryBenchmarkSupport.ts';
+const recoverySupport =
+  read(recoverySupportPath);
+requireContains(
+  recoverySupport,
+  recoverySupportPath,
+  [
     'planHistoryRecovery',
     'resolveHistoryRecoveryPlan',
     'executeHistoryRecovery',
     'retained_revision_storage_bytes',
+    'persistent-capability benchmark stores',
+  ],
+);
+requireContains(
+  recoveryBenchmark,
+  recoveryBenchmarkPath,
+  [
+    'observePhase8gRecovery',
+    'writePhase8gObservation',
+  ],
+);
+
+const mergePath =
+  'scripts/phase8g-merge-observations.mjs';
+const merge = read(mergePath);
+requireContains(
+  merge,
+  mergePath,
+  [
+    'phase8g-benchmark-observation-v1',
+    'environment does not match',
+    'documents.flatMap',
   ],
 );
 
@@ -361,6 +431,39 @@ requireContains(
     'bytes: new Uint8Array(bytes)',
   ],
 );
+
+const benchmarkModuleLimits = [
+  ['src/performance/phase8gBenchmarkSupport.ts', 260],
+  [rendererSupportPath, 500],
+  [rendererBenchmarkPath, 180],
+  [mutationBenchmarkPath, 300],
+  [recoverySupportPath, 500],
+  [recoveryBenchmarkPath, 160],
+  ['e2e/phase8gBrowserBenchmarkSupport.ts', 180],
+  [browserBenchmarkPath, 500],
+  [runnerPath, 180],
+  [harnessPath, 600],
+];
+
+for (
+  const [relativePath, limit]
+  of benchmarkModuleLimits
+) {
+  const lineCount =
+    read(relativePath)
+      .split('\n')
+      .length;
+  if (lineCount > limit) {
+    fail(
+      relativePath
+      + ' exceeds '
+      + limit
+      + ' lines ('
+      + lineCount
+      + ').',
+    );
+  }
+}
 
 const packageJson =
   JSON.parse(
