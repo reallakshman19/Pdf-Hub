@@ -234,6 +234,85 @@ describe('planHistoryRecovery', () => {
     ).toEqual(['tx-replay']);
   });
 
+  it('selects the latest checkpoint by journal cursor position, not checkpoint array order', () => {
+    const manifest =
+      manifestWithReplaySuffix();
+    const latestState =
+      createHistoryStateCheckpointPayload(
+        state('sha256:active'),
+      );
+
+    manifest.checkpoints = [
+      manifest.checkpoints[0]!,
+      {
+        checkpointId:
+          `${JOURNAL_ID}:periodic:tx-replay`,
+        kind: 'PERIODIC',
+        revision: {
+          storeId: STORE_ID,
+          revisionId: 'sha256:active',
+        },
+        transactionId: 'tx-replay',
+        createdAt:
+          '2026-09-20T08:00:02.000Z',
+        statePayload: latestState,
+      },
+      manifest.checkpoints[1]!,
+    ];
+
+    const result =
+      planHistoryRecovery(manifest);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.plan).toMatchObject({
+      checkpointId:
+        `${JOURNAL_ID}:periodic:tx-replay`,
+      checkpointTransactionId:
+        'tx-replay',
+      revision: {
+        revisionId: 'sha256:active',
+      },
+      replayEntries: [],
+    });
+  });
+
+  it('rejects blank-document Writer state in a PDF recovery checkpoint', () => {
+    const manifest =
+      manifestWithReplaySuffix();
+    const checkpoint =
+      manifest.checkpoints[1]!;
+    if (
+      !checkpoint.statePayload
+      || checkpoint.statePayload.schemaVersion
+        !== 2
+    ) {
+      throw new Error(
+        'fixture requires v2 payload',
+      );
+    }
+    checkpoint.statePayload.writer.documentMode =
+      'blankDocument';
+
+    const result =
+      planHistoryRecovery(manifest);
+
+    expect(result).toMatchObject({
+      ok: false,
+      code:
+        'RECOVERY_CHECKPOINT_INVALID',
+    });
+    expect(
+      result.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.message.includes(
+            'blank-document Writer state',
+          ),
+      ),
+    ).toBe(true);
+  });
+
   it('fails closed when replay to the active cursor crosses a checkpoint-required entry', () => {
     const manifest =
       manifestWithReplaySuffix();
