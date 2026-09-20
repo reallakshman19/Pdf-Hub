@@ -9,6 +9,39 @@ type DirectoryWithEntries =
     >;
   };
 
+export async function clearCommittedOpfsRevisionFiles(
+  input: {
+    storeId: string;
+    directory:
+      FileSystemDirectoryHandle;
+  },
+): Promise<void> {
+  try {
+    const directory =
+      input.directory
+        as DirectoryWithEntries;
+    for await (
+      const [name] of
+        directory.entries()
+    ) {
+      if (
+        name.startsWith('revision-')
+        && name.endsWith('.pdf')
+      ) {
+        await input.directory
+          .removeEntry(name);
+      }
+    }
+  } catch (error) {
+    throw new RevisionStoreError(
+      'REMOVE_FAILED',
+      input.storeId,
+      'Failed to clear OPFS revision store.',
+      { cause: error },
+    );
+  }
+}
+
 export async function listCommittedOpfsRevisionIds(
   input: {
     storeId: string;
