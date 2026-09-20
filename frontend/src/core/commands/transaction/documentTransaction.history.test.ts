@@ -389,6 +389,10 @@ describe('document transaction history memory', () => {
         },
         executionMode:
           'recovery-replay',
+        recoveryRevision: {
+          revisionId: 'hash-2',
+          bytes: Uint8Array.from([2]),
+        },
       });
 
     expect(result).toMatchObject({
@@ -419,6 +423,71 @@ describe('document transaction history memory', () => {
       activeTransactionId: null,
       entries: [],
     });
+  });
+
+  it('rejects recovery replay when authoritative revision bytes are missing', async () => {
+    const revisionStore =
+      new MemoryRevisionStore({
+        id: 'missing-authority-revisions',
+      });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'missing-authority-before',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    registerWorkingRevisionStore(
+      revisionStore,
+    );
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId:
+        revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    await expect(
+      commitDocumentMutation({
+        command: command(
+          'hash-1',
+          'recovery-replay-missing-authority',
+        ),
+        label:
+          'Recovery replay missing authority',
+        beforeBytes:
+          Uint8Array.from([1]),
+        afterBytes:
+          Uint8Array.from([2]),
+        revisionMetadata: {
+          beforePageCount: 1,
+          afterPageCount: 1,
+        },
+        executionMode:
+          'recovery-replay',
+      }),
+    ).rejects.toMatchObject({
+      stage: 'prepare',
+    });
+
+    expect(
+      useSessionStore.getState(),
+    ).toMatchObject({
+      documentKey: 'hash-1',
+      activeRevisionId: 'hash-1',
+      workingBytes: Uint8Array.from([1]),
+    });
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toEqual([]);
+    expect(
+      persistenceMocks.saveAnnotations,
+    ).not.toHaveBeenCalled();
   });
 
   it('attaches recovery-complete after-state to a binary checkpoint barrier before journal save', async () => {
