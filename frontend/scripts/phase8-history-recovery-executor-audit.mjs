@@ -80,6 +80,9 @@ requireContains(planner, plannerPath, [
   'entry.disposition',
   "'SELF_CONTAINED_REPLAY'",
   'currentClassification.disposition',
+  'checkpointCandidates',
+  'right.entryIndex',
+  "'blankDocument'",
   'replayEntries: replayEntries.map(cloneEntry)',
 ]);
 forbidContains(planner, plannerPath, [
@@ -134,6 +137,7 @@ requireContains(executor, executorPath, [
   'persistAnnotations(',
   'restoreRecoverySnapshot(snapshot)',
   'rekeyRecoveredWriterState',
+  'rekeyOcrPageAnchoredState',
   'liveCheckpoint.statePayload',
   'liveReplayEntries',
   'resolveWorkingRevisionStore',
@@ -246,6 +250,8 @@ requireContains(
     'fails closed when replay to the active cursor crosses a checkpoint-required entry',
     'does not treat a legacy v1 state checkpoint as recovery-complete',
     'reclassifies suffix commands instead of trusting a forged persisted disposition',
+    'selects the latest checkpoint by journal cursor position, not checkpoint array order',
+    'rejects blank-document Writer state in a PDF recovery checkpoint',
   ],
 );
 
@@ -279,6 +285,31 @@ requireContains(
     'fails before mutating state when checkpoint Writer assets are unresolved',
     'fails before mutation when the revision store disappears after resolution',
     'fails before mutation when a planned replay entry changes in durable journal storage',
+    'recovered-annotation',
+    'sha256:stale-ocr-fingerprint',
+  ],
+);
+
+const architecturePath =
+  '../ARCHITECTURE.md';
+const architecture = read(architecturePath);
+requireContains(
+  architecture,
+  architecturePath,
+  [
+    'Phase 8E.5C2 adds headless recovery planning',
+    'recovery-replay',
+    'Duplicate-page derived annotation/Writer identities',
+    'Phase 8E.5C3',
+    'Phase 8E.5C4',
+  ],
+);
+forbidContains(
+  architecture,
+  architecturePath,
+  [
+    'No command replay executor is enabled yet.',
+    'No command replay or revision deletion is enabled yet.',
   ],
 );
 
