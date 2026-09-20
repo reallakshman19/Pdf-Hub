@@ -11,12 +11,60 @@ import {
 import {
   createInitialHistoryJournalManifest,
 } from '../types';
+import type {
+  HistoryState,
+} from '../../types';
 import {
+  attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
 } from '../appendMutation';
 import {
   prepareHistoryJournalNavigation,
 } from '../navigation';
+
+function recoveryState(
+  revisionId: string,
+): HistoryState {
+  return {
+    revision: {
+      storeId: 'revision-store',
+      revisionId,
+    },
+    activeRevisionId: revisionId,
+    documentKey: revisionId,
+    pageCount: 1,
+    pageGraph: {
+      pages: [{
+        pageId: 'page-1',
+        documentKey: revisionId,
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0,
+      }],
+    },
+    selectedPageIds: ['page-1'],
+    selectedPages: [1],
+    currentPageId: 'page-1',
+    currentPage: 1,
+    annotations: [],
+    writer: {
+      documentMode: 'pdfOverlay',
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+    },
+    ocr: {
+      documentFingerprint: revisionId,
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [0],
+      reviewFocus: null,
+    },
+  };
+}
 
 describe('prepareHistoryJournalNavigation', () => {
   beforeEach(() => {
@@ -58,6 +106,16 @@ describe('prepareHistoryJournalNavigation', () => {
     });
     expect(first).not.toBeNull();
     if (!first) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: first.manifest,
+        transactionId: 'tx-1',
+        after:
+          recoveryState(
+            'sha256:two',
+          ),
+      }),
+    ).toBe(true);
     await first.store.save(first.manifest);
 
     const second = await prepareHistoryJournalMutation({
@@ -138,6 +196,16 @@ describe('prepareHistoryJournalNavigation', () => {
     });
     expect(first).not.toBeNull();
     if (!first) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: first.manifest,
+        transactionId: 'state-tx-1',
+        after:
+          recoveryState(
+            'sha256:one',
+          ),
+      }),
+    ).toBe(true);
     await first.store.save(first.manifest);
 
     const second = await prepareHistoryJournalMutation({
