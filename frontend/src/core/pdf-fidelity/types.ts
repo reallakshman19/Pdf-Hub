@@ -21,6 +21,29 @@ export const PHASE9_REQUIRED_FIXTURE_CLASSES = [
 export type FidelityFixtureClass =
   typeof PHASE9_REQUIRED_FIXTURE_CLASSES[number];
 
+export const PHASE9_STRUCTURE_KINDS = [
+  'pages-text',
+  'image-only-pages',
+  'page-geometry-boxes',
+  'outline-tree',
+  'page-labels',
+  'acroform',
+  'native-annotations',
+  'embedded-files',
+  'metadata',
+  'tagged-structure',
+  'font-resources',
+  'unicode-text',
+  'object-streams',
+  'incremental-updates',
+  'encryption',
+  'signatures',
+  'xref-readability',
+] as const;
+
+export type FidelityStructureKind =
+  typeof PHASE9_STRUCTURE_KINDS[number];
+
 export const PHASE9_MUTATION_CLASSES = [
   'rotate',
   'reorder',
@@ -48,7 +71,7 @@ export type FidelityFixtureAvailability =
   | 'required-pending';
 
 export interface FidelitySemanticExpectation {
-  structure: string;
+  structure: FidelityStructureKind;
   expected: string;
 }
 
@@ -76,6 +99,7 @@ export interface FidelityFixtureManifestEntry {
   provenance: FidelityFixtureProvenance;
   artifactPath: string | null;
   generatorId: string | null;
+  structures: FidelityStructureKind[];
   baseline: FidelitySemanticExpectation[];
   mutations: Record<
     FidelityMutationClass,
