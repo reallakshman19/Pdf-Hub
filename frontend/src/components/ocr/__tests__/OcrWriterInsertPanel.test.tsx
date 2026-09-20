@@ -7,6 +7,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from '@testing-library/react';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import {
@@ -81,7 +82,7 @@ describe('OcrWriterInsertPanel', () => {
     expect(screen.getByTestId('ocr-writer-insert-empty')).toBeTruthy();
   });
 
-  it('inserts accepted Writer elements and clears queue', () => {
+  it('inserts accepted Writer elements and clears queue', async () => {
     let queueState: OcrWriterInsertionQueueState = createOcrWriterInsertionQueue([
       createOcrWriterInsertionCandidate({
         source: 'ocrRegion',
@@ -105,9 +106,51 @@ describe('OcrWriterInsertPanel', () => {
 
     fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
 
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0].id).toBe('ocr-text-1');
-    expect(queueState.candidates).toHaveLength(0);
+    await waitFor(() => {
+      expect(inserted).toHaveLength(1);
+      expect(inserted[0].id).toBe(
+        'ocr-text-1',
+      );
+      expect(
+        queueState.candidates,
+      ).toHaveLength(0);
+    });
+  });
+
+  it('preserves the queue when asynchronous insertion fails', async () => {
+    let queueState =
+      createOcrWriterInsertionQueue([
+        createOcrWriterInsertionCandidate({
+          source: 'ocrRegion',
+          element: makeTextElement(),
+        }),
+      ]);
+
+    render(
+      <OcrWriterInsertPanel
+        queue={queueState}
+        onQueueChange={(next) => {
+          queueState = next;
+        }}
+        onInsertElements={async () => {
+          throw new Error(
+            'journal write failed',
+          );
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByTestId(
+        'ocr-writer-insert-button',
+      ),
+    );
+
+    await waitFor(() => {
+      expect(
+        queueState.candidates,
+      ).toHaveLength(1);
+    });
   });
 
   it('warns when invalid candidate exists', () => {
