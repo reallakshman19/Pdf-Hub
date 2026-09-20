@@ -201,9 +201,9 @@
             {
               "id": "WP-8E",
               "title": "History journal and bounded checkpoints",
-              "state": "ACTIVE",
+              "state": "COMPLETE",
               "definition": "DETAILED",
-              "execution_status": "ACTIVE",
+              "execution_status": "TERMINAL",
               "weight": 10,
               "depends_on": [
                 "WP-8D3"
