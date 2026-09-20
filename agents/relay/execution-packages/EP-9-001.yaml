@@ -776,7 +776,7 @@
     "steps": [
       {
         "order": 1,
-        "action": "A fresh incoming candidate reconstructs the current Phase 9 material state at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answers QSET-9-002 from repository evidence, obtains current DISC/QUAL/TC, then continues STEP-9-01 by validating/binding the retained CID/Arabic and encrypted fixtures and sourcing the signed fixture.",
+        "action": "A fresh independent local candidate reconstructs the current Phase 9 route under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answers QSET-9-003 from repository evidence, obtains current DISC/QUAL/TC and live MATERIAL_WRITE_READY, then continues only STEP-9-01 by validating/binding the retained CID/Arabic and encrypted fixtures and sourcing the signed fixture.",
         "targets": [
           "agents/relay/certifications",
           "frontend/fidelity/phase9/manifest.json",
@@ -802,11 +802,66 @@
         ],
         "expected_result": "The pinned-protocol candidate is takeover-certified on the exact current EP/material basis; STEP-9-01 then reduces the manifest's three required-pending specialist obligations without claiming coverage from unvalidated binaries.",
         "stop_if": [
-          "QSET-9-002 / current DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "QSET-9-003 / current DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
           "Retained fixture provenance or semantic structure does not establish the required class.",
           "Any fixture source lacks legal redistribution/ownership evidence.",
           "The proposed work expands into mutation-engine hardening before AC-9-01 corpus readiness."
-        ]
+        ],
+        "execution_requirement": {
+          "id": "EXECREQ-9-QUAL-STEP1",
+          "type": "EXTERNAL_ENVIRONMENT",
+          "actor": "FRESH_INDEPENDENT_LOCAL_CANDIDATE",
+          "environment": {
+            "kind": "LOCAL_AGENT_WITH_REPOSITORY_CHECKOUT",
+            "description": "An independent agent/session with a local Pdf-Hub checkout, access to Common at pinned commit 65518fd5340599b2a0fb88db5041f6c96389ccb8, and the ability to run the pinned V2.5 validators plus frontend corpus validation commands."
+          },
+          "command": null,
+          "instruction": "Reconstruct EP-9-001/QSET-9-003 from repository state only; create and validate fresh DISC/QUAL/TC under the pinned Common basis; derive live MATERIAL_WRITE_READY; only if WRITE, complete the bounded STEP-9-01 retained-fixture/signed-fixture slice and run TEST-9-01 evidence. Post all evidence back to issue #286.",
+          "working_directory": "<local-checkout>/Pdf-Hub",
+          "required_basis": [
+            "repository reallaksh19/Pdf-Hub",
+            "branch phase9/pdf-fidelity-laboratory",
+            "roadmap RM-0003 / WP-009",
+            "issue #286 / draft PR #287",
+            "frozen product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+            "Common engineering-pr-delivery-v2.5 pinned to 65518fd5340599b2a0fb88db5041f6c96389ccb8",
+            "current EP-9-001 and QSET-9-003 as read from the repository at execution time",
+            "Phase 8G issue #284 remains PENDING_NOT_SATISFIED"
+          ],
+          "unavailable_here_reason": "This session prepared the Phase 9 qualification set and cannot validly act as the independent incoming candidate/evaluator; the current tool environment also has no separate-agent spawn semantics or runnable local repository checkout.",
+          "expected_evidence": [
+            "TEST-9-01"
+          ],
+          "blocks": [
+            "candidate-specific TAKEOVER_CERTIFIED for the refreshed Phase 9 route",
+            "candidate-specific MATERIAL_WRITE_READY",
+            "further STEP-9-01 product/test-support writes"
+          ],
+          "success_condition": "A non-preparer candidate posts repository-only DISC/QUAL/TC accepted by the pinned validators, derives MATERIAL_WRITE_READY on the live route, completes only the authorized STEP-9-01 fixture-binding/signed-fixture slice, and posts TEST-9-01 plus corpus-audit evidence to issue #286.",
+          "clears": [
+            "fresh pinned-protocol takeover admission for EP-9-001",
+            "authorization for the qualified candidate to perform the bounded STEP-9-01 material slice",
+            "the current external-execution wait for TEST-9-01 evidence"
+          ],
+          "delegation": {
+            "mode": "LOCAL_AGENT",
+            "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase9/pdf-fidelity-laboratory. Work from a local checkout root. Governing protocol: reallaksh19/Common@65518fd5340599b2a0fb88db5041f6c96389ccb8/skills/engineering-pr-delivery-v2.5. Current roadmap route: RM-0003 / WP-009 / issue #286 / draft PR #287. Frozen product/material basis: 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Read agents/relay/REPO_STATE.yaml, EP-9-001.yaml and QSET-9-003.yaml from the repository; do not rely on predecessor chat. Use a candidate identity different from chatgpt-gpt56-sol-20260921-phase9-delegation-refresh-preparer. Create a fresh DISC-9-* covering every receipt-required DSTEP with conversation_context_used:false and the pinned protocol/profile/predecessor/material/EP digests. Answer Q1-Q5 exactly from QSET-9-003 and create a fresh QUAL-9-* using evaluated_by.type DETERMINISTIC_VALIDATOR and evaluated_by.identity validate_qualification_receipt.py; self_evaluation.allowed:false; all five evaluations must PASS. Create a fresh TC-9-* using validate_takeover_certification.py and the exact DISC/QUAL digest; all takeover checks must PASS. Update REPO_STATE.takeover_admissions only after pinned validators accept the chain. Run material_write_ready.py with your candidate id and do not touch product files unless it returns WRITE. If WRITE, stay strictly inside STEP-9-01: independently verify the retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf provenance plus actual required semantics; bind only those that pass; source/generate the signed fixture using repository-owned or legally redistributable non-production certificate material; run the manifest validator, npm run audit:phase9-fidelity-corpus, and the focused TEST-9-01/certify:phase9-step1 path. Do not begin STEP-9-02, do not modify PdfLibMutationEngine, do not close Phase 8G, do not use production credentials, and do not weaken fixture expectations. Post back to issue #286: candidate id; DISC/QUAL/TC ids/paths/digests; validator outputs; material_write_ready result; exact head; files changed; provenance evidence; TEST-9-01/audit commands and results; remaining pending fixtures; any stop condition.",
+            "publication": {
+              "target": "CURRENT_WORK_ISSUE",
+              "method": "COMMENT",
+              "local_result_update": "SAME_LOCATION",
+              "readback_required": true
+            },
+            "response_check": {
+              "timer_required": true,
+              "timer_title": "Phase 9 local takeover check",
+              "after_minutes": 60,
+              "selection_reason": "The delegated work includes local setup, pinned validator execution, candidate takeover, fixture provenance/semantic checks and focused corpus validation, so it is a multi-step local verification rather than a short command.",
+              "on_due": "Read issue #286 for the delegated local-agent response, validate DISC/QUAL/TC and TEST-9-01 evidence against the current route/pinned Common basis, then reconcile REPO_STATE/progress before any further material work.",
+              "on_no_response": "Report WAITING truthfully and schedule another check only if the external qualification remains useful; do not infer takeover or material-write readiness."
+            }
+          }
+        }
       }
     ]
   },
@@ -832,8 +887,8 @@
     ],
     "not_applicable_reason": null,
     "question_set": {
-      "id": "QSET-9-002",
-      "path": "agents/relay/certifications/qualification/QSET-9-002.yaml"
+      "id": "QSET-9-003",
+      "path": "agents/relay/certifications/qualification/QSET-9-003.yaml"
     }
   },
   "quality": {
