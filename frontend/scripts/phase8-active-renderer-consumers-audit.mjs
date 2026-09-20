@@ -188,12 +188,20 @@ requireContains(
   incrementalSearchPath,
   [
     'SearchIndexer.createPageSchedule',
+    'SearchIndexer.getPageState',
     'SearchIndexer.markQueued',
     'SearchIndexer.markIndexing',
     'SearchIndexer.setPageText',
     'SearchIndexer.releaseOwner',
     'await yieldToBrowser(',
     'page?.cleanup()',
+  ],
+);
+forbidContains(
+  incrementalSearch,
+  incrementalSearchPath,
+  [
+    'SearchIndexer.getPageRecord(',
   ],
 );
 
