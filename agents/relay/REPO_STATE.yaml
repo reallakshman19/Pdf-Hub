@@ -91,11 +91,11 @@
       "PR #283 merged WP-8F at f42f0c27785e3dc097dc41ca0325698156b32181 and issue #282 is closed.",
       "Issue #284 is the verified coordination contract for WP-8G.",
       "EP-8G-001 and QSET-8G-001 are prepared on phase8/large-document-performance.",
-      "A tracked draft PR with canonical Issue↔EP correlation is still pending at this state commit."
+      "Draft PR #285 tracks the active EP and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation."
     ],
     "observed": {
       "issue": 284,
-      "pull_request": null,
+      "pull_request": 285,
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
     },
     "superseded_operations": []
@@ -104,20 +104,19 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": null,
+      "pull_request": 285,
       "issue": 284,
-      "head_ref": "51439544459bf2a32e7d89cb1cfa0befd22645a6",
-      "state": "TRACKED_PR_PENDING"
+      "head_ref": "d21bc673239641f4b50d98dbc1e98d964bd57e72",
+      "state": "DRAFT_QUALIFICATION_PENDING",
+      "correlation": "ISSUE-284 ↔ WP-8G ↔ EP-8G-001 / IMPLEMENTS"
     },
     "observations": []
   },
   "relay_readiness": {
     "baton_ready": true,
-    "projection_ready": false,
-    "handover_ready": false,
-    "reasons": [
-      "WP-8G semantic EP/QSET are prepared, but the required tracked GitHub PR/correlation has not yet been published/read back."
-    ]
+    "projection_ready": true,
+    "handover_ready": true,
+    "reasons": []
   },
   "chat_context_required": false
 }
