@@ -615,6 +615,80 @@ describe('executeHistoryRecovery', () => {
     ).toEqual(before.history);
   });
 
+  it('restores pre-recovery state when final annotation persistence fails', async () => {
+    useSessionStore.setState({
+      documentKey: 'pre-doc',
+      fileName: 'pre.pdf',
+      workingBytes:
+        new Uint8Array([9, 8, 7]),
+      pageCount: 1,
+    });
+    useWriterV2Store.setState({
+      currentDocumentFingerprint:
+        'pre-writer',
+    });
+    useOcrStore.setState({
+      documentFingerprint:
+        'pre-ocr',
+    });
+    useHistoryStore.setState({
+      retainedBytes: 55,
+    });
+
+    const before = {
+      session:
+        useSessionStore.getState(),
+      annotations:
+        useAnnotationStore.getState(),
+      writer:
+        useWriterV2Store.getState(),
+      ocr:
+        useOcrStore.getState(),
+      history:
+        useHistoryStore.getState(),
+    };
+
+    const resolved =
+      await setup(plan());
+
+    await expect(
+      executeHistoryRecovery({
+        resolved,
+        journalStoreId:
+          JOURNAL_STORE_ID,
+        dependencies: {
+          persistAnnotations:
+            async () => {
+              throw new Error(
+                'synthetic persistence failure',
+              );
+            },
+        },
+      }),
+    ).rejects.toMatchObject({
+      name:
+        'HistoryRecoveryExecutionError',
+      code:
+        'FINAL_PERSISTENCE_FAILED',
+    });
+
+    expect(
+      useSessionStore.getState(),
+    ).toEqual(before.session);
+    expect(
+      useAnnotationStore.getState(),
+    ).toEqual(before.annotations);
+    expect(
+      useWriterV2Store.getState(),
+    ).toEqual(before.writer);
+    expect(
+      useOcrStore.getState(),
+    ).toEqual(before.ocr);
+    expect(
+      useHistoryStore.getState(),
+    ).toEqual(before.history);
+  });
+
   it('rolls back when replay produces a revision different from the journal', async () => {
     useSessionStore.setState({
       documentKey: 'pre-doc',
