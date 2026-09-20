@@ -12,11 +12,11 @@
   "replan_inheritance": null,
   "git_basis": {
     "expected_branch": "phase9/pdf-fidelity-laboratory",
-    "material_ref": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb",
+    "material_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca",
     "base_branch": "phase8/large-document-performance",
     "base_observed_ref": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": null
+    "drift_receipt": "Fresh Phase 9 repository-only qualification passed via DISC-9-001 / QUAL-9-001 / TC-9-001; PR #287 base remains the RM-0003 handoff and no Phase 9 product mutation code preceded certification."
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -1273,5 +1273,15 @@
       "next_frontier",
       "successor_ep_or_terminal_disposition"
     ]
+  },
+  "qualification_receipt": {
+    "id": "QUAL-9-001",
+    "path": "agents/relay/certifications/qualification/QUAL-9-001.yaml",
+    "status": "PASS"
+  },
+  "takeover_certification": {
+    "id": "TC-9-001",
+    "path": "agents/relay/certifications/takeover/TC-9-001.yaml",
+    "status": "PASS"
   }
 }
