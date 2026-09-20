@@ -125,7 +125,7 @@
     "audit:phase8-history-recovery-checkpoint": "node scripts/phase8-history-recovery-checkpoint-audit.mjs",
     "certify:phase8e5c1": "npm run certify:phase8e5b3c2c3 && npm run audit:phase8-history-recovery-checkpoint && vitest run src/core/document-history/journal/__tests__/stateCheckpoint.test.ts src/core/document-history/journal/types.test.ts src/core/document-history/journal/__tests__/appendStateTransaction.test.ts src/core/document-history/journal/appendMutation.test.ts src/core/document-history/__tests__/durableStateTransaction.test.ts src/core/commands/transaction/documentTransaction.history.test.ts --pool=forks --maxWorkers=1 && npm run build",
     "audit:phase8-history-recovery-executor": "node scripts/phase8-history-recovery-executor-audit.mjs",
-    "certify:phase8e5c2": "npm run certify:phase8e5c1 && npm run audit:phase8-history-recovery-executor && vitest run src/core/document-history/journal/__tests__/recoveryPlanner.test.ts src/core/document-history/journal/__tests__/recoveryResolver.test.ts src/core/document-history/journal/__tests__/recoveryExecutor.test.ts src/core/commands/transaction/documentTransaction.history.test.ts --pool=forks --maxWorkers=1 && npm run build"
+    "certify:phase8e5c2": "npm run certify:phase8e5c1 && npm run audit:phase8-history-recovery-executor && vitest run src/core/document-history/journal/__tests__/recoveryPlanner.test.ts src/core/document-history/journal/__tests__/recoveryResolver.test.ts src/core/document-history/journal/__tests__/recoveryExecutor.test.ts src/core/commands/transaction/documentTransaction.history.test.ts src/core/commands/__tests__/dispatch.test.ts --pool=forks --maxWorkers=1 && npm run build"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
