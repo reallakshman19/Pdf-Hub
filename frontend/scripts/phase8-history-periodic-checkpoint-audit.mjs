@@ -87,6 +87,8 @@ requireContains(policy, policyPath, [
   "'SELF_CONTAINED_REPLAY'",
   'serializedUtf8Bytes',
   'TextEncoder',
+  'manifestIndex',
+  'requires valid ISO-compatible timestamps',
 ]);
 forbidContains(policy, policyPath, [
   'setInterval(',
@@ -162,6 +164,7 @@ requireContains(
     'triggers on serialized journal-entry bytes',
     'triggers elapsed time only on a later durable transaction boundary',
     'uses the latest recovery-complete checkpoint as the cadence reset',
+    'fails closed when cadence timestamps are malformed',
     'never schedules periodic checkpoints for checkpoint-required transactions',
   ],
 );
@@ -177,6 +180,7 @@ requireContains(
     'bootstraps a recovery-complete periodic checkpoint on the first replayable mutation',
     'does not add another periodic checkpoint before any policy bound is reached',
     'schedules a periodic checkpoint when a configured bound is reached',
+    'uses a recovery-complete barrier as the next periodic cadence reset',
     "'BOOTSTRAP_RECOVERY_POINT'",
     "reasons: ['TRANSACTION_COUNT']",
     "kind: 'PERIODIC'",
