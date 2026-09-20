@@ -377,18 +377,30 @@ constructing full nested rect/style/callout patches, preventing rapid edits from
 overwriting a prior queued field with stale object state. Selection clearing
 remains synchronous.
 
-The Inspector still embeds table/review/image/selection helper actions whose
-mutation contracts live in separate Writer action modules; those helpers are not
-partially rewritten in B2B. Writer table-properties controls remain the final
-high-frequency direct UI surface and are owned by Phase 8E.5B3C2B2C.
-Multi-step legacy consolidation also remains synchronous because hiding source
-objects and adding the consolidated rich box must be made atomic before
-migration. Phase 8E.5B3C2C owns synchronous helper contracts and remaining
-bridges, including review/table-box/selection/image-clear helpers and OCR
-integration. Synchronous PDF-overlay mutation dispatch must not be prohibited
-until those migrations are complete. No command replay or revision deletion is
-enabled yet. Reference-aware revision GC and bounded recovery checkpoints remain
-follow-on work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3C2B2C migrates Writer Table Properties onto the same
+coalesced durable-commit discipline. Cell text, padding, border width, column
+width and other numeric/text entries keep local draft state and commit on blur
+or Enter; Escape restores the canonical value without mutation. Color pickers
+buffer local state and debounce repeated picker input into one durable commit.
+Discrete alignment/header/row/column/merge/split/normalize actions emit one
+durable command per user action. A panel-local promise chain serializes commits;
+each builder re-reads the latest canonical Writer elements before constructing
+its command, preventing rapid property edits from overwriting prior queued
+changes with stale table state. Table cell selection remains local/synchronous
+and is not journaled. No synchronous Writer mutation dispatch remains inside
+WriterTablePropertiesPanel.
+
+With B2A/B2B/B2C complete, the direct high-frequency Writer UI surfaces now have
+explicit coalescing boundaries. The remaining Phase 8E.5B3C2C work is the
+synchronous Writer helper/bridge surface: review metadata helpers, table-box
+helpers, selection/arrange helpers, image-clear behavior, OCR Writer integration
+and atomic legacy consolidation. Multi-step legacy consolidation must be migrated
+as one durable logical mutation rather than independently journaling each hidden
+source element and the consolidated replacement. Synchronous PDF-overlay
+mutation dispatch must not be prohibited until those remaining helper contracts
+are migrated. No command replay or revision deletion is enabled yet.
+Reference-aware revision GC and bounded recovery checkpoints remain follow-on
+work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

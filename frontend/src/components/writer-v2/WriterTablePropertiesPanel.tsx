@@ -17,6 +17,15 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  dispatchDurableWriterUiCommand,
+} from '@/core/writer-v2/durableWriterUiDispatch';
+import type {
+  WriterV2CommandResult,
+} from '@/core/writer-v2/writerCommandStore';
+import type {
+  WriterElementV2,
+} from '@/core/writer-v2/types';
 import type {
   WriterTableBorderStyle,
   WriterTableCellStyle,
@@ -49,6 +58,246 @@ export interface WriterTablePropertiesPanelProps {
   onTableSelectionChange?: (selection: WriterTableSelection | null) => void;
 }
 
+interface TableDraftCommitResult {
+  changed: boolean;
+}
+
+function TableDraftTextInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const cancelBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(value);
+      return;
+    }
+
+    if (draft === value) return;
+
+    void onCommit(draft)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(value);
+        }
+      })
+      .catch(() => {
+        setDraft(value);
+      });
+  };
+
+  return (
+    <input
+      className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+      value={draft}
+      onChange={(event) =>
+        setDraft(event.currentTarget.value)
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
+function TableDraftNumberInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+  min,
+  max,
+  step = 1,
+}: {
+  value: number;
+  onCommit: (
+    value: number,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  const [draft, setDraft] =
+    React.useState(String(value));
+  const cancelBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(String(value));
+    cancelBlurRef.current = false;
+  }, [resetKey, value]);
+
+  const commit = () => {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false;
+      setDraft(String(value));
+      return;
+    }
+
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+
+    const next = Math.max(
+      min ?? Number.NEGATIVE_INFINITY,
+      Math.min(
+        max ?? Number.POSITIVE_INFINITY,
+        parsed,
+      ),
+    );
+
+    setDraft(String(next));
+
+    if (next === value) return;
+
+    void onCommit(next)
+      .then((result) => {
+        if (!result.changed) {
+          setDraft(String(value));
+        }
+      })
+      .catch(() => {
+        setDraft(String(value));
+      });
+  };
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+      value={draft}
+      onChange={(event) =>
+        setDraft(event.currentTarget.value)
+      }
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          cancelBlurRef.current = true;
+          setDraft(String(value));
+          event.currentTarget.blur();
+        }
+      }}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
+function TableDraftColorInput({
+  value,
+  onCommit,
+  resetKey,
+  ariaLabel,
+}: {
+  value: string;
+  onCommit: (
+    value: string,
+  ) => Promise<TableDraftCommitResult>;
+  resetKey: string;
+  ariaLabel: string;
+}) {
+  const [draft, setDraft] =
+    React.useState(value);
+  const timerRef =
+    React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setDraft(value);
+  }, [resetKey, value]);
+
+  React.useEffect(
+    () => () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleCommit = (next: string) => {
+    setDraft(next);
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = window.setTimeout(
+      () => {
+        timerRef.current = null;
+        if (next === value) return;
+
+        void onCommit(next)
+          .then((result) => {
+            if (!result.changed) {
+              setDraft(value);
+            }
+          })
+          .catch(() => {
+            setDraft(value);
+          });
+      },
+      250,
+    );
+  };
+
+  return (
+    <input
+      type="color"
+      className="mt-1 h-8 w-full rounded border border-slate-300"
+      value={draft}
+      onChange={(event) =>
+        scheduleCommit(
+          event.currentTarget.value,
+        )
+      }
+      aria-label={ariaLabel}
+    />
+  );
+}
+
 export const WriterTablePropertiesPanel: React.FC<
   WriterTablePropertiesPanelProps
 > = ({
@@ -58,7 +307,46 @@ export const WriterTablePropertiesPanel: React.FC<
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
   const selectedIds = useWriterV2Store((state) => state.selectedIds);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
+  const tableCommitTailRef =
+    React.useRef<Promise<void>>(
+      Promise.resolve(),
+    );
+
+  const runDurableCommand =
+    React.useCallback((
+      context: string,
+      builder: (
+        latestElements: WriterElementV2[],
+      ) => WriterTableCommandBridgeResult,
+    ): Promise<WriterV2CommandResult | null> => {
+      const run =
+        tableCommitTailRef.current.then(
+          async () => {
+            const result = builder(
+              useWriterV2Store
+                .getState()
+                .elements,
+            );
+
+            if (!result.command) {
+              return null;
+            }
+
+            return dispatchDurableWriterUiCommand(
+              result.command,
+              context,
+            );
+          },
+        );
+
+      tableCommitTailRef.current =
+        run.then(
+          () => undefined,
+          () => undefined,
+        );
+
+      return run;
+    }, []);
 
   const table = React.useMemo(() => {
     const preferredId = activeId ?? selectedIds[0] ?? null;
@@ -145,204 +433,336 @@ export const WriterTablePropertiesPanel: React.FC<
   const canMergeCells = selectedCellCount >= 2;
 
   const runCommand = (
-    builder: () => WriterTableCommandBridgeResult,
-  ) => {
-    const result = builder();
+    context: string,
+    builder: (
+      latestElements: WriterElementV2[],
+    ) => WriterTableCommandBridgeResult,
+  ): Promise<TableDraftCommitResult> =>
+    runDurableCommand(
+      context,
+      builder,
+    ).then((result) => ({
+      changed: result?.changed ?? false,
+    }));
 
-    if (result.command) {
-      dispatchWriterCommand(result.command);
-    }
-  };
+  const freezeSelection = () => ({
+    elementId: effectiveSelection.elementId,
+    cells: effectiveSelection.cells.map(
+      (cell) => ({ ...cell }),
+    ),
+  });
 
   const setHorizontalAlignment = (
     alignment: NonNullable<WriterTableCellStyle['alignment']>,
   ) => {
-    runCommand(() =>
-      buildSetTableCellHorizontalAlignmentCommand(
-        elements,
-        effectiveSelection,
-        alignment,
-      ),
-    );
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties horizontal alignment',
+      (latestElements) =>
+        buildSetTableCellHorizontalAlignmentCommand(
+          latestElements,
+          selectionAtInvocation,
+          alignment,
+        ),
+    ).catch(() => undefined);
   };
 
   const setVerticalAlignment = (
     verticalAlign: NonNullable<WriterTableCellStyle['verticalAlign']>,
   ) => {
-    runCommand(() =>
-      buildSetTableCellVerticalAlignmentCommand(
-        elements,
-        effectiveSelection,
-        verticalAlign,
-      ),
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties vertical alignment',
+      (latestElements) =>
+        buildSetTableCellVerticalAlignmentCommand(
+          latestElements,
+          selectionAtInvocation,
+          verticalAlign,
+        ),
+    ).catch(() => undefined);
+  };
+
+  const setFill = (
+    backgroundColor: string,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    return runCommand(
+      'WriterTableProperties fill',
+      (latestElements) =>
+        buildSetTableCellFillCommand(
+          latestElements,
+          selectionAtInvocation,
+          backgroundColor || undefined,
+        ),
     );
   };
 
-  const setFill = (backgroundColor: string) => {
-    runCommand(() =>
-      buildSetTableCellFillCommand(
-        elements,
-        effectiveSelection,
-        backgroundColor || undefined,
-      ),
-    );
-  };
-
-  const setPadding = (padding: number) => {
-    runCommand(() =>
-      buildSetTableCellPaddingCommand(
-        elements,
-        effectiveSelection,
-        padding,
-      ),
+  const setPadding = (
+    padding: number,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    return runCommand(
+      'WriterTableProperties padding',
+      (latestElements) =>
+        buildSetTableCellPaddingCommand(
+          latestElements,
+          selectionAtInvocation,
+          padding,
+        ),
     );
   };
 
   const setBorder = (
-    style: WriterTableBorderStyle,
-    color: string,
-    width: number,
+    patch: Partial<{
+      style: WriterTableBorderStyle;
+      color: string;
+      width: number;
+    }>,
+  ): Promise<TableDraftCommitResult> => {
+    const selectionAtInvocation =
+      freezeSelection();
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
+    const tableId = table.id;
+
+    return runCommand(
+      'WriterTableProperties border',
+      (latestElements) => {
+        const latestStyle =
+          resolveLatestTableCellStyle(
+            latestElements,
+            tableId,
+            rowIndex,
+            columnIndex,
+          );
+        const latestBorder =
+          latestStyle.borders?.top;
+
+        return buildSetTableCellBorderCommand(
+          latestElements,
+          selectionAtInvocation,
+          'all',
+          {
+            style:
+              patch.style
+              ?? latestBorder?.style
+              ?? 'single',
+            color:
+              patch.color
+              ?? latestBorder?.color
+              ?? '#CBD5E1',
+            width:
+              patch.width
+              ?? latestBorder?.width
+              ?? 0.5,
+          },
+        );
+      },
+    );
+  };
+
+  const setHeaderRow = (
+    hasHeaderRow: boolean,
   ) => {
-    runCommand(() =>
-      buildSetTableCellBorderCommand(
-        elements,
-        effectiveSelection,
-        'all',
-        {
-          style,
-          color,
+    const tableId = table.id;
+    void runCommand(
+      'WriterTableProperties header row',
+      (latestElements) =>
+        buildSetTableHeaderRowCommand(
+          latestElements,
+          tableId,
+          hasHeaderRow,
+        ),
+    ).catch(() => undefined);
+  };
+
+  const resizeColumn = (
+    width: number,
+  ): Promise<TableDraftCommitResult> => {
+    if (!currentColumn) {
+      return Promise.resolve({
+        changed: false,
+      });
+    }
+
+    const tableId = table.id;
+    const columnId = currentColumn.id;
+
+    return runCommand(
+      'WriterTableProperties column width',
+      (latestElements) =>
+        buildResizeTableColumnCommand(
+          latestElements,
+          tableId,
+          columnId,
           width,
-        },
-      ),
+        ),
     );
   };
 
-  const setHeaderRow = (hasHeaderRow: boolean) => {
-    runCommand(() =>
-      buildSetTableHeaderRowCommand(
-        elements,
-        table.id,
-        hasHeaderRow,
-      ),
-    );
-  };
+  const updateCellText = (
+    text: string,
+  ): Promise<TableDraftCommitResult> => {
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
 
-  const resizeColumn = (width: number) => {
-    if (!currentColumn) return;
-
-    runCommand(() =>
-      buildResizeTableColumnCommand(
-        elements,
-        table.id,
-        currentColumn.id,
-        width,
-      ),
-    );
-  };
-
-  const updateCellText = (text: string) => {
-    runCommand(() =>
-      buildUpdateTableCellTextCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        selectedCell.columnIndex,
-        text,
-      ),
+    return runCommand(
+      'WriterTableProperties cell text',
+      (latestElements) =>
+        buildUpdateTableCellTextCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          columnIndex,
+          text,
+        ),
     );
   };
 
   const insertRowAbove = () => {
-    runCommand(() =>
-      buildInsertTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        'above',
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties insert row above',
+      (latestElements) =>
+        buildInsertTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          'above',
+        ),
+    ).catch(() => undefined);
   };
 
   const insertRowBelow = () => {
-    runCommand(() =>
-      buildInsertTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        'below',
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties insert row below',
+      (latestElements) =>
+        buildInsertTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          'below',
+        ),
+    ).catch(() => undefined);
   };
 
   const deleteRow = () => {
-    runCommand(() =>
-      buildDeleteTableRowCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    void runCommand(
+      'WriterTableProperties delete row',
+      (latestElements) =>
+        buildDeleteTableRowCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const insertColumnLeft = () => {
-    runCommand(() =>
-      buildInsertTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-        'left',
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties insert column left',
+      (latestElements) =>
+        buildInsertTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+          'left',
+        ),
+    ).catch(() => undefined);
   };
 
   const insertColumnRight = () => {
-    runCommand(() =>
-      buildInsertTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-        'right',
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties insert column right',
+      (latestElements) =>
+        buildInsertTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+          'right',
+        ),
+    ).catch(() => undefined);
   };
 
   const deleteColumn = () => {
-    runCommand(() =>
-      buildDeleteTableColumnCommand(
-        elements,
-        table.id,
-        selectedCell.columnIndex,
-      ),
-    );
+    const tableId = table.id;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties delete column',
+      (latestElements) =>
+        buildDeleteTableColumnCommand(
+          latestElements,
+          tableId,
+          columnIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const mergeSelectedCells = () => {
-    runCommand(() =>
-      buildMergeTableCellsCommand(
-        elements,
-        effectiveSelection,
-      ),
-    );
+    const selectionAtInvocation =
+      freezeSelection();
+    void runCommand(
+      'WriterTableProperties merge cells',
+      (latestElements) =>
+        buildMergeTableCellsCommand(
+          latestElements,
+          selectionAtInvocation,
+        ),
+    ).catch(() => undefined);
   };
 
   const splitSelectedCell = () => {
-    runCommand(() =>
-      buildSplitTableCellCommand(
-        elements,
-        table.id,
-        selectedCell.rowIndex,
-        selectedCell.columnIndex,
-      ),
-    );
+    const tableId = table.id;
+    const rowIndex =
+      selectedCell.rowIndex;
+    const columnIndex =
+      selectedCell.columnIndex;
+    void runCommand(
+      'WriterTableProperties split cell',
+      (latestElements) =>
+        buildSplitTableCellCommand(
+          latestElements,
+          tableId,
+          rowIndex,
+          columnIndex,
+        ),
+    ).catch(() => undefined);
   };
 
   const normalizeTable = () => {
-    runCommand(() =>
-      buildNormalizeTableCommand(
-        elements,
-        table.id,
-      ),
-    );
+    const tableId = table.id;
+    void runCommand(
+      'WriterTableProperties normalize table',
+      (latestElements) =>
+        buildNormalizeTableCommand(
+          latestElements,
+          tableId,
+        ),
+    ).catch(() => undefined);
   };
 
   return (
@@ -513,11 +933,11 @@ export const WriterTablePropertiesPanel: React.FC<
       </PanelSection>
 
       <PanelSection title="Cell text" icon={CaseSensitive}>
-        <input
-          className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+        <TableDraftTextInput
           value={currentCell?.text ?? ''}
-          onChange={(event) => updateCellText(event.currentTarget.value)}
-          aria-label="Selected table cell text"
+          resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}`}
+          onCommit={updateCellText}
+          ariaLabel="Selected table cell text"
         />
       </PanelSection>
 
@@ -577,24 +997,30 @@ export const WriterTablePropertiesPanel: React.FC<
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs text-slate-600">
             Fill
-            <input
-              type="color"
-              className="mt-1 h-8 w-full rounded border border-slate-300"
-              value={normalizeColorInput(currentStyle.backgroundColor)}
-              onChange={(event) => setFill(event.currentTarget.value)}
+            <TableDraftColorInput
+              value={normalizeColorInput(
+                currentStyle.backgroundColor,
+              )}
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:fill`}
+              onCommit={setFill}
+              ariaLabel="Table cell fill"
             />
           </label>
 
           <label className="text-xs text-slate-600">
             Padding
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentStyle.padding
+                ?? tableData.defaultCellStyle?.padding
+                ?? 6
+              }
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:padding`}
               min={0}
               max={48}
               step={1}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentStyle.padding ?? tableData.defaultCellStyle?.padding ?? 6}
-              onChange={(event) => setPadding(Number(event.currentTarget.value))}
+              onCommit={setPadding}
+              ariaLabel="Table cell padding"
             />
           </label>
         </div>
@@ -607,13 +1033,13 @@ export const WriterTablePropertiesPanel: React.FC<
             <select
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
               value={currentStyle.borders?.top?.style ?? 'single'}
-              onChange={(event) =>
-                setBorder(
-                  event.currentTarget.value as WriterTableBorderStyle,
-                  currentStyle.borders?.top?.color ?? '#CBD5E1',
-                  currentStyle.borders?.top?.width ?? 0.5,
-                )
-              }
+              onChange={(event) => {
+                void setBorder({
+                  style:
+                    event.currentTarget.value
+                    as WriterTableBorderStyle,
+                }).catch(() => undefined);
+              }}
             >
               <option value="single">Single</option>
               <option value="dashed">Dashed</option>
@@ -625,36 +1051,33 @@ export const WriterTablePropertiesPanel: React.FC<
 
           <label className="text-xs text-slate-600">
             Color
-            <input
-              type="color"
-              className="mt-1 h-8 w-full rounded border border-slate-300"
-              value={normalizeColorInput(currentStyle.borders?.top?.color)}
-              onChange={(event) =>
-                setBorder(
-                  currentStyle.borders?.top?.style ?? 'single',
-                  event.currentTarget.value,
-                  currentStyle.borders?.top?.width ?? 0.5,
-                )
+            <TableDraftColorInput
+              value={normalizeColorInput(
+                currentStyle.borders?.top?.color,
+              )}
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:border-color`}
+              onCommit={(color) =>
+                setBorder({ color })
               }
+              ariaLabel="Table border color"
             />
           </label>
 
           <label className="text-xs text-slate-600">
             Width
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentStyle.borders?.top?.width
+                ?? 0.5
+              }
+              resetKey={`${table.id}:${selectedCell.rowIndex}:${selectedCell.columnIndex}:border-width`}
               min={0}
               max={6}
               step={0.25}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentStyle.borders?.top?.width ?? 0.5}
-              onChange={(event) =>
-                setBorder(
-                  currentStyle.borders?.top?.style ?? 'single',
-                  currentStyle.borders?.top?.color ?? '#CBD5E1',
-                  Number(event.currentTarget.value),
-                )
+              onCommit={(width) =>
+                setBorder({ width })
               }
+              ariaLabel="Table border width"
             />
           </label>
         </div>
@@ -664,14 +1087,23 @@ export const WriterTablePropertiesPanel: React.FC<
         <div className="flex items-end gap-2">
           <label className="flex-1 text-xs text-slate-600">
             Width
-            <input
-              type="number"
+            <TableDraftNumberInput
+              value={
+                currentColumn?.width
+                ?? Math.round(
+                  table.rect.width
+                  / Math.max(
+                    1,
+                    tableData.columns.length,
+                  ),
+                )
+              }
+              resetKey={`${table.id}:${currentColumn?.id ?? selectedCell.columnIndex}:column-width`}
               min={8}
               max={2000}
               step={1}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={currentColumn?.width ?? Math.round(table.rect.width / Math.max(1, tableData.columns.length))}
-              onChange={(event) => resizeColumn(Number(event.currentTarget.value))}
+              onCommit={resizeColumn}
+              ariaLabel="Table column width"
             />
           </label>
 
@@ -740,6 +1172,25 @@ function IconButton({
       </Button>
     </Tooltip>
   );
+}
+
+function resolveLatestTableCellStyle(
+  elements: WriterElementV2[],
+  tableId: string,
+  rowIndex: number,
+  columnIndex: number,
+): WriterTableCellStyle {
+  const table = elements.find(
+    (element) =>
+      element.id === tableId
+      && element.type === 'tableBox',
+  );
+
+  return table?.tableData
+    ?.rows[rowIndex]
+    ?.cells[columnIndex]
+    ?.style
+    ?? {};
 }
 
 function normalizeColorInput(value: string | undefined): string {
