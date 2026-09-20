@@ -530,6 +530,94 @@ function applyCommand(
         reason: `Batch-deleted ${command.ids.length} writer element(s).`,
       };
     }
+
+    case 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS': {
+      if (
+        command.updates.length === 0
+        && command.elements.length === 0
+      ) {
+        return {
+          state,
+          changed: false,
+          reason: 'Atomic Writer batch contains no changes.',
+        };
+      }
+
+      const existingById = new Map(
+        state.elements.map((element) => [element.id, element] as const),
+      );
+      const updateMap = new Map(
+        command.updates.map((update) => [update.id, update.patch] as const),
+      );
+
+      for (const update of command.updates) {
+        const target = existingById.get(update.id);
+
+        if (
+          !target
+          || !canApplyWriterElementPatch(target, update.patch)
+        ) {
+          return {
+            state,
+            changed: false,
+            reason: `Atomic Writer batch cannot update "${update.id}".`,
+          };
+        }
+      }
+
+      const additionIds = new Set<string>();
+
+      for (const element of command.elements) {
+        if (
+          existingById.has(element.id)
+          || additionIds.has(element.id)
+        ) {
+          return {
+            state,
+            changed: false,
+            reason: `Atomic Writer batch cannot add duplicate "${element.id}".`,
+          };
+        }
+
+        additionIds.add(element.id);
+      }
+
+      const updatedElements = state.elements.map((element) => {
+        const patch = updateMap.get(element.id);
+
+        return patch
+          ? applyWriterElementPatch(element, patch, timestamp)
+          : element;
+      });
+      const additions = command.elements.map(cloneElement);
+      const elements = [
+        ...updatedElements,
+        ...additions,
+      ];
+      const existingIds = new Set(
+        elements.map((element) => element.id),
+      );
+      const selectedIds = command.selectIds
+        ? uniqueIds(command.selectIds).filter((id) => existingIds.has(id))
+        : state.selectedIds;
+      const activeId = command.activeId === undefined
+        ? state.activeId
+        : command.activeId && existingIds.has(command.activeId)
+          ? command.activeId
+          : null;
+
+      return {
+        state: {
+          ...state,
+          elements,
+          selectedIds,
+          activeId,
+        },
+        changed: true,
+        reason:
+          `Atomically updated ${command.updates.length} and added ${additions.length} writer element(s).`,
+      };
+    }
   }
 }
 
