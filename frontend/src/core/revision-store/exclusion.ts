@@ -16,8 +16,13 @@ export interface AcquireRevisionStoreExclusiveLeaseInput {
 type RevisionLockManager = {
   request<T>(
     name: string,
-    options: { mode: 'exclusive' },
-    callback: () => Promise<T> | T,
+    options: {
+      mode: 'exclusive' | 'shared';
+      ifAvailable?: boolean;
+    },
+    callback: (
+      lock: unknown | null,
+    ) => Promise<T> | T,
   ): Promise<T>;
 };
 
@@ -39,6 +44,20 @@ extends Error {
   }
 }
 
+export class RevisionStoreGcBlockedError
+extends Error {
+  readonly storeId: string;
+
+  constructor(storeId: string) {
+    super(
+      `Revision GC is blocked by an active session without persistent journal coverage for store ${storeId}.`,
+    );
+    this.name =
+      'RevisionStoreGcBlockedError';
+    this.storeId = storeId;
+  }
+}
+
 export function revisionStoreExclusiveLockName(
   storeId: string,
 ): string {
@@ -48,6 +67,17 @@ export function revisionStoreExclusiveLockName(
     );
   }
   return `pdf-hub:revision-store:${encodeURIComponent(storeId)}`;
+}
+
+export function revisionStoreGcBlockerLockName(
+  storeId: string,
+): string {
+  if (!storeId.trim()) {
+    throw new Error(
+      'Revision GC blocker requires a non-empty store id.',
+    );
+  }
+  return `pdf-hub:revision-store-gc-blocker:${encodeURIComponent(storeId)}`;
 }
 
 /**
@@ -82,6 +112,94 @@ export async function acquireRevisionStoreExclusiveLease(
     return noOpLease(input.storeId);
   }
 
+  const lease =
+    await acquireWebLockLease({
+      storeId: input.storeId,
+      lockManager,
+      name,
+      mode: 'exclusive',
+    });
+  if (!lease) {
+    throw new Error(
+      `Exclusive revision store lock ${name} was unexpectedly unavailable.`,
+    );
+  }
+  return lease;
+}
+
+
+export async function acquireRevisionStoreGcBlockerLease(
+  storeId: string,
+): Promise<RevisionStoreExclusiveLease> {
+  const lockManager =
+    (
+      globalThis.navigator
+        as NavigatorWithLocks
+        | undefined
+    )?.locks;
+
+  if (!lockManager?.request) {
+    return noOpLease(storeId);
+  }
+
+  return acquireWebLockLease({
+    storeId,
+    lockManager,
+    name:
+      revisionStoreGcBlockerLockName(
+        storeId,
+      ),
+    mode: 'shared',
+  });
+}
+
+/**
+ * GC calls this only while already holding the main revision-store exclusive
+ * lease. ifAvailable avoids waiting forever on another tab whose active
+ * session is intentionally blocking collection.
+ */
+export async function acquireRevisionStoreGcClearanceLease(
+  storeId: string,
+): Promise<RevisionStoreExclusiveLease> {
+  const lockManager =
+    (
+      globalThis.navigator
+        as NavigatorWithLocks
+        | undefined
+    )?.locks;
+  if (!lockManager?.request) {
+    throw new RevisionStoreLockUnavailableError(
+      storeId,
+    );
+  }
+
+  const lease =
+    await acquireWebLockLease({
+      storeId,
+      lockManager,
+      name:
+        revisionStoreGcBlockerLockName(
+          storeId,
+        ),
+      mode: 'exclusive',
+      ifAvailable: true,
+    });
+
+  if (!lease) {
+    throw new RevisionStoreGcBlockedError(
+      storeId,
+    );
+  }
+  return lease;
+}
+
+async function acquireWebLockLease(input: {
+  storeId: string;
+  lockManager: RevisionLockManager;
+  name: string;
+  mode: 'exclusive' | 'shared';
+  ifAvailable?: boolean;
+}): Promise<RevisionStoreExclusiveLease | null> {
   let releaseGate!: () => void;
   const gate = new Promise<void>(
     (resolve) => {
@@ -89,22 +207,51 @@ export async function acquireRevisionStoreExclusiveLease(
     },
   );
 
-  let resolveAcquired!: () => void;
+  let resolveAcquired!:
+    (
+      value:
+        RevisionStoreExclusiveLease
+        | null,
+    ) => void;
   let rejectAcquired!:
     (error: unknown) => void;
-  const acquired = new Promise<void>(
-    (resolve, reject) => {
-      resolveAcquired = resolve;
-      rejectAcquired = reject;
-    },
-  );
+  const acquired = new Promise<
+    RevisionStoreExclusiveLease | null
+  >((resolve, reject) => {
+    resolveAcquired = resolve;
+    rejectAcquired = reject;
+  });
 
-  const request = lockManager
+  let released = false;
+  const request = input.lockManager
     .request(
-      name,
-      { mode: 'exclusive' },
-      async () => {
-        resolveAcquired();
+      input.name,
+      {
+        mode: input.mode,
+        ...(input.ifAvailable
+          ? { ifAvailable: true }
+          : {}),
+      },
+      async (lock) => {
+        if (
+          input.ifAvailable
+          && lock === null
+        ) {
+          resolveAcquired(null);
+          return;
+        }
+
+        resolveAcquired(
+          Object.freeze({
+            storeId: input.storeId,
+            crossContext: true,
+            release() {
+              if (released) return;
+              released = true;
+              releaseGate();
+            },
+          }),
+        );
         await gate;
       },
     )
@@ -114,24 +261,17 @@ export async function acquireRevisionStoreExclusiveLease(
     });
 
   try {
-    await acquired;
+    const lease = await acquired;
+    void request.catch(
+      () => undefined,
+    );
+    return lease;
   } catch (error) {
-    void request.catch(() => undefined);
+    void request.catch(
+      () => undefined,
+    );
     throw error;
   }
-
-  let released = false;
-  void request.catch(() => undefined);
-
-  return Object.freeze({
-    storeId: input.storeId,
-    crossContext: true,
-    release() {
-      if (released) return;
-      released = true;
-      releaseGate();
-    },
-  });
 }
 
 function noOpLease(
