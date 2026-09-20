@@ -268,7 +268,7 @@
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "EP-8G-001 prepared; implementation has not started."
+        "Deterministic corpus/generator, budget manifest, evaluator and benchmark orchestration are implemented, but TEST-01/TEST-05 have not executed on a usable runner; no acceptance weight is earned."
       ]
     },
     {
@@ -279,7 +279,7 @@
       "total_weight": 25,
       "percent": 0,
       "basis": [
-        "Known active-query rescan risk is carried into BENCH-01/TEST-02 but no 8G acceptance is yet earned."
+        "The single-page active-query publication remediation, 1000-page matcher-count regression and query-reuse/cancellation guards are implemented in source, but TEST-02/TEST-03 have not executed on a usable runner; no acceptance weight is earned."
       ]
     },
     {
@@ -290,7 +290,7 @@
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "Large-document rendering/range measurements have not run."
+        "Node and Chromium admission/render/navigation/search measurement drivers are implemented, but TEST-04/TEST-05 benchmark execution is NOT_RUN; measured limits remain unclaimed."
       ]
     },
     {
@@ -301,7 +301,7 @@
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "Mutation/save/recovery measurements have not run."
+        "Mutation/save and canonical recovery measurement drivers are implemented and preserve full-materialization truth, but TEST-04/TEST-05 are NOT_RUN; no supported limits or acceptance weight are earned."
       ]
     },
     {
@@ -312,7 +312,7 @@
       "total_weight": 15,
       "percent": 0,
       "basis": [
-        "8G certification/delivery evidence has not been produced."
+        "audit:phase8-large-document-performance, benchmark:phase8g, certify:phase8g:evidence and certify:phase8g are wired so exact-head benchmark PASS evidence is mandatory, but the chain has not executed under #183; acceptance remains unearned."
       ]
     }
   ]
