@@ -38,6 +38,10 @@ import {
   useSessionStore,
 } from '@/core/session/store';
 import {
+  resolveWorkingRevisionStore,
+} from '@/core/revision-store/registry';
+
+import {
   createPdfOverlayWriterDocumentMeta,
 } from '@/core/writer-v2/writerDocumentMode';
 import {
@@ -66,6 +70,7 @@ import type {
 export type HistoryRecoveryExecutionErrorCode =
   | 'JOURNAL_STORE_UNAVAILABLE'
   | 'JOURNAL_CHANGED'
+  | 'REVISION_STORE_UNAVAILABLE'
   | 'WRITER_ASSETS_UNAVAILABLE'
   | 'CHECKPOINT_APPLY_FAILED'
   | 'REPLAY_FAILED'
@@ -185,6 +190,15 @@ async function executeHistoryRecoveryUnqueued(
         checkpoint.checkpointId
         === plan.checkpointId,
     );
+  const liveReplayEntries =
+    plan.replayEntries.map(
+      (plannedEntry) =>
+        liveManifest.entries.find(
+          (entry) =>
+            entry.transactionId
+            === plannedEntry.transactionId,
+        ),
+    );
   if (
     liveActiveTransactionId
       !== plan.activeTransactionId
@@ -206,10 +220,67 @@ async function executeHistoryRecoveryUnqueued(
     || JSON.stringify(
       liveCheckpoint.statePayload,
     ) !== JSON.stringify(plan.state)
+    || liveReplayEntries.some(
+      (entry) => !entry,
+    )
+    || JSON.stringify(
+      liveReplayEntries,
+    ) !== JSON.stringify(
+      plan.replayEntries,
+    )
   ) {
     throw new HistoryRecoveryExecutionError(
       'JOURNAL_CHANGED',
       'History journal changed after recovery planning; build a new recovery plan before restoring.',
+    );
+  }
+
+  const revisionStore =
+    resolveWorkingRevisionStore(
+      plan.revision.storeId,
+    );
+  if (!revisionStore) {
+    throw new HistoryRecoveryExecutionError(
+      'REVISION_STORE_UNAVAILABLE',
+      `WorkingRevisionStore ${plan.revision.storeId} is no longer registered.`,
+    );
+  }
+
+  const requiredRevisionIds = [
+    plan.originalRevisionId,
+    plan.revision.revisionId,
+    ...plan.replayEntries.map(
+      (entry) =>
+        entry.afterRevision.revisionId,
+    ),
+  ];
+  try {
+    for (
+      const revisionId of
+        new Set(requiredRevisionIds)
+    ) {
+      if (
+        !await revisionStore.has(
+          revisionId,
+        )
+      ) {
+        throw new HistoryRecoveryExecutionError(
+          'REVISION_STORE_UNAVAILABLE',
+          `Recovery revision ${revisionId} is no longer available in store ${revisionStore.id}.`,
+        );
+      }
+    }
+  } catch (error) {
+    if (
+      error
+      instanceof HistoryRecoveryExecutionError
+    ) {
+      throw error;
+    }
+    throw new HistoryRecoveryExecutionError(
+      'REVISION_STORE_UNAVAILABLE',
+      `Unable to revalidate WorkingRevisionStore ${revisionStore.id} before recovery.`,
+      { cause: error },
     );
   }
 
