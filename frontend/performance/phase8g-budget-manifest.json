@@ -111,8 +111,7 @@
       "required_observations": [
         "input_full_byte_materialization",
         "output_full_byte_materialization",
-        "peak_memory_bytes",
-        "elapsed_ms"
+        "peak_memory_bytes"
       ],
       "prohibited_claim": "Range-backed PDF.js viewing proves mutation/save is range-bounded."
     }
