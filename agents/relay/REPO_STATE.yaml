@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
+    "basis_ref": "03bc0be431e94100fdec471547e861454a0843f5"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,9 +24,9 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5C3-001",
-    "path": "agents/relay/execution-packages/EP-8E5C3-001.yaml",
-    "state": "TERMINAL",
+    "id": "EP-8E5C4-001",
+    "path": "agents/relay/execution-packages/EP-8E5C4-001.yaml",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-275",
+    "id": "PR-277",
     "path": null,
-    "merge_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
-    "note": "Phase 8E.5C2 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+    "note": "Phase 8E.5C3 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -62,36 +62,26 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 100,
+    "ep_percent": 0,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "COMPLETE",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "After PR #277 merges, reconcile main and begin Phase 8E.5C4 reference-aware revision reachability/GC. Do not advance to WP-8F until 8E.5C4 and WP-8E closure certification are complete."
+      "next_action": "Implement Phase 8E.5C4 mechanical revision/journal inventory, pure reachability planning, runtime pins and serialized fail-closed revision GC. Do not advance to WP-8F until C4 and WP-8E closure certification are complete."
     },
     "quality": {
-      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
+      "state": "PENDING_EXECUTION",
       "findings": [
-        "Static chained C1/C2/C3 certification simulation is clean.",
-        "Periodic cadence is journal-core owned and evaluated only at durable transaction boundaries.",
-        "Bootstrap, transaction-count, serialized-entry-byte, elapsed-time, recovery-complete barrier reset, divergent-tail truncation, recovery planner compatibility and persistence rollback are covered by focused tests.",
-        "No timers, UI scheduler, checkpoint pruning, revision deletion or GC were introduced.",
-        "Runner-executed certification is unavailable because open issue #183 terminates jobs before runner assignment."
+        "The primary browser revision store is shared across documents, so GC must inventory all retained journals for the target revision store; active-journal-only GC is unsafe."
       ]
     },
     "evidence": {
-      "state": "TERMINAL_NOT_RUN",
-      "summary": "Phase 8E.5C3 implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
-      "not_run": [
-        {
-          "command": "GitHub Actions exact-head certification surfaces",
-          "reason": "At 23a8e1f6ec434246d732676af6f9bea64b2c9021, certify-writer-overlay-v2 35503948506, Guards 35503948507, Frontend Certify 35503948543 and Frontend CI 35503948508 all completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
-        }
-      ]
+      "state": "PENDING",
+      "summary": "Phase 8E.5C4 is the serial WP-8E frontier after merged #277.",
+      "not_run": []
     },
     "stop": {
       "active": false,
@@ -108,16 +98,15 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5C3-001",
+    "execution_ref": "EP-8E5C4-001",
     "receipt": null,
     "basis": [
-      "PR #275 merged Phase 8E.5C2 at 8b01844eaf1e77edb07af2c5b5f07f07e88690e5.",
-      "Issue #276 / PR #277 implement Phase 8E.5C3 bounded periodic recovery checkpoints.",
-      "Phase 8E.5C3 is terminal under the documented #183 NOT_RUN infrastructure exception; Phase 8E.5C4 remains the serial WP-8E successor.",
-      "WP-8F remains WAITING on WP-8E."
+      "PR #277 merged Phase 8E.5C3 at 03bc0be431e94100fdec471547e861454a0843f5.",
+      "Issue #278 is the active Phase 8E.5C4 reference-aware revision GC slice.",
+      "WP-8F remains WAITING on WP-8E closure."
     ],
     "observed": {
-      "issue": 276
+      "issue": 278
     },
     "superseded_operations": []
   },
@@ -125,10 +114,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 277,
-      "issue": 276,
-      "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
-      "state": "READY_UNDER_INFRA_EXCEPTION"
+      "pull_request": null,
+      "issue": 278,
+      "head_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+      "state": "BRANCH_ACTIVE"
     },
     "observations": []
   },
