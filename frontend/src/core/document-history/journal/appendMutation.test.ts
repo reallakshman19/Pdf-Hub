@@ -17,7 +17,12 @@ import {
   prepareHistoryJournalMutation,
 } from '../appendMutation';
 
-function rotateCommand() {
+function rotateCommand(
+  documentKey = 'sha256:before',
+  id = 'rotate-command',
+  createdAt =
+    '2026-09-19T00:00:00.000Z',
+) {
   return materializePdfCommand(
     {
       type: 'ROTATE_PAGES',
@@ -27,26 +32,28 @@ function rotateCommand() {
       },
     },
     'toolbar',
-    'sha256:before',
+    documentKey,
     {
-      id: 'rotate-command',
-      createdAt: '2026-09-19T00:00:00.000Z',
+      id,
+      createdAt,
     },
   );
 }
 
-function recoveryAfterState(): HistoryState {
+function recoveryAfterState(
+  revisionId = 'sha256:after',
+): HistoryState {
   return {
     revision: {
       storeId: 'revision-store',
-      revisionId: 'sha256:after',
+      revisionId,
     },
-    activeRevisionId: 'sha256:after',
+    activeRevisionId: revisionId,
     pageCount: 1,
     pageGraph: {
       pages: [{
         pageId: 'page-1',
-        documentKey: 'sha256:after',
+        documentKey: revisionId,
         originalPageNumber: 1,
         currentIndex: 0,
         width: 595,
@@ -54,7 +61,7 @@ function recoveryAfterState(): HistoryState {
         rotation: 0,
       }],
     },
-    documentKey: 'sha256:after',
+    documentKey: revisionId,
     selectedPageIds: ['page-1'],
     selectedPages: [1],
     currentPageId: 'page-1',
@@ -67,7 +74,7 @@ function recoveryAfterState(): HistoryState {
       activeId: null,
     },
     ocr: {
-      documentFingerprint: 'sha256:after',
+      documentFingerprint: revisionId,
       result: null,
       corrections: [],
       regions: [],
@@ -184,19 +191,10 @@ describe('prepareHistoryJournalMutation', () => {
     expect(first).not.toBeNull();
     if (!first) return;
 
-    const firstAfter = recoveryAfterState();
-    firstAfter.revision = {
-      storeId: 'revision-store',
-      revisionId: 'sha256:one',
-    };
-    firstAfter.activeRevisionId =
-      'sha256:one';
-    firstAfter.documentKey =
-      'sha256:one';
-    firstAfter.pageGraph!.pages[0]!.documentKey =
-      'sha256:one';
-    firstAfter.ocr!.documentFingerprint =
-      'sha256:one';
+    const firstAfter =
+      recoveryAfterState(
+        'sha256:one',
+      );
 
     expect(
       attachHistoryJournalBarrierState({
@@ -267,19 +265,10 @@ describe('prepareHistoryJournalMutation', () => {
     expect(first).not.toBeNull();
     if (!first) return;
 
-    const firstAfter = recoveryAfterState();
-    firstAfter.revision = {
-      storeId: 'revision-store',
-      revisionId: 'sha256:one',
-    };
-    firstAfter.activeRevisionId =
-      'sha256:one';
-    firstAfter.documentKey =
-      'sha256:one';
-    firstAfter.pageGraph!.pages[0]!.documentKey =
-      'sha256:one';
-    firstAfter.ocr!.documentFingerprint =
-      'sha256:one';
+    const firstAfter =
+      recoveryAfterState(
+        'sha256:one',
+      );
     attachHistoryJournalBarrierState({
       manifest: first.manifest,
       transactionId: 'tx-1',
@@ -460,7 +449,13 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:two',
       afterRevisionId: 'sha256:branch',
       transactionId: 'tx-branch',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:two',
+        'rotate-branch',
+        '2026-09-19T00:00:03.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:03.000Z',
     });
 
     expect(
