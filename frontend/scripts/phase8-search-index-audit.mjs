@@ -118,6 +118,7 @@ requireContains(indexer, indexPath, [
   'static setPageText(',
   'static releaseOwner(',
   'static getProgress(',
+  'static searchPage(',
   'static searchRevision(',
   'searchIndexedPageText({',
   'pageId: page.pageId',
@@ -172,7 +173,8 @@ requireContains(panel, panelPath, [
   'acquireActivePdfDocumentLease',
   'indexPdfDocumentIncrementally',
   'SearchIndexer.prepareRevision(',
-  'SearchIndexer.searchRevision(',
+  'useSearchResultPublisher({',
+  'publishIndexedPageResults(',
   'activeRevisionId',
   'pageGraph',
   'currentPage',
@@ -191,6 +193,7 @@ forbidContains(panel, panelPath, [
   'SearchIndexer.setCache(',
   'PdfRendererAdapter.acquireDocument(',
   'PdfRendererAdapter.acquireDocumentSource(',
+  'SearchIndexer.searchRevision(',
 ]);
 
 const topNavPath =
@@ -257,6 +260,20 @@ requireContains(panelTests, panelTestPath, [
   'reuses indexed text across query changes without restarting extraction',
 ]);
 
+const incrementalResultsTestPath =
+  'src/core/search/incrementalResults.test.ts';
+const incrementalResultsTests =
+  read(incrementalResultsTestPath);
+requireContains(
+  incrementalResultsTests,
+  incrementalResultsTestPath,
+  [
+    'matches exactly one newly indexed page per active-query arrival across 1000 pages',
+    '.toHaveBeenCalledTimes(1000)',
+    'requires rebuild after a query signature changes',
+  ],
+);
+
 const storeTestPath =
   'src/core/search/store.test.ts';
 const storeTests = read(storeTestPath);
@@ -273,7 +290,7 @@ requireContains(
   inheritedGuardPath,
   [
     'indexPdfDocumentIncrementally',
-    'SearchIndexer.searchRevision(',
+    'useSearchResultPublisher',
     'IncrementalSearchIndexer.test.ts',
   ],
 );
@@ -362,8 +379,18 @@ requireContains(
 
 const limits = [
   [matcherPath, matcher, 200],
-  [indexPath, indexer, 520],
+  [indexPath, indexer, 540],
+  [
+    'src/core/search/incrementalResults.ts',
+    read('src/core/search/incrementalResults.ts'),
+    180,
+  ],
   [adapterPath, adapter, 320],
+  [
+    'src/components/sidebar/useSearchResultPublisher.ts',
+    read('src/components/sidebar/useSearchResultPublisher.ts'),
+    220,
+  ],
   [panelPath, panel, 500],
 ];
 
