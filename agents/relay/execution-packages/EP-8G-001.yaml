@@ -1,0 +1,1192 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8G-001",
+    "branch": "phase8/large-document-performance",
+    "base_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "NONE",
+    "previous_join": "PR-283",
+    "previous_replan": null
+  },
+  "replan_inheritance": null,
+  "git_basis": {
+    "expected_branch": "phase8/large-document-performance",
+    "material_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d",
+    "base_branch": "main",
+    "base_observed_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8G",
+    "generated_from_frontier": true
+  },
+  "outcome": {
+    "user_visible": [
+      "Large PDFs have measured, documented responsiveness and failure limits instead of unverified scalability claims."
+    ],
+    "engineering": [
+      "A deterministic large-document corpus and performance certification surface measure admission/rendering/search/indexing/mutation/save/recovery separately.",
+      "Active-query page-arrival matching is linear in newly indexed pages rather than cumulative rescanning of the full indexed subset.",
+      "Measured range-backed rendering benefits are kept distinct from full-materialization mutation/save costs."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Convert Phase 8 large-document architecture into repeatable performance evidence and remove bounded defects exposed by that evidence.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8G after merged WP-8F / PR #283.",
+    "why_this_work_exists": "Phase 8A-8F established source/revision/range/history/indexing architecture, but the supported large-document envelope has not been measured as a system. Source review of WP-8F also identified repeated active-query rescans as an explicit performance risk.",
+    "current_architecture": "PDF.js rendering is revision/source-backed through DocumentSource and range transport; search text is process-local and keyed by activeRevisionId + PageId; canonical mutation still materializes full bytes through PdfMutationEngine/pdf-lib; durable history uses immutable revisions and journal/checkpoint recovery.",
+    "prior_owner_decisions": [
+      "engineering-pr-delivery-v2.5 remains the governing delivery protocol.",
+      "Issue #185 breadth freeze and the established roadmap phase order remain in force.",
+      "PR #283 merged WP-8F under the documented #183 infrastructure NOT_RUN exception."
+    ],
+    "current_implementation_state": "WP-8G production implementation has not started. Issue #284 defines the measurement/certification contract. The incoming performance/oracle boundary requires fresh QSET/QUAL/TC before product writes.",
+    "known_problems": [
+      "With an unchanged active query, SearchPanel currently republishes after each indexed page through searchRevision(), which can rescan all previously indexed pages and approach O(N^2) cumulative page matching.",
+      "GitHub Actions issue #183 continues to prevent runner allocation; zero-step failures are NOT_RUN evidence, not benchmark PASS/FAIL.",
+      "Canonical mutation/save still materializes full PDF bytes and must be measured separately from range-backed viewing.",
+      "Existing progress mirrors lagged authoritative roadmap completion and require factual reconciliation during handoff."
+    ],
+    "deliberate_non_goals": [
+      "No unrelated feature breadth.",
+      "No persistent search index unless measurement justifies it.",
+      "No speculative mutation-engine rewrite before measurement identifies a bounded need.",
+      "No Phase 9 fidelity expansion except fixture metadata needed to measure Phase 8 paths."
+    ],
+    "terminology": {
+      "active_query_arrival_work": "Search matching caused solely by newly indexed pages while query/options remain unchanged.",
+      "range_backed_rendering": "PDF.js source transport path using bounded DocumentSource byte ranges.",
+      "full_materialization": "Operation requiring a complete Uint8Array/PDFDocument load/save rather than bounded source reads."
+    }
+  },
+  "repository_discovery": [
+    {
+      "id": "DSTEP-01",
+      "action": "VERIFY",
+      "target": "agents/relay/REPO_STATE.yaml",
+      "question": "Does repository state route exactly to EP-8G-001 / WP-8G on RM-0002 and retain PR #283 as predecessor custody?",
+      "expected_outputs": [
+        "active EP id/path",
+        "roadmap revision/frontier",
+        "predecessor merge ref"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile Relay custody before material execution."
+    },
+    {
+      "id": "DSTEP-02",
+      "action": "VERIFY_GIT",
+      "target": "live checkout",
+      "question": "Does the 8G route descend from reconciled main and remain free of unreconciled product drift?",
+      "expected_outputs": [
+        "checked-out branch",
+        "current HEAD",
+        "material-ref ancestry result",
+        "base drift result"
+      ],
+      "receipt_required": true,
+      "on_failure": "Withhold product writes and reconcile Git basis."
+    },
+    {
+      "id": "DSTEP-03",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/components/sidebar/SearchPanel.tsx",
+        "frontend/src/core/search/indexer.ts",
+        "frontend/src/core/search/searchIndexedPageText.ts",
+        "frontend/src/adapters/pdf-renderer/IncrementalSearchIndexer.ts"
+      ],
+      "question": "What exact call path and work count occur when one new page is indexed under an unchanged active query?",
+      "expected_outputs": [
+        "page-arrival publication path",
+        "searchRevision invocation pattern",
+        "matching-work count model"
+      ],
+      "receipt_required": true,
+      "on_failure": "Update EP/QSET if the search path changed."
+    },
+    {
+      "id": "DSTEP-04",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/core/document-source/",
+        "frontend/src/adapters/pdf-renderer/PdfJsDocumentSourceTransport.ts",
+        "frontend/src/adapters/pdf-renderer/PdfDocumentLeaseCache.ts",
+        "frontend/src/core/pdf-mutation/types.ts",
+        "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts",
+        "frontend/src/core/document-history/"
+      ],
+      "question": "Which large-document paths are range-bounded and which intentionally materialize complete bytes?",
+      "expected_outputs": [
+        "range-backed renderer path",
+        "mutation/save materialization path",
+        "recovery storage path"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile measurement plan before writes."
+    },
+    {
+      "id": "DSTEP-05",
+      "action": "INSPECT",
+      "target": "GitHub issue #284",
+      "question": "What corpus, metrics, complexity invariant and certification outputs are authorized for WP-8G?",
+      "expected_outputs": [
+        "fixture matrix",
+        "required measurements",
+        "O(N) invariant",
+        "certification contract"
+      ],
+      "receipt_required": true,
+      "on_failure": "Stop because the coordination contract is unavailable or changed."
+    },
+    {
+      "id": "DSTEP-06",
+      "action": "INSPECT",
+      "target": "GitHub issue #183",
+      "question": "What runner-executed evidence is currently available?",
+      "expected_outputs": [
+        "runner availability evidence"
+      ],
+      "receipt_required": true,
+      "on_failure": "Record availability as unknown and do not fabricate executable evidence."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "INPUT-01",
+      "name": "WP-8G performance contract",
+      "description": "Authorized corpus, measurement and exit criteria.",
+      "authority": "Verified GitHub coordination issue",
+      "source": "GitHub issue #284",
+      "value": "Measure large-document admission/render/search/index/mutation/save/recovery; enforce linear active-query page-arrival matching; produce machine-readable budgets and certification.",
+      "resolution_method": "Read provider-verified issue #284.",
+      "type": "engineering contract",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03",
+        "STEP-04",
+        "STEP-05"
+      ],
+      "validation": [
+        "Issue #284 remains open and bound to WP-8G."
+      ],
+      "stale_if": [
+        "Issue #284 is superseded or materially revised."
+      ]
+    },
+    {
+      "id": "INPUT-02",
+      "name": "Merged Phase 8 substrate",
+      "description": "Current range/revision/history/indexing architecture to measure without redefining its protected identity contracts.",
+      "authority": "Merged production code",
+      "source": "main at f42f0c27785e3dc097dc41ca0325698156b32181",
+      "value": "DocumentSource/range-backed rendering; immutable working revisions; journal recovery; activeRevisionId + PageId incremental search; full-byte PdfMutationEngine input.",
+      "resolution_method": "Trace DSTEP-03/DSTEP-04 on the exact route basis.",
+      "type": "production architecture",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03",
+        "STEP-04"
+      ],
+      "validation": [
+        "Production path matches merged Phase 8 architecture and protected invariants."
+      ],
+      "stale_if": [
+        "Main or owned production paths change materially before execution."
+      ]
+    },
+    {
+      "id": "INPUT-03",
+      "name": "Large-document fixture scale",
+      "description": "Deterministic native-text page-count matrix plus representative image/scanned/mixed fixtures.",
+      "authority": "Issue #284",
+      "source": "Issue #284 Required corpus",
+      "value": "Native-text page counts: 100, 500, 1000, 2500, 5000; include image-heavy, scanned/image-only, mixed page sizes/rotations and metadata-rich cases where supported.",
+      "resolution_method": "Generate deterministic fixtures from checked-in fixture definitions/generators.",
+      "type": "benchmark input",
+      "units": "pages",
+      "editable": true,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-01",
+        "STEP-02",
+        "STEP-03",
+        "STEP-04"
+      ],
+      "validation": [
+        "Generated fixture metadata records deterministic seed/configuration and expected page count."
+      ],
+      "stale_if": [
+        "Issue #284 changes the required corpus."
+      ]
+    },
+    {
+      "id": "INPUT-04",
+      "name": "Hosted runner evidence",
+      "description": "CI availability affects evidence classification but never changes performance truth.",
+      "authority": "GitHub provider evidence",
+      "source": "GitHub issue #183 and exact-head workflow jobs",
+      "value": "Hosted jobs currently fail before runner assignment with zero executed steps.",
+      "resolution_method": "Read issue #183 and exact-head workflow job payloads.",
+      "type": "evidence availability",
+      "units": "NA",
+      "editable": false,
+      "applicability": "INFORMATIONAL",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-05"
+      ],
+      "validation": [
+        "Zero-step failure is classified NOT_RUN_INFRASTRUCTURE."
+      ],
+      "stale_if": [
+        "A workflow obtains a runner and executes steps."
+      ]
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "BENCH-01",
+      "name": "Active-query page-arrival complexity oracle",
+      "purpose": "Independent oracle for the search scaling defect identified before 8G implementation.",
+      "source": "GitHub issue #284 mandatory complexity invariant",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "For N newly indexed pages under one unchanged query/options signature, page-arrival matching work must scale linearly with N; each page's text should be matched no more than a constant number of times due to arrival.",
+      "expected": "At N=1000, arrival-driven page matching is O(1000), not the triangular 500500 page scans produced by full indexed-subset rescans after every page.",
+      "tolerance": "Instrumentation may include a small constant overhead independent of N; growth ratio must remain linear rather than triangular.",
+      "independence": "The oracle is defined in provider issue #284 and arithmetic, not by the implementation being changed.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-02",
+        "TEST-02",
+        "TEST-03"
+      ],
+      "stale_if": [
+        "Issue #284 changes the complexity invariant."
+      ]
+    },
+    {
+      "id": "BENCH-02",
+      "name": "Range-vs-materialization boundary oracle",
+      "purpose": "Prevent range-backed viewing metrics from being misreported as mutation/save scalability.",
+      "source": "Merged DocumentSource/PDF.js and PdfMutationEngine contracts at the 8G base",
+      "oracle_class": "FROZEN_GOLDEN",
+      "payload": "PDF.js source rendering may use bounded random-access reads; PdfMutationEngine.open takes complete Uint8Array bytes and pdf-lib commit returns complete bytes.",
+      "expected": "Benchmark reports identify these as separate paths and record full-materialization costs for mutation/save.",
+      "tolerance": null,
+      "independence": "The oracle comes from frozen pre-8G contracts and type signatures.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-03",
+        "AC-04",
+        "TEST-04"
+      ],
+      "stale_if": [
+        "DocumentSource or PdfMutationEngine contracts change materially before measurement."
+      ]
+    },
+    {
+      "id": "BENCH-03",
+      "name": "Provider acceptance oracle",
+      "purpose": "Bind corpus, metrics, certification and truthfulness to the pre-implementation work contract.",
+      "source": "GitHub issue #284",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Deterministic corpus; environment/fixture/elapsed/memory-range metadata; checked budgets; truthful NOT_RUN under #183; documented supported envelope.",
+      "expected": "All required outputs exist and certification consumes the machine-readable budget manifest.",
+      "tolerance": null,
+      "independence": "Issue #284 predates the 8G implementation branch.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-01",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "TEST-01",
+        "TEST-05"
+      ],
+      "stale_if": [
+        "Issue #284 is superseded or materially revised."
+      ]
+    }
+  ],
+  "scope": {
+    "allowed": [
+      {
+        "path": "frontend/src/core/search/",
+        "reason": "Instrument/fix active-query page-arrival matching while preserving revision/PageId identity."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-renderer/",
+        "reason": "Expose bounded diagnostics needed to measure range/search behavior without changing source authority."
+      },
+      {
+        "path": "frontend/src/components/sidebar/SearchPanel.tsx",
+        "reason": "Replace repeated full indexed-subset publication if benchmark/instrumentation proves the known defect."
+      },
+      {
+        "path": "frontend/src/core/mock/",
+        "reason": "Add deterministic large-document fixture generation when appropriate."
+      },
+      {
+        "path": "frontend/src/**/*.test.ts*",
+        "reason": "Add focused complexity/performance regression tests."
+      },
+      {
+        "path": "frontend/scripts/",
+        "reason": "Add corpus/performance audit/certification tooling."
+      },
+      {
+        "path": "frontend/package.json",
+        "reason": "Wire audit:phase8-large-document-performance and certify:phase8g."
+      },
+      {
+        "path": "Docs/",
+        "reason": "Document benchmark method and measured limits where current Phase 8 docs live."
+      },
+      {
+        "path": "docs/",
+        "reason": "Update PDF.js lifecycle/performance evidence where applicable."
+      },
+      {
+        "path": "ARCHITECTURE.md",
+        "reason": "Record measured Phase 8G architecture truth and explicit materialization boundary."
+      },
+      {
+        "path": "agents/relay/",
+        "reason": "Maintain V2.5 EP, qualification, evidence, quality, delivery and checkpoint custody."
+      }
+    ],
+    "allowed_reads": [
+      {
+        "path": "frontend/src/core/document-source/",
+        "reason": "Measure source capabilities and materialization boundaries."
+      },
+      {
+        "path": "frontend/src/core/revision-store/",
+        "reason": "Measure immutable revision storage behavior."
+      },
+      {
+        "path": "frontend/src/core/document-history/",
+        "reason": "Measure recovery and retained revision behavior."
+      },
+      {
+        "path": "frontend/src/core/pdf-mutation/",
+        "reason": "Trace mutation contract."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-mutation/",
+        "reason": "Measure current pdf-lib full-materialization implementation."
+      },
+      {
+        "path": "GitHub issues #183, #218, #284",
+        "reason": "Evidence/scope authority."
+      }
+    ],
+    "protected": [
+      {
+        "invariant": "Search index identity remains activeRevisionId + stable PageId; physical page number is derived from current PageGraph.",
+        "reason": "Prevents stale hits after reordering/revision changes."
+      },
+      {
+        "invariant": "A revision change invalidates stale search text and owner tokens prevent superseded publication.",
+        "reason": "Preserves WP-8F correctness."
+      },
+      {
+        "invariant": "Query-option changes reuse extracted page text and do not trigger PDF.js text re-extraction.",
+        "reason": "Preserves the incremental index contract."
+      },
+      {
+        "invariant": "Range-backed rendering and full-materialization mutation/save are reported separately.",
+        "reason": "Prevents misleading scalability claims."
+      },
+      {
+        "invariant": "Journal/recovery and revision-GC safety may not be weakened to improve benchmark numbers.",
+        "reason": "Preserves WP-8E durability."
+      },
+      {
+        "invariant": "NOT_RUN remains NOT_RUN while #183 prevents runner execution.",
+        "reason": "Preserves evidence truth."
+      }
+    ],
+    "prohibited": [
+      {
+        "domain": "Persistent cross-session search index",
+        "reason": "Not authorized unless measurement demonstrates need and a new durable boundary is approved."
+      },
+      {
+        "domain": "Speculative replacement of PdfMutationEngine/pdf-lib",
+        "reason": "Measure first; engine replacement is not implicit 8G scope."
+      },
+      {
+        "domain": "Phase 9 fidelity hardening",
+        "reason": "Successor phase, except fixture metadata needed to measure current paths."
+      },
+      {
+        "domain": "New product feature breadth",
+        "reason": "Issue #185 breadth freeze remains active."
+      }
+    ],
+    "owner_reserved": [
+      {
+        "decision": "Change roadmap phase order or breadth freeze.",
+        "reason": "Requires Owner intent mutation."
+      },
+      {
+        "decision": "Expand 8G into a mutation-engine replacement programme.",
+        "reason": "Would materially change scope/engineering authority."
+      },
+      {
+        "decision": "Authorize merge of the future 8G PR.",
+        "reason": "Requires exact-head delivery authorization under V2.5."
+      }
+    ]
+  },
+  "anti_drift": {
+    "do_not": [
+      {
+        "id": "ADR-01",
+        "restriction": "Do not optimize benchmark numbers by bypassing canonical session/revision/history paths.",
+        "reason": "Measurements must represent production architecture."
+      },
+      {
+        "id": "ADR-02",
+        "restriction": "Do not persist page-number-only search identity or weaken revision invalidation.",
+        "reason": "WP-8F identity invariants are protected."
+      },
+      {
+        "id": "ADR-03",
+        "restriction": "Do not claim range-bounded mutation/save because rendering is range-backed.",
+        "reason": "Mutation input/output remain full-byte today."
+      },
+      {
+        "id": "ADR-04",
+        "restriction": "Do not replace measurement with static marker assertions for performance acceptance.",
+        "reason": "8G changes the verification/oracle class to measured performance evidence."
+      },
+      {
+        "id": "ADR-05",
+        "restriction": "Do not claim CI/benchmark PASS from zero-step #183 workflow failures.",
+        "reason": "Evidence truth is protected."
+      }
+    ],
+    "stale_if": [
+      {
+        "id": "STALE-01",
+        "condition": "RM-0002 no longer leaves WP-8G as the unique serial frontier.",
+        "effect": "STALE",
+        "rationale": "EP no longer matches roadmap authority."
+      },
+      {
+        "id": "STALE-02",
+        "condition": "main changes materially in search/range/mutation/recovery paths after the observed base.",
+        "effect": "RECONCILE",
+        "rationale": "Measurement basis changed."
+      },
+      {
+        "id": "STALE-03",
+        "condition": "Issue #284 is superseded or materially changes required metrics/corpus.",
+        "effect": "STALE",
+        "rationale": "Coordination contract changed."
+      },
+      {
+        "id": "STALE-04",
+        "condition": "The verification/oracle contract changes after qualification.",
+        "effect": "REQUALIFY",
+        "rationale": "This EP is explicitly qualification-bound to performance oracles."
+      }
+    ]
+  },
+  "implementation_plan": [
+    {
+      "id": "STEP-01",
+      "objective": "Create deterministic large-document fixtures, benchmark harness and machine-readable performance budget manifest.",
+      "targets": [
+        "frontend/src/core/mock/",
+        "frontend/scripts/",
+        "performance fixture/budget documentation"
+      ],
+      "reads": [
+        "issue #284",
+        "existing mock PDF generator",
+        "existing performance docs/scripts"
+      ],
+      "writes": [
+        "fixture generator/config",
+        "benchmark harness",
+        "budget manifest"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-01"
+      ],
+      "tests": [
+        "TEST-01"
+      ],
+      "expected_state": "Corpus sizes and environment/metric schema are deterministic and benchmark runs can emit machine-readable observations against declared budgets.",
+      "stop_conditions": [
+        "Stop if fixture generation requires embedding uncontrolled large binaries or changes production document semantics."
+      ]
+    },
+    {
+      "id": "STEP-02",
+      "objective": "Instrument active-query indexing complexity and remove cumulative indexed-subset rescans if confirmed.",
+      "targets": [
+        "SearchPanel.tsx",
+        "frontend/src/core/search/",
+        "IncrementalSearchIndexer.ts",
+        "focused tests/benchmark instrumentation"
+      ],
+      "reads": [
+        "DSTEP-03 output",
+        "BENCH-01",
+        "WP-8F tests"
+      ],
+      "writes": [
+        "bounded search publication/instrumentation",
+        "complexity regression tests"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-02"
+      ],
+      "tests": [
+        "TEST-02",
+        "TEST-03"
+      ],
+      "expected_state": "Newly indexed pages under an unchanged query are matched incrementally with linear page-arrival work while PageGraph remapping/query-change behavior remains correct.",
+      "stop_conditions": [
+        "Stop if the proposed change weakens revision/PageId identity, stale-owner protection, query correctness or cancellation."
+      ]
+    },
+    {
+      "id": "STEP-03",
+      "objective": "Measure admission/range/render/navigation/index throughput and memory behavior across the corpus.",
+      "targets": [
+        "PDF.js/source diagnostics",
+        "benchmark harness",
+        "performance reports"
+      ],
+      "reads": [
+        "DocumentSource/range transport",
+        "lease cache diagnostics",
+        "incremental indexer"
+      ],
+      "writes": [
+        "bounded diagnostics if necessary",
+        "benchmark scenarios/results schema"
+      ],
+      "inputs": [
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-03"
+      ],
+      "tests": [
+        "TEST-04"
+      ],
+      "expected_state": "Range/byte reads, first-page/current-nearby latency, indexing throughput, navigation reprioritization and supported limits are measured without conflating mutation/save.",
+      "stop_conditions": [
+        "Stop if instrumentation changes production loading policy rather than observing it, unless separately justified by a failing budget."
+      ]
+    },
+    {
+      "id": "STEP-04",
+      "objective": "Measure full-materialization mutation/save and durable recovery costs without masking architectural limits.",
+      "targets": [
+        "benchmark harness",
+        "PdfMutationEngine paths",
+        "document-history recovery/GC paths",
+        "performance report"
+      ],
+      "reads": [
+        "BENCH-02",
+        "mutation engine",
+        "revision/journal recovery"
+      ],
+      "writes": [
+        "benchmark scenarios/results; bounded instrumentation only if needed"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-02",
+        "INPUT-03"
+      ],
+      "acceptance": [
+        "AC-04"
+      ],
+      "tests": [
+        "TEST-04"
+      ],
+      "expected_state": "Structural mutations, save/export and recovery have explicit elapsed/memory/storage observations and documented ceilings distinct from range-backed viewing.",
+      "stop_conditions": [
+        "Do not rewrite mutation engine solely to make a benchmark green; record the limit and disposition before expanding scope."
+      ]
+    },
+    {
+      "id": "STEP-05",
+      "objective": "Wire anti-drift/performance certification, documentation, QRV/checkpoint and tracked PR delivery.",
+      "targets": [
+        "frontend/scripts/",
+        "frontend/package.json",
+        "ARCHITECTURE.md",
+        "Docs/docs performance material",
+        "agents/relay",
+        "WP-8G PR"
+      ],
+      "reads": [
+        "all 8G evidence",
+        "issues #183/#284",
+        "V2.5 quality/delivery contracts"
+      ],
+      "writes": [
+        "audit/certification wiring",
+        "docs",
+        "quality/checkpoint/delivery/progress"
+      ],
+      "inputs": [
+        "INPUT-01",
+        "INPUT-04"
+      ],
+      "acceptance": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05"
+      ],
+      "tests": [
+        "TEST-05"
+      ],
+      "expected_state": "8G has reproducible measured evidence, truthful runner status, documented supported envelope and verified Issue↔EP PR correlation.",
+      "stop_conditions": [
+        "Do not claim benchmark/certification PASS without executed measurement; do not merge without exact-head Owner authorization."
+      ]
+    }
+  ],
+  "next_work": {
+    "phase_transition": false,
+    "steps": [
+      {
+        "order": 1,
+        "action": "Incoming candidate performs repository-only DISC/Q1-Q5 qualification/TC for the 8G performance-oracle boundary; only after MATERIAL_WRITE_READY execute STEP-01 then STEP-02.",
+        "targets": [
+          "agents/relay/certifications",
+          "EP-8G-001",
+          "QSET-8G-001",
+          "frontend performance/search surfaces"
+        ],
+        "inputs": [
+          "INPUT-01",
+          "INPUT-02",
+          "INPUT-03",
+          "INPUT-04"
+        ],
+        "tests": [
+          "TEST-01",
+          "TEST-02",
+          "TEST-03"
+        ],
+        "benchmarks": [
+          "BENCH-01",
+          "BENCH-02",
+          "BENCH-03"
+        ],
+        "acceptance": [
+          "AC-01",
+          "AC-02"
+        ],
+        "expected_result": "A different incoming candidate is qualified on the exact 8G route; the first implementation slices establish the harness and eliminate/measure the active-query rescan defect without violating Phase 8 invariants.",
+        "stop_if": [
+          "QSET/QUAL/TC does not PASS on the exact EP digest.",
+          "Live Git/material basis is stale.",
+          "Protected search/revision/recovery invariant would be weakened."
+        ]
+      }
+    ]
+  },
+  "qualification_boundary": {
+    "required": true,
+    "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
+    "from_phase": "PHASE-008",
+    "to_phase": "PHASE-008",
+    "changed_dimensions": [
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "WP-8G changes the verification/oracle class from functional incremental-index correctness to measured large-document performance certification with explicit budgets.",
+      "The incoming work introduces a quantitative O(N) search-complexity invariant and measured range-vs-materialization boundary that were not qualification criteria for WP-8F."
+    ],
+    "question_set": {
+      "id": "QSET-8G-001",
+      "path": "agents/relay/certifications/qualification/QSET-8G-001.yaml"
+    }
+  },
+  "quality": {
+    "applicable": [
+      {
+        "blueprint": "software-design",
+        "reason": "Performance fixes may change search publication/diagnostic boundaries.",
+        "review_focus": [
+          "dependency direction",
+          "state ownership",
+          "protected revision/PageId identity"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Production TypeScript and benchmark tooling may change.",
+        "review_focus": [
+          "bounded work",
+          "failure semantics",
+          "instrumentation overhead"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Performance/complexity claims require executable regression and benchmark evidence.",
+        "review_focus": [
+          "deterministic fixtures",
+          "complexity regression",
+          "measurement repeatability"
+        ]
+      },
+      {
+        "blueprint": "code-review",
+        "reason": "Search/range/mutation/recovery paths are high-impact and cross-cutting.",
+        "review_focus": [
+          "hidden rescans",
+          "resource leaks",
+          "semantic drift"
+        ]
+      },
+      {
+        "blueprint": "performance",
+        "reason": "WP-8G is explicitly a large-document performance certification package.",
+        "review_focus": [
+          "latency",
+          "memory",
+          "range bytes",
+          "algorithmic growth",
+          "supported envelope"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "The search publication path may migrate from full indexed-subset recomputation to per-page incremental hit updates.",
+        "review_focus": [
+          "old/new result equivalence",
+          "query-option changes",
+          "PageGraph remapping"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "WP-8G is coordinated by issue #284 and must use tracked PR correlation/provider readback.",
+        "review_focus": [
+          "Issue↔EP correlation",
+          "exact evidence state",
+          "merge authorization"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intentional user-journey redesign; only truthful performance/progress behavior is in scope."
+      },
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility contract change."
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "Performance measurements use ordinary software timing/count metrics rather than domain engineering calculations."
+      }
+    ],
+    "review_contract": {
+      "required": true,
+      "required_before_checkpoint": true,
+      "receipt_namespace": "QRV-",
+      "required_outputs": [
+        "procedure_results",
+        "findings",
+        "owner_report",
+        "successor_handover"
+      ]
+    },
+    "findings_policy": "Quality findings remain quality state unless they map to acceptance, authority, protected-invariant, repository-state, or safety hard-stop conditions.",
+    "ordinary_findings_are_hard_stops": false
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Deterministic large-document corpus, harness and machine-readable performance budgets exist and report environment/fixture/operation/elapsed/resource metadata.",
+      "weight": 20,
+      "verification": [
+        "TEST-01",
+        "TEST-05",
+        "BENCH-03"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "description": "Active-query background indexing has linear page-arrival matching work; query-option changes reuse extracted text and cancellation/stale-owner guarantees remain intact.",
+      "weight": 25,
+      "verification": [
+        "TEST-02",
+        "TEST-03",
+        "BENCH-01"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "description": "Admission/render/navigation/search measurements expose current/nearby latency, range/byte behavior, throughput and memory without intentional whole-file materialization on the range-backed viewing path.",
+      "weight": 20,
+      "verification": [
+        "TEST-04",
+        "TEST-05",
+        "BENCH-02",
+        "BENCH-03"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "description": "Mutation/save/recovery measurements truthfully expose full-materialization/storage costs and establish documented supported limits distinct from viewing scalability.",
+      "weight": 20,
+      "verification": [
+        "TEST-04",
+        "TEST-05",
+        "BENCH-02",
+        "BENCH-03"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "description": "audit:phase8-large-document-performance and certify:phase8g consume the checked budgets/evidence, documentation records measured limits, and #183 remains NOT_RUN unless steps actually execute.",
+      "weight": 15,
+      "verification": [
+        "TEST-05",
+        "BENCH-03"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Fixture/harness tests prove deterministic page counts/configuration and machine-readable result/budget schema.",
+      "proves": [
+        "AC-01"
+      ]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Focused search tests instrument page-arrival matching and prove N newly indexed pages under an unchanged active query do not cause triangular rescanning.",
+      "proves": [
+        "AC-02"
+      ]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Focused search regressions prove PageGraph remapping, revision invalidation, query/case/word/regex reuse, cancellation and stale-owner protection after any search publication optimization.",
+      "proves": [
+        "AC-02"
+      ]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Run deterministic benchmark scenarios over the required corpus and evaluate recorded observations against the checked performance-budget manifest.",
+      "proves": [
+        "AC-03",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head certify:phase8g including predecessor certification, performance audit, focused tests/benchmarks and build; if #183 prevents runner allocation, record NOT_RUN rather than PASS.",
+      "proves": [
+        "AC-01",
+        "AC-03",
+        "AC-04",
+        "AC-05"
+      ]
+    }
+  ],
+  "failure_and_stop_conditions": {
+    "hard_stop_categories": [
+      "OWNER_DECISION_REQUIRED",
+      "ESSENTIAL_INPUT_MISSING",
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "SUPERSEDED_EP",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "report_contract": {
+    "sections": [
+      "Executive state",
+      "Overall / phase / EP progress",
+      "Work completed",
+      "Files changed",
+      "Acceptance matrix",
+      "Tests and evidence",
+      "Quality findings",
+      "Known limitations",
+      "Owner decisions required",
+      "GitHub issue changes",
+      "Roadmap changes",
+      "Exact next actions",
+      "Successor EP"
+    ],
+    "payloads": [
+      {
+        "id": "RPT-STATE",
+        "section": "Executive state",
+        "sources": [
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "relay_state",
+          "current_position",
+          "execution_state",
+          "material_authority",
+          "stop"
+        ]
+      },
+      {
+        "id": "RPT-PROGRESS",
+        "section": "Overall / phase / EP progress",
+        "sources": [
+          "PROGRESS",
+          "OVERALL_ROADMAP",
+          "EP"
+        ],
+        "required_fields": [
+          "progress_basis",
+          "overall",
+          "phase",
+          "work_package",
+          "step",
+          "acceptance"
+        ]
+      },
+      {
+        "id": "RPT-WORK",
+        "section": "Work completed",
+        "sources": [
+          "EP",
+          "CP"
+        ],
+        "required_fields": [
+          "completed_steps",
+          "implementation_result"
+        ]
+      },
+      {
+        "id": "RPT-FILES",
+        "section": "Files changed",
+        "sources": [
+          "CP"
+        ],
+        "required_fields": [
+          "files_changed"
+        ]
+      },
+      {
+        "id": "RPT-AC",
+        "section": "Acceptance matrix",
+        "sources": [
+          "EP",
+          "PROGRESS",
+          "CP"
+        ],
+        "required_fields": [
+          "criterion",
+          "status",
+          "percent",
+          "basis"
+        ]
+      },
+      {
+        "id": "RPT-EVIDENCE",
+        "section": "Tests and evidence",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "validation_id",
+          "obligation_class",
+          "status",
+          "basis_ref",
+          "not_run_reason"
+        ]
+      },
+      {
+        "id": "RPT-QUALITY",
+        "section": "Quality findings",
+        "sources": [
+          "EP",
+          "QRV",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "quality_review",
+          "procedures",
+          "findings",
+          "disposition",
+          "execution_effect"
+        ]
+      },
+      {
+        "id": "RPT-LIMITS",
+        "section": "Known limitations",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "limitations",
+          "evidence_gaps",
+          "deferred_items"
+        ]
+      },
+      {
+        "id": "RPT-OWNER",
+        "section": "Owner decisions required",
+        "sources": [
+          "ODR",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "decision_required",
+          "pending_items",
+          "authority_effect"
+        ]
+      },
+      {
+        "id": "RPT-ISSUES",
+        "section": "GitHub issue changes",
+        "sources": [
+          "ISSUE_GRAPH",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "operations",
+          "relationships",
+          "projection_state"
+        ]
+      },
+      {
+        "id": "RPT-ROADMAP",
+        "section": "Roadmap changes",
+        "sources": [
+          "OVERALL_ROADMAP",
+          "ROADMAP_REVISION",
+          "PROGRESS"
+        ],
+        "required_fields": [
+          "revision",
+          "topology_or_status_change",
+          "frontier_after",
+          "progress_basis_effect"
+        ]
+      },
+      {
+        "id": "RPT-NEXT",
+        "section": "Exact next actions",
+        "sources": [
+          "EP"
+        ],
+        "required_fields": [
+          "ordered_actions",
+          "targets",
+          "inputs",
+          "tests",
+          "benchmarks",
+          "acceptance",
+          "expected_result",
+          "stop_conditions"
+        ]
+      },
+      {
+        "id": "RPT-SUCCESSOR",
+        "section": "Successor EP",
+        "sources": [
+          "CP",
+          "OVERALL_ROADMAP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "successor_mode",
+          "next_frontier",
+          "ep_or_terminal_disposition"
+        ]
+      }
+    ]
+  },
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "duties": [
+      "reconcile current roadmap node",
+      "create checkpoint",
+      "update progress",
+      "update issue projection when applicable",
+      "compute next executable frontier",
+      "create successor EP when work continues",
+      "validate successor EP",
+      "run cold-start check",
+      "update REPO_STATE"
+    ],
+    "required_outputs": [
+      "checkpoint",
+      "progress_reconciliation",
+      "issue_projection_disposition",
+      "next_frontier",
+      "successor_ep_or_terminal_disposition"
+    ]
+  }
+}
