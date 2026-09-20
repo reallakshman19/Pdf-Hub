@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "d9fc2001006794f0aca1203ff027e38902db0c62"
+    "basis_ref": "aabc1765244353ea263ecb94635a3188d2b77153"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -26,11 +26,11 @@
   "active_ep": {
     "id": "EP-8F-001",
     "path": "agents/relay/execution-packages/EP-8F-001.yaml",
-    "state": "ACTIVE",
+    "state": "TERMINAL",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E-CLOSURE",
+    "id": "INFRA-EXCEPTION-8F",
     "path": null
   },
   "predecessor_join": {
@@ -61,28 +61,42 @@
   ],
   "progress": {
     "overall_percent": 52.38,
-    "phase_percent": 90,
-    "ep_percent": 0,
+    "phase_percent": 95,
+    "ep_percent": 100,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "ACTIVE",
+      "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Implement WP-8F incremental visible/nearby-first indexing from issue #282. WP-8G remains blocked."
+      "next_action": "After PR #283 merges, reconcile main and begin WP-8G large-document performance corpus/certification. Keep the revision/PageId incremental search invariants fixed while measuring large-document behavior."
     },
     "quality": {
-      "state": "PENDING_EXECUTION",
+      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
       "findings": [
-        "Current uncached SearchPanel path scans every PDF page before returning results.",
-        "Existing SearchIndexer cache is whole-document and keyed only by documentKey; 8F will make page state revision-scoped and PageId-aware."
+        "Active SearchPanel no longer performs query-triggered full-document PDF text extraction.",
+        "Runtime search index identity is immutable active revision plus stable PageId; physical page numbers are resolved from the current PageGraph.",
+        "Current page and nearby pages are scheduled before requested and distant background pages.",
+        "Page extraction owns one PDFPageProxy at a time, cleans it immediately, yields between bounded batches and supports cancellation.",
+        "Owner tokens prevent superseded indexing tasks from publishing stale page text.",
+        "Partial hits and indexed/total progress are published while background indexing continues; query changes reuse indexed text.",
+        "TopNav is now a query/navigation client only, eliminating the duplicate search executor.",
+        "Workspace/admission do not eagerly invoke incremental search indexing.",
+        "Static 8F and inherited Phase 8 renderer-consumer guard simulation is clean; search core/query/scheduler module bounds are enforced.",
+        "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment."
       ]
     },
     "evidence": {
-      "state": "PENDING",
-      "summary": "WP-8F implementation started from main d9fc2001006794f0aca1203ff027e38902db0c62.",
-      "not_run": []
+      "state": "TERMINAL_NOT_RUN",
+      "summary": "WP-8F implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
+      "not_run": [
+        {
+          "command": "GitHub Actions exact-head certification surfaces",
+          "reason": "At aabc1765244353ea263ecb94635a3188d2b77153, certify-writer-overlay-v2 35515873864, Guards 35515873857, Frontend CI 35515873849, OCR Workflow Certification 35515873879 and Frontend Certify 35515873865 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "aabc1765244353ea263ecb94635a3188d2b77153"
+        }
+      ]
     },
     "stop": {
       "active": false,
@@ -102,12 +116,14 @@
     "execution_ref": "EP-8F-001",
     "receipt": null,
     "basis": [
-      "WP-8E merged and is COMPLETE/TERMINAL.",
-      "Issue #282 is the active WP-8F frontier.",
-      "WP-8G remains WAITING until 8F is terminal."
+      "PR #281 merged WP-8E closure and main was reconciled at d9fc2001006794f0aca1203ff027e38902db0c62.",
+      "Issue #282 / PR #283 implement WP-8F revision/PageId incremental visible/nearby-first search indexing.",
+      "WP-8F is terminal under the documented #183 NOT_RUN infrastructure exception.",
+      "After #283 merges, WP-8G large-document performance corpus/certification is the next serial frontier."
     ],
     "observed": {
-      "issue": 282
+      "issue": 282,
+      "pull_request": 283
     },
     "superseded_operations": []
   },
@@ -115,10 +131,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": null,
+      "pull_request": 283,
       "issue": 282,
-      "head_ref": "d9fc2001006794f0aca1203ff027e38902db0c62",
-      "state": "BRANCH_ACTIVE"
+      "head_ref": "aabc1765244353ea263ecb94635a3188d2b77153",
+      "state": "READY_UNDER_INFRA_EXCEPTION"
     },
     "observations": []
   },
