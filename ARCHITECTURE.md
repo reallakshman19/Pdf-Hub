@@ -231,7 +231,10 @@ and split operations with artifact side effects require checkpoints.
 `EXTRACT_PAGES` is explicitly non-mutating and is not a reconstruction-journal
 entry; `SPLIT_PAGES` is mutating and therefore cannot be treated as artifact-only.
 
-This classification is policy only. No command replay executor is enabled yet.
+Phase 8E.2 introduced this classification as policy only. Phase 8E.5C2 now
+consumes the same policy for headless recovery replay; commands are reclassified
+at recovery-plan time so persisted disposition metadata cannot override current
+barrier policy.
 
 Phase 8E.3 adds the durable journal-manifest substrate. Each admitted
 revision-aware document receives a stable `historyJournalId` distinct from the
@@ -444,8 +447,31 @@ allowed. Synchronous mutation remains allowed only in the explicit blank Writer
 document insertion surfaces. A repository-wide anti-drift scan enforces this
 boundary over active TypeScript/TSX source.
 
-No command replay or revision deletion is enabled yet. Reference-aware revision
-GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
+Phase 8E.5C1 upgrades barrier checkpoint state to a recovery-complete v2
+application snapshot above its immutable revision reference. The payload carries
+PageGraph/navigation, annotations, Writer and OCR state while keeping PDF bytes
+and Writer binary assets out of the journal. Legacy v1 payloads remain valid
+journal data but are not treated as complete recovery points.
+
+Phase 8E.5C2 adds headless recovery planning, immutable-revision resolution and
+atomic restore execution. The planner chooses the latest valid checkpoint by
+logical journal cursor position, then includes only a currently
+`SELF_CONTAINED_REPLAY` suffix up to the recorded active cursor. Recovery fails
+closed across checkpoint barriers, malformed anchors, stale journal data,
+missing revisions or missing Writer assets. Before application, the resolver
+verifies the original/checkpoint/replay revision chain and materializes exactly
+the checkpoint revision. The executor snapshots session, annotation, Writer, OCR
+and in-memory history stores, installs the checkpoint, replays the validated
+suffix through canonical dispatch in `recovery-replay` mode, verifies every
+produced revision against the durable journal, persists the final annotation
+state, and restores the full pre-recovery application snapshot on any failure.
+Writer asset bytes remain in Writer persistence and are hydrated by durable
+asset id. Duplicate-page derived annotation/Writer identities and timestamps are
+command-derived so replay does not create new logical objects.
+
+Recovery replay remains headless: no automatic startup recovery UI is enabled in
+8E.5C2. Bounded `PERIODIC` checkpoint cadence is Phase 8E.5C3, and
+reference-aware revision reachability/pruning/GC is Phase 8E.5C4. Phase 8F owns
 incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
