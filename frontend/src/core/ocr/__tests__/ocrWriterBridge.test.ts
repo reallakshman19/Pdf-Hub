@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { WriterElementV2 } from '../../writer-v2/types';
 import { useWriterV2Store } from '../../writer-v2/writerV2Store';
 import {
@@ -138,19 +144,14 @@ describe('ocrWriterBridge', () => {
   });
 
   it('does not report insertion when durable Writer dispatch rejects', async () => {
-    const store =
-      useWriterV2Store.getState();
-    const original =
-      store.dispatchWriterCommandDurable;
-
-    useWriterV2Store.setState({
-      dispatchWriterCommandDurable:
-        async () => {
-          throw new Error(
-            'journal write failed',
-          );
-        },
-    });
+    const dispatchSpy = vi
+      .spyOn(
+        useWriterV2Store.getState(),
+        'dispatchWriterCommandDurable',
+      )
+      .mockRejectedValueOnce(
+        new Error('journal write failed'),
+      );
 
     const result =
       await insertOcrWriterElementsIntoWriterV2Store({
@@ -168,10 +169,7 @@ describe('ocrWriterBridge', () => {
       useWriterV2Store.getState().elements,
     ).toHaveLength(0);
 
-    useWriterV2Store.setState({
-      dispatchWriterCommandDurable:
-        original,
-    });
+    dispatchSpy.mockRestore();
   });
 
   it('builds diagnostics summary', () => {
