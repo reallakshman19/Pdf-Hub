@@ -366,7 +366,7 @@
       "basis": [
         "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
         "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
-        "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
+        "Pinned-protocol takeover must be refreshed through QSET-9-003 before further material writes. No AC-9-01 weight is earned."
       ]
     },
     {
