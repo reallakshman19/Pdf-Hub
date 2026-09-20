@@ -8,6 +8,7 @@ import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
 import {
+  attachHistoryJournalRecoveryPayload,
   prepareHistoryJournalMutation,
 } from '@/core/document-history/journal/appendMutation';
 import type {
@@ -542,6 +543,28 @@ export async function commitDocumentMutation(
 
     if (preparedJournal) {
       try {
+        const committedTransaction =
+          useHistoryStore
+            .getState()
+            .undoStack
+            .at(-1);
+
+        if (
+          !committedTransaction
+          || committedTransaction.id
+            !== transactionId
+        ) {
+          throw new Error(
+            'Committed history transaction is unavailable for recovery checkpoint attachment.',
+          );
+        }
+
+        attachHistoryJournalRecoveryPayload(
+          preparedJournal.manifest,
+          transactionId,
+          committedTransaction.after,
+        );
+
         await preparedJournal.store.save(
           preparedJournal.manifest,
         );
