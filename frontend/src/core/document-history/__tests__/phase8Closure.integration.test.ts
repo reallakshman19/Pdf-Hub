@@ -559,8 +559,11 @@ HistoryJournalManifest {
         'annotation-store',
       ),
       disposition:
-        'SELF_CONTAINED_REPLAY' as const,
-      barriers: [],
+        'CHECKPOINT_REQUIRED' as const,
+      barriers: [{
+        code:
+          'DESCRIPTIVE_STATE_COMMAND' as const,
+      }],
       beforeRevision: {
         storeId:
           REVISION_STORE_ID,
@@ -594,8 +597,11 @@ HistoryJournalManifest {
         'writer-store',
       ),
       disposition:
-        'SELF_CONTAINED_REPLAY' as const,
-      barriers: [],
+        'CHECKPOINT_REQUIRED' as const,
+      barriers: [{
+        code:
+          'DESCRIPTIVE_STATE_COMMAND' as const,
+      }],
       beforeRevision: {
         storeId:
           REVISION_STORE_ID,
