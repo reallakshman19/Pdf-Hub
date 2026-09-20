@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "8abe904008fe473be82d114016c0561d629f8b55"
+    "basis_ref": "d9fc2001006794f0aca1203ff027e38902db0c62"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,9 +24,9 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E-CLOSURE-001",
-    "path": "agents/relay/execution-packages/EP-8E-CLOSURE-001.yaml",
-    "state": "TERMINAL",
+    "id": "EP-8F-001",
+    "path": "agents/relay/execution-packages/EP-8F-001.yaml",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -62,38 +62,27 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 90,
-    "ep_percent": 100,
+    "ep_percent": 0,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "COMPLETE",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Create the WP-8F incremental visible/nearby-first indexing issue and execution package from merged main 8abe904008fe473be82d114016c0561d629f8b55. Do not reopen WP-8E unless recovery/GC invariants regress."
+      "next_action": "Implement WP-8F incremental visible/nearby-first indexing from issue #282. WP-8G remains blocked."
     },
     "quality": {
-      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
+      "state": "PENDING_EXECUTION",
       "findings": [
-        "Closure fixture reconstructs from fresh revision/journal/Writer adapter instances over retained durable backing after all process-local registries and Zustand state are cleared.",
-        "Recovery uses the real planHistoryRecovery -> resolveHistoryRecoveryPlan -> executeHistoryRecovery chain with a recovery-complete structural barrier and SELF_CONTAINED_REPLAY suffix.",
-        "Recovered state covers PageGraph/navigation, native annotation model state, Writer V2 asset-backed overlay state and OCR page-anchored correction/region state.",
-        "Reference-aware GC keeps original/binary/checkpoint/active journal revisions, deletes only an injected orphan, and recovery succeeds again after collection.",
-        "Deleting a required checkpoint revision causes resolver REVISION_MISSING before live-state mutation; the same damaged graph makes GC unsafe and no deletion occurs.",
-        "Static closure anti-drift simulation is clean.",
-        "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment."
+        "Current uncached SearchPanel path scans every PDF page before returning results.",
+        "Existing SearchIndexer cache is whole-document and keyed only by documentKey; 8F will make page state revision-scoped and PageId-aware."
       ]
     },
     "evidence": {
-      "state": "TERMINAL_NOT_RUN",
-      "summary": "WP-8E closure implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
-      "not_run": [
-        {
-          "command": "GitHub Actions exact-head certification surfaces",
-          "reason": "At 8007c80099acf221ae5b15618e31a56314f14680, Guards 35514054174, Frontend CI 35514054130, Frontend Certify 35514054227 and certify-writer-overlay-v2 35514054149 all completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "8007c80099acf221ae5b15618e31a56314f14680"
-        }
-      ]
+      "state": "PENDING",
+      "summary": "WP-8F implementation started from main d9fc2001006794f0aca1203ff027e38902db0c62.",
+      "not_run": []
     },
     "stop": {
       "active": false,
@@ -110,18 +99,15 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E-CLOSURE-001",
+    "execution_ref": "EP-8F-001",
     "receipt": null,
     "basis": [
-      "PR #281 merged WP-8E closure at 8abe904008fe473be82d114016c0561d629f8b55.",
-      "WP-8E is COMPLETE/TERMINAL under the documented #183 NOT_RUN infrastructure exception.",
-      "WP-8F incremental visible/nearby-first indexing is the next serial frontier.",
-      "WP-8G remains WAITING on WP-8F."
+      "WP-8E merged and is COMPLETE/TERMINAL.",
+      "Issue #282 is the active WP-8F frontier.",
+      "WP-8G remains WAITING until 8F is terminal."
     ],
     "observed": {
-      "issue": 280,
-      "pull_request": 281,
-      "merge_ref": "8abe904008fe473be82d114016c0561d629f8b55"
+      "issue": 282
     },
     "superseded_operations": []
   },
@@ -129,10 +115,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 281,
-      "issue": 280,
-      "head_ref": "8abe904008fe473be82d114016c0561d629f8b55",
-      "state": "MERGED"
+      "pull_request": null,
+      "issue": 282,
+      "head_ref": "d9fc2001006794f0aca1203ff027e38902db0c62",
+      "state": "BRANCH_ACTIVE"
     },
     "observations": []
   },
