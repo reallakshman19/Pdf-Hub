@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "c50e9cef9e02d9e7caf32a8021a39ef224eb65f7"
+    "basis_ref": "8007c80099acf221ae5b15618e31a56314f14680"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,20 +24,20 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5C4-001",
-    "path": "agents/relay/execution-packages/EP-8E5C4-001.yaml",
+    "id": "EP-8E-CLOSURE-001",
+    "path": "agents/relay/execution-packages/EP-8E-CLOSURE-001.yaml",
     "state": "TERMINAL",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E5C4",
+    "id": "INFRA-EXCEPTION-8E-CLOSURE",
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-277",
+    "id": "PR-279",
     "path": null,
-    "merge_ref": "03bc0be431e94100fdec471547e861454a0843f5",
-    "note": "Phase 8E.5C3 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "66e88b9f252c489b06b0f5461dd31802b7353b1a",
+    "note": "Phase 8E.5C4 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,28 +70,28 @@
       "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "After PR #279 merges, reconcile main and begin the WP-8E closure/recovery certification slice. Do not advance to WP-8F until closure verifies process-death restore and GC/recovery interaction."
+      "next_action": "After PR #281 merges, reconcile main and begin WP-8F incremental visible/nearby-first indexing. Do not reopen WP-8E unless recovery/GC invariants regress."
     },
     "quality": {
       "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
       "findings": [
-        "Static C4 plus inherited Phase 8 guard simulation is clean; OpfsRevisionStore remains at 294 lines under the inherited 300-line boundary.",
-        "Store adapters enumerate committed storage only; history-aware retention and sweep policy live in document-history.",
-        "Reachability protects every retained journal/session/history/pin reference and fails closed on missing referenced revisions.",
-        "Persistent sweep is origin-wide serialized with Web Locks; revision publication holds the same store lock through durable journal publication.",
-        "Persistent sessions lacking persistent journal coverage block GC cross-context until session replacement/clear.",
-        "Execution revalidates reference graph, storage inventory and active-session identity; partial deletion is conservative and retry-safe.",
+        "Closure fixture reconstructs from fresh revision/journal/Writer adapter instances over retained durable backing after all process-local registries and Zustand state are cleared.",
+        "Recovery uses the real planHistoryRecovery -> resolveHistoryRecoveryPlan -> executeHistoryRecovery chain with a recovery-complete structural barrier and SELF_CONTAINED_REPLAY suffix.",
+        "Recovered state covers PageGraph/navigation, native annotation model state, Writer V2 asset-backed overlay state and OCR page-anchored correction/region state.",
+        "Reference-aware GC keeps original/binary/checkpoint/active journal revisions, deletes only an injected orphan, and recovery succeeds again after collection.",
+        "Deleting a required checkpoint revision causes resolver REVISION_MISSING before live-state mutation; the same damaged graph makes GC unsafe and no deletion occurs.",
+        "Static closure anti-drift simulation is clean.",
         "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment."
       ]
     },
     "evidence": {
       "state": "TERMINAL_NOT_RUN",
-      "summary": "Phase 8E.5C4 implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
+      "summary": "WP-8E closure implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
       "not_run": [
         {
           "command": "GitHub Actions exact-head certification surfaces",
-          "reason": "At c50e9cef9e02d9e7caf32a8021a39ef224eb65f7, Guards 35507978409, Frontend CI 35507978416, Frontend Certify 35507978420 and certify-writer-overlay-v2 35507978542 all completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "c50e9cef9e02d9e7caf32a8021a39ef224eb65f7"
+          "reason": "At 8007c80099acf221ae5b15618e31a56314f14680, Guards 35514054174, Frontend CI 35514054130, Frontend Certify 35514054227 and certify-writer-overlay-v2 35514054149 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "8007c80099acf221ae5b15618e31a56314f14680"
         }
       ]
     },
@@ -110,16 +110,17 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5C4-001",
+    "execution_ref": "EP-8E-CLOSURE-001",
     "receipt": null,
     "basis": [
-      "PR #277 merged Phase 8E.5C3 at 03bc0be431e94100fdec471547e861454a0843f5.",
-      "Issue #278 / PR #279 implement Phase 8E.5C4 reference-aware revision reachability and GC.",
-      "Phase 8E.5C4 is terminal under the documented #183 NOT_RUN infrastructure exception.",
-      "The next serial frontier is WP-8E closure/recovery certification; WP-8F remains WAITING."
+      "PR #279 merged Phase 8E.5C4 at 66e88b9f252c489b06b0f5461dd31802b7353b1a.",
+      "Issue #280 / PR #281 close WP-8E with process-death recovery and GC interaction certification.",
+      "WP-8E closure is terminal under the documented #183 NOT_RUN infrastructure exception.",
+      "After #281 merges, WP-8F incremental visible/nearby-first indexing is the next serial frontier."
     ],
     "observed": {
-      "issue": 278
+      "issue": 280,
+      "pull_request": 281
     },
     "superseded_operations": []
   },
@@ -127,9 +128,9 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 279,
-      "issue": 278,
-      "head_ref": "c50e9cef9e02d9e7caf32a8021a39ef224eb65f7",
+      "pull_request": 281,
+      "issue": 280,
+      "head_ref": "8007c80099acf221ae5b15618e31a56314f14680",
       "state": "READY_UNDER_INFRA_EXCEPTION"
     },
     "observations": []

@@ -1,0 +1,184 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E-CLOSURE-001",
+    "branch": "phase8/history-closure-certification",
+    "base_ref": "66e88b9f252c489b06b0f5461dd31802b7353b1a",
+    "execution_state": "TERMINAL",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5C4",
+    "previous_join": "66e88b9f252c489b06b0f5461dd31802b7353b1a",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-closure-certification",
+    "material_ref": "8007c80099acf221ae5b15618e31a56314f14680",
+    "base_branch": "main",
+    "base_observed_ref": "66e88b9f252c489b06b0f5461dd31802b7353b1a",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": "Closure fixture and static anti-drift contract are complete; exact-head Actions at 8007c800 received no runner and executed zero steps under open #183."
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 280,
+  "outcome": {
+    "engineering": [
+      "A system-level fixture reconstructs a mixed revision-aware document from durable backing after all process-local state is destroyed.",
+      "Recovery restores active revision, PageGraph/navigation, annotations, Writer state/assets and OCR state through the real planner/resolver/executor path.",
+      "Reference-aware GC removes only an unreachable revision and preserves the recovery chain.",
+      "Recovery succeeds after safe GC and fails closed before mutation when a required revision is removed.",
+      "Damaged recovery graphs make GC unsafe so collection cannot compound corruption."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Prove WP-8E as one durable crash-recovery system before moving to incremental indexing.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E closure after merged 8E.5C4 / #279.",
+    "why_this_work_exists": "Feature-level tests cover each journal/checkpoint/recovery/GC component, but WP-8E should not close until process-death reconstruction and GC interaction are verified end-to-end.",
+    "deliberate_non_goals": [
+      "No recovery UI or automatic startup restore.",
+      "No new checkpoint policy or GC retention heuristics.",
+      "No WP-8F indexing work."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Durable-only process-death reconstruction restores mixed application state exactly.",
+      "weight": 30,
+      "verification": [
+        "TEST-01",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "description": "Checkpoint plus replayable suffix reaches the recorded active cursor and revision.",
+      "weight": 20,
+      "verification": [
+        "TEST-01",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "description": "Reference-aware GC keeps the recovery chain and removes only a true orphan.",
+      "weight": 20,
+      "verification": [
+        "TEST-02",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "description": "Recovery succeeds after safe GC.",
+      "weight": 15,
+      "verification": [
+        "TEST-03",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "description": "Missing required revisions fail before live-state mutation and damaged graphs block GC.",
+      "weight": 15,
+      "verification": [
+        "TEST-04",
+        "TEST-05",
+        "TEST-06"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Closure integration fixture destroys registries/live stores, reconstructs fresh durable store instances and restores mixed annotation/Writer/OCR/PageGraph/navigation state through planner/resolver/executor.",
+      "proves": [
+        "AC-01",
+        "AC-02"
+      ]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Closure GC fixture proves original/checkpoint/replay/active revisions remain reachable while an orphan is collectible.",
+      "proves": [
+        "AC-03"
+      ]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Repeat process-death recovery after safe GC and compare committed state.",
+      "proves": [
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Remove one required revision and prove recovery fails before live-state mutation.",
+      "proves": [
+        "AC-05"
+      ]
+    },
+    {
+      "id": "TEST-05",
+      "class": "MUST_PASS",
+      "method": "On the same damaged durable graph, GC plan is unsafe and removes nothing.",
+      "proves": [
+        "AC-05"
+      ]
+    },
+    {
+      "id": "TEST-06",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head certify:phase8e-closure; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05"
+      ]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true,
+    "status": "SATISFIED_WITH_INFRA_EXCEPTION",
+    "checkpoint_id": "INFRA-EXCEPTION-8E-CLOSURE"
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "WP-8F incremental visible/nearby-first indexing after PR #281 merges and main/Relay reconciliation."
+  },
+  "implementation": {
+    "state": "COMPLETE",
+    "head_ref": "8007c80099acf221ae5b15618e31a56314f14680",
+    "highlights": [
+      "Fresh restartable revision, journal and Writer persistence adapters reconstruct from retained backing after process-local state is destroyed.",
+      "Real recovery planner/resolver/executor restores checkpoint state and replays the validated suffix.",
+      "Mixed PageGraph/navigation, annotation, Writer asset and OCR page-anchored state is verified after recovery.",
+      "GC preserves the full retained journal recovery graph and removes only a true orphan.",
+      "A second fresh-process recovery succeeds after safe GC.",
+      "Missing required checkpoint revision fails at resolver preflight; damaged graph blocks GC."
+    ]
+  },
+  "evidence": {
+    "state": "TERMINAL_NOT_RUN",
+    "infrastructure_issue": 183,
+    "observed_head": "8007c80099acf221ae5b15618e31a56314f14680",
+    "workflow_runs": [
+      35514054174,
+      35514054130,
+      35514054227,
+      35514054149
+    ],
+    "observation": "All exact-head jobs had runner_id 0 and steps []; no runner-executed TypeScript, Vitest, audit or build result exists."
+  }
+}
