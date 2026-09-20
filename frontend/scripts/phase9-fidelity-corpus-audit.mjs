@@ -45,6 +45,25 @@ const requiredClasses = [
   'signed',
   'malformed-readable-xref',
 ];
+const structureKinds = [
+  'pages-text',
+  'image-only-pages',
+  'page-geometry-boxes',
+  'outline-tree',
+  'page-labels',
+  'acroform',
+  'native-annotations',
+  'embedded-files',
+  'metadata',
+  'tagged-structure',
+  'font-resources',
+  'unicode-text',
+  'object-streams',
+  'incremental-updates',
+  'encryption',
+  'signatures',
+  'xref-readability',
+];
 const mutationClasses = [
   'rotate',
   'reorder',
@@ -116,6 +135,35 @@ for (const fixture of manifest.fixtures) {
   }
 
   if (
+    !Array.isArray(fixture.structures)
+    || fixture.structures.length === 0
+    || fixture.structures.some(
+      (structure) =>
+        !structureKinds.includes(
+          structure,
+        ),
+    )
+  ) {
+    fail(
+      `${fixture.id} has invalid semantic structure keys`,
+    );
+  }
+  const fixtureStructures =
+    new Set(fixture.structures ?? []);
+  if (
+    (fixture.baseline ?? []).some(
+      (expectation) =>
+        !fixtureStructures.has(
+          expectation.structure,
+        ),
+    )
+  ) {
+    fail(
+      `${fixture.id} baseline references undeclared semantic structure`,
+    );
+  }
+
+  if (
     !fixture.provenance
     || !fixture.provenance.source
     || !fixture.provenance.licenseOrOwnership
@@ -146,6 +194,13 @@ for (const fixture of manifest.fixtures) {
       )
       || expectation
         .expectedStructures.length === 0
+      || expectation
+        .expectedStructures.some(
+          (structure) =>
+            !fixtureStructures.has(
+              structure.structure,
+            ),
+        )
     ) {
       fail(
         `${fixture.id} lacks complete ${mutation} expectation`,
