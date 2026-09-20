@@ -179,6 +179,12 @@ async function executeHistoryRecoveryUnqueued(
   const expectedTerminalRevision =
     plan.replayEntries.at(-1)?.afterRevision
     ?? plan.revision;
+  const liveCheckpoint =
+    liveManifest.checkpoints.find(
+      (checkpoint) =>
+        checkpoint.checkpointId
+        === plan.checkpointId,
+    );
   if (
     liveActiveTransactionId
       !== plan.activeTransactionId
@@ -186,6 +192,20 @@ async function executeHistoryRecoveryUnqueued(
       !== expectedTerminalRevision.revisionId
     || liveManifest.revisionStoreId
       !== plan.revision.storeId
+    || liveManifest.originalRevisionId
+      !== plan.originalRevisionId
+    || liveManifest.fileName
+      !== plan.fileName
+    || !liveCheckpoint
+    || liveCheckpoint.transactionId
+      !== plan.checkpointTransactionId
+    || liveCheckpoint.revision.storeId
+      !== plan.revision.storeId
+    || liveCheckpoint.revision.revisionId
+      !== plan.revision.revisionId
+    || JSON.stringify(
+      liveCheckpoint.statePayload,
+    ) !== JSON.stringify(plan.state)
   ) {
     throw new HistoryRecoveryExecutionError(
       'JOURNAL_CHANGED',
@@ -341,6 +361,11 @@ async function executeHistoryRecoveryUnqueued(
         `Recovery terminated at revision ${finalSession.activeRevisionId ?? '(none)'}, expected ${expectedTerminalRevision.revisionId}.`,
       );
     }
+
+    rekeyRecoveredWriterState(
+      finalSession.documentKey,
+      finalSession.pageCount,
+    );
 
     try {
       await persistAnnotations(
@@ -536,6 +561,46 @@ function installRecoveryCheckpoint(
   useHistoryStore
     .getState()
     .clear();
+}
+
+function rekeyRecoveredWriterState(
+  documentFingerprint: string,
+  pageCount: number,
+): void {
+  const writer =
+    useWriterV2Store.getState();
+  const now = new Date().toISOString();
+
+  useWriterV2Store.setState({
+    elements: writer.elements.map(
+      (element) => ({
+        ...element,
+        documentFingerprint,
+      }),
+    ),
+    currentDocumentFingerprint:
+      documentFingerprint,
+    documentMeta:
+      writer.documentMeta
+        ? {
+            ...writer.documentMeta,
+            documentFingerprint,
+            pageCount,
+            updatedAt: now,
+          }
+        : createPdfOverlayWriterDocumentMeta({
+            documentFingerprint,
+            pageCount,
+            now,
+          }),
+    assetRecords:
+      writer.assetRecords.map(
+        (asset) => ({
+          ...asset,
+          documentFingerprint,
+        }),
+      ),
+  });
 }
 
 function assertReplayBeforeRevision(
