@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3"
+    "basis_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,20 +24,20 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5C1-001",
-    "path": "agents/relay/execution-packages/EP-8E5C1-001.yaml",
+    "id": "EP-8E5C2-001",
+    "path": "agents/relay/execution-packages/EP-8E5C2-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E5B3C2C3",
+    "id": "INFRA-EXCEPTION-8E5C1",
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-271",
+    "id": "PR-273",
     "path": null,
-    "merge_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
-    "note": "Phase 8E.5B3C2C3 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions failed before runner assignment."
+    "merge_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
+    "note": "Phase 8E.5C1 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -62,7 +62,7 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 0,
+    "ep_percent": 15,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Implement Phase 8E.5C1 recovery-complete history checkpoint payload v2, keep legacy v1 manifests valid, and attach full committed after-state to CHECKPOINT_REQUIRED binary barriers before durable manifest save."
+      "next_action": "Implement Phase 8E.5C2 recovery planning and headless restore execution from recovery-complete checkpoints, including a replayable suffix to the active journal cursor and fail-closed barrier handling."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
@@ -78,7 +78,7 @@
     },
     "evidence": {
       "state": "PENDING",
-      "summary": "Phase 8E.5C1 is the serial WP-8E frontier after merged #271. It makes barrier checkpoints recovery-complete without adding replay execution, automatic recovery, periodic cadence, or revision GC.",
+      "summary": "Phase 8E.5C1 / #273 is merged. Phase 8E.5C2 / #274 is the serial WP-8E frontier. Recovery planning must preserve the active cursor by starting from a recovery-complete checkpoint and replaying only self-contained suffix entries; periodic cadence and revision GC remain later slices.",
       "not_run": []
     },
     "stop": {
@@ -96,14 +96,15 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5C1-001",
+    "execution_ref": "EP-8E5C2-001",
     "receipt": null,
     "basis": [
-      "Issue #272 explicitly starts after merged Phase 8E.5B3C2C3 / #271.",
+      "PR #273 merged Phase 8E.5C1 recovery-complete checkpoints at fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b.",
+      "Issue #274 is the active Phase 8E.5C2 recovery planner/restore executor slice.",
       "WP-8E remains ACTIVE and WP-8F remains WAITING on WP-8E."
     ],
     "observed": {
-      "issue": 272
+      "issue": 274
     },
     "superseded_operations": []
   },
