@@ -31,14 +31,22 @@ interface UseSearchResultPublisherInput {
 export function useSearchResultPublisher(
   input: UseSearchResultPublisherInput,
 ) {
+  const {
+    activeRevisionId,
+    pageGraph,
+    searchOptions,
+    setHits,
+    setIndexProgress,
+    setIsSearching,
+  } = input;
   const incrementalResultsRef =
     React.useRef(
       new IncrementalSearchResults(),
     );
   const searchOptionsRef =
-    React.useRef(input.searchOptions);
+    React.useRef(searchOptions);
   searchOptionsRef.current =
-    input.searchOptions;
+    searchOptions;
 
   const publishSearchResults =
     React.useCallback((
@@ -48,50 +56,50 @@ export function useSearchResultPublisher(
           searchOptionsRef.current,
     ) => {
       if (
-        !input.activeRevisionId
-        || !input.pageGraph
+        !activeRevisionId
+        || !pageGraph
       ) {
         incrementalResultsRef
           .current
           .clear();
-        input.setHits([]);
-        input.setIndexProgress({
+        setHits([]);
+        setIndexProgress({
           ...EMPTY_SEARCH_INDEX_PROGRESS,
         });
-        input.setIsSearching(false);
+        setIsSearching(false);
         return;
       }
 
       SearchIndexer.prepareRevision(
-        input.activeRevisionId,
-        input.pageGraph,
+        activeRevisionId,
+        pageGraph,
       );
       const progress =
         SearchIndexer.getProgress(
-          input.activeRevisionId,
-          input.pageGraph,
+          activeRevisionId,
+          pageGraph,
         );
-      input.setIndexProgress(progress);
+      setIndexProgress(progress);
 
-      input.setHits(
+      setHits(
         incrementalResultsRef.current
           .rebuild(
-            input.activeRevisionId,
-            input.pageGraph,
+            activeRevisionId,
+            pageGraph,
             searchQuery,
             options,
           ),
       );
-      input.setIsSearching(
+      setIsSearching(
         Boolean(searchQuery.trim())
         && !progress.complete,
       );
     }, [
-      input.activeRevisionId,
-      input.pageGraph,
-      input.setHits,
-      input.setIndexProgress,
-      input.setIsSearching,
+      activeRevisionId,
+      pageGraph,
+      setHits,
+      setIndexProgress,
+      setIsSearching,
     ]);
 
   const publishIndexedPageResults =
@@ -101,8 +109,8 @@ export function useSearchResultPublisher(
       progress: SearchIndexProgress,
     ) => {
       if (
-        !input.activeRevisionId
-        || !input.pageGraph
+        !activeRevisionId
+        || !pageGraph
       ) {
         return;
       }
@@ -112,15 +120,15 @@ export function useSearchResultPublisher(
           .getState()
           .query;
       if (!searchQuery.trim()) {
-        input.setIsSearching(false);
+        setIsSearching(false);
         return;
       }
 
       const nextHits =
         incrementalResultsRef.current
           .updatePage(
-            input.activeRevisionId,
-            input.pageGraph,
+            activeRevisionId,
+            pageGraph,
             pageId,
             pageNumber,
             searchQuery,
@@ -133,15 +141,15 @@ export function useSearchResultPublisher(
         return;
       }
 
-      input.setHits(nextHits);
-      input.setIsSearching(
+      setHits(nextHits);
+      setIsSearching(
         !progress.complete,
       );
     }, [
-      input.activeRevisionId,
-      input.pageGraph,
-      input.setHits,
-      input.setIsSearching,
+      activeRevisionId,
+      pageGraph,
+      setHits,
+      setIsSearching,
       publishSearchResults,
     ]);
 
