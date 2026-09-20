@@ -115,35 +115,64 @@ export async function replaceActiveImageBoxAsset(
   }
 }
 
-export function clearActiveImageBoxAsset(): WriterImageReplaceResult {
+export async function clearActiveImageBoxAsset(): Promise<WriterImageReplaceResult> {
   const store = useWriterV2Store.getState();
-  const activeId = store.activeId ?? store.selectedIds.at(-1);
+  const activeId =
+    store.activeId
+    ?? store.selectedIds.at(-1);
 
   if (!activeId) {
     return {
       changed: false,
-      message: 'No active Writer image selected.',
+      message:
+        'No active Writer image selected.',
     };
   }
 
-  const element = store.elements.find((item) => item.id === activeId);
+  const current = store.elements.find(
+    (item) => item.id === activeId,
+  );
 
-  if (!element || element.type !== 'imageBox' || element.locked || element.hidden) {
+  if (
+    !current
+    || current.type !== 'imageBox'
+    || current.locked
+    || current.hidden
+  ) {
     return {
       changed: false,
-      message: 'No editable Writer image selected.',
+      message:
+        'No editable Writer image selected.',
     };
   }
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      plainText: 'Image',
-      imageAssetId: undefined,
-      assetIds: [],
-    },
-  });
+  const result =
+    await store.dispatchWriterCommandDurableLatest(
+      (state) => {
+        const element = state.elements.find(
+          (item) => item.id === activeId,
+        );
+
+        if (
+          !element
+          || element.type !== 'imageBox'
+          || element.locked
+          || element.hidden
+        ) {
+          return null;
+        }
+
+        return {
+          type: 'UPDATE_WRITER_ELEMENT',
+          id: element.id,
+          patch: {
+            plainText: 'Image',
+            imageAssetId: undefined,
+            assetIds: [],
+          },
+        };
+      },
+    );
 
   return {
     changed: result.changed,
