@@ -616,6 +616,9 @@ async function buildFixture(
     kind === 'metadata_rich'
     && pdf.getPageCount() > 0
   ) {
+    await addMetadataRichStructures(
+      pdf,
+    );
     const form = pdf.getForm();
     const field =
       form.createTextField(
@@ -632,9 +635,6 @@ async function buildFixture(
         width: 180,
         height: 24,
       },
-    );
-    await addMetadataRichStructures(
-      pdf,
     );
   }
 
