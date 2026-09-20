@@ -380,6 +380,29 @@ describe(
       });
     });
 
+    it('fails closed when cadence timestamps are malformed', () => {
+      const manifest =
+        manifestWithAnchor();
+      manifest.entries.push(
+        entry(
+          'tx-invalid-time',
+          'sha256:anchor',
+          'sha256:after',
+          'not-a-date',
+        ),
+      );
+
+      expect(() =>
+        evaluateHistoryPeriodicCheckpoint(
+          manifest,
+          'tx-invalid-time',
+          POLICY,
+        ),
+      ).toThrow(
+        /requires valid ISO-compatible timestamps/,
+      );
+    });
+
     it('never schedules periodic checkpoints for checkpoint-required transactions', () => {
       const manifest =
         manifestWithAnchor();
