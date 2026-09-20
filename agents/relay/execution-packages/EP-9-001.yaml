@@ -12,11 +12,11 @@
   "replan_inheritance": null,
   "git_basis": {
     "expected_branch": "phase9/pdf-fidelity-laboratory",
-    "material_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca",
+    "material_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
     "base_branch": "phase8/large-document-performance",
     "base_observed_ref": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": "Fresh Phase 9 repository-only qualification passed via DISC-9-001 / QUAL-9-001 / TC-9-001; PR #287 base remains the RM-0003 handoff and no Phase 9 product mutation code preceded certification."
+    "drift_receipt": null
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -59,15 +59,16 @@
     "prior_owner_decisions": [
       "ODR-0003 defers exact-head Phase 8G certification as PENDING_NOT_SATISFIED.",
       "ODR-0004 and RM-0003 resequence WP-009 as the next serial frontier without treating WP-8G as complete.",
-      "Issue #185 breadth freeze remains in force; Phase 9 is fidelity hardening, not unrelated feature expansion."
+      "Issue #185 breadth freeze remains in force; Phase 9 is fidelity hardening, not unrelated feature expansion.",
+      "Owner directed this continuation to use engineering-pr-delivery-v2.5 exactly at Common commit 65518fd5340599b2a0fb88db5041f6c96389ccb8."
     ],
-    "current_implementation_state": "No Phase 9 product write has started. Issue #286, RM-0003 and this EP define the incoming fidelity/oracle boundary. Fresh phase-transition qualification is required before material writes.",
+    "current_implementation_state": "STEP-9-01 is partially implemented on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. The machine-readable corpus has 12 fixture entries: 9 are generator-backed and 3 remain required-pending (complex-font/unicode, encrypted, signed). Two retained candidate PDFs now exist for CID/Arabic and encrypted coverage but are not yet bound as satisfied manifest sources. The prior DISC/QUAL/TC chain was issued under an older protocol/EP basis and is stale under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
     "known_problems": [
-      "Page-only rebuild operations may lose or mis-handle outlines, AcroForms, annotations, attachments, metadata, tagged-PDF structures, PageLabels and other catalog/name-tree references.",
-      "Complex font and Unicode cases including CID/subset, Arabic/CJK/RTL have explicit known fidelity limits in existing docs.",
-      "Signed and encrypted PDFs require explicit validity/support semantics; content mutation must never imply preserved cryptographic validity.",
-      "Malformed-but-readable xrefs may be tolerated by PDF.js but rejected or normalized unsafely by mutation libraries.",
-      "GitHub Actions issue #183 may still leave executable certification in NOT_RUN state."
+      "Three STEP-9-01 specialist obligations remain unsatisfied in the manifest: complex-font/unicode, encrypted, and signed.",
+      "Retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf exist but require provenance/semantic validation before their manifest entries may change from required-pending to retained.",
+      "A deterministic or legally redistributable signed-document fixture is still absent.",
+      "The prior DISC-9-001 / QUAL-9-001 / TC-9-001 chain does not satisfy the pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 validators because its protocol basis/schema/EP digest are stale.",
+      "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
     ],
     "deliberate_non_goals": [
       "No Phase 10 annotation UX/interoperability breadth beyond preserving existing annotations.",
@@ -775,12 +776,13 @@
     "steps": [
       {
         "order": 1,
-        "action": "A fresh incoming candidate reconstructs RM-0003 / issue #286 / EP-9-001 from repository state, answers QSET-9-001, obtains independent QUAL and route-bound TC, then begins STEP-9-01 only after MATERIAL_WRITE_READY.",
+        "action": "A fresh incoming candidate reconstructs the current Phase 9 material state at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answers QSET-9-002 from repository evidence, obtains current DISC/QUAL/TC, then continues STEP-9-01 by validating/binding the retained CID/Arabic and encrypted fixtures and sourcing the signed fixture.",
         "targets": [
           "agents/relay/certifications",
-          "EP-9-001",
-          "QSET-9-001",
-          "Phase 9 corpus/mutation surfaces"
+          "frontend/fidelity/phase9/manifest.json",
+          "frontend/fidelity/phase9/retained/",
+          "frontend/scripts/phase9-fidelity-corpus-audit.mjs",
+          "frontend/src/core/pdf-fidelity/manifestValidation.test.ts"
         ],
         "inputs": [
           "INPUT-9-01",
@@ -789,24 +791,21 @@
           "INPUT-9-04"
         ],
         "tests": [
-          "TEST-9-01",
-          "TEST-9-02"
+          "TEST-9-01"
         ],
         "benchmarks": [
           "BENCH-9-01",
-          "BENCH-9-02",
-          "BENCH-9-03",
           "BENCH-9-04"
         ],
         "acceptance": [
-          "AC-9-01",
-          "AC-9-02"
+          "AC-9-01"
         ],
-        "expected_result": "The Phase 9 candidate independently demonstrates the production path, fidelity risk model, protected invariants, oracle design and first safe slice before product writes.",
+        "expected_result": "The pinned-protocol candidate is takeover-certified on the exact current EP/material basis; STEP-9-01 then reduces the manifest's three required-pending specialist obligations without claiming coverage from unvalidated binaries.",
         "stop_if": [
-          "QSET/QUAL/TC does not PASS on the exact EP digest.",
-          "Live route/Git basis becomes stale.",
-          "The proposed first slice expands beyond the permanent corpus/inventory boundary before evidence exists."
+          "QSET-9-002 / current DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "Retained fixture provenance or semantic structure does not establish the required class.",
+          "Any fixture source lacks legal redistribution/ownership evidence.",
+          "The proposed work expands into mutation-engine hardening before AC-9-01 corpus readiness."
         ]
       }
     ]
@@ -833,8 +832,8 @@
     ],
     "not_applicable_reason": null,
     "question_set": {
-      "id": "QSET-9-001",
-      "path": "agents/relay/certifications/qualification/QSET-9-001.yaml"
+      "id": "QSET-9-002",
+      "path": "agents/relay/certifications/qualification/QSET-9-002.yaml"
     }
   },
   "quality": {
@@ -1273,15 +1272,5 @@
       "next_frontier",
       "successor_ep_or_terminal_disposition"
     ]
-  },
-  "qualification_receipt": {
-    "id": "QUAL-9-001",
-    "path": "agents/relay/certifications/qualification/QUAL-9-001.yaml",
-    "status": "PASS"
-  },
-  "takeover_certification": {
-    "id": "TC-9-001",
-    "path": "agents/relay/certifications/takeover/TC-9-001.yaml",
-    "status": "PASS"
   }
 }
