@@ -423,6 +423,92 @@ async function catalogStructures() {
   });
 }
 
+function parseLastTrailerValue(
+  source,
+  pattern,
+  label,
+) {
+  const trailerIndex =
+    source.lastIndexOf('trailer');
+  if (trailerIndex < 0) {
+    throw new Error(
+      `Incremental fixture base has no trailer for ${label}.`,
+    );
+  }
+  const trailer =
+    source.slice(trailerIndex);
+  const match =
+    trailer.match(pattern);
+  if (!match) {
+    throw new Error(
+      `Incremental fixture base trailer has no ${label}.`,
+    );
+  }
+  return match;
+}
+
+async function incrementalUpdateInput() {
+  const baseBytes =
+    await nativeTextBasic();
+  const base =
+    Buffer.from(baseBytes);
+  const source =
+    base.toString('latin1');
+
+  const sizeMatch =
+    parseLastTrailerValue(
+      source,
+      /\/Size\s+(\d+)/,
+      'Size',
+    );
+  const rootMatch =
+    parseLastTrailerValue(
+      source,
+      /\/Root\s+(\d+)\s+(\d+)\s+R/,
+      'Root',
+    );
+  const startMatches = [
+    ...source.matchAll(
+      /startxref\s+(\d+)\s+%%EOF/g,
+    ),
+  ];
+  const previousStart =
+    startMatches.at(-1)?.[1];
+  if (!previousStart) {
+    throw new Error(
+      'Incremental fixture base has no startxref.',
+    );
+  }
+
+  const nextObjectNumber =
+    Number(sizeMatch[1]);
+  const objectOffset =
+    base.byteLength;
+  const incrementalObject =
+    Buffer.from(
+      `\n${nextObjectNumber} 0 obj\n<< /Producer (PDF Hub Phase 9) /Phase9Revision (incremental-update-1) >>\nendobj\n`,
+      'ascii',
+    );
+  const xrefOffset =
+    objectOffset
+    + incrementalObject.byteLength;
+  const xrefEntry =
+    String(objectOffset)
+      .padStart(10, '0');
+
+  const suffix =
+    Buffer.from(
+      `xref\n${nextObjectNumber} 1\n${xrefEntry} 00000 n \ntrailer\n<< /Size ${nextObjectNumber + 1} /Root ${rootMatch[1]} ${rootMatch[2]} R /Info ${nextObjectNumber} 0 R /Prev ${previousStart} >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+      'ascii',
+    );
+
+  return Buffer.concat([
+    base,
+    incrementalObject,
+    suffix,
+  ]);
+}
+
 async function objectStreamInput() {
   const doc =
     await PDFDocument.create();
@@ -465,6 +551,8 @@ const GENERATORS = {
     catalogStructures,
   'object-stream-input':
     objectStreamInput,
+  'incremental-update-input':
+    incrementalUpdateInput,
 };
 
 async function main() {
