@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5"
+    "basis_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -62,7 +62,7 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 0,
+    "ep_percent": 95,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
@@ -70,16 +70,27 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Implement Phase 8E.5C3 bounded PERIODIC checkpoint cadence at the canonical durable journal boundary, with deterministic transaction-count, journal-byte and elapsed-time triggers."
+      "next_action": "Obtain exact-head Phase 8E.5C3 runner-executed certification; fix any real type/test/audit/build failure. If #183 again prevents runner allocation, record terminal NOT_RUN evidence and hand off to Phase 8E.5C4."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
-      "findings": []
+      "findings": [
+        "Static chained C1/C2/C3 certification simulation is clean.",
+        "Periodic cadence is journal-core owned and transaction-boundary evaluated; no timers, UI scheduler, pruning, revision deletion, or GC were introduced.",
+        "The first SELF_CONTAINED_REPLAY transaction bootstraps a recovery-complete PERIODIC checkpoint because ADMISSION carries no application-state payload.",
+        "Cadence anchors only recovery-complete v2 BARRIER/PERIODIC checkpoints; corrupted timestamps fail closed."
+      ]
     },
     "evidence": {
-      "state": "PENDING",
-      "summary": "Phase 8E.5C3 is the serial WP-8E frontier after merged #275. It bounds recovery replay distance with periodic recovery-complete checkpoints without adding pruning/GC or automatic recovery UI.",
-      "not_run": []
+      "state": "PARTIAL",
+      "summary": "Phase 8E.5C3 policy, periodic scheduling, recovery-complete state attachment, barrier reset, branch truncation, rollback coverage, architecture documentation, anti-drift audit and certify:phase8e5c3 are implemented. GitHub Actions remains blocked by #183.",
+      "not_run": [
+        {
+          "command": "GitHub Actions exact-head certification surfaces",
+          "reason": "At d0ee6d15f54ee4a39f5c98c39c83d69b824db94b, Guards 35503897374, writer certification 35503897382, Frontend Certify 35503897378 and Frontend CI 35503897401 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b"
+        }
+      ]
     },
     "stop": {
       "active": false,
@@ -111,7 +122,12 @@
   "delivery": {
     "required": true,
     "provider": "GITHUB",
-    "observation": null,
+    "observation": {
+      "pull_request": 277,
+      "issue": 276,
+      "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+      "state": "DRAFT_PENDING_EXECUTABLE_CERTIFICATION"
+    },
     "observations": []
   },
   "relay_readiness": {
