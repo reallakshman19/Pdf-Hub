@@ -220,6 +220,12 @@
       "earned_weight": 0,
       "total_weight": 100,
       "percent": 0
+    },
+    {
+      "id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 100,
+      "percent": 0
     }
   ],
   "implementation_steps": [
@@ -254,6 +260,41 @@
     {
       "id": "STEP-05",
       "ep_id": "EP-8G-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-9-01",
+      "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-9-02",
+      "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-9-03",
+      "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-9-04",
+      "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-9-05",
+      "ep_id": "EP-9-001",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0
@@ -313,6 +354,61 @@
       "percent": 0,
       "basis": [
         "audit:phase8-large-document-performance, benchmark:phase8g, certify:phase8g:evidence and certify:phase8g are wired so exact-head benchmark PASS evidence is mandatory, but the chain has not executed under #183; acceptance remains unearned."
+      ]
+    },
+    {
+      "id": "AC-9-01",
+      "ep_id": "EP-9-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "Phase 9 corpus/manifest implementation has not started; fresh phase-transition qualification is pending."
+      ]
+    },
+    {
+      "id": "AC-9-02",
+      "ep_id": "EP-9-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "basis": [
+        "Semantic inventory/diff and repeat-cycle implementation has not started; fresh qualification is pending."
+      ]
+    },
+    {
+      "id": "AC-9-03",
+      "ep_id": "EP-9-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "basis": [
+        "No Phase 9 mutation hardening has started; fresh qualification is pending."
+      ]
+    },
+    {
+      "id": "AC-9-04",
+      "ep_id": "EP-9-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 15,
+      "percent": 0,
+      "basis": [
+        "Complex-font/encrypted/signed/malformed support semantics have not been implemented; fresh qualification is pending."
+      ]
+    },
+    {
+      "id": "AC-9-05",
+      "ep_id": "EP-9-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 15,
+      "percent": 0,
+      "basis": [
+        "Phase 9 audit/certification/delivery evidence has not been produced."
       ]
     }
   ]
