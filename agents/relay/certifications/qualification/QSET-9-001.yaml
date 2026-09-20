@@ -1,0 +1,167 @@
+{
+  "schema_version": "relay-v2.5-question-set",
+  "id": "QSET-9-001",
+  "route": {
+    "route_key": "SERIAL:EP-9-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-9-001",
+    "ep_id": "EP-9-001",
+    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0003",
+    "work_package": "WP-009",
+    "ep_contract_digest": "sha256:9e3b143d88a3be09be0684b4c76edc40d7595d0dd96865d0971db1d44612ea41"
+  },
+  "boundary": {
+    "trigger": "PHASE_CHANGED",
+    "from_phase": "PHASE-008",
+    "to_phase": "PHASE-009",
+    "changed_dimensions": [
+      "PRODUCTION_PATH",
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "Phase 9 moves from performance certification to document-level mutation fidelity and can change catalog-preservation behavior.",
+      "Verification changes from timing/count budgets to semantic structure preservation, explicit invalidation/rejection and repeated save/reopen oracles.",
+      "Signed/encrypted/malformed and complex-font fixtures introduce new fidelity/safety invariants."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "focus": "PRODUCTION_PATH",
+      "anchors": [
+        "WP-009",
+        "INPUT-02"
+      ],
+      "prompt": "Trace the canonical structural-mutation production path Phase 9 will harden. Identify the command/session entrypoint, the mutation-session state owner, the authority for page identity/order and immutable revision publication, and the downstream save/reopen consumer used to detect document-level fidelity loss. Explain where page-only rebuild/copy behavior can omit catalog structures.",
+      "required_output_keys": [
+        "production_entrypoint",
+        "state_owner",
+        "authority_source",
+        "downstream_consumer"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q2",
+      "focus": "ENGINEERING_PROBLEM",
+      "anchors": [
+        "WP-009",
+        "INPUT-03",
+        "AC-02"
+      ],
+      "prompt": "Reconstruct the fidelity failure logically from the supplied fixture model without relying on implementation comments. A 10-page PDF has a nested outline destination to page 5, PageLabels, one populated AcroForm field/widget, one native annotation and one embedded attachment. A reorder implementation creates a new PDFDocument and copies only pages in the requested order. Derive which semantic structures are at risk even if all 10 pages still render, and predict what the repeated save/reopen oracle must detect.",
+      "reconstruction_mode": "LOGIC_RECONSTRUCTION",
+      "payload": {
+        "source": "Issue #286 + pre-Phase9 page-only rebuild contract",
+        "values": {
+          "page_count": {
+            "value": 10,
+            "units": "pages"
+          },
+          "page_only_rebuild": {
+            "value": true,
+            "units": "boolean"
+          },
+          "catalog_structures": {
+            "value": [
+              "nested outline",
+              "PageLabels",
+              "AcroForm field/widget",
+              "native annotation",
+              "embedded attachment"
+            ],
+            "units": "structures"
+          },
+          "repeat_cycles": {
+            "value": 2,
+            "units": "save/reopen cycles"
+          }
+        }
+      },
+      "required_output_keys": [
+        "reconstruction_steps",
+        "intermediate_result",
+        "expected_result"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q3",
+      "focus": "BOUNDARIES_INVARIANTS",
+      "anchors": [
+        "WP-009",
+        "AC-03",
+        "AC-04"
+      ],
+      "prompt": "State the consequence if a proposed fidelity fix makes the output render successfully but silently drops a fixture-declared outline/form/attachment/tagged structure, or reports a content-mutated signed PDF as still cryptographically valid. Name the protected invariant and the exact observation that falsifies a safe implementation.",
+      "mutation": {
+        "condition": "Accept renderability as sufficient fidelity, silently drop a protected semantic structure during mutation, or present a content-mutated signed document as retaining valid signature state.",
+        "protected_invariant": "Supported mutations preserve fixture-declared semantic structures across repeated save/reopen cycles or explicitly classify transformation/invalidation/rejection; cryptographic validity is never implied after unsupported/content-changing mutation.",
+        "falsifier": "A required semantic structure is absent/unreachable after first or second reopen while the operation claims success, or a mutated signed PDF is presented as signature-valid without independent proof."
+      },
+      "required_output_keys": [
+        "mutation_effect",
+        "protected_invariant",
+        "falsifier"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q4",
+      "focus": "VERIFICATION",
+      "anchors": [
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "TEST-02",
+        "TEST-03",
+        "TEST-04",
+        "BENCH-01",
+        "BENCH-02",
+        "BENCH-03"
+      ],
+      "prompt": "Design an independent verification for Phase 9 fidelity. It must compare fixture-declared semantic inventories before and after the full two-cycle mutation/save/reopen sequence, use PDF.js/reopen rendering only as an independent consumer rather than the sole oracle, and separately verify signed/encrypted explicitness. Predict the expected result and state exactness/tolerance.",
+      "oracle_refs": [
+        "BENCH-01",
+        "BENCH-02",
+        "BENCH-03"
+      ],
+      "independence_requirement": "Use predeclared fixture manifests, frozen repeat-cycle requirements and explicit signature/encryption semantics; do not derive expected preservation from the mutation implementation under test.",
+      "required_output_keys": [
+        "independent_method",
+        "predicted_result",
+        "tolerance_or_exactness"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q5",
+      "focus": "FIRST_SAFE_SLICE",
+      "anchors": [
+        "STEP-01",
+        "AC-01",
+        "TEST-01"
+      ],
+      "prompt": "Name the first bounded implementation slice after takeover certification. State the pre-change observation, predicted post-change observation and exact verification. Do not begin by rewriting PdfLibMutationEngine; first establish the permanent corpus, provenance and fixture-specific expectation manifest.",
+      "step_refs": [
+        "STEP-01"
+      ],
+      "required_output_keys": [
+        "first_change",
+        "predicted_before",
+        "predicted_after",
+        "verification"
+      ],
+      "evidence_required": true
+    }
+  ],
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260920-phase9-preparer"
+  }
+}
