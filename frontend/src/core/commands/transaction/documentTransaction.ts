@@ -75,6 +75,10 @@ export interface CommitDocumentMutationInput {
   ocrPagePolicy?: OcrPageMutationPolicy;
   revisionMetadata?: DocumentMutationRevisionMetadata;
   executionMode?: CommandExecutionMode;
+  recoveryRevision?: {
+    revisionId: string;
+    bytes: Uint8Array;
+  };
   signal?: AbortSignal;
 }
 
@@ -250,8 +254,26 @@ export async function commitDocumentMutation(
   let nextDocumentKey: string;
 
   const sessionSnapshot = useSessionStore.getState();
+  const isRecoveryReplay =
+    input.executionMode === 'recovery-replay';
+  const recoveryRevision =
+    input.recoveryRevision;
 
   try {
+    if (isRecoveryReplay && !recoveryRevision) {
+      throw new Error(
+        'Recovery replay requires authoritative immutable revision bytes.',
+      );
+    }
+    if (!isRecoveryReplay && recoveryRevision) {
+      throw new Error(
+        'Authoritative recovery revision bytes are valid only in recovery-replay mode.',
+      );
+    }
+
+    const effectiveAfterBytes =
+      recoveryRevision?.bytes
+      ?? input.afterBytes;
     const pageCountsPromise = input.revisionMetadata
       ? Promise.resolve(
           validatedRevisionPageCounts(
@@ -263,15 +285,23 @@ export async function commitDocumentMutation(
         )
       : Promise.all([
           PdfEditAdapter.countPages(input.beforeBytes),
-          PdfEditAdapter.countPages(input.afterBytes),
+          PdfEditAdapter.countPages(effectiveAfterBytes),
         ]);
 
     const [pageCounts, documentKey] = await Promise.all([
       pageCountsPromise,
-      FileAdapter.hashBytes(input.afterBytes),
+      FileAdapter.hashBytes(effectiveAfterBytes),
     ]);
 
     [beforePageCount, afterPageCount] = pageCounts;
+    if (
+      recoveryRevision
+      && documentKey !== recoveryRevision.revisionId
+    ) {
+      throw new Error(
+        `Recovery revision bytes hash to ${documentKey}, expected ${recoveryRevision.revisionId}.`,
+      );
+    }
     nextDocumentKey = documentKey;
   } catch (error) {
     throw toTransactionError(
@@ -280,6 +310,9 @@ export async function commitDocumentMutation(
       error,
     );
   }
+  const effectiveAfterBytes =
+    recoveryRevision?.bytes
+    ?? input.afterBytes;
   const pageGraphForCommit =
     input.nextPageGraph === undefined
       ? sessionSnapshot.pageGraph
@@ -350,7 +383,7 @@ export async function commitDocumentMutation(
     publishedRevisionId = await publishMutationRevision(
       sessionSnapshot,
       nextDocumentKey,
-      input.afterBytes,
+      effectiveAfterBytes,
       input.signal,
     );
   } catch (error) {
@@ -453,7 +486,7 @@ export async function commitDocumentMutation(
 
   try {
     useSessionStore.getState().replaceWorkingCopy(
-      input.afterBytes,
+      effectiveAfterBytes,
       afterPageCount,
       publishedRevisionId,
     );
@@ -509,7 +542,7 @@ export async function commitDocumentMutation(
       HistoryState,
       'bytes' | 'revision' | 'activeRevisionId'
     > = afterRevisionBacking ?? {
-      bytes: new Uint8Array(input.afterBytes),
+      bytes: new Uint8Array(effectiveAfterBytes),
       activeRevisionId: sessionAfter.activeRevisionId,
     };
     const annotationAfter = useAnnotationStore.getState();
@@ -596,7 +629,7 @@ export async function commitDocumentMutation(
   }
 
   return {
-    nextBytes: input.afterBytes,
+    nextBytes: effectiveAfterBytes,
     nextPageCount: afterPageCount,
     nextDocumentKey,
     activeRevisionId: publishedRevisionId,
