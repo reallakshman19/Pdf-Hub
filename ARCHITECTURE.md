@@ -492,8 +492,32 @@ truncates abandoned periodic checkpoints together with the abandoned journal
 tail. These cadence bounds limit reconstruction work; they are not storage
 retention, compaction, revision deletion, or garbage collection policy.
 
-Reference-aware revision reachability/pruning/GC remains Phase 8E.5C4. Phase 8F
-owns incremental search indexing.
+Phase 8E.5C4 makes working-revision deletion reference-aware. The low-level
+stores expose only mechanical inventory (`WorkingRevisionStore.listRevisionIds()`
+and `HistoryJournalStore.listAll()`); retention semantics live above them in the
+document-history revision-GC policy. The mark phase protects the current
+session's original/active revision, every in-memory undo/redo locator, every
+retained journal original/active/entry/checkpoint revision, and explicit
+process-local runtime pins. Because the browser working-revision store is shared
+across documents, planning always consumes the complete journal-store inventory,
+not only the active journal. A missing referenced revision fails the plan closed.
+
+Sweep execution is serialized through the document-operation queue and
+revalidates revision inventory plus the complete reference graph immediately
+before deletion. Persistent OPFS collection additionally requires an origin-wide
+Web Locks exclusive lease. Primary admission and canonical binary mutation hold
+the same revision-store lease from immutable revision publication through journal
+publication, preventing a second tab from observing a newly published revision
+as orphaned. A persistent session whose journal is non-persistent/unavailable
+holds a separate shared GC-blocker lock for its lifetime; collection requests the
+exclusive counterpart with `ifAvailable` and aborts instead of deleting such a
+session's bytes. Partial removal stops at the first failure and the original plan
+is retry-safe only when the missing inventory consists solely of candidates
+already deleted by that plan. No age-only deletion, journal/checkpoint pruning,
+automatic startup GC or UI-owned GC trigger is part of 8E.5C4.
+
+After 8E.5C4, WP-8E still requires closure/recovery certification before Phase
+8F incremental search indexing can start.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
