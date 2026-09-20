@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "83fc65aef4aa35329286048e11b744d634a7e5d3"
+    "basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -43,30 +43,11 @@
     "id": null,
     "path": null
   },
-  "takeover_admissions": [
-    {
-      "route_key": "SERIAL:EP-9-001",
-      "candidate": {
-        "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9"
-      },
-      "discovery_receipt": {
-        "id": "DISC-9-001",
-        "path": "agents/relay/certifications/discovery/DISC-9-001.yaml"
-      },
-      "qualification": {
-        "id": "QUAL-9-001",
-        "path": "agents/relay/certifications/qualification/QUAL-9-001.yaml"
-      },
-      "certification": {
-        "id": "TC-9-001",
-        "path": "agents/relay/certifications/takeover/TC-9-001.yaml"
-      }
-    }
-  ],
+  "takeover_admissions": [],
   "progress": {
     "overall_percent": 66.67,
     "phase_percent": 0,
-    "ep_percent": 8,
+    "ep_percent": 0,
     "basis_revision": "PB-0002"
   },
   "status_planes": {
@@ -74,26 +55,31 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Continue STEP-9-01: bind the six explicit specialist required-pending fixtures (tagged PDF, CID/subset + Arabic/CJK/RTL, genuine incremental update, encrypted, signed, malformed-readable xref) using deterministic or legally redistributable sources. Do not begin mutation-engine hardening until corpus readiness is complete."
+      "next_action": "Fresh incoming candidate qualification is required on QSET-9-002 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 before any further Phase 9 material write. After current DISC/QUAL/TC and live MATERIAL_WRITE_READY, continue STEP-9-01 by validating/binding retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf, then source/generate the signed fixture."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Phase 9 phase-transition qualification passed: DISC-9-001 / QUAL-9-001 / TC-9-001.",
-        "STEP-9-01 machine-readable corpus authority is implemented: 12 entries declare all 17 required classes and all required mutation dispositions.",
-        "Six deterministic generator-backed fixtures currently satisfy ordinary text, scan/image-only, geometry/boxes, outlines, PageLabels/forms/annotations/attachment-metadata, and object-stream starter coverage.",
-        "Six specialist fixture obligations remain required-pending and earn no AC-9-01 acceptance.",
+        "The previously recorded DISC-9-001 / QUAL-9-001 / TC-9-001 chain is stale under the pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 contract: prior protocol basis, QUAL/TC shape/evaluator, and EP digest no longer match current route requirements.",
+        "QSET-9-002 is the current outgoing-preparer qualification set and is bound to the refreshed EP-9-001 contract on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd.",
+        "STEP-9-01 has 12 manifest entries: 9 generator-backed and 3 required-pending (complex-font/unicode, encrypted, signed).",
+        "Two retained candidate PDFs exist but are not accepted coverage until provenance/redistribution authority and semantic structure are independently verified.",
         "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "STEP-9-01 corpus schema/manifest/generator/audit/test contract is implemented and static repository-side audit simulation is clean. No AC-9-01 acceptance is awarded until every required-pending specialist source is bound and executable.",
+      "summary": "Phase 9 STEP-9-01 substrate exists on frozen material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd, but the Owner pinned a newer V2.5 protocol basis. Prior takeover evidence is therefore historical/stale for further writes. QSET-9-002 refreshes the baton; no new candidate is currently certified. No Phase 9 acceptance weight is earned.",
       "not_run": [
         {
+          "command": "Pinned-protocol Phase 9 takeover qualification",
+          "reason": "QSET-9-002 is prepared but no fresh incoming candidate DISC/QUAL/TC exists yet under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
+        },
+        {
           "command": "npm run certify:phase9-step1",
-          "reason": "Hosted executable evidence has not yet been observed for the current exact head; static repository-side mirror is clean.",
-          "head_ref": "83fc65aef4aa35329286048e11b744d634a7e5d3"
+          "reason": "No valid current takeover admission exists on the pinned protocol basis; no new material or acceptance claim is made from the prior static mirror.",
+          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         },
         {
           "command": "npm run certify:phase8g",
@@ -123,8 +109,9 @@
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
       "ODR-0004 / RM-0003 make WP-009 the sole serial frontier.",
       "Issue #286 is the provider coordination contract for Phase 9.",
-      "EP-9-001 and QSET-9-001 define the incoming phase-transition qualification boundary.",
-      "Draft PR #287 tracks the prepared Phase 9 route; DOBS-9-001 confirms the exact-head changes are Relay-only and qualification remains pending."
+      "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 for this continuation.",
+      "EP-9-001 is refreshed on frozen material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and QSET-9-002 is the current qualification set.",
+      "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 are retained as prior evidence but do not currently certify further writes."
     ],
     "observed": {
       "issue": 286,
