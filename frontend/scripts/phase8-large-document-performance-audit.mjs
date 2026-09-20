@@ -154,6 +154,25 @@ requireContains(
   ],
 );
 
+const harnessPath =
+  'scripts/phase8g-benchmark-harness.mjs';
+const harness = read(harnessPath);
+requireContains(
+  harness,
+  harnessPath,
+  [
+    'phase8g-benchmark-observation-v1',
+    'phase8g-benchmark-report-v1',
+    'required_environment_fields',
+    'active_query_page_arrival_matching',
+    'page_match_calls',
+    'query_change_reextraction',
+    'range_backed_first_page',
+    'mutation_save_truth',
+    "status: failures.length === 0",
+  ],
+);
+
 const indexerPath =
   'src/core/search/indexer.ts';
 const indexer = read(indexerPath);
@@ -304,6 +323,15 @@ if (
 ) {
   fail(
     'package.json audit:phase8-large-document-performance is missing or changed.',
+  );
+}
+if (
+  packageJson.scripts
+    ?.['benchmark:phase8g:evaluate']
+  !== 'node scripts/phase8g-benchmark-harness.mjs'
+) {
+  fail(
+    'package.json benchmark:phase8g:evaluate is missing or changed.',
   );
 }
 
