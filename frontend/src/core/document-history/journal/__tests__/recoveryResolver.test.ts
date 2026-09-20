@@ -89,6 +89,13 @@ describe('resolveHistoryRecoveryPlan', () => {
       0x2d, 0x31, 0x2e, 0x37,
     ]);
     await store.commit({
+      revisionId: 'sha256:origin',
+      source: new MemorySource({
+        id: 'origin-source',
+        bytes,
+      }),
+    });
+    await store.commit({
       revisionId: REVISION_ID,
       source: new MemorySource({
         id: 'recovery-source',
@@ -115,6 +122,126 @@ describe('resolveHistoryRecoveryPlan', () => {
     ).rejects.toMatchObject({
       name: 'HistoryRecoveryResolutionError',
       code: 'REVISION_STORE_UNAVAILABLE',
+    } satisfies Partial<HistoryRecoveryResolutionError>);
+  });
+
+  it('fails closed when a replay suffix revision is missing', async () => {
+    const store = new MemoryRevisionStore({
+      id: STORE_ID,
+    });
+    registerWorkingRevisionStore(store);
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    await store.commit({
+      revisionId: 'sha256:origin',
+      source: new MemorySource({
+        id: 'origin-source',
+        bytes,
+      }),
+    });
+    await store.commit({
+      revisionId: REVISION_ID,
+      source: new MemorySource({
+        id: 'checkpoint-source',
+        bytes,
+      }),
+    });
+
+    const recoveryPlan = plan();
+    recoveryPlan.activeTransactionId = 'tx-replay';
+    recoveryPlan.replayEntries = [{
+      entryId: 'history-1:entry:tx-replay',
+      transactionId: 'tx-replay',
+      command: {
+        id: 'rotate-command',
+        type: 'ROTATE_PAGES',
+        source: 'system',
+        risk: 'safe',
+        createdAt: '2026-09-20T08:00:00.000Z',
+        documentKey: REVISION_ID,
+        payload: {
+          pageIndices: [0],
+          angle: 90,
+        },
+      },
+      disposition: 'SELF_CONTAINED_REPLAY',
+      barriers: [],
+      beforeRevision: {
+        storeId: STORE_ID,
+        revisionId: REVISION_ID,
+      },
+      afterRevision: {
+        storeId: STORE_ID,
+        revisionId: 'sha256:missing-after',
+      },
+      createdAt: '2026-09-20T08:00:01.000Z',
+    }];
+
+    await expect(
+      resolveHistoryRecoveryPlan(recoveryPlan),
+    ).rejects.toMatchObject({
+      name: 'HistoryRecoveryResolutionError',
+      code: 'REVISION_MISSING',
+    } satisfies Partial<HistoryRecoveryResolutionError>);
+  });
+
+  it('fails closed when the replay revision chain is discontinuous', async () => {
+    const store = new MemoryRevisionStore({
+      id: STORE_ID,
+    });
+    registerWorkingRevisionStore(store);
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    await store.commit({
+      revisionId: 'sha256:origin',
+      source: new MemorySource({
+        id: 'origin-source',
+        bytes,
+      }),
+    });
+    await store.commit({
+      revisionId: REVISION_ID,
+      source: new MemorySource({
+        id: 'checkpoint-source',
+        bytes,
+      }),
+    });
+
+    const recoveryPlan = plan();
+    recoveryPlan.activeTransactionId = 'tx-replay';
+    recoveryPlan.replayEntries = [{
+      entryId: 'history-1:entry:tx-replay',
+      transactionId: 'tx-replay',
+      command: {
+        id: 'rotate-command',
+        type: 'ROTATE_PAGES',
+        source: 'system',
+        risk: 'safe',
+        createdAt: '2026-09-20T08:00:00.000Z',
+        documentKey: 'sha256:wrong-before',
+        payload: {
+          pageIndices: [0],
+          angle: 90,
+        },
+      },
+      disposition: 'SELF_CONTAINED_REPLAY',
+      barriers: [],
+      beforeRevision: {
+        storeId: STORE_ID,
+        revisionId: 'sha256:wrong-before',
+      },
+      afterRevision: {
+        storeId: STORE_ID,
+        revisionId: 'sha256:any',
+      },
+      createdAt: '2026-09-20T08:00:01.000Z',
+    }];
+
+    await expect(
+      resolveHistoryRecoveryPlan(recoveryPlan),
+    ).rejects.toMatchObject({
+      name: 'HistoryRecoveryResolutionError',
+      code: 'REVISION_CHAIN_INVALID',
     } satisfies Partial<HistoryRecoveryResolutionError>);
   });
 
