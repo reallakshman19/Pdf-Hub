@@ -11,11 +11,13 @@ import {
 } from '@/adapters/pdf-renderer/activePdfDocumentLease';
 import { SearchIndexer } from '@/core/search/indexer';
 import {
+  IncrementalSearchResults,
+} from '@/core/search/incrementalResults';
+import {
   EMPTY_SEARCH_INDEX_PROGRESS,
-  type SearchHit,
+  type SearchIndexProgress,
   type SearchOptions,
 } from '@/core/search/types';
-import type { PageId } from '@/core/pages/types';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
@@ -76,12 +78,10 @@ export const SearchPanel: React.FC = () => {
   })));
   const addToast = useToastStore((state) => state.addToast);
   const indexAbortControllerRef = React.useRef<AbortController | null>(null);
-  const incrementalHitsRef =
-    React.useRef<Map<PageId, SearchHit[]>>(
-      new Map(),
+  const incrementalResultsRef =
+    React.useRef(
+      new IncrementalSearchResults(),
     );
-  const searchSignatureRef =
-    React.useRef<string | null>(null);
 
   const [localQuery, setLocalQuery] = useState(query);
   const [searchOptions, setSearchOptions] = useState<SearchOptions>({
@@ -103,26 +103,12 @@ export const SearchPanel: React.FC = () => {
   const searchOptionsRef = React.useRef(searchOptions);
   searchOptionsRef.current = searchOptions;
 
-  const createSearchSignature = useCallback((
-    searchQuery: string,
-    options: SearchOptions,
-  ) => (
-    [
-      activeRevisionId ?? '',
-      searchQuery,
-      options.caseSensitive ? '1' : '0',
-      options.wholeWord ? '1' : '0',
-      options.useRegex ? '1' : '0',
-    ].join('\u0000')
-  ), [activeRevisionId]);
-
   const publishSearchResults = useCallback((
     searchQuery: string,
     options: SearchOptions = searchOptionsRef.current,
   ) => {
     if (!activeRevisionId || !pageGraph) {
-      incrementalHitsRef.current.clear();
-      searchSignatureRef.current = null;
+      incrementalResultsRef.current.clear();
       setHits([]);
       setIndexProgress({
         ...EMPTY_SEARCH_INDEX_PROGRESS,
@@ -142,55 +128,22 @@ export const SearchPanel: React.FC = () => {
       );
     setIndexProgress(progress);
 
-    if (!searchQuery.trim()) {
-      incrementalHitsRef.current.clear();
-      searchSignatureRef.current =
-        createSearchSignature(
+    setHits(
+      incrementalResultsRef.current
+        .rebuild(
+          activeRevisionId,
+          pageGraph,
           searchQuery,
           options,
-        );
-      setHits([]);
-      setIsSearching(false);
-      return;
-    }
-
-    const buckets =
-      new Map<PageId, SearchHit[]>();
-    const nextHits: SearchHit[] = [];
-
-    pageGraph.pages.forEach(
-      (page, pageIndex) => {
-        const pageHits =
-          SearchIndexer.searchPage(
-            activeRevisionId,
-            page.pageId,
-            pageIndex + 1,
-            searchQuery,
-            options,
-          );
-        if (pageHits.length > 0) {
-          buckets.set(
-            page.pageId,
-            pageHits,
-          );
-          nextHits.push(...pageHits);
-        }
-      },
+        ),
     );
-
-    incrementalHitsRef.current =
-      buckets;
-    searchSignatureRef.current =
-      createSearchSignature(
-        searchQuery,
-        options,
-      );
-    setHits(nextHits);
-    setIsSearching(!progress.complete);
+    setIsSearching(
+      Boolean(searchQuery.trim())
+      && !progress.complete,
+    );
   }, [
     activeRevisionId,
     pageGraph,
-    createSearchSignature,
     setHits,
     setIndexProgress,
     setIsSearching,
@@ -198,10 +151,11 @@ export const SearchPanel: React.FC = () => {
 
   const publishIndexedPageResults =
     useCallback((
-      pageId: PageId,
+      pageId: Parameters<
+        IncrementalSearchResults['updatePage']
+      >[2],
       pageNumber: number,
-      progress:
-        typeof EMPTY_SEARCH_INDEX_PROGRESS,
+      progress: SearchIndexProgress,
     ) => {
       if (!activeRevisionId || !pageGraph) {
         return;
@@ -211,55 +165,28 @@ export const SearchPanel: React.FC = () => {
         useSearchStore
           .getState()
           .query;
-      const options =
-        searchOptionsRef.current;
       if (!searchQuery.trim()) {
         setIsSearching(false);
         return;
       }
 
-      const signature =
-        createSearchSignature(
-          searchQuery,
-          options,
-        );
-      if (
-        searchSignatureRef.current
-        !== signature
-      ) {
+      const nextHits =
+        incrementalResultsRef.current
+          .updatePage(
+            activeRevisionId,
+            pageGraph,
+            pageId,
+            pageNumber,
+            searchQuery,
+            searchOptionsRef.current,
+          );
+      if (nextHits === null) {
         publishSearchResults(
           searchQuery,
-          options,
         );
         return;
       }
 
-      const pageHits =
-        SearchIndexer.searchPage(
-          activeRevisionId,
-          pageId,
-          pageNumber,
-          searchQuery,
-          options,
-        );
-      if (pageHits.length > 0) {
-        incrementalHitsRef.current.set(
-          pageId,
-          pageHits,
-        );
-      } else {
-        incrementalHitsRef.current.delete(
-          pageId,
-        );
-      }
-
-      const nextHits =
-        pageGraph.pages.flatMap(
-          (page) =>
-            incrementalHitsRef.current
-              .get(page.pageId)
-            ?? [],
-        );
       setHits(nextHits);
       setIsSearching(
         !progress.complete,
@@ -267,7 +194,6 @@ export const SearchPanel: React.FC = () => {
     }, [
       activeRevisionId,
       pageGraph,
-      createSearchSignature,
       publishSearchResults,
       setHits,
       setIsSearching,
