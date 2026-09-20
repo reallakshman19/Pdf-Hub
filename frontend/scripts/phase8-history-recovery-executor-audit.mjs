@@ -144,6 +144,9 @@ requireContains(executor, executorPath, [
   "'REVISION_STORE_UNAVAILABLE'",
   "documentBus.emit({",
   "type: 'DOCUMENT_REPLACED'",
+  'materializeDocumentSource',
+  'recoveryRevision:',
+  'entry.afterRevision.revisionId',
 ]);
 requireOrder(
   executor,
@@ -172,6 +175,7 @@ requireContains(commandTypes, commandTypesPath, [
   "'normal'",
   "'recovery-replay'",
   'executionMode?: CommandExecutionMode',
+  'recoveryRevision?: {',
 ]);
 
 const transactionPath =
@@ -184,6 +188,10 @@ requireContains(transaction, transactionPath, [
   '? await prepareHistoryJournalMutation({',
   'if (recordHistory) {',
   "input.executionMode !== 'recovery-replay'",
+  'recoveryRevision?: {',
+  'Recovery replay requires authoritative immutable revision bytes.',
+  'const effectiveAfterBytes =',
+  'recoveryRevision.revisionId',
 ]);
 requireOrder(
   transaction,
@@ -235,6 +243,8 @@ requireContains(
     "executionMode:",
     "'recovery-replay'",
     'not.toHaveBeenCalled()',
+    'rejects recovery replay when authoritative revision bytes are missing',
+    'recoveryRevision:',
   ],
 );
 
@@ -287,6 +297,8 @@ requireContains(
     'fails before mutation when a planned replay entry changes in durable journal storage',
     'recovered-annotation',
     'sha256:stale-ocr-fingerprint',
+    'input.recoveryRevision',
+    'ACTIVE_REVISION_ID',
   ],
 );
 
