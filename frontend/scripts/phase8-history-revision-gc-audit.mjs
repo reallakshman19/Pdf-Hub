@@ -289,7 +289,7 @@ requireContains(
   [
     'acquireRevisionStoreExclusiveLease',
     'const revisionLease =',
-    'publishMutationRevision(',
+    'publishedRevisionId = await publishMutationRevision(',
     'await preparedJournal.store.save(',
     'revisionLease?.release()',
   ],
@@ -298,7 +298,7 @@ requireOrder(
   mutation,
   mutationPath,
   'const revisionLease =',
-  'publishMutationRevision(',
+  'publishedRevisionId = await publishMutationRevision(',
 );
 requireOrder(
   mutation,
