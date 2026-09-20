@@ -1,5 +1,8 @@
 import type { PdfRect } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 import type { WriterSelectionActionResult } from './writerSelectionActions';
 
 export interface WriterGeometryPatch {
@@ -47,7 +50,8 @@ export async function updateActiveWriterElementGeometry(
   }
 
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer geometry update',
       (state) => {
         const element = state.elements.find(
           (candidate) =>
