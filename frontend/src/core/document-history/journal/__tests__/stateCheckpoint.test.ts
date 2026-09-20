@@ -118,7 +118,7 @@ function legacyPayload(
 }
 
 describe('history state checkpoint payload', () => {
-  it('creates recovery-complete v2 state without PDF or revision backing', () => {
+  it('accepts clone-safe annotations and Writer asset references in recovery-complete v2 state without PDF or revision backing', () => {
     const payload = createHistoryStateCheckpointPayload(
       historyState(),
     );
