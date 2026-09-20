@@ -1,0 +1,126 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5C1-001",
+    "branch": "phase8/history-recovery-checkpoints-v2",
+    "base_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2C3",
+    "previous_join": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-recovery-checkpoints-v2",
+    "material_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
+    "base_branch": "main",
+    "base_observed_ref": "52b10a3f0085fa8a3bd9a7a65831ffa7e68c8fa3",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 272,
+  "outcome": {
+    "engineering": [
+      "New durable state checkpoints use a backward-compatible recovery payload v2 containing PageGraph, navigation, document identity, annotations, Writer and OCR state.",
+      "Legacy v1 checkpoint payloads remain valid and cloneable.",
+      "CHECKPOINT_REQUIRED binary journal barriers receive the committed transaction's full after-state before durable manifest save.",
+      "Recovery payloads retain revision identity only through the checkpoint revision reference and reject embedded binary/data-URI state."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make Phase 8E barrier checkpoints sufficient for future crash-recovery planning without introducing recovery execution yet.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Phase 8E.5B3C2C3.",
+    "why_this_work_exists": "Current v1 state checkpoint payloads retain only annotations and Writer state, while binary barriers contain no application-state payload, so a future recovery executor cannot reconstruct PageGraph/navigation/OCR coherently from a barrier checkpoint.",
+    "deliberate_non_goals": [
+      "No command replay executor.",
+      "No recovery UI or automatic restore.",
+      "No PERIODIC checkpoint cadence.",
+      "No revision enumeration, pruning or garbage collection.",
+      "No PDF/revision bytes in checkpoint payloads."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Checkpoint payload v2 contains page count, PageGraph, document key, selected/current page anchors, annotations, Writer state and OCR page-anchored state without PDF bytes.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-06"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Existing v1 checkpoint payloads continue to validate and load.",
+      "weight": 15,
+      "verification": ["TEST-01", "TEST-03", "TEST-06"]
+    },
+    {
+      "id": "AC-03",
+      "description": "State-only durable transactions persist recovery-complete v2 barrier payloads.",
+      "weight": 20,
+      "verification": ["TEST-04", "TEST-06"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Binary CHECKPOINT_REQUIRED mutations attach the committed transaction after-state to their barrier checkpoint before manifest save.",
+      "weight": 25,
+      "verification": ["TEST-05", "TEST-06"]
+    },
+    {
+      "id": "AC-05",
+      "description": "Journal persistence failure preserves existing rollback semantics.",
+      "weight": 10,
+      "verification": ["TEST-04", "TEST-05", "TEST-06"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "stateCheckpoint codec tests cover v2 shape, binary/data-URI rejection, alias-free cloning and legacy v1 validation.",
+      "proves": ["AC-01", "AC-02"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "journal manifest tests validate v1 and v2 state payloads while retaining admission checkpoint prohibition.",
+      "proves": ["AC-01", "AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "legacy v1 fixture remains accepted by assertHistoryStateCheckpointPayload and manifest validation.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "durable state transaction tests prove v2 checkpoint persistence and unchanged rollback on journal save failure.",
+      "proves": ["AC-03", "AC-05"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "MUST_PASS",
+      "method": "document transaction history tests prove donor/resource barrier checkpoints receive the committed full after-state before journal save and journal failure still rolls back application/history state.",
+      "proves": ["AC-04", "AC-05"]
+    },
+    {
+      "id": "TEST-06",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5c1 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "Phase 8E.5C2 recovery planner/restore executor over recovery-complete checkpoints, subject to roadmap/frontier reconciliation after 8E.5C1."
+  }
+}
