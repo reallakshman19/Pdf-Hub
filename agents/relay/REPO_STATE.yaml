@@ -55,37 +55,38 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "STEP-05: make certify:phase8g consume exact-head benchmark evidence and retain truthful NOT_RUN behavior until a usable runner executes TEST-04/TEST-05. Product material through STEP-04 is frozen at 3ffb3727b01cf535ebbf4ae47af5902fafd8c915; Relay-only evidence tail may advance independently."
+      "next_action": "Execute `npm run certify:phase8g` on a usable exact-head runner at product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af. The chain now performs predecessor certification, static audit, focused regressions, build, full Phase 8G benchmarks and exact-head evidence certification. If it executes, reconcile TEST-04/TEST-05 results, measured supported limits, QRV/checkpoint/progress and delivery. Do not make further performance claims before execution."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "The WP-8F active-query repeated-rescan defect is remediated in source at product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
+        "The WP-8F active-query repeated-rescan defect is remediated in source by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
         "Incremental indexing scheduler state checks use metadata-only getPageState() rather than deep-cloning indexed text records.",
-        "STEP-03/04 executable measurement drivers now exist for renderer/search, browser navigation/heap/long tasks, mutation/save and canonical recovery, but no measurements have executed.",
-        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is explicitly measured separately from range-backed viewing.",
-        "ODR-0002 is an owner-directed protocol exception. No DISC-8G, QUAL-8G, TC-8G, TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY claim exists.",
-        "GitHub Actions #183 still prevents runner execution; exact material-head jobs at 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 have runner_id 0 and zero steps."
+        "STEP-03/04 executable measurement drivers exist for Node renderer/search, Chromium render/navigation/heap/long tasks, mutation/save and canonical recovery.",
+        "STEP-05 now requires benchmark:phase8g plus exact-head Node/Chromium PASS evidence before certify:phase8g can complete successfully.",
+        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is measured separately from range-backed viewing.",
+        "ODR-0002 remains an owner-directed qualification-bypass exception; no DISC-8G, QUAL-8G, TC-8G, TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY claim exists.",
+        "GitHub Actions #183 still prevents runner execution; exact product-head jobs at 2bd1333d158897bc9c3e91dc3fb731e9b396a1af have runner_id 0 and zero steps."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Owner-directed WP-8G implementation is present through STEP-04 at product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915. DOBS-8G-004 records exact material-head provider readback. Deterministic corpus, O(N) search remediation, Node/browser performance drivers, mutation/save/recovery drivers, evaluator and documentation exist. Executable typecheck/tests, fixture generation and benchmark runs remain NOT_RUN; no acceptance progress is earned.",
+      "summary": "Owner-directed WP-8G implementation and STEP-05 certification wiring are present at product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af. DOBS-8G-005 records exact-head provider readback. The full fixture, remediation, benchmark, evaluator, exact-head evidence gate and documentation surfaces exist, but no repository command or benchmark has executed on a usable runner. Acceptance remains 0%.",
       "not_run": [
         {
           "command": "npm run certify:phase8g",
-          "reason": "No usable runner was allocated; exact material-head GitHub jobs completed with runner_id 0 and steps [].",
-          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
-        },
-        {
-          "command": "npm run generate:phase8g-fixtures",
-          "reason": "No runnable repository checkout with installed dependencies is available in the execution container.",
-          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
+          "reason": "Exact product-head GitHub jobs completed with runner_id 0 and zero steps under #183.",
+          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
         },
         {
           "command": "npm run benchmark:phase8g",
-          "reason": "STEP-03/04 benchmark drivers are implemented but have not executed; supported limits remain unclaimed.",
-          "head_ref": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
+          "reason": "The benchmark suite is wired into certification but has not executed on a usable runner.",
+          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
+        },
+        {
+          "command": "npm run certify:phase8g:evidence",
+          "reason": "No Node/Chromium benchmark reports exist from an executed exact-head run, so the evidence gate has not executed.",
+          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
         }
       ]
     },
@@ -112,7 +113,7 @@
       "EP-8G-001 and QSET-8G-001 remain the semantic route contract.",
       "ODR-0002 records the owner's explicit instruction to proceed without waiting for fresh-candidate DISC/QUAL/TC; this is a protocol exception rather than qualification evidence.",
       "Draft PR #285 tracks the active WP-8G material and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation.",
-      "DOBS-8G-004 observes product material head 3ffb3727b01cf535ebbf4ae47af5902fafd8c915 with STEP-03/04 measurement surfaces implemented and executable evidence still NOT_RUN."
+      "DOBS-8G-005 observes product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af with STEP-01 through STEP-05 wiring present and all executable evidence still NOT_RUN."
     ],
     "observed": {
       "issue": 284,
@@ -125,8 +126,8 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8G-004",
-      "path": "agents/relay/delivery/DOBS-8G-004.yaml"
+      "id": "DOBS-8G-005",
+      "path": "agents/relay/delivery/DOBS-8G-005.yaml"
     },
     "observations": [
       {
@@ -144,6 +145,10 @@
       {
         "id": "DOBS-8G-004",
         "path": "agents/relay/delivery/DOBS-8G-004.yaml"
+      },
+      {
+        "id": "DOBS-8G-005",
+        "path": "agents/relay/delivery/DOBS-8G-005.yaml"
       }
     ]
   },
