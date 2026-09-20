@@ -359,12 +359,14 @@
     {
       "id": "AC-9-01",
       "ep_id": "EP-9-001",
-      "status": "NOT_STARTED",
+      "status": "IN_PROGRESS",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "Phase 9 corpus/manifest implementation has not started; fresh phase-transition qualification is pending."
+        "STEP-9-01 corpus substrate exists on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd: 12 manifest entries, 9 generator-backed and 3 required-pending.",
+        "Two retained candidate PDFs are present but are not acceptance evidence until provenance/redistribution authority and semantic fixture content are independently verified.",
+        "Pinned-protocol takeover must be refreshed through QSET-9-002 before further material writes. No AC-9-01 weight is earned."
       ]
     },
     {
@@ -375,7 +377,7 @@
       "total_weight": 25,
       "percent": 0,
       "basis": [
-        "Semantic inventory/diff and repeat-cycle implementation has not started; fresh qualification is pending."
+        "No acceptance weight is earned for AC-9-02; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
       ]
     },
     {
@@ -386,7 +388,7 @@
       "total_weight": 25,
       "percent": 0,
       "basis": [
-        "No Phase 9 mutation hardening has started; fresh qualification is pending."
+        "No acceptance weight is earned for AC-9-03; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
       ]
     },
     {
@@ -397,7 +399,7 @@
       "total_weight": 15,
       "percent": 0,
       "basis": [
-        "Complex-font/encrypted/signed/malformed support semantics have not been implemented; fresh qualification is pending."
+        "No acceptance weight is earned for AC-9-04; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
       ]
     },
     {
@@ -408,7 +410,7 @@
       "total_weight": 15,
       "percent": 0,
       "basis": [
-        "Phase 9 audit/certification/delivery evidence has not been produced."
+        "No acceptance weight is earned for AC-9-05; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
       ]
     }
   ]
