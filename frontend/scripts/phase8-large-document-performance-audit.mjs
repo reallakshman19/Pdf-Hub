@@ -491,6 +491,7 @@ const benchmarkModuleLimits = [
   [browserSupportPath, 180],
   [browserBenchmarkPath, 500],
   [runnerPath, 180],
+  [mergePath, 180],
   [harnessPath, 600],
 ];
 
