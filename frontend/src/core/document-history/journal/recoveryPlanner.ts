@@ -111,47 +111,80 @@ export function planHistoryRecovery(
   }
 
   const diagnostics: HistoryRecoveryDiagnostic[] = [];
+  const checkpointCandidates =
+    manifest.checkpoints.flatMap(
+      (checkpoint, manifestIndex) => {
+        if (!checkpoint.statePayload) {
+          return [];
+        }
+        if (
+          checkpoint.statePayload.schemaVersion
+          !== HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION
+        ) {
+          diagnostics.push({
+            code: 'RECOVERY_CHECKPOINT_INVALID',
+            checkpointId:
+              checkpoint.checkpointId,
+            message:
+              `Checkpoint ${checkpoint.checkpointId} uses legacy state payload v${checkpoint.statePayload.schemaVersion}; it is not recovery-complete.`,
+          });
+          return [];
+        }
+        if (!checkpoint.transactionId) {
+          diagnostics.push({
+            code: 'RECOVERY_CHECKPOINT_INVALID',
+            checkpointId:
+              checkpoint.checkpointId,
+            message:
+              `Checkpoint ${checkpoint.checkpointId} has recovery state but no transaction cursor anchor.`,
+          });
+          return [];
+        }
+
+        const entryIndex =
+          manifest.entries.findIndex(
+            (entry) =>
+              entry.transactionId
+              === checkpoint.transactionId,
+          );
+        if (entryIndex < 0) {
+          diagnostics.push({
+            code: 'RECOVERY_CHECKPOINT_INVALID',
+            checkpointId:
+              checkpoint.checkpointId,
+            transactionId:
+              checkpoint.transactionId,
+            message:
+              `Checkpoint ${checkpoint.checkpointId} references missing transaction ${checkpoint.transactionId}.`,
+          });
+          return [];
+        }
+        if (entryIndex > activeIndex) {
+          return [];
+        }
+
+        return [{
+          checkpoint,
+          entryIndex,
+          manifestIndex,
+        }];
+      },
+    )
+      .sort(
+        (left, right) =>
+          right.entryIndex
+            - left.entryIndex
+          || right.manifestIndex
+            - left.manifestIndex,
+      );
 
   for (
-    let checkpointIndex = manifest.checkpoints.length - 1;
-    checkpointIndex >= 0;
-    checkpointIndex -= 1
+    const {
+      checkpoint,
+      entryIndex:
+        checkpointEntryIndex,
+    } of checkpointCandidates
   ) {
-    const checkpoint = manifest.checkpoints[checkpointIndex];
-    if (!checkpoint?.statePayload) continue;
-    if (
-      checkpoint.statePayload.schemaVersion
-      !== HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION
-    ) {
-      diagnostics.push({
-        code: 'RECOVERY_CHECKPOINT_INVALID',
-        checkpointId: checkpoint.checkpointId,
-        message:
-          `Checkpoint ${checkpoint.checkpointId} uses legacy state payload v${checkpoint.statePayload.schemaVersion}; it is not recovery-complete.`,
-      });
-      continue;
-    }
-    if (!checkpoint.transactionId) {
-      diagnostics.push({
-        code: 'RECOVERY_CHECKPOINT_INVALID',
-        checkpointId: checkpoint.checkpointId,
-        message:
-          `Checkpoint ${checkpoint.checkpointId} has recovery state but no transaction cursor anchor.`,
-      });
-      continue;
-    }
-
-    const checkpointEntryIndex = manifest.entries.findIndex(
-      (entry) =>
-        entry.transactionId === checkpoint.transactionId,
-    );
-    if (
-      checkpointEntryIndex < 0
-      || checkpointEntryIndex > activeIndex
-    ) {
-      continue;
-    }
-
     const validationErrors =
       validateRecoveryCheckpoint(
         manifest,
@@ -458,7 +491,17 @@ function validateWriter(
   graph: PageGraph<PageNode>,
   errors: string[],
 ): void {
+  if (
+    payload.writer.documentMode
+    === 'blankDocument'
+  ) {
+    errors.push(
+      'Recovery checkpoint cannot restore blank-document Writer state into a PDF-backed history session.',
+    );
+  }
+
   const ids = new Set<string>();
+  const selectedIds = new Set<string>();
 
   for (const element of payload.writer.elements) {
     if (!element.id || ids.has(element.id)) {
@@ -504,6 +547,12 @@ function validateWriter(
   }
 
   for (const selectedId of payload.writer.selectedIds) {
+    if (selectedIds.has(selectedId)) {
+      errors.push(
+        `Writer selected id ${selectedId} is duplicated.`,
+      );
+    }
+    selectedIds.add(selectedId);
     if (!ids.has(selectedId)) {
       errors.push(
         `Writer selected id ${selectedId} does not exist.`,
