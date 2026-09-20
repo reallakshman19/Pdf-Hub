@@ -42,13 +42,32 @@ The canonical mutation engine still opens from a complete `Uint8Array` and pdf-l
 
 Accordingly, range-backed viewing is not evidence that mutation/save is range bounded. Phase 8G must record full-materialization mutation/save cost, including latency and peak memory where instrumentation supports it.
 
+## Benchmark execution
+
+The full benchmark entrypoint is:
+
+- `npm run benchmark:phase8g`
+
+By default it generates the declared corpus, runs the Node production-path driver, runs the Chromium browser render/navigation driver, and evaluates each observation file against the checked-in budget manifest.
+
+The **Node production-path driver** measures source-backed PDF.js first-page readiness, current/nearby incremental indexing latency, pages/second, range diagnostics, query-change extraction reuse, cancellation/reprioritization, all required pdf-lib mutation/save operations, and canonical journal recovery plan → resolve → execute. Process RSS is sampled for an available memory ceiling.
+
+The **browser render/navigation driver** opens the generated PDF through the real application file flow, waits for rasterized page canvases, samples Chromium JS heap through CDP, reads the live PDF.js source diagnostics, drives physical page jumps through the real status-bar navigation control, and records Long Tasks API observations.
+
+Generated observations/reports live under `frontend/performance/results/` and are intentionally ignored by Git. They are evidence artifacts that must be attached or otherwise retained by the delivery/checkpoint process when used for acceptance.
+
+Targeted runs can set `PHASE8G_KINDS` and `PHASE8G_PAGES`. The runner also supports `PHASE8G_SKIP_GENERATE=1`, `PHASE8G_SKIP_NODE=1`, or `PHASE8G_SKIP_BROWSER=1` when deliberately isolating one measurement surface. Skipped surfaces do not count as executed acceptance evidence.
+
+`incremental_indexing`, `browser_navigation`, and `recovery_restore` are currently classified `OBSERVATION_ONLY`: the runner records their metrics, but no unsupported performance threshold is invented before real measurements establish the supported envelope. Existing checked thresholds still apply to active-query complexity, query-change extraction, range fraction, long-task duration, cancellation/reprioritization, and mutation/save truth fields.
+
 ## Certification commands
 
 - `npm run generate:phase8g-fixtures`
+- `npm run benchmark:phase8g`
 - `npm run audit:phase8-large-document-performance`
 - `npm run benchmark:phase8g:evaluate -- --input=<observation.json> --out=<report.json>`
 - `npm run certify:phase8g`
 
-The static audit validates the corpus/budget contract, the single-page search publication path, the 1,000-page matcher-count regression, range diagnostics, and the explicit mutation materialization boundary. The benchmark evaluator requires environment metadata and fixture identity, applies checked-in thresholds to independently captured observations, and emits `phase8g-benchmark-report-v1` PASS/FAIL JSON.
+The static audit validates the corpus/budget contract, the single-page search publication path, the 1,000-page matcher-count regression, both benchmark drivers, range diagnostics, recovery measurement path, and the explicit mutation materialization boundary. The benchmark evaluator requires environment metadata and fixture identity, applies checked-in thresholds to independently captured observations, and emits `phase8g-benchmark-report-v1` PASS/FAIL JSON.
 
 Measured supported limits remain unclaimed until benchmark execution produces exact-head result artifacts.
