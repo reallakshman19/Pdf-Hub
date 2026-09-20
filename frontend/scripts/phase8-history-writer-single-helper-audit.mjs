@@ -182,8 +182,6 @@ requireContains(geometryPanel, geometryPanelPath, [
 ]);
 
 for (const deferredPath of [
-  'src/core/writer-v2/writerSelectionActions.ts',
-  'src/core/writer-v2/writerClipboardActions.ts',
   'src/core/ocr/ocrWriterBridge.ts',
   'src/core/writer-v2/writerLegacyObjectConsolidation.ts',
 ]) {
