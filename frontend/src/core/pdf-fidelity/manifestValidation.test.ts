@@ -151,10 +151,13 @@ describe(
       () => {
         const mutations =
           allMutationExpectations();
-        const {
-          rotate: _rotate,
-          ...withoutRotate
-        } = mutations;
+        const withoutRotate =
+          { ...mutations } as Partial<
+            FidelityFixtureManifestEntry[
+              'mutations'
+            ]
+          >;
+        delete withoutRotate.rotate;
 
         const manifest =
           {
