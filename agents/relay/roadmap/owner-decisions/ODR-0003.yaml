@@ -1,0 +1,51 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0003",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "DEFERRAL",
+    "statement": "Skip the Phase 8G certification run for now, record it as a pending item on the GitHub issue, and proceed with the next roadmap work.",
+    "source": "Owner instruction received 2026-09-20T19:45:35Z."
+  },
+  "effects": {
+    "requirement_disposition": "PENDING_NOT_SATISFIED",
+    "grants_material_write_authority": false,
+    "pending_items": [
+      "Run npm run certify:phase8g on an exact-head usable runner for product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af.",
+      "Retain and reconcile Node/Chromium benchmark reports plus phase8g-certification-evidence-v1.",
+      "Reconcile TEST-04/TEST-05, measured supported limits, QRV/checkpoint/progress and PR #285 delivery state."
+    ]
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "EP",
+      "PHASE",
+      "PROGRAM"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-008"
+    ],
+    "work_packages": [
+      "WP-8G"
+    ],
+    "execution_packages": [
+      "EP-8G-001"
+    ],
+    "issues": [
+      "ISSUE-284"
+    ]
+  },
+  "required_reconciliation": [
+    "Keep issue #284 open with the deferred certification recorded as PENDING_NOT_SATISFIED.",
+    "Do not award WP-8G acceptance or progress from implementation/static review alone.",
+    "Preserve product material head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af as the exact basis to certify when the pending item resumes.",
+    "Any move to later roadmap work must be represented by a separate Owner-intent roadmap mutation rather than by treating this deferral as satisfaction."
+  ],
+  "status": "APPLIED"
+}
