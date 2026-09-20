@@ -416,10 +416,26 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:before',
       afterRevisionId: 'sha256:two',
       transactionId: 'tx-1',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:before',
+        'rotate-tx-1',
+        '2026-09-19T00:00:01.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:01.000Z',
     });
     expect(first).not.toBeNull();
     if (!first) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: first.manifest,
+        transactionId: 'tx-1',
+        after:
+          recoveryAfterState(
+            'sha256:two',
+          ),
+      }),
+    ).toBe(true);
     await first.store.save(first.manifest);
 
     const second = await prepareHistoryJournalMutation({
@@ -429,10 +445,33 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:two',
       afterRevisionId: 'sha256:three',
       transactionId: 'tx-2',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:two',
+        'rotate-tx-2',
+        '2026-09-19T00:00:02.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:02.000Z',
+      checkpointPolicy: {
+        maxTransactionsSinceCheckpoint: 1,
+        maxJournalBytesSinceCheckpoint:
+          1_000_000,
+        maxElapsedMsSinceCheckpoint:
+          60_000,
+      },
     });
     expect(second).not.toBeNull();
     if (!second) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: second.manifest,
+        transactionId: 'tx-2',
+        after:
+          recoveryAfterState(
+            'sha256:three',
+          ),
+      }),
+    ).toBe(true);
     await second.store.save(second.manifest);
 
     const undone = await store.load('history-1');
