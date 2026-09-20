@@ -527,6 +527,14 @@ describe('executeHistoryRecovery', () => {
           expect(
             input.command.id,
           ).toBe(entry.command.id);
+          expect(
+            input.recoveryRevision,
+          ).toEqual({
+            revisionId:
+              ACTIVE_REVISION_ID,
+            bytes:
+              new Uint8Array([3]),
+          });
 
           useSessionStore.setState({
             documentKey:
