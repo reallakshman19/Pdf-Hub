@@ -396,6 +396,7 @@ async function applyMutation(
     nextPageGraph,
     ocrPagePolicy: options?.ocrPagePolicy,
     revisionMetadata: options?.revisionMetadata,
+    executionMode: input.executionMode,
     signal: input.signal,
   });
 }
