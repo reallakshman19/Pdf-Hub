@@ -45,7 +45,13 @@
         "authority_source",
         "downstream_consumer"
       ],
-      "evidence_required": true
+      "evidence_required": true,
+      "deterministic_expected": {
+        "production_entrypoint": "PdfCommand dispatch/document transaction enters the canonical PdfMutationEngine; Phase 9 corpus scripts/tests are verification support and do not replace production mutation authority.",
+        "state_owner": "PdfLibMutationEngine owns the loaded pdf-lib PDFDocument during a mutation session; DocumentSession/history own application revision state around commit.",
+        "authority_source": "Stable PageId/PageGraph owns page identity/order and the document transaction publishes immutable revision/history state.",
+        "downstream_consumer": "Saved output bytes are reopened for semantic inventory and independently consumed by PDF.js render/text/PageLabels checks."
+      }
     },
     {
       "id": "Q2",
@@ -87,7 +93,17 @@
         "intermediate_result",
         "expected_result"
       ],
-      "evidence_required": true
+      "evidence_required": true,
+      "deterministic_expected": {
+        "reconstruction_steps": [
+          "Read manifest availability for all 12 entries and count 9 generated plus 3 required-pending.",
+          "Observe two retained candidate PDFs exist outside manifest satisfaction: ArabicCIDTrueType.pdf and encrypted-with-images.pdf.",
+          "Require durable provenance/redistribution authority plus semantic inspection matching each fixture class before changing availability.",
+          "Observe no retained/generated signed-document fixture exists, so signed remains unsatisfied."
+        ],
+        "intermediate_result": "File presence can reduce sourcing work but cannot earn corpus coverage; complex-font/unicode and encrypted require validation/binding, while signed still requires a fixture source.",
+        "expected_result": "STEP-9-01 reaches corpus readiness only when all three pending entries have lawful provenance, exact required semantics, manifest binding and audit/test coverage; otherwise they remain required-pending."
+      }
     },
     {
       "id": "Q3",
@@ -109,7 +125,12 @@
         "protected_invariant",
         "falsifier"
       ],
-      "evidence_required": true
+      "evidence_required": true,
+      "deterministic_expected": {
+        "mutation_effect": "Prematurely promoting an unverified retained file creates false fidelity coverage and can make later structure-preservation results meaningless or legally unsafe.",
+        "protected_invariant": "Corpus readiness is earned only from durable provenance/redistribution authority plus independently verified fixture semantics/dispositions matching the manifest contract.",
+        "falsifier": "A fixture is counted as satisfied when provenance is absent, redistribution is not authorized, required CID/Unicode/encryption/signature semantics are not independently established, or observed content disagrees with the manifest."
+      }
     },
     {
       "id": "Q4",
@@ -131,7 +152,12 @@
         "predicted_result",
         "tolerance_or_exactness"
       ],
-      "evidence_required": true
+      "evidence_required": true,
+      "deterministic_expected": {
+        "independent_method": "Inspect retained PDFs independently of filenames/availability labels for required PDF structures and provenance, verify the signed fixture uses repository-owned or redistributable non-production certificate material, then run manifest validation and the Phase 9 corpus audit over the bound sources.",
+        "predicted_result": "Only retained candidates whose provenance and semantic structures match their manifest contracts become satisfied; the signed fixture remains pending until a compliant source exists; Phase 8G deferred evidence remains separate.",
+        "tolerance_or_exactness": "Fixture class/disposition/provenance checks are exact; no tolerance is allowed for missing required semantic structures or redistribution authority."
+      }
     },
     {
       "id": "Q5",
@@ -151,7 +177,13 @@
         "predicted_after",
         "verification"
       ],
-      "evidence_required": true
+      "evidence_required": true,
+      "deterministic_expected": {
+        "first_change": "After takeover certification, independently inspect and bind ArabicCIDTrueType.pdf and encrypted-with-images.pdf only if each satisfies provenance and semantic requirements; then add/source the signed fixture within STEP-9-01.",
+        "predicted_before": "The manifest has 9 generator-backed entries and 3 required-pending entries; two unbound retained candidates exist and no signed fixture is bound.",
+        "predicted_after": "Each validated retained candidate is bound with provenance and exact expectations, and the signed obligation is either satisfied by a compliant fixture or remains explicitly required-pending; no STEP-9-02 mutation work begins.",
+        "verification": "Run the focused manifest validator and phase9 fidelity-corpus audit, plus independent low-level structure/provenance checks for each retained/signed fixture before counting coverage."
+      }
     }
   ],
   "prepared_by": {
