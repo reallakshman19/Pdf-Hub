@@ -72,6 +72,11 @@ export interface WriterV2StoreState extends WriterV2State {
   dispatchWriterCommandDurable: (
     command: WriterCommand,
   ) => Promise<WriterV2CommandResult>;
+  dispatchWriterCommandDurableLatest: (
+    factory: (
+      state: WriterV2StoreState,
+    ) => WriterCommand | null,
+  ) => Promise<WriterV2CommandResult>;
   undoWriter: () => WriterV2CommandResult;
   redoWriter: () => WriterV2CommandResult;
 
@@ -211,8 +216,41 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       return get().dispatchWriterCommand(command);
     }
 
-    let committedResult: WriterV2CommandResult | null =
-      null;
+    return get().dispatchWriterCommandDurableLatest(
+      () => command,
+    );
+  },
+
+  dispatchWriterCommandDurableLatest: async (
+    factory,
+  ) => {
+    const initialStore = get();
+    const initialSession =
+      useSessionStore.getState();
+
+    if (
+      !usesDurableWriterHistory(
+        initialStore,
+        initialSession,
+      )
+    ) {
+      const command = factory(initialStore);
+
+      if (!command) {
+        return {
+          state: writerCommandState(initialStore),
+          changed: false,
+          reason:
+            'Writer command factory produced no command.',
+        };
+      }
+
+      return get().dispatchWriterCommand(command);
+    }
+
+    let committedResult:
+      | WriterV2CommandResult
+      | null = null;
 
     await commitDurableStateMutation(async () => {
       const beforeStore = get();
@@ -224,6 +262,36 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
           session,
         )
       ) {
+        const fallbackCommand =
+          factory(beforeStore);
+
+        committedResult = fallbackCommand
+          ? get().dispatchWriterCommand(
+              fallbackCommand,
+            )
+          : {
+              state:
+                writerCommandState(beforeStore),
+              changed: false,
+              reason:
+                'Writer command factory produced no command.',
+            };
+        return null;
+      }
+
+      const command = factory(beforeStore);
+
+      if (!command) {
+        committedResult = {
+          state: writerCommandState(beforeStore),
+          changed: false,
+          reason:
+            'Writer command factory produced no command.',
+        };
+        return null;
+      }
+
+      if (!isMutationCommand(command)) {
         committedResult =
           get().dispatchWriterCommand(command);
         return null;
