@@ -347,6 +347,39 @@ function evaluate(measurement) {
         );
       }
     }
+    for (
+      const field
+      of [
+        'input_full_byte_materialization',
+        'output_full_byte_materialization',
+      ]
+    ) {
+      if (
+        metrics[field] !== undefined
+        && typeof metrics[field]
+          !== 'boolean'
+      ) {
+        failures.push(
+          field + ' must be boolean',
+        );
+      }
+    }
+    if (
+      metrics.peak_memory_bytes
+        !== undefined
+      && (
+        typeof metrics.peak_memory_bytes
+          !== 'number'
+        || !Number.isFinite(
+          metrics.peak_memory_bytes,
+        )
+        || metrics.peak_memory_bytes < 0
+      )
+    ) {
+      failures.push(
+        'peak_memory_bytes must be a non-negative number',
+      );
+    }
   } else {
     failures.push(
       'unknown benchmark operation '
