@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "03bc0be431e94100fdec471547e861454a0843f5"
+    "basis_ref": "6cf08a032e0309570672898d4f4900f40c40e5b1"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -62,7 +62,7 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 0,
+    "ep_percent": 95,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
@@ -70,18 +70,28 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Implement Phase 8E.5C4 mechanical revision/journal inventory, pure reachability planning, runtime pins and serialized fail-closed revision GC. Do not advance to WP-8F until C4 and WP-8E closure certification are complete."
+      "next_action": "Obtain exact-head Phase 8E.5C4 runner-executed certification; fix any real type/test/audit/build failure. If #183 again prevents runner allocation, record terminal NOT_RUN evidence and hand off to WP-8E closure/recovery certification."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
       "findings": [
-        "The primary browser revision store is shared across documents, so GC must inventory all retained journals for the target revision store; active-journal-only GC is unsafe."
+        "Static C4 and inherited Phase 8 guard simulation is clean; OpfsRevisionStore remains within the inherited 300-line boundary at 294 lines.",
+        "Revision/journal inventory is mechanical; reachability and destructive policy live in document-history.",
+        "Persistent GC requires origin-wide Web Locks and shares the publication exclusion boundary with admission/canonical mutations.",
+        "Persistent sessions without durable journal coverage hold a cross-context GC blocker; GC fails closed while such a session is active.",
+        "GC revalidates complete references, storage inventory and active-session identity before removal; partial removal is retry-safe."
       ]
     },
     "evidence": {
-      "state": "PENDING",
-      "summary": "Phase 8E.5C4 is the serial WP-8E frontier after merged #277.",
-      "not_run": []
+      "state": "PARTIAL",
+      "summary": "Phase 8E.5C4 inventory, reachability, pins, cross-context exclusion, unjournaled-session blockers, revalidated sweep, tests, docs, anti-drift audit and certify:phase8e5c4 are implemented. Executable certification remains blocked by #183.",
+      "not_run": [
+        {
+          "command": "GitHub Actions exact-head certification surfaces",
+          "reason": "At 88be1d7e34c8c8454dbaedd692cecbc7945d14dd, Guards 35507801046, Frontend Certify 35507801127, certify-writer-overlay-v2 35507801051 and Frontend CI 35507801052 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "88be1d7e34c8c8454dbaedd692cecbc7945d14dd"
+        }
+      ]
     },
     "stop": {
       "active": false,
@@ -114,10 +124,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": null,
+      "pull_request": 279,
       "issue": 278,
-      "head_ref": "03bc0be431e94100fdec471547e861454a0843f5",
-      "state": "BRANCH_ACTIVE"
+      "head_ref": "6cf08a032e0309570672898d4f4900f40c40e5b1",
+      "state": "DRAFT_PENDING_EXECUTABLE_CERTIFICATION"
     },
     "observations": []
   },
