@@ -126,6 +126,8 @@ describe('OcrWriterInsertPanel', () => {
         }),
       ]);
 
+    let attempts = 0;
+
     render(
       <OcrWriterInsertPanel
         queue={queueState}
@@ -133,6 +135,7 @@ describe('OcrWriterInsertPanel', () => {
           queueState = next;
         }}
         onInsertElements={async () => {
+          attempts += 1;
           throw new Error(
             'journal write failed',
           );
@@ -147,10 +150,11 @@ describe('OcrWriterInsertPanel', () => {
     );
 
     await waitFor(() => {
-      expect(
-        queueState.candidates,
-      ).toHaveLength(1);
+      expect(attempts).toBe(1);
     });
+    expect(
+      queueState.candidates,
+    ).toHaveLength(1);
   });
 
   it('warns when invalid candidate exists', () => {
