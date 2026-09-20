@@ -1,0 +1,125 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2C3-001",
+    "branch": "phase8/history-writer-final-bridges-durable",
+    "base_ref": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2C2",
+    "previous_join": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-final-bridges-durable",
+    "material_ref": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
+    "base_branch": "main",
+    "base_observed_ref": "9b01e88c6a515dc6e6e895a6e22bda952f8e988b",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 270,
+  "outcome": {
+    "engineering": [
+      "OCR Writer insertion awaits durable dispatch and reports failure truthfully.",
+      "Legacy object consolidation uses one atomic update-and-add Writer command built from latest canonical state.",
+      "Public synchronous PDF-overlay Writer mutations are rejected while durable fallback remains compatible.",
+      "Final source audit permits only selection-only synchronous dispatch plus explicit blank-document insertion surfaces."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Close the final active synchronous PDF-overlay Writer mutation paths without breaking blank-document-local authoring.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged C2C2 batch Writer durability.",
+    "why_this_work_exists": "OCR insertion and legacy consolidation were the last production mutation bridges still capable of bypassing durable journaled Writer history.",
+    "deliberate_non_goals": [
+      "No command replay.",
+      "No revision GC.",
+      "No OCR recognition/model changes.",
+      "No Writer V1 Save/export convergence."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "OCR insertion awaits durable Writer commit and preserves retryable queue state on failure.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-03", "TEST-06"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Legacy consolidation is one atomic mixed update-and-add command built from latest canonical Writer state.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-04", "TEST-06"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Atomic mixed batch validates all updates/additions before applying any state.",
+      "weight": 15,
+      "verification": ["TEST-02", "TEST-06"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Public synchronous mutation dispatch is rejected for backed PDF-overlay sessions while durable compatibility fallback remains operational.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-05", "TEST-06"]
+    },
+    {
+      "id": "AC-05",
+      "description": "Active synchronous Writer dispatch is limited to selection-only commands and explicit blank-document insertion surfaces.",
+      "weight": 10,
+      "verification": ["TEST-01", "TEST-06"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Final static audit verifies OCR/consolidation durability, store sync guard and repository-wide synchronous callsite classification.",
+      "proves": ["AC-01", "AC-02", "AC-04", "AC-05"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "writerCommandStore tests verify successful atomic update+add and all-or-nothing rejection.",
+      "proves": ["AC-02", "AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "OCR bridge/panel tests verify durable failure truth and queue retention.",
+      "proves": ["AC-01"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Legacy consolidation tests verify one undo unit and no source mutation when durable dispatch fails.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "MUST_PASS",
+      "method": "Writer durable-history tests verify public sync rejection, compatibility fallback and one durable transaction for atomic mixed batch.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-06",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2c3 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "Advance Phase 8E beyond Writer mutation-bridge migration to the next durable-history frontier defined by #218 / roadmap"
+  }
+}
