@@ -304,6 +304,123 @@ describe('document transaction history memory', () => {
     });
   });
 
+  it('recovery replay mutates the active revision without duplicating history, journal, or annotation persistence', async () => {
+    const revisionStore =
+      new MemoryRevisionStore({
+        id: 'recovery-replay-revisions',
+      });
+    await revisionStore.commit({
+      revisionId: 'hash-1',
+      source: new MemorySource({
+        id: 'recovery-replay-before',
+        bytes: Uint8Array.from([1]),
+      }),
+    });
+    await revisionStore.commit({
+      revisionId: 'hash-2',
+      source: new MemorySource({
+        id: 'recovery-replay-after',
+        bytes: Uint8Array.from([2]),
+      }),
+    });
+    registerWorkingRevisionStore(
+      revisionStore,
+    );
+
+    const journalStore =
+      new MemoryHistoryJournalStore({
+        id: 'recovery-replay-journal',
+      });
+    registerHistoryJournalStore(
+      journalStore,
+    );
+    await journalStore.save(
+      createInitialHistoryJournalManifest({
+        journalId:
+          'history-recovery-replay',
+        revisionStoreId:
+          revisionStore.id,
+        revisionId: 'hash-1',
+        fileName: 'fixture.pdf',
+      }),
+    );
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'hash-1',
+      revisionStoreId:
+        revisionStore.id,
+      originalRevisionId: 'hash-1',
+      activeRevisionId: 'hash-1',
+      historyJournalStoreId:
+        journalStore.id,
+      historyJournalId:
+        'history-recovery-replay',
+      historyJournalPersistent: false,
+      fileName: 'fixture.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'stable-page',
+          documentKey: 'hash-1',
+          originalPageNumber: 1,
+          currentIndex: 0,
+          width: 595,
+          height: 842,
+          rotation: 0,
+        }],
+      },
+    });
+
+    const result =
+      await commitDocumentMutation({
+        command: command(
+          'hash-1',
+          'recovery-replay-rotate',
+        ),
+        label: 'Recovery replay rotation',
+        beforeBytes:
+          Uint8Array.from([1]),
+        afterBytes:
+          Uint8Array.from([2]),
+        revisionMetadata: {
+          beforePageCount: 1,
+          afterPageCount: 1,
+        },
+        executionMode:
+          'recovery-replay',
+      });
+
+    expect(result).toMatchObject({
+      nextDocumentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+    });
+    expect(
+      useSessionStore.getState(),
+    ).toMatchObject({
+      documentKey: 'hash-2',
+      activeRevisionId: 'hash-2',
+    });
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toEqual([]);
+    expect(
+      useHistoryStore.getState().redoStack,
+    ).toEqual([]);
+    expect(
+      persistenceMocks.saveAnnotations,
+    ).not.toHaveBeenCalled();
+    await expect(
+      journalStore.load(
+        'history-recovery-replay',
+      ),
+    ).resolves.toMatchObject({
+      activeRevisionId: 'hash-1',
+      activeTransactionId: null,
+      entries: [],
+    });
+  });
+
   it('attaches recovery-complete after-state to a binary checkpoint barrier before journal save', async () => {
     const revisionStore = new MemoryRevisionStore({
       id: 'barrier-revisions',
