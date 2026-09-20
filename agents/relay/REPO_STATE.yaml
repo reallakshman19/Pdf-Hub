@@ -24,9 +24,9 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "NONE",
-    "path": null,
-    "state": "NONE",
+    "id": "EP-9-001",
+    "path": "agents/relay/execution-packages/EP-9-001.yaml",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -52,23 +52,28 @@
   },
   "status_planes": {
     "execution": {
-      "state": "RECONCILING",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "READ_ONLY",
-      "next_action": "Create the Phase 9 successor branch and semantic EP/QSET for WP-009 / issue #286. Phase 8G certification remains deferred under ODR-0003 and must not be treated as complete."
+      "next_action": "A fresh incoming candidate must reconstruct RM-0003 / issue #286 / EP-9-001 from repository state, answer QSET-9-001, obtain independent QUAL and route-bound TC, and reach MATERIAL_WRITE_READY before Phase 9 product writes."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Phase 8G executable certification remains PENDING_NOT_SATISFIED under ODR-0003 and issue #284.",
-        "RM-0003 resequences WP-009 as the sole frontier without awarding Phase 8G acceptance.",
-        "Phase 9 requires fresh qualification because the phase and fidelity/oracle boundary change."
+        "Phase 9 phase-transition qualification is required and not yet satisfied.",
+        "Known pre-Phase9 document-level fidelity risks include page-only rebuild loss of catalog structures, complex-font/Unicode limits, and explicit signed/encrypted/malformed support semantics.",
+        "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284 and must not be reported as complete."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 8G implementation/certification wiring is frozen, but its exact-head executable certification is Owner-deferred. RM-0003 moves the serial frontier to WP-009 / Phase 9. No Phase 9 product implementation or acceptance evidence exists yet.",
+      "summary": "RM-0003, issue #286, EP-9-001 and QSET-9-001 prepare the Phase 9 fidelity-laboratory route. No Phase 9 product implementation, QUAL/TC, acceptance or executable certification evidence exists yet. Phase 8G certification remains Owner-deferred and pending.",
       "not_run": [
+        {
+          "command": "Phase 9 qualification",
+          "reason": "No incoming DISC/Q1-Q5/QUAL/TC has been produced for EP-9-001.",
+          "head_ref": null
+        },
         {
           "command": "npm run certify:phase8g",
           "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
@@ -91,12 +96,13 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0003",
-    "execution_ref": "NONE",
+    "execution_ref": "EP-9-001",
     "receipt": null,
     "basis": [
-      "ODR-0003 defers Phase 8G executable certification without satisfaction.",
-      "ODR-0004 plus RM-0003 resequence WP-009 as the sole computed frontier.",
-      "Issue #286 is the Phase 9 coordination contract."
+      "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
+      "ODR-0004 / RM-0003 make WP-009 the sole serial frontier.",
+      "Issue #286 is the provider coordination contract for Phase 9.",
+      "EP-9-001 and QSET-9-001 define the incoming phase-transition qualification boundary."
     ],
     "observed": {
       "issue": 286,
@@ -106,42 +112,16 @@
     "superseded_operations": []
   },
   "delivery": {
-    "required": false,
+    "required": true,
     "provider": "GITHUB",
-    "observation": {
-      "id": "DOBS-8G-005",
-      "path": "agents/relay/delivery/DOBS-8G-005.yaml"
-    },
-    "observations": [
-      {
-        "id": "DOBS-8G-001",
-        "path": "agents/relay/delivery/DOBS-8G-001.yaml"
-      },
-      {
-        "id": "DOBS-8G-002",
-        "path": "agents/relay/delivery/DOBS-8G-002.yaml"
-      },
-      {
-        "id": "DOBS-8G-003",
-        "path": "agents/relay/delivery/DOBS-8G-003.yaml"
-      },
-      {
-        "id": "DOBS-8G-004",
-        "path": "agents/relay/delivery/DOBS-8G-004.yaml"
-      },
-      {
-        "id": "DOBS-8G-005",
-        "path": "agents/relay/delivery/DOBS-8G-005.yaml"
-      }
-    ]
+    "observation": null,
+    "observations": []
   },
   "relay_readiness": {
-    "baton_ready": false,
+    "baton_ready": true,
     "projection_ready": true,
-    "handover_ready": false,
-    "reasons": [
-      "Phase 9 successor EP/QSET has not yet been created on its execution branch."
-    ]
+    "handover_ready": true,
+    "reasons": []
   },
   "chat_context_required": false
 }
