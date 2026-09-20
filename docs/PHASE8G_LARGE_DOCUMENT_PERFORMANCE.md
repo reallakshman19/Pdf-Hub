@@ -20,7 +20,7 @@ The corpus contract includes:
 - image-heavy PDFs using deterministic per-page 128×128 raster payloads tiled across the page;
 - scanned/image-only PDFs using deterministic per-page raster payloads with no text layer;
 - mixed page sizes and rotations;
-- metadata-rich PDFs including deterministic document metadata and an AcroForm field.
+- metadata-rich PDFs including deterministic document metadata, a real `/PageLabels` number tree, a native text annotation, an outline/bookmark, an AcroForm field, and an embedded attachment.
 
 The generated binaries are benchmark artifacts rather than source-controlled product assets.
 
