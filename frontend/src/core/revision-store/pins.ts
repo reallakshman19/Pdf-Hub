@@ -1,6 +1,8 @@
-import type {
-  RevisionRuntimePin,
-} from './reachability';
+export interface RevisionRuntimePin {
+  storeId: string;
+  revisionId: string;
+  reason: string;
+}
 
 interface RegisteredRevisionPin
 extends RevisionRuntimePin {
