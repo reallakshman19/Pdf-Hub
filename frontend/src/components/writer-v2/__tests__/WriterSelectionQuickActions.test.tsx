@@ -8,6 +8,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from '@testing-library/react';
 import { useSessionStore } from '@/core/session/store';
 import { clearWriterElementClipboard } from '@/core/writer-v2/writerClipboardActions';
@@ -28,7 +29,7 @@ describe('WriterSelectionQuickActions', () => {
     expect(screen.queryByTestId('writer-selection-quick-actions')).toBeNull();
   });
 
-  it('copies and pastes selected Writer elements', () => {
+  it('copies and pastes selected Writer elements', async () => {
     hydrateSelection([
       makeElement('box-1', { x: 10, y: 20, width: 100, height: 40 }),
     ], ['box-1']);
@@ -38,16 +39,21 @@ describe('WriterSelectionQuickActions', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy selected writer elements/i }));
     fireEvent.click(screen.getByRole('button', { name: /paste copied writer elements/i }));
 
-    const state = useWriterV2Store.getState();
+    await waitFor(() => {
+      const state =
+        useWriterV2Store.getState();
 
-    expect(state.elements).toHaveLength(2);
-    expect(state.elements[1].id).not.toBe('box-1');
-    expect(state.elements[1].rect.x).toBe(26);
-    expect(state.elements[1].rect.y).toBe(4);
-    expect(state.selectedIds).toEqual([state.elements[1].id]);
+      expect(state.elements).toHaveLength(2);
+      expect(state.elements[1].id).not.toBe('box-1');
+      expect(state.elements[1].rect.x).toBe(26);
+      expect(state.elements[1].rect.y).toBe(4);
+      expect(state.selectedIds).toEqual([
+        state.elements[1].id,
+      ]);
+    });
   });
 
-  it('duplicates selected Writer elements', () => {
+  it('duplicates selected Writer elements', async () => {
     hydrateSelection([
       makeElement('box-1', { x: 10, y: 20, width: 100, height: 40 }),
     ], ['box-1']);
@@ -56,15 +62,18 @@ describe('WriterSelectionQuickActions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /duplicate selected writer elements/i }));
 
-    const state = useWriterV2Store.getState();
+    await waitFor(() => {
+      const state =
+        useWriterV2Store.getState();
 
-    expect(state.elements).toHaveLength(2);
-    expect(state.selectedIds).toHaveLength(1);
-    expect(state.elements[1].rect.x).toBe(26);
-    expect(state.elements[1].rect.y).toBe(4);
+      expect(state.elements).toHaveLength(2);
+      expect(state.selectedIds).toHaveLength(1);
+      expect(state.elements[1].rect.x).toBe(26);
+      expect(state.elements[1].rect.y).toBe(4);
+    });
   });
 
-  it('removes selected Writer elements', () => {
+  it('removes selected Writer elements', async () => {
     hydrateSelection([
       makeElement('box-1', { x: 10, y: 20, width: 100, height: 40 }),
       makeElement('box-2', { x: 160, y: 20, width: 100, height: 40 }),
@@ -74,11 +83,20 @@ describe('WriterSelectionQuickActions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /remove selected writer elements/i }));
 
-    expect(useWriterV2Store.getState().elements.map((element) => element.id)).toEqual(['box-2']);
-    expect(useWriterV2Store.getState().selectedIds).toEqual([]);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store
+          .getState()
+          .elements
+          .map((element) => element.id),
+      ).toEqual(['box-2']);
+      expect(
+        useWriterV2Store.getState().selectedIds,
+      ).toEqual([]);
+    });
   });
 
-  it('aligns selected Writer elements to the left edge', () => {
+  it('aligns selected Writer elements to the left edge', async () => {
     hydrateSelection([
       makeElement('box-1', { x: 40, y: 20, width: 100, height: 40 }),
       makeElement('box-2', { x: 160, y: 40, width: 80, height: 40 }),
@@ -88,10 +106,17 @@ describe('WriterSelectionQuickActions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^align left$/i }));
 
-    expect(useWriterV2Store.getState().elements.map((element) => element.rect.x)).toEqual([40, 40]);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store
+          .getState()
+          .elements
+          .map((element) => element.rect.x),
+      ).toEqual([40, 40]);
+    });
   });
 
-  it('distributes three selected Writer elements horizontally', () => {
+  it('distributes three selected Writer elements horizontally', async () => {
     hydrateSelection([
       makeElement('box-1', { x: 0, y: 20, width: 50, height: 40 }),
       makeElement('box-2', { x: 70, y: 20, width: 50, height: 40 }),
@@ -102,7 +127,14 @@ describe('WriterSelectionQuickActions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /distribute horizontally/i }));
 
-    expect(useWriterV2Store.getState().elements.map((element) => element.rect.x)).toEqual([0, 100, 200]);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store
+          .getState()
+          .elements
+          .map((element) => element.rect.x),
+      ).toEqual([0, 100, 200]);
+    });
   });
 
   it('hides align and distribution actions when editable selection is too small', () => {
