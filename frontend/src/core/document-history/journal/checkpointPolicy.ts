@@ -42,6 +42,7 @@ export interface HistoryPeriodicCheckpointDecision {
 interface RecoveryCheckpointAnchor {
   checkpoint: HistoryJournalCheckpoint;
   entryIndex: number;
+  manifestIndex: number;
 }
 
 /**
@@ -183,9 +184,15 @@ function latestRecoveryCheckpointAtOrBefore(
       null;
 
   for (
-    const checkpoint of
-      manifest.checkpoints
+    let manifestIndex = 0;
+    manifestIndex
+      < manifest.checkpoints.length;
+    manifestIndex += 1
   ) {
+    const checkpoint =
+      manifest.checkpoints[
+        manifestIndex
+      ]!;
     if (
       !checkpoint.transactionId
       || !checkpoint.statePayload
@@ -215,16 +222,14 @@ function latestRecoveryCheckpointAtOrBefore(
       || (
         entryIndex
           === latest.entryIndex
-        && Date.parse(
-          checkpoint.createdAt,
-        ) > Date.parse(
-          latest.checkpoint.createdAt,
-        )
+        && manifestIndex
+          > latest.manifestIndex
       )
     ) {
       latest = {
         checkpoint,
         entryIndex,
+        manifestIndex,
       };
     }
   }
@@ -253,7 +258,9 @@ function elapsedMs(
     !Number.isFinite(fromMs)
     || !Number.isFinite(toMs)
   ) {
-    return 0;
+    throw new Error(
+      `History periodic checkpoint cadence requires valid ISO-compatible timestamps; received ${from} -> ${to}.`,
+    );
   }
 
   return Math.max(
