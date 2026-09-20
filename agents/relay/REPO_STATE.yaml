@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "8007c80099acf221ae5b15618e31a56314f14680"
+    "basis_ref": "8abe904008fe473be82d114016c0561d629f8b55"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -17,7 +17,7 @@
   "current_position": {
     "objective": "OBJ-READINESS",
     "phase": "PHASE-008",
-    "work_package": "WP-8E",
+    "work_package": "WP-8F",
     "work_packages": []
   },
   "execution_policy": {
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-279",
+    "id": "PR-281",
     "path": null,
-    "merge_ref": "66e88b9f252c489b06b0f5461dd31802b7353b1a",
-    "note": "Phase 8E.5C4 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "8abe904008fe473be82d114016c0561d629f8b55",
+    "note": "WP-8E closure merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -61,7 +61,7 @@
   ],
   "progress": {
     "overall_percent": 52.38,
-    "phase_percent": 80,
+    "phase_percent": 90,
     "ep_percent": 100,
     "basis_revision": "PB-0001"
   },
@@ -70,7 +70,7 @@
       "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "After PR #281 merges, reconcile main and begin WP-8F incremental visible/nearby-first indexing. Do not reopen WP-8E unless recovery/GC invariants regress."
+      "next_action": "Create the WP-8F incremental visible/nearby-first indexing issue and execution package from merged main 8abe904008fe473be82d114016c0561d629f8b55. Do not reopen WP-8E unless recovery/GC invariants regress."
     },
     "quality": {
       "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
@@ -113,14 +113,15 @@
     "execution_ref": "EP-8E-CLOSURE-001",
     "receipt": null,
     "basis": [
-      "PR #279 merged Phase 8E.5C4 at 66e88b9f252c489b06b0f5461dd31802b7353b1a.",
-      "Issue #280 / PR #281 close WP-8E with process-death recovery and GC interaction certification.",
-      "WP-8E closure is terminal under the documented #183 NOT_RUN infrastructure exception.",
-      "After #281 merges, WP-8F incremental visible/nearby-first indexing is the next serial frontier."
+      "PR #281 merged WP-8E closure at 8abe904008fe473be82d114016c0561d629f8b55.",
+      "WP-8E is COMPLETE/TERMINAL under the documented #183 NOT_RUN infrastructure exception.",
+      "WP-8F incremental visible/nearby-first indexing is the next serial frontier.",
+      "WP-8G remains WAITING on WP-8F."
     ],
     "observed": {
       "issue": 280,
-      "pull_request": 281
+      "pull_request": 281,
+      "merge_ref": "8abe904008fe473be82d114016c0561d629f8b55"
     },
     "superseded_operations": []
   },
@@ -130,8 +131,8 @@
     "observation": {
       "pull_request": 281,
       "issue": 280,
-      "head_ref": "8007c80099acf221ae5b15618e31a56314f14680",
-      "state": "READY_UNDER_INFRA_EXCEPTION"
+      "head_ref": "8abe904008fe473be82d114016c0561d629f8b55",
+      "state": "MERGED"
     },
     "observations": []
   },
