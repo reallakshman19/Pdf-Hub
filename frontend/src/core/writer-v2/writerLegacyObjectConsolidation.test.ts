@@ -202,6 +202,61 @@ describe('writerLegacyObjectConsolidation', () => {
     dispatchSpy.mockRestore();
   });
 
+  it('leaves sources visible and adds no replacement when durable consolidation fails', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [
+        legacyElement(
+          'legacy-1',
+          'textStamp',
+          'REVIEWED',
+        ),
+        legacyElement(
+          'legacy-2',
+          'richNote',
+          'Note:',
+        ),
+      ],
+    });
+
+    vi.spyOn(
+      useWriterV2Store.getState(),
+      'dispatchWriterCommandDurableLatest',
+    ).mockRejectedValueOnce(
+      new Error('journal write failed'),
+    );
+
+    const result =
+      await consolidateCurrentPageLegacyWriterObjects();
+    const state =
+      useWriterV2Store.getState();
+
+    expect(result).toMatchObject({
+      changed: false,
+      convertedCount: 0,
+      message: 'journal write failed',
+    });
+    expect(
+      state.elements
+        .filter((element) =>
+          element.id.startsWith(
+            'legacy-',
+          ),
+        )
+        .every(
+          (element) =>
+            !element.hidden,
+        ),
+    ).toBe(true);
+    expect(
+      state.elements.some(
+        (element) =>
+          element.type
+          === 'richTextBox',
+      ),
+    ).toBe(false);
+  });
+
   it('returns unchanged when no legacy objects exist', async () => {
     const result = await consolidateCurrentPageLegacyWriterObjects();
 
