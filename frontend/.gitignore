@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Phase 8G generated performance corpus
+performance/fixtures/phase8g/
