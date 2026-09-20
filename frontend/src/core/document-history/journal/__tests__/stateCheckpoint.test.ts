@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PdfAnnotation } from '@/core/annotations/types';
-import type { WriterHistoryState } from '../../types';
+import type {
+  HistoryState,
+  WriterHistoryState,
+} from '../../types';
 import {
   assertHistoryStateCheckpointPayload,
   cloneHistoryStateCheckpointPayload,
+  createHistoryRecoveryCheckpointPayload,
   createHistoryStateCheckpointPayload,
+  isHistoryRecoveryCheckpointPayload,
 } from '../stateCheckpoint';
 
 function annotation(
@@ -60,7 +65,132 @@ function writer(
   };
 }
 
+function recoveryState(): HistoryState {
+  return {
+    revision: {
+      storeId: 'revisions',
+      revisionId: 'sha256:fixture',
+    },
+    activeRevisionId: 'sha256:fixture',
+    pageCount: 1,
+    pageGraph: {
+      pages: [{
+        pageId: 'page-1',
+        documentKey: 'sha256:fixture',
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0,
+      }],
+    },
+    documentKey: 'sha256:fixture',
+    selectedPageIds: ['page-1'],
+    selectedPages: [1],
+    currentPageId: 'page-1',
+    currentPage: 1,
+    annotations: [annotation()],
+    writer: writer(),
+    ocr: {
+      documentFingerprint:
+        'sha256:fixture',
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [0],
+      reviewFocus: null,
+    },
+  };
+}
+
 describe('history state checkpoint payload', () => {
+  it('creates recovery-complete v2 payloads without embedding revision bytes', () => {
+    const state = recoveryState();
+    const payload =
+      createHistoryRecoveryCheckpointPayload(
+        state,
+      );
+
+    expect(
+      isHistoryRecoveryCheckpointPayload(
+        payload,
+      ),
+    ).toBe(true);
+    expect(payload).toMatchObject({
+      schemaVersion: 2,
+      pageCount: 1,
+      documentKey: 'sha256:fixture',
+      selectedPageIds: ['page-1'],
+      currentPageId: 'page-1',
+      annotations: [{
+        id: 'annotation-1',
+      }],
+      writer: {
+        selectedIds: ['writer-1'],
+      },
+      ocr: {
+        selectedPageIndexes: [0],
+      },
+    });
+    expect('bytes' in payload).toBe(false);
+    expect('revision' in payload).toBe(false);
+
+    const clone =
+      cloneHistoryStateCheckpointPayload(
+        payload,
+      );
+    clone.selectedPageIds.push(
+      'page-extra',
+    );
+    clone.pageGraph!.pages[0]!.width =
+      999;
+
+    expect(
+      payload.selectedPageIds,
+    ).toEqual(['page-1']);
+    expect(
+      payload.pageGraph!.pages[0]!.width,
+    ).toBe(595);
+  });
+
+  it('keeps v1 checkpoint payloads valid for backward compatibility', () => {
+    const payload =
+      createHistoryStateCheckpointPayload({
+        annotations: [],
+        writer: writer(),
+      });
+
+    expect(payload.schemaVersion).toBe(1);
+    expect(() =>
+      assertHistoryStateCheckpointPayload(
+        payload,
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects malformed recovery checkpoint identity and PageGraph state', () => {
+    const missingDocumentKey =
+      recoveryState();
+    missingDocumentKey.documentKey =
+      null;
+
+    expect(() =>
+      createHistoryRecoveryCheckpointPayload(
+        missingDocumentKey,
+      ),
+    ).toThrow(/documentKey/);
+
+    const wrongPageGraph =
+      recoveryState();
+    wrongPageGraph.pageCount = 2;
+
+    expect(() =>
+      createHistoryRecoveryCheckpointPayload(
+        wrongPageGraph,
+      ),
+    ).toThrow(/PageGraph/);
+  });
+
   it('accepts clone-safe annotations and Writer asset references', () => {
     const payload = createHistoryStateCheckpointPayload({
       annotations: [annotation({
