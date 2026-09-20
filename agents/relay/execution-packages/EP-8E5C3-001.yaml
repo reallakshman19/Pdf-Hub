@@ -11,11 +11,11 @@
   },
   "git_basis": {
     "expected_branch": "phase8/history-periodic-checkpoints",
-    "material_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "material_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
     "base_branch": "main",
     "base_observed_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": null
+    "drift_receipt": "Static implementation review complete through d0ee6d15; exact-head Actions remained NOT_RUN under #183."
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -155,5 +155,29 @@
   "successor_relay": {
     "required": true,
     "next_expected_slice": "Phase 8E.5C4 reference-aware revision reachability/GC after bounded periodic checkpoint cadence reaches terminal acceptance."
+  },
+  "implementation": {
+    "state": "COMPLETE_PENDING_EXECUTABLE_CERTIFICATION",
+    "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+    "highlights": [
+      "Pure checkpoint policy with bootstrap, transaction-count, serialized-entry-byte and elapsed-time triggers.",
+      "SELF_CONTAINED_REPLAY periodic scheduling and BARRIER-only checkpoint-required handling.",
+      "Recovery-complete v2 state attachment before the existing atomic journal save.",
+      "Barrier reset, abandoned-tail truncation, recovery-planner compatibility and persistence rollback tests.",
+      "Historical C1 guard updated semantically for the extended BARRIER/PERIODIC attachment boundary.",
+      "C3 anti-drift audit and certify:phase8e5c3 added."
+    ]
+  },
+  "evidence": {
+    "state": "PARTIAL_NOT_RUN",
+    "infrastructure_issue": 183,
+    "observed_head": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+    "workflow_runs": [
+      35503897374,
+      35503897382,
+      35503897378,
+      35503897401
+    ],
+    "observation": "All observed jobs had runner_id 0 and steps [], so executable certification did not run."
   }
 }
