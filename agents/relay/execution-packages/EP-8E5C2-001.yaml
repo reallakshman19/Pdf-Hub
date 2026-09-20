@@ -1,0 +1,120 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5C2-001",
+    "branch": "phase8/history-recovery-executor",
+    "base_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5C1",
+    "previous_join": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-recovery-executor",
+    "material_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
+    "base_branch": "main",
+    "base_observed_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 274,
+  "outcome": {
+    "engineering": [
+      "A side-effect-free recovery planner selects the latest recovery-complete checkpoint at or before the active journal cursor.",
+      "The planner validates revision identity, PageGraph/navigation, annotations, Writer and OCR anchors before declaring a checkpoint usable.",
+      "Recovery plans preserve the active cursor by including only SELF_CONTAINED_REPLAY entries after the checkpoint and fail closed across unresolved barriers.",
+      "A headless recovery resolver/executor will resolve the immutable checkpoint revision and reconstruct state atomically without automatic UI recovery."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Make durable Phase 8E history usable for deterministic crash recovery without losing post-checkpoint edits or silently crossing non-replayable barriers.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Phase 8E.5C1 / #273.",
+    "why_this_work_exists": "8E.5C1 checkpoints now contain complete application state, but no planner/executor yet chooses a safe checkpoint, verifies its immutable revision, or reconstructs the active journal cursor.",
+    "deliberate_non_goals": [
+      "No recovery UI or automatic startup restore.",
+      "No periodic checkpoint cadence.",
+      "No revision enumeration, pruning or garbage collection.",
+      "No embedded PDF/revision bytes in checkpoint payloads.",
+      "No best-effort partial recovery across unresolved checkpoint barriers."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Recovery planning is side-effect free and returns a validated v2 checkpoint plus replayable suffix to the active cursor.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-05"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Invalid document identity, PageGraph/navigation, annotation, Writer or OCR anchors fail closed with typed diagnostics.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-02"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Legacy v1 checkpoints are preserved as valid journal data but never misrepresented as recovery-complete.",
+      "weight": 10,
+      "verification": ["TEST-01", "TEST-02"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Recovery refuses to cross CHECKPOINT_REQUIRED/NON_MUTATING suffix entries unless a later recovery-complete checkpoint covers them.",
+      "weight": 15,
+      "verification": ["TEST-01", "TEST-03"]
+    },
+    {
+      "id": "AC-05",
+      "description": "Restore resolves/materializes the referenced immutable revision before mutating live state and applies session/PageGraph/navigation/annotations/Writer/OCR atomically with rollback on failure.",
+      "weight": 30,
+      "verification": ["TEST-04", "TEST-05"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Focused recoveryPlanner tests cover replayable suffix, blocked barrier suffix, invalid navigation/document identity and legacy-v1 handling.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Recovery checkpoint validation tests cover PageGraph, annotation, Writer and OCR anchor mismatch cases.",
+      "proves": ["AC-02", "AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Recovery plan tests prove a checkpoint-required suffix cannot be replayed from an older checkpoint.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Recovery executor tests prove immutable revision resolution/materialization, coherent application-state restore and rollback on any failure.",
+      "proves": ["AC-05"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head Phase 8E.5C2 certification; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "Phase 8E.5C3 bounded PERIODIC checkpoint cadence after recovery planner/executor reaches terminal acceptance."
+  }
+}
