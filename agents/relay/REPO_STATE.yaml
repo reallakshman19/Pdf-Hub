@@ -70,7 +70,7 @@
       "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "After PR #283 merges, reconcile main and begin WP-8G large-document performance corpus/certification. Keep the revision/PageId incremental search invariants fixed while measuring large-document behavior."
+      "next_action": "After PR #283 merges, reconcile main and begin WP-8G large-document performance corpus/certification. Preserve revision/PageId indexing invariants and explicitly benchmark/fix active-query result publication so newly indexed pages do not cause repeated rescans of all previously indexed pages."
     },
     "quality": {
       "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
@@ -84,7 +84,8 @@
         "TopNav is now a query/navigation client only, eliminating the duplicate search executor.",
         "Workspace/admission do not eagerly invoke incremental search indexing.",
         "Static 8F and inherited Phase 8 renderer-consumer guard simulation is clean; search core/query/scheduler module bounds are enforced.",
-        "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment."
+        "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment.",
+        "Successor risk for WP-8G: with an active query, SearchPanel republishes by calling searchRevision after each indexed page, rescanning all indexed pages; measure this explicitly and replace with per-new-page incremental hit publication if it violates the large-document budget."
       ]
     },
     "evidence": {
@@ -131,12 +132,15 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 283,
-      "issue": 282,
-      "head_ref": "aabc1765244353ea263ecb94635a3188d2b77153",
-      "state": "READY_UNDER_INFRA_EXCEPTION"
+      "id": "DOBS-8F-001",
+      "path": "agents/relay/delivery/DOBS-8F-001.yaml"
     },
-    "observations": []
+    "observations": [
+      {
+        "id": "DOBS-8F-001",
+        "path": "agents/relay/delivery/DOBS-8F-001.yaml"
+      }
+    ]
   },
   "relay_readiness": {
     "baton_ready": true,
