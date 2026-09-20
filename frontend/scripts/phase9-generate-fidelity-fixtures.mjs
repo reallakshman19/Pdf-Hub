@@ -423,6 +423,125 @@ async function catalogStructures() {
   });
 }
 
+function buildClassicPdf(
+  objectBodies,
+  options = {},
+) {
+  const chunks = [
+    Buffer.from(
+      '%PDF-1.7\n%Phase9\n',
+      'ascii',
+    ),
+  ];
+  const offsets = [0];
+
+  objectBodies.forEach(
+    (body, index) => {
+      offsets[index + 1] =
+        chunks.reduce(
+          (sum, chunk) =>
+            sum + chunk.byteLength,
+          0,
+        );
+      chunks.push(
+        Buffer.from(
+          `${index + 1} 0 obj\n${body}\nendobj\n`,
+          'ascii',
+        ),
+      );
+    },
+  );
+
+  const xrefOffset =
+    chunks.reduce(
+      (sum, chunk) =>
+        sum + chunk.byteLength,
+      0,
+    );
+  const lines = [
+    'xref',
+    `0 ${objectBodies.length + 1}`,
+    '0000000000 65535 f ',
+  ];
+  for (
+    let objectNumber = 1;
+    objectNumber
+      <= objectBodies.length;
+    objectNumber += 1
+  ) {
+    const offset =
+      options.xrefOffsetOverrides
+        ?.get(objectNumber)
+      ?? offsets[objectNumber];
+    lines.push(
+      `${String(offset).padStart(10, '0')} 00000 n `,
+    );
+  }
+  lines.push(
+    'trailer',
+    `<< /Size ${objectBodies.length + 1} /Root 1 0 R >>`,
+    'startxref',
+    String(xrefOffset),
+    '%%EOF',
+    '',
+  );
+  chunks.push(
+    Buffer.from(
+      lines.join('\n'),
+      'ascii',
+    ),
+  );
+  return Buffer.concat(chunks);
+}
+
+function streamObject(content) {
+  const bytes =
+    Buffer.from(content, 'ascii');
+  return `<< /Length ${bytes.byteLength} >>\nstream\n${content}\nendstream`;
+}
+
+async function taggedStructureTree() {
+  const content =
+    '/P <</MCID 0>> BDC\n'
+    + 'BT /F1 16 Tf 72 700 Td '
+    + '(Tagged Phase 9 text) Tj ET\n'
+    + 'EMC';
+
+  return buildClassicPdf([
+    '<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R /MarkInfo << /Marked true >> >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /StructParents 0 >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    streamObject(content),
+    '<< /Type /StructTreeRoot /K 7 0 R /ParentTree 8 0 R /ParentTreeNextKey 1 >>',
+    '<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R /K 0 >>',
+    '<< /Nums [0 [7 0 R]] >>',
+  ]);
+}
+
+async function malformedReadableXref() {
+  const content =
+    'BT /F1 14 Tf 72 700 Td '
+    + '(Malformed xref but readable page) Tj ET';
+
+  return buildClassicPdf(
+    [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      streamObject(content),
+      '<< /Phase9UnusedObject true >>',
+    ],
+    {
+      // Object 6 is deliberately unreachable and its xref offset is wrong.
+      // A tolerant reader can render the required page tree without fetching it.
+      xrefOffsetOverrides:
+        new Map([[6, 1]]),
+    },
+  );
+}
+
 function parseLastTrailerValue(
   source,
   pattern,
@@ -553,6 +672,10 @@ const GENERATORS = {
     objectStreamInput,
   'incremental-update-input':
     incrementalUpdateInput,
+  'tagged-structure-tree':
+    taggedStructureTree,
+  'malformed-readable-xref':
+    malformedReadableXref,
 };
 
 async function main() {
