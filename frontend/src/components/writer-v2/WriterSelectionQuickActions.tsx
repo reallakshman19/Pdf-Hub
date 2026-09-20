@@ -37,16 +37,40 @@ export const WriterSelectionQuickActions: React.FC = () => {
     return null;
   }
 
-  const run = (result: WriterSelectionActionResult) => {
-    if (result.changed) {
-      completeSaveOperation(result.message);
+  const run = async (
+    result:
+      | WriterSelectionActionResult
+      | Promise<WriterSelectionActionResult>,
+  ) => {
+    const resolved = await result;
+
+    if (resolved.changed) {
+      completeSaveOperation(
+        resolved.message,
+      );
     } else {
-      failSaveOperation(result.message);
+      failSaveOperation(
+        resolved.message,
+      );
     }
   };
 
-  const align = (mode: WriterAlignMode) => run(alignSelectedWriterElements(mode));
-  const distribute = (mode: WriterDistributeMode) => run(distributeSelectedWriterElements(mode));
+  const align = (
+    mode: WriterAlignMode,
+  ) => {
+    void run(
+      alignSelectedWriterElements(mode),
+    );
+  };
+  const distribute = (
+    mode: WriterDistributeMode,
+  ) => {
+    void run(
+      distributeSelectedWriterElements(
+        mode,
+      ),
+    );
+  };
 
   return (
     <div
@@ -62,14 +86,14 @@ export const WriterSelectionQuickActions: React.FC = () => {
       </span>
 
       <WriterGeometryQuickPanel />
-      <QuickAction label="Copy" title="Copy selected Writer elements" onClick={() => run(copySelectedWriterElementsToClipboard())} />
-      <QuickAction label="Paste" title="Paste copied Writer elements" onClick={() => run(pasteWriterClipboardElements())} />
-      <QuickAction label="Duplicate" title="Duplicate selected Writer elements" onClick={() => run(duplicateSelectedWriterElements())} />
-      <QuickAction label="Remove" title="Remove selected Writer elements" onClick={() => run(deleteSelectedWriterElements())} />
-      <QuickAction label="Lock" title="Lock or unlock selected Writer elements" onClick={() => run(toggleLockSelectedWriterElements())} />
-      <QuickAction label="Hide" title="Hide selected Writer elements" onClick={() => run(hideSelectedWriterElements())} />
-      <QuickAction label="Front" title="Bring active Writer element to front" onClick={() => run(bringSelectedWriterElementToFront())} />
-      <QuickAction label="Back" title="Send active Writer element to back" onClick={() => run(sendSelectedWriterElementToBack())} />
+      <QuickAction label="Copy" title="Copy selected Writer elements" onClick={() => { void run(copySelectedWriterElementsToClipboard()); }} />
+      <QuickAction label="Paste" title="Paste copied Writer elements" onClick={() => { void run(pasteWriterClipboardElements()); }} />
+      <QuickAction label="Duplicate" title="Duplicate selected Writer elements" onClick={() => { void run(duplicateSelectedWriterElements()); }} />
+      <QuickAction label="Remove" title="Remove selected Writer elements" onClick={() => { void run(deleteSelectedWriterElements()); }} />
+      <QuickAction label="Lock" title="Lock or unlock selected Writer elements" onClick={() => { void run(toggleLockSelectedWriterElements()); }} />
+      <QuickAction label="Hide" title="Hide selected Writer elements" onClick={() => { void run(hideSelectedWriterElements()); }} />
+      <QuickAction label="Front" title="Bring active Writer element to front" onClick={() => { void run(bringSelectedWriterElementToFront()); }} />
+      <QuickAction label="Back" title="Send active Writer element to back" onClick={() => { void run(sendSelectedWriterElementToBack()); }} />
 
       {editableCount >= 2 ? (
         <>
