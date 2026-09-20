@@ -128,8 +128,11 @@ const ocrConnected = read(ocrConnectedPath);
 requireContains(ocrConnected, ocrConnectedPath, [
   'const insertIntoWriter = React.useCallback(',
   'await insertOcrWriterQueueIntoWriterV2Store({',
+  'success: result.commandApplied',
   'if (!result.commandApplied) {',
   "'OCR Writer insertion was not committed.'",
+  'data-status={',
+  "'Writer update failed. '",
 ]);
 
 const ocrTestsPath =
@@ -162,6 +165,7 @@ requireContains(consolidationTests, consolidationTestsPath, [
   'expect(state.undoStack).toHaveLength(1)',
   'leaves every legacy object untouched when durable consolidation fails',
   'journal write failed',
+  "element.type === 'richTextBox'",
 ]);
 
 const selectionTypes = new Set([
@@ -184,6 +188,14 @@ const blankMutationAllowlist = new Map([
     ]),
   ],
 ]);
+for (const [relativePath] of blankMutationAllowlist) {
+  const source = read(relativePath);
+  requireContains(source, relativePath, [
+    "mode !== 'blankDocument'",
+    "type: 'ADD_WRITER_ELEMENT'",
+  ]);
+}
+
 const storeInternal =
   'src/core/writer-v2/writerV2Store.ts';
 
