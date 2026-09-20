@@ -17,8 +17,8 @@ The checked-in generator is `frontend/scripts/phase8g-generate-fixtures.mjs`. It
 The corpus contract includes:
 
 - native-text PDFs at 100, 500, 1,000, 2,500 and 5,000 pages;
-- image-heavy PDFs;
-- scanned/image-only PDFs;
+- image-heavy PDFs using deterministic per-page 128×128 raster payloads tiled across the page;
+- scanned/image-only PDFs using deterministic per-page raster payloads with no text layer;
 - mixed page sizes and rotations;
 - metadata-rich PDFs including deterministic document metadata and an AcroForm field.
 
@@ -50,7 +50,7 @@ The full benchmark entrypoint is:
 
 By default it generates the declared corpus, runs the Node production-path driver, runs the Chromium browser render/navigation driver, and evaluates each observation file against the checked-in budget manifest.
 
-The **Node production-path driver** measures source-backed PDF.js first-page readiness, current/nearby incremental indexing latency, pages/second, range diagnostics, query-change extraction reuse, cancellation/reprioritization, all required pdf-lib mutation/save operations, and canonical journal recovery plan → resolve → execute. Process RSS is sampled for an available memory ceiling.
+The **Node production-path driver suite** is split into bounded renderer/search, mutation/save, and recovery scenarios. It measures source-backed PDF.js first-page readiness, current/nearby incremental indexing latency, pages/second, range diagnostics, query-change extraction reuse, cancellation/reprioritization, all required pdf-lib mutation/save operations, and canonical journal recovery plan → resolve → execute. Process RSS is sampled for an available memory ceiling. Recovery uses registry-backed stores that declare the same persistent/random-access capability contract as the durable path; it measures recovery logic and retained-byte pressure, not physical OPFS device latency.
 
 The **browser render/navigation driver** opens the generated PDF through the real application file flow, waits for rasterized page canvases, samples Chromium JS heap through CDP, reads the live PDF.js source diagnostics, drives physical page jumps through the real status-bar navigation control, and records Long Tasks API observations.
 
