@@ -348,6 +348,24 @@ requireContains(
   ],
 );
 
+const evidenceCertPath =
+  'scripts/phase8g-certify-evidence.mjs';
+const evidenceCert =
+  read(evidenceCertPath);
+requireContains(
+  evidenceCert,
+  evidenceCertPath,
+  [
+    'phase8g-certification-evidence-v1',
+    'phase8g-benchmark-report-v1',
+    'report commit ',
+    'phase8g:native_text:1000',
+    'active_query_page_arrival_matching',
+    'expected_fixture_count',
+    "status:\n    failures.length === 0",
+  ],
+);
+
 const indexerPath =
   'src/core/search/indexer.ts';
 const indexer = read(indexerPath);
@@ -492,6 +510,7 @@ const benchmarkModuleLimits = [
   [browserBenchmarkPath, 500],
   [runnerPath, 180],
   [mergePath, 180],
+  [evidenceCertPath, 300],
   [harnessPath, 600],
 ];
 
@@ -555,6 +574,15 @@ if (
     'package.json benchmark:phase8g is missing or changed.',
   );
 }
+if (
+  packageJson.scripts
+    ?.['certify:phase8g:evidence']
+  !== 'node scripts/phase8g-certify-evidence.mjs'
+) {
+  fail(
+    'package.json certify:phase8g:evidence is missing or changed.',
+  );
+}
 
 const certify =
   packageJson.scripts
@@ -570,6 +598,8 @@ requireContains(
     'src/core/search/indexer.test.ts',
     'src/components/sidebar/SearchPanel.test.tsx',
     'npm run build',
+    'npm run benchmark:phase8g',
+    'npm run certify:phase8g:evidence',
   ],
 );
 
