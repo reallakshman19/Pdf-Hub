@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca"
+    "basis_ref": "83fc65aef4aa35329286048e11b744d634a7e5d3"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -66,7 +66,7 @@
   "progress": {
     "overall_percent": 66.67,
     "phase_percent": 0,
-    "ep_percent": 0,
+    "ep_percent": 8,
     "basis_revision": "PB-0002"
   },
   "status_planes": {
@@ -74,20 +74,27 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "MATERIAL_WRITE_READY: execute STEP-9-01 only—establish the permanent fidelity corpus manifest/schema, provenance and deterministic fixture declarations/generators before any mutation-engine hardening."
+      "next_action": "Continue STEP-9-01: bind the six explicit specialist required-pending fixtures (tagged PDF, CID/subset + Arabic/CJK/RTL, genuine incremental update, encrypted, signed, malformed-readable xref) using deterministic or legally redistributable sources. Do not begin mutation-engine hardening until corpus readiness is complete."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Phase 9 phase-transition qualification passed: DISC-9-001 / QUAL-9-001 / TC-9-001 establish the production path, fidelity risk model, protected invariants, independent oracle and bounded first slice.",
-        "Known pre-Phase9 document-level fidelity risks include page-only rebuild loss of catalog structures, complex-font/Unicode limits, and explicit signed/encrypted/malformed support semantics.",
-        "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284 and must not be reported as complete."
+        "Phase 9 phase-transition qualification passed: DISC-9-001 / QUAL-9-001 / TC-9-001.",
+        "STEP-9-01 machine-readable corpus authority is implemented: 12 entries declare all 17 required classes and all required mutation dispositions.",
+        "Six deterministic generator-backed fixtures currently satisfy ordinary text, scan/image-only, geometry/boxes, outlines, PageLabels/forms/annotations/attachment-metadata, and object-stream starter coverage.",
+        "Six specialist fixture obligations remain required-pending and earn no AC-9-01 acceptance.",
+        "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 9 fresh repository-only qualification is satisfied by DISC-9-001 / QUAL-9-001 / TC-9-001 on the pinned EP-9-001 digest. Product implementation may begin at STEP-9-01. Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003.",
+      "summary": "STEP-9-01 corpus schema/manifest/generator/audit/test contract is implemented and static repository-side audit simulation is clean. No AC-9-01 acceptance is awarded until every required-pending specialist source is bound and executable.",
       "not_run": [
+        {
+          "command": "npm run certify:phase9-step1",
+          "reason": "Hosted executable evidence has not yet been observed for the current exact head; static repository-side mirror is clean.",
+          "head_ref": "83fc65aef4aa35329286048e11b744d634a7e5d3"
+        },
         {
           "command": "npm run certify:phase8g",
           "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
@@ -132,8 +139,8 @@
     "observation": {
       "pull_request": 287,
       "issue": 286,
-      "head_ref": "af3b602ebc1d3a7f5a1a9dffeedf6314043e4cca",
-      "state": "MATERIAL_WRITE_READY"
+      "head_ref": "83fc65aef4aa35329286048e11b744d634a7e5d3",
+      "state": "STEP_9_01_ACTIVE"
     },
     "observations": [
       {
