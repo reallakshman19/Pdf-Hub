@@ -288,17 +288,31 @@ const browserBenchmarkPath =
   'e2e/phase8g-browser-performance.spec.ts';
 const browserBenchmark =
   read(browserBenchmarkPath);
+const browserSupportPath =
+  'e2e/phase8gBrowserBenchmarkSupport.ts';
+const browserSupport =
+  read(browserSupportPath);
 requireContains(
   browserBenchmark,
   browserBenchmarkPath,
   [
     'PerformanceObserver',
     'Performance.getMetrics',
-    'getDocumentSourceCacheDiagnostics',
+    'phase8gRendererDiagnostics',
     'range_backed_first_page',
     'browser_navigation',
     'long_task',
-    'waitForRenderedPage',
+    'waitForPhase8gRenderedPage',
+  ],
+);
+requireContains(
+  browserSupport,
+  browserSupportPath,
+  [
+    'getDocumentSourceCacheDiagnostics',
+    'waitForPhase8gRenderedPage',
+    'jumpToPhase8gPage',
+    'phase8gMedian',
   ],
 );
 
@@ -439,7 +453,7 @@ const benchmarkModuleLimits = [
   [mutationBenchmarkPath, 300],
   [recoverySupportPath, 500],
   [recoveryBenchmarkPath, 160],
-  ['e2e/phase8gBrowserBenchmarkSupport.ts', 180],
+  [browserSupportPath, 180],
   [browserBenchmarkPath, 500],
   [runnerPath, 180],
   [harnessPath, 600],
