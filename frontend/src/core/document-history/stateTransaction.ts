@@ -2,6 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { PdfAnnotation } from '../annotations/types';
 import type { PdfCommand } from '../commands/types';
+import {
+  cloneOcrPageAnchoredState,
+  type OcrPageAnchoredState,
+} from '../ocr/ocrPageAnchor';
+import { useOcrStore } from '../ocr/ocrStore';
 import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import type { WriterElementV2 } from '../writer-v2/types';
@@ -97,6 +102,9 @@ export function buildStateHistoryTransaction(
           session.activeRevisionId,
       };
 
+  const ocr = cloneOcrPageAnchoredState(
+    currentOcrPageState(),
+  );
   const baseState = {
     ...pdfBacking,
     pageCount: session.pageCount,
@@ -111,6 +119,7 @@ export function buildStateHistoryTransaction(
     currentPageId:
       session.viewState.currentPageId,
     currentPage: session.viewState.currentPage,
+    ocr,
   };
 
   return {
@@ -124,6 +133,7 @@ export function buildStateHistoryTransaction(
       : {}),
     before: {
       ...baseState,
+      ocr: cloneOcrPageAnchoredState(ocr),
       annotations: cloneAnnotations(
         input.before.annotations,
       ),
@@ -133,6 +143,7 @@ export function buildStateHistoryTransaction(
     },
     after: {
       ...baseState,
+      ocr: cloneOcrPageAnchoredState(ocr),
       annotations: cloneAnnotations(
         input.after.annotations,
       ),
@@ -152,6 +163,18 @@ export function recordStateTransaction(
 
   useHistoryStore.getState().push(transaction);
   return true;
+}
+
+function currentOcrPageState(): OcrPageAnchoredState {
+  const ocr = useOcrStore.getState();
+  return {
+    documentFingerprint: ocr.documentFingerprint,
+    result: ocr.result,
+    corrections: ocr.corrections,
+    regions: ocr.regions,
+    selectedPageIndexes: ocr.selectedPageIndexes,
+    reviewFocus: ocr.reviewFocus,
+  };
 }
 
 function cloneWriterElements(
