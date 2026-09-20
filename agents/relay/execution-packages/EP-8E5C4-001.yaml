@@ -1,0 +1,158 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5C4-001",
+    "branch": "phase8/history-revision-gc",
+    "base_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5C3",
+    "previous_join": "03bc0be431e94100fdec471547e861454a0843f5",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-revision-gc",
+    "material_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+    "base_branch": "main",
+    "base_observed_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 278,
+  "outcome": {
+    "engineering": [
+      "Working revision and history journal stores expose complete mechanical inventory without embedding retention policy.",
+      "A pure planner marks every revision referenced by retained journals, active session state, in-memory undo/redo and runtime pins.",
+      "A serialized GC executor deletes only proven-unreachable revisions and fails closed when inventory/reference state is incomplete or stale.",
+      "GC is retry-safe after partial deletion and does not prune journals/checkpoints."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Bound persistent immutable revision storage without risking recovery, undo/redo, active work or other documents sharing the browser revision store.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Phase 8E.5C3 / #277.",
+    "why_this_work_exists": "Durable revisions are immutable and currently never reclaimed. The primary browser revision store is shared across documents, so safe collection requires store-wide journal reachability rather than active-session heuristics.",
+    "deliberate_non_goals": [
+      "No age-only retention policy.",
+      "No automatic startup/UI GC trigger.",
+      "No journal/checkpoint pruning or compaction.",
+      "No WP-8F indexing work."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Revision and journal stores enumerate complete committed inventory.",
+      "weight": 15,
+      "verification": [
+        "TEST-01",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "description": "Pure reachability planning protects all retained journal/session/history/pin references.",
+      "weight": 30,
+      "verification": [
+        "TEST-02",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "description": "Serialized executor revalidates identity/inventory and deletes only unreachable candidates.",
+      "weight": 30,
+      "verification": [
+        "TEST-03",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "description": "Multiple journals sharing a store and restart journal-only references remain protected.",
+      "weight": 15,
+      "verification": [
+        "TEST-02",
+        "TEST-04"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "description": "Partial deletion is safe to retry and stale/incomplete inventory fails closed.",
+      "weight": 10,
+      "verification": [
+        "TEST-03",
+        "TEST-05"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Memory/OPFS revision stores and Memory/IndexedDB journal stores enumerate inventory deterministically.",
+      "proves": [
+        "AC-01"
+      ]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Pure planner tests cover multiple journals, checkpoints, entries, session, undo/redo and pins.",
+      "proves": [
+        "AC-02",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "GC executor tests cover deletion, stale plan rejection, partial remove failure and idempotent retry.",
+      "proves": [
+        "AC-03",
+        "AC-05"
+      ]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Restart-style journal-only fixture protects every retained recovery revision with no live history state.",
+      "proves": [
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-05",
+      "class": "MUST_PASS",
+      "method": "Missing/unavailable complete inventory aborts before any remove.",
+      "proves": [
+        "AC-05"
+      ]
+    },
+    {
+      "id": "TEST-06",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head certify:phase8e5c4; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05"
+      ]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "WP-8E closure/recovery certification after Phase 8E.5C4 reaches terminal acceptance; WP-8F remains blocked until closure."
+  }
+}
