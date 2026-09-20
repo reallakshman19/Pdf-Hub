@@ -11,11 +11,11 @@
   },
   "git_basis": {
     "expected_branch": "phase8/history-revision-gc",
-    "material_ref": "03bc0be431e94100fdec471547e861454a0843f5",
+    "material_ref": "6cf08a032e0309570672898d4f4900f40c40e5b1",
     "base_branch": "main",
     "base_observed_ref": "03bc0be431e94100fdec471547e861454a0843f5",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": null
+    "drift_receipt": "Static C4 plus inherited Phase 8 guard review is clean through 6cf08a03; exact-head executable evidence remains NOT_RUN under #183."
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -154,5 +154,30 @@
   "successor_relay": {
     "required": true,
     "next_expected_slice": "WP-8E closure/recovery certification after Phase 8E.5C4 reaches terminal acceptance; WP-8F remains blocked until closure."
+  },
+  "implementation": {
+    "state": "COMPLETE_PENDING_EXECUTABLE_CERTIFICATION",
+    "head_ref": "6cf08a032e0309570672898d4f4900f40c40e5b1",
+    "highlights": [
+      "Mechanical committed revision inventory and complete journal inventory added without retention policy in storage adapters.",
+      "Pure store-wide reachability protects session, undo/redo, all retained journals/checkpoints and runtime pins.",
+      "GC orchestration lives in document-history and revalidates references, inventory and session identity before removal.",
+      "Persistent sweep requires Web Locks; publishers hold the same store lease through journal publication.",
+      "Persistent sessions without persistent journal coverage hold a shared cross-tab GC blocker.",
+      "Partial remove failure stops sweep and supports conservative same-plan retry.",
+      "Legacy mutation anti-drift guard corrected to be formatting-insensitive."
+    ]
+  },
+  "evidence": {
+    "state": "PARTIAL_NOT_RUN",
+    "infrastructure_issue": 183,
+    "observed_head": "88be1d7e34c8c8454dbaedd692cecbc7945d14dd",
+    "workflow_runs": [
+      35507801046,
+      35507801127,
+      35507801051,
+      35507801052
+    ],
+    "observation": "All observed jobs had runner_id 0 and steps []; no runner-executed TypeScript, Vitest, audit or build result exists."
   }
 }
