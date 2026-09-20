@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -16,9 +16,6 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
-import { SearchIndexer } from '@/core/search/indexer';
-import { error as logError } from '@/core/logger/service';
-import { useToastStore } from '@/core/toast/store';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { isMockEnabled } from '@/core/mock/isMockEnabled';
@@ -26,8 +23,7 @@ import { useMockPdf } from '@/hooks/useMockPdf';
 
 export const TopNav: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const { documentKey, fileName, isDirty, viewState, setZoom } = useSessionStore(useShallow((state) => ({
-    documentKey: state.documentKey,
+  const { fileName, isDirty, viewState, setZoom } = useSessionStore(useShallow((state) => ({
     fileName: state.fileName,
     isDirty: state.isDirty,
     viewState: state.viewState,
@@ -105,7 +101,6 @@ export const TopNav: React.FC = () => {
     { id: 'organize', icon: Layers,        label: 'Organize' },
     { id: 'generate', icon: Sparkles,      label: 'Automate', ai: true },
   ];
-  const addToast = useToastStore((state) => state.addToast);
   const capabilities = useCapabilities();
   const isMobile = useIsMobile();
   const mockEnabled = isMockEnabled(window.location.hostname);
@@ -114,19 +109,13 @@ export const TopNav: React.FC = () => {
   const {
     query,
     setQuery,
-    setHits,
-    setError,
     clearSearch,
     nextHit,
-    setIsSearching,
   } = useSearchStore(useShallow((state) => ({
     query: state.query,
     setQuery: state.setQuery,
-    setHits: state.setHits,
-    setError: state.setError,
     clearSearch: state.clearSearch,
     nextHit: state.nextHit,
-    setIsSearching: state.setIsSearching,
   })));
 
   const [localQuery, setLocalQuery] = useState(query);
@@ -159,35 +148,6 @@ export const TopNav: React.FC = () => {
     setLocalQuery(query);
   }
 
-  const executeSearch = useCallback(
-    async (searchQuery: string) => {
-      if (!documentKey) return;
-      if (!searchQuery.trim()) { clearSearch(); return; }
-      setIsSearching(true);
-      try {
-        const cache = SearchIndexer.getCache(documentKey);
-        if (!cache) { setHits([]); return; }
-        const results = SearchIndexer.search(cache, searchQuery, {
-          caseSensitive: false, wholeWord: false, useRegex: false,
-        });
-        setHits(results.map((item, index) => ({
-          id: `hit-${index}`,
-          pageNumber: item.pageNumber,
-          snippet: item.text,
-          rects: [item.rect],
-        })));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-        logError('pdf-renderer', 'Search failed from top navigation', { error: message });
-        addToast({ type: 'error', title: 'Search Failed', message });
-      } finally {
-        setIsSearching(false);
-      }
-    },
-    [addToast, clearSearch, documentKey, setError, setHits, setIsSearching],
-  );
-
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setLocalQuery(value);
@@ -197,7 +157,6 @@ export const TopNav: React.FC = () => {
     if (leftPanelWidth < 1) setLeftPanelWidth(20);
     debounceRef.current = window.setTimeout(() => {
       setQuery(value);
-      void executeSearch(value);
     }, 300);
   };
 
@@ -210,7 +169,6 @@ export const TopNav: React.FC = () => {
     if (!localQuery.trim()) return;
     if (localQuery === query) { nextHit(); return; }
     setQuery(localQuery);
-    void executeSearch(localQuery);
   };
 
   const handleClear = () => { setLocalQuery(''); setQuery(''); clearSearch(); };
