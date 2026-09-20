@@ -1,0 +1,97 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-8G-001",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 285,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/285",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase8/large-document-performance",
+      "sha": "1774203fbebe12a1a91ece87b87e049f4a64d847"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "1774203fbebe12a1a91ece87b87e049f4a64d847",
+    "observed": [
+      {
+        "workflow": "Frontend Certify",
+        "run_id": 35521333497,
+        "job_id": 106105828383,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Guards",
+        "run_id": 35521333487,
+        "job_id": 106105828367,
+        "job": "Anti-drift guards",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35521333496,
+        "job_id": 106105828397,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "Only workflows observed by provider readback on this Relay-only preparation head are recorded. No runner-executed validation is claimed."
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "correlations": [
+      {
+        "issue_node": "ISSUE-284",
+        "issue_number": 284,
+        "ep_id": "EP-8G-001",
+        "ep_path": "agents/relay/execution-packages/EP-8G-001.yaml",
+        "work_package": "WP-8G",
+        "relationship": "IMPLEMENTS",
+        "meaning": "EP-8G-001 owns the large-document performance corpus, measured budgets, bounded remediation, and Phase 8G certification authorized by issue #284."
+      }
+    ]
+  },
+  "scope_readback": {
+    "changed_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/certifications/qualification/QSET-8G-001.yaml",
+      "agents/relay/execution-packages/EP-8G-001.yaml",
+      "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+      "agents/relay/roadmap/PROGRESS.yaml"
+    ],
+    "production_files_changed": false,
+    "implementation_started": false
+  },
+  "readback_basis": [
+    "PR #285 provider readback at 1774203fbebe12a1a91ece87b87e049f4a64d847: open, draft, mergeable=true.",
+    "Issue #284 is open and remains the WP-8G coordination contract.",
+    "No PR reviews or unresolved review threads were present.",
+    "The active route is intentionally qualification-pending; no 8G product write or acceptance is claimed."
+  ]
+}
