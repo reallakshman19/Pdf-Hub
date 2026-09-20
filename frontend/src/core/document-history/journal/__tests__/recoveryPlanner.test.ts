@@ -212,6 +212,8 @@ describe('planHistoryRecovery', () => {
     if (!result.ok) return;
 
     expect(result.plan).toMatchObject({
+      fileName: 'fixture.pdf',
+      originalRevisionId: 'sha256:origin',
       checkpointTransactionId: 'tx-checkpoint',
       activeTransactionId: 'tx-replay',
       revision: {
