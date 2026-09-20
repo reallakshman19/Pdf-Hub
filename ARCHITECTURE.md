@@ -556,7 +556,16 @@ runtime index. Persisted indexing, if later justified by measurement, must keep
 the same revision + PageId identity and fail closed on schema/revision mismatch.
 
 WP-8G owns the large-document performance corpus and certification after 8F is
-terminal.
+terminal. Phase 8G keeps search text process-local and publishes active-query
+background results through a per-PageId accumulator: a newly indexed page is
+matched once with `SearchIndexer.searchPage(...)`, while deliberate query,
+option, revision, or PageGraph changes rebuild results from already-extracted
+text. The deterministic corpus generator and machine-readable thresholds live
+under `frontend/scripts/phase8g-generate-fixtures.mjs` and
+`frontend/performance/phase8g-budget-manifest.json`. Range-backed PDF.js
+transport metrics remain separate from canonical pdf-lib mutation/save, which
+still materializes complete input/output bytes. Runner benchmark results remain
+unclaimed until executable exact-head evidence exists.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
