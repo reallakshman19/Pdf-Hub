@@ -24,6 +24,11 @@ export interface SearchIndexPageRecord {
   ownerToken: string | null;
 }
 
+export interface SearchIndexPageState {
+  status: SearchPageIndexStatus;
+  ownerToken: string | null;
+}
+
 export interface SearchPageScheduleInput {
   pageCount: number;
   currentPage: number;
@@ -134,6 +139,22 @@ export class SearchIndexer {
   static clearAll(): void {
     revisionIndexes.clear();
     activeRevisionId = null;
+  }
+
+  static getPageState(
+    revisionId: string,
+    pageId: PageId,
+  ): SearchIndexPageState | null {
+    const record =
+      revisionIndexes
+        .get(revisionId)
+        ?.get(pageId);
+    if (!record) return null;
+
+    return {
+      status: record.status,
+      ownerToken: record.ownerToken,
+    };
   }
 
   static getPageRecord(
