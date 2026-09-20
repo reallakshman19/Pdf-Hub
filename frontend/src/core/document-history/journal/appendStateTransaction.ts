@@ -2,7 +2,7 @@ import type { PdfCommand } from '@/core/commands/types';
 import {
   classifyHistoryReplayability,
 } from '../replayability';
-import type { StateHistorySnapshot } from '../stateTransaction';
+import type { HistoryState } from '../types';
 import {
   resolveHistoryJournalStore,
 } from './registry';
@@ -10,7 +10,7 @@ import type {
   HistoryJournalStore,
 } from './store';
 import {
-  createHistoryStateCheckpointPayload,
+  createHistoryRecoveryCheckpointPayload,
 } from './stateCheckpoint';
 import {
   assertHistoryJournalManifest,
@@ -31,7 +31,7 @@ export interface PrepareHistoryJournalStateTransactionInput {
   transactionId: string;
   currentTransactionId: string | null;
   command: PdfCommand;
-  after: StateHistorySnapshot;
+  after: HistoryState;
   createdAt?: string;
 }
 
@@ -128,7 +128,7 @@ export async function prepareHistoryJournalStateTransaction(
     revisionId: input.revisionId,
   };
   const statePayload =
-    createHistoryStateCheckpointPayload(
+    createHistoryRecoveryCheckpointPayload(
       input.after,
     );
   const manifest =
