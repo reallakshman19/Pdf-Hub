@@ -92,6 +92,19 @@ implements HistoryJournalStore {
     );
   }
 
+  async listAll(): Promise<HistoryJournalManifest[]> {
+    const db = await this.db();
+    const manifests =
+      await db.getAll('manifests');
+    return manifests
+      .sort((left, right) =>
+        left.journalId.localeCompare(
+          right.journalId,
+        ),
+      )
+      .map(cloneHistoryJournalManifest);
+  }
+
   async remove(journalId: string): Promise<void> {
     const db = await this.db();
     await db.delete('manifests', journalId);
