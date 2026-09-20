@@ -1,8 +1,8 @@
 # Working Revision Store
 
-Status: **Phase 8C.3 — revision-first canonical mutation commits**.
+Status: **Phase 8E.5C4 — reference-aware revision reachability and garbage collection**.
 
-Tracking: #218, #221, #223, #225.
+Tracking: #218, #221, #223, #225, #278.
 
 ## Purpose
 
@@ -22,6 +22,7 @@ interface WorkingRevisionStore {
   commit(input: CommitRevisionInput): Promise<StoredRevision>
   open(revisionId: string): Promise<DocumentSource>
   has(revisionId: string): Promise<boolean>
+  listRevisionIds(): Promise<string[]>
   remove(revisionId: string): Promise<void>
   clear(): Promise<void>
 }
@@ -85,6 +86,8 @@ Properties:
 - committed revisions reopen through `OpfsSource`, which implements the same
   random-access `DocumentSource` contract
 - an unexpected backing-file size change fails closed
+- `listRevisionIds()` deterministically enumerates fully committed revision
+  files and excludes pending/unpublished writes
 
 The injected-directory constructor exists for testing. Normal browser creation
 uses `navigator.storage.getDirectory()`.
@@ -142,27 +145,63 @@ state commit do not run. Revision-aware sessions do not silently fall back to
 byte-only state. Compatibility/headless sessions with no `revisionStoreId`
 keep the legacy byte-only transaction path.
 
-Undo/redo history still stores full PDF byte snapshots, but now carries the
-content-addressed active revision id with each matching PDF state. Restoring a
-history state therefore restores the durable revision pointer when available.
+Revision-aware undo/redo history now retains immutable revision locators rather
+than whole-PDF byte snapshots by default. Durable history journals record the
+same revision chain and recovery-complete barrier/periodic checkpoints. PDF.js
+workspace rendering is revision/source backed; compatibility `workingBytes`
+remains for mutation and older consumers while `PdfMutationEngine` still
+materializes complete bytes for canonical structural mutations.
 
 The legacy `originalBytes` field still follows old Save-baseline semantics;
 `originalRevisionId` remains the immutable recovery identity and is the
 authoritative Phase 8 direction.
 
-A small peak-memory hardening accompanies this slice: `FileAdapter` no longer
-clones a full-span `ArrayBuffer` merely to hash an owned `Uint8Array`.
+A small peak-memory hardening accompanies the revision work: `FileAdapter` no
+longer clones a full-span `ArrayBuffer` merely to hash an owned `Uint8Array`.
 Subarrays and non-ArrayBuffer backing storage still copy safely.
 
-## Deliberately unchanged after 8C.3
+## Phase 8E.5C4 inventory and collection
+
+Storage enumeration is intentionally mechanical. `MemoryRevisionStore` and
+`OpfsRevisionStore` return deterministic committed revision IDs through
+`listRevisionIds()`; pending OPFS writes are excluded. History journal stores
+return complete cloned manifest inventory through `listAll()`. Neither adapter
+decides which revisions are retained.
+
+The document-history GC policy marks as reachable every revision referenced by:
+
+- the active session's immutable original and current active revision
+- retained in-memory undo/redo before/after locators
+- every retained journal's original and active revision
+- every journal entry before/after revision
+- every journal checkpoint revision
+- explicit runtime liveness pins
+
+The browser revision store is shared across documents, so GC consumes all
+retained journals associated with the target store. Any missing referenced
+revision makes the plan unsafe and no deletion begins.
+
+Execution revalidates the full reference graph and storage inventory immediately
+before sweep. A stale plan is rejected if references changed, a new revision
+appeared, or a reachable revision disappeared. Partial deletion stops on the
+first remove failure; retrying the same plan is accepted only when the inventory
+difference consists of candidates already removed by that plan.
+
+Persistent OPFS sweep requires origin-wide Web Locks. Admission and canonical
+binary mutation hold the same exclusive store lock from revision publication
+through journal publication. If a persistent session lacks persistent journal
+coverage, that tab holds a shared GC-blocker lock until the session is replaced
+or cleared; GC requests the exclusive counterpart and fails closed when such a
+session is active.
+
+8E.5C4 does not add age-based deletion, journal/checkpoint pruning, automatic
+startup collection, or a UI GC trigger. Those decisions remain outside the
+low-level revision-store contract.
+
+## Still deliberately transitional
 
 - `DocumentSession.originalBytes` / `workingBytes` remain compatibility bytes
-- `PdfMutationEngine` still opens from a materialized `Uint8Array`
-- Save/Save As composition is not yet revision-first
-- PDF.js still receives materialized bytes
-- history still retains whole-PDF snapshots
+- `PdfMutationEngine` still opens and saves materialized full-document bytes
+- Save/Save As composition is not yet fully centralized/revision-first
 - the 100 MB primary-open policy remains
-
-Phase 8D can now let PDF.js consume revision `DocumentSource` ranges, and
-Phase 8E can move history from full-byte snapshots to revision references,
-journals and bounded checkpoints.
+- Phase 8E still needs closure/recovery certification before Phase 8F starts
