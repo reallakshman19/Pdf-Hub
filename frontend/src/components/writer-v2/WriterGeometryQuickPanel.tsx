@@ -42,13 +42,26 @@ export const WriterGeometryQuickPanel: React.FC = () => {
     return null;
   }
 
-  const apply = () => {
-    const result = updateActiveWriterElementGeometry({
-      x: parseNumber(draft.x, selected.rect.x),
-      y: parseNumber(draft.y, selected.rect.y),
-      width: parseNumber(draft.width, selected.rect.width),
-      height: parseNumber(draft.height, selected.rect.height),
-    });
+  const apply = async () => {
+    const result =
+      await updateActiveWriterElementGeometry({
+        x: parseNumber(
+          draft.x,
+          selected.rect.x,
+        ),
+        y: parseNumber(
+          draft.y,
+          selected.rect.y,
+        ),
+        width: parseNumber(
+          draft.width,
+          selected.rect.width,
+        ),
+        height: parseNumber(
+          draft.height,
+          selected.rect.height,
+        ),
+      });
 
     if (result.changed) {
       completeSaveOperation(result.message);
@@ -73,7 +86,9 @@ export const WriterGeometryQuickPanel: React.FC = () => {
         variant="ghost"
         aria-label="Apply Writer geometry"
         className="h-7 px-2 text-xs"
-        onClick={apply}
+        onClick={() => {
+          void apply();
+        }}
       >
         Apply
       </Button>
@@ -85,7 +100,7 @@ interface GeometryInputProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  onApply: () => void;
+  onApply: () => void | Promise<void>;
 }
 
 const GeometryInput: React.FC<GeometryInputProps> = ({ label, value, onChange, onApply }) => (
@@ -100,7 +115,7 @@ const GeometryInput: React.FC<GeometryInputProps> = ({ label, value, onChange, o
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
-          onApply();
+          void onApply();
         }
       }}
     />
