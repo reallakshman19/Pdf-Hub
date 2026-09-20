@@ -46,8 +46,9 @@ Accordingly, range-backed viewing is not evidence that mutation/save is range bo
 
 - `npm run generate:phase8g-fixtures`
 - `npm run audit:phase8-large-document-performance`
+- `npm run benchmark:phase8g:evaluate -- --input=<observation.json> --out=<report.json>`
 - `npm run certify:phase8g`
 
-The static audit validates the corpus/budget contract, the single-page search publication path, the 1,000-page matcher-count regression, range diagnostics, and the explicit mutation materialization boundary.
+The static audit validates the corpus/budget contract, the single-page search publication path, the 1,000-page matcher-count regression, range diagnostics, and the explicit mutation materialization boundary. The benchmark evaluator requires environment metadata and fixture identity, applies checked-in thresholds to independently captured observations, and emits `phase8g-benchmark-report-v1` PASS/FAIL JSON.
 
 Measured supported limits remain unclaimed until benchmark execution produces exact-head result artifacts.
