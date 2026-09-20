@@ -18,6 +18,14 @@ describe('MemoryHistoryJournalStore', () => {
     });
 
     await store.save(manifest);
+    const other =
+      createInitialHistoryJournalManifest({
+        journalId: 'history-a',
+        revisionStoreId: 'revisions',
+        revisionId: 'sha256:other',
+        fileName: 'other.pdf',
+      });
+    await store.save(other);
     manifest.fileName = 'mutated-after-save.pdf';
 
     const loaded = await store.load('history-memory');
@@ -36,8 +44,22 @@ describe('MemoryHistoryJournalStore', () => {
       store.listByOriginalRevision('sha256:initial'),
     ).resolves.toHaveLength(1);
     await expect(
-      store.listByOriginalRevision('sha256:other'),
+      store.listByOriginalRevision('sha256:missing'),
     ).resolves.toEqual([]);
+    await expect(
+      store.listAll(),
+    ).resolves.toMatchObject([
+      { journalId: 'history-a' },
+      { journalId: 'history-memory' },
+    ]);
+
+    const all = await store.listAll();
+    all[0]!.fileName = 'mutated-list.pdf';
+    await expect(
+      store.load('history-a'),
+    ).resolves.toMatchObject({
+      fileName: 'other.pdf',
+    });
 
     await store.remove('history-memory');
     await expect(
