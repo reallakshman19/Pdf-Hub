@@ -136,9 +136,10 @@
     "certify:phase8f": "npm run certify:phase8e-closure && npm run audit:phase8-search-index && vitest run src/core/search/indexer.test.ts src/core/search/store.test.ts src/adapters/pdf-renderer/IncrementalSearchIndexer.test.ts src/components/sidebar/SearchPanel.test.tsx src/components/shell/TopNav.test.tsx --pool=forks --maxWorkers=1 && npm run build",
     "generate:phase8g-fixtures": "node scripts/phase8g-generate-fixtures.mjs",
     "audit:phase8-large-document-performance": "node scripts/phase8-large-document-performance-audit.mjs",
-    "certify:phase8g": "npm run certify:phase8f && npm run audit:phase8-large-document-performance && vitest run src/core/search/incrementalResults.test.ts src/core/search/indexer.test.ts src/components/sidebar/SearchPanel.test.tsx --pool=forks --maxWorkers=1 && npm run build",
+    "certify:phase8g": "npm run certify:phase8f && npm run audit:phase8-large-document-performance && vitest run src/core/search/incrementalResults.test.ts src/core/search/indexer.test.ts src/components/sidebar/SearchPanel.test.tsx --pool=forks --maxWorkers=1 && npm run build && npm run benchmark:phase8g && npm run certify:phase8g:evidence",
     "benchmark:phase8g:evaluate": "node scripts/phase8g-benchmark-harness.mjs",
-    "benchmark:phase8g": "node scripts/phase8g-run-benchmarks.mjs"
+    "benchmark:phase8g": "node scripts/phase8g-run-benchmarks.mjs",
+    "certify:phase8g:evidence": "node scripts/phase8g-certify-evidence.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
