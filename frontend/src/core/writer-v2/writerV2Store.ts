@@ -723,6 +723,42 @@ function normalizeWriterCommandElements(
     });
   }
 
+  if (command.type === 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS') {
+    const targetById = new Map<string, number>();
+
+    for (const element of command.elements) {
+      targetById.set(
+        element.id,
+        element.pageIndex,
+      );
+    }
+
+    for (const update of command.updates) {
+      if (
+        typeof update.patch.pageIndex
+        === 'number'
+      ) {
+        targetById.set(
+          update.id,
+          update.patch.pageIndex,
+        );
+      }
+    }
+
+    retargeted = retargeted.map((element) => {
+      const pageIndex =
+        targetById.get(element.id);
+
+      return pageIndex === undefined
+        ? element
+        : writerElementForTargetPage(
+            element,
+            graph,
+            pageIndex,
+          );
+    });
+  }
+
   if (
     command.type === 'UPDATE_WRITER_ELEMENT'
     && typeof command.patch.pageIndex === 'number'
@@ -879,6 +915,20 @@ function writerCommandState(state: WriterV2StoreState): WriterV2State {
 }
 
 function writerCommandElementIds(command: WriterCommand): string[] {
+  if (
+    command.type
+    === 'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS'
+  ) {
+    return [
+      ...command.updates.map(
+        (update) => update.id,
+      ),
+      ...command.elements.map(
+        (element) => element.id,
+      ),
+    ];
+  }
+
   if ('id' in command && typeof command.id === 'string') return [command.id];
   if ('element' in command) return [command.element.id];
   if ('elements' in command) return command.elements.map((element) => element.id);
@@ -907,6 +957,8 @@ function writerCommandLabel(command: WriterCommand): string {
     BATCH_ADD_WRITER_ELEMENTS: 'Add Writer elements',
     BATCH_UPDATE_WRITER_ELEMENTS: 'Edit Writer elements',
     BATCH_DELETE_WRITER_ELEMENTS: 'Delete Writer elements',
+    BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS:
+      'Consolidate Writer elements',
   };
   return labels[command.type];
 }
