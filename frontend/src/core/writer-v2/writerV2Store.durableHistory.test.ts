@@ -551,6 +551,143 @@ describe('Writer V2 durable command dispatch', () => {
     ).toHaveLength(1);
   });
 
+  it('rejects public synchronous mutations in PDF-overlay mode', async () => {
+    await openJournalAwareWriterSession();
+
+    const result =
+      useWriterV2Store
+        .getState()
+        .dispatchWriterCommand({
+          type: 'ADD_WRITER_ELEMENT',
+          element: element('sync-blocked'),
+        });
+
+    expect(result).toMatchObject({
+      changed: false,
+      reason:
+        'PDF-backed Writer mutations require durable dispatch.',
+    });
+    expect(
+      useWriterV2Store.getState().elements,
+    ).toEqual([]);
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(0);
+  });
+
+  it('keeps the durable API working for PDF-overlay compatibility fallback sessions', async () => {
+    await openJournalAwareWriterSession();
+
+    useSessionStore.setState({
+      historyJournalStoreId: null,
+      historyJournalId: null,
+    });
+
+    await expect(
+      useWriterV2Store
+        .getState()
+        .dispatchWriterCommandDurable({
+          type: 'ADD_WRITER_ELEMENT',
+          element:
+            element('compat-durable'),
+        }),
+    ).resolves.toMatchObject({
+      changed: true,
+    });
+
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .map((item) => item.id),
+    ).toEqual(['compat-durable']);
+  });
+
+  it('records one durable transaction for an atomic update-and-add batch', async () => {
+    const journal =
+      await openJournalAwareWriterSession();
+
+    useWriterV2Store
+      .getState()
+      .hydrateWriterElements([
+        element('legacy-1'),
+        {
+          ...element('legacy-2'),
+          rect: {
+            x: 180,
+            y: 20,
+            width: 100,
+            height: 50,
+          },
+        },
+      ]);
+
+    await expect(
+      useWriterV2Store
+        .getState()
+        .dispatchWriterCommandDurableLatest(
+          () => ({
+            type:
+              'BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS',
+            updates: [
+              {
+                id: 'legacy-1',
+                patch: {
+                  hidden: true,
+                },
+              },
+              {
+                id: 'legacy-2',
+                patch: {
+                  hidden: true,
+                },
+              },
+            ],
+            elements: [
+              {
+                ...element('rich-1'),
+                plainText:
+                  'Consolidated',
+                style: {
+                  ...element('rich-1').style,
+                  zIndex: 3,
+                },
+              },
+            ],
+            selectIds: ['rich-1'],
+            activeId: 'rich-1',
+          }),
+        ),
+    ).resolves.toMatchObject({
+      changed: true,
+    });
+
+    const writer =
+      useWriterV2Store.getState();
+
+    expect(
+      writer.elements
+        .filter((item) =>
+          item.id.startsWith('legacy-'),
+        )
+        .every((item) => item.hidden),
+    ).toBe(true);
+    expect(writer.activeId).toBe('rich-1');
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(1);
+
+    const manifest =
+      await journal.load('history-writer');
+    expect(manifest?.entries).toHaveLength(1);
+    expect(
+      manifest?.checkpoints.filter(
+        (checkpoint) =>
+          checkpoint.kind === 'BARRIER',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('rolls Writer and history state back when journal save fails', async () => {
     const journal =
       await openJournalAwareWriterSession();
