@@ -1,7 +1,11 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
-import type { WriterHistoryState } from '../types';
+import type {
+  HistoryState,
+  WriterHistoryState,
+} from '../types';
 
 export const HISTORY_STATE_CHECKPOINT_SCHEMA_VERSION = 1 as const;
+export const HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION = 2 as const;
 
 export interface HistoryStateCheckpointPayloadV1 {
   schemaVersion: typeof HISTORY_STATE_CHECKPOINT_SCHEMA_VERSION;
@@ -9,10 +13,23 @@ export interface HistoryStateCheckpointPayloadV1 {
   writer: WriterHistoryState;
 }
 
-export type HistoryStateCheckpointPayload =
-  HistoryStateCheckpointPayloadV1;
+export interface HistoryRecoveryCheckpointPayloadV2 {
+  schemaVersion: typeof HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION;
+  pageCount: number;
+  pageGraph: HistoryState['pageGraph'];
+  documentKey: string;
+  selectedPageIds: HistoryState['selectedPageIds'];
+  selectedPages: HistoryState['selectedPages'];
+  currentPageId: HistoryState['currentPageId'];
+  currentPage: HistoryState['currentPage'];
+  annotations: PdfAnnotation[];
+  writer: WriterHistoryState | null;
+  ocr: NonNullable<HistoryState['ocr']> | null;
+}
 
-const DATA_URI_PATTERN = /data:[^,\s]*,/i;
+export type HistoryStateCheckpointPayload =
+  | HistoryStateCheckpointPayloadV1
+  | HistoryRecoveryCheckpointPayloadV2;
 
 export function createHistoryStateCheckpointPayload(input: {
   annotations: PdfAnnotation[];
@@ -26,7 +43,49 @@ export function createHistoryStateCheckpointPayload(input: {
   };
 
   assertHistoryStateCheckpointPayload(payload);
-  return cloneHistoryStateCheckpointPayload(payload);
+  return cloneHistoryStateCheckpointPayload(
+    payload,
+  );
+}
+
+export function createHistoryRecoveryCheckpointPayload(
+  state: HistoryState,
+): HistoryRecoveryCheckpointPayloadV2 {
+  if (
+    !state.documentKey
+    || state.documentKey.trim().length === 0
+  ) {
+    throw new Error(
+      'History recovery checkpoint requires a non-empty documentKey.',
+    );
+  }
+
+  const payload: HistoryRecoveryCheckpointPayloadV2 = {
+    schemaVersion:
+      HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION,
+    pageCount: state.pageCount,
+    pageGraph: state.pageGraph,
+    documentKey: state.documentKey,
+    selectedPageIds: state.selectedPageIds,
+    selectedPages: state.selectedPages,
+    currentPageId: state.currentPageId,
+    currentPage: state.currentPage,
+    annotations: state.annotations,
+    writer: state.writer ?? null,
+    ocr: state.ocr ?? null,
+  };
+
+  assertHistoryStateCheckpointPayload(payload);
+  return cloneHistoryStateCheckpointPayload(
+    payload,
+  ) as HistoryRecoveryCheckpointPayloadV2;
+}
+
+export function isHistoryRecoveryCheckpointPayload(
+  payload: HistoryStateCheckpointPayload,
+): payload is HistoryRecoveryCheckpointPayloadV2 {
+  return payload.schemaVersion
+    === HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION;
 }
 
 export function assertHistoryStateCheckpointPayload(
@@ -34,13 +93,41 @@ export function assertHistoryStateCheckpointPayload(
 ): void {
   if (
     payload.schemaVersion
-    !== HISTORY_STATE_CHECKPOINT_SCHEMA_VERSION
+    === HISTORY_STATE_CHECKPOINT_SCHEMA_VERSION
   ) {
+    assertV1Payload(payload);
+  } else if (
+    payload.schemaVersion
+    === HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION
+  ) {
+    assertV2Payload(payload);
+  } else {
     throw new Error(
-      `Unsupported history state checkpoint schema version: ${payload.schemaVersion}`,
+      `Unsupported history state checkpoint schema version: ${(payload as { schemaVersion?: unknown }).schemaVersion}`,
     );
   }
 
+  assertCloneSafeStructuredState(
+    payload,
+    'stateCheckpoint',
+    new WeakSet<object>(),
+  );
+}
+
+export function cloneHistoryStateCheckpointPayload<
+  T extends HistoryStateCheckpointPayload,
+>(
+  payload: T,
+): T {
+  assertHistoryStateCheckpointPayload(payload);
+  return JSON.parse(
+    JSON.stringify(payload),
+  ) as T;
+}
+
+function assertV1Payload(
+  payload: HistoryStateCheckpointPayloadV1,
+): void {
   if (!Array.isArray(payload.annotations)) {
     throw new Error(
       'History state checkpoint annotations must be an array.',
@@ -55,21 +142,97 @@ export function assertHistoryStateCheckpointPayload(
       'History state checkpoint Writer state is malformed.',
     );
   }
-
-  assertCloneSafeStructuredState(
-    payload,
-    'stateCheckpoint',
-    new WeakSet<object>(),
-  );
 }
 
-export function cloneHistoryStateCheckpointPayload(
-  payload: HistoryStateCheckpointPayload,
-): HistoryStateCheckpointPayload {
-  assertHistoryStateCheckpointPayload(payload);
-  return JSON.parse(
-    JSON.stringify(payload),
-  ) as HistoryStateCheckpointPayload;
+function assertV2Payload(
+  payload: HistoryRecoveryCheckpointPayloadV2,
+): void {
+  if (
+    !Number.isInteger(payload.pageCount)
+    || payload.pageCount < 1
+  ) {
+    throw new Error(
+      'History recovery checkpoint pageCount must be a positive integer.',
+    );
+  }
+  if (
+    !payload.documentKey
+    || payload.documentKey.trim().length === 0
+  ) {
+    throw new Error(
+      'History recovery checkpoint documentKey must be non-empty.',
+    );
+  }
+  if (
+    payload.pageGraph
+    && (
+      !Array.isArray(payload.pageGraph.pages)
+      || payload.pageGraph.pages.length
+        !== payload.pageCount
+    )
+  ) {
+    throw new Error(
+      'History recovery checkpoint PageGraph must match pageCount.',
+    );
+  }
+  if (
+    !Array.isArray(payload.selectedPageIds)
+    || !Array.isArray(payload.selectedPages)
+  ) {
+    throw new Error(
+      'History recovery checkpoint page selection is malformed.',
+    );
+  }
+  if (
+    !Number.isInteger(payload.currentPage)
+    || payload.currentPage < 1
+    || payload.currentPage > payload.pageCount
+  ) {
+    throw new Error(
+      'History recovery checkpoint currentPage is outside page bounds.',
+    );
+  }
+  if (
+    payload.currentPageId !== null
+    && (
+      typeof payload.currentPageId !== 'string'
+      || payload.currentPageId.length === 0
+    )
+  ) {
+    throw new Error(
+      'History recovery checkpoint currentPageId is malformed.',
+    );
+  }
+  if (!Array.isArray(payload.annotations)) {
+    throw new Error(
+      'History recovery checkpoint annotations must be an array.',
+    );
+  }
+  if (
+    payload.writer !== null
+    && (
+      !Array.isArray(payload.writer.elements)
+      || !Array.isArray(payload.writer.selectedIds)
+    )
+  ) {
+    throw new Error(
+      'History recovery checkpoint Writer state is malformed.',
+    );
+  }
+  if (
+    payload.ocr !== null
+    && (
+      !Array.isArray(payload.ocr.corrections)
+      || !Array.isArray(payload.ocr.regions)
+      || !Array.isArray(
+        payload.ocr.selectedPageIndexes,
+      )
+    )
+  ) {
+    throw new Error(
+      'History recovery checkpoint OCR state is malformed.',
+    );
+  }
 }
 
 function assertCloneSafeStructuredState(
@@ -191,3 +354,5 @@ function assertCloneSafeStructuredState(
 
   seen.delete(objectValue);
 }
+
+const DATA_URI_PATTERN = /data:[^,\s]*,/i;
