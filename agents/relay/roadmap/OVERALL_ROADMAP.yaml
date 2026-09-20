@@ -220,7 +220,7 @@
               "depends_on": [
                 "WP-8E"
               ],
-              "issue": null
+              "issue": 282
             },
             {
               "id": "WP-8G",
