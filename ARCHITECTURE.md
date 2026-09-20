@@ -390,17 +390,36 @@ changes with stale table state. Table cell selection remains local/synchronous
 and is not journaled. No synchronous Writer mutation dispatch remains inside
 WriterTablePropertiesPanel.
 
-With B2A/B2B/B2C complete, the direct high-frequency Writer UI surfaces now have
-explicit coalescing boundaries. The remaining Phase 8E.5B3C2C work is the
-synchronous Writer helper/bridge surface: review metadata helpers, table-box
-helpers, selection/arrange helpers, image-clear behavior, OCR Writer integration
-and atomic legacy consolidation. Multi-step legacy consolidation must be migrated
-as one durable logical mutation rather than independently journaling each hidden
-source element and the consolidated replacement. Synchronous PDF-overlay
-mutation dispatch must not be prohibited until those remaining helper contracts
-are migrated. No command replay or revision deletion is enabled yet.
-Reference-aware revision GC and bounded recovery checkpoints remain follow-on
-work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3C2C1 begins the remaining helper/bridge migration with
+single-element Writer updates. The Writer store now exposes
+`dispatchWriterCommandDurableLatest(factory)`, which evaluates a command
+factory inside the serialized document-operation queue against the latest
+canonical Writer state. The existing `dispatchWriterCommandDurable(command)`
+delegates mutation commands through that primitive. This closes the stale nested
+patch gap for helpers that need to merge review, geometry or table state after
+other durable Writer mutations may already be queued.
+
+Review metadata, geometry, table-box editing and image-clear helpers now return
+async action results and build their UPDATE command from latest canonical state.
+A safe helper boundary logs journal failures and converts them to unchanged
+action results rather than leaking rejected promises into UI button handlers.
+Inspector table cell/column-label and review-assignee text edits use local drafts
+with blur/Enter commit and Escape cancellation, while discrete review/table/image
+actions invoke the async helper contract. Geometry Quick Panel awaits the durable
+helper result before reporting save success/failure. Quick-template review
+metadata is also awaited through the latest-state review helper. Image replacement
+remains on its existing direct durable path because it owns image admission,
+asset-before-journal persistence and temporary-asset cleanup.
+
+The remaining C2C surface is split intentionally. C2C2 owns batch
+selection/arrange/clipboard mutations. C2C3 owns OCR Writer insertion and atomic
+legacy-object consolidation. Multi-step legacy consolidation must become one
+durable logical mutation rather than independently journaling each hidden source
+element and the consolidated replacement. Synchronous PDF-overlay mutation
+dispatch must not be prohibited until those remaining contracts are migrated.
+No command replay or revision deletion is enabled yet. Reference-aware revision
+GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
+incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
