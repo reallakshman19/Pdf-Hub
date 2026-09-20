@@ -4,6 +4,7 @@ import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHist
 import {
   materializePdfCommand,
 } from '@/core/commands/types';
+import type { HistoryState } from '../../types';
 import {
   clearHistoryJournalStoreRegistryForTests,
   registerHistoryJournalStore,
@@ -15,12 +16,54 @@ import {
   prepareHistoryJournalStateTransaction,
 } from '../appendStateTransaction';
 
+function afterState(): HistoryState {
+  return {
+    revision: {
+      storeId: 'revisions',
+      revisionId: 'sha256:one',
+    },
+    activeRevisionId: 'sha256:one',
+    pageCount: 1,
+    pageGraph: {
+      pages: [{
+        pageId: 'page-1',
+        documentKey: 'sha256:one',
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0,
+      }],
+    },
+    documentKey: 'sha256:one',
+    selectedPageIds: ['page-1'],
+    selectedPages: [1],
+    currentPageId: 'page-1',
+    currentPage: 1,
+    annotations: [],
+    writer: {
+      documentMode: 'pdfOverlay',
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+    },
+    ocr: {
+      documentFingerprint: 'sha256:one',
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [0],
+      reviewFocus: null,
+    },
+  };
+}
+
 describe('prepareHistoryJournalStateTransaction', () => {
   beforeEach(() => {
     clearHistoryJournalStoreRegistryForTests();
   });
 
-  it('appends a same-revision descriptive barrier with after-state payload', async () => {
+  it('appends a same-revision descriptive barrier with recovery-complete after-state payload', async () => {
     const store = new MemoryHistoryJournalStore({
       id: 'state-journal',
     });
@@ -53,15 +96,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'writer-store',
           'sha256:one',
         ),
-        after: {
-          annotations: [],
-          writer: {
-            documentMode: 'pdfOverlay',
-            elements: [],
-            selectedIds: [],
-            activeId: null,
-          },
-        },
+        after: afterState(),
       });
 
     expect(prepared?.manifest).toMatchObject({
@@ -86,11 +121,31 @@ describe('prepareHistoryJournalStateTransaction', () => {
           kind: 'BARRIER',
           transactionId: 'tx-state',
           statePayload: {
-            schemaVersion: 1,
+            schemaVersion: 2,
+            pageCount: 1,
+            documentKey: 'sha256:one',
+            selectedPageIds: ['page-1'],
+            currentPageId: 'page-1',
+            pageGraph: {
+              pages: [{ pageId: 'page-1' }],
+            },
+            ocr: {
+              documentFingerprint: 'sha256:one',
+              selectedPageIndexes: [0],
+            },
           },
         },
       ],
     });
+
+    const payload =
+      prepared?.manifest.checkpoints[1]?.statePayload;
+    expect(JSON.stringify(payload)).not.toContain(
+      '"revision"',
+    );
+    expect(JSON.stringify(payload)).not.toContain(
+      '"activeRevisionId"',
+    );
   });
 
   it('fails closed when journal and in-memory history cursors disagree', async () => {
@@ -126,14 +181,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'annotation-store',
           'sha256:one',
         ),
-        after: {
-          annotations: [],
-          writer: {
-            elements: [],
-            selectedIds: [],
-            activeId: null,
-          },
-        },
+        after: afterState(),
       }),
     ).rejects.toThrow(/does not match in-memory history cursor/);
   });
