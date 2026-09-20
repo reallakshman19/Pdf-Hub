@@ -1,26 +1,18 @@
-import type {
-  PDFDocumentProxy,
-} from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 
-import {
-  PdfRendererAdapter,
-} from './PdfRendererAdapter';
+import { PdfRendererAdapter } from './PdfRendererAdapter';
 import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
-import {
-  SearchIndexer,
-} from '@/core/search/indexer';
+import { SearchIndexer } from '@/core/search/indexer';
 import type {
   PageGraph,
   PageId,
   PageNode,
 } from '@/core/pages/types';
-import type {
-  SearchIndexProgress,
-} from '@/core/search/types';
+import type { SearchIndexProgress } from '@/core/search/types';
 
 export interface IncrementalPdfTextIndexInput {
   doc: PDFDocumentProxy;
@@ -32,9 +24,7 @@ export interface IncrementalPdfTextIndexInput {
   batchSize?: number;
   ownerToken?: string;
   signal?: AbortSignal;
-  onProgress?: (
-    progress: SearchIndexProgress,
-  ) => void;
+  onProgress?: (progress: SearchIndexProgress) => void;
   onPageIndexed?: (input: {
     revisionId: string;
     pageId: PageId;
@@ -105,15 +95,11 @@ export async function indexPdfDocumentIncrementally(
   input: IncrementalPdfTextIndexInput,
 ): Promise<IncrementalPdfTextIndexResult> {
   const ownerToken =
-    input.ownerToken
-    ?? createOwnerToken();
-  const batchSize =
-    Math.max(
-      1,
-      Math.floor(
-        input.batchSize ?? 2,
-      ),
-    );
+    input.ownerToken ?? createOwnerToken();
+  const batchSize = Math.max(
+    1,
+    Math.floor(input.batchSize ?? 2),
+  );
 
   SearchIndexer.prepareRevision(
     input.revisionId,
@@ -157,10 +143,7 @@ export async function indexPdfDocumentIncrementally(
   }
 
   input.onProgress?.(
-    progressFor(
-      input.revisionId,
-      input.pageGraph,
-    ),
+    progressFor(input.revisionId, input.pageGraph),
   );
 
   let pagesSinceYield = 0;
@@ -293,10 +276,7 @@ export async function indexPdfDocumentIncrementally(
             : String(indexError),
         );
         input.onProgress?.(
-          progressFor(
-            input.revisionId,
-            input.pageGraph,
-          ),
+          progressFor(input.revisionId, input.pageGraph),
         );
       } finally {
         page?.cleanup();
