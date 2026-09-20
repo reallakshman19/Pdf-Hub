@@ -213,14 +213,14 @@
             {
               "id": "WP-8F",
               "title": "Incremental visible/nearby-first indexing",
-              "state": "PLANNED",
+              "state": "COMPLETE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "TERMINAL",
               "weight": 5,
               "depends_on": [
                 "WP-8E"
               ],
-              "issue": null
+              "issue": 282
             },
             {
               "id": "WP-8G",

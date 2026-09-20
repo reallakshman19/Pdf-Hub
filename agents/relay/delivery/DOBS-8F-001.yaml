@@ -1,0 +1,124 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-8F-001",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 283,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/283",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase8/incremental-search-index",
+      "sha": "c26b287c5dde6ae27199186e437101491636cff8"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "d9fc2001006794f0aca1203ff027e38902db0c62"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "c26b287c5dde6ae27199186e437101491636cff8",
+    "required": [
+      "Anti-drift guards",
+      "Frontend Certify",
+      "certify-writer-overlay-v2",
+      "OCR Workflow Certification",
+      "Frontend CI / Release gate",
+      "Frontend CI / End-to-end journeys"
+    ],
+    "observations": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35520556883,
+        "job_id": 106103781606,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Guards",
+        "run_id": 35520557062,
+        "job_id": 106103782220,
+        "job": "Anti-drift guards",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "OCR Workflow Certification",
+        "run_id": 35520556911,
+        "job_id": 106103781771,
+        "job": "ocr-workflow",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend Certify",
+        "run_id": 35520556891,
+        "job_id": 106103781491,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35520556895,
+        "job_id": 106103781987,
+        "job": "Release gate",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35520556895,
+        "job_id": 106103781849,
+        "job": "End-to-end journeys",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ]
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "body_digest": "sha256:0c9fbf74f860f805a995095b73c989baecb6b604dc4198c6a56c267c6a0e1bdc",
+    "correlations": [
+      {
+        "issue_node": "ISSUE-282",
+        "issue_number": 282,
+        "ep_id": "EP-8F-001",
+        "ep_path": "agents/relay/execution-packages/EP-8F-001.yaml",
+        "work_package": "WP-8F",
+        "relationship": "IMPLEMENTS",
+        "meaning": "EP-8F-001 delivers the authorized revision/PageId incremental visible/nearby-first search indexing owned by GitHub issue #282."
+      }
+    ]
+  },
+  "readback_basis": [
+    "GitHub PR #283 readback at relay-correlation head c26b287c5dde6ae27199186e437101491636cff8: open draft, mergeable=true, base d9fc2001006794f0aca1203ff027e38902db0c62.",
+    "GitHub PR reviews, review threads and PR comments were empty at this observation.",
+    "All six observed current-head workflow jobs completed before runner allocation with runner_id 0 and steps [].",
+    "Engineering production material is frozen at aabc1765244353ea263ecb94635a3188d2b77153; commits after that point through this observation are Relay/delivery-only."
+  ]
+}

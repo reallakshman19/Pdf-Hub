@@ -4,14 +4,16 @@ import { useShallow } from 'zustand/react/shallow';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
 import {
-  PdfRendererAdapter,
-  type PdfDocumentLease,
-} from '@/adapters/pdf-renderer/PdfRendererAdapter';
+  indexPdfDocumentIncrementally,
+} from '@/adapters/pdf-renderer/IncrementalSearchIndexer';
 import {
   acquireActivePdfDocumentLease,
 } from '@/adapters/pdf-renderer/activePdfDocumentLease';
 import { SearchIndexer } from '@/core/search/indexer';
-import type { SearchOptions } from '@/core/search/types';
+import {
+  EMPTY_SEARCH_INDEX_PROGRESS,
+  type SearchOptions,
+} from '@/core/search/types';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
@@ -24,6 +26,8 @@ export const SearchPanel: React.FC = () => {
     revisionStoreId,
     originalRevisionId,
     activeRevisionId,
+    pageGraph,
+    currentPage,
     setPage,
   } = useSessionStore(useShallow((state) => ({
     documentKey: state.documentKey,
@@ -31,6 +35,8 @@ export const SearchPanel: React.FC = () => {
     revisionStoreId: state.revisionStoreId,
     originalRevisionId: state.originalRevisionId,
     activeRevisionId: state.activeRevisionId,
+    pageGraph: state.pageGraph,
+    currentPage: state.viewState.currentPage,
     setPage: state.setPage,
   })));
   const {
@@ -47,6 +53,8 @@ export const SearchPanel: React.FC = () => {
     setIsSearching,
     error,
     setError,
+    indexProgress,
+    setIndexProgress,
   } = useSearchStore(useShallow((state) => ({
     query: state.query,
     setQuery: state.setQuery,
@@ -61,9 +69,11 @@ export const SearchPanel: React.FC = () => {
     setIsSearching: state.setIsSearching,
     error: state.error,
     setError: state.setError,
+    indexProgress: state.indexProgress,
+    setIndexProgress: state.setIndexProgress,
   })));
   const addToast = useToastStore((state) => state.addToast);
-  const searchAbortControllerRef = React.useRef<AbortController | null>(null);
+  const indexAbortControllerRef = React.useRef<AbortController | null>(null);
 
   const [localQuery, setLocalQuery] = useState(query);
   const [searchOptions, setSearchOptions] = useState<SearchOptions>({
@@ -82,66 +92,179 @@ export const SearchPanel: React.FC = () => {
     setLocalQuery(query);
   }
 
-  const executeSearch = useCallback(async (
+  const searchOptionsRef = React.useRef(searchOptions);
+  searchOptionsRef.current = searchOptions;
+
+  const publishSearchResults = useCallback((
     searchQuery: string,
-    options: SearchOptions = searchOptions,
+    options: SearchOptions = searchOptionsRef.current,
   ) => {
-    if (!hasActiveDocument || !documentKey) return;
-    if (!searchQuery.trim()) {
-      searchAbortControllerRef.current?.abort('Search cleared');
-      clearSearch();
+    if (!activeRevisionId || !pageGraph) {
+      setHits([]);
+      setIndexProgress({
+        ...EMPTY_SEARCH_INDEX_PROGRESS,
+      });
+      setIsSearching(false);
       return;
     }
 
-    searchAbortControllerRef.current?.abort('Superseded by a newer search');
-    const controller = new AbortController();
-    searchAbortControllerRef.current = controller;
-    setIsSearching(true);
-    let lease: PdfDocumentLease | null = null;
+    SearchIndexer.prepareRevision(
+      activeRevisionId,
+      pageGraph,
+    );
+    const progress =
+      SearchIndexer.getProgress(
+        activeRevisionId,
+        pageGraph,
+      );
+    setIndexProgress(progress);
 
-    try {
-      const cache = SearchIndexer.getCache(documentKey);
-      if (cache) {
-        if (controller.signal.aborted) return;
-        const results = SearchIndexer.search(cache, searchQuery, options);
-        if (controller.signal.aborted) return;
-        setHits(results.map((result, index) => ({
-          id: `hit-${index}`,
-          pageNumber: result.pageNumber,
-          snippet: result.text,
-          rects: [result.rect],
-        })));
-      } else {
-        lease = await acquireActivePdfDocumentLease({
-          documentKey,
-          workingBytes,
-          revisionStoreId,
-          originalRevisionId,
-          activeRevisionId,
-        }, controller.signal);
-        if (!lease) return;
+    if (!searchQuery.trim()) {
+      setHits([]);
+      setIsSearching(false);
+      return;
+    }
 
-        const results =
-          await PdfRendererAdapter.searchDocumentTextInDocument(
-            lease.doc,
-            searchQuery,
+    setHits(
+      SearchIndexer.searchRevision(
+        activeRevisionId,
+        pageGraph,
+        searchQuery,
+        options,
+      ),
+    );
+    setIsSearching(!progress.complete);
+  }, [
+    activeRevisionId,
+    pageGraph,
+    setHits,
+    setIndexProgress,
+    setIsSearching,
+  ]);
+
+  React.useEffect(() => {
+    if (
+      !hasActiveDocument
+      || !documentKey
+      || !activeRevisionId
+      || !pageGraph
+    ) {
+      setIndexProgress({
+        ...EMPTY_SEARCH_INDEX_PROGRESS,
+      });
+      return;
+    }
+
+    const controller =
+      new AbortController();
+    indexAbortControllerRef.current
+      ?.abort(
+        'Search index priority changed',
+      );
+    indexAbortControllerRef.current =
+      controller;
+
+    setError(null);
+    SearchIndexer.prepareRevision(
+      activeRevisionId,
+      pageGraph,
+    );
+    publishSearchResults(
+      useSearchStore.getState().query,
+    );
+
+    let lease:
+      Awaited<
+        ReturnType<
+          typeof acquireActivePdfDocumentLease
+        >
+      > = null;
+
+    const run = async () => {
+      try {
+        lease =
+          await acquireActivePdfDocumentLease(
+            {
+              documentKey,
+              workingBytes,
+              revisionStoreId,
+              originalRevisionId,
+              activeRevisionId,
+            },
             controller.signal,
           );
-        if (!controller.signal.aborted) setHits(results);
+        if (!lease) return;
+
+        await indexPdfDocumentIncrementally({
+          doc: lease.doc,
+          revisionId:
+            activeRevisionId,
+          pageGraph,
+          currentPage,
+          nearbyRadius: 2,
+          batchSize: 2,
+          signal: controller.signal,
+          onPageIndexed: () => {
+            publishSearchResults(
+              useSearchStore
+                .getState()
+                .query,
+            );
+          },
+          onProgress: (
+            progress,
+          ) => {
+            setIndexProgress(progress);
+          },
+        });
+      } catch (indexError) {
+        if (
+          isOperationCancelledError(
+            indexError,
+          )
+          || controller.signal.aborted
+        ) {
+          return;
+        }
+        const message =
+          indexError instanceof Error
+            ? indexError.message
+            : String(indexError);
+        setError(message);
+        logError(
+          'pdf-renderer',
+          'Incremental search indexing failed',
+          { error: message },
+        );
+        addToast({
+          type: 'error',
+          title: 'Search Index Failed',
+          message,
+        });
+      } finally {
+        await lease?.release();
+        if (
+          indexAbortControllerRef.current
+          === controller
+        ) {
+          indexAbortControllerRef.current =
+            null;
+          publishSearchResults(
+            useSearchStore
+              .getState()
+              .query,
+          );
+        }
       }
-    } catch (searchError) {
-      if (isOperationCancelledError(searchError) || controller.signal.aborted) return;
-      const message = searchError instanceof Error ? searchError.message : String(searchError);
-      setError(message);
-      logError('pdf-renderer', 'Search failed in sidebar panel', { error: message });
-      addToast({ type: 'error', title: 'Search Failed', message });
-    } finally {
-      await lease?.release();
-      if (searchAbortControllerRef.current === controller) {
-        searchAbortControllerRef.current = null;
-        setIsSearching(false);
-      }
-    }
+    };
+
+    void run();
+
+    return () => {
+      controller.abort(
+        'Search panel revision or priority changed',
+      );
+    };
   }, [
     hasActiveDocument,
     documentKey,
@@ -149,12 +272,23 @@ export const SearchPanel: React.FC = () => {
     revisionStoreId,
     originalRevisionId,
     activeRevisionId,
-    searchOptions,
-    clearSearch,
-    setIsSearching,
-    setHits,
+    pageGraph,
+    currentPage,
+    publishSearchResults,
     setError,
+    setIndexProgress,
     addToast,
+  ]);
+
+  React.useEffect(() => {
+    publishSearchResults(
+      query,
+      searchOptions,
+    );
+  }, [
+    query,
+    searchOptions,
+    publishSearchResults,
   ]);
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,35 +302,18 @@ export const SearchPanel: React.FC = () => {
         nextHit();
       } else {
         setQuery(localQuery);
-        executeSearch(localQuery, {
-          caseSensitive: searchOptions.caseSensitive,
-          wholeWord: searchOptions.wholeWord,
-          useRegex: searchOptions.useRegex,
-        });
+        publishSearchResults(
+          localQuery,
+          searchOptions,
+        );
       }
     }
   };
 
   const handleClear = () => {
-    searchAbortControllerRef.current?.abort('Search cleared');
-    searchAbortControllerRef.current = null;
     setLocalQuery('');
     clearSearch();
   };
-
-  React.useEffect(() => () => {
-    searchAbortControllerRef.current?.abort('Search panel unmounted');
-  }, []);
-
-  React.useEffect(() => {
-    if (query && documentKey) {
-      executeSearch(query, {
-        caseSensitive: searchOptions.caseSensitive,
-        wholeWord: searchOptions.wholeWord,
-        useRegex: searchOptions.useRegex,
-      });
-    }
-  }, [searchOptions, query, documentKey, executeSearch]);
 
   const handleHitClick = (hitId: string, pageNumber: number) => {
     setActiveHit(hitId);
@@ -208,7 +325,10 @@ export const SearchPanel: React.FC = () => {
       const next = { ...prev, [key]: !prev[key] };
       if (localQuery) {
         setQuery(localQuery);
-        executeSearch(localQuery, next);
+        publishSearchResults(
+          localQuery,
+          next,
+        );
       }
       return next;
     });
@@ -271,9 +391,13 @@ export const SearchPanel: React.FC = () => {
           </Button>
         </div>
 
-        {hits.length > 0 && (
+        {query && indexProgress.totalPages > 0 && (
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>{hits.length} result{hits.length !== 1 ? 's' : ''}</span>
+            <span>
+              {hits.length} result{hits.length !== 1 ? 's' : ''}
+              {' · '}
+              {indexProgress.indexedPages}/{indexProgress.totalPages} pages indexed
+            </span>
             <div className="flex gap-1">
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={prevHit}>
                 <ChevronLeft className="w-4 h-4" />
@@ -288,17 +412,25 @@ export const SearchPanel: React.FC = () => {
 
       <div className="flex-1 overflow-auto p-3 space-y-4">
         {isSearching && (
-          <div className="text-sm text-slate-500 text-center py-4">Searching...</div>
+          <div className="text-sm text-slate-500 text-center py-4">
+            Searching indexed pages while background indexing continues ({indexProgress.indexedPages}/{indexProgress.totalPages})...
+          </div>
+        )}
+
+        {indexProgress.failedPages > 0 && (
+          <div className="text-xs text-amber-600 dark:text-amber-400 text-center">
+            {indexProgress.failedPages} page{indexProgress.failedPages === 1 ? '' : 's'} could not be indexed.
+          </div>
         )}
 
         {!isSearching && query && hits.length === 0 && (
           <div className="text-sm text-slate-500 text-center py-4">No results found.</div>
         )}
-        {!isSearching && error && (
+        {error && (
           <div className="text-sm text-red-600 dark:text-red-400 text-center py-4">{error}</div>
         )}
 
-        {!isSearching && Object.entries(groupedHits).map(([pageStr, pageHits]) => {
+        {Object.entries(groupedHits).map(([pageStr, pageHits]) => {
           const pageNum = parseInt(pageStr, 10);
           return (
             <div key={pageNum} className="space-y-1">

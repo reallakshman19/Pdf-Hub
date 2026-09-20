@@ -90,13 +90,19 @@ const searchPath =
 const search = read(searchPath);
 requireContains(search, searchPath, [
   'acquireActivePdfDocumentLease',
-  'PdfRendererAdapter.searchDocumentTextInDocument(',
-  'SearchIndexer.getCache(documentKey)',
-  'controller.signal',
+  'indexPdfDocumentIncrementally',
+  'SearchIndexer.searchRevision(',
+  'activeRevisionId',
+  'pageGraph',
+  'currentPage',
+  'batchSize: 2',
+  'onPageIndexed:',
   'await lease?.release()',
 ]);
 forbidContains(search, searchPath, [
+  'PdfRendererAdapter.searchDocumentTextInDocument(',
   'PdfRendererAdapter.searchDocumentText(',
+  'SearchIndexer.getCache(',
   'PdfRendererAdapter.acquireDocument(',
   'PdfRendererAdapter.acquireDocumentSource(',
 ]);
@@ -171,13 +177,46 @@ requireContains(leaseTest, leaseTestPath, [
   'does not start resolver work for an already-aborted signal',
 ]);
 
+const incrementalSearchPath =
+  'src/adapters/pdf-renderer/IncrementalSearchIndexer.ts';
+const incrementalSearch =
+  read(incrementalSearchPath);
+requireContains(
+  incrementalSearch,
+  incrementalSearchPath,
+  [
+    'SearchIndexer.createPageSchedule',
+    'SearchIndexer.markQueued',
+    'SearchIndexer.markIndexing',
+    'SearchIndexer.setPageText',
+    'SearchIndexer.releaseOwner',
+    'await yieldToBrowser(',
+    'page?.cleanup()',
+  ],
+);
+
 const searchTestPath =
   'src/components/sidebar/SearchPanel.test.tsx';
 const searchTest = read(searchTestPath);
 requireContains(searchTest, searchTestPath, [
-  'uses an active revision lease for an uncached user-triggered search',
-  'keeps SearchIndexer cache hits on the in-memory path without a renderer lease',
+  'uses the active revision lease and incremental indexer without a query-triggered full-document scan',
+  'publishes partial hits while background indexing remains incomplete',
+  'reuses indexed text across query changes without restarting extraction',
 ]);
+
+const incrementalSearchTestPath =
+  'src/adapters/pdf-renderer/IncrementalSearchIndexer.test.ts';
+const incrementalSearchTest =
+  read(incrementalSearchTestPath);
+requireContains(
+  incrementalSearchTest,
+  incrementalSearchTestPath,
+  [
+    'indexes current and nearby pages before distant background pages and publishes partial hits',
+    'yields between bounded batches so cancellation prevents distant page extraction',
+    'does not reacquire text for pages already indexed in the same revision',
+  ],
+);
 
 const bookmarksTestPath =
   'src/components/sidebar/panels/BookmarksSidebar.test.tsx';
@@ -239,6 +278,7 @@ requireContains(certifyCommand, packagePath, [
   'DocumentWorkspace.test.tsx',
   'documentTransaction.history.test.ts',
   'SearchPanel.test.tsx',
+  'IncrementalSearchIndexer.test.ts',
   'BookmarksSidebar.test.tsx',
   'ThumbnailSidebar.test.tsx',
   'SelectBoxCopyLayer.test.tsx',
@@ -249,6 +289,7 @@ requireContains(certifyCommand, packagePath, [
 const moduleLimits = [
   [leasePath, lease, 120],
   [rendererPath, renderer, 600],
+  [incrementalSearchPath, incrementalSearch, 320],
   [selectEnginePath, selectEngine, 220],
   [imagePath, image, 220],
 ];
@@ -265,5 +306,5 @@ for (const [relativePath, source, limit] of moduleLimits) {
 if (failed) process.exit(1);
 
 console.log(
-  '[phase8-active-renderer-consumers] active Search/Bookmarks/Select Box revision leases, cancellation cleanup and byte-wrapper compatibility guards passed',
+  '[phase8-active-renderer-consumers] active incremental Search/Bookmarks/Select Box revision leases, cancellation cleanup and byte-wrapper compatibility guards passed',
 );

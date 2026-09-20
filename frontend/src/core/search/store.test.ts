@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSearchStore } from './store';
-import type { SearchHit } from './types';
+import {
+  EMPTY_SEARCH_INDEX_PROGRESS,
+  type SearchHit,
+} from './types';
 
 function makeHit(id: string, pageNumber: number): SearchHit {
   return {
@@ -19,6 +22,9 @@ describe('search store', () => {
       hits: [],
       activeHitId: null,
       error: null,
+      indexProgress: {
+        ...EMPTY_SEARCH_INDEX_PROGRESS,
+      },
     });
   });
 
@@ -94,6 +100,35 @@ describe('search store', () => {
   it('setError updates the error message', () => {
     useSearchStore.getState().setError('network failed');
     expect(useSearchStore.getState().error).toBe('network failed');
+  });
+
+  it('retains revision index progress when the query is cleared', () => {
+    useSearchStore.getState().setIndexProgress({
+      revisionId: 'rev-a',
+      indexedPages: 2,
+      failedPages: 0,
+      pendingPages: 1,
+      totalPages: 5,
+      complete: false,
+    });
+    useSearchStore.setState({
+      query: 'valve',
+      hits: [makeHit('a', 1)],
+      activeHitId: 'a',
+    });
+
+    useSearchStore.getState().clearSearch();
+
+    expect(
+      useSearchStore.getState().indexProgress,
+    ).toEqual({
+      revisionId: 'rev-a',
+      indexedPages: 2,
+      failedPages: 0,
+      pendingPages: 1,
+      totalPages: 5,
+      complete: false,
+    });
   });
 
   it('clearSearch resets query, hits, active id, and error', () => {

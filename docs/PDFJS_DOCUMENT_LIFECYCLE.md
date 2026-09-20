@@ -95,8 +95,10 @@ The remaining active-session renderer consumers now use the revision-keyed
 lease path rather than independently reacquiring PDF.js from
 `DocumentSession.workingBytes`:
 
-- uncached Search acquires the active session lease and runs
-  `searchDocumentTextInDocument(...)` against that proxy;
+- Search acquires the active session lease once per active indexing task and
+  incrementally extracts current/nearby pages before bounded background pages;
+  query changes search the already-indexed revision/PageId records without
+  reacquiring page text;
 - native Bookmarks/outline loading acquires the active session lease and
   releases it after outline resolution; and
 - active Select Box Copy acquires a lease per extraction/image operation and
@@ -116,6 +118,14 @@ revision/session identity changes, the tool is deactivated, or page/viewport
 geometry changes, so stale results cannot publish into a newer render context.
 Superseded text extractions also use a generation token so an older cancelled
 operation cannot clear the busy state of the newer active selection.
+
+Phase 8F keeps index identity above the renderer: cached page text is keyed by
+the immutable active revision plus stable PageId, while result page numbers are
+resolved from the current PageGraph. SearchPanel owns the active indexing
+lifecycle and exposes partial results/progress; TopNav only updates the shared
+query and opens the search surface. Page extraction cleans each PDFPageProxy,
+yields between bounded batches and is abortable when revision/priority changes.
+A revision change invalidates the runtime index rather than reusing stale text.
 
 Standalone APIs that intentionally receive explicit bytes remain valid:
 `searchDocumentText(bytes,...)`, `extractSelectBoxCopyFromPdf(...)`, and

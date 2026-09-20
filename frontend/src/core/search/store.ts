@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { SearchHit, SearchState } from './types';
+import {
+  EMPTY_SEARCH_INDEX_PROGRESS,
+  type SearchHit,
+  type SearchIndexProgress,
+  type SearchState,
+} from './types';
 
 export interface SearchActions {
   setQuery: (query: string) => void;
@@ -7,6 +12,7 @@ export interface SearchActions {
   setHits: (hits: SearchHit[]) => void;
   setActiveHit: (id: string | null) => void;
   setError: (error: string | null) => void;
+  setIndexProgress: (progress: SearchIndexProgress) => void;
   clearSearch: () => void;
   nextHit: () => void;
   prevHit: () => void;
@@ -18,6 +24,9 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
   hits: [],
   activeHitId: null,
   error: null,
+  indexProgress: {
+    ...EMPTY_SEARCH_INDEX_PROGRESS,
+  },
 
   setQuery: (query) =>
     set((state) => {
@@ -41,8 +50,16 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
 
   setActiveHit: (id) => set({ activeHitId: id }),
   setError: (error) => set({ error }),
+  setIndexProgress: (indexProgress) =>
+    set({ indexProgress: { ...indexProgress } }),
 
-  clearSearch: () => set({ query: '', hits: [], activeHitId: null, isSearching: false, error: null }),
+  clearSearch: () => set({
+    query: '',
+    hits: [],
+    activeHitId: null,
+    isSearching: false,
+    error: null,
+  }),
 
   nextHit: () =>
     set((state) => {

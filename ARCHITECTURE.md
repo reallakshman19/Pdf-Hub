@@ -526,8 +526,37 @@ the same recovery from the retained graph. A deliberately damaged recovery graph
 (missing required immutable revision) must fail before live-state mutation, and
 GC must also fail closed rather than compound that damage.
 
-WP-8F incremental search indexing remains blocked until this WP-8E closure
-certification reaches a terminal accepted state.
+Phase 8F replaces query-triggered whole-document search extraction with one
+runtime incremental index keyed by immutable `activeRevisionId + PageId`.
+Physical page numbers are never index identity: search results resolve their
+current one-based page number from the active PageGraph, so same-revision page
+reordering can reuse indexed text safely while a revision change invalidates the
+runtime index.
+
+The SearchPanel owns index lifecycle over the existing revision/source-backed
+PDF.js document lease. Scheduling is deterministic: current page first, nearby
+pages next, explicitly requested pages after that, then the remaining document
+in background order. Extraction owns one PDFPageProxy at a time, calls
+`cleanup()` immediately, yields between bounded batches, and is abortable when
+revision or priority changes. Generation/owner tokens prevent superseded tasks
+from publishing stale page text.
+
+Search query/options are evaluated against whatever page subset is already
+indexed, so partial hits are visible while indexing continues and query changes
+do not re-extract PDF text. Index progress distinguishes partial no-match from a
+completed no-match. TopNav only updates the shared query/search surface; it is
+not a second search executor. The active SearchPanel path no longer calls the
+legacy full-document `searchDocumentTextInDocument(...)` helper, although
+explicit byte/document compatibility APIs remain available to standalone
+callers.
+
+The first 8F slice intentionally keeps the page-text index process-local rather
+than adding persistence prematurely. A new immutable revision clears the active
+runtime index. Persisted indexing, if later justified by measurement, must keep
+the same revision + PageId identity and fail closed on schema/revision mismatch.
+
+WP-8G owns the large-document performance corpus and certification after 8F is
+terminal.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
