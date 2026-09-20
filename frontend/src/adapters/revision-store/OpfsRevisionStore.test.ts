@@ -213,6 +213,9 @@ describe('OpfsRevisionStore', () => {
     await Promise.resolve();
 
     expect(await store.has('pending')).toBe(false);
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual([]);
     await expect(store.open('pending')).rejects.toMatchObject({
       code: 'REVISION_NOT_FOUND',
     });
@@ -231,6 +234,9 @@ describe('OpfsRevisionStore', () => {
     releaseRead?.();
     await pending;
     expect(await store.has('pending')).toBe(true);
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual(['pending']);
   });
 
   it('preserves cancellation and cleans the unpublished file', async () => {
@@ -271,8 +277,12 @@ describe('OpfsRevisionStore', () => {
       bytes: Uint8Array.from([4, 5]),
     });
 
-    await store.commit({ revisionId: 'a', source });
     await store.commit({ revisionId: 'b', source });
+    await store.commit({ revisionId: 'a', source });
+    await expect(
+      store.listRevisionIds(),
+    ).resolves.toEqual(['a', 'b']);
+
     await store.remove('a');
     expect(await store.has('a')).toBe(false);
     expect(await store.has('b')).toBe(true);

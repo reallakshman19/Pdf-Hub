@@ -11,6 +11,9 @@ import {
   resolveWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import {
+  releaseActiveSessionRevisionGcBlocker,
+} from '@/core/revision-store/sessionGcBlocker';
+import {
   releaseHistoryJournalStore,
   resolveHistoryJournalStore,
 } from '@/core/document-history/journal/registry';
@@ -362,6 +365,8 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       historyJournalPersistent,
     });
 
+    releaseActiveSessionRevisionGcBlocker();
+
     const previousSourceId = get().sourceId;
     if (
       previousSourceId
@@ -687,6 +692,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
   clearSelectedPages: () => set({ selectedPageIds: [], selectedPages: [] }),
 
   clearDocument: () => {
+    releaseActiveSessionRevisionGcBlocker();
     releaseDocumentSource(get().sourceId);
     releaseWorkingRevisionStore(
       get().revisionStoreId,

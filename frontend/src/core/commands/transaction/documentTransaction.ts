@@ -19,6 +19,9 @@ import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
 import { ensureStoredRevision } from '@/core/revision-store/ensureRevision';
+import {
+  acquireRevisionStoreExclusiveLease,
+} from '@/core/revision-store/exclusion';
 import { resolveWorkingRevisionStore } from '@/core/revision-store/registry';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
@@ -378,21 +381,30 @@ export async function commitDocumentMutation(
     nextDocumentKey,
   );
 
-  let publishedRevisionId: string | null;
+  const revisionLease =
+    sessionSnapshot.revisionStoreId
+      ? await acquireRevisionStoreExclusiveLease({
+          storeId:
+            sessionSnapshot.revisionStoreId,
+        })
+      : null;
+
   try {
-    publishedRevisionId = await publishMutationRevision(
+    let publishedRevisionId: string | null;
+    try {
+      publishedRevisionId = await publishMutationRevision(
       sessionSnapshot,
       nextDocumentKey,
       effectiveAfterBytes,
       input.signal,
     );
-  } catch (error) {
-    throw toTransactionError(
-      'persistence',
-      'Document mutation was not committed because working revision publication failed',
-      error,
-    );
-  }
+    } catch (error) {
+      throw toTransactionError(
+        'persistence',
+        'Document mutation was not committed because working revision publication failed',
+        error,
+      );
+    }
 
   if (input.executionMode !== 'recovery-replay') {
     try {
@@ -634,6 +646,9 @@ export async function commitDocumentMutation(
     nextDocumentKey,
     activeRevisionId: publishedRevisionId,
   };
+  } finally {
+    revisionLease?.release();
+  }
 }
 
 export function isDocumentMutationTransactionError(

@@ -28,6 +28,7 @@ function fakePersistentStore(
     async save() {},
     async load() { return null; },
     async listByOriginalRevision() { return []; },
+    async listAll() { return []; },
     async remove() {},
   };
 }

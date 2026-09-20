@@ -23,6 +23,8 @@ export interface HistoryJournalStore {
   listByOriginalRevision(
     originalRevisionId: string,
   ): Promise<HistoryJournalManifest[]>;
+  /** Deterministic complete inventory for cross-document reachability scans. */
+  listAll(): Promise<HistoryJournalManifest[]>;
   remove(
     journalId: string,
   ): Promise<void>;

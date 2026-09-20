@@ -19,6 +19,10 @@ import {
   commitOpfsRevisionBytes,
   isOpfsNotFoundError,
 } from './opfsRevisionIo';
+import {
+  clearCommittedOpfsRevisionFiles,
+  listCommittedOpfsRevisionIds,
+} from './opfsRevisionInventory';
 
 const OPFS_REVISION_CAPABILITIES: Readonly<RevisionStoreCapabilities> =
   Object.freeze({
@@ -41,10 +45,6 @@ export interface CreateOpfsRevisionStoreInput {
 
 type StorageManagerWithDirectory = StorageManager & {
   getDirectory?: () => Promise<FileSystemDirectoryHandle>;
-};
-
-type DirectoryWithEntries = FileSystemDirectoryHandle & {
-  entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
 };
 
 /**
@@ -158,6 +158,14 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
     }
     return this.hasCommittedRevision(revisionId);
   }
+  async listRevisionIds(): Promise<string[]> {
+    return listCommittedOpfsRevisionIds({
+      storeId: this.id,
+      directory: this.directory,
+      pending: this.pending,
+    });
+  }
+
   async remove(revisionId: string): Promise<void> {
     assertRevisionId(this.id, revisionId);
     this.assertNotPending(revisionId);
@@ -184,21 +192,10 @@ export class OpfsRevisionStore implements WorkingRevisionStore {
         'Cannot clear OPFS revision store while a revision commit is pending.',
       );
     }
-    try {
-      const directory = this.directory as DirectoryWithEntries;
-      for await (const [name] of directory.entries()) {
-        if (name.startsWith('revision-') && name.endsWith('.pdf')) {
-          await this.directory.removeEntry(name);
-        }
-      }
-    } catch (error) {
-      throw new RevisionStoreError(
-        'REMOVE_FAILED',
-        this.id,
-        'Failed to clear OPFS revision store.',
-        { cause: error },
-      );
-    }
+    await clearCommittedOpfsRevisionFiles({
+      storeId: this.id,
+      directory: this.directory,
+    });
   }
 
   private async hasCommittedRevision(

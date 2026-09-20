@@ -24,3 +24,20 @@ export {
   ensureStoredRevision,
   type EnsureStoredRevisionInput,
 } from './ensureRevision';
+
+export {
+  acquireRevisionStoreExclusiveLease,
+  acquireRevisionStoreGcBlockerLease,
+  acquireRevisionStoreGcClearanceLease,
+  RevisionStoreGcBlockedError,
+  RevisionStoreLockUnavailableError,
+  revisionStoreExclusiveLockName,
+  revisionStoreGcBlockerLockName,
+  type RevisionStoreExclusiveLease,
+} from './exclusion';
+export {
+  acquireRevisionPin,
+  listRevisionPins,
+  type RevisionPinHandle,
+  type RevisionRuntimePin,
+} from './pins';

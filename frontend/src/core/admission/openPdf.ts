@@ -22,6 +22,14 @@ import {
   ensureStoredRevision,
 } from '@/core/revision-store/ensureRevision';
 import {
+  acquireRevisionStoreExclusiveLease,
+  acquireRevisionStoreGcBlockerLease,
+  type RevisionStoreExclusiveLease,
+} from '@/core/revision-store/exclusion';
+import {
+  installActiveSessionRevisionGcBlocker,
+} from '@/core/revision-store/sessionGcBlocker';
+import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import {
@@ -127,6 +135,9 @@ export async function admitAndOpenPdfFile(
     store: HistoryJournalStore;
     journalId: string;
   } | null = null;
+  let provisionalRevisionGcBlocker:
+    RevisionStoreExclusiveLease | null =
+      null;
 
   const sizeDiagnostic = evaluateAdmissionMetric(
     PRIMARY_PDF_OPEN_POLICY,
@@ -261,6 +272,12 @@ export async function admitAndOpenPdfFile(
     const revisionStore = revisionSelection.store;
     registerWorkingRevisionStore(revisionStore);
 
+    const revisionLease =
+      await acquireRevisionStoreExclusiveLease({
+        storeId: revisionStore.id,
+      });
+
+    try {
     const initialRevision = await ensureStoredRevision({
       store: revisionStore,
       revisionId: documentKey,
@@ -340,6 +357,16 @@ export async function admitAndOpenPdfFile(
       );
     }
 
+    if (
+      revisionStore.capabilities.persistent
+      && !historyJournalPersistent
+    ) {
+      provisionalRevisionGcBlocker =
+        await acquireRevisionStoreGcBlockerLease(
+          revisionStore.id,
+        );
+    }
+
     assertAdmissionCommitAllowed(
       options.signal,
       'open admitted PDF after history journal initialization',
@@ -362,6 +389,8 @@ export async function admitAndOpenPdfFile(
         }
         provisionalJournal = null;
       }
+      provisionalRevisionGcBlocker?.release();
+      provisionalRevisionGcBlocker = null;
       diagnostics.push({
         severity: 'info',
         code: 'ADMISSION_STALE_OPERATION',
@@ -396,10 +425,24 @@ export async function admitAndOpenPdfFile(
       pageGraph,
       saveHandle,
     };
-    const commit = options.commit ?? useSessionStore.getState().openDocument;
+    const commitsToSession =
+      options.commit === undefined;
+    const commit =
+      options.commit
+      ?? useSessionStore.getState()
+        .openDocument;
     commit(payload);
     registeredSourceId = null;
     provisionalJournal = null;
+
+    if (commitsToSession) {
+      installActiveSessionRevisionGcBlocker(
+        provisionalRevisionGcBlocker,
+      );
+    } else {
+      provisionalRevisionGcBlocker?.release();
+    }
+    provisionalRevisionGcBlocker = null;
 
     const value: OpenedPdfDocument = Object.freeze({
       source,
@@ -441,7 +484,13 @@ export async function admitAndOpenPdfFile(
       value,
       evidence,
     });
+    } finally {
+      revisionLease.release();
+    }
   } catch (error) {
+    provisionalRevisionGcBlocker?.release();
+    provisionalRevisionGcBlocker = null;
+
     if (provisionalJournal) {
       try {
         await provisionalJournal.store.remove(

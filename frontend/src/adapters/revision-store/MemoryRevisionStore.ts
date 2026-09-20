@@ -112,6 +112,10 @@ export class MemoryRevisionStore implements WorkingRevisionStore {
     return this.revisions.has(revisionId);
   }
 
+  async listRevisionIds(): Promise<string[]> {
+    return [...this.revisions.keys()].sort();
+  }
+
   async remove(revisionId: string): Promise<void> {
     assertRevisionId(this.id, revisionId);
     this.revisions.delete(revisionId);
