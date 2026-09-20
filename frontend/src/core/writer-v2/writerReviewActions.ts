@@ -36,7 +36,7 @@ export function isReviewableWriterElement(element: WriterElementV2): boolean {
   return REVIEWABLE_TYPES.has(element.type);
 }
 
-export function ensureActiveWriterReviewMetadata(): WriterReviewActionResult {
+export async function ensureActiveWriterReviewMetadata(): Promise<WriterReviewActionResult> {
   const element = getActiveReviewableElement();
 
   if (!element) {
@@ -53,26 +53,48 @@ export function ensureActiveWriterReviewMetadata(): WriterReviewActionResult {
     };
   }
 
-  const now = new Date().toISOString();
-
-  const review: WriterReviewMetadata = {
-    status: 'open',
-    priority: 'medium',
-    category: defaultCategoryForType(element.type),
-    commentId: createReviewId(),
-    createdAt: now,
-    updatedAt: now,
-  };
-
+  const elementId = element.id;
   const store = useWriterV2Store.getState();
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      review,
-    },
-  });
+  const result =
+    await store.dispatchWriterCommandDurableLatest(
+      (state) => {
+        const current = state.elements.find(
+          (item) => item.id === elementId,
+        );
+
+        if (
+          !current
+          || current.locked
+          || current.hidden
+          || !isReviewableWriterElement(current)
+          || current.review
+        ) {
+          return null;
+        }
+
+        const now = new Date().toISOString();
+        const review: WriterReviewMetadata = {
+          status: 'open',
+          priority: 'medium',
+          category:
+            defaultCategoryForType(
+              current.type,
+            ),
+          commentId: createReviewId(),
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        return {
+          type: 'UPDATE_WRITER_ELEMENT',
+          id: current.id,
+          patch: {
+            review,
+          },
+        };
+      },
+    );
 
   return {
     changed: result.changed,
@@ -82,9 +104,9 @@ export function ensureActiveWriterReviewMetadata(): WriterReviewActionResult {
   };
 }
 
-export function updateActiveWriterReviewMetadata(
+export async function updateActiveWriterReviewMetadata(
   patch: WriterReviewPatch,
-): WriterReviewActionResult {
+): Promise<WriterReviewActionResult> {
   const element = getActiveReviewableElement();
 
   if (!element) {
@@ -94,30 +116,78 @@ export function updateActiveWriterReviewMetadata(
     };
   }
 
-  const now = new Date().toISOString();
-  const previous = element.review;
+  return updateWriterReviewMetadataById(
+    element.id,
+    patch,
+  );
+}
 
-  const review: WriterReviewMetadata = {
-    status: patch.status ?? previous?.status ?? 'open',
-    priority: patch.priority ?? previous?.priority ?? 'medium',
-    category: patch.category ?? previous?.category ?? defaultCategoryForType(element.type),
-    author: patch.author ?? previous?.author,
-    assignee: patch.assignee ?? previous?.assignee,
-    dueDate: patch.dueDate ?? previous?.dueDate,
-    commentId: previous?.commentId ?? createReviewId(),
-    createdAt: previous?.createdAt ?? now,
-    updatedAt: now,
-  };
-
+export async function updateWriterReviewMetadataById(
+  elementId: string,
+  patch: WriterReviewPatch,
+): Promise<WriterReviewActionResult> {
   const store = useWriterV2Store.getState();
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      review,
-    },
-  });
+  const result =
+    await store.dispatchWriterCommandDurableLatest(
+      (state) => {
+        const current = state.elements.find(
+          (item) => item.id === elementId,
+        );
+
+        if (
+          !current
+          || current.locked
+          || current.hidden
+        ) {
+          return null;
+        }
+
+        const now = new Date().toISOString();
+        const previous = current.review;
+
+        const review: WriterReviewMetadata = {
+          status:
+            patch.status
+            ?? previous?.status
+            ?? 'open',
+          priority:
+            patch.priority
+            ?? previous?.priority
+            ?? 'medium',
+          category:
+            patch.category
+            ?? previous?.category
+            ?? defaultCategoryForType(
+              current.type,
+            ),
+          author:
+            patch.author
+            ?? previous?.author,
+          assignee:
+            patch.assignee
+            ?? previous?.assignee,
+          dueDate:
+            patch.dueDate
+            ?? previous?.dueDate,
+          commentId:
+            previous?.commentId
+            ?? createReviewId(),
+          createdAt:
+            previous?.createdAt
+            ?? now,
+          updatedAt: now,
+        };
+
+        return {
+          type: 'UPDATE_WRITER_ELEMENT',
+          id: current.id,
+          patch: {
+            review,
+          },
+        };
+      },
+    );
 
   return {
     changed: result.changed,
@@ -127,7 +197,7 @@ export function updateActiveWriterReviewMetadata(
   };
 }
 
-export function clearActiveWriterReviewMetadata(): WriterReviewActionResult {
+export async function clearActiveWriterReviewMetadata(): Promise<WriterReviewActionResult> {
   const element = getActiveReviewableElement();
 
   if (!element) {
@@ -137,15 +207,34 @@ export function clearActiveWriterReviewMetadata(): WriterReviewActionResult {
     };
   }
 
+  const elementId = element.id;
   const store = useWriterV2Store.getState();
 
-  const result = store.dispatchWriterCommand({
-    type: 'UPDATE_WRITER_ELEMENT',
-    id: element.id,
-    patch: {
-      review: undefined,
-    },
-  });
+  const result =
+    await store.dispatchWriterCommandDurableLatest(
+      (state) => {
+        const current = state.elements.find(
+          (item) => item.id === elementId,
+        );
+
+        if (
+          !current
+          || current.locked
+          || current.hidden
+          || !isReviewableWriterElement(current)
+        ) {
+          return null;
+        }
+
+        return {
+          type: 'UPDATE_WRITER_ELEMENT',
+          id: current.id,
+          patch: {
+            review: undefined,
+          },
+        };
+      },
+    );
 
   return {
     changed: result.changed,
@@ -155,7 +244,7 @@ export function clearActiveWriterReviewMetadata(): WriterReviewActionResult {
   };
 }
 
-export function markActiveWriterReviewResolved(): WriterReviewActionResult {
+export async function markActiveWriterReviewResolved(): Promise<WriterReviewActionResult> {
   return updateActiveWriterReviewMetadata({
     status: 'resolved',
   });
