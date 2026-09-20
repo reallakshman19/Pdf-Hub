@@ -26,6 +26,7 @@ import {
 import {
   cloneOcrPageAnchoredState,
   normalizeOcrPageAnchoredState,
+  rekeyOcrPageAnchoredState,
 } from '@/core/ocr/ocrPageAnchor';
 import {
   recomputeOcrDerivedState,
@@ -601,11 +602,14 @@ function installRecoveryCheckpoint(
   const currentOcr =
     useOcrStore.getState();
   const restoredOcr =
-    normalizeOcrPageAnchoredState(
-      cloneOcrPageAnchoredState(
-        state.ocr,
+    rekeyOcrPageAnchoredState(
+      normalizeOcrPageAnchoredState(
+        cloneOcrPageAnchoredState(
+          state.ocr,
+        ),
+        graph,
       ),
-      graph,
+      state.documentKey,
     );
   const hasOcrState = Boolean(
     restoredOcr.documentFingerprint
