@@ -8,6 +8,7 @@ import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useHistoryStore } from '@/core/document-history/store';
 import {
+  attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
 } from '@/core/document-history/journal/appendMutation';
 import type {
@@ -541,6 +542,23 @@ export async function commitDocumentMutation(
     });
 
     if (preparedJournal) {
+      const committedTransaction =
+        useHistoryStore.getState().peekUndo();
+      if (
+        !committedTransaction
+        || committedTransaction.id !== transactionId
+      ) {
+        throw new Error(
+          `Committed history transaction ${transactionId} is not the active undo head.`,
+        );
+      }
+
+      attachHistoryJournalBarrierState({
+        manifest: preparedJournal.manifest,
+        transactionId,
+        after: committedTransaction.after,
+      });
+
       try {
         await preparedJournal.store.save(
           preparedJournal.manifest,
