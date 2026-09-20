@@ -112,6 +112,7 @@ requireContains(indexer, indexPath, [
   'static prepareRevision(',
   'activeRevisionId !== revisionId',
   'revisionIndexes.clear()',
+  'static getPageState(',
   'static markQueued(',
   'static markIndexing(',
   'record.ownerToken !== ownerToken',
@@ -145,6 +146,7 @@ const adapter = read(adapterPath);
 requireContains(adapter, adapterPath, [
   'indexPdfDocumentIncrementally',
   'SearchIndexer.createPageSchedule',
+  'SearchIndexer.getPageState',
   'SearchIndexer.markQueued',
   'SearchIndexer.markIndexing',
   'owned.ownerToken',
@@ -164,6 +166,7 @@ forbidContains(adapter, adapterPath, [
   'useSearchStore',
   'materializeDocumentSource',
   'workingBytes',
+  'SearchIndexer.getPageRecord(',
 ]);
 
 const panelPath =
