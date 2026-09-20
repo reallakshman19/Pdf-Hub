@@ -1,0 +1,113 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-9-002",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 287,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "bc99073dcbd31527fde393332dfc3502e6d92059"
+    },
+    "base": {
+      "ref": "phase8/large-document-performance",
+      "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+    }
+  },
+  "mergeability": {
+    "state": "UNKNOWN",
+    "provider_value": null,
+    "provider_mergeable_state": "unknown"
+  },
+  "protocol": {
+    "version": "2.5",
+    "basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8",
+    "prior_takeover_disposition": "STALE_FOR_FURTHER_WRITES"
+  },
+  "material": {
+    "frozen_product_head": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+    "current_relay_tail_head": "bc99073dcbd31527fde393332dfc3502e6d92059",
+    "relay_tail_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/certifications/qualification/QSET-9-002.yaml",
+      "agents/relay/execution-packages/EP-9-001.yaml",
+      "agents/relay/roadmap/PROGRESS.yaml"
+    ],
+    "step_9_01": {
+      "state": "IN_PROGRESS_NO_ACCEPTANCE",
+      "manifest_entries": 12,
+      "generator_backed": 9,
+      "required_pending": 3,
+      "pending_ids": [
+        "complex-font-unicode",
+        "encrypted-protected",
+        "signed-document"
+      ],
+      "retained_candidate_files": [
+        "frontend/fidelity/phase9/retained/ArabicCIDTrueType.pdf",
+        "frontend/fidelity/phase9/retained/encrypted-with-images.pdf"
+      ],
+      "retained_files_accepted_as_coverage": false
+    }
+  },
+  "qualification": {
+    "required": true,
+    "current_state": "PENDING_REFRESH",
+    "execution_package": "EP-9-001",
+    "question_set": "QSET-9-002",
+    "ep_contract_digest": "sha256:a1913e59ed866e544346f927ce24048f460d6e0c8ba25bb3c88757e6d29d56d7",
+    "takeover_admissions": [],
+    "prior_evidence": [
+      "DISC-9-001",
+      "QUAL-9-001",
+      "TC-9-001"
+    ],
+    "prior_evidence_note": "Historical receipts were produced before the Owner-pinned Common 65518fd protocol basis and no longer satisfy the current full EP/protocol/schema/evaluator binding. They are retained as history, not current admission."
+  },
+  "checks": {
+    "material_head": {
+      "state": "NOT_RUN_INFRASTRUCTURE",
+      "head_sha": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+      "observed": [
+        {
+          "workflow": "certify-writer-overlay-v2",
+          "run_id": 35535210788,
+          "job_id": 106142897499,
+          "job": "certify",
+          "provider_conclusion": "failure",
+          "runner_id": 0,
+          "steps_executed": 0
+        }
+      ]
+    },
+    "relay_tail": {
+      "state": "NO_WORKFLOW_OBSERVED",
+      "head_sha": "bc99073dcbd31527fde393332dfc3502e6d92059"
+    }
+  },
+  "review": {
+    "state": "PENDING"
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "correlations": [
+      {
+        "issue_node": "ISSUE-286",
+        "issue_number": 286,
+        "ep_id": "EP-9-001",
+        "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+        "work_package": "WP-009",
+        "relationship": "IMPLEMENTS"
+      }
+    ]
+  },
+  "evidence_truth": {
+    "acceptance_progress": 0,
+    "further_material_write_ready": false,
+    "next_required_action": "Fresh incoming candidate DISC/QUAL/TC on QSET-9-002 under Common 65518fd before additional Phase 9 product writes.",
+    "phase8g_deferred_certification": "PENDING_NOT_SATISFIED"
+  }
+}
