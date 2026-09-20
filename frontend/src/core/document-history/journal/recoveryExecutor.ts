@@ -46,6 +46,13 @@ import {
 import {
   useWriterV2Store,
 } from '@/core/writer-v2/writerV2Store';
+import type {
+  WriterAssetRecordV2,
+  WriterPersistenceAdapterV2,
+} from '@/core/writer-v2/persistence/indexedDbWriterStore';
+import {
+  resolveWriterPersistenceAdapter,
+} from '@/core/writer-v2/persistence/writerPersistenceRuntime';
 import {
   resolveHistoryJournalStore,
 } from './registry';
@@ -93,6 +100,8 @@ export interface HistoryRecoveryExecutorDependencies {
     input: CommandExecutionInput,
   ) => Promise<CommandResult>;
   persistAnnotations?: typeof saveAnnotations;
+  writerPersistence?:
+    WriterPersistenceAdapterV2;
 }
 
 export interface ExecuteHistoryRecoveryInput {
@@ -139,6 +148,9 @@ async function executeHistoryRecoveryUnqueued(
   const persistAnnotations =
     input.dependencies?.persistAnnotations
     ?? saveAnnotations;
+  const writerPersistence =
+    input.dependencies?.writerPersistence
+    ?? resolveWriterPersistenceAdapter();
 
   const journalStore =
     resolveHistoryJournalStore(
@@ -181,15 +193,33 @@ async function executeHistoryRecoveryUnqueued(
     );
   }
 
-  const unresolvedWriterAssets =
+  const requiredWriterAssetIds =
     collectWriterAssetReferences(
       plan.state.writer.elements,
     );
-  if (unresolvedWriterAssets.length > 0) {
-    throw new HistoryRecoveryExecutionError(
-      'WRITER_ASSETS_UNAVAILABLE',
-      `Recovery checkpoint references Writer assets that must be restored before application: ${unresolvedWriterAssets.join(', ')}.`,
-    );
+  let writerAssets:
+    WriterAssetRecordV2[] = [];
+  if (requiredWriterAssetIds.length > 0) {
+    try {
+      writerAssets =
+        await loadRecoveryWriterAssets(
+          requiredWriterAssetIds,
+          writerPersistence,
+          plan.state.documentKey,
+        );
+    } catch (error) {
+      if (
+        error
+        instanceof HistoryRecoveryExecutionError
+      ) {
+        throw error;
+      }
+      throw new HistoryRecoveryExecutionError(
+        'WRITER_ASSETS_UNAVAILABLE',
+        'Failed to resolve Writer assets required by the recovery checkpoint.',
+        { cause: error },
+      );
+    }
   }
 
   const snapshot =
@@ -200,6 +230,7 @@ async function executeHistoryRecoveryUnqueued(
       installRecoveryCheckpoint(
         input,
         journalStore.capabilities.persistent,
+        writerAssets,
       );
     } catch (error) {
       throw new HistoryRecoveryExecutionError(
@@ -354,6 +385,8 @@ async function executeHistoryRecoveryUnqueued(
 function installRecoveryCheckpoint(
   input: ExecuteHistoryRecoveryInput,
   historyJournalPersistent: boolean,
+  writerAssets:
+    readonly WriterAssetRecordV2[],
 ): void {
   const { plan, checkpointBytes } =
     input.resolved;
@@ -430,7 +463,13 @@ function installRecoveryCheckpoint(
 
   const writerElements =
     normalizeWriterPageAnchors(
-      state.writer.elements,
+      state.writer.elements.map(
+        (element) => ({
+          ...element,
+          documentFingerprint:
+            state.documentKey,
+        }),
+      ),
       graph,
     );
   useWriterV2Store.setState({
@@ -453,7 +492,12 @@ function installRecoveryCheckpoint(
         pageCount:
           state.pageCount,
       }),
-    assetRecords: [],
+    assetRecords:
+      writerAssets.map((asset) => ({
+        ...asset,
+        documentFingerprint:
+          state.documentKey,
+      })),
     lastPersistedAt: null,
     tableSelection: null,
   });
@@ -518,6 +562,32 @@ function assertReplayBeforeRevision(
       { transactionId },
     );
   }
+}
+
+async function loadRecoveryWriterAssets(
+  assetIds: readonly string[],
+  persistence:
+    WriterPersistenceAdapterV2,
+  documentFingerprint: string,
+): Promise<WriterAssetRecordV2[]> {
+  const assets: WriterAssetRecordV2[] = [];
+
+  for (const assetId of assetIds) {
+    const asset =
+      await persistence.loadAsset(assetId);
+    if (!asset) {
+      throw new HistoryRecoveryExecutionError(
+        'WRITER_ASSETS_UNAVAILABLE',
+        `Recovery checkpoint references missing Writer asset ${assetId}.`,
+      );
+    }
+    assets.push({
+      ...asset,
+      documentFingerprint,
+    });
+  }
+
+  return assets;
 }
 
 function collectWriterAssetReferences(
