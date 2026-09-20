@@ -21,6 +21,9 @@ import {
   documentBus,
 } from '@/core/events/bus';
 import {
+  materializeDocumentSource,
+} from '@/core/document-source/materialize';
+import {
   useHistoryStore,
 } from '@/core/document-history/store';
 import {
@@ -365,9 +368,24 @@ async function executeHistoryRecoveryUnqueued(
 
       let result: CommandResult;
       try {
+        const replaySource =
+          await revisionStore.open(
+            entry.afterRevision.revisionId,
+          );
+        const replayBytes =
+          await materializeDocumentSource(
+            replaySource,
+            { signal: input.signal },
+          );
+
         result = await dispatch({
           command: entry.command,
           executionMode: 'recovery-replay',
+          recoveryRevision: {
+            revisionId:
+              entry.afterRevision.revisionId,
+            bytes: replayBytes,
+          },
           signal: input.signal,
         });
       } catch (error) {
