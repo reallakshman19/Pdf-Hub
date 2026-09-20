@@ -2,8 +2,9 @@
   "schema_version": "relay-v2.5",
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0002",
-    "title": "PDF Hub Professional / Personal / Basic readiness roadmap"
+    "revision": "RM-0003",
+    "title": "PDF Hub Professional / Personal / Basic readiness roadmap",
+    "revision_record": "agents/relay/roadmap/revisions/RM-0003.yaml"
   },
   "objectives": [
     {
@@ -225,9 +226,9 @@
             {
               "id": "WP-8G",
               "title": "Large-document performance corpus and certification",
-              "state": "ACTIVE",
+              "state": "FUTURE",
               "definition": "DETAILED",
-              "execution_status": "ACTIVE",
+              "execution_status": "WAITING",
               "weight": 5,
               "depends_on": [
                 "WP-8F"
@@ -239,21 +240,21 @@
         {
           "id": "PHASE-009",
           "title": "PDF fidelity laboratory",
-          "state": "PLANNED",
+          "state": "ACTIVE",
           "definition": "DETAILED",
           "weight": 10,
           "work_packages": [
             {
               "id": "WP-009",
               "title": "Permanent fidelity corpus and engine hardening",
-              "state": "PLANNED",
+              "state": "ACTIVE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "ACTIVE",
               "weight": 100,
               "depends_on": [
-                "WP-8G"
+                "WP-8F"
               ],
-              "issue": null
+              "issue": 286
             }
           ]
         },
