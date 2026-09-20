@@ -30,6 +30,9 @@ type NavigatorWithLocks = Navigator & {
   locks?: RevisionLockManager;
 };
 
+const localExclusiveTails =
+  new Map<string, Promise<void>>();
+
 export class RevisionStoreLockUnavailableError
 extends Error {
   readonly storeId: string;
@@ -109,7 +112,9 @@ export async function acquireRevisionStoreExclusiveLease(
         input.storeId,
       );
     }
-    return noOpLease(input.storeId);
+    return acquireLocalExclusiveLease(
+      input.storeId,
+    );
   }
 
   const lease =
@@ -272,6 +277,53 @@ async function acquireWebLockLease(input: {
     );
     throw error;
   }
+}
+
+
+async function acquireLocalExclusiveLease(
+  storeId: string,
+): Promise<RevisionStoreExclusiveLease> {
+  const prior =
+    localExclusiveTails.get(storeId)
+    ?? Promise.resolve();
+
+  let releaseGate!: () => void;
+  const gate = new Promise<void>(
+    (resolve) => {
+      releaseGate = resolve;
+    },
+  );
+  const tail = prior
+    .catch(() => undefined)
+    .then(() => gate);
+  localExclusiveTails.set(
+    storeId,
+    tail,
+  );
+
+  await prior.catch(() => undefined);
+
+  let released = false;
+  return Object.freeze({
+    storeId,
+    crossContext: false,
+    release() {
+      if (released) return;
+      released = true;
+      releaseGate();
+      void tail.finally(() => {
+        if (
+          localExclusiveTails.get(
+            storeId,
+          ) === tail
+        ) {
+          localExclusiveTails.delete(
+            storeId,
+          );
+        }
+      });
+    },
+  });
 }
 
 function noOpLease(
