@@ -195,6 +195,18 @@ export async function indexPdfDocumentIncrementally(
         pageNode.pageId,
         ownerToken,
       );
+      const owned =
+        SearchIndexer.getPageRecord(
+          input.revisionId,
+          pageNode.pageId,
+        );
+      if (
+        owned?.status !== 'indexing'
+        || owned.ownerToken
+          !== ownerToken
+      ) {
+        continue;
+      }
 
       let page:
         Awaited<
