@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419"
+    "basis_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,20 +24,20 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5C2-001",
-    "path": "agents/relay/execution-packages/EP-8E5C2-001.yaml",
+    "id": "EP-8E5C3-001",
+    "path": "agents/relay/execution-packages/EP-8E5C3-001.yaml",
     "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E5C1",
+    "id": "INFRA-EXCEPTION-8E5C2",
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-273",
+    "id": "PR-275",
     "path": null,
-    "merge_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
-    "note": "Phase 8E.5C1 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "note": "Phase 8E.5C2 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -62,7 +62,7 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 95,
+    "ep_percent": 0,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
@@ -70,24 +70,16 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Obtain runner-executed Phase 8E.5C2 certification on exact head; fix any real type/test/audit/build failure. If #183 continues to prevent runner allocation, record terminal NOT_RUN evidence under the infrastructure exception before handoff to Phase 8E.5C3."
+      "next_action": "Implement Phase 8E.5C3 bounded PERIODIC checkpoint cadence at the canonical durable journal boundary, with deterministic transaction-count, journal-byte and elapsed-time triggers."
     },
     "quality": {
       "state": "PENDING_EXECUTION",
-      "findings": [
-        "Static review found and fixed incomplete authoritative replay-byte plumbing: recoveryRevision is now part of CommitDocumentMutationInput, recovery replay requires it, canonical mutation verifies its hash/revision id, and executor materializes the durable after-revision and forwards it to dispatch."
-      ]
+      "findings": []
     },
     "evidence": {
-      "state": "PARTIAL",
-      "summary": "Phase 8E.5C2 planner, resolver, atomic executor, rollback handling, Writer asset hydration, authoritative replay revision bytes, focused tests, anti-drift audit and certify:phase8e5c2 are implemented on the active branch. Executable certification is still blocked by #183.",
-      "not_run": [
-        {
-          "command": "GitHub Actions Frontend Certify / certify:phase8e5c2 coverage",
-          "reason": "Workflow run 35502964109 completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419"
-        }
-      ]
+      "state": "PENDING",
+      "summary": "Phase 8E.5C3 is the serial WP-8E frontier after merged #275. It bounds recovery replay distance with periodic recovery-complete checkpoints without adding pruning/GC or automatic recovery UI.",
+      "not_run": []
     },
     "stop": {
       "active": false,
@@ -104,27 +96,22 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5C2-001",
+    "execution_ref": "EP-8E5C3-001",
     "receipt": null,
     "basis": [
-      "PR #273 merged Phase 8E.5C1 recovery-complete checkpoints at fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b.",
-      "Issue #274 is the active Phase 8E.5C2 recovery planner/restore executor slice.",
+      "PR #275 merged Phase 8E.5C2 recovery planner/restore executor at 8b01844eaf1e77edb07af2c5b5f07f07e88690e5 under the documented #183 infrastructure exception.",
+      "Issue #276 is the active Phase 8E.5C3 bounded periodic checkpoint cadence slice.",
       "WP-8E remains ACTIVE and WP-8F remains WAITING on WP-8E."
     ],
     "observed": {
-      "issue": 274
+      "issue": 276
     },
     "superseded_operations": []
   },
   "delivery": {
     "required": true,
     "provider": "GITHUB",
-    "observation": {
-      "pull_request": 275,
-      "issue": 274,
-      "head_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419",
-      "state": "DRAFT_PENDING_EXECUTABLE_CERTIFICATION"
-    },
+    "observation": null,
     "observations": []
   },
   "relay_readiness": {
