@@ -61,12 +61,14 @@ describe('Writer V2 canonical history integration', () => {
       elements: [element('writer-1')],
     });
 
-    useWriterV2Store.getState().dispatchWriterCommand({
-      type: 'MOVE_WRITER_ELEMENT',
-      id: 'writer-1',
-      dx: 25,
-      dy: 0,
-    });
+    await useWriterV2Store
+      .getState()
+      .dispatchWriterCommandDurable({
+        type: 'MOVE_WRITER_ELEMENT',
+        id: 'writer-1',
+        dx: 25,
+        dy: 0,
+      });
 
     expect(useWriterV2Store.getState().elements[0]?.rect.x).toBe(35);
     expect(useWriterV2Store.getState().undoStack).toHaveLength(0);
