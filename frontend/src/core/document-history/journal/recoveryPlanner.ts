@@ -35,6 +35,8 @@ export interface HistoryRecoveryDiagnostic {
 
 export interface HistoryRecoveryPlan {
   journalId: string;
+  fileName: string;
+  originalRevisionId: string;
   checkpointId: string;
   checkpointTransactionId: string;
   activeTransactionId: string;
@@ -220,6 +222,8 @@ export function planHistoryRecovery(
       diagnostics,
       plan: {
         journalId: manifest.journalId,
+        fileName: manifest.fileName,
+        originalRevisionId: manifest.originalRevisionId,
         checkpointId: checkpoint.checkpointId,
         checkpointTransactionId:
           checkpoint.transactionId,
