@@ -2,6 +2,15 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 const root = process.cwd();
+const rendererObservation =
+  process.env.PHASE8G_RENDERER_OBSERVATION_PATH
+  ?? 'performance/results/phase8g-node-renderer-observation.json';
+const mutationObservation =
+  process.env.PHASE8G_MUTATION_OBSERVATION_PATH
+  ?? 'performance/results/phase8g-node-mutation-observation.json';
+const recoveryObservation =
+  process.env.PHASE8G_RECOVERY_OBSERVATION_PATH
+  ?? 'performance/results/phase8g-node-recovery-observation.json';
 const nodeObservation =
   process.env.PHASE8G_NODE_OBSERVATION_PATH
   ?? 'performance/results/phase8g-node-observation.json';
@@ -70,14 +79,28 @@ if (
       'vitest.mjs',
     ),
     'run',
-    'src/performance/phase8gBenchmark.test.ts',
+    'src/performance/phase8gRendererBenchmark.test.ts',
+    'src/performance/phase8gMutationBenchmark.test.ts',
+    'src/performance/phase8gRecoveryBenchmark.test.ts',
     '--pool=forks',
     '--maxWorkers=1',
   ], {
     PHASE8G_BENCHMARK: '1',
-    PHASE8G_OBSERVATION_PATH:
-      nodeObservation,
+    PHASE8G_RENDERER_OBSERVATION_PATH:
+      rendererObservation,
+    PHASE8G_MUTATION_OBSERVATION_PATH:
+      mutationObservation,
+    PHASE8G_RECOVERY_OBSERVATION_PATH:
+      recoveryObservation,
   });
+
+  run([
+    'scripts/phase8g-merge-observations.mjs',
+    '--input=' + rendererObservation,
+    '--input=' + mutationObservation,
+    '--input=' + recoveryObservation,
+    '--out=' + nodeObservation,
+  ]);
 
   run([
     'scripts/phase8g-benchmark-harness.mjs',
