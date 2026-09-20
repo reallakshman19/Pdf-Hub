@@ -11,7 +11,9 @@ import {
 import {
   createInitialHistoryJournalManifest,
 } from '../types';
+import type { HistoryState } from '../../types';
 import {
+  attachHistoryJournalRecoveryPayload,
   prepareHistoryJournalMutation,
 } from '../appendMutation';
 
@@ -31,6 +33,50 @@ function rotateCommand() {
       createdAt: '2026-09-19T00:00:00.000Z',
     },
   );
+}
+
+function recoveryState(
+  revisionId = 'sha256:after',
+): HistoryState {
+  return {
+    revision: {
+      storeId: 'revision-store',
+      revisionId,
+    },
+    activeRevisionId: revisionId,
+    pageCount: 1,
+    pageGraph: {
+      pages: [{
+        pageId: 'page-1',
+        documentKey: revisionId,
+        originalPageNumber: 1,
+        currentIndex: 0,
+        width: 595,
+        height: 842,
+        rotation: 0,
+      }],
+    },
+    documentKey: revisionId,
+    selectedPageIds: ['page-1'],
+    selectedPages: [1],
+    currentPageId: 'page-1',
+    currentPage: 1,
+    annotations: [],
+    writer: {
+      documentMode: 'pdfOverlay',
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+    },
+    ocr: {
+      documentFingerprint: revisionId,
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [0],
+      reviewFocus: null,
+    },
+  };
 }
 
 describe('prepareHistoryJournalMutation', () => {
@@ -85,6 +131,15 @@ describe('prepareHistoryJournalMutation', () => {
       }],
     });
     expect(prepared?.manifest.checkpoints).toHaveLength(1);
+    expect(
+      prepared
+        ? attachHistoryJournalRecoveryPayload(
+            prepared.manifest,
+            'tx-1',
+            recoveryState(),
+          )
+        : null,
+    ).toBe(false);
   });
 
   it('adds a barrier checkpoint for donor-backed mutation', async () => {
@@ -131,6 +186,65 @@ describe('prepareHistoryJournalMutation', () => {
         revisionId: 'sha256:after',
       },
     });
+
+    expect(
+      prepared
+        ? attachHistoryJournalRecoveryPayload(
+            prepared.manifest,
+            'tx-barrier',
+            recoveryState(),
+          )
+        : null,
+    ).toBe(true);
+    expect(
+      prepared?.manifest.checkpoints[1],
+    ).toMatchObject({
+      statePayload: {
+        schemaVersion: 2,
+        pageCount: 1,
+        documentKey: 'sha256:after',
+        selectedPageIds: ['page-1'],
+        ocr: {
+          selectedPageIndexes: [0],
+        },
+      },
+    });
+  });
+
+  it('rejects recovery payload attachment when checkpoint and committed revisions disagree', async () => {
+    const store = await setup();
+    const command = materializePdfCommand(
+      {
+        type: 'INSERT_PAGES',
+        payload: {
+          atIndex: 1,
+          donorResourceId: 'donor-a',
+        },
+      },
+      'toolbar',
+      'sha256:before',
+    );
+
+    const prepared =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId: 'revision-store',
+        beforeRevisionId: 'sha256:before',
+        afterRevisionId: 'sha256:after',
+        transactionId: 'tx-mismatch',
+        command,
+      });
+
+    expect(() =>
+      prepared
+        ? attachHistoryJournalRecoveryPayload(
+            prepared.manifest,
+            'tx-mismatch',
+            recoveryState('sha256:wrong'),
+          )
+        : null,
+    ).toThrow(/does not match committed after-state revision/);
   });
 
   it('truncates an abandoned redo tail before appending a new branch', async () => {
