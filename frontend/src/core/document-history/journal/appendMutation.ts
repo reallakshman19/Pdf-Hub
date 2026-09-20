@@ -1,10 +1,14 @@
 import type { PdfCommand } from '@/core/commands/types';
+import type { HistoryState } from '../types';
 import {
   classifyHistoryReplayability,
 } from '../replayability';
 import {
   resolveHistoryJournalStore,
 } from './registry';
+import {
+  createHistoryRecoveryCheckpointPayload,
+} from './stateCheckpoint';
 import type {
   HistoryJournalStore,
 } from './store';
@@ -93,6 +97,66 @@ export function truncateAbandonedTail(
         checkpoint.revision.revisionId,
       );
     });
+}
+
+export function attachHistoryJournalRecoveryPayload(
+  manifest: HistoryJournalManifest,
+  transactionId: string,
+  after: HistoryState,
+): boolean {
+  assertHistoryJournalManifest(manifest);
+
+  const entry = manifest.entries.find(
+    (candidate) =>
+      candidate.transactionId
+      === transactionId,
+  );
+  if (!entry) {
+    throw new Error(
+      `History journal does not contain transaction ${transactionId} for recovery checkpoint attachment.`,
+    );
+  }
+
+  if (
+    entry.disposition
+    !== 'CHECKPOINT_REQUIRED'
+  ) {
+    return false;
+  }
+
+  const checkpoint =
+    manifest.checkpoints.find(
+      (candidate) =>
+        candidate.kind === 'BARRIER'
+        && candidate.transactionId
+          === transactionId,
+    );
+  if (!checkpoint) {
+    throw new Error(
+      `History journal checkpoint-required transaction ${transactionId} has no barrier checkpoint.`,
+    );
+  }
+
+  const afterRevisionId =
+    after.revision?.revisionId
+    ?? after.activeRevisionId
+    ?? null;
+  if (
+    !afterRevisionId
+    || checkpoint.revision.revisionId
+      !== afterRevisionId
+  ) {
+    throw new Error(
+      `History journal barrier revision ${checkpoint.revision.revisionId} does not match committed after-state revision ${afterRevisionId ?? '(none)'}.`,
+    );
+  }
+
+  checkpoint.statePayload =
+    createHistoryRecoveryCheckpointPayload(
+      after,
+    );
+  assertHistoryJournalManifest(manifest);
+  return true;
 }
 
 export async function prepareHistoryJournalMutation(
