@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2B2C-001",
+    "branch": "phase8/history-writer-table-properties-coalesce",
+    "base_ref": "86197e68c204809267d18a28394c84da4a52b449",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2B2B",
+    "previous_join": "86197e68c204809267d18a28394c84da4a52b449",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-table-properties-coalesce",
+    "material_ref": "86197e68c204809267d18a28394c84da4a52b449",
+    "base_branch": "main",
+    "base_observed_ref": "86197e68c204809267d18a28394c84da4a52b449",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 264,
+  "outcome": {
+    "engineering": [
+      "Writer Table Properties text/number controls draft locally and commit on blur/Enter.",
+      "Escape cancels draft edits without mutating canonical Writer state.",
+      "Color input is debounced and discrete table actions commit once per action.",
+      "All Table Properties commits serialize and rebuild commands from latest canonical Writer elements."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Complete high-frequency direct Writer UI coalescing without stale table-state overwrites or per-keystroke history amplification.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged B2B Writer Inspector coalescing.",
+    "why_this_work_exists": "WriterTablePropertiesPanel previously issued synchronous mutation commands directly from text/number/color controls and discrete table actions.",
+    "deliberate_non_goals": [
+      "No review/table-box/selection/image-clear helper API migration.",
+      "No OCR Writer bridge migration.",
+      "No legacy consolidation migration.",
+      "No final synchronous Writer mutation ban."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Text and numeric controls use local drafts, commit on blur/Enter and cancel on Escape.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Color input is coalesced and discrete table actions issue one durable command per user action.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-04"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Queued Table Properties commits re-read latest canonical Writer state before command construction.",
+      "weight": 30,
+      "verification": ["TEST-01", "TEST-02", "TEST-04"]
+    },
+    {
+      "id": "AC-04",
+      "description": "No synchronous Writer mutation dispatch remains in WriterTablePropertiesPanel and table selection stays local.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-04"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static Table Properties audit verifies draft controls, serialized latest-state command building, durable UI routing and absence of synchronous dispatch.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "WriterTablePropertiesPanel tests verify local-until-blur text edits, rapid padding+width commits preserving both changes, and Escape cancellation.",
+      "proves": ["AC-01", "AC-03"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Existing row/column/merge/split panel tests remain in the focused certification suite to protect discrete table actions.",
+      "proves": ["AC-02"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2b2c on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2C migrate remaining synchronous Writer helper APIs and bridges"
+  }
+}
