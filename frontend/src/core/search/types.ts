@@ -12,12 +12,38 @@ export interface SearchHit {
   rects: SearchHitRect[];
 }
 
+export type SearchPageIndexStatus =
+  | 'unindexed'
+  | 'queued'
+  | 'indexing'
+  | 'indexed'
+  | 'failed';
+
+export interface SearchIndexProgress {
+  revisionId: string | null;
+  indexedPages: number;
+  failedPages: number;
+  pendingPages: number;
+  totalPages: number;
+  complete: boolean;
+}
+
+export const EMPTY_SEARCH_INDEX_PROGRESS: SearchIndexProgress = {
+  revisionId: null,
+  indexedPages: 0,
+  failedPages: 0,
+  pendingPages: 0,
+  totalPages: 0,
+  complete: false,
+};
+
 export interface SearchState {
   query: string;
   isSearching: boolean;
   hits: SearchHit[];
   activeHitId: string | null;
   error: string | null;
+  indexProgress: SearchIndexProgress;
 }
 
 // --- New types for the SearchIndexer ---
