@@ -55,20 +55,38 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "A different incoming candidate must reconstruct EP-8G-001 from repository state, answer QSET-8G-001, obtain independent QUAL/TC, and pass MATERIAL_WRITE_READY. Only then execute STEP-01 (deterministic corpus/harness/budget manifest) followed by the bounded STEP-02 search-rescan remediation."
+      "next_action": "Owner exception ODR-0002 authorizes continued WP-8G execution outside the normal candidate-qualification gate. First obtain executable validation of material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f with `npm run certify:phase8g` on a usable runner. If clean, execute STEP-03 admission/range/render/search measurements, then STEP-04 mutation/save/recovery measurements. Do not claim acceptance from static review."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Known WP-8F successor risk: active-query page arrivals currently trigger searchRevision over the full indexed subset and may create O(N^2) cumulative matching work.",
-        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and must be measured separately from range-backed rendering.",
-        "GitHub Actions #183 still prevents runner execution; zero-step workflow failures remain NOT_RUN evidence."
+        "The WP-8F active-query repeated-rescan defect is remediated in source at material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f by single-page matching plus per-PageId result accumulation; executable confirmation remains NOT_RUN.",
+        "Incremental indexing scheduler state checks now use metadata-only getPageState() rather than deep-cloning indexed text records.",
+        "Mutation/save remains full-materialization through Uint8Array/pdf-lib and is explicitly represented in the Phase 8G benchmark contract; measured costs remain NOT_RUN.",
+        "ODR-0002 is an owner-directed protocol exception. No DISC-8G, QUAL-8G, TC-8G, TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY claim exists.",
+        "GitHub Actions #183 still prevents runner execution; exact-head workflow failures at the observed material head have runner_id 0 and zero steps."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "WP-8G issue, semantic EP, QSET and tracked draft PR #285 are prepared. DOBS-8G-002 confirms the live route remains Relay/qualification-only at 25d22b0c093d66e19d87ddbab18b61688b3b159e. No DISC-8G, QUAL-8G, TC-8G, product implementation, acceptance or runner-executed certification has been earned.",
-      "not_run": []
+      "summary": "Owner-directed WP-8G implementation is present at material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f. STEP-01 corpus/budget/evaluator/certification surfaces and the bounded STEP-02 search-complexity remediation are implemented. DOBS-8G-003 records exact-head provider readback. Executable typecheck/tests, fixture generation and benchmark runs remain NOT_RUN; no acceptance progress is earned.",
+      "not_run": [
+        {
+          "command": "npm run certify:phase8g",
+          "reason": "No usable runner was allocated; current exact-head GitHub jobs completed with runner_id 0 and steps [].",
+          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+        },
+        {
+          "command": "npm run generate:phase8g-fixtures",
+          "reason": "Fixture generation requires the repository dependencies; the available execution environment did not contain a fetchable checkout/dependency installation.",
+          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+        },
+        {
+          "command": "Phase 8G benchmark execution",
+          "reason": "Benchmark measurements have not executed; checked-in budgets and evaluator are contracts only.",
+          "head_ref": "b8fc75f8e26476d4b4dffac62e366f5263c6d97f"
+        }
+      ]
     },
     "stop": {
       "active": false,
@@ -90,8 +108,10 @@
     "basis": [
       "PR #283 merged WP-8F at f42f0c27785e3dc097dc41ca0325698156b32181 and issue #282 is closed.",
       "Issue #284 is the verified coordination contract for WP-8G.",
-      "EP-8G-001 and QSET-8G-001 are prepared on phase8/large-document-performance.",
-      "Draft PR #285 tracks the active EP and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation."
+      "EP-8G-001 and QSET-8G-001 remain the semantic route contract.",
+      "ODR-0002 records the owner's explicit instruction to proceed without waiting for fresh-candidate DISC/QUAL/TC; this is a protocol exception rather than qualification evidence.",
+      "Draft PR #285 tracks the active WP-8G material and contains the canonical ISSUE-284 ↔ WP-8G ↔ EP-8G-001 IMPLEMENTS correlation.",
+      "DOBS-8G-003 observes owner-exception material head b8fc75f8e26476d4b4dffac62e366f5263c6d97f."
     ],
     "observed": {
       "issue": 284,
@@ -104,8 +124,8 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8G-002",
-      "path": "agents/relay/delivery/DOBS-8G-002.yaml"
+      "id": "DOBS-8G-003",
+      "path": "agents/relay/delivery/DOBS-8G-003.yaml"
     },
     "observations": [
       {
@@ -115,6 +135,10 @@
       {
         "id": "DOBS-8G-002",
         "path": "agents/relay/delivery/DOBS-8G-002.yaml"
+      },
+      {
+        "id": "DOBS-8G-003",
+        "path": "agents/relay/delivery/DOBS-8G-003.yaml"
       }
     ]
   },
