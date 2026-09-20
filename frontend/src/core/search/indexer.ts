@@ -24,10 +24,8 @@ export interface SearchIndexPageRecord {
   ownerToken: string | null;
 }
 
-export interface SearchIndexPageState {
-  status: SearchPageIndexStatus;
-  ownerToken: string | null;
-}
+export type SearchIndexPageState =
+  Pick<SearchIndexPageRecord, 'status' | 'ownerToken'>;
 
 export interface SearchPageScheduleInput {
   pageCount: number;
