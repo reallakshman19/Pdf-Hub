@@ -72,13 +72,50 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
     selectedPageCount: effectiveSelectedPageCount,
   };
 
-  const insertIntoWriter = React.useCallback((elements: WriterElementV2[]) => {
-    const queue = createOcrWriterInsertionQueue(elements.map((element) => createOcrWriterInsertionCandidate({ source: 'ocrRegion', element })));
-    const result = insertOcrWriterQueueIntoWriterV2Store({ queue, documentFingerprint: effectiveDocumentFingerprint, selectAll: true });
-    const diagnostics = createOcrWriterBridgeDiagnosticsSummary(result.diagnostics);
-    const prefix = result.commandApplied ? `Inserted ${result.insertedElements.length}` : 'Inserted 0';
-    setLastInsertSummary(`${prefix} Writer element(s). Diagnostics: ${diagnostics.errors} error(s), ${diagnostics.warnings} warning(s).`);
-  }, [effectiveDocumentFingerprint]);
+  const insertIntoWriter = React.useCallback(
+    async (
+      elements: WriterElementV2[],
+    ) => {
+      const queue =
+        createOcrWriterInsertionQueue(
+          elements.map((element) =>
+            createOcrWriterInsertionCandidate({
+              source: 'ocrRegion',
+              element,
+            }),
+          ),
+        );
+      const result =
+        await insertOcrWriterQueueIntoWriterV2Store({
+          queue,
+          documentFingerprint:
+            effectiveDocumentFingerprint,
+          selectAll: true,
+        });
+      const diagnostics =
+        createOcrWriterBridgeDiagnosticsSummary(
+          result.diagnostics,
+        );
+      const prefix = result.commandApplied
+        ? `Inserted ${result.insertedElements.length}`
+        : 'Inserted 0';
+      const failure = result.failureReason
+        ? ` Failure: ${result.failureReason}`
+        : '';
+
+      setLastInsertSummary(
+        `${prefix} Writer element(s). Diagnostics: ${diagnostics.errors} error(s), ${diagnostics.warnings} warning(s).${failure}`,
+      );
+
+      if (!result.commandApplied) {
+        throw new Error(
+          result.failureReason
+          ?? 'OCR Writer insertion was not committed.',
+        );
+      }
+    },
+    [effectiveDocumentFingerprint],
+  );
 
   const sourceWarnings = props.pdfBytes
     ? []
