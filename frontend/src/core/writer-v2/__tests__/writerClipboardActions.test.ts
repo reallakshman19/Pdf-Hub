@@ -19,21 +19,21 @@ describe('writerClipboardActions', () => {
     clearWriterElementClipboard();
   });
 
-  it('reports empty clipboard on paste before copy', () => {
-    const result = pasteWriterClipboardElements();
+  it('reports empty clipboard on paste before copy', async () => {
+    const result = await pasteWriterClipboardElements();
 
     expect(result.changed).toBe(false);
     expect(result.message).toMatch(/clipboard is empty/i);
     expect(hasWriterClipboardElements()).toBe(false);
   });
 
-  it('copies and pastes selected rich text element with offset and new id', () => {
+  it('copies and pastes selected rich text element with offset and new id', async () => {
     hydrateSelection([
       makeElement('box-1', 'richTextBox'),
     ], ['box-1']);
 
     const copy = copySelectedWriterElementsToClipboard();
-    const paste = pasteWriterClipboardElements();
+    const paste = await pasteWriterClipboardElements();
     const state = useWriterV2Store.getState();
     const original = state.elements[0];
     const clone = state.elements[1];
@@ -51,7 +51,7 @@ describe('writerClipboardActions', () => {
     expect(state.selectedIds).toEqual([clone.id]);
   });
 
-  it('preserves tableData and image asset references when pasting', () => {
+  it('preserves tableData and image asset references when pasting', async () => {
     hydrateSelection([
       {
         ...makeElement('table-1', 'tableBox'),
@@ -65,7 +65,7 @@ describe('writerClipboardActions', () => {
     ], ['table-1', 'image-1']);
 
     copySelectedWriterElementsToClipboard();
-    pasteWriterClipboardElements();
+    await pasteWriterClipboardElements();
 
     const clones = useWriterV2Store.getState().elements.slice(2);
     const tableClone = clones.find((element) => element.type === 'tableBox');
@@ -79,14 +79,14 @@ describe('writerClipboardActions', () => {
     expect(imageClone?.assetIds).toEqual(['asset-1']);
   });
 
-  it('copies the latest pasted elements so repeated paste cascades', () => {
+  it('copies the latest pasted elements so repeated paste cascades', async () => {
     hydrateSelection([
       makeElement('box-1', 'richTextBox'),
     ], ['box-1']);
 
     copySelectedWriterElementsToClipboard();
-    pasteWriterClipboardElements();
-    pasteWriterClipboardElements();
+    await pasteWriterClipboardElements();
+    await pasteWriterClipboardElements();
 
     const state = useWriterV2Store.getState();
 
