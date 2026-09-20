@@ -406,6 +406,109 @@ describe('prepareHistoryJournalMutation', () => {
     });
   });
 
+  it('uses a recovery-complete barrier as the next periodic cadence reset', async () => {
+    const store = await setup();
+    const barrierCommand =
+      materializePdfCommand(
+        {
+          type: 'INSERT_PAGES',
+          payload: {
+            atIndex: 1,
+            donorResourceId:
+              'donor-a',
+          },
+        },
+        'toolbar',
+        'sha256:before',
+        {
+          id: 'barrier-command',
+          createdAt:
+            '2026-09-19T00:00:01.000Z',
+        },
+      );
+
+    const barrier =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId:
+          'revision-store',
+        beforeRevisionId:
+          'sha256:before',
+        afterRevisionId:
+          'sha256:barrier',
+        transactionId:
+          'tx-barrier-reset',
+        command: barrierCommand,
+        createdAt:
+          '2026-09-19T00:00:01.000Z',
+      });
+    expect(barrier).not.toBeNull();
+    if (!barrier) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: barrier.manifest,
+        transactionId:
+          'tx-barrier-reset',
+        after:
+          recoveryAfterState(
+            'sha256:barrier',
+          ),
+      }),
+    ).toBe(true);
+    await barrier.store.save(
+      barrier.manifest,
+    );
+
+    const next =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId:
+          'revision-store',
+        beforeRevisionId:
+          'sha256:barrier',
+        afterRevisionId:
+          'sha256:next',
+        transactionId: 'tx-next',
+        command: rotateCommand(
+          'sha256:barrier',
+          'rotate-after-barrier',
+          '2026-09-19T00:00:02.000Z',
+        ),
+        createdAt:
+          '2026-09-19T00:00:02.000Z',
+        checkpointPolicy: {
+          maxTransactionsSinceCheckpoint:
+            2,
+          maxJournalBytesSinceCheckpoint:
+            1_000_000,
+          maxElapsedMsSinceCheckpoint:
+            60_000,
+        },
+      });
+
+    expect(
+      next?.periodicCheckpointDecision,
+    ).toMatchObject({
+      due: false,
+      transactionsSinceCheckpoint: 1,
+      anchorCheckpointId:
+        'history-1:barrier:tx-barrier-reset',
+      anchorTransactionId:
+        'tx-barrier-reset',
+    });
+    expect(
+      next?.manifest.checkpoints.map(
+        (checkpoint) =>
+          checkpoint.kind,
+      ),
+    ).toEqual([
+      'ADMISSION',
+      'BARRIER',
+    ]);
+  });
+
   it('truncates an abandoned redo tail before appending a new branch', async () => {
     const store = await setup();
 
