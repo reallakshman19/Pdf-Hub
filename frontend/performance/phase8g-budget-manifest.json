@@ -24,8 +24,7 @@
       "fixture_sha256",
       "operation",
       "page_count",
-      "elapsed_ms",
-      "status"
+      "elapsed_ms"
     ],
     "optional_measurement_fields": [
       "peak_js_heap_bytes",
