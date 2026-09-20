@@ -115,5 +115,39 @@
       ],
       "prohibited_claim": "Range-backed PDF.js viewing proves mutation/save is range-bounded."
     }
+  },
+  "observation_contracts": {
+    "incremental_indexing": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "current_page_result_ms",
+        "nearby_page_result_ms",
+        "pages_per_second",
+        "indexed_pages",
+        "failed_pages",
+        "range_requests",
+        "range_bytes",
+        "max_requested_range_bytes",
+        "peak_memory_bytes"
+      ]
+    },
+    "browser_navigation": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "max_navigation_ms",
+        "median_navigation_ms",
+        "navigation_samples",
+        "peak_js_heap_bytes"
+      ]
+    },
+    "recovery_restore": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "retained_revision_storage_bytes",
+        "journal_storage_bytes",
+        "replayed_transactions",
+        "peak_memory_bytes"
+      ]
+    }
   }
 }
