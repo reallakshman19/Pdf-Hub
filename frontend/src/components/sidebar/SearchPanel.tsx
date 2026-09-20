@@ -429,7 +429,7 @@ export const SearchPanel: React.FC = () => {
           <div className="text-sm text-red-600 dark:text-red-400 text-center py-4">{error}</div>
         )}
 
-        {!isSearching && Object.entries(groupedHits).map(([pageStr, pageHits]) => {
+        {Object.entries(groupedHits).map(([pageStr, pageHits]) => {
           const pageNum = parseInt(pageStr, 10);
           return (
             <div key={pageNum} className="space-y-1">
