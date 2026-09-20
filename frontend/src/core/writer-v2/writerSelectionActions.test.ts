@@ -48,7 +48,7 @@ describe('writer-v2 selection actions', () => {
     useWriterV2Store.getState().clearWriterV2();
   });
 
-  it('duplicates selected writer element and selects the clone', () => {
+  it('duplicates selected writer element and selects the clone', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1')],
@@ -59,7 +59,7 @@ describe('writer-v2 selection actions', () => {
       id: 'writer-1',
     });
 
-    const result = duplicateSelectedWriterElements();
+    const result = await duplicateSelectedWriterElements();
     const state = useWriterV2Store.getState();
 
     expect(result.changed).toBe(true);
@@ -72,7 +72,7 @@ describe('writer-v2 selection actions', () => {
     expect(state.elements[1].hidden).toBe(false);
   });
 
-  it('deletes selected writer elements', () => {
+  it('deletes selected writer elements', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1'), element('writer-2')],
@@ -83,13 +83,13 @@ describe('writer-v2 selection actions', () => {
       ids: ['writer-1', 'writer-2'],
     });
 
-    const result = deleteSelectedWriterElements();
+    const result = await deleteSelectedWriterElements();
 
     expect(result.changed).toBe(true);
     expect(useWriterV2Store.getState().elements).toEqual([]);
   });
 
-  it('locks and unlocks selected writer element', () => {
+  it('locks and unlocks selected writer element', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1')],
@@ -100,14 +100,14 @@ describe('writer-v2 selection actions', () => {
       id: 'writer-1',
     });
 
-    toggleLockSelectedWriterElements();
+    await toggleLockSelectedWriterElements();
     expect(useWriterV2Store.getState().elements[0].locked).toBe(true);
 
-    toggleLockSelectedWriterElements();
+    await toggleLockSelectedWriterElements();
     expect(useWriterV2Store.getState().elements[0].locked).toBe(false);
   });
 
-  it('hides selected writer element', () => {
+  it('hides selected writer element', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1')],
@@ -118,13 +118,13 @@ describe('writer-v2 selection actions', () => {
       id: 'writer-1',
     });
 
-    hideSelectedWriterElements();
+    await hideSelectedWriterElements();
 
     expect(useWriterV2Store.getState().elements[0].hidden).toBe(true);
     expect(useWriterV2Store.getState().selectedIds).toEqual([]);
   });
 
-  it('changes selected writer z-order', () => {
+  it('changes selected writer z-order', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -146,14 +146,14 @@ describe('writer-v2 selection actions', () => {
       id: 'writer-1',
     });
 
-    bringSelectedWriterElementToFront();
+    await bringSelectedWriterElementToFront();
 
     expect(
       useWriterV2Store.getState().elements.find((item) => item.id === 'writer-1')
         ?.style.zIndex,
     ).toBe(6);
 
-    sendSelectedWriterElementToBack();
+    await sendSelectedWriterElementToBack();
 
     expect(
       useWriterV2Store.getState().elements.find((item) => item.id === 'writer-1')
