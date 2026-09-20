@@ -7,6 +7,8 @@ import {
 } from 'vitest';
 
 import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
+import { MemorySource } from '@/adapters/document-source/MemorySource';
+import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
 import {
   createMemoryWriterPersistence,
 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
@@ -30,6 +32,11 @@ import {
 import {
   useSessionStore,
 } from '@/core/session/store';
+import {
+  clearWorkingRevisionStoreRegistryForTests,
+  registerWorkingRevisionStore,
+} from '@/core/revision-store/registry';
+
 import {
   useWriterV2Store,
 } from '@/core/writer-v2/writerV2Store';
@@ -287,6 +294,38 @@ async function setup(
 ): Promise<
   ResolvedHistoryRecoveryPlan
 > {
+  const revisions =
+    new MemoryRevisionStore({
+      id: REVISION_STORE_ID,
+    });
+  registerWorkingRevisionStore(
+    revisions,
+  );
+
+  const revisionIds = new Set([
+    recoveryPlan.originalRevisionId,
+    recoveryPlan.revision.revisionId,
+    ...recoveryPlan.replayEntries.map(
+      (entry) =>
+        entry.afterRevision.revisionId,
+    ),
+  ]);
+  let revisionByte = 1;
+  for (const revisionId of revisionIds) {
+    await revisions.commit({
+      revisionId,
+      source: new MemorySource({
+        id:
+          `recovery-fixture-${revisionByte}`,
+        bytes:
+          new Uint8Array([
+            revisionByte,
+          ]),
+      }),
+    });
+    revisionByte += 1;
+  }
+
   const journal =
     new MemoryHistoryJournalStore({
       id: JOURNAL_STORE_ID,
@@ -309,6 +348,7 @@ describe('executeHistoryRecovery', () => {
   beforeEach(() => {
     resetDocumentOperationQueueForTests();
     clearHistoryJournalStoreRegistryForTests();
+    clearWorkingRevisionStoreRegistryForTests();
     useSessionStore
       .getState()
       .clearDocument();
@@ -501,6 +541,98 @@ describe('executeHistoryRecovery', () => {
     expect(changed).not.toBeNull();
     if (!changed) return;
     changed.fileName = 'changed.pdf';
+    await journal.save(changed);
+
+    const preSession =
+      useSessionStore.getState();
+
+    await expect(
+      executeHistoryRecovery({
+        resolved,
+        journalStoreId:
+          JOURNAL_STORE_ID,
+        dependencies: {
+          persistAnnotations:
+            async () => undefined,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name:
+        'HistoryRecoveryExecutionError',
+      code: 'JOURNAL_CHANGED',
+    });
+
+    expect(
+      useSessionStore.getState(),
+    ).toEqual(preSession);
+  });
+
+  it('fails before mutation when the revision store disappears after resolution', async () => {
+    const recoveryPlan = plan();
+    const resolved =
+      await setup(recoveryPlan);
+    const preSession =
+      useSessionStore.getState();
+
+    clearWorkingRevisionStoreRegistryForTests();
+
+    await expect(
+      executeHistoryRecovery({
+        resolved,
+        journalStoreId:
+          JOURNAL_STORE_ID,
+        dependencies: {
+          persistAnnotations:
+            async () => undefined,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name:
+        'HistoryRecoveryExecutionError',
+      code:
+        'REVISION_STORE_UNAVAILABLE',
+    });
+
+    expect(
+      useSessionStore.getState(),
+    ).toEqual(preSession);
+  });
+
+  it('fails before mutation when a planned replay entry changes in durable journal storage', async () => {
+    const entry = replayEntry();
+    const recoveryPlan =
+      plan([entry]);
+    const resolved =
+      await setup(recoveryPlan);
+    const journal =
+      (await import('../registry'))
+        .resolveHistoryJournalStore(
+          JOURNAL_STORE_ID,
+        );
+    expect(journal).not.toBeNull();
+    if (!journal) return;
+
+    const changed =
+      await journal.load(JOURNAL_ID);
+    expect(changed).not.toBeNull();
+    if (!changed) return;
+    const liveReplay =
+      changed.entries.find(
+        (candidate) =>
+          candidate.transactionId
+          === 'tx-replay',
+      );
+    expect(liveReplay).toBeDefined();
+    if (!liveReplay) return;
+    if (
+      liveReplay.command.type
+      !== 'ROTATE_PAGES'
+    ) {
+      throw new Error(
+        'fixture requires rotate command',
+      );
+    }
+    liveReplay.command.payload.angle = 180;
     await journal.save(changed);
 
     const preSession =
