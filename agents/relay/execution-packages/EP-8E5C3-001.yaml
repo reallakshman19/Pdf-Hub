@@ -4,18 +4,18 @@
     "ep_id": "EP-8E5C3-001",
     "branch": "phase8/history-periodic-checkpoints",
     "base_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
-    "execution_state": "ACTIVE",
+    "execution_state": "TERMINAL",
     "previous_checkpoint": "INFRA-EXCEPTION-8E5C2",
     "previous_join": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
     "previous_replan": null
   },
   "git_basis": {
     "expected_branch": "phase8/history-periodic-checkpoints",
-    "material_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+    "material_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
     "base_branch": "main",
     "base_observed_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
     "drift_policy": "RECHECK_BEFORE_WRITE",
-    "drift_receipt": "Static implementation review complete through d0ee6d15; exact-head Actions remained NOT_RUN under #183."
+    "drift_receipt": "Implementation complete; exact-head Actions at 23a8e1f6 received no runner and executed zero steps under open #183."
   },
   "roadmap_source": {
     "roadmap_id": "PDFHUB-READINESS-2026",
@@ -150,14 +150,16 @@
     }
   ],
   "checkpoint_contract": {
-    "required": true
+    "required": true,
+    "status": "SATISFIED_WITH_INFRA_EXCEPTION",
+    "checkpoint_id": "INFRA-EXCEPTION-8E5C3"
   },
   "successor_relay": {
     "required": true,
     "next_expected_slice": "Phase 8E.5C4 reference-aware revision reachability/GC after bounded periodic checkpoint cadence reaches terminal acceptance."
   },
   "implementation": {
-    "state": "COMPLETE_PENDING_EXECUTABLE_CERTIFICATION",
+    "state": "COMPLETE",
     "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
     "highlights": [
       "Pure checkpoint policy with bootstrap, transaction-count, serialized-entry-byte and elapsed-time triggers.",
@@ -169,15 +171,15 @@
     ]
   },
   "evidence": {
-    "state": "PARTIAL_NOT_RUN",
+    "state": "TERMINAL_NOT_RUN",
     "infrastructure_issue": 183,
-    "observed_head": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+    "observed_head": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
     "workflow_runs": [
-      35503897374,
-      35503897382,
-      35503897378,
-      35503897401
+      35503948506,
+      35503948507,
+      35503948543,
+      35503948508
     ],
-    "observation": "All observed jobs had runner_id 0 and steps [], so executable certification did not run."
+    "observation": "All exact-head jobs had runner_id 0 and steps []; no runner-executed TypeScript, Vitest, audit or build result exists."
   }
 }
