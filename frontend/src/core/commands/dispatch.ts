@@ -176,6 +176,29 @@ function commandLabel(command: PdfCommand): string {
   }
 }
 
+function commandCreatedAtMs(
+  command: PdfCommand,
+): number {
+  const timestamp =
+    Date.parse(command.createdAt);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(
+      `Command ${command.id} has invalid createdAt timestamp ${command.createdAt}.`,
+    );
+  }
+  return timestamp;
+}
+
+function derivedCommandEntityId(
+  commandId: string,
+  entityKind:
+    | 'annotation-duplicate'
+    | 'writer-duplicate',
+  ordinal: number,
+): string {
+  return `${commandId}::${entityKind}::${ordinal + 1}`;
+}
+
 function sanitizePageIndices(pageIndices: number[], pageCount: number): number[] {
   return Array.from(new Set(pageIndices))
     .filter((index) => index >= 0 && index < pageCount)
@@ -396,6 +419,9 @@ async function applyMutation(
     nextPageGraph,
     ocrPagePolicy: options?.ocrPagePolicy,
     revisionMetadata: options?.revisionMetadata,
+    executionMode: input.executionMode,
+    recoveryRevision:
+      input.recoveryRevision,
     signal: input.signal,
   });
 }
@@ -1158,19 +1184,39 @@ export async function dispatchPdfCommand(
             (_source, ordinal) => createDuplicatePageId(command.id, ordinal),
           ),
         );
+        let annotationDuplicateOrdinal = 0;
         const nextAnnotations = duplicateAnnotationsByPageGraph(
           useAnnotationStore.getState().annotations,
           pageGraph,
           nextPageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
+          {
+            createId: () =>
+              derivedCommandEntityId(
+                command.id,
+                'annotation-duplicate',
+                annotationDuplicateOrdinal++,
+              ),
+            now: commandCreatedAtMs(command),
+          },
         );
         const writerElements = activePdfOverlayWriterElements();
+        let writerDuplicateOrdinal = 0;
         const nextWriterElements = writerElements
           ? duplicateWriterElementsByPageGraph(
               writerElements,
               pageGraph,
               nextPageGraph,
               pageIdsAtIndices(pageGraph, pageIndices),
+              {
+                createId: () =>
+                  derivedCommandEntityId(
+                    command.id,
+                    'writer-duplicate',
+                    writerDuplicateOrdinal++,
+                  ),
+                now: command.createdAt,
+              },
             )
           : undefined;
         const mutationSession =

@@ -126,6 +126,8 @@ async function execute(
     source?: PdfCommandSource;
     resources?: CommandResources;
     documentKey?: string;
+    id?: string;
+    createdAt?: string;
   },
 ) {
   const documentKey = options?.documentKey
@@ -138,7 +140,10 @@ async function execute(
       options?.source ?? 'toolbar',
       documentKey,
       {
-        createdAt: '2026-09-18T00:00:00.000Z',
+        id: options?.id,
+        createdAt:
+          options?.createdAt
+          ?? '2026-09-18T00:00:00.000Z',
       },
     ),
     resources: options?.resources,
@@ -893,10 +898,17 @@ describe('canonical command dispatch', () => {
       pageCount: 4,
     });
 
-    const result = await execute({
-      type: 'DUPLICATE_PAGES',
-      payload: { pageIndices: [1] },
-    });
+    const result = await execute(
+      {
+        type: 'DUPLICATE_PAGES',
+        payload: { pageIndices: [1] },
+      },
+      {
+        id: 'duplicate-command',
+        createdAt:
+          '2026-09-18T03:04:05.000Z',
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(mutationEngineMocks.duplicatePages).toHaveBeenCalledWith(
@@ -915,8 +927,16 @@ describe('canonical command dispatch', () => {
         pageNumber: 2,
       }),
       expect.objectContaining({
+        id:
+          'duplicate-command::annotation-duplicate::1',
         pageId: expect.stringContaining('::duplicate::1'),
         pageNumber: 3,
+        createdAt: Date.parse(
+          '2026-09-18T03:04:05.000Z',
+        ),
+        updatedAt: Date.parse(
+          '2026-09-18T03:04:05.000Z',
+        ),
       }),
     ]));
     expect(useWriterV2Store.getState().elements).toEqual(expect.arrayContaining([
@@ -926,8 +946,14 @@ describe('canonical command dispatch', () => {
         pageIndex: 1,
       }),
       expect.objectContaining({
+        id:
+          'duplicate-command::writer-duplicate::1',
         pageId: expect.stringContaining('::duplicate::1'),
         pageIndex: 2,
+        createdAt:
+          '2026-09-18T03:04:05.000Z',
+        updatedAt:
+          '2026-09-18T03:04:05.000Z',
       }),
     ]));
   });

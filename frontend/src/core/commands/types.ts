@@ -195,12 +195,32 @@ export interface CommandContext {
   documentKey: string;
 }
 
+export type CommandExecutionMode =
+  | 'normal'
+  | 'recovery-replay';
+
 export interface CommandExecutionInput {
   command: PdfCommand;
   resources?: CommandResources;
   workingBytes?: Uint8Array;
   context?: Partial<CommandContext>;
   signal?: AbortSignal;
+  /**
+   * Recovery replay reuses canonical mutation behavior while suppressing new
+   * history/journal publication. It is reserved for validated durable-journal
+   * reconstruction, not ordinary UI/API execution.
+   */
+  executionMode?: CommandExecutionMode;
+  /**
+   * Recovery-only immutable revision bytes already committed by the durable
+   * journal. Canonical replay reconstructs application state, but these bytes
+   * remain the binary authority so replay does not depend on serializer
+   * byte-for-byte determinism.
+   */
+  recoveryRevision?: {
+    revisionId: string;
+    bytes: Uint8Array;
+  };
 }
 
 export interface CommandArtifact {

@@ -31,7 +31,10 @@ import {
   type OcrPageAnchoredState,
 } from '@/core/ocr/ocrPageAnchor';
 import { recomputeOcrDerivedState, useOcrStore } from '@/core/ocr/ocrStore';
-import type { PdfCommand } from '../types';
+import type {
+  CommandExecutionMode,
+  PdfCommand,
+} from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
 
@@ -71,6 +74,11 @@ export interface CommitDocumentMutationInput {
   nextOcrState?: OcrPageAnchoredState | null;
   ocrPagePolicy?: OcrPageMutationPolicy;
   revisionMetadata?: DocumentMutationRevisionMetadata;
+  executionMode?: CommandExecutionMode;
+  recoveryRevision?: {
+    revisionId: string;
+    bytes: Uint8Array;
+  };
   signal?: AbortSignal;
 }
 
@@ -246,8 +254,26 @@ export async function commitDocumentMutation(
   let nextDocumentKey: string;
 
   const sessionSnapshot = useSessionStore.getState();
+  const isRecoveryReplay =
+    input.executionMode === 'recovery-replay';
+  const recoveryRevision =
+    input.recoveryRevision;
 
   try {
+    if (isRecoveryReplay && !recoveryRevision) {
+      throw new Error(
+        'Recovery replay requires authoritative immutable revision bytes.',
+      );
+    }
+    if (!isRecoveryReplay && recoveryRevision) {
+      throw new Error(
+        'Authoritative recovery revision bytes are valid only in recovery-replay mode.',
+      );
+    }
+
+    const effectiveAfterBytes =
+      recoveryRevision?.bytes
+      ?? input.afterBytes;
     const pageCountsPromise = input.revisionMetadata
       ? Promise.resolve(
           validatedRevisionPageCounts(
@@ -259,15 +285,23 @@ export async function commitDocumentMutation(
         )
       : Promise.all([
           PdfEditAdapter.countPages(input.beforeBytes),
-          PdfEditAdapter.countPages(input.afterBytes),
+          PdfEditAdapter.countPages(effectiveAfterBytes),
         ]);
 
     const [pageCounts, documentKey] = await Promise.all([
       pageCountsPromise,
-      FileAdapter.hashBytes(input.afterBytes),
+      FileAdapter.hashBytes(effectiveAfterBytes),
     ]);
 
     [beforePageCount, afterPageCount] = pageCounts;
+    if (
+      recoveryRevision
+      && documentKey !== recoveryRevision.revisionId
+    ) {
+      throw new Error(
+        `Recovery revision bytes hash to ${documentKey}, expected ${recoveryRevision.revisionId}.`,
+      );
+    }
     nextDocumentKey = documentKey;
   } catch (error) {
     throw toTransactionError(
@@ -276,6 +310,9 @@ export async function commitDocumentMutation(
       error,
     );
   }
+  const effectiveAfterBytes =
+    recoveryRevision?.bytes
+    ?? input.afterBytes;
   const pageGraphForCommit =
     input.nextPageGraph === undefined
       ? sessionSnapshot.pageGraph
@@ -346,7 +383,7 @@ export async function commitDocumentMutation(
     publishedRevisionId = await publishMutationRevision(
       sessionSnapshot,
       nextDocumentKey,
-      input.afterBytes,
+      effectiveAfterBytes,
       input.signal,
     );
   } catch (error) {
@@ -357,14 +394,19 @@ export async function commitDocumentMutation(
     );
   }
 
-  try {
-    await saveAnnotations(nextDocumentKey, annotationsToPersist);
-  } catch (error) {
-    throw toTransactionError(
-      'persistence',
-      'Document mutation was not committed because annotation persistence failed',
-      error,
-    );
+  if (input.executionMode !== 'recovery-replay') {
+    try {
+      await saveAnnotations(
+        nextDocumentKey,
+        annotationsToPersist,
+      );
+    } catch (error) {
+      throw toTransactionError(
+        'persistence',
+        'Document mutation was not committed because annotation persistence failed',
+        error,
+      );
+    }
   }
 
   const annotationSnapshot = {
@@ -388,11 +430,14 @@ export async function commitDocumentMutation(
 
   const transactionId = uuidv4();
   const transactionTimestamp = Date.now();
+  const recordHistory =
+    input.executionMode !== 'recovery-replay';
 
   let preparedJournal:
     Awaited<ReturnType<typeof prepareHistoryJournalMutation>>;
   try {
-    preparedJournal = await prepareHistoryJournalMutation({
+    preparedJournal = recordHistory
+      ? await prepareHistoryJournalMutation({
       journalStoreId:
         sessionSnapshot.historyJournalStoreId,
       journalId: sessionSnapshot.historyJournalId,
@@ -403,10 +448,11 @@ export async function commitDocumentMutation(
       afterRevisionId: publishedRevisionId,
       transactionId,
       command: input.command,
-      createdAt: new Date(
-        transactionTimestamp,
-      ).toISOString(),
-    });
+          createdAt: new Date(
+            transactionTimestamp,
+          ).toISOString(),
+        })
+      : null;
   } catch (error) {
     throw toTransactionError(
       'persistence',
@@ -440,7 +486,7 @@ export async function commitDocumentMutation(
 
   try {
     useSessionStore.getState().replaceWorkingCopy(
-      input.afterBytes,
+      effectiveAfterBytes,
       afterPageCount,
       publishedRevisionId,
     );
@@ -496,50 +542,52 @@ export async function commitDocumentMutation(
       HistoryState,
       'bytes' | 'revision' | 'activeRevisionId'
     > = afterRevisionBacking ?? {
-      bytes: new Uint8Array(input.afterBytes),
+      bytes: new Uint8Array(effectiveAfterBytes),
       activeRevisionId: sessionAfter.activeRevisionId,
     };
     const annotationAfter = useAnnotationStore.getState();
     const writerAfter = writerHistorySnapshot();
     const ocrAfter = currentOcrPageState();
 
-    useHistoryStore.getState().push({
-      id: transactionId,
-      command: input.command,
-      label: input.label,
-      timestamp: transactionTimestamp,
-      ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
-      before: {
-        ...beforeHistoryBacking,
-        pageCount: beforePageCount,
-        pageGraph: sessionSnapshot.pageGraph
-          ? clonePageGraph(sessionSnapshot.pageGraph)
-          : null,
-        documentKey: sessionSnapshot.documentKey,
-        selectedPageIds: [...sessionSnapshot.selectedPageIds],
-        selectedPages: [...sessionSnapshot.selectedPages],
-        currentPageId: sessionSnapshot.viewState.currentPageId,
-        currentPage: sessionSnapshot.viewState.currentPage,
-        annotations: [...annotationSnapshot.annotations],
-        writer: writerBefore,
-        ocr: cloneOcrPageAnchoredState(ocrBefore),
-      },
-      after: {
-        ...afterHistoryBacking,
-        pageCount: afterPageCount,
-        pageGraph: sessionAfter.pageGraph
-          ? clonePageGraph(sessionAfter.pageGraph)
-          : null,
-        documentKey: nextDocumentKey,
-        selectedPageIds: [...sessionAfter.selectedPageIds],
-        selectedPages: [...sessionAfter.selectedPages],
-        currentPageId: sessionAfter.viewState.currentPageId,
-        currentPage: sessionAfter.viewState.currentPage,
-        annotations: [...annotationAfter.annotations],
-        writer: writerAfter,
-        ocr: cloneOcrPageAnchoredState(ocrAfter),
-      },
-    });
+    if (recordHistory) {
+      useHistoryStore.getState().push({
+        id: transactionId,
+        command: input.command,
+        label: input.label,
+        timestamp: transactionTimestamp,
+        ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
+        before: {
+          ...beforeHistoryBacking,
+          pageCount: beforePageCount,
+          pageGraph: sessionSnapshot.pageGraph
+            ? clonePageGraph(sessionSnapshot.pageGraph)
+            : null,
+          documentKey: sessionSnapshot.documentKey,
+          selectedPageIds: [...sessionSnapshot.selectedPageIds],
+          selectedPages: [...sessionSnapshot.selectedPages],
+          currentPageId: sessionSnapshot.viewState.currentPageId,
+          currentPage: sessionSnapshot.viewState.currentPage,
+          annotations: [...annotationSnapshot.annotations],
+          writer: writerBefore,
+          ocr: cloneOcrPageAnchoredState(ocrBefore),
+        },
+        after: {
+          ...afterHistoryBacking,
+          pageCount: afterPageCount,
+          pageGraph: sessionAfter.pageGraph
+            ? clonePageGraph(sessionAfter.pageGraph)
+            : null,
+          documentKey: nextDocumentKey,
+          selectedPageIds: [...sessionAfter.selectedPageIds],
+          selectedPages: [...sessionAfter.selectedPages],
+          currentPageId: sessionAfter.viewState.currentPageId,
+          currentPage: sessionAfter.viewState.currentPage,
+          annotations: [...annotationAfter.annotations],
+          writer: writerAfter,
+          ocr: cloneOcrPageAnchoredState(ocrAfter),
+        },
+      });
+    }
 
     if (preparedJournal) {
       const committedTransaction =
@@ -581,7 +629,7 @@ export async function commitDocumentMutation(
   }
 
   return {
-    nextBytes: input.afterBytes,
+    nextBytes: effectiveAfterBytes,
     nextPageCount: afterPageCount,
     nextDocumentKey,
     activeRevisionId: publishedRevisionId,
