@@ -1,0 +1,119 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2C1-001",
+    "branch": "phase8/history-writer-single-helper-durable",
+    "base_ref": "7decfe69d8ed2637cd1de4c372a0c66a31d334d7",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2B2C",
+    "previous_join": "7decfe69d8ed2637cd1de4c372a0c66a31d334d7",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-single-helper-durable",
+    "material_ref": "7decfe69d8ed2637cd1de4c372a0c66a31d334d7",
+    "base_branch": "main",
+    "base_observed_ref": "7decfe69d8ed2637cd1de4c372a0c66a31d334d7",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 266,
+  "outcome": {
+    "engineering": [
+      "Writer store can build durable commands from latest canonical state inside the document-operation queue.",
+      "Review, geometry, table-box and image-clear helpers await durable Writer commits and return action results.",
+      "Inspector helper-backed text controls commit from local drafts instead of per-keystroke mutations.",
+      "Quick-template review metadata is awaited through the latest-state review helper."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Remove stale synchronous single-element Writer mutations without destabilizing batch/OCR/consolidation contracts.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged B2C Table Properties coalescing.",
+    "why_this_work_exists": "Several helper modules still constructed nested UPDATE patches from render-time state and synchronously dispatched PDF-overlay mutations.",
+    "deliberate_non_goals": [
+      "No batch selection/arrange/clipboard migration.",
+      "No OCR Writer bridge migration.",
+      "No legacy-object consolidation migration.",
+      "No final synchronous PDF-overlay mutation ban."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "A latest-state durable Writer command factory evaluates inside the serialized transaction queue.",
+      "weight": 25,
+      "verification": ["TEST-01", "TEST-05"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Review, geometry, table-box and image-clear helpers have no synchronous mutation dispatch and await durable results.",
+      "weight": 30,
+      "verification": ["TEST-02", "TEST-05"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Helper durability failures are logged and returned as unchanged action results.",
+      "weight": 15,
+      "verification": ["TEST-03", "TEST-05"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Inspector helper-backed text inputs draft locally and Geometry Quick Panel awaits the async geometry helper.",
+      "weight": 15,
+      "verification": ["TEST-02", "TEST-04", "TEST-05"]
+    },
+    {
+      "id": "AC-05",
+      "description": "Batch selection/clipboard and OCR/consolidation synchronous mutation boundaries remain explicit follow-ons.",
+      "weight": 15,
+      "verification": ["TEST-02", "TEST-05"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "writerV2Store durable-history test queues nested updates and proves the second latest-state factory sees the first committed change.",
+      "proves": ["AC-01"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Static C2C1 audit verifies helper async/latest-state routing, caller migration and deferred C2C2/C2C3 boundaries.",
+      "proves": ["AC-02", "AC-04", "AC-05"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "durableWriterHelperDispatch tests verify result pass-through plus contextual logging/failure conversion.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Focused helper and Inspector tests cover async action contracts and local-until-blur table text editing.",
+      "proves": ["AC-02", "AC-04"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2c1 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2C2 migrate batch Writer selection/arrange/clipboard mutations"
+  }
+}
