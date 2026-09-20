@@ -348,6 +348,7 @@ export class SearchIndexer {
     if (
       !record
       || record.status === 'indexed'
+      || record.ownerToken !== ownerToken
     ) {
       return;
     }
