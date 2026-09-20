@@ -67,7 +67,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "WP-8G issue, semantic EP and qualification question set are prepared. No 8G acceptance, benchmark result, candidate qualification or runner-executed certification has been earned.",
+      "summary": "WP-8G issue, semantic EP, QSET and tracked draft PR #285 are prepared. DOBS-8G-001 confirms a Relay-only preparation scope. No 8G product implementation, acceptance, candidate qualification or runner-executed certification has been earned.",
       "not_run": []
     },
     "stop": {
@@ -104,13 +104,15 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 285,
-      "issue": 284,
-      "head_ref": "d21bc673239641f4b50d98dbc1e98d964bd57e72",
-      "state": "DRAFT_QUALIFICATION_PENDING",
-      "correlation": "ISSUE-284 ↔ WP-8G ↔ EP-8G-001 / IMPLEMENTS"
+      "id": "DOBS-8G-001",
+      "path": "agents/relay/delivery/DOBS-8G-001.yaml"
     },
-    "observations": []
+    "observations": [
+      {
+        "id": "DOBS-8G-001",
+        "path": "agents/relay/delivery/DOBS-8G-001.yaml"
+      }
+    ]
   },
   "relay_readiness": {
     "baton_ready": true,
