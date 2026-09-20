@@ -146,9 +146,19 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     const beforeStore = get();
     const previousEditingId = beforeStore.editingId;
     const session = useSessionStore.getState();
+    const hasPdfBacking = Boolean(
+      session.documentKey
+      && (
+        session.activeRevisionId
+        || session.workingBytes
+      ),
+    );
     const isPdfOverlaySession =
-      beforeStore.documentMeta?.mode
-        === 'pdfOverlay'
+      (
+        beforeStore.documentMeta?.mode
+          === 'pdfOverlay'
+        && hasPdfBacking
+      )
       || (
         !beforeStore.documentMeta
         && Boolean(
