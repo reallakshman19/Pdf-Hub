@@ -7,6 +7,9 @@ import type {
   PageNode,
 } from '@/core/pages/types';
 import {
+  classifyHistoryReplayability,
+} from '@/core/document-history/replayability';
+import {
   HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION,
   cloneHistoryStateCheckpointPayload,
   type HistoryStateCheckpointPayloadV2,
@@ -172,10 +175,26 @@ export function planHistoryRecovery(
     );
 
     const blocked = replayEntries.find(
-      (entry) =>
-        entry.disposition !== 'SELF_CONTAINED_REPLAY',
+      (entry) => {
+        const currentClassification =
+          classifyHistoryReplayability(
+            entry.command,
+          );
+        return (
+          entry.disposition
+            !== 'SELF_CONTAINED_REPLAY'
+          || currentClassification.disposition
+            !== 'SELF_CONTAINED_REPLAY'
+          || currentClassification.disposition
+            !== entry.disposition
+        );
+      },
     );
     if (blocked) {
+      const currentClassification =
+        classifyHistoryReplayability(
+          blocked.command,
+        );
       return {
         ok: false,
         code: 'RECOVERY_SUFFIX_BLOCKED',
@@ -186,7 +205,7 @@ export function planHistoryRecovery(
             checkpointId: checkpoint.checkpointId,
             transactionId: blocked.transactionId,
             message:
-              `Recovery from checkpoint ${checkpoint.checkpointId} would cross ${blocked.disposition} transaction ${blocked.transactionId}; a later recovery-complete checkpoint is required.`,
+              `Recovery from checkpoint ${checkpoint.checkpointId} cannot replay transaction ${blocked.transactionId}: persisted disposition is ${blocked.disposition}, current policy is ${currentClassification.disposition}.`,
           },
         ],
       };
