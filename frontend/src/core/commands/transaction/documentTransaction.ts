@@ -31,7 +31,10 @@ import {
   type OcrPageAnchoredState,
 } from '@/core/ocr/ocrPageAnchor';
 import { recomputeOcrDerivedState, useOcrStore } from '@/core/ocr/ocrStore';
-import type { PdfCommand } from '../types';
+import type {
+  CommandExecutionMode,
+  PdfCommand,
+} from '../types';
 
 export type DocumentMutationStage = 'prepare' | 'persistence' | 'commit';
 
@@ -71,6 +74,7 @@ export interface CommitDocumentMutationInput {
   nextOcrState?: OcrPageAnchoredState | null;
   ocrPagePolicy?: OcrPageMutationPolicy;
   revisionMetadata?: DocumentMutationRevisionMetadata;
+  executionMode?: CommandExecutionMode;
   signal?: AbortSignal;
 }
 
@@ -388,11 +392,14 @@ export async function commitDocumentMutation(
 
   const transactionId = uuidv4();
   const transactionTimestamp = Date.now();
+  const recordHistory =
+    input.executionMode !== 'recovery-replay';
 
   let preparedJournal:
     Awaited<ReturnType<typeof prepareHistoryJournalMutation>>;
   try {
-    preparedJournal = await prepareHistoryJournalMutation({
+    preparedJournal = recordHistory
+      ? await prepareHistoryJournalMutation({
       journalStoreId:
         sessionSnapshot.historyJournalStoreId,
       journalId: sessionSnapshot.historyJournalId,
@@ -403,10 +410,11 @@ export async function commitDocumentMutation(
       afterRevisionId: publishedRevisionId,
       transactionId,
       command: input.command,
-      createdAt: new Date(
-        transactionTimestamp,
-      ).toISOString(),
-    });
+          createdAt: new Date(
+            transactionTimestamp,
+          ).toISOString(),
+        })
+      : null;
   } catch (error) {
     throw toTransactionError(
       'persistence',
@@ -503,43 +511,45 @@ export async function commitDocumentMutation(
     const writerAfter = writerHistorySnapshot();
     const ocrAfter = currentOcrPageState();
 
-    useHistoryStore.getState().push({
-      id: transactionId,
-      command: input.command,
-      label: input.label,
-      timestamp: transactionTimestamp,
-      ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
-      before: {
-        ...beforeHistoryBacking,
-        pageCount: beforePageCount,
-        pageGraph: sessionSnapshot.pageGraph
-          ? clonePageGraph(sessionSnapshot.pageGraph)
-          : null,
-        documentKey: sessionSnapshot.documentKey,
-        selectedPageIds: [...sessionSnapshot.selectedPageIds],
-        selectedPages: [...sessionSnapshot.selectedPages],
-        currentPageId: sessionSnapshot.viewState.currentPageId,
-        currentPage: sessionSnapshot.viewState.currentPage,
-        annotations: [...annotationSnapshot.annotations],
-        writer: writerBefore,
-        ocr: cloneOcrPageAnchoredState(ocrBefore),
-      },
-      after: {
-        ...afterHistoryBacking,
-        pageCount: afterPageCount,
-        pageGraph: sessionAfter.pageGraph
-          ? clonePageGraph(sessionAfter.pageGraph)
-          : null,
-        documentKey: nextDocumentKey,
-        selectedPageIds: [...sessionAfter.selectedPageIds],
-        selectedPages: [...sessionAfter.selectedPages],
-        currentPageId: sessionAfter.viewState.currentPageId,
-        currentPage: sessionAfter.viewState.currentPage,
-        annotations: [...annotationAfter.annotations],
-        writer: writerAfter,
-        ocr: cloneOcrPageAnchoredState(ocrAfter),
-      },
-    });
+    if (recordHistory) {
+      useHistoryStore.getState().push({
+        id: transactionId,
+        command: input.command,
+        label: input.label,
+        timestamp: transactionTimestamp,
+        ...(input.command.groupId ? { groupId: input.command.groupId } : {}),
+        before: {
+          ...beforeHistoryBacking,
+          pageCount: beforePageCount,
+          pageGraph: sessionSnapshot.pageGraph
+            ? clonePageGraph(sessionSnapshot.pageGraph)
+            : null,
+          documentKey: sessionSnapshot.documentKey,
+          selectedPageIds: [...sessionSnapshot.selectedPageIds],
+          selectedPages: [...sessionSnapshot.selectedPages],
+          currentPageId: sessionSnapshot.viewState.currentPageId,
+          currentPage: sessionSnapshot.viewState.currentPage,
+          annotations: [...annotationSnapshot.annotations],
+          writer: writerBefore,
+          ocr: cloneOcrPageAnchoredState(ocrBefore),
+        },
+        after: {
+          ...afterHistoryBacking,
+          pageCount: afterPageCount,
+          pageGraph: sessionAfter.pageGraph
+            ? clonePageGraph(sessionAfter.pageGraph)
+            : null,
+          documentKey: nextDocumentKey,
+          selectedPageIds: [...sessionAfter.selectedPageIds],
+          selectedPages: [...sessionAfter.selectedPages],
+          currentPageId: sessionAfter.viewState.currentPageId,
+          currentPage: sessionAfter.viewState.currentPage,
+          annotations: [...annotationAfter.annotations],
+          writer: writerAfter,
+          ocr: cloneOcrPageAnchoredState(ocrAfter),
+        },
+      });
+    }
 
     if (preparedJournal) {
       const committedTransaction =
