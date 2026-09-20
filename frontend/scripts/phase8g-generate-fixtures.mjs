@@ -210,14 +210,6 @@ async function buildFixture(
     await pdf.embedFont(
       StandardFonts.Helvetica,
     );
-  const image =
-    kind === 'image_heavy'
-    || kind === 'scanned_image_only'
-      ? await pdf.embedPng(
-          PNG_1X1,
-        )
-      : null;
-
   for (
     let index = 0;
     index < pageCount;
@@ -241,6 +233,10 @@ async function buildFixture(
     } else if (
       kind === 'image_heavy'
     ) {
+      const image =
+        await pdf.embedPng(
+          PNG_1X1,
+        );
       for (
         let tile = 0;
         tile < 24;
@@ -265,6 +261,10 @@ async function buildFixture(
     } else if (
       kind === 'scanned_image_only'
     ) {
+      const image =
+        await pdf.embedPng(
+          PNG_1X1,
+        );
       page.drawImage(
         image,
         {
