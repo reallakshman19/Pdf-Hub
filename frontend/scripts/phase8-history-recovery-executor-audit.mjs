@@ -130,6 +130,8 @@ requireContains(executor, executorPath, [
   "'REVISION_MISMATCH'",
   'persistAnnotations(',
   'restoreRecoverySnapshot(snapshot)',
+  'rekeyRecoveredWriterState',
+  'liveCheckpoint.statePayload',
   "documentBus.emit({",
   "type: 'DOCUMENT_REPLACED'",
 ]);
@@ -171,6 +173,7 @@ requireContains(transaction, transactionPath, [
   'recordHistory',
   '? await prepareHistoryJournalMutation({',
   'if (recordHistory) {',
+  "input.executionMode !== 'recovery-replay'",
 ]);
 requireOrder(
   transaction,
@@ -183,6 +186,46 @@ requireOrder(
   transactionPath,
   'const recordHistory =',
   '? await prepareHistoryJournalMutation({',
+);
+
+const dispatchPath =
+  'src/core/commands/dispatch.ts';
+const dispatch = read(dispatchPath);
+requireContains(dispatch, dispatchPath, [
+  'derivedCommandEntityId',
+  "'annotation-duplicate'",
+  "'writer-duplicate'",
+  'now: commandCreatedAtMs(command)',
+  'now: command.createdAt',
+]);
+
+const dispatchTestsPath =
+  'src/core/commands/__tests__/dispatch.test.ts';
+const dispatchTests =
+  read(dispatchTestsPath);
+requireContains(
+  dispatchTests,
+  dispatchTestsPath,
+  [
+    "'duplicate-command::annotation-duplicate::1'",
+    "'duplicate-command::writer-duplicate::1'",
+    "'2026-09-18T03:04:05.000Z'",
+  ],
+);
+
+const transactionTestsPath =
+  'src/core/commands/transaction/documentTransaction.history.test.ts';
+const transactionTests =
+  read(transactionTestsPath);
+requireContains(
+  transactionTests,
+  transactionTestsPath,
+  [
+    'recovery replay mutates the active revision without duplicating history, journal, or annotation persistence',
+    "executionMode:",
+    "'recovery-replay'",
+    'not.toHaveBeenCalled()',
+  ],
 );
 
 const plannerTestsPath =
