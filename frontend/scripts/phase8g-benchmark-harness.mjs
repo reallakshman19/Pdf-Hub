@@ -212,6 +212,32 @@ function evaluate(measurement) {
     }
   } else if (
     operation
+    === 'incremental_indexing'
+  ) {
+    for (
+      const field
+      of [
+        'current_page_result_ms',
+        'nearby_page_result_ms',
+        'pages_per_second',
+        'indexed_pages',
+        'failed_pages',
+        'range_requests',
+        'range_bytes',
+        'max_requested_range_bytes',
+        'peak_memory_bytes',
+      ]
+    ) {
+      numeric(
+        metrics,
+        field,
+        failures,
+      );
+    }
+    details.classification =
+      'OBSERVATION_ONLY';
+  } else if (
+    operation
     === 'query_change_reextraction'
   ) {
     const extractions =
@@ -322,6 +348,26 @@ function evaluate(measurement) {
         `reprioritization ${value}ms exceeds ${details.maximum}ms`,
       );
     }
+  } else if (
+    operation === 'recovery_restore'
+  ) {
+    for (
+      const field
+      of [
+        'retained_revision_storage_bytes',
+        'journal_storage_bytes',
+        'replayed_transactions',
+        'peak_memory_bytes',
+      ]
+    ) {
+      numeric(
+        metrics,
+        field,
+        failures,
+      );
+    }
+    details.classification =
+      'OBSERVATION_ONLY';
   } else if (
     typeof operation === 'string'
     && (
