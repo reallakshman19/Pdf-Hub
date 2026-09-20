@@ -11,7 +11,7 @@ import {
 import {
   createInitialHistoryJournalManifest,
 } from '../types';
-import type { HistoryState } from '../../types';
+import type { HistoryState } from '../types';
 import {
   attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
