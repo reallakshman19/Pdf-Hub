@@ -164,6 +164,7 @@ export const SearchPanel: React.FC = () => {
     indexAbortControllerRef.current =
       controller;
 
+    setError(null);
     SearchIndexer.prepareRevision(
       activeRevisionId,
       pageGraph,
@@ -425,7 +426,7 @@ export const SearchPanel: React.FC = () => {
         {!isSearching && query && hits.length === 0 && (
           <div className="text-sm text-slate-500 text-center py-4">No results found.</div>
         )}
-        {!isSearching && error && (
+        {error && (
           <div className="text-sm text-red-600 dark:text-red-400 text-center py-4">{error}</div>
         )}
 
