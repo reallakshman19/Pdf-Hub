@@ -25,6 +25,8 @@ const REVISION_ID = 'sha256:recovery';
 function plan(): HistoryRecoveryPlan {
   return {
     journalId: 'history-1',
+    fileName: 'fixture.pdf',
+    originalRevisionId: 'sha256:origin',
     checkpointId: 'history-1:barrier:tx-1',
     checkpointTransactionId: 'tx-1',
     activeTransactionId: 'tx-1',
