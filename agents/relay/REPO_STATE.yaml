@@ -55,7 +55,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "A different incoming candidate must reconstruct EP-8G-001 from repository state, answer QSET-8G-001, obtain independent QUAL/TC, and pass the live MATERIAL_WRITE_READY gate before any frontend/product write. The first authorized implementation slice after admission is STEP-01."
+      "next_action": "A different incoming candidate must reconstruct EP-8G-001 from repository state, answer QSET-8G-001, obtain independent QUAL/TC, and pass MATERIAL_WRITE_READY. Only then execute STEP-01 (deterministic corpus/harness/budget manifest) followed by the bounded STEP-02 search-rescan remediation."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
@@ -67,7 +67,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "WP-8G issue, semantic EP, QSET and tracked draft PR #285 are prepared. DOBS-8G-001 confirms a Relay-only preparation scope. No 8G product implementation, acceptance, candidate qualification or runner-executed certification has been earned.",
+      "summary": "WP-8G issue, semantic EP, QSET and tracked draft PR #285 are prepared. DOBS-8G-002 confirms the live route remains Relay/qualification-only at 25d22b0c093d66e19d87ddbab18b61688b3b159e. No DISC-8G, QUAL-8G, TC-8G, product implementation, acceptance or runner-executed certification has been earned.",
       "not_run": []
     },
     "stop": {
@@ -104,13 +104,17 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8G-001",
-      "path": "agents/relay/delivery/DOBS-8G-001.yaml"
+      "id": "DOBS-8G-002",
+      "path": "agents/relay/delivery/DOBS-8G-002.yaml"
     },
     "observations": [
       {
         "id": "DOBS-8G-001",
         "path": "agents/relay/delivery/DOBS-8G-001.yaml"
+      },
+      {
+        "id": "DOBS-8G-002",
+        "path": "agents/relay/delivery/DOBS-8G-002.yaml"
       }
     ]
   },
