@@ -5,6 +5,11 @@ import type { PdfCommand } from '../commands/types';
 import { clonePageGraph } from '../pages/pageGraph';
 import { useSessionStore } from '../session/store';
 import type { WriterElementV2 } from '../writer-v2/types';
+import {
+  cloneOcrPageAnchoredState,
+  type OcrPageAnchoredState,
+} from '../ocr/ocrPageAnchor';
+import { useOcrStore } from '../ocr/ocrStore';
 import { useHistoryStore } from './store';
 import type {
   Transaction,
@@ -97,6 +102,20 @@ export function buildStateHistoryTransaction(
           session.activeRevisionId,
       };
 
+  const ocrStore =
+    useOcrStore.getState();
+  const ocrSnapshot: OcrPageAnchoredState =
+    cloneOcrPageAnchoredState({
+      documentFingerprint:
+        ocrStore.documentFingerprint,
+      result: ocrStore.result,
+      corrections: ocrStore.corrections,
+      regions: ocrStore.regions,
+      selectedPageIndexes:
+        ocrStore.selectedPageIndexes,
+      reviewFocus: ocrStore.reviewFocus,
+    });
+
   const baseState = {
     ...pdfBacking,
     pageCount: session.pageCount,
@@ -130,6 +149,9 @@ export function buildStateHistoryTransaction(
       writer: writerHistoryState(
         input.before.writer,
       ),
+      ocr: cloneOcrPageAnchoredState(
+        ocrSnapshot,
+      ),
     },
     after: {
       ...baseState,
@@ -138,6 +160,9 @@ export function buildStateHistoryTransaction(
       ),
       writer: writerHistoryState(
         input.after.writer,
+      ),
+      ocr: cloneOcrPageAnchoredState(
+        ocrSnapshot,
       ),
     },
   };
