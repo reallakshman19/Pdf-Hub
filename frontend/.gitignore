@@ -25,3 +25,6 @@ dist-ssr
 
 # Phase 8G generated performance corpus
 performance/fixtures/phase8g/
+
+# Phase 8G generated benchmark observations/reports
+performance/results/
