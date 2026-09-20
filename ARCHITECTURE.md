@@ -424,15 +424,29 @@ in-memory clipboard only after a successful commit. Selection-only commands such
 as SET_ACTIVE_WRITER_ELEMENT, SET_WRITER_SELECTION and CLEAR_WRITER_SELECTION
 remain synchronous because they do not mutate the document.
 
-C2C3 is now the remaining synchronous PDF-overlay Writer mutation boundary. It
-owns OCR Writer insertion and atomic legacy-object consolidation. Multi-step
-legacy consolidation must become one durable logical mutation rather than
-independently journaling each hidden source element and the consolidated
-replacement. After C2C3, a final anti-drift audit may prohibit synchronous
-PDF-overlay Writer mutation dispatch while still allowing selection-only and
-blank-document-local commands. No command replay or revision deletion is enabled
-yet. Reference-aware revision GC and bounded recovery checkpoints remain
-follow-on work. Phase 8F owns incremental search indexing.
+Phase 8E.5B3C2C3 closes the synchronous PDF-overlay Writer mutation
+boundary. OCR Writer insertion now awaits `dispatchWriterCommandDurable`;
+failed/no-op dispatch reports `commandApplied: false`, the OCR queue is retained,
+and connected UI status is updated only after a committed insertion. Legacy
+object consolidation now discovers candidates from latest canonical Writer state
+inside the durable queue and emits one
+`BATCH_UPDATE_AND_ADD_WRITER_ELEMENTS` command that hides all source objects,
+adds/selects the rich replacement and creates one undo/history unit. The command
+reducer validates every source update and addition before applying anything, so
+invalid input cannot partially hide sources.
+
+Public synchronous `dispatchWriterCommand` now rejects document mutations when
+the Writer session is backed by an active PDF revision/working copy. Durable
+dispatch uses an explicit internal compatibility override when a journal is not
+available, preserving legacy/non-journal PDF-overlay operation while keeping
+production callers on the durable API. Synchronous selection-only commands remain
+allowed. Synchronous mutation remains allowed only in the explicit blank Writer
+document insertion surfaces. A repository-wide anti-drift scan enforces this
+boundary over active TypeScript/TSX source.
+
+No command replay or revision deletion is enabled yet. Reference-aware revision
+GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
+incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.
