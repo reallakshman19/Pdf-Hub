@@ -379,7 +379,7 @@ requireContains(
 
 const limits = [
   [matcherPath, matcher, 200],
-  [indexPath, indexer, 540],
+  [indexPath, indexer, 520],
   [
     'src/core/search/incrementalResults.ts',
     read('src/core/search/incrementalResults.ts'),
