@@ -18,7 +18,9 @@ import {
 export interface OcrWriterInsertPanelProps {
   queue: OcrWriterInsertionQueueState;
   onQueueChange: (queue: OcrWriterInsertionQueueState) => void;
-  onInsertElements?: (elements: WriterElementV2[]) => void;
+  onInsertElements?: (
+    elements: WriterElementV2[],
+  ) => void | Promise<void>;
 }
 
 export const OcrWriterInsertPanel: React.FC<OcrWriterInsertPanelProps> = ({
@@ -29,15 +31,26 @@ export const OcrWriterInsertPanel: React.FC<OcrWriterInsertPanelProps> = ({
   const insertable = getInsertableOcrWriterCandidates(queue);
   const rejectedCount = queue.candidates.length - insertable.length;
 
-  const insertElements = () => {
-    const result = buildOcrWriterInsertionResult(queue);
+  const insertElements = async () => {
+    const result =
+      buildOcrWriterInsertionResult(queue);
 
     if (result.accepted.length === 0) {
       return;
     }
 
-    onInsertElements?.(result.accepted);
-    onQueueChange(clearOcrWriterInsertionQueue());
+    try {
+      await onInsertElements?.(
+        result.accepted,
+      );
+      onQueueChange(
+        clearOcrWriterInsertionQueue(),
+      );
+    } catch {
+      // The connected caller owns the user-facing failure
+      // status. Preserve the queue so the insertion can be
+      // retried after a durable Writer failure.
+    }
   };
 
   const clearQueue = () => {
@@ -111,7 +124,9 @@ export const OcrWriterInsertPanel: React.FC<OcrWriterInsertPanelProps> = ({
           type="button"
           size="sm"
           disabled={insertable.length === 0}
-          onClick={insertElements}
+          onClick={() => {
+            void insertElements();
+          }}
           data-testid="ocr-writer-insert-button"
         >
           <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
