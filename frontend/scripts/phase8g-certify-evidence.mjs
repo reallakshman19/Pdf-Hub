@@ -1,159 +1,80 @@
-import fs from 'node:fs';
 import path from 'node:path';
+
 import {
-  execFileSync,
-} from 'node:child_process';
+  phase8gArgValue,
+  phase8gGitHead,
+  phase8gLoadJson,
+  phase8gResultMap,
+  validatePhase8gReport,
+  verifyPhase8gBrowser,
+  verifyPhase8gNodeMatrix,
+  writePhase8gCertificationEvidence,
+} from './phase8g-certification-evidence-support.mjs';
 
 const root = process.cwd();
 
-function argValue(name) {
-  const prefix = '--' + name + '=';
-  return process.argv
-    .slice(2)
-    .find(
-      (arg) =>
-        arg.startsWith(prefix),
-    )
-    ?.slice(prefix.length)
-    ?? null;
-}
-
-function loadJson(relativePath) {
-  return JSON.parse(
-    fs.readFileSync(
-      path.resolve(
-        root,
-        relativePath,
-      ),
-      'utf8',
-    ),
-  );
-}
-
-function gitHead() {
-  return execFileSync(
-    'git',
-    ['rev-parse', 'HEAD'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-    },
-  ).trim();
-}
-
 const nodeReportPath =
-  argValue('node-report')
+  phase8gArgValue(
+    'node-report',
+  )
   ?? process.env
     .PHASE8G_NODE_REPORT_PATH
   ?? 'performance/results/phase8g-node-report.json';
 const browserReportPath =
-  argValue('browser-report')
+  phase8gArgValue(
+    'browser-report',
+  )
   ?? process.env
     .PHASE8G_BROWSER_REPORT_PATH
   ?? 'performance/results/phase8g-browser-report.json';
 const outputPath =
-  argValue('out')
+  phase8gArgValue('out')
   ?? process.env
     .PHASE8G_CERTIFICATION_EVIDENCE_PATH
   ?? 'performance/results/phase8g-certification-evidence.json';
 
 const budget =
-  loadJson(
+  phase8gLoadJson(
+    root,
     'performance/phase8g-budget-manifest.json',
   );
 const nodeReport =
-  loadJson(nodeReportPath);
+  phase8gLoadJson(
+    root,
+    nodeReportPath,
+  );
 const browserReport =
-  loadJson(browserReportPath);
-const head = gitHead();
+  phase8gLoadJson(
+    root,
+    browserReportPath,
+  );
+const head =
+  phase8gGitHead(root);
 const failures = [];
 
-function requireReport(
-  report,
-  name,
-) {
-  if (
-    report.schema_version
-    !== 'phase8g-benchmark-report-v1'
-  ) {
-    failures.push(
-      name
-      + ' report schema is invalid',
-    );
-  }
-  if (
-    report.budget_schema_version
-    !== budget.schema_version
-  ) {
-    failures.push(
-      name
-      + ' report budget schema does not match',
-    );
-  }
-  if (report.status !== 'PASS') {
-    failures.push(
-      name
-      + ' report is not PASS',
-    );
-  }
-  if (
-    report.environment
-      ?.commit_sha
-    !== head
-  ) {
-    failures.push(
-      name
-      + ' report commit '
-      + String(
-        report.environment
-          ?.commit_sha
-        ?? '(missing)',
-      )
-      + ' does not equal HEAD '
-      + head,
-    );
-  }
-  if (
-    !Array.isArray(
-      report.results,
-    )
-    || report.results.length === 0
-  ) {
-    failures.push(
-      name
-      + ' report has no results',
-    );
-  }
-}
-
-requireReport(
-  nodeReport,
-  'node',
-);
-requireReport(
-  browserReport,
-  'browser',
-);
-
-function resultMap(report) {
-  const map = new Map();
-  for (
-    const result
-    of report.results ?? []
-  ) {
-    const key =
-      result.fixture_id
-      + '|'
-      + result.operation;
-    map.set(key, result);
-  }
-  return map;
-}
+validatePhase8gReport({
+  report: nodeReport,
+  name: 'node',
+  budget,
+  head,
+  failures,
+});
+validatePhase8gReport({
+  report: browserReport,
+  name: 'browser',
+  budget,
+  head,
+  failures,
+});
 
 const nodeResults =
-  resultMap(nodeReport);
+  phase8gResultMap(
+    nodeReport,
+  );
 const browserResults =
-  resultMap(browserReport);
+  phase8gResultMap(
+    browserReport,
+  );
 
 const nodeOperations = [
   'range_backed_first_page',
@@ -172,92 +93,28 @@ const nodeOperations = [
   'recovery_restore',
 ];
 
-let expectedFixtureCount = 0;
-for (
-  const [kind, fixture]
-  of Object.entries(
-    budget.fixtures,
-  )
-) {
-  if (fixture.required !== true) {
-    continue;
-  }
-
-  for (
-    const pageCount
-    of fixture.page_counts
-  ) {
-    expectedFixtureCount += 1;
-    const fixtureId =
-      'phase8g:'
-      + kind
-      + ':'
-      + pageCount;
-    for (
-      const operation
-      of nodeOperations
-    ) {
-      const result =
-        nodeResults.get(
-          fixtureId
-          + '|'
-          + operation,
-        );
-      if (!result) {
-        failures.push(
-          'node report missing '
-          + fixtureId
-          + ' '
-          + operation,
-        );
-      } else if (
-        result.status !== 'PASS'
-      ) {
-        failures.push(
-          'node result failed '
-          + fixtureId
-          + ' '
-          + operation,
-        );
-      }
-    }
-  }
-}
+const expectedFixtureCount =
+  verifyPhase8gNodeMatrix({
+    budget,
+    nodeResults,
+    operations:
+      nodeOperations,
+    failures,
+  });
 
 const browserFixture =
   'phase8g:native_text:1000';
-for (
-  const operation
-  of [
+verifyPhase8gBrowser({
+  browserResults,
+  fixtureId:
+    browserFixture,
+  operations: [
     'range_backed_first_page',
     'browser_navigation',
     'long_task',
-  ]
-) {
-  const result =
-    browserResults.get(
-      browserFixture
-      + '|'
-      + operation,
-    );
-  if (!result) {
-    failures.push(
-      'browser report missing '
-      + browserFixture
-      + ' '
-      + operation,
-    );
-  } else if (
-    result.status !== 'PASS'
-  ) {
-    failures.push(
-      'browser result failed '
-      + browserFixture
-      + ' '
-      + operation,
-    );
-  }
-}
+  ],
+  failures,
+});
 
 const complexity =
   nodeResults.get(
@@ -305,27 +162,11 @@ const evidence = {
   failures,
 };
 
-const resolvedOutput =
-  path.resolve(
-    root,
-    outputPath,
-  );
-fs.mkdirSync(
-  path.dirname(
-    resolvedOutput,
-  ),
-  {
-    recursive: true,
-  },
-);
-fs.writeFileSync(
-  resolvedOutput,
-  JSON.stringify(
-    evidence,
-    null,
-    2,
-  ) + '\n',
-);
+writePhase8gCertificationEvidence({
+  root,
+  outputPath,
+  evidence,
+});
 
 if (
   evidence.status !== 'PASS'
