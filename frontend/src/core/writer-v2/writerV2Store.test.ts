@@ -130,7 +130,7 @@ describe('writer-v2 zustand store persistence state', () => {
     expect(state.lastPersistedAt).toBeNull();
   });
 
-  it('hydrates PDF-overlay elements with stable PageIds and retargets pageIndex edits', () => {
+  it('hydrates PDF-overlay elements with stable PageIds and retargets pageIndex edits', async () => {
     useSessionStore.getState().openDocument({
       documentKey: 'doc-1',
       fileName: 'writer.pdf',
@@ -170,12 +170,14 @@ describe('writer-v2 zustand store persistence state', () => {
       pageIndex: 0,
     });
 
-    useWriterV2Store.getState().dispatchWriterCommand({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: 'writer-anchor',
-      patch: { pageIndex: 1 },
-      now: '2026-09-18T01:00:00.000Z',
-    });
+    await useWriterV2Store
+      .getState()
+      .dispatchWriterCommandDurable({
+        type: 'UPDATE_WRITER_ELEMENT',
+        id: 'writer-anchor',
+        patch: { pageIndex: 1 },
+        now: '2026-09-18T01:00:00.000Z',
+      });
 
     expect(useWriterV2Store.getState().elements[0]).toMatchObject({
       pageId: 'page-b',
