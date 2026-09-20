@@ -42,6 +42,8 @@ export interface WorkingRevisionStore {
   commit(input: CommitRevisionInput): Promise<StoredRevision>;
   open(revisionId: string): Promise<DocumentSource>;
   has(revisionId: string): Promise<boolean>;
+  /** Deterministic inventory of fully committed immutable revision ids. */
+  listRevisionIds(): Promise<string[]>;
   remove(revisionId: string): Promise<void>;
   clear(): Promise<void>;
 }
