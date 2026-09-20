@@ -352,17 +352,30 @@ const evidenceCertPath =
   'scripts/phase8g-certify-evidence.mjs';
 const evidenceCert =
   read(evidenceCertPath);
+const evidenceSupportPath =
+  'scripts/phase8g-certification-evidence-support.mjs';
+const evidenceSupport =
+  read(evidenceSupportPath);
 requireContains(
   evidenceCert,
   evidenceCertPath,
   [
     'phase8g-certification-evidence-v1',
-    'phase8g-benchmark-report-v1',
-    'report commit ',
     'phase8g:native_text:1000',
     'active_query_page_arrival_matching',
     'expected_fixture_count',
     "status:\n    failures.length === 0",
+  ],
+);
+requireContains(
+  evidenceSupport,
+  evidenceSupportPath,
+  [
+    'phase8g-benchmark-report-v1',
+    'report commit ',
+    'verifyPhase8gNodeMatrix',
+    'verifyPhase8gBrowser',
+    'writePhase8gCertificationEvidence',
   ],
 );
 
@@ -510,7 +523,8 @@ const benchmarkModuleLimits = [
   [browserBenchmarkPath, 500],
   [runnerPath, 180],
   [mergePath, 180],
-  [evidenceCertPath, 300],
+  [evidenceCertPath, 240],
+  [evidenceSupportPath, 300],
   [harnessPath, 600],
 ];
 
