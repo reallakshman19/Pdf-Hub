@@ -8,12 +8,46 @@ import {
   clearHistoryJournalStoreRegistryForTests,
   registerHistoryJournalStore,
 } from '../registry';
+import type { HistoryState } from '../../types';
 import {
   createInitialHistoryJournalManifest,
 } from '../types';
 import {
   prepareHistoryJournalStateTransaction,
 } from '../appendStateTransaction';
+
+function afterState(): HistoryState {
+  return {
+    revision: {
+      storeId: 'revisions',
+      revisionId: 'sha256:one',
+    },
+    activeRevisionId: 'sha256:one',
+    pageCount: 1,
+    pageGraph: null,
+    documentKey: 'sha256:one',
+    selectedPageIds: [],
+    selectedPages: [],
+    currentPageId: null,
+    currentPage: 1,
+    annotations: [],
+    writer: {
+      documentMode: 'pdfOverlay',
+      elements: [],
+      selectedIds: [],
+      activeId: null,
+    },
+    ocr: {
+      documentFingerprint:
+        'sha256:one',
+      result: null,
+      corrections: [],
+      regions: [],
+      selectedPageIndexes: [],
+      reviewFocus: null,
+    },
+  };
+}
 
 describe('prepareHistoryJournalStateTransaction', () => {
   beforeEach(() => {
@@ -53,15 +87,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'writer-store',
           'sha256:one',
         ),
-        after: {
-          annotations: [],
-          writer: {
-            documentMode: 'pdfOverlay',
-            elements: [],
-            selectedIds: [],
-            activeId: null,
-          },
-        },
+        after: afterState(),
       });
 
     expect(prepared?.manifest).toMatchObject({
@@ -86,7 +112,12 @@ describe('prepareHistoryJournalStateTransaction', () => {
           kind: 'BARRIER',
           transactionId: 'tx-state',
           statePayload: {
-            schemaVersion: 1,
+            schemaVersion: 2,
+            pageCount: 1,
+            documentKey: 'sha256:one',
+            ocr: {
+              selectedPageIndexes: [],
+            },
           },
         },
       ],
@@ -126,14 +157,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'annotation-store',
           'sha256:one',
         ),
-        after: {
-          annotations: [],
-          writer: {
-            elements: [],
-            selectedIds: [],
-            activeId: null,
-          },
-        },
+        after: afterState(),
       }),
     ).rejects.toThrow(/does not match in-memory history cursor/);
   });
