@@ -137,6 +137,15 @@ if (
 const generatorPath =
   'scripts/phase8g-generate-fixtures.mjs';
 const generator = read(generatorPath);
+const rasterGeneratorPath =
+  'scripts/phase8g-fixture-raster.mjs';
+const rasterGenerator =
+  read(rasterGeneratorPath);
+const metadataGeneratorPath =
+  'scripts/phase8g-fixture-metadata.mjs';
+const metadataGenerator =
+  read(metadataGeneratorPath);
+
 requireContains(
   generator,
   generatorPath,
@@ -149,16 +158,31 @@ requireContains(
     'metadata_rich',
     'phase8g-needle',
     'phase8g-fixture-manifest-v1',
-    'RASTER_SIZE = 128',
-    'deterministicRasterPng(',
-    "zlib.deflateSync(",
+    'deterministicPhase8gRasterPng(',
+    'addPhase8gMetadataRichStructures(',
+    'form.createTextField(',
+    'sha256(bytes)',
+    'useObjectStreams: false',
+  ],
+);
+requireContains(
+  rasterGenerator,
+  rasterGeneratorPath,
+  [
+    'PHASE8G_RASTER_SIZE = 128',
+    'deterministicPhase8gRasterPng(',
+    'zlib.deflateSync(',
+    'crc32(',
+  ],
+);
+requireContains(
+  metadataGenerator,
+  metadataGeneratorPath,
+  [
     "PDFName.of('PageLabels')",
     "PDFName.of('Annots')",
     "PDFName.of('Outlines')",
-    "pdf.attach(",
-    "form.createTextField(",
-    'sha256(bytes)',
-    'useObjectStreams: false',
+    'pdf.attach(',
   ],
 );
 
@@ -455,6 +479,9 @@ requireContains(
 );
 
 const benchmarkModuleLimits = [
+  [generatorPath, 500],
+  [rasterGeneratorPath, 220],
+  [metadataGeneratorPath, 220],
   ['src/performance/phase8gBenchmarkSupport.ts', 260],
   [rendererSupportPath, 500],
   [rendererBenchmarkPath, 180],
