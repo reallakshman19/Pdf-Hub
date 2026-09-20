@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "aabc1765244353ea263ecb94635a3188d2b77153"
+    "basis_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -17,7 +17,7 @@
   "current_position": {
     "objective": "OBJ-READINESS",
     "phase": "PHASE-008",
-    "work_package": "WP-8F",
+    "work_package": "WP-8G",
     "work_packages": []
   },
   "execution_policy": {
@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-281",
+    "id": "PR-283",
     "path": null,
-    "merge_ref": "8abe904008fe473be82d114016c0561d629f8b55",
-    "note": "WP-8E closure merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+    "note": "WP-8F merged under documented #183 infrastructure exception; engineering material remained aabc1765244353ea263ecb94635a3188d2b77153 and executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -70,7 +70,7 @@
       "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "After PR #283 merges, reconcile main and begin WP-8G large-document performance corpus/certification. Preserve revision/PageId indexing invariants and explicitly benchmark/fix active-query result publication so newly indexed pages do not cause repeated rescans of all previously indexed pages."
+      "next_action": "Create the WP-8G / issue #284 execution package and qualification boundary from merged main f42f0c27785e3dc097dc41ca0325698156b32181. Before product writes, satisfy the V2.5 fresh qualification requirement for the performance/oracle boundary. Carry the active-query repeated-rescan finding into 8G."
     },
     "quality": {
       "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
@@ -117,14 +117,16 @@
     "execution_ref": "EP-8F-001",
     "receipt": null,
     "basis": [
-      "PR #281 merged WP-8E closure and main was reconciled at d9fc2001006794f0aca1203ff027e38902db0c62.",
-      "Issue #282 / PR #283 implement WP-8F revision/PageId incremental visible/nearby-first search indexing.",
-      "WP-8F is terminal under the documented #183 NOT_RUN infrastructure exception.",
-      "After #283 merges, WP-8G large-document performance corpus/certification is the next serial frontier."
+      "PR #283 merged WP-8F at f42f0c27785e3dc097dc41ca0325698156b32181 and issue #282 is provider-closed.",
+      "WP-8F is COMPLETE/TERMINAL under the documented #183 NOT_RUN infrastructure exception.",
+      "Issue #284 is the verified GitHub coordination issue for WP-8G large-document performance corpus/certification.",
+      "WP-8G is the next serial frontier; Phase 9 remains waiting on WP-8G."
     ],
     "observed": {
       "issue": 282,
-      "pull_request": 283
+      "pull_request": 283,
+      "merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+      "successor_issue": 284
     },
     "superseded_operations": []
   },
@@ -132,15 +134,12 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-8F-001",
-      "path": "agents/relay/delivery/DOBS-8F-001.yaml"
+      "pull_request": 283,
+      "issue": 282,
+      "head_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+      "state": "MERGED"
     },
-    "observations": [
-      {
-        "id": "DOBS-8F-001",
-        "path": "agents/relay/delivery/DOBS-8F-001.yaml"
-      }
-    ]
+    "observations": []
   },
   "relay_readiness": {
     "baton_ready": true,
