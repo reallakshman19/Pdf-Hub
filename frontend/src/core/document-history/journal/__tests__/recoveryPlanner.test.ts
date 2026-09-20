@@ -253,6 +253,34 @@ describe('planHistoryRecovery', () => {
     });
   });
 
+  it('reclassifies suffix commands instead of trusting a forged persisted disposition', () => {
+    const manifest =
+      manifestWithReplaySuffix();
+    const forged = manifest.entries[1]!;
+    forged.command = donorCommand(
+      'forged-donor-command',
+      'sha256:checkpoint',
+    );
+    forged.disposition =
+      'SELF_CONTAINED_REPLAY';
+
+    const result =
+      planHistoryRecovery(manifest);
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'RECOVERY_SUFFIX_BLOCKED',
+    });
+    expect(
+      result.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.message.includes(
+            'current policy is CHECKPOINT_REQUIRED',
+          ),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects a recovery checkpoint whose PageId navigation disagrees with the PageGraph', () => {
     const manifest =
       manifestWithReplaySuffix();
