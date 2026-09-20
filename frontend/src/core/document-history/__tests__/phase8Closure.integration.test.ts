@@ -17,6 +17,8 @@ import {
   materializePdfCommand,
   type CommandExecutionInput,
   type CommandResult,
+  type PdfCommandDraft,
+  type PdfCommandSource,
 } from '@/core/commands/types';
 import {
   clearHistoryJournalStoreRegistryForTests,
@@ -485,14 +487,9 @@ function checkpointState() {
 function command(
   id: string,
   documentKey: string,
-  draft:
-    Parameters<
-      typeof materializePdfCommand
-    >[0],
+  draft: PdfCommandDraft,
   source:
-    Parameters<
-      typeof materializePdfCommand
-    >[1] = 'system',
+    PdfCommandSource = 'system',
 ) {
   return materializePdfCommand(
     draft,
