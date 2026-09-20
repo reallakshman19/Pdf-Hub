@@ -2,7 +2,7 @@ import type { PdfCommand } from '@/core/commands/types';
 import {
   classifyHistoryReplayability,
 } from '../replayability';
-import type { StateHistorySnapshot } from '../stateTransaction';
+import type { HistoryState } from '../types';
 import {
   resolveHistoryJournalStore,
 } from './registry';
@@ -31,7 +31,7 @@ export interface PrepareHistoryJournalStateTransactionInput {
   transactionId: string;
   currentTransactionId: string | null;
   command: PdfCommand;
-  after: StateHistorySnapshot;
+  after: HistoryState;
   createdAt?: string;
 }
 
