@@ -361,14 +361,19 @@ export async function commitDocumentMutation(
     );
   }
 
-  try {
-    await saveAnnotations(nextDocumentKey, annotationsToPersist);
-  } catch (error) {
-    throw toTransactionError(
-      'persistence',
-      'Document mutation was not committed because annotation persistence failed',
-      error,
-    );
+  if (input.executionMode !== 'recovery-replay') {
+    try {
+      await saveAnnotations(
+        nextDocumentKey,
+        annotationsToPersist,
+      );
+    } catch (error) {
+      throw toTransactionError(
+        'persistence',
+        'Document mutation was not committed because annotation persistence failed',
+        error,
+      );
+    }
   }
 
   const annotationSnapshot = {
