@@ -30,6 +30,7 @@ import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import {
+  acquireRevisionPin,
   clearRevisionPinsForTests,
 } from '@/core/revision-store/pins';
 import {
@@ -260,6 +261,68 @@ describe(
         'doc-a',
         'doc-b',
       ]);
+    });
+
+    it('honors live runtime pins and releases them into the candidate set', async () => {
+      const revisions =
+        new MemoryRevisionStore({
+          id: STORE_ID,
+        });
+      const journals =
+        new MemoryHistoryJournalStore({
+          id: JOURNAL_STORE_ID,
+        });
+      registerStores(
+        revisions,
+        journals,
+      );
+      await seed(revisions, [
+        'keep',
+        'export-revision',
+      ]);
+      await saveJournal(journals, {
+        journalId: 'journal-keep',
+        original: 'keep',
+      });
+
+      const pin =
+        acquireRevisionPin(
+          STORE_ID,
+          'export-revision',
+          'export-1',
+        );
+
+      const pinnedPlan =
+        await planLiveRevisionGarbageCollection({
+          storeId: STORE_ID,
+          journalStoreId:
+            JOURNAL_STORE_ID,
+        });
+      expect(pinnedPlan.candidates)
+        .toEqual([]);
+      expect(
+        pinnedPlan.reachable.find(
+          (entry) =>
+            entry.revisionId
+            === 'export-revision',
+        )?.reasons,
+      ).toContainEqual({
+        kind: 'RUNTIME_PIN',
+        sourceId: 'export-1',
+      });
+
+      pin.release();
+
+      const releasedPlan =
+        await planLiveRevisionGarbageCollection({
+          storeId: STORE_ID,
+          journalStoreId:
+            JOURNAL_STORE_ID,
+        });
+      expect(releasedPlan.candidates)
+        .toEqual([
+          'export-revision',
+        ]);
     });
 
     it('rejects a stale plan before deleting when a candidate becomes journal-reachable', async () => {
