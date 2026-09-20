@@ -168,8 +168,67 @@ requireContains(
     'page_match_calls',
     'query_change_reextraction',
     'range_backed_first_page',
+    'incremental_indexing',
+    'browser_navigation',
+    'recovery_restore',
     'mutation_save_truth',
     "status: failures.length === 0",
+  ],
+);
+
+const runnerPath =
+  'scripts/phase8g-run-benchmarks.mjs';
+const runner = read(runnerPath);
+requireContains(
+  runner,
+  runnerPath,
+  [
+    'phase8g-generate-fixtures.mjs',
+    'src/performance/phase8gBenchmark.test.ts',
+    'e2e/phase8g-browser-performance.spec.ts',
+    'PHASE8G_SKIP_NODE',
+    'PHASE8G_SKIP_BROWSER',
+    'phase8g-benchmark-harness.mjs',
+  ],
+);
+
+const nodeBenchmarkPath =
+  'src/performance/phase8gBenchmark.test.ts';
+const nodeBenchmark =
+  read(nodeBenchmarkPath);
+requireContains(
+  nodeBenchmark,
+  nodeBenchmarkPath,
+  [
+    'PdfRendererAdapter.acquireDocumentSource',
+    'indexPdfDocumentIncrementally',
+    'query_change_reextraction',
+    'cancellation_reprioritization',
+    'pdfLibMutationEngine.open',
+    'mutation_reorder',
+    'mutation_append_donor',
+    'planHistoryRecovery',
+    'resolveHistoryRecoveryPlan',
+    'executeHistoryRecovery',
+    'retained_revision_storage_bytes',
+  ],
+);
+
+const browserBenchmarkPath =
+  'e2e/phase8g-browser-performance.spec.ts';
+const browserBenchmark =
+  read(browserBenchmarkPath);
+requireContains(
+  browserBenchmark,
+  browserBenchmarkPath,
+  [
+    'PerformanceObserver',
+    'Performance.getMetrics',
+    'getDocumentSourceCacheDiagnostics',
+    'range_backed_first_page',
+    'browser_navigation',
+    'long_task',
+    'waitForRenderedPage',
   ],
 );
 
@@ -334,6 +393,15 @@ if (
     'package.json benchmark:phase8g:evaluate is missing or changed.',
   );
 }
+if (
+  packageJson.scripts
+    ?.['benchmark:phase8g']
+  !== 'node scripts/phase8g-run-benchmarks.mjs'
+) {
+  fail(
+    'package.json benchmark:phase8g is missing or changed.',
+  );
+}
 
 const certify =
   packageJson.scripts
@@ -364,6 +432,10 @@ requireContains(
     'range-backed viewing',
     'full-materialization mutation/save',
     'phase8g-budget-manifest.json',
+    'npm run benchmark:phase8g',
+    'Node production-path driver',
+    'browser render/navigation driver',
+    'OBSERVATION_ONLY',
   ],
 );
 
