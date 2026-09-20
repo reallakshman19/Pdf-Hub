@@ -255,6 +255,7 @@ requireContains(gc, gcPath, [
   'requireCrossContext:',
   'acquireRevisionStoreGcClearanceLease',
   'assertCompatiblePlan',
+  'sessionSignature',
   "'UNSAFE_REACHABILITY'",
   "'STALE_PLAN'",
   'await revisionStore.remove(',
@@ -369,7 +370,9 @@ requireContains(
   gcTestPath,
   [
     'deletes only revisions unreachable from every retained journal',
+    'honors live runtime pins and releases them into the candidate set',
     'rejects a stale plan before deleting when a candidate becomes journal-reachable',
+    'rejects execution when active session identity changes without changing reachable revisions',
     'returns partial failure and safely retries the same plan',
     'fails closed before remove when retained journal references are missing',
     'fails closed if complete journal inventory becomes unavailable after planning',
