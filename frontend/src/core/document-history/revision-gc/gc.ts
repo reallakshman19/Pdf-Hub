@@ -54,6 +54,7 @@ export interface RevisionGarbageCollectionPlan {
   diagnostics: RevisionReachabilityDiagnostic[];
   safeToDelete: boolean;
   referenceSignature: string;
+  sessionSignature: string;
 }
 
 export interface RevisionGarbageCollectionResult {
@@ -107,6 +108,21 @@ export async function planLiveRevisionGarbageCollection(
     useSessionStore.getState();
   const history =
     useHistoryStore.getState();
+  const sessionSignature =
+    JSON.stringify({
+      documentKey:
+        session.documentKey,
+      revisionStoreId:
+        session.revisionStoreId,
+      originalRevisionId:
+        session.originalRevisionId,
+      activeRevisionId:
+        session.activeRevisionId,
+      historyJournalStoreId:
+        session.historyJournalStoreId,
+      historyJournalId:
+        session.historyJournalId,
+    });
 
   const reachability =
     planRevisionReachability({
@@ -164,6 +180,7 @@ export async function planLiveRevisionGarbageCollection(
       JSON.stringify(
         reachability.reachable,
       ),
+    sessionSignature,
   };
 }
 
@@ -324,6 +341,8 @@ function assertCompatiblePlan(
       !== fresh.journalStoreId
     || planned.referenceSignature
       !== fresh.referenceSignature
+    || planned.sessionSignature
+      !== fresh.sessionSignature
   ) {
     throw stalePlanError();
   }
