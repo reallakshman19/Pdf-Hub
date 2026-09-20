@@ -5,6 +5,9 @@ import {
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 
 export interface WriterImageReplaceResult {
   changed: boolean;
@@ -147,7 +150,8 @@ export async function clearActiveImageBoxAsset(): Promise<WriterImageReplaceResu
   }
 
   const result =
-    await store.dispatchWriterCommandDurableLatest(
+    await dispatchDurableWriterHelperLatest(
+      'Writer image clear',
       (state) => {
         const element = state.elements.find(
           (item) => item.id === activeId,
