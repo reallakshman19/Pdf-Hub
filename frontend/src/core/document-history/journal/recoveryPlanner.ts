@@ -450,11 +450,11 @@ function validateWriter(
     ids.add(element.id);
 
     if (
-      element.documentFingerprint
-      !== payload.documentKey
+      !element.documentFingerprint
+      || !element.documentFingerprint.trim()
     ) {
       errors.push(
-        `Writer element ${element.id} fingerprint does not match recovery documentKey.`,
+        `Writer element ${element.id} has an empty document fingerprint.`,
       );
     }
 
