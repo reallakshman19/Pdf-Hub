@@ -14,6 +14,9 @@ import { SearchIndexer } from './indexer';
 import {
   IncrementalSearchResults,
 } from './incrementalResults';
+import type {
+  SearchHit,
+} from './types';
 
 const OPTIONS = {
   caseSensitive: false,
@@ -74,7 +77,8 @@ describe(
         );
       searchPage.mockClear();
 
-      let finalHits = null;
+      let finalHits:
+        SearchHit[] | null = null;
 
       for (
         let index = 0;
