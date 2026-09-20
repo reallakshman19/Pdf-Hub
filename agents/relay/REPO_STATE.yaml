@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b"
+    "basis_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -26,11 +26,11 @@
   "active_ep": {
     "id": "EP-8E5C3-001",
     "path": "agents/relay/execution-packages/EP-8E5C3-001.yaml",
-    "state": "ACTIVE",
+    "state": "TERMINAL",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E5C2",
+    "id": "INFRA-EXCEPTION-8E5C3",
     "path": null
   },
   "predecessor_join": {
@@ -62,33 +62,34 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 95,
+    "ep_percent": 100,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "ACTIVE",
+      "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Obtain exact-head Phase 8E.5C3 runner-executed certification; fix any real type/test/audit/build failure. If #183 again prevents runner allocation, record terminal NOT_RUN evidence and hand off to Phase 8E.5C4."
+      "next_action": "After PR #277 merges, reconcile main and begin Phase 8E.5C4 reference-aware revision reachability/GC. Do not advance to WP-8F until 8E.5C4 and WP-8E closure certification are complete."
     },
     "quality": {
-      "state": "PENDING_EXECUTION",
+      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
       "findings": [
         "Static chained C1/C2/C3 certification simulation is clean.",
-        "Periodic cadence is journal-core owned and transaction-boundary evaluated; no timers, UI scheduler, pruning, revision deletion, or GC were introduced.",
-        "The first SELF_CONTAINED_REPLAY transaction bootstraps a recovery-complete PERIODIC checkpoint because ADMISSION carries no application-state payload.",
-        "Cadence anchors only recovery-complete v2 BARRIER/PERIODIC checkpoints; corrupted timestamps fail closed."
+        "Periodic cadence is journal-core owned and evaluated only at durable transaction boundaries.",
+        "Bootstrap, transaction-count, serialized-entry-byte, elapsed-time, recovery-complete barrier reset, divergent-tail truncation, recovery planner compatibility and persistence rollback are covered by focused tests.",
+        "No timers, UI scheduler, checkpoint pruning, revision deletion or GC were introduced.",
+        "Runner-executed certification is unavailable because open issue #183 terminates jobs before runner assignment."
       ]
     },
     "evidence": {
-      "state": "PARTIAL",
-      "summary": "Phase 8E.5C3 policy, periodic scheduling, recovery-complete state attachment, barrier reset, branch truncation, rollback coverage, architecture documentation, anti-drift audit and certify:phase8e5c3 are implemented. GitHub Actions remains blocked by #183.",
+      "state": "TERMINAL_NOT_RUN",
+      "summary": "Phase 8E.5C3 implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
       "not_run": [
         {
           "command": "GitHub Actions exact-head certification surfaces",
-          "reason": "At d0ee6d15f54ee4a39f5c98c39c83d69b824db94b, Guards 35503897374, writer certification 35503897382, Frontend Certify 35503897378 and Frontend CI 35503897401 all completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b"
+          "reason": "At 23a8e1f6ec434246d732676af6f9bea64b2c9021, certify-writer-overlay-v2 35503948506, Guards 35503948507, Frontend Certify 35503948543 and Frontend CI 35503948508 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
         }
       ]
     },
@@ -110,9 +111,10 @@
     "execution_ref": "EP-8E5C3-001",
     "receipt": null,
     "basis": [
-      "PR #275 merged Phase 8E.5C2 recovery planner/restore executor at 8b01844eaf1e77edb07af2c5b5f07f07e88690e5 under the documented #183 infrastructure exception.",
-      "Issue #276 is the active Phase 8E.5C3 bounded periodic checkpoint cadence slice.",
-      "WP-8E remains ACTIVE and WP-8F remains WAITING on WP-8E."
+      "PR #275 merged Phase 8E.5C2 at 8b01844eaf1e77edb07af2c5b5f07f07e88690e5.",
+      "Issue #276 / PR #277 implement Phase 8E.5C3 bounded periodic recovery checkpoints.",
+      "Phase 8E.5C3 is terminal under the documented #183 NOT_RUN infrastructure exception; Phase 8E.5C4 remains the serial WP-8E successor.",
+      "WP-8F remains WAITING on WP-8E."
     ],
     "observed": {
       "issue": 276
@@ -125,8 +127,8 @@
     "observation": {
       "pull_request": 277,
       "issue": 276,
-      "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
-      "state": "DRAFT_PENDING_EXECUTABLE_CERTIFICATION"
+      "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
+      "state": "READY_UNDER_INFRA_EXCEPTION"
     },
     "observations": []
   },
