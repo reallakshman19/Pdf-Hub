@@ -26,7 +26,7 @@ function allMutationExpectations() {
             `Preserve ${mutation} semantics.`,
           expectedStructures: [{
             structure:
-              'fixture semantics',
+              'pages-text',
             expected:
               'Equivalent semantics survive.',
           }],
@@ -63,8 +63,11 @@ function fixture(
       'fidelity/generated/example.pdf',
     generatorId:
       'complete-fixture',
+    structures: [
+      'pages-text',
+    ],
     baseline: [{
-      structure: 'catalog',
+      structure: 'pages-text',
       expected:
         'Declared semantic structure exists.',
     }],
