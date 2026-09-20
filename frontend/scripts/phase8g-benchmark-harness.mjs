@@ -120,14 +120,33 @@ function evaluate(measurement) {
     measurement.operation;
   const details = {};
 
+  if (
+    typeof measurement.page_count !== 'number'
+    || !Number.isInteger(
+      measurement.page_count,
+    )
+    || measurement.page_count < 1
+  ) {
+    failures.push(
+      'page_count must be a positive integer',
+    );
+  }
+  if (
+    typeof measurement.elapsed_ms !== 'number'
+    || !Number.isFinite(
+      measurement.elapsed_ms,
+    )
+    || measurement.elapsed_ms < 0
+  ) {
+    failures.push(
+      'elapsed_ms must be a non-negative number',
+    );
+  }
+
   for (
     const field
-    of [
-      'fixture_id',
-      'fixture_sha256',
-      'operation',
-      'page_count',
-    ]
+    of budget.result_contract
+      .required_measurement_fields
   ) {
     if (
       measurement[field]
@@ -304,10 +323,13 @@ function evaluate(measurement) {
       );
     }
   } else if (
-    operation.startsWith(
-      'mutation_',
+    typeof operation === 'string'
+    && (
+      operation.startsWith(
+        'mutation_',
+      )
+      || operation === 'save_export'
     )
-    || operation === 'save_export'
   ) {
     for (
       const field
