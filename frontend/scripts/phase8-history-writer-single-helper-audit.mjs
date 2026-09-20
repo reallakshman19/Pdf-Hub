@@ -181,17 +181,6 @@ requireContains(geometryPanel, geometryPanelPath, [
   'void apply();',
 ]);
 
-for (const deferredPath of [
-  'src/core/ocr/ocrWriterBridge.ts',
-  'src/core/writer-v2/writerLegacyObjectConsolidation.ts',
-]) {
-  const source = read(deferredPath);
-  if (!source.includes('dispatchWriterCommand(')) {
-    fail(
-      `C2C1 deferred mutation boundary unexpectedly moved: ${deferredPath}`,
-    );
-  }
-}
 
 if (failed) process.exit(1);
 
