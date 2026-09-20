@@ -73,7 +73,9 @@ export function createHistoryStateCheckpointPayload(
     currentPage: input.currentPage,
     annotations: input.annotations,
     writer: input.writer,
-    ocr: input.ocr,
+    ocr: omitUndefinedObjectProperties(
+      input.ocr,
+    ) as OcrPageAnchoredState,
   };
 
   assertHistoryStateCheckpointPayload(payload);
@@ -251,6 +253,72 @@ function assertAnnotationAndWriterState(
       'History state checkpoint Writer state is malformed.',
     );
   }
+}
+
+function omitUndefinedObjectProperties(
+  value: unknown,
+  seen = new WeakMap<object, object>(),
+): unknown {
+  if (
+    value === null
+    || typeof value !== 'object'
+  ) {
+    return value;
+  }
+
+  const objectValue = value as object;
+  if (
+    objectValue instanceof ArrayBuffer
+    || ArrayBuffer.isView(objectValue)
+    || (
+      typeof Blob !== 'undefined'
+      && objectValue instanceof Blob
+    )
+    || Object.getOwnPropertySymbols(objectValue).length > 0
+  ) {
+    return value;
+  }
+
+  const prototype = Object.getPrototypeOf(objectValue);
+  if (
+    !Array.isArray(objectValue)
+    && prototype !== Object.prototype
+    && prototype !== null
+  ) {
+    return value;
+  }
+
+  const existing = seen.get(objectValue);
+  if (existing) return existing;
+
+  if (Array.isArray(objectValue)) {
+    const clone: unknown[] = [];
+    seen.set(objectValue, clone);
+    for (const child of objectValue) {
+      clone.push(
+        child === undefined
+          ? child
+          : omitUndefinedObjectProperties(
+              child,
+              seen,
+            ),
+      );
+    }
+    return clone;
+  }
+
+  const clone: Record<string, unknown> = {};
+  seen.set(objectValue, clone);
+  for (const [key, child] of Object.entries(
+    objectValue as Record<string, unknown>,
+  )) {
+    if (child === undefined) continue;
+    clone[key] = omitUndefinedObjectProperties(
+      child,
+      seen,
+    );
+  }
+  return clone;
 }
 
 function assertCloneSafeStructuredState(
