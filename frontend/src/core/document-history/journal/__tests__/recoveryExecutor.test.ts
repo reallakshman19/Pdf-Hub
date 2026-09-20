@@ -369,6 +369,21 @@ describe('executeHistoryRecovery', () => {
 
   it('atomically installs a checkpoint and persists only the final annotation state', async () => {
     const recoveryPlan = plan();
+    recoveryPlan.state.annotations = [{
+      id: 'recovered-annotation',
+      type: 'highlight',
+      pageId: 'page-1',
+      pageNumber: 1,
+      rect: {
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 12,
+      },
+      data: {},
+      createdAt: 1,
+      updatedAt: 1,
+    }];
     recoveryPlan.state.ocr.corrections = [{
       id: 'correction-1',
       documentFingerprint:
@@ -467,13 +482,30 @@ describe('executeHistoryRecovery', () => {
         .undoStack,
     ).toEqual([]);
     expect(
+      useAnnotationStore
+        .getState()
+        .annotations,
+    ).toEqual([
+      expect.objectContaining({
+        id: 'recovered-annotation',
+        pageId: 'page-1',
+        pageNumber: 1,
+      }),
+    ]);
+    expect(
       persistAnnotations,
     ).toHaveBeenCalledTimes(1);
     expect(
       persistAnnotations,
     ).toHaveBeenCalledWith(
       CHECKPOINT_REVISION_ID,
-      [],
+      [
+        expect.objectContaining({
+          id: 'recovered-annotation',
+          pageId: 'page-1',
+          pageNumber: 1,
+        }),
+      ],
     );
   });
 
