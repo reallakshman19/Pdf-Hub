@@ -4,7 +4,10 @@ import {
   expect,
   it,
 } from 'vitest';
-import { render } from '@testing-library/react';
+import {
+  render,
+  waitFor,
+} from '@testing-library/react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { clearWriterElementClipboard } from '@/core/writer-v2/writerClipboardActions';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
@@ -16,7 +19,7 @@ describe('WriterKeyboardHandler clipboard shortcuts', () => {
     clearWriterElementClipboard();
   });
 
-  it('copies and pastes selected Writer elements with Ctrl+C and Ctrl+V', () => {
+  it('copies and pastes selected Writer elements with Ctrl+C and Ctrl+V', async () => {
     hydrateSelection([
       makeElement('box-1'),
     ], ['box-1']);
@@ -36,13 +39,18 @@ describe('WriterKeyboardHandler clipboard shortcuts', () => {
       cancelable: true,
     }));
 
-    const state = useWriterV2Store.getState();
+    await waitFor(() => {
+      const state =
+        useWriterV2Store.getState();
 
-    expect(state.elements).toHaveLength(2);
-    expect(state.elements[1].id).not.toBe('box-1');
-    expect(state.elements[1].rect.x).toBe(26);
-    expect(state.elements[1].rect.y).toBe(34);
-    expect(state.selectedIds).toEqual([state.elements[1].id]);
+      expect(state.elements).toHaveLength(2);
+      expect(state.elements[1].id).not.toBe('box-1');
+      expect(state.elements[1].rect.x).toBe(26);
+      expect(state.elements[1].rect.y).toBe(34);
+      expect(state.selectedIds).toEqual([
+        state.elements[1].id,
+      ]);
+    });
   });
 
   it('does not intercept copy inside editable targets', () => {
