@@ -1,0 +1,185 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5C3-001",
+    "branch": "phase8/history-periodic-checkpoints",
+    "base_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "execution_state": "TERMINAL",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5C2",
+    "previous_join": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-periodic-checkpoints",
+    "material_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
+    "base_branch": "main",
+    "base_observed_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": "Implementation complete; exact-head Actions at 23a8e1f6 received no runner and executed zero steps under open #183."
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 276,
+  "outcome": {
+    "engineering": [
+      "One pure checkpoint policy bounds replay distance by transaction count, serialized journal-entry bytes and elapsed time.",
+      "SELF_CONTAINED_REPLAY journal appends schedule PERIODIC checkpoints only when policy is due; checkpoint-required mutations continue to use BARRIER checkpoints.",
+      "Scheduled periodic checkpoints receive the committed recovery-complete v2 after-state before atomic journal save.",
+      "Existing recovery planning consumes periodic checkpoints without new restore semantics."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Keep crash recovery bounded during long self-contained edit runs without timers, UI ownership, or premature revision GC.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged Phase 8E.5C2 / #275.",
+    "why_this_work_exists": "8E.5C2 can recover deterministically from recovery-complete checkpoints, but a long suffix of self-contained commands can still require unbounded replay unless periodic recovery points are emitted.",
+    "deliberate_non_goals": [
+      "No background timer or automatic recovery UI.",
+      "No revision enumeration, pruning or garbage collection.",
+      "No checkpoint deletion or journal compaction.",
+      "No PDF/revision bytes inside checkpoint payloads."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "Checkpoint policy is pure and deterministic for transaction-count, serialized-entry-byte and elapsed-time bounds.",
+      "weight": 20,
+      "verification": [
+        "TEST-01",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "description": "SELF_CONTAINED_REPLAY mutations schedule PERIODIC checkpoints exactly when policy is due.",
+      "weight": 20,
+      "verification": [
+        "TEST-02",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "description": "CHECKPOINT_REQUIRED mutations keep one BARRIER checkpoint and reset periodic cadence without an extra periodic checkpoint.",
+      "weight": 15,
+      "verification": [
+        "TEST-02",
+        "TEST-03"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "description": "Scheduled PERIODIC checkpoints receive recovery-complete v2 after-state before atomic manifest persistence and rollback remains unchanged on failure.",
+      "weight": 25,
+      "verification": [
+        "TEST-03",
+        "TEST-04",
+        "TEST-06"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "description": "Undo/divergent branch truncation and recovery planning treat periodic checkpoints consistently.",
+      "weight": 20,
+      "verification": [
+        "TEST-05",
+        "TEST-06"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Pure checkpoint policy tests cover count, byte and elapsed-time triggers plus reset semantics.",
+      "proves": [
+        "AC-01"
+      ]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "appendMutation tests cover due/not-due periodic scheduling and checkpoint-required exclusion.",
+      "proves": [
+        "AC-02",
+        "AC-03"
+      ]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "document transaction history tests prove scheduled periodic checkpoint state is attached before journal save.",
+      "proves": [
+        "AC-03",
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "journal persistence failure tests prove periodic checkpoint scheduling does not weaken existing rollback semantics.",
+      "proves": [
+        "AC-04"
+      ]
+    },
+    {
+      "id": "TEST-05",
+      "class": "MUST_PASS",
+      "method": "journal truncation and recovery planner tests prove abandoned periodic checkpoints are removed and latest valid periodic recovery point is selected.",
+      "proves": [
+        "AC-05"
+      ]
+    },
+    {
+      "id": "TEST-06",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head Phase 8E.5C3 certification; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05"
+      ]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true,
+    "status": "SATISFIED_WITH_INFRA_EXCEPTION",
+    "checkpoint_id": "INFRA-EXCEPTION-8E5C3"
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "Phase 8E.5C4 reference-aware revision reachability/GC after bounded periodic checkpoint cadence reaches terminal acceptance."
+  },
+  "implementation": {
+    "state": "COMPLETE",
+    "head_ref": "d0ee6d15f54ee4a39f5c98c39c83d69b824db94b",
+    "highlights": [
+      "Pure checkpoint policy with bootstrap, transaction-count, serialized-entry-byte and elapsed-time triggers.",
+      "SELF_CONTAINED_REPLAY periodic scheduling and BARRIER-only checkpoint-required handling.",
+      "Recovery-complete v2 state attachment before the existing atomic journal save.",
+      "Barrier reset, abandoned-tail truncation, recovery-planner compatibility and persistence rollback tests.",
+      "Historical C1 guard updated semantically for the extended BARRIER/PERIODIC attachment boundary.",
+      "C3 anti-drift audit and certify:phase8e5c3 added."
+    ]
+  },
+  "evidence": {
+    "state": "TERMINAL_NOT_RUN",
+    "infrastructure_issue": 183,
+    "observed_head": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
+    "workflow_runs": [
+      35503948506,
+      35503948507,
+      35503948543,
+      35503948508
+    ],
+    "observation": "All exact-head jobs had runner_id 0 and steps []; no runner-executed TypeScript, Vitest, audit or build result exists."
+  }
+}

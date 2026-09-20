@@ -4,6 +4,11 @@ import {
   classifyHistoryReplayability,
 } from '../replayability';
 import {
+  evaluateHistoryPeriodicCheckpoint,
+  type HistoryPeriodicCheckpointDecision,
+  type HistoryPeriodicCheckpointPolicy,
+} from './checkpointPolicy';
+import {
   resolveHistoryJournalStore,
 } from './registry';
 import type {
@@ -29,11 +34,15 @@ export interface PrepareHistoryJournalMutationInput {
   transactionId: string;
   command: PdfCommand;
   createdAt?: string;
+  checkpointPolicy?:
+    HistoryPeriodicCheckpointPolicy;
 }
 
 export interface PreparedHistoryJournalMutation {
   store: HistoryJournalStore;
   manifest: HistoryJournalManifest;
+  periodicCheckpointDecision:
+    HistoryPeriodicCheckpointDecision | null;
 }
 
 export function truncateAbandonedTail(
@@ -99,6 +108,13 @@ export function truncateAbandonedTail(
     });
 }
 
+/**
+ * Historical name retained for Phase 8E compatibility.
+ *
+ * 8E.5C3 extends this boundary to attach recovery-complete state to either
+ * the existing BARRIER checkpoint or a scheduled PERIODIC checkpoint for the
+ * same committed transaction.
+ */
 export function attachHistoryJournalBarrierState(input: {
   manifest: HistoryJournalManifest;
   transactionId: string;
@@ -106,26 +122,47 @@ export function attachHistoryJournalBarrierState(input: {
 }): boolean {
   const entry = input.manifest.entries.find(
     (candidate) =>
-      candidate.transactionId === input.transactionId,
+      candidate.transactionId
+      === input.transactionId,
   );
   if (!entry) {
     throw new Error(
       `History journal cannot attach checkpoint state for missing transaction ${input.transactionId}.`,
     );
   }
-  if (entry.disposition !== 'CHECKPOINT_REQUIRED') {
+
+  const expectedKind =
+    entry.disposition
+      === 'CHECKPOINT_REQUIRED'
+      ? 'BARRIER'
+      : entry.disposition
+          === 'SELF_CONTAINED_REPLAY'
+        ? 'PERIODIC'
+        : null;
+
+  if (!expectedKind) {
     return false;
   }
 
-  const checkpoint = input.manifest.checkpoints.find(
-    (candidate) =>
-      candidate.kind === 'BARRIER'
-      && candidate.transactionId === input.transactionId,
-  );
-  if (!checkpoint) {
-    throw new Error(
-      `History journal checkpoint-required transaction ${input.transactionId} has no barrier checkpoint.`,
+  const checkpoint =
+    input.manifest.checkpoints.find(
+      (candidate) =>
+        candidate.kind
+          === expectedKind
+        && candidate.transactionId
+          === input.transactionId,
     );
+
+  if (!checkpoint) {
+    if (
+      entry.disposition
+      === 'CHECKPOINT_REQUIRED'
+    ) {
+      throw new Error(
+        `History journal checkpoint-required transaction ${input.transactionId} has no barrier checkpoint.`,
+      );
+    }
+    return false;
   }
 
   if (
@@ -136,13 +173,17 @@ export function attachHistoryJournalBarrierState(input: {
       !== checkpoint.revision.revisionId
   ) {
     throw new Error(
-      `History journal barrier ${input.transactionId} after-state revision does not match checkpoint revision.`,
+      `History journal ${checkpoint.kind.toLowerCase()} checkpoint ${input.transactionId} after-state revision does not match checkpoint revision.`,
     );
   }
 
   checkpoint.statePayload =
-    createHistoryStateCheckpointPayload(input.after);
-  assertHistoryJournalManifest(input.manifest);
+    createHistoryStateCheckpointPayload(
+      input.after,
+    );
+  assertHistoryJournalManifest(
+    input.manifest,
+  );
   return true;
 }
 
@@ -236,6 +277,10 @@ export async function prepareHistoryJournalMutation(
     createdAt,
   });
 
+  let periodicCheckpointDecision:
+    HistoryPeriodicCheckpointDecision
+    | null = null;
+
   if (
     classification.disposition
     === 'CHECKPOINT_REQUIRED'
@@ -246,8 +291,33 @@ export async function prepareHistoryJournalMutation(
       kind: 'BARRIER',
       revision: afterRevision,
       createdAt,
-      transactionId: input.transactionId,
+      transactionId:
+        input.transactionId,
     });
+  } else if (
+    classification.disposition
+    === 'SELF_CONTAINED_REPLAY'
+  ) {
+    periodicCheckpointDecision =
+      evaluateHistoryPeriodicCheckpoint(
+        manifest,
+        input.transactionId,
+        input.checkpointPolicy,
+      );
+
+    if (
+      periodicCheckpointDecision.due
+    ) {
+      manifest.checkpoints.push({
+        checkpointId:
+          `${input.journalId}:periodic:${input.transactionId}`,
+        kind: 'PERIODIC',
+        revision: afterRevision,
+        createdAt,
+        transactionId:
+          input.transactionId,
+      });
+    }
   }
 
   manifest.activeRevisionId =
@@ -260,5 +330,6 @@ export async function prepareHistoryJournalMutation(
   return {
     store,
     manifest,
+    periodicCheckpointDecision,
   };
 }

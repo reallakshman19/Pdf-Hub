@@ -17,7 +17,12 @@ import {
   prepareHistoryJournalMutation,
 } from '../appendMutation';
 
-function rotateCommand() {
+function rotateCommand(
+  documentKey = 'sha256:before',
+  id = 'rotate-command',
+  createdAt =
+    '2026-09-19T00:00:00.000Z',
+) {
   return materializePdfCommand(
     {
       type: 'ROTATE_PAGES',
@@ -27,26 +32,28 @@ function rotateCommand() {
       },
     },
     'toolbar',
-    'sha256:before',
+    documentKey,
     {
-      id: 'rotate-command',
-      createdAt: '2026-09-19T00:00:00.000Z',
+      id,
+      createdAt,
     },
   );
 }
 
-function recoveryAfterState(): HistoryState {
+function recoveryAfterState(
+  revisionId = 'sha256:after',
+): HistoryState {
   return {
     revision: {
       storeId: 'revision-store',
-      revisionId: 'sha256:after',
+      revisionId,
     },
-    activeRevisionId: 'sha256:after',
+    activeRevisionId: revisionId,
     pageCount: 1,
     pageGraph: {
       pages: [{
         pageId: 'page-1',
-        documentKey: 'sha256:after',
+        documentKey: revisionId,
         originalPageNumber: 1,
         currentIndex: 0,
         width: 595,
@@ -54,7 +61,7 @@ function recoveryAfterState(): HistoryState {
         rotation: 0,
       }],
     },
-    documentKey: 'sha256:after',
+    documentKey: revisionId,
     selectedPageIds: ['page-1'],
     selectedPages: [1],
     currentPageId: 'page-1',
@@ -67,7 +74,7 @@ function recoveryAfterState(): HistoryState {
       activeId: null,
     },
     ocr: {
-      documentFingerprint: 'sha256:after',
+      documentFingerprint: revisionId,
       result: null,
       corrections: [],
       regions: [],
@@ -99,7 +106,7 @@ describe('prepareHistoryJournalMutation', () => {
     return store;
   }
 
-  it('appends a replayable mutation without adding a checkpoint', async () => {
+  it('bootstraps a recovery-complete periodic checkpoint on the first replayable mutation', async () => {
     const store = await setup();
 
     const prepared =
@@ -127,8 +134,26 @@ describe('prepareHistoryJournalMutation', () => {
           revisionId: 'sha256:after',
         },
       }],
+      checkpoints: [
+        { kind: 'ADMISSION' },
+        {
+          kind: 'PERIODIC',
+          transactionId: 'tx-1',
+          revision: {
+            revisionId: 'sha256:after',
+          },
+        },
+      ],
     });
-    expect(prepared?.manifest.checkpoints).toHaveLength(1);
+    expect(
+      prepared?.periodicCheckpointDecision,
+    ).toMatchObject({
+      due: true,
+      reasons: [
+        'BOOTSTRAP_RECOVERY_POINT',
+      ],
+    });
+
     expect(prepared).not.toBeNull();
     if (!prepared) return;
     expect(
@@ -137,8 +162,173 @@ describe('prepareHistoryJournalMutation', () => {
         transactionId: 'tx-1',
         after: recoveryAfterState(),
       }),
-    ).toBe(false);
-    expect(prepared.manifest.checkpoints).toHaveLength(1);
+    ).toBe(true);
+    expect(
+      prepared.manifest.checkpoints[1],
+    ).toMatchObject({
+      kind: 'PERIODIC',
+      statePayload: {
+        schemaVersion: 2,
+        documentKey: 'sha256:after',
+      },
+    });
+  });
+
+  it('does not add another periodic checkpoint before any policy bound is reached', async () => {
+    const store = await setup();
+
+    const first =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId: 'revision-store',
+        beforeRevisionId: 'sha256:before',
+        afterRevisionId: 'sha256:one',
+        transactionId: 'tx-1',
+        command: rotateCommand(),
+        createdAt: '2026-09-19T00:00:01.000Z',
+      });
+    expect(first).not.toBeNull();
+    if (!first) return;
+
+    const firstAfter =
+      recoveryAfterState(
+        'sha256:one',
+      );
+
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: first.manifest,
+        transactionId: 'tx-1',
+        after: firstAfter,
+      }),
+    ).toBe(true);
+    await first.store.save(
+      first.manifest,
+    );
+
+    const secondCommand =
+      materializePdfCommand(
+        {
+          type: 'ROTATE_PAGES',
+          payload: {
+            pageIndices: [0],
+            angle: 90,
+          },
+        },
+        'toolbar',
+        'sha256:one',
+        {
+          id: 'rotate-command-2',
+          createdAt:
+            '2026-09-19T00:00:02.000Z',
+        },
+      );
+    const second =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId: 'revision-store',
+        beforeRevisionId: 'sha256:one',
+        afterRevisionId: 'sha256:two',
+        transactionId: 'tx-2',
+        command: secondCommand,
+        createdAt: '2026-09-19T00:00:02.000Z',
+      });
+
+    expect(
+      second?.periodicCheckpointDecision,
+    ).toMatchObject({
+      due: false,
+      transactionsSinceCheckpoint: 1,
+      anchorTransactionId: 'tx-1',
+    });
+    expect(
+      second?.manifest.checkpoints,
+    ).toHaveLength(2);
+  });
+
+  it('schedules a periodic checkpoint when a configured bound is reached', async () => {
+    const store = await setup();
+
+    const first =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId: 'revision-store',
+        beforeRevisionId: 'sha256:before',
+        afterRevisionId: 'sha256:one',
+        transactionId: 'tx-1',
+        command: rotateCommand(),
+        createdAt: '2026-09-19T00:00:01.000Z',
+      });
+    expect(first).not.toBeNull();
+    if (!first) return;
+
+    const firstAfter =
+      recoveryAfterState(
+        'sha256:one',
+      );
+    attachHistoryJournalBarrierState({
+      manifest: first.manifest,
+      transactionId: 'tx-1',
+      after: firstAfter,
+    });
+    await first.store.save(
+      first.manifest,
+    );
+
+    const secondCommand =
+      materializePdfCommand(
+        {
+          type: 'ROTATE_PAGES',
+          payload: {
+            pageIndices: [0],
+            angle: 90,
+          },
+        },
+        'toolbar',
+        'sha256:one',
+        {
+          id: 'rotate-command-2',
+          createdAt:
+            '2026-09-19T00:00:02.000Z',
+        },
+      );
+    const second =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId: 'revision-store',
+        beforeRevisionId: 'sha256:one',
+        afterRevisionId: 'sha256:two',
+        transactionId: 'tx-2',
+        command: secondCommand,
+        createdAt: '2026-09-19T00:00:02.000Z',
+        checkpointPolicy: {
+          maxTransactionsSinceCheckpoint: 1,
+          maxJournalBytesSinceCheckpoint:
+            1_000_000,
+          maxElapsedMsSinceCheckpoint:
+            60_000,
+        },
+      });
+
+    expect(
+      second?.periodicCheckpointDecision,
+    ).toMatchObject({
+      due: true,
+      reasons: ['TRANSACTION_COUNT'],
+    });
+    expect(
+      second?.manifest.checkpoints.at(-1),
+    ).toMatchObject({
+      kind: 'PERIODIC',
+      transactionId: 'tx-2',
+      revision: {
+        revisionId: 'sha256:two',
+      },
+    });
   });
 
   it('adds a barrier checkpoint for donor-backed mutation', async () => {
@@ -178,6 +368,9 @@ describe('prepareHistoryJournalMutation', () => {
       }],
     });
     expect(prepared?.manifest.checkpoints).toHaveLength(2);
+    expect(
+      prepared?.periodicCheckpointDecision,
+    ).toBeNull();
     expect(prepared?.manifest.checkpoints[1]).toMatchObject({
       kind: 'BARRIER',
       transactionId: 'tx-barrier',
@@ -213,6 +406,109 @@ describe('prepareHistoryJournalMutation', () => {
     });
   });
 
+  it('uses a recovery-complete barrier as the next periodic cadence reset', async () => {
+    const store = await setup();
+    const barrierCommand =
+      materializePdfCommand(
+        {
+          type: 'INSERT_PAGES',
+          payload: {
+            atIndex: 1,
+            donorResourceId:
+              'donor-a',
+          },
+        },
+        'toolbar',
+        'sha256:before',
+        {
+          id: 'barrier-command',
+          createdAt:
+            '2026-09-19T00:00:01.000Z',
+        },
+      );
+
+    const barrier =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId:
+          'revision-store',
+        beforeRevisionId:
+          'sha256:before',
+        afterRevisionId:
+          'sha256:barrier',
+        transactionId:
+          'tx-barrier-reset',
+        command: barrierCommand,
+        createdAt:
+          '2026-09-19T00:00:01.000Z',
+      });
+    expect(barrier).not.toBeNull();
+    if (!barrier) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: barrier.manifest,
+        transactionId:
+          'tx-barrier-reset',
+        after:
+          recoveryAfterState(
+            'sha256:barrier',
+          ),
+      }),
+    ).toBe(true);
+    await barrier.store.save(
+      barrier.manifest,
+    );
+
+    const next =
+      await prepareHistoryJournalMutation({
+        journalStoreId: store.id,
+        journalId: 'history-1',
+        revisionStoreId:
+          'revision-store',
+        beforeRevisionId:
+          'sha256:barrier',
+        afterRevisionId:
+          'sha256:next',
+        transactionId: 'tx-next',
+        command: rotateCommand(
+          'sha256:barrier',
+          'rotate-after-barrier',
+          '2026-09-19T00:00:02.000Z',
+        ),
+        createdAt:
+          '2026-09-19T00:00:02.000Z',
+        checkpointPolicy: {
+          maxTransactionsSinceCheckpoint:
+            2,
+          maxJournalBytesSinceCheckpoint:
+            1_000_000,
+          maxElapsedMsSinceCheckpoint:
+            60_000,
+        },
+      });
+
+    expect(
+      next?.periodicCheckpointDecision,
+    ).toMatchObject({
+      due: false,
+      transactionsSinceCheckpoint: 1,
+      anchorCheckpointId:
+        'history-1:barrier:tx-barrier-reset',
+      anchorTransactionId:
+        'tx-barrier-reset',
+    });
+    expect(
+      next?.manifest.checkpoints.map(
+        (checkpoint) =>
+          checkpoint.kind,
+      ),
+    ).toEqual([
+      'ADMISSION',
+      'BARRIER',
+    ]);
+  });
+
   it('truncates an abandoned redo tail before appending a new branch', async () => {
     const store = await setup();
 
@@ -223,10 +519,26 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:before',
       afterRevisionId: 'sha256:two',
       transactionId: 'tx-1',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:before',
+        'rotate-tx-1',
+        '2026-09-19T00:00:01.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:01.000Z',
     });
     expect(first).not.toBeNull();
     if (!first) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: first.manifest,
+        transactionId: 'tx-1',
+        after:
+          recoveryAfterState(
+            'sha256:two',
+          ),
+      }),
+    ).toBe(true);
     await first.store.save(first.manifest);
 
     const second = await prepareHistoryJournalMutation({
@@ -236,10 +548,33 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:two',
       afterRevisionId: 'sha256:three',
       transactionId: 'tx-2',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:two',
+        'rotate-tx-2',
+        '2026-09-19T00:00:02.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:02.000Z',
+      checkpointPolicy: {
+        maxTransactionsSinceCheckpoint: 1,
+        maxJournalBytesSinceCheckpoint:
+          1_000_000,
+        maxElapsedMsSinceCheckpoint:
+          60_000,
+      },
     });
     expect(second).not.toBeNull();
     if (!second) return;
+    expect(
+      attachHistoryJournalBarrierState({
+        manifest: second.manifest,
+        transactionId: 'tx-2',
+        after:
+          recoveryAfterState(
+            'sha256:three',
+          ),
+      }),
+    ).toBe(true);
     await second.store.save(second.manifest);
 
     const undone = await store.load('history-1');
@@ -256,7 +591,13 @@ describe('prepareHistoryJournalMutation', () => {
       beforeRevisionId: 'sha256:two',
       afterRevisionId: 'sha256:branch',
       transactionId: 'tx-branch',
-      command: rotateCommand(),
+      command: rotateCommand(
+        'sha256:two',
+        'rotate-branch',
+        '2026-09-19T00:00:03.000Z',
+      ),
+      createdAt:
+        '2026-09-19T00:00:03.000Z',
     });
 
     expect(
@@ -267,6 +608,13 @@ describe('prepareHistoryJournalMutation', () => {
     expect(
       branched?.manifest.activeRevisionId,
     ).toBe('sha256:branch');
+    expect(
+      branched?.manifest.checkpoints.some(
+        (checkpoint) =>
+          checkpoint.transactionId
+          === 'tx-2',
+      ),
+    ).toBe(false);
   });
 
   it('fails closed when journal active revision does not match mutation input', async () => {

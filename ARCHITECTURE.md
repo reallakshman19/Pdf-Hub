@@ -470,9 +470,30 @@ asset id. Duplicate-page derived annotation/Writer identities and timestamps are
 command-derived so replay does not create new logical objects.
 
 Recovery replay remains headless: no automatic startup recovery UI is enabled in
-8E.5C2. Bounded `PERIODIC` checkpoint cadence is Phase 8E.5C3, and
-reference-aware revision reachability/pruning/GC is Phase 8E.5C4. Phase 8F owns
-incremental search indexing.
+8E.5C2.
+
+Phase 8E.5C3 bounds recovery replay distance with recovery-complete `PERIODIC`
+checkpoints owned by the durable journal core. Cadence is evaluated only when a
+durable transaction is appended; there is no timer or UI scheduler. The first
+`SELF_CONTAINED_REPLAY` transaction after admission bootstraps a v2 recovery
+point because the `ADMISSION` checkpoint contains only the immutable revision
+anchor, not application state. After that, a new periodic checkpoint is scheduled
+when any default bound is reached: 20 transactions, 256 KiB of serialized journal
+entries since the latest recovery-complete checkpoint, or five minutes elapsed
+since that checkpoint as observed by the next transaction. A recovery-complete
+`BARRIER` or `PERIODIC` checkpoint resets all three bounds.
+
+Checkpoint-required transactions continue to create only their existing
+`BARRIER` checkpoint. When a periodic checkpoint is due, the document
+transaction attaches the same recovery-complete v2 after-state used by barrier
+checkpoints before the atomic journal save, so persistence failure preserves the
+existing application/history rollback contract. Undo followed by a divergent edit
+truncates abandoned periodic checkpoints together with the abandoned journal
+tail. These cadence bounds limit reconstruction work; they are not storage
+retention, compaction, revision deletion, or garbage collection policy.
+
+Reference-aware revision reachability/pruning/GC remains Phase 8E.5C4. Phase 8F
+owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

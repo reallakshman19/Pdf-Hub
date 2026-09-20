@@ -7,7 +7,7 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419"
+    "basis_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
@@ -24,20 +24,20 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8E5C2-001",
-    "path": "agents/relay/execution-packages/EP-8E5C2-001.yaml",
-    "state": "ACTIVE",
+    "id": "EP-8E5C3-001",
+    "path": "agents/relay/execution-packages/EP-8E5C3-001.yaml",
+    "state": "TERMINAL",
     "continuity_receipt": null
   },
   "last_checkpoint": {
-    "id": "INFRA-EXCEPTION-8E5C1",
+    "id": "INFRA-EXCEPTION-8E5C3",
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-273",
+    "id": "PR-275",
     "path": null,
-    "merge_ref": "fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b",
-    "note": "Phase 8E.5C1 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "merge_ref": "8b01844eaf1e77edb07af2c5b5f07f07e88690e5",
+    "note": "Phase 8E.5C2 merged under documented #183 infrastructure exception; exact-head executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
   },
   "predecessor_replan": {
     "id": null,
@@ -62,30 +62,34 @@
   "progress": {
     "overall_percent": 52.38,
     "phase_percent": 80,
-    "ep_percent": 95,
+    "ep_percent": 100,
     "basis_revision": "PB-0001"
   },
   "status_planes": {
     "execution": {
-      "state": "ACTIVE",
+      "state": "COMPLETE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Obtain runner-executed Phase 8E.5C2 certification on exact head; fix any real type/test/audit/build failure. If #183 continues to prevent runner allocation, record terminal NOT_RUN evidence under the infrastructure exception before handoff to Phase 8E.5C3."
+      "next_action": "After PR #277 merges, reconcile main and begin Phase 8E.5C4 reference-aware revision reachability/GC. Do not advance to WP-8F until 8E.5C4 and WP-8E closure certification are complete."
     },
     "quality": {
-      "state": "PENDING_EXECUTION",
+      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
       "findings": [
-        "Static review found and fixed incomplete authoritative replay-byte plumbing: recoveryRevision is now part of CommitDocumentMutationInput, recovery replay requires it, canonical mutation verifies its hash/revision id, and executor materializes the durable after-revision and forwards it to dispatch."
+        "Static chained C1/C2/C3 certification simulation is clean.",
+        "Periodic cadence is journal-core owned and evaluated only at durable transaction boundaries.",
+        "Bootstrap, transaction-count, serialized-entry-byte, elapsed-time, recovery-complete barrier reset, divergent-tail truncation, recovery planner compatibility and persistence rollback are covered by focused tests.",
+        "No timers, UI scheduler, checkpoint pruning, revision deletion or GC were introduced.",
+        "Runner-executed certification is unavailable because open issue #183 terminates jobs before runner assignment."
       ]
     },
     "evidence": {
-      "state": "PARTIAL",
-      "summary": "Phase 8E.5C2 planner, resolver, atomic executor, rollback handling, Writer asset hydration, authoritative replay revision bytes, focused tests, anti-drift audit and certify:phase8e5c2 are implemented on the active branch. Executable certification is still blocked by #183.",
+      "state": "TERMINAL_NOT_RUN",
+      "summary": "Phase 8E.5C3 implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
       "not_run": [
         {
-          "command": "GitHub Actions Frontend Certify / certify:phase8e5c2 coverage",
-          "reason": "Workflow run 35502964109 completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419"
+          "command": "GitHub Actions exact-head certification surfaces",
+          "reason": "At 23a8e1f6ec434246d732676af6f9bea64b2c9021, certify-writer-overlay-v2 35503948506, Guards 35503948507, Frontend Certify 35503948543 and Frontend CI 35503948508 all completed before runner assignment with runner_id 0 and steps [].",
+          "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021"
         }
       ]
     },
@@ -104,15 +108,16 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8E5C2-001",
+    "execution_ref": "EP-8E5C3-001",
     "receipt": null,
     "basis": [
-      "PR #273 merged Phase 8E.5C1 recovery-complete checkpoints at fbb1412d3e1c9a23f9c2e4c5688ad1126e8d2e8b.",
-      "Issue #274 is the active Phase 8E.5C2 recovery planner/restore executor slice.",
-      "WP-8E remains ACTIVE and WP-8F remains WAITING on WP-8E."
+      "PR #275 merged Phase 8E.5C2 at 8b01844eaf1e77edb07af2c5b5f07f07e88690e5.",
+      "Issue #276 / PR #277 implement Phase 8E.5C3 bounded periodic recovery checkpoints.",
+      "Phase 8E.5C3 is terminal under the documented #183 NOT_RUN infrastructure exception; Phase 8E.5C4 remains the serial WP-8E successor.",
+      "WP-8F remains WAITING on WP-8E."
     ],
     "observed": {
-      "issue": 274
+      "issue": 276
     },
     "superseded_operations": []
   },
@@ -120,10 +125,10 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 275,
-      "issue": 274,
-      "head_ref": "94ff4390776ad8833e7e6bec369ce6184eb96419",
-      "state": "DRAFT_PENDING_EXECUTABLE_CERTIFICATION"
+      "pull_request": 277,
+      "issue": 276,
+      "head_ref": "23a8e1f6ec434246d732676af6f9bea64b2c9021",
+      "state": "READY_UNDER_INFRA_EXCEPTION"
     },
     "observations": []
   },
