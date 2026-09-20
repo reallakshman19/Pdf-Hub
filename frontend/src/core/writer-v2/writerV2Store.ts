@@ -68,7 +68,12 @@ export interface WriterV2StoreState extends WriterV2State {
   tableSelection: WriterTableSelection | null;
   setTableSelection: (selection: WriterTableSelection | null) => void;
 
-  dispatchWriterCommand: (command: WriterCommand) => WriterV2CommandResult;
+  dispatchWriterCommand: (
+    command: WriterCommand,
+    options?: {
+      allowPdfOverlayMutation?: boolean;
+    },
+  ) => WriterV2CommandResult;
   dispatchWriterCommandDurable: (
     command: WriterCommand,
   ) => Promise<WriterV2CommandResult>;
@@ -134,10 +139,37 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     });
   },
 
-  dispatchWriterCommand: (command) => {
+  dispatchWriterCommand: (
+    command,
+    options,
+  ) => {
     const beforeStore = get();
     const previousEditingId = beforeStore.editingId;
     const session = useSessionStore.getState();
+    const isPdfOverlaySession =
+      beforeStore.documentMeta?.mode
+        === 'pdfOverlay'
+      || (
+        !beforeStore.documentMeta
+        && Boolean(
+          session.pageGraph
+          && session.workingBytes,
+        )
+      );
+
+    if (
+      isMutationCommand(command)
+      && isPdfOverlaySession
+      && !options?.allowPdfOverlayMutation
+    ) {
+      return {
+        state:
+          writerCommandState(beforeStore),
+        changed: false,
+        reason:
+          'PDF-backed Writer mutations require durable dispatch.',
+      };
+    }
     const result = executeWriterCommandForSession(
       beforeStore,
       command,
@@ -213,7 +245,12 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         initialSession,
       )
     ) {
-      return get().dispatchWriterCommand(command);
+      return get().dispatchWriterCommand(
+        command,
+        {
+          allowPdfOverlayMutation: true,
+        },
+      );
     }
 
     return get().dispatchWriterCommandDurableLatest(
@@ -268,6 +305,10 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         committedResult = fallbackCommand
           ? get().dispatchWriterCommand(
               fallbackCommand,
+              {
+                allowPdfOverlayMutation:
+                  true,
+              },
             )
           : {
               state:
