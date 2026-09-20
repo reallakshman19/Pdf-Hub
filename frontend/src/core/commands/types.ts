@@ -211,6 +211,16 @@ export interface CommandExecutionInput {
    * reconstruction, not ordinary UI/API execution.
    */
   executionMode?: CommandExecutionMode;
+  /**
+   * Recovery-only immutable revision bytes already committed by the durable
+   * journal. Canonical replay reconstructs application state, but these bytes
+   * remain the binary authority so replay does not depend on serializer
+   * byte-for-byte determinism.
+   */
+  recoveryRevision?: {
+    revisionId: string;
+    bytes: Uint8Array;
+  };
 }
 
 export interface CommandArtifact {
