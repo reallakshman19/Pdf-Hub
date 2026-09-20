@@ -12,8 +12,10 @@ import {
 import { SearchIndexer } from '@/core/search/indexer';
 import {
   EMPTY_SEARCH_INDEX_PROGRESS,
+  type SearchHit,
   type SearchOptions,
 } from '@/core/search/types';
+import type { PageId } from '@/core/pages/types';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
@@ -74,6 +76,12 @@ export const SearchPanel: React.FC = () => {
   })));
   const addToast = useToastStore((state) => state.addToast);
   const indexAbortControllerRef = React.useRef<AbortController | null>(null);
+  const incrementalHitsRef =
+    React.useRef<Map<PageId, SearchHit[]>>(
+      new Map(),
+    );
+  const searchSignatureRef =
+    React.useRef<string | null>(null);
 
   const [localQuery, setLocalQuery] = useState(query);
   const [searchOptions, setSearchOptions] = useState<SearchOptions>({
@@ -95,11 +103,26 @@ export const SearchPanel: React.FC = () => {
   const searchOptionsRef = React.useRef(searchOptions);
   searchOptionsRef.current = searchOptions;
 
+  const createSearchSignature = useCallback((
+    searchQuery: string,
+    options: SearchOptions,
+  ) => (
+    [
+      activeRevisionId ?? '',
+      searchQuery,
+      options.caseSensitive ? '1' : '0',
+      options.wholeWord ? '1' : '0',
+      options.useRegex ? '1' : '0',
+    ].join('\u0000')
+  ), [activeRevisionId]);
+
   const publishSearchResults = useCallback((
     searchQuery: string,
     options: SearchOptions = searchOptionsRef.current,
   ) => {
     if (!activeRevisionId || !pageGraph) {
+      incrementalHitsRef.current.clear();
+      searchSignatureRef.current = null;
       setHits([]);
       setIndexProgress({
         ...EMPTY_SEARCH_INDEX_PROGRESS,
@@ -120,27 +143,135 @@ export const SearchPanel: React.FC = () => {
     setIndexProgress(progress);
 
     if (!searchQuery.trim()) {
+      incrementalHitsRef.current.clear();
+      searchSignatureRef.current =
+        createSearchSignature(
+          searchQuery,
+          options,
+        );
       setHits([]);
       setIsSearching(false);
       return;
     }
 
-    setHits(
-      SearchIndexer.searchRevision(
-        activeRevisionId,
-        pageGraph,
+    const buckets =
+      new Map<PageId, SearchHit[]>();
+    const nextHits: SearchHit[] = [];
+
+    pageGraph.pages.forEach(
+      (page, pageIndex) => {
+        const pageHits =
+          SearchIndexer.searchPage(
+            activeRevisionId,
+            page.pageId,
+            pageIndex + 1,
+            searchQuery,
+            options,
+          );
+        if (pageHits.length > 0) {
+          buckets.set(
+            page.pageId,
+            pageHits,
+          );
+          nextHits.push(...pageHits);
+        }
+      },
+    );
+
+    incrementalHitsRef.current =
+      buckets;
+    searchSignatureRef.current =
+      createSearchSignature(
         searchQuery,
         options,
-      ),
-    );
+      );
+    setHits(nextHits);
     setIsSearching(!progress.complete);
   }, [
     activeRevisionId,
     pageGraph,
+    createSearchSignature,
     setHits,
     setIndexProgress,
     setIsSearching,
   ]);
+
+  const publishIndexedPageResults =
+    useCallback((
+      pageId: PageId,
+      pageNumber: number,
+      progress:
+        typeof EMPTY_SEARCH_INDEX_PROGRESS,
+    ) => {
+      if (!activeRevisionId || !pageGraph) {
+        return;
+      }
+
+      const searchQuery =
+        useSearchStore
+          .getState()
+          .query;
+      const options =
+        searchOptionsRef.current;
+      if (!searchQuery.trim()) {
+        setIsSearching(false);
+        return;
+      }
+
+      const signature =
+        createSearchSignature(
+          searchQuery,
+          options,
+        );
+      if (
+        searchSignatureRef.current
+        !== signature
+      ) {
+        publishSearchResults(
+          searchQuery,
+          options,
+        );
+        return;
+      }
+
+      const pageHits =
+        SearchIndexer.searchPage(
+          activeRevisionId,
+          pageId,
+          pageNumber,
+          searchQuery,
+          options,
+        );
+      if (pageHits.length > 0) {
+        incrementalHitsRef.current.set(
+          pageId,
+          pageHits,
+        );
+      } else {
+        incrementalHitsRef.current.delete(
+          pageId,
+        );
+      }
+
+      const nextHits =
+        pageGraph.pages.flatMap(
+          (page) =>
+            incrementalHitsRef.current
+              .get(page.pageId)
+            ?? [],
+        );
+      setHits(nextHits);
+      setIsSearching(
+        !progress.complete,
+      );
+    }, [
+      activeRevisionId,
+      pageGraph,
+      createSearchSignature,
+      publishSearchResults,
+      setHits,
+      setIsSearching,
+    ]);
 
   React.useEffect(() => {
     if (
@@ -204,11 +335,15 @@ export const SearchPanel: React.FC = () => {
           nearbyRadius: 2,
           batchSize: 2,
           signal: controller.signal,
-          onPageIndexed: () => {
-            publishSearchResults(
-              useSearchStore
-                .getState()
-                .query,
+          onPageIndexed: ({
+            pageId,
+            pageNumber,
+            progress,
+          }) => {
+            publishIndexedPageResults(
+              pageId,
+              pageNumber,
+              progress,
             );
           },
           onProgress: (
@@ -249,10 +384,20 @@ export const SearchPanel: React.FC = () => {
         ) {
           indexAbortControllerRef.current =
             null;
-          publishSearchResults(
-            useSearchStore
-              .getState()
-              .query,
+          const progress =
+            SearchIndexer.getProgress(
+              activeRevisionId,
+              pageGraph,
+            );
+          setIndexProgress(progress);
+          setIsSearching(
+            Boolean(
+              useSearchStore
+                .getState()
+                .query
+                .trim(),
+            )
+            && !progress.complete,
           );
         }
       }
@@ -275,8 +420,10 @@ export const SearchPanel: React.FC = () => {
     pageGraph,
     currentPage,
     publishSearchResults,
+    publishIndexedPageResults,
     setError,
     setIndexProgress,
+    setIsSearching,
     addToast,
   ]);
 
@@ -302,10 +449,6 @@ export const SearchPanel: React.FC = () => {
         nextHit();
       } else {
         setQuery(localQuery);
-        publishSearchResults(
-          localQuery,
-          searchOptions,
-        );
       }
     }
   };
@@ -325,10 +468,6 @@ export const SearchPanel: React.FC = () => {
       const next = { ...prev, [key]: !prev[key] };
       if (localQuery) {
         setQuery(localQuery);
-        publishSearchResults(
-          localQuery,
-          next,
-        );
       }
       return next;
     });
