@@ -28,6 +28,9 @@ import {
   createPdfOverlayWriterDocumentMeta,
 } from './writerDocumentMode';
 import {
+  nudgeSelectedWriterElements,
+} from './writerSelectionActions';
+import {
   createMemoryWriterPersistence,
   type WriterAssetRecordV2,
 } from './persistence/indexedDbWriterStore';
@@ -459,6 +462,93 @@ describe('Writer V2 durable command dispatch', () => {
       backgroundColor: '#fee2e2',
       borderWidth: 4,
     });
+  });
+
+  it('records one durable history transaction for a multi-element selection mutation', async () => {
+    const journal =
+      await openJournalAwareWriterSession();
+
+    useWriterV2Store
+      .getState()
+      .hydrateWriterElements([
+        element('writer-1'),
+        {
+          ...element('writer-2'),
+          rect: {
+            x: 160,
+            y: 80,
+            width: 100,
+            height: 50,
+          },
+          style: {
+            ...element('writer-2').style,
+            zIndex: 2,
+          },
+        },
+      ]);
+
+    useWriterV2Store
+      .getState()
+      .dispatchWriterCommand({
+        type: 'SET_WRITER_SELECTION',
+        ids: [
+          'writer-1',
+          'writer-2',
+        ],
+      });
+
+    await expect(
+      nudgeSelectedWriterElements(
+        12,
+        -5,
+      ),
+    ).resolves.toMatchObject({
+      changed: true,
+      ids: [
+        'writer-1',
+        'writer-2',
+      ],
+    });
+
+    expect(
+      useHistoryStore.getState().undoStack,
+    ).toHaveLength(1);
+    expect(
+      useWriterV2Store
+        .getState()
+        .elements
+        .map((item) => item.rect),
+    ).toEqual([
+      {
+        x: 22,
+        y: 15,
+        width: 100,
+        height: 50,
+      },
+      {
+        x: 172,
+        y: 75,
+        width: 100,
+        height: 50,
+      },
+    ]);
+
+    const manifest =
+      await journal.load('history-writer');
+
+    expect(manifest?.entries).toHaveLength(1);
+    expect(manifest?.entries[0]).toMatchObject({
+      command: {
+        type: 'WRITER_CHANGE',
+      },
+    });
+    expect(
+      manifest?.checkpoints
+        .filter(
+          (checkpoint) =>
+            checkpoint.kind === 'BARRIER',
+        ),
+    ).toHaveLength(1);
   });
 
   it('rolls Writer and history state back when journal save fails', async () => {

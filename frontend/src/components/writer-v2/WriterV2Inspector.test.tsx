@@ -284,7 +284,7 @@ describe('WriterV2Inspector', () => {
     });
   });
 
-  it('duplicates selected writer element', () => {
+  it('duplicates selected writer element', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1')],
@@ -299,10 +299,14 @@ describe('WriterV2Inspector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /duplicate/i }));
 
-    expect(useWriterV2Store.getState().elements).toHaveLength(2);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store.getState().elements,
+      ).toHaveLength(2);
+    });
   });
 
-  it('locks and deletes selected writer element', () => {
+  it('locks and deletes selected writer element', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element('writer-1')],
@@ -317,10 +321,25 @@ describe('WriterV2Inspector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^lock$/i }));
 
-    expect(useWriterV2Store.getState().elements[0].locked).toBe(true);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store
+          .getState()
+          .elements[0]
+          .locked,
+      ).toBe(true);
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /delete/i,
+      }),
+    );
 
-    expect(useWriterV2Store.getState().elements).toHaveLength(0);
+    await waitFor(() => {
+      expect(
+        useWriterV2Store.getState().elements,
+      ).toHaveLength(0);
+    });
   });
 });

@@ -169,7 +169,7 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => showAllWriterElements()}
+          onClick={() => { void showAllWriterElements(); }}
           disabled={hiddenCount === 0}
           style={smallButtonStyle}
         >
@@ -190,42 +190,42 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
         >
           <button
             type="button"
-            onClick={() => duplicateSelectedWriterElements()}
+            onClick={() => { void duplicateSelectedWriterElements(); }}
             style={smallButtonStyle}
           >
             Duplicate
           </button>
           <button
             type="button"
-            onClick={() => toggleLockSelectedWriterElements()}
+            onClick={() => { void toggleLockSelectedWriterElements(); }}
             style={smallButtonStyle}
           >
             Lock
           </button>
           <button
             type="button"
-            onClick={() => hideSelectedWriterElements()}
+            onClick={() => { void hideSelectedWriterElements(); }}
             style={smallButtonStyle}
           >
             Hide
           </button>
           <button
             type="button"
-            onClick={() => bringSelectedWriterElementToFront()}
+            onClick={() => { void bringSelectedWriterElementToFront(); }}
             style={smallButtonStyle}
           >
             Front
           </button>
           <button
             type="button"
-            onClick={() => sendSelectedWriterElementToBack()}
+            onClick={() => { void sendSelectedWriterElementToBack(); }}
             style={smallButtonStyle}
           >
             Back
           </button>
           <button
             type="button"
-            onClick={() => deleteSelectedWriterElements()}
+            onClick={() => { void deleteSelectedWriterElements(); }}
             style={{
               ...smallButtonStyle,
               color: '#dc2626',

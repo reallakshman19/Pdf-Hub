@@ -48,7 +48,7 @@ describe('writer selection object controls', () => {
     useWriterV2Store.getState().clearWriterV2();
   });
 
-  it('nudges selected tableBox and imageBox objects as one undoable batch', () => {
+  it('nudges selected tableBox and imageBox objects as one undoable batch', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -68,7 +68,7 @@ describe('writer selection object controls', () => {
       ids: ['table-1', 'image-1'],
     });
 
-    nudgeSelectedWriterElements(5, -3);
+    await nudgeSelectedWriterElements(5, -3);
 
     const state = useWriterV2Store.getState();
 
@@ -90,7 +90,47 @@ describe('writer selection object controls', () => {
     });
   });
 
-  it('aligns selected objects left', () => {
+  it('applies rapid nudges against the latest committed geometry', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [
+        element('a', {
+          rect: {
+            x: 10,
+            y: 20,
+            width: 10,
+            height: 10,
+          },
+        }),
+      ],
+    });
+
+    useWriterV2Store.getState().dispatchWriterCommand({
+      type: 'SET_ACTIVE_WRITER_ELEMENT',
+      id: 'a',
+    });
+
+    const first =
+      nudgeSelectedWriterElements(5, 0);
+    const second =
+      nudgeSelectedWriterElements(0, 7);
+
+    await expect(first).resolves.toMatchObject({
+      changed: true,
+    });
+    await expect(second).resolves.toMatchObject({
+      changed: true,
+    });
+
+    expect(
+      useWriterV2Store.getState().elements[0].rect,
+    ).toMatchObject({
+      x: 15,
+      y: 27,
+    });
+  });
+
+  it('aligns selected objects left', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -105,7 +145,7 @@ describe('writer selection object controls', () => {
       ids: ['a', 'b', 'c'],
     });
 
-    alignSelectedWriterElements('left');
+    await alignSelectedWriterElements('left');
 
     expect(useWriterV2Store.getState().elements.map((item) => item.rect.x)).toEqual([
       40,
@@ -114,7 +154,7 @@ describe('writer selection object controls', () => {
     ]);
   });
 
-  it('distributes selected objects horizontally', () => {
+  it('distributes selected objects horizontally', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -129,7 +169,7 @@ describe('writer selection object controls', () => {
       ids: ['a', 'b', 'c'],
     });
 
-    distributeSelectedWriterElements('horizontal');
+    await distributeSelectedWriterElements('horizontal');
 
     expect(useWriterV2Store.getState().elements.map((item) => item.rect.x)).toEqual([
       0,
@@ -138,7 +178,7 @@ describe('writer selection object controls', () => {
     ]);
   });
 
-  it('does not move locked selected elements', () => {
+  it('does not move locked selected elements', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -155,13 +195,13 @@ describe('writer selection object controls', () => {
       ids: ['a', 'b'],
     });
 
-    nudgeSelectedWriterElements(10, 0);
+    await nudgeSelectedWriterElements(10, 0);
 
     expect(useWriterV2Store.getState().elements.find((item) => item.id === 'a')?.rect.x).toBe(20);
     expect(useWriterV2Store.getState().elements.find((item) => item.id === 'b')?.rect.x).toBe(90);
   });
 
-  it('locks, hides, and restores selected objects through batch update', () => {
+  it('locks, hides, and restores selected objects through batch update', async () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [
@@ -175,19 +215,19 @@ describe('writer selection object controls', () => {
       ids: ['a', 'b'],
     });
 
-    toggleLockSelectedWriterElements();
+    await toggleLockSelectedWriterElements();
 
     expect(useWriterV2Store.getState().elements.every((item) => item.locked)).toBe(true);
 
-    toggleLockSelectedWriterElements();
+    await toggleLockSelectedWriterElements();
 
     expect(useWriterV2Store.getState().elements.every((item) => !item.locked)).toBe(true);
 
-    hideSelectedWriterElements();
+    await hideSelectedWriterElements();
 
     expect(useWriterV2Store.getState().elements.every((item) => item.hidden)).toBe(true);
 
-    showAllWriterElements();
+    await showAllWriterElements();
 
     expect(useWriterV2Store.getState().elements.every((item) => !item.hidden)).toBe(true);
   });

@@ -1,0 +1,119 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-8E5B3C2C2-001",
+    "branch": "phase8/history-writer-batch-helper-durable",
+    "base_ref": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "INFRA-EXCEPTION-8E5B3C2C1",
+    "previous_join": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
+    "previous_replan": null
+  },
+  "git_basis": {
+    "expected_branch": "phase8/history-writer-batch-helper-durable",
+    "material_ref": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
+    "base_branch": "main",
+    "base_observed_ref": "0f59cb8bfbcf18e52d09d3ed89bf60a9dbd497d2",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0002",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-008",
+    "work_package": "WP-8E",
+    "generated_from_frontier": true
+  },
+  "issue": 268,
+  "outcome": {
+    "engineering": [
+      "Batch selection/arrange mutations await one durable Writer command per logical action.",
+      "Mutation helpers freeze invocation targets but compute geometry and z-order from latest canonical Writer state.",
+      "Clipboard copy remains synchronous local state while paste commits one durable batch add and advances clipboard only after success.",
+      "Pure Writer selection commands remain synchronous and outside document history."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Remove the remaining batch synchronous PDF-overlay Writer mutation paths without journaling transient selection UI state.",
+    "roadmap_position": "OBJ-READINESS / PHASE-008 / WP-8E after merged C2C1 single-element helper durability.",
+    "why_this_work_exists": "Selection, arrange and clipboard helpers still synchronously dispatched document mutations and could build geometry/z-order from stale state.",
+    "deliberate_non_goals": [
+      "No OCR Writer bridge migration.",
+      "No legacy-object consolidation migration.",
+      "No blank-document-only canvas/image insertion changes.",
+      "No final synchronous mutation prohibition until C2C3."
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-01",
+      "description": "All mutating selection/arrange helpers are async and use latest-state durable dispatch with invocation-frozen target IDs.",
+      "weight": 35,
+      "verification": ["TEST-01", "TEST-02", "TEST-05"]
+    },
+    {
+      "id": "AC-02",
+      "description": "Rapid queued geometry mutations accumulate from latest canonical Writer state.",
+      "weight": 20,
+      "verification": ["TEST-02", "TEST-05"]
+    },
+    {
+      "id": "AC-03",
+      "description": "Clipboard paste is durable, computes latest z-order at commit time and advances clipboard only after success.",
+      "weight": 20,
+      "verification": ["TEST-01", "TEST-03", "TEST-05"]
+    },
+    {
+      "id": "AC-04",
+      "description": "Production callers honor async mutation contracts while pure selection commands remain synchronous.",
+      "weight": 15,
+      "verification": ["TEST-01", "TEST-04", "TEST-05"]
+    },
+    {
+      "id": "AC-05",
+      "description": "OCR Writer bridge and legacy consolidation remain the explicit C2C3 mutation frontier.",
+      "weight": 10,
+      "verification": ["TEST-01", "TEST-05"]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-01",
+      "class": "MUST_PASS",
+      "method": "Static C2C2 audit verifies zero synchronous mutation dispatch in selection/clipboard helpers, async callers, selection-only sync allowance and C2C3 deferred files.",
+      "proves": ["AC-01", "AC-03", "AC-04", "AC-05"]
+    },
+    {
+      "id": "TEST-02",
+      "class": "MUST_PASS",
+      "method": "Selection object-control tests include rapid sequential nudges whose final geometry contains both queued changes.",
+      "proves": ["AC-01", "AC-02"]
+    },
+    {
+      "id": "TEST-03",
+      "class": "MUST_PASS",
+      "method": "Clipboard tests await durable paste and preserve repeated-paste cascading semantics.",
+      "proves": ["AC-03"]
+    },
+    {
+      "id": "TEST-04",
+      "class": "MUST_PASS",
+      "method": "Quick Actions, keyboard and Inspector tests wait for asynchronous durable mutation completion.",
+      "proves": ["AC-04"]
+    },
+    {
+      "id": "TEST-05",
+      "class": "SHOULD_RUN",
+      "method": "cd frontend && pnpm run certify:phase8e5b3c2c2 on exact head; record NOT_RUN if #183 prevents runner allocation.",
+      "proves": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05"]
+    }
+  ],
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "next_expected_slice": "8E.5B3C2C3 migrate OCR Writer insertion and atomic legacy-object consolidation, then enforce final sync-mutation boundary"
+  }
+}

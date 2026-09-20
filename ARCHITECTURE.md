@@ -411,15 +411,28 @@ metadata is also awaited through the latest-state review helper. Image replaceme
 remains on its existing direct durable path because it owns image admission,
 asset-before-journal persistence and temporary-asset cleanup.
 
-The remaining C2C surface is split intentionally. C2C2 owns batch
-selection/arrange/clipboard mutations. C2C3 owns OCR Writer insertion and atomic
-legacy-object consolidation. Multi-step legacy consolidation must become one
-durable logical mutation rather than independently journaling each hidden source
-element and the consolidated replacement. Synchronous PDF-overlay mutation
-dispatch must not be prohibited until those remaining contracts are migrated.
-No command replay or revision deletion is enabled yet. Reference-aware revision
-GC and bounded recovery checkpoints remain follow-on work. Phase 8F owns
-incremental search indexing.
+Phase 8E.5B3C2C2 migrates batch Writer selection/arrange and clipboard
+mutations. A helper action freezes the user's target IDs (or clipboard snapshot)
+at invocation time, then evaluates geometry, lock/hidden state and z-order from
+the latest canonical Writer state inside the durable document-operation queue.
+Duplicate, delete, lock/unlock, hide/show, z-order, nudge, align and distribute
+therefore produce one durable Writer command per logical action without stale
+render-time geometry. Clipboard copy remains synchronous non-document UI state;
+paste snapshots the current clipboard at invocation, builds clones against the
+latest document z-order inside the queue, commits one batch add, and advances the
+in-memory clipboard only after a successful commit. Selection-only commands such
+as SET_ACTIVE_WRITER_ELEMENT, SET_WRITER_SELECTION and CLEAR_WRITER_SELECTION
+remain synchronous because they do not mutate the document.
+
+C2C3 is now the remaining synchronous PDF-overlay Writer mutation boundary. It
+owns OCR Writer insertion and atomic legacy-object consolidation. Multi-step
+legacy consolidation must become one durable logical mutation rather than
+independently journaling each hidden source element and the consolidated
+replacement. After C2C3, a final anti-drift audit may prohibit synchronous
+PDF-overlay Writer mutation dispatch while still allowing selection-only and
+blank-document-local commands. No command replay or revision deletion is enabled
+yet. Reference-aware revision GC and bounded recovery checkpoints remain
+follow-on work. Phase 8F owns incremental search indexing.
 
 See `Docs/DOCUMENT_SOURCE.md`, `Docs/WORKING_REVISION_STORE.md` and issue
 #218.

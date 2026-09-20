@@ -1,6 +1,13 @@
-import type { WriterElementV2 } from './types';
+import type {
+  WriterElementV2,
+} from './types';
 import { useWriterV2Store } from './writerV2Store';
-import type { WriterSelectionActionResult } from './writerSelectionActions';
+import type {
+  WriterSelectionActionResult,
+} from './writerSelectionActions';
+import {
+  dispatchDurableWriterHelperLatest,
+} from './durableWriterHelperDispatch';
 
 const PASTE_OFFSET = 16;
 
@@ -9,74 +16,135 @@ interface WriterClipboardSnapshot {
   elements: WriterElementV2[];
 }
 
-let clipboard: WriterClipboardSnapshot | null = null;
+let clipboard:
+  | WriterClipboardSnapshot
+  | null = null;
 
 export function copySelectedWriterElementsToClipboard(): WriterSelectionActionResult {
   const store = useWriterV2Store.getState();
-  const selected = store.elements.filter((element) =>
-    store.selectedIds.includes(element.id) && !element.hidden,
+  const selected = store.elements.filter(
+    (element) =>
+      store.selectedIds.includes(
+        element.id,
+      )
+      && !element.hidden,
   );
 
   if (selected.length === 0) {
     return {
       changed: false,
       ids: [],
-      message: 'No visible Writer V2 elements selected for copy.',
+      message:
+        'No visible Writer V2 elements selected for copy.',
     };
   }
 
   clipboard = {
     copiedAt: new Date().toISOString(),
-    elements: selected.map((element) => cloneClipboardElementSnapshot(element)),
+    elements: selected.map(
+      (element) =>
+        cloneClipboardElementSnapshot(
+          element,
+        ),
+    ),
   };
 
   return {
     changed: true,
-    ids: selected.map((element) => element.id),
-    message: `Copied ${selected.length} Writer V2 element(s).`,
+    ids: selected.map(
+      (element) => element.id,
+    ),
+    message:
+      `Copied ${selected.length} Writer V2 element(s).`,
   };
 }
 
-export function pasteWriterClipboardElements(): WriterSelectionActionResult {
-  const store = useWriterV2Store.getState();
+export async function pasteWriterClipboardElements(): Promise<WriterSelectionActionResult> {
+  const sourceElements =
+    clipboard?.elements.map(
+      (element) =>
+        cloneClipboardElementSnapshot(
+          element,
+        ),
+    ) ?? [];
 
-  if (!clipboard || clipboard.elements.length === 0) {
+  if (sourceElements.length === 0) {
     return {
       changed: false,
       ids: [],
-      message: 'Writer V2 clipboard is empty.',
+      message:
+        'Writer V2 clipboard is empty.',
     };
   }
 
-  const maxZIndex = store.elements.reduce(
-    (max, element) => Math.max(max, element.style.zIndex),
-    0,
-  );
-  const now = new Date().toISOString();
-  const clones = clipboard.elements.map((element, index) =>
-    cloneClipboardElementForPaste(element, now, maxZIndex + index + 1),
-  );
+  let pasted: WriterElementV2[] = [];
 
-  store.dispatchWriterCommand({
-    type: 'BATCH_ADD_WRITER_ELEMENTS',
-    elements: clones,
-    selectAll: true,
-  });
+  const result =
+    await dispatchDurableWriterHelperLatest(
+      'Writer clipboard paste',
+      (state) => {
+        const maxZIndex =
+          state.elements.reduce(
+            (max, element) =>
+              Math.max(
+                max,
+                element.style.zIndex,
+              ),
+            0,
+          );
+        const now =
+          new Date().toISOString();
 
-  clipboard = {
-    copiedAt: now,
-    elements: clones.map((element) => cloneClipboardElementSnapshot(element)),
-  };
+        pasted = sourceElements.map(
+          (element, index) =>
+            cloneClipboardElementForPaste(
+              element,
+              now,
+              maxZIndex + index + 1,
+            ),
+        );
+
+        return {
+          type:
+            'BATCH_ADD_WRITER_ELEMENTS',
+          elements: pasted,
+          selectAll: true,
+        };
+      },
+    );
+
+  if (result.changed) {
+    const now = new Date().toISOString();
+
+    clipboard = {
+      copiedAt: now,
+      elements: pasted.map(
+        (element) =>
+          cloneClipboardElementSnapshot(
+            element,
+          ),
+      ),
+    };
+  }
 
   return {
-    changed: true,
-    ids: clones.map((element) => element.id),
-    message: `Pasted ${clones.length} Writer V2 element(s).`,
+    changed: result.changed,
+    ids: result.changed
+      ? pasted.map(
+          (element) => element.id,
+        )
+      : [],
+    message: result.changed
+      ? `Pasted ${pasted.length} Writer V2 element(s).`
+      : result.reason,
   };
 }
 
 export function hasWriterClipboardElements(): boolean {
-  return Boolean(clipboard && clipboard.elements.length > 0);
+  return Boolean(
+    clipboard
+    && clipboard.elements.length > 0,
+  );
 }
 
 export function clearWriterElementClipboard(): void {
@@ -89,22 +157,39 @@ function cloneClipboardElementForPaste(
   zIndex: number,
 ): WriterElementV2 {
   return {
-    ...cloneClipboardElementSnapshot(element),
+    ...cloneClipboardElementSnapshot(
+      element,
+    ),
     id: createWriterClipboardElementId(),
     rect: {
       ...element.rect,
-      x: element.rect.x + PASTE_OFFSET,
-      y: Math.max(0, element.rect.y - PASTE_OFFSET),
+      x:
+        element.rect.x
+        + PASTE_OFFSET,
+      y: Math.max(
+        0,
+        element.rect.y
+        - PASTE_OFFSET,
+      ),
     },
     callout: element.callout
       ? {
           ...element.callout,
-          anchorPoint: element.callout.anchorPoint
-            ? {
-                x: element.callout.anchorPoint.x + PASTE_OFFSET,
-                y: Math.max(0, element.callout.anchorPoint.y - PASTE_OFFSET),
-              }
-            : undefined,
+          anchorPoint:
+            element.callout.anchorPoint
+              ? {
+                  x:
+                    element.callout
+                      .anchorPoint.x
+                    + PASTE_OFFSET,
+                  y: Math.max(
+                    0,
+                    element.callout
+                      .anchorPoint.y
+                    - PASTE_OFFSET,
+                  ),
+                }
+              : undefined,
         }
       : undefined,
     style: {
@@ -118,40 +203,77 @@ function cloneClipboardElementForPaste(
   };
 }
 
-function cloneClipboardElementSnapshot(element: WriterElementV2): WriterElementV2 {
+function cloneClipboardElementSnapshot(
+  element: WriterElementV2,
+): WriterElementV2 {
   return {
     ...element,
     rect: { ...element.rect },
-    assetIds: element.assetIds ? [...element.assetIds] : undefined,
-    review: element.review ? { ...element.review } : undefined,
+    assetIds:
+      element.assetIds
+        ? [...element.assetIds]
+        : undefined,
+    review:
+      element.review
+        ? { ...element.review }
+        : undefined,
     tableData: element.tableData
       ? {
-          columns: element.tableData.columns.map((column) => ({
-            ...column,
-            style: column.style ? { ...column.style } : undefined,
-          })),
-          rows: element.tableData.rows.map((row) => ({
-            ...row,
-            cells: row.cells.map((cell) => ({
-              ...cell,
-              style: cell.style ? { ...cell.style } : undefined,
-            })),
-          })),
-          hasHeaderRow: element.tableData.hasHeaderRow,
-          defaultCellStyle: element.tableData.defaultCellStyle
-            ? { ...element.tableData.defaultCellStyle }
-            : undefined,
-          headerCellStyle: element.tableData.headerCellStyle
-            ? { ...element.tableData.headerCellStyle }
-            : undefined,
+          ...element.tableData,
+          columns:
+            element.tableData.columns.map(
+              (column) => ({
+                ...column,
+                style: column.style
+                  ? { ...column.style }
+                  : undefined,
+              }),
+            ),
+          rows:
+            element.tableData.rows.map(
+              (row) => ({
+                ...row,
+                cells: row.cells.map(
+                  (cell) => ({
+                    ...cell,
+                    style: cell.style
+                      ? { ...cell.style }
+                      : undefined,
+                  }),
+                ),
+              }),
+            ),
+          hasHeaderRow:
+            element.tableData
+              .hasHeaderRow,
+          defaultCellStyle:
+            element.tableData
+              .defaultCellStyle
+              ? {
+                  ...element.tableData
+                    .defaultCellStyle,
+                }
+              : undefined,
+          headerCellStyle:
+            element.tableData
+              .headerCellStyle
+              ? {
+                  ...element.tableData
+                    .headerCellStyle,
+                }
+              : undefined,
         }
       : undefined,
     callout: element.callout
       ? {
           ...element.callout,
-          anchorPoint: element.callout.anchorPoint
-            ? { ...element.callout.anchorPoint }
-            : undefined,
+          anchorPoint:
+            element.callout.anchorPoint
+              ? {
+                  ...element.callout
+                    .anchorPoint,
+                }
+              : undefined,
         }
       : undefined,
     style: { ...element.style },

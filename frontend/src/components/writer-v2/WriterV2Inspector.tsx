@@ -485,7 +485,7 @@ export const WriterV2Inspector: React.FC = () => {
       >
         <button
           type="button"
-          onClick={() => showAllWriterElements()}
+          onClick={() => { void showAllWriterElements(); }}
           style={{
             width: '100%', height: 28, borderRadius: 6, border: '1px solid #cbd5e1',
             background: '#f8fafc', fontSize: 12, cursor: 'pointer', color: '#374151',
@@ -1120,7 +1120,7 @@ export const WriterV2Inspector: React.FC = () => {
         <Row>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('left')}
+            onClick={() => { void alignSelectedWriterElements('left'); }}
             title="Align left"
             style={btnStyle}
           >
@@ -1128,7 +1128,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('center')}
+            onClick={() => { void alignSelectedWriterElements('center'); }}
             title="Align center"
             style={btnStyle}
           >
@@ -1136,7 +1136,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('right')}
+            onClick={() => { void alignSelectedWriterElements('right'); }}
             title="Align right"
             style={btnStyle}
           >
@@ -1147,7 +1147,7 @@ export const WriterV2Inspector: React.FC = () => {
         <Row>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('top')}
+            onClick={() => { void alignSelectedWriterElements('top'); }}
             title="Align top"
             style={btnStyle}
           >
@@ -1155,7 +1155,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('middle')}
+            onClick={() => { void alignSelectedWriterElements('middle'); }}
             title="Align middle"
             style={btnStyle}
           >
@@ -1163,7 +1163,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => alignSelectedWriterElements('bottom')}
+            onClick={() => { void alignSelectedWriterElements('bottom'); }}
             title="Align bottom"
             style={btnStyle}
           >
@@ -1174,7 +1174,7 @@ export const WriterV2Inspector: React.FC = () => {
         <Row>
           <button
             type="button"
-            onClick={() => distributeSelectedWriterElements('horizontal')}
+            onClick={() => { void distributeSelectedWriterElements('horizontal'); }}
             title="Distribute horizontally"
             style={btnStyle}
           >
@@ -1182,7 +1182,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => distributeSelectedWriterElements('vertical')}
+            onClick={() => { void distributeSelectedWriterElements('vertical'); }}
             title="Distribute vertically"
             style={btnStyle}
           >
@@ -1193,7 +1193,7 @@ export const WriterV2Inspector: React.FC = () => {
         <Row>
           <button
             type="button"
-            onClick={() => nudgeSelectedWriterElements(-1, 0)}
+            onClick={() => { void nudgeSelectedWriterElements(-1, 0); }}
             title="Nudge left"
             style={btnStyle}
           >
@@ -1201,7 +1201,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => nudgeSelectedWriterElements(0, 1)}
+            onClick={() => { void nudgeSelectedWriterElements(0, 1); }}
             title="Nudge up"
             style={btnStyle}
           >
@@ -1209,7 +1209,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => nudgeSelectedWriterElements(0, -1)}
+            onClick={() => { void nudgeSelectedWriterElements(0, -1); }}
             title="Nudge down"
             style={btnStyle}
           >
@@ -1217,7 +1217,7 @@ export const WriterV2Inspector: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => nudgeSelectedWriterElements(1, 0)}
+            onClick={() => { void nudgeSelectedWriterElements(1, 0); }}
             title="Nudge right"
             style={btnStyle}
           >
@@ -1229,27 +1229,27 @@ export const WriterV2Inspector: React.FC = () => {
       {/* Arrange */}
       <Section title="Arrange">
         <Row>
-          <button type="button" onClick={() => bringSelectedWriterElementToFront()} title="Bring to front"
+          <button type="button" onClick={() => { void bringSelectedWriterElementToFront(); }} title="Bring to front"
             style={btnStyle}>↑ Front</button>
-          <button type="button" onClick={() => sendSelectedWriterElementToBack()} title="Send to back"
+          <button type="button" onClick={() => { void sendSelectedWriterElementToBack(); }} title="Send to back"
             style={btnStyle}>↓ Back</button>
         </Row>
         <Row>
-          <button type="button" onClick={() => duplicateSelectedWriterElements()} title="Duplicate"
+          <button type="button" onClick={() => { void duplicateSelectedWriterElements(); }} title="Duplicate"
             aria-label="Duplicate"
             style={btnStyle}>⧉ Dup</button>
-          <button type="button" onClick={() => toggleLockSelectedWriterElements()} title={selected.locked ? 'Unlock' : 'Lock'}
+          <button type="button" onClick={() => { void toggleLockSelectedWriterElements(); }} title={selected.locked ? 'Unlock' : 'Lock'}
             aria-label={selected.locked ? 'Unlock' : 'Lock'}
             style={btnStyle}>{selected.locked ? '🔓' : '🔒'} {selected.locked ? 'Unlock' : 'Lock'}</button>
         </Row>
         {hasHidden && (
           <Row>
-            <button type="button" onClick={() => showAllWriterElements()} style={{ ...btnStyle, flex: 1 }}>
+            <button type="button" onClick={() => { void showAllWriterElements(); }} style={{ ...btnStyle, flex: 1 }}>
               Show Hidden
             </button>
           </Row>
         )}
-        <button type="button" onClick={() => hideSelectedWriterElements()} style={{ ...btnStyle, width: '100%' }}>
+        <button type="button" onClick={() => { void hideSelectedWriterElements(); }} style={{ ...btnStyle, width: '100%' }}>
           Hide
         </button>
       </Section>
@@ -1259,7 +1259,7 @@ export const WriterV2Inspector: React.FC = () => {
         <button
           type="button"
           aria-label="Delete"
-          onClick={() => deleteSelectedWriterElements()}
+          onClick={() => { void deleteSelectedWriterElements(); }}
           style={{
             width: '100%', height: 28, borderRadius: 6,
             border: '1px solid #fca5a5', background: '#fff1f2',

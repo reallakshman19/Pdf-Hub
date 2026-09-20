@@ -46,7 +46,7 @@ export const WriterKeyboardHandler: React.FC = () => {
 
       if (ctrl && event.key.toLowerCase() === 'v') {
         event.preventDefault();
-        pasteWriterClipboardElements();
+        void pasteWriterClipboardElements();
         return;
       }
 
@@ -55,20 +55,20 @@ export const WriterKeyboardHandler: React.FC = () => {
 
         if (delta) {
           event.preventDefault();
-          nudgeSelectedWriterElements(delta.dx, delta.dy);
+          void nudgeSelectedWriterElements(delta.dx, delta.dy);
           return;
         }
       }
 
       if ((event.key === 'Delete' || event.key === 'Backspace') && hasSelection) {
         event.preventDefault();
-        deleteSelectedWriterElements();
+        void deleteSelectedWriterElements();
         return;
       }
 
       if (ctrl && event.key.toLowerCase() === 'd' && hasSelection) {
         event.preventDefault();
-        duplicateSelectedWriterElements();
+        void duplicateSelectedWriterElements();
         return;
       }
 
