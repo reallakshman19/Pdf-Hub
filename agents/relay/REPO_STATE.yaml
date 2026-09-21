@@ -24,9 +24,9 @@
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "NONE",
-    "path": null,
-    "state": "NONE",
+    "id": "EP-10-001",
+    "path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -52,31 +52,42 @@
   },
   "status_planes": {
     "execution": {
-      "state": "RECONCILING",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Create the Phase 10 successor branch and semantic EP/QSET for WP-010 / issue #288 under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. Phase 8G and Phase 9 deferred obligations remain PENDING_NOT_SATISFIED and must not be treated as complete."
+      "next_action": "A fresh independent local candidate must reconstruct RM-0004 / issue #288 / EP-10-001 from repository state under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answer QSET-10-001, obtain current DISC/QUAL/TC and live MATERIAL_WRITE_READY, then begin only STEP-10-01."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "ODR-0003 keeps Phase 8G executable certification PENDING_NOT_SATISFIED on issue #284.",
-        "ODR-0005 keeps Phase 9 fresh takeover qualification and dependent STEP-9-01 continuation PENDING_NOT_SATISFIED on issue #286.",
-        "ODR-0006 / RM-0004 resequence WP-010 as the sole frontier without awarding Phase 9 acceptance.",
-        "Phase 10 will require fresh qualification because the phase, production annotation-write boundary, verification oracle and signed-PDF warning semantics change."
+        "Phase 10 phase-transition qualification is required and not yet satisfied.",
+        "The current native annotation writer emits standard /Annot dictionaries and reply /IRT relationships but no explicit /AP appearance stream.",
+        "ReviewThread remains a transitional domain adapter over annotation.review persistence; Phase 10 must avoid duplicate state ownership while preserving native reply continuity.",
+        "Signed-PDF rewrite warning/detection remains unproven in the normal editable Save contract.",
+        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "RM-0004 moves the serial frontier to WP-010 / Phase 10. Phase 8G and Phase 9 remain open with Owner-deferred obligations and zero newly earned acceptance. No Phase 10 product implementation or acceptance evidence exists yet.",
+      "summary": "RM-0004, issue #288, EP-10-001 and QSET-10-001 prepare the Phase 10 native-annotation interoperability route under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. No Phase 10 product implementation, candidate DISC/QUAL/TC, acceptance or external-viewer evidence exists yet. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
       "not_run": [
+        {
+          "command": "Phase 10 qualification",
+          "reason": "No incoming candidate DISC/Q1-Q5/QUAL/TC has been produced for EP-10-001.",
+          "head_ref": null
+        },
+        {
+          "command": "TEST-10-01 / Phase 10 fixture-oracle corpus",
+          "reason": "Blocked on candidate-specific MATERIAL_WRITE_READY.",
+          "head_ref": null
+        },
         {
           "command": "npm run certify:phase8g",
           "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
           "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
         },
         {
-          "command": "Pinned-protocol Phase 9 takeover qualification / dependent STEP-9-01 continuation",
+          "command": "Phase 9 takeover / dependent STEP-9-01",
           "reason": "Owner-deferred under ODR-0005; remains PENDING_NOT_SATISFIED.",
           "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         }
@@ -97,13 +108,14 @@
     "adapter": null,
     "plan": null,
     "roadmap_revision": "RM-0004",
-    "execution_ref": "NONE",
+    "execution_ref": "EP-10-001",
     "receipt": null,
     "basis": [
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
-      "ODR-0005 keeps Phase 9 takeover/STEP-9-01 continuation pending and issue #286 open.",
-      "ODR-0006 plus RM-0004 resequence WP-010 as the sole serial frontier.",
-      "Issue #288 is the Phase 10 coordination contract."
+      "ODR-0005 keeps Phase 9 takeover/STEP-9-01 pending and issue #286 open.",
+      "ODR-0006 / RM-0004 make WP-010 the sole serial frontier.",
+      "Issue #288 is the Phase 10 coordination contract.",
+      "EP-10-001 and QSET-10-001 define the fresh phase-transition qualification boundary."
     ],
     "observed": {
       "issue": 288,
@@ -113,38 +125,16 @@
     "superseded_operations": []
   },
   "delivery": {
-    "required": false,
+    "required": true,
     "provider": "GITHUB",
-    "observation": {
-      "id": "DOBS-9-004",
-      "path": "agents/relay/delivery/DOBS-9-004.yaml"
-    },
-    "observations": [
-      {
-        "id": "DOBS-9-001",
-        "path": "agents/relay/delivery/DOBS-9-001.yaml"
-      },
-      {
-        "id": "DOBS-9-002",
-        "path": "agents/relay/delivery/DOBS-9-002.yaml"
-      },
-      {
-        "id": "DOBS-9-003",
-        "path": "agents/relay/delivery/DOBS-9-003.yaml"
-      },
-      {
-        "id": "DOBS-9-004",
-        "path": "agents/relay/delivery/DOBS-9-004.yaml"
-      }
-    ]
+    "observation": null,
+    "observations": []
   },
   "relay_readiness": {
-    "baton_ready": false,
+    "baton_ready": true,
     "projection_ready": true,
-    "handover_ready": false,
-    "reasons": [
-      "Phase 10 successor EP/QSET has not yet been created on its execution branch."
-    ]
+    "handover_ready": true,
+    "reasons": []
   },
   "chat_context_required": false
 }
