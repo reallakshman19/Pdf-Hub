@@ -131,7 +131,8 @@
       "Prior QSET-10-001 / DISC-10-001 / QUAL-10-001 / TC-10-001 are superseded for write authority by the corrected EP digest; their historical evidence remains retained.",
       "AC-10-01 remains IN_PROGRESS at zero earned weight with F10-01/F10-02/F10-03 open.",
       "Gated design packets on issue #288 for STEP-10-02/03/04 remain preparatory only and do not bypass the serial acceptance gate.",
-      "Fresh corrected-contract requalification handoff is published and provider-read-back on issue #288 as comment 5762501612."
+      "Fresh corrected-contract requalification handoff is published and provider-read-back on issue #288 as comment 5762501612.",
+      "DOBS-10-005 observes the corrected Phase 10 route at exact head 221d0563c69898f03fe51ad88f9ef89e839c137d as draft/mergeable with no exact-head workflow run and no admitted candidate."
     ],
     "observed": {
       "issue": 288,
@@ -143,7 +144,8 @@
       "prior_live_head_rule_comment": 5757440172,
       "corrected_ep_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
       "current_question_set": "QSET-10-002",
-      "corrected_requalification_handoff_comment": 5762501612
+      "corrected_requalification_handoff_comment": 5762501612,
+      "current_delivery_observation": "DOBS-10-005"
     },
     "superseded_operations": []
   },
@@ -151,8 +153,8 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-10-004",
-      "path": "agents/relay/delivery/DOBS-10-004.yaml"
+      "id": "DOBS-10-005",
+      "path": "agents/relay/delivery/DOBS-10-005.yaml"
     },
     "observations": [
       {
@@ -170,6 +172,10 @@
       {
         "id": "DOBS-10-004",
         "path": "agents/relay/delivery/DOBS-10-004.yaml"
+      },
+      {
+        "id": "DOBS-10-005",
+        "path": "agents/relay/delivery/DOBS-10-005.yaml"
       }
     ]
   },
