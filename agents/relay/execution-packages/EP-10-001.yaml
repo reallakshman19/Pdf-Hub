@@ -10,9 +10,15 @@
     "previous_replan": "RM-0004"
   },
   "replan_inheritance": {
-    "roadmap_revision": "RM-0004",
-    "predecessor_ep": "EP-9-001",
-    "predecessor_disposition": "OWNER_DEFERRED_PENDING_NOT_SATISFIED"
+    "from_replan": "RM-0004",
+    "unresolved_acceptance": [
+      "WP-009 / Phase 9 remains FUTURE/WAITING with 0% acceptance under ODR-0005; no Phase 9 acceptance is inherited into WP-010.",
+      "WP-8G executable certification remains PENDING_NOT_SATISFIED under ODR-0003; Phase 10 does not convert that obligation into PASS."
+    ],
+    "evidence": [
+      "ODR-0006 and RM-0004 resequenced WP-010 as the active serial frontier while explicitly retaining Phase 8G and Phase 9 pending obligations.",
+      "Issue #288 is the Phase 10 coordination contract; issues #284 and #286 remain open for their deferred obligations."
+    ]
   },
   "git_basis": {
     "expected_branch": "phase10/native-annotation-interoperability",
@@ -66,7 +72,7 @@
       "ODR-0005 defers Phase 9 takeover qualification and dependent STEP-9-01 continuation.",
       "ODR-0006 / RM-0004 resequence WP-010 as the next serial frontier without satisfying Phase 9."
     ],
-    "current_implementation_state": "Phase 10 product implementation has not started. The first known interoperability gap is absence of explicit /AP generation in nativeAnnotationWriter.ts.",
+    "current_implementation_state": "STEP-10-01 fixture/oracle material is present on the branch but remains unaccepted. Relay review findings F10-01/F10-02/F10-03 are open. No STEP-10-02 production /AP implementation has started.",
     "known_problems": [
       "nativeAnnotationWriter.ts writes subtype-specific dictionaries but no explicit /AP appearance stream.",
       "Viewer behavior may therefore depend on whether an external viewer regenerates annotation appearances.",
@@ -558,8 +564,8 @@
       {
         "id": "STALE-10-04",
         "condition": "Verification oracle, engineering authority or protected invariant changes after qualification.",
-        "effect": "REQUALIFY",
-        "rationale": "Material qualification boundary changed."
+        "effect": "RECONCILE",
+        "rationale": "Material qualification boundary changed; reconcile the route and require a fresh qualification boundary before further writes."
       }
     ]
   },
@@ -793,9 +799,6 @@
           ],
           "unavailable_here_reason": "This session prepared the conformance-corrected EP/QSET boundary and cannot validly act as its independent incoming candidate/evaluator; a dependency-capable local checkout is also required for pinned validators and focused frontend tests.",
           "expected_evidence": [
-            "fresh DISC/QUAL/TC",
-            "live MATERIAL_WRITE_READY",
-            "F10-01/F10-02/F10-03 closure",
             "TEST-10-01"
           ],
           "blocks": [
@@ -1097,6 +1100,195 @@
       "Roadmap changes",
       "Exact next actions",
       "Successor EP"
+    ],
+    "payloads": [
+      {
+        "id": "RPT-STATE",
+        "section": "Executive state",
+        "sources": [
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "relay_state",
+          "current_position",
+          "execution_state",
+          "material_authority",
+          "stop"
+        ]
+      },
+      {
+        "id": "RPT-PROGRESS",
+        "section": "Overall / phase / EP progress",
+        "sources": [
+          "PROGRESS",
+          "OVERALL_ROADMAP",
+          "EP"
+        ],
+        "required_fields": [
+          "progress_basis",
+          "overall",
+          "phase",
+          "work_package",
+          "step",
+          "acceptance"
+        ]
+      },
+      {
+        "id": "RPT-WORK",
+        "section": "Work completed",
+        "sources": [
+          "EP",
+          "CP"
+        ],
+        "required_fields": [
+          "completed_steps",
+          "implementation_result"
+        ]
+      },
+      {
+        "id": "RPT-FILES",
+        "section": "Files changed",
+        "sources": [
+          "CP"
+        ],
+        "required_fields": [
+          "files_changed"
+        ]
+      },
+      {
+        "id": "RPT-AC",
+        "section": "Acceptance matrix",
+        "sources": [
+          "EP",
+          "PROGRESS",
+          "CP"
+        ],
+        "required_fields": [
+          "criterion",
+          "status",
+          "percent",
+          "basis"
+        ]
+      },
+      {
+        "id": "RPT-EVIDENCE",
+        "section": "Tests and evidence",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "validation_id",
+          "obligation_class",
+          "status",
+          "basis_ref",
+          "not_run_reason"
+        ]
+      },
+      {
+        "id": "RPT-QUALITY",
+        "section": "Quality findings",
+        "sources": [
+          "EP",
+          "QRV",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "quality_review",
+          "procedures",
+          "findings",
+          "disposition",
+          "execution_effect"
+        ]
+      },
+      {
+        "id": "RPT-LIMITS",
+        "section": "Known limitations",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "limitations",
+          "evidence_gaps",
+          "deferred_items"
+        ]
+      },
+      {
+        "id": "RPT-OWNER",
+        "section": "Owner decisions required",
+        "sources": [
+          "ODR",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "decision_required",
+          "pending_items",
+          "authority_effect"
+        ]
+      },
+      {
+        "id": "RPT-ISSUES",
+        "section": "GitHub issue changes",
+        "sources": [
+          "ISSUE_GRAPH",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "operations",
+          "relationships",
+          "projection_state"
+        ]
+      },
+      {
+        "id": "RPT-ROADMAP",
+        "section": "Roadmap changes",
+        "sources": [
+          "OVERALL_ROADMAP",
+          "ROADMAP_REVISION",
+          "PROGRESS"
+        ],
+        "required_fields": [
+          "revision",
+          "topology_or_status_change",
+          "frontier_after",
+          "progress_basis_effect"
+        ]
+      },
+      {
+        "id": "RPT-NEXT",
+        "section": "Exact next actions",
+        "sources": [
+          "EP"
+        ],
+        "required_fields": [
+          "ordered_actions",
+          "targets",
+          "inputs",
+          "tests",
+          "benchmarks",
+          "acceptance",
+          "expected_result",
+          "stop_conditions"
+        ]
+      },
+      {
+        "id": "RPT-SUCCESSOR",
+        "section": "Successor EP",
+        "sources": [
+          "CP",
+          "OVERALL_ROADMAP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "successor_mode",
+          "next_frontier",
+          "ep_or_terminal_disposition"
+        ]
+      }
     ]
   },
   "checkpoint_contract": {
