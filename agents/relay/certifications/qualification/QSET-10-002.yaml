@@ -1,0 +1,162 @@
+{
+  "schema_version": "relay-v2.5-question-set",
+  "id": "QSET-10-002",
+  "route": {
+    "route_key": "SERIAL:EP-10-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-10-001",
+    "ep_id": "EP-10-001",
+    "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0004",
+    "work_package": "WP-010",
+    "ep_contract_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4"
+  },
+  "boundary": {
+    "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
+    "from_phase": "PHASE-010",
+    "to_phase": "PHASE-010",
+    "changed_dimensions": [
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE"
+    ],
+    "basis": [
+      "The active EP quality router was conformance-repaired to partition all ten built-in V2.5 quality procedures exactly once.",
+      "UI/UX, accessibility and migration review authority are now explicit and applicable; prior QSET/QUAL/TC objects are bound to an older EP digest.",
+      "STEP-10-01 implementation remains unaccepted with F10-01/F10-02/F10-03 open, so the first authorized material slice after fresh qualification is correction-only."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "focus": "PRODUCTION_PATH",
+      "anchors": [
+        "WP-010",
+        "INPUT-10-02",
+        "F10-01",
+        "F10-02",
+        "F10-03"
+      ],
+      "prompt": "Trace the current editable annotation Save/reopen path on the live branch. Identify the production Save entrypoint, annotation/review state owner, stable annotation identity authority, reply relationship authority, reader/import path, and downstream rendering/consumer path. State whether production /AP generation exists now and state where stale PDFHubData can override externally edited standard fields in the current reader.",
+      "required_output_keys": [
+        "production_entrypoint",
+        "state_owner",
+        "authority_source",
+        "downstream_consumer"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q2",
+      "focus": "ENGINEERING_RECONSTRUCTION",
+      "anchors": [
+        "AC-10-01",
+        "TEST-10-01",
+        "F10-01",
+        "F10-02",
+        "F10-03"
+      ],
+      "prompt": "Reconstruct why STEP-10-01 is implemented but not yet acceptance-complete. Explain the three open findings: missing executable reply/IRT fixture semantics, mismatch between declared external-edit precedence and implemented/tested oracle coverage, and two-save coverage that does not fail closed across all 17 supported annotation types. Also explain why the quality-router repair requires fresh qualification even though the nominal phase is still PHASE-010.",
+      "reconstruction_mode": "LOGIC_RECONSTRUCTION",
+      "payload": {
+        "source": "Current EP-10-001, issue #288 Relay findings, annotation manifest/oracle/tests, and pinned V2.5 quality procedure rules",
+        "values": {
+          "supported_annotation_types": {
+            "value": 17,
+            "units": "types"
+          },
+          "open_step_10_01_findings": {
+            "value": 3,
+            "units": "findings"
+          },
+          "built_in_quality_blueprints": {
+            "value": 10,
+            "units": "procedures"
+          },
+          "previously_omitted_quality_blueprints": {
+            "value": 3,
+            "units": "procedures"
+          }
+        }
+      },
+      "required_output_keys": [
+        "reconstruction_steps",
+        "intermediate_result",
+        "expected_result"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q3",
+      "focus": "BOUNDARIES_INVARIANTS",
+      "anchors": [
+        "AC-10-01",
+        "AC-10-02",
+        "AC-10-04",
+        "QUALITY_ROUTER"
+      ],
+      "prompt": "State the consequence of any one of these mutations: treating /IRT as an NM string instead of a PDF object reference; normal Save flattening editable annotations; stale PDFHubData overriding a recognized external standard-field edit; starting STEP-10-02 before AC-10-01 is accepted; or using the old QSET-10-001/TC-10-001 as write authority after the EP digest changed. Name the protected invariant and the exact falsifier.",
+      "mutation": {
+        "condition": "Reply relationship, editable-save semantics, external-edit precedence, serial gate ordering, or route-bound qualification authority is violated.",
+        "protected_invariant": "Native editable Save preserves one stable managed annotation/reply family with true PDF object relationships; recognized standard fields are not silently shadowed by stale cache; serial acceptance gates are respected; qualification/takeover are bound to the exact live EP digest.",
+        "falsifier": "A raw/reopened PDF shows orphan/duplicate replies or flattened Save, an external native edit is lost to stale custom metadata, STEP-10-02 product changes appear while AC-10-01 is unaccepted, or material_write_ready accepts a candidate whose TC/QSET binds the superseded EP digest."
+      },
+      "required_output_keys": [
+        "mutation_effect",
+        "protected_invariant",
+        "falsifier"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q4",
+      "focus": "VERIFICATION",
+      "anchors": [
+        "BENCH-10-01",
+        "BENCH-10-02",
+        "BENCH-10-03",
+        "BENCH-10-04",
+        "TEST-10-01"
+      ],
+      "prompt": "Design an independent verification for the corrected STEP-10-01 and the conformance-repaired route. It must prove the ten-blueprint quality-router partition, raw reply /IRT object-reference integrity across two saves, alignment between enforced precedence fields and oracle/test coverage, fail-closed fixture/oracle coverage for all 17 supported types, and continued absence of production /AP changes. Predict exact results and state tolerances/exactness.",
+      "oracle_refs": [
+        "BENCH-10-01",
+        "BENCH-10-02",
+        "BENCH-10-03",
+        "BENCH-10-04"
+      ],
+      "independence_requirement": "Use repository declarations, raw PDF object inspection, manifest/audit rules and tests that are independent of the production writer's intended behavior; do not infer correctness from PDF Hub rendering alone.",
+      "required_output_keys": [
+        "independent_method",
+        "predicted_result",
+        "tolerance_or_exactness"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q5",
+      "focus": "FIRST_SAFE_SLICE",
+      "anchors": [
+        "STEP-10-01",
+        "AC-10-01",
+        "TEST-10-01"
+      ],
+      "prompt": "Name the first exact material change after fresh takeover certification on the corrected EP. It must remain inside STEP-10-01: close F10-01/F10-02/F10-03 only, without implementing production /AP streams or starting STEP-10-02. State the predicted before observation, predicted after observation, and exact verification commands/evidence.",
+      "step_refs": [
+        "STEP-10-01"
+      ],
+      "required_output_keys": [
+        "first_change",
+        "predicted_before",
+        "predicted_after",
+        "verification"
+      ],
+      "evidence_required": true
+    }
+  ],
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase10-conformance-preparer"
+  }
+}
