@@ -55,31 +55,31 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Wait for the delegated fresh independent candidate on issue #286 to reconstruct EP-9-001/QSET-9-003 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain pinned-validator DISC/QUAL/TC and live MATERIAL_WRITE_READY, then complete only the bounded STEP-9-01 retained-fixture/signed-fixture slice. The route remains WRITE-capable; no current candidate is admitted."
+      "next_action": "Owner deferral ODR-0005 places the fresh Phase 9 takeover qualification and its dependent STEP-9-01 continuation in PENDING_NOT_SATISFIED. Do not wait on the disabled qualification timer and do not infer candidate admission. Resume only when the Owner explicitly reopens the qualification or issues a separate authority change."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 are stale for further writes under the pinned Common basis/current EP contract.",
-        "QSET-9-003 is the current outgoing-preparer qualification set, bound to EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
-        "EP-9-001 now carries EXECREQ-9-QUAL-STEP1 with a LOCAL_AGENT delegation published and provider-read-back on issue #286; a 60-minute response check is scheduled.",
-        "Read-only provenance trace proves ArabicCIDTrueType.pdf is byte-identical to Mozilla PDF.js test/pdfs/ArabicCIDTrueType.pdf and encrypted-with-images.pdf is byte-identical to qpdf qpdf/qtest/qpdf/encrypted-with-images.pdf; neither manifest entry is promoted by this evidence alone.",
-        "STEP-9-01 still has three required-pending specialist obligations: complex-font/unicode, encrypted, signed.",
+        "ODR-0005 defers fresh Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1; issue #286 records this as PENDING_NOT_SATISFIED.",
+        "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain stale for further writes under the pinned Common basis/current EP contract.",
+        "QSET-9-003 remains the current prepared qualification set, bound to EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c, but no candidate is admitted.",
+        "Read-only provenance evidence for ArabicCIDTrueType.pdf and encrypted-with-images.pdf remains informational; neither manifest entry is promoted by the deferral.",
+        "STEP-9-01 still has required-pending specialist obligations including complex-font/unicode, encrypted, and signed coverage.",
         "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 9 STEP-9-01 product substrate remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, EP-9-001 now contains the required external-execution delegation and QSET-9-003 is the current qualification set. The delegation is published/read back on issue #286. Read-only upstream provenance/semantic evidence for the two retained PDFs is durable, but no fresh candidate DISC/QUAL/TC or TEST-9-01 execution exists and no Phase 9 acceptance is earned.",
+      "summary": "Phase 9 product substrate remains frozen. ODR-0005 defers the fresh QSET-9-003 takeover qualification and its dependent bounded STEP-9-01 continuation. Issue #286 contains the pending list. No new DISC/QUAL/TC, candidate admission, fixture promotion, acceptance weight, or Phase 9 product write is claimed.",
       "not_run": [
         {
           "command": "Pinned-protocol Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1",
-          "reason": "The delegated local-agent handoff is published on issue #286, but no fresh independent candidate response has been posted yet.",
+          "reason": "Owner-deferred under ODR-0005; remains PENDING_NOT_SATISFIED.",
           "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         },
         {
-          "command": "npm run certify:phase9-step1",
-          "reason": "Candidate-specific TAKEOVER_CERTIFIED and live MATERIAL_WRITE_READY are not yet established for the refreshed QSET-9-003 route.",
+          "command": "Dependent STEP-9-01 retained-fixture/signed-fixture continuation",
+          "reason": "Depends on the Owner-deferred fresh candidate qualification and remains PENDING_NOT_SATISFIED.",
           "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         },
         {
@@ -108,14 +108,11 @@
     "receipt": null,
     "basis": [
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
-      "ODR-0004 / RM-0003 make WP-009 the sole serial frontier.",
-      "Issue #286 is the provider coordination contract for Phase 9.",
+      "ODR-0004 / RM-0003 make WP-009 the Phase 9 frontier.",
       "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
-      "EP-9-001 is frozen against Phase 9 product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd and now includes EXECREQ-9-QUAL-STEP1.",
-      "QSET-9-003 is the current qualification set with EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c.",
-      "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain history only.",
-      "Issue #286 comment 5752971346 is the verified local-agent delegation handoff; comment 5753014419 records read-only retained-fixture provenance/semantic evidence.",
-      "DOBS-9-004 observes the refreshed delegated takeover route at exact Relay head 61984c4061bdc27ecf6e204258c7db474f423484; product material remains frozen at 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd."
+      "QSET-9-003 remains the prepared Phase 9 qualification set; no current candidate is admitted.",
+      "ODR-0005 defers the fresh takeover qualification and dependent STEP-9-01 continuation as PENDING_NOT_SATISFIED on issue #286.",
+      "The scheduled qualification response check was disabled."
     ],
     "observed": {
       "issue": 286,
@@ -123,7 +120,8 @@
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
       "fresh_candidate_handoff_comment": 5752971346,
       "retained_fixture_evidence_comment": 5753014419,
-      "response_check_minutes": 60
+      "response_check_minutes": null,
+      "takeover_deferral": "ODR-0005"
     },
     "superseded_operations": []
   },
