@@ -1,0 +1,99 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-008",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "c2f4ba2469a831407a5389f8039dd8c67dd9f770"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288
+  },
+  "qualification": {
+    "required": true,
+    "state": "PENDING_FRESH_CANDIDATE",
+    "execution_package": "EP-10-001",
+    "ep_contract_digest": "sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1",
+    "question_set": "QSET-10-002",
+    "contract_conformance": {
+      "state": "REPAIRED_PRE_ADMISSION",
+      "issue_comment": 5763479256,
+      "mirrored_checks": [
+        "quality router partitions 10/10 built-in procedures",
+        "Q1-Q5 focus and EP-native anchors conform to pinned validate_question_set semantics",
+        "replan inheritance shape conforms to validate_ep_self_contained semantics",
+        "anti-drift effects use pinned enum",
+        "delegated expected_evidence maps only to TEST-10-01",
+        "report contract has 13/13 source-bound payloads",
+        "QSET binds exact EP digest"
+      ]
+    },
+    "candidate_admitted": false,
+    "prior_digests": [
+      {
+        "digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+        "disposition": "HISTORICAL_SUPERSEDED"
+      },
+      {
+        "digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
+        "disposition": "SUPERSEDED_BEFORE_FRESH_ADMISSION"
+      }
+    ]
+  },
+  "step_10_01": {
+    "implementation_state": "IMPLEMENTED_REVIEW_FINDINGS_OPEN",
+    "acceptance_state": "IN_PROGRESS_ZERO_EARNED",
+    "findings": [
+      "F10-01",
+      "F10-02",
+      "F10-03"
+    ],
+    "corrective_work_authorized": false,
+    "blocked_on": "fresh DISC/QUAL/TC + live MATERIAL_WRITE_READY for final repaired EP/QSET"
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "c2f4ba2469a831407a5389f8039dd8c67dd9f770",
+    "observed": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35622702103,
+        "job_id": 106409421925,
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ]
+  },
+  "review": {
+    "state": "PENDING",
+    "reviews": 0,
+    "unresolved_threads": 0
+  },
+  "evidence_truth": {
+    "phase10_fresh_qualification": "PENDING",
+    "candidate_material_write_ready": false,
+    "ac_10_01_percent": 0,
+    "step_10_02_started": false,
+    "merge_authorization": "NOT_GRANTED",
+    "phase8g_deferred": "PENDING_NOT_SATISFIED",
+    "phase9_deferred": "PENDING_NOT_SATISFIED"
+  }
+}
