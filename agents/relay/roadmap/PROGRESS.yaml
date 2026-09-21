@@ -226,6 +226,12 @@
       "earned_weight": 0,
       "total_weight": 100,
       "percent": 0
+    },
+    {
+      "id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 100,
+      "percent": 0
     }
   ],
   "implementation_steps": [
@@ -295,6 +301,41 @@
     {
       "id": "STEP-9-05",
       "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-01",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-02",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-03",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-04",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-05",
+      "ep_id": "EP-10-001",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0
@@ -411,6 +452,61 @@
       "percent": 0,
       "basis": [
         "No acceptance weight is earned for AC-9-05; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+      ]
+    },
+    {
+      "id": "AC-10-01",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "Phase 10 fixture/oracle implementation has not started; fresh phase-transition qualification is pending."
+      ]
+    },
+    {
+      "id": "AC-10-02",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "basis": [
+        "No Phase 10 /AP implementation or repeated-save acceptance evidence exists yet."
+      ]
+    },
+    {
+      "id": "AC-10-03",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "No named external-viewer compatibility evidence has been executed/retained yet."
+      ]
+    },
+    {
+      "id": "AC-10-04",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "Save/export/review continuity hardening has not started under Phase 10."
+      ]
+    },
+    {
+      "id": "AC-10-05",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 15,
+      "percent": 0,
+      "basis": [
+        "Signed-rewrite warning and Phase 10 certification evidence have not been produced."
       ]
     }
   ]
