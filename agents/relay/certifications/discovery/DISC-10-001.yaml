@@ -1,0 +1,253 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-10-001",
+  "candidate": {
+    "agent_instance_id": "antigravity-gemini-candidate-20260921-phase10"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-10-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-10-001",
+    "ep_id": "EP-10-001",
+    "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0004",
+    "relay_protocol_basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8",
+    "material_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "JOIN",
+      "id": "PR-283",
+      "path": null,
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-10-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "roadmap revision/frontier",
+          "value": "RM-0004 / PHASE-010 / WP-010",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml",
+            "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+            "agents/relay/execution-packages/EP-10-001.yaml"
+          ]
+        },
+        {
+          "name": "issue mapping",
+          "value": "GitHub issue #288 mapped to WP-010 and EP-10-001 (draft PR #289)",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml",
+            "agents/relay/execution-packages/EP-10-001.yaml",
+            "GitHub issue #288"
+          ]
+        },
+        {
+          "name": "pending predecessor obligations",
+          "value": "Phase 8G (issue #284) and Phase 9 (issue #286) remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005",
+          "basis": [
+            "agents/relay/REPO_STATE.yaml",
+            "agents/relay/roadmap/owner-decisions/ODR-0003.yaml",
+            "agents/relay/roadmap/owner-decisions/ODR-0005.yaml"
+          ]
+        }
+      ],
+      "basis": [
+        "Repository authority state inspected directly from REPO_STATE.yaml and OVERALL_ROADMAP.yaml."
+      ]
+    },
+    {
+      "id": "DSTEP-10-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "branch",
+          "value": "phase10/native-annotation-interoperability",
+          "basis": [
+            "Git checkout branch inspection"
+          ]
+        },
+        {
+          "name": "HEAD",
+          "value": "232d276899a61c1fa1b152fd8976c5bd3b86b02d",
+          "basis": [
+            "git rev-parse HEAD"
+          ]
+        },
+        {
+          "name": "base ancestry",
+          "value": "PASS: Phase 10 base branch phase9/pdf-fidelity-laboratory observed at 78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+          "basis": [
+            "git merge-base check against base_ref 78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+          ]
+        },
+        {
+          "name": "drift classification",
+          "value": "UNCHANGED: inspect_git_context.py reports base_drift: UNCHANGED, status: PASS",
+          "basis": [
+            "Common inspect_git_context.py output"
+          ]
+        }
+      ],
+      "basis": [
+        "Git repository context verified with git commands and inspect_git_context.py."
+      ]
+    },
+    {
+      "id": "DSTEP-10-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "save entrypoint",
+          "value": "composeEditablePdf() in frontend/src/core/document/commitPipeline.ts is the canonical editable save pipeline; it invokes writeNativePdfAnnotations() after page assembly.",
+          "basis": [
+            "frontend/src/core/document/commitPipeline.ts"
+          ]
+        },
+        {
+          "name": "native writer/reader",
+          "value": "writeNativePdfAnnotations() in frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts writes PDF annotations to pages; readNativePdfAnnotations() in nativeAnnotationReader.ts reconstructs application annotations and replies upon reopen/import.",
+          "basis": [
+            "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+            "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts"
+          ]
+        },
+        {
+          "name": "identity/upsert rule",
+          "value": "Annotations are matched and upserted by unique /NM identifier string; existing annotations with matching /NM are updated in-place rather than appended, preventing duplication.",
+          "basis": [
+            "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts"
+          ]
+        },
+        {
+          "name": "reply relationship rule",
+          "value": "Replies reference their parent annotation's /NM via /IRT (In Reply To) dictionary entry and /RT /R; readNativePdfAnnotations maps these into child reply structures.",
+          "basis": [
+            "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+            "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts"
+          ]
+        },
+        {
+          "name": "appearance-stream behavior",
+          "value": "The current writer does NOT generate explicit /AP appearance streams for annotations; it emits standard /Annot dictionaries (/Rect, /Contents, /DA, /CL, etc.) relying on viewing software to generate appearances.",
+          "basis": [
+            "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts"
+          ]
+        }
+      ],
+      "basis": [
+        "Direct source inspection of commitPipeline.ts, nativeAnnotationWriter.ts, and nativeAnnotationReader.ts."
+      ]
+    },
+    {
+      "id": "DSTEP-10-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "review domain contract",
+          "value": "ReviewThread/review types model collaborative review discussions (threads, comments, status, resolutions) as a domain concept distinct from visual annotation geometry.",
+          "basis": [
+            "frontend/src/core/review/types.ts",
+            "frontend/src/core/review/threadAdapter.ts"
+          ]
+        },
+        {
+          "name": "persistence backing",
+          "value": "Currently backed by annotation.review on application annotation records; threadAdapter adapts between domain ReviewThread and annotation.review persistence.",
+          "basis": [
+            "frontend/src/core/review/threadAdapter.ts",
+            "frontend/src/core/annotations/types.ts"
+          ]
+        },
+        {
+          "name": "annotation anchor relationship",
+          "value": "A ReviewThread is anchored to an annotation via target.annotationId matching the parent annotation's ID / NM; native replies are serialized with /IRT pointing to the parent /NM.",
+          "basis": [
+            "frontend/src/core/review/threadAdapter.ts",
+            "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts"
+          ]
+        },
+        {
+          "name": "duplication risk",
+          "value": "If ReviewThread discussion state is treated as separate visual annotations or if /NM / /IRT relationships are not strictly deduplicated during reopen, duplicate annotations or orphaned reply threads can be created on repeated save.",
+          "basis": [
+            "frontend/src/core/review/threadAdapter.ts",
+            "agents/relay/execution-packages/EP-10-001.yaml"
+          ]
+        }
+      ],
+      "basis": [
+        "Source inspection of frontend/src/core/review/threadAdapter.ts and frontend/src/core/annotations/types.ts."
+      ]
+    },
+    {
+      "id": "DSTEP-10-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "save matrix",
+          "value": "Save/Save As maintain fully editable native annotations with stable /NM; Export Flattened renders annotations permanently into page content streams leaving active document editable; Searchable PDF is a distinct export.",
+          "basis": [
+            "Docs/SAVE_SEMANTICS.md",
+            "GitHub issue #288"
+          ]
+        },
+        {
+          "name": "/AP requirement",
+          "value": "Native annotations must include explicit /AP normal appearance streams so external viewers (Adobe Acrobat, Preview, etc.) render them faithfully even without viewer appearance regeneration.",
+          "basis": [
+            "docs/concepts/dynamic-obstacle-aware-adobe-compatible-annotation.md",
+            "GitHub issue #288"
+          ]
+        },
+        {
+          "name": "viewer evidence rule",
+          "value": "External viewer compatibility can only be claimed based on retained, reproducible test evidence for that specific named viewer; PDF.js rendering alone is not evidence of external viewer interoperability.",
+          "basis": [
+            "GitHub issue #288",
+            "agents/relay/execution-packages/EP-10-001.yaml"
+          ]
+        },
+        {
+          "name": "signature warning rule",
+          "value": "Any save or modification of a digitally signed PDF must explicitly warn the user that existing cryptographic signatures will be invalidated by rewrite unless proven otherwise.",
+          "basis": [
+            "Docs/SAVE_SEMANTICS.md",
+            "GitHub issue #288"
+          ]
+        }
+      ],
+      "basis": [
+        "Docs/SAVE_SEMANTICS.md and GitHub issue #288."
+      ]
+    },
+    {
+      "id": "DSTEP-10-06",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "GitHub Actions hosted runner allocation remains constrained per issue #183; zero-step workflow runs must be recorded as NOT_RUN rather than fabricated PASS.",
+          "basis": [
+            "GitHub issue #183",
+            "agents/relay/REPO_STATE.yaml"
+          ]
+        }
+      ],
+      "basis": [
+        "GitHub issue #183 and REPO_STATE.yaml not_run evidence plane."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

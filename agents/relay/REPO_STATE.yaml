@@ -43,7 +43,22 @@
     "id": null,
     "path": null
   },
-  "takeover_admissions": [],
+  "takeover_admissions": [
+    {
+      "route_key": "SERIAL:EP-10-001",
+      "candidate": {
+        "agent_instance_id": "antigravity-gemini-candidate-20260921-phase10"
+      },
+      "discovery_receipt": {
+        "id": "DISC-10-001",
+        "path": "agents/relay/certifications/discovery/DISC-10-001.yaml"
+      },
+      "certification": {
+        "id": "TC-10-001",
+        "path": "agents/relay/certifications/takeover/TC-10-001.yaml"
+      }
+    }
+  ],
   "progress": {
     "overall_percent": 66.67,
     "phase_percent": 0,
