@@ -1,0 +1,104 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-001",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "6b66f4a992aa2f5ad539754c81e898999adf58b4"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288,
+    "retained_pending": [
+      {
+        "issue": 284,
+        "decision": "ODR-0003",
+        "disposition": "PENDING_NOT_SATISFIED"
+      },
+      {
+        "issue": 286,
+        "decision": "ODR-0005",
+        "disposition": "PENDING_NOT_SATISFIED"
+      }
+    ]
+  },
+  "qualification": {
+    "required": true,
+    "state": "PENDING",
+    "execution_package": "EP-10-001",
+    "question_set": "QSET-10-001",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "discovery_receipt": null,
+    "qualification_receipt": null,
+    "takeover_certification": null,
+    "candidate_admitted": false
+  },
+  "material": {
+    "implementation_started": false,
+    "product_files_changed": false,
+    "changed_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/certifications/qualification/QSET-10-001.yaml",
+      "agents/relay/execution-packages/EP-10-001.yaml",
+      "agents/relay/roadmap/PROGRESS.yaml"
+    ]
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "6b66f4a992aa2f5ad539754c81e898999adf58b4",
+    "observed": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35563412065,
+        "job_id": 106220453515,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "The exact-head job completed before runner assignment with zero executed steps; no executable PASS or code-level failure is inferred."
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "correlations": [
+      {
+        "issue_node": "ISSUE-288",
+        "issue_number": 288,
+        "ep_id": "EP-10-001",
+        "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+        "work_package": "WP-010",
+        "relationship": "IMPLEMENTS"
+      }
+    ]
+  },
+  "evidence_truth": {
+    "phase10_product_implementation": "NOT_STARTED",
+    "phase10_acceptance_progress": 0,
+    "qualification": "PENDING",
+    "phase8g_deferred_certification": "PENDING_NOT_SATISFIED",
+    "phase9_deferred_takeover_and_step1": "PENDING_NOT_SATISFIED"
+  }
+}
