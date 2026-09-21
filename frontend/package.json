@@ -142,7 +142,8 @@
     "certify:phase8g:evidence": "node scripts/phase8g-certify-evidence.mjs",
     "generate:phase9-fidelity-fixtures": "node scripts/phase9-generate-fidelity-fixtures.mjs",
     "audit:phase9-fidelity-corpus": "node scripts/phase9-fidelity-corpus-audit.mjs",
-    "certify:phase9-step1": "npm run audit:phase9-fidelity-corpus && vitest run src/core/pdf-fidelity/manifestValidation.test.ts --pool=forks --maxWorkers=1"
+    "certify:phase9-step1": "npm run audit:phase9-fidelity-corpus && vitest run src/core/pdf-fidelity/manifestValidation.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase10-annotation-interoperability": "node scripts/phase10-annotation-interoperability-audit.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

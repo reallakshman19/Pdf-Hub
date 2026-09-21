@@ -226,6 +226,12 @@
       "earned_weight": 0,
       "total_weight": 100,
       "percent": 0
+    },
+    {
+      "id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 100,
+      "percent": 0
     }
   ],
   "implementation_steps": [
@@ -295,6 +301,41 @@
     {
       "id": "STEP-9-05",
       "ep_id": "EP-9-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-01",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-02",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-03",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-04",
+      "ep_id": "EP-10-001",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0
+    },
+    {
+      "id": "STEP-10-05",
+      "ep_id": "EP-10-001",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0
@@ -411,6 +452,64 @@
       "percent": 0,
       "basis": [
         "No acceptance weight is earned for AC-9-05; current work remains inside STEP-9-01 and pinned-protocol takeover refresh."
+      ]
+    },
+    {
+      "id": "AC-10-01",
+      "ep_id": "EP-10-001",
+      "status": "IN_PROGRESS",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "STEP-10-01 fixture/oracle implementation exists, but Relay findings F10-01/F10-02/F10-03 remain open.",
+        "Pinned V2.5 conformance review found the prior EP-10-001 quality router omitted ui-ux, accessibility and migration. The corrected EP digest is sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4.",
+        "Prior QSET-10-001/DISC-10-001/QUAL-10-001/TC-10-001 are historical only after the EP digest change. Fresh QSET-10-002 qualification and candidate-specific MATERIAL_WRITE_READY are required before corrective writes.",
+        "No AC-10-01 weight is earned until the corrected route closes F10-01/F10-02/F10-03 with executed audit/test evidence."
+      ]
+    },
+    {
+      "id": "AC-10-02",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 25,
+      "percent": 0,
+      "basis": [
+        "No Phase 10 /AP implementation or repeated-save acceptance evidence exists yet."
+      ]
+    },
+    {
+      "id": "AC-10-03",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "No named external-viewer compatibility evidence has been executed/retained yet."
+      ]
+    },
+    {
+      "id": "AC-10-04",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 20,
+      "percent": 0,
+      "basis": [
+        "Save/export/review continuity hardening has not started under Phase 10."
+      ]
+    },
+    {
+      "id": "AC-10-05",
+      "ep_id": "EP-10-001",
+      "status": "NOT_STARTED",
+      "earned_weight": 0,
+      "total_weight": 15,
+      "percent": 0,
+      "basis": [
+        "Signed-rewrite warning and Phase 10 certification evidence have not been produced."
       ]
     }
   ]

@@ -1,0 +1,67 @@
+{
+  "schema_version": "relay-v2.5-takeover-certification",
+  "id": "TC-10-001",
+  "candidate": {
+    "agent_instance_id": "antigravity-gemini-candidate-20260921-phase10"
+  },
+  "prepared_by": {
+    "agent_instance_id": "antigravity-gemini-candidate-20260921-phase10"
+  },
+  "evaluated_by": {
+    "type": "DETERMINISTIC_VALIDATOR",
+    "identity": "validate_takeover_certification.py",
+    "basis": [
+      "Deterministic verification of DISC-10-001 and QUAL-10-001 receipts on route SERIAL:EP-10-001.",
+      "Verified live Git context on phase10/native-annotation-interoperability matching material ref 78e55b0ed9816bce6ed2126d589c7ec7f19b93da.",
+      "EP contract digest sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97 matches repository state."
+    ]
+  },
+  "self_certification": {
+    "allowed": false
+  },
+  "route": {
+    "route_key": "SERIAL:EP-10-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-10-001",
+    "ep_id": "EP-10-001",
+    "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0004",
+    "relay_protocol_basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8",
+    "material_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "repo_profile_digest": "sha256:ccb34fa84d1cd0f51300a4c3feaf979e0b37fd7c88e86ad68ff4b0605bf93f03",
+    "predecessor_baton": {
+      "type": "JOIN",
+      "id": "PR-283",
+      "path": null,
+      "digest": null
+    }
+  },
+  "discovery_receipt": {
+    "id": "DISC-10-001",
+    "path": "agents/relay/certifications/discovery/DISC-10-001.yaml"
+  },
+  "qualification": {
+    "required": true,
+    "status": "PASS",
+    "receipt_id": "QUAL-10-001",
+    "receipt_path": "agents/relay/certifications/qualification/QUAL-10-001.yaml",
+    "receipt_digest": "sha256:d458c86f39b8b67db9bb7db3108c8f138d7839405704b688107c374572f8950e"
+  },
+  "checks": {
+    "baton_semantics": "PASS",
+    "repository_discovery": "PASS",
+    "route_grounding": "PASS",
+    "input_oracle_readiness": "PASS",
+    "scope_understood": "PASS",
+    "report_successor_contract": "PASS"
+  },
+  "result": "PASS",
+  "conversation_context_used": false
+}
