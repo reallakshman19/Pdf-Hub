@@ -1,6 +1,6 @@
 {
   "schema_version": "relay-v2.5",
-  "graph_revision": "IG-0004",
+  "graph_revision": "IG-0005",
   "nodes": [
     {
       "id": "ISSUE-185",
@@ -87,6 +87,16 @@
         "url": "https://github.com/reallaksh19/Pdf-Hub/issues/286"
       },
       "roadmap_node": "WP-009"
+    },
+    {
+      "id": "ISSUE-288",
+      "state": "ACTIVE",
+      "github_state": "OPEN",
+      "github": {
+        "issue_number": 288,
+        "url": "https://github.com/reallaksh19/Pdf-Hub/issues/288"
+      },
+      "roadmap_node": "WP-010"
     }
   ],
   "relationships": [
@@ -144,6 +154,16 @@
       "from": "ISSUE-185",
       "relation": "RELATES_TO",
       "to": "ISSUE-286"
+    },
+    {
+      "from": "ISSUE-286",
+      "relation": "RELATES_TO",
+      "to": "ISSUE-288"
+    },
+    {
+      "from": "ISSUE-185",
+      "relation": "RELATES_TO",
+      "to": "ISSUE-288"
     }
   ]
 }
