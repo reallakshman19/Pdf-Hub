@@ -55,7 +55,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "A fresh independent local candidate must reconstruct the conformance-corrected EP-10-001 and QSET-10-002 from repository state, obtain fresh DISC/QUAL/TC bound to EP digest sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4, derive live MATERIAL_WRITE_READY, then close only STEP-10-01 findings F10-01/F10-02/F10-03. Do not begin STEP-10-02 before AC-10-01 is accepted."
+      "next_action": "A fresh independent local candidate/session must use issue #288 comment 5762501612, validate corrected EP-10-001/QSET-10-002 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY, then close only F10-01/F10-02/F10-03. STEP-10-02 remains gated."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
@@ -130,7 +130,8 @@
       "QSET-10-002 is the current qualification set for the corrected same-phase material boundary.",
       "Prior QSET-10-001 / DISC-10-001 / QUAL-10-001 / TC-10-001 are superseded for write authority by the corrected EP digest; their historical evidence remains retained.",
       "AC-10-01 remains IN_PROGRESS at zero earned weight with F10-01/F10-02/F10-03 open.",
-      "Gated design packets on issue #288 for STEP-10-02/03/04 remain preparatory only and do not bypass the serial acceptance gate."
+      "Gated design packets on issue #288 for STEP-10-02/03/04 remain preparatory only and do not bypass the serial acceptance gate.",
+      "Fresh corrected-contract requalification handoff is published and provider-read-back on issue #288 as comment 5762501612."
     ],
     "observed": {
       "issue": 288,
@@ -141,7 +142,8 @@
       "prior_correction_contract_comment": 5757052699,
       "prior_live_head_rule_comment": 5757440172,
       "corrected_ep_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
-      "current_question_set": "QSET-10-002"
+      "current_question_set": "QSET-10-002",
+      "corrected_requalification_handoff_comment": 5762501612
     },
     "superseded_operations": []
   },
