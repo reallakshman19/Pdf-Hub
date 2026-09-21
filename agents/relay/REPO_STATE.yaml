@@ -74,7 +74,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 10 STEP-10-01 implementation remains present but unaccepted. A protocol conformance review found the prior EP quality router omitted three mandatory built-in procedures. EP-10-001 is now repaired and QSET-10-002 binds the corrected digest sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4. The old takeover chain is superseded for write authority. Fresh qualification is required before any correction write. AC-10-01 remains IN_PROGRESS at zero earned weight; STEP-10-02 remains gated.",
+      "summary": "Phase 10 STEP-10-01 implementation remains present but unaccepted. EP-10-001 quality routing was repaired to the complete ten-blueprint V2.5 partition and QSET-10-002 binds corrected digest sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4. Prior QSET/DISC/QUAL/TC are historical only. Fresh requalification handoff is issue #288 comment 5762501612 with a 60-minute response check. Gated design packets now cover STEP-10-02, STEP-10-03, STEP-10-04 and STEP-10-05. No later-step product execution has started and AC-10-01 remains zero earned weight.",
       "not_run": [
         {
           "command": "Fresh Phase 10 requalification against QSET-10-002",
@@ -132,7 +132,8 @@
       "AC-10-01 remains IN_PROGRESS at zero earned weight with F10-01/F10-02/F10-03 open.",
       "Gated design packets on issue #288 for STEP-10-02/03/04 remain preparatory only and do not bypass the serial acceptance gate.",
       "Fresh corrected-contract requalification handoff is published and provider-read-back on issue #288 as comment 5762501612.",
-      "DOBS-10-005 observes the corrected Phase 10 route at exact head 221d0563c69898f03fe51ad88f9ef89e839c137d as draft/mergeable with no exact-head workflow run and no admitted candidate."
+      "DOBS-10-005 observes the corrected Phase 10 route at exact head 221d0563c69898f03fe51ad88f9ef89e839c137d as draft/mergeable with no exact-head workflow run and no admitted candidate.",
+      "STEP-10-05 gated certification/QRV/checkpoint/successor design is published on issue #288 as comment 5762556182; it preserves deferred Phase 8G/9 obligations and computes WP-011 only after genuine WP-010 completion."
     ],
     "observed": {
       "issue": 288,
@@ -145,7 +146,9 @@
       "corrected_ep_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
       "current_question_set": "QSET-10-002",
       "corrected_requalification_handoff_comment": 5762501612,
-      "current_delivery_observation": "DOBS-10-005"
+      "current_delivery_observation": "DOBS-10-005",
+      "step_10_05_gated_design_comment": 5762556182,
+      "corrected_takeover_response_check_minutes": 60
     },
     "superseded_operations": []
   },
