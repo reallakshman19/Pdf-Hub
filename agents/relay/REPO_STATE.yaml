@@ -83,12 +83,13 @@
         "Signed-PDF rewrite warning/detection remains unproven in the normal editable Save contract and belongs to later Phase 10 work.",
         "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005.",
         "STEP-10-02 text appearance has an explicit font boundary: pdf-lib Standard 14 Helvetica is WinAnsi-limited; repository IBM Plex UI assets are WOFF2 and no @pdf-lib/fontkit dependency or font-directory license file is currently established. Unicode semantic /Contents must not be reported as Unicode appearance PASS until a qualified font/resource path exists.",
-        "STEP-10-02 callout AP design must resolve the current geometry mismatch where FreeText /Rect represents only the text box while /CL may extend outside it; preferred candidate model is outer union /Rect plus /RD inner text rectangle, subject to structural/viewer verification before adoption."
+        "STEP-10-02 callout AP design must resolve the current geometry mismatch where FreeText /Rect represents only the text box while /CL may extend outside it; preferred candidate model is outer union /Rect plus /RD inner text rectangle, subject to structural/viewer verification before adoption.",
+        "STEP-10-03 support claims require named-viewer evidence. Existing Playwright Chromium + pdfjs-dist journeys prove PDF Hub/PDF.js behavior only and must not be relabeled as Chrome/Edge native PDF viewer or Adobe/Preview/Foxit interoperability."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 10 takeover remains satisfied. STEP-10-01 implementation exists but AC-10-01 remains IN_PROGRESS at zero earned weight until F10-01/F10-02/F10-03 are corrected and verified. The exact correction contract is on issue #288 comment 5757052699. A gated STEP-10-02 /AP architecture is now also prepared on comment 5757213291, covering Form XObject construction, local geometry, opacity resources, subtype rendering families, callout Rect/RD risk, and Unicode font admission. No STEP-10-02 product implementation has started.",
+      "summary": "Phase 10 takeover remains satisfied. STEP-10-01 implementation exists but AC-10-01 remains IN_PROGRESS at zero earned weight until F10-01/F10-02/F10-03 are corrected and verified. Exact correction contract: issue #288 comment 5757052699. Gated STEP-10-02 /AP design: comment 5757213291. Gated STEP-10-03 named-viewer evidence architecture: comment 5757336879. No STEP-10-02 or STEP-10-03 product/evidence execution has started.",
       "not_run": [
         {
           "command": "GitHub Actions exact-head executable certification at 8987020cba5a090e6757457b8ca9d4dba93df565",
@@ -135,7 +136,8 @@
       "Relay acceptance review and bounded corrections F10-01/F10-02/F10-03 are issue #288 comment 5756857247.",
       "DOBS-10-003 observes candidate head 8987020cba5a090e6757457b8ca9d4dba93df565 as mergeable/draft, with exact-head workflow NOT_RUN_INFRASTRUCTURE.",
       "Exact STEP-10-01 corrective execution contract for F10-01/F10-02/F10-03 is published on issue #288 as comment 5757052699.",
-      "STEP-10-02 gated appearance-stream design is published on issue #288 as comment 5757213291; it is preparatory only and does not bypass AC-10-01."
+      "STEP-10-02 gated appearance-stream design is published on issue #288 as comment 5757213291; it is preparatory only and does not bypass AC-10-01.",
+      "STEP-10-03 gated named-viewer evidence design is published on issue #288 as comment 5757336879; PDF Hub/PDF.js evidence is explicitly separated from named external-viewer support claims."
     ],
     "observed": {
       "issue": 288,
@@ -147,7 +149,8 @@
       "candidate_material_head": "8987020cba5a090e6757457b8ca9d4dba93df565",
       "response_check_minutes": 60,
       "step_10_01_correction_contract_comment": 5757052699,
-      "step_10_02_gated_design_comment": 5757213291
+      "step_10_02_gated_design_comment": 5757213291,
+      "step_10_03_gated_design_comment": 5757336879
     },
     "superseded_operations": []
   },
