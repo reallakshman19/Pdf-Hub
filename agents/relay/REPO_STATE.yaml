@@ -55,7 +55,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "A fresh independent local candidate must reconstruct RM-0004 / issue #288 / EP-10-001 from repository state under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answer QSET-10-001, obtain current DISC/QUAL/TC and live MATERIAL_WRITE_READY, then begin only STEP-10-01."
+      "next_action": "Await or independently receive a fresh local candidate response to EXECREQ-10-QUAL-STEP1 on issue #288. Safe read-only discovery/evidence work may continue. Do not infer candidate admission or touch Phase 10 product files until DISC/QUAL/TC and live MATERIAL_WRITE_READY pass under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
@@ -64,7 +64,8 @@
         "The current native annotation writer emits standard /Annot dictionaries and reply /IRT relationships but no explicit /AP appearance stream.",
         "ReviewThread remains a transitional domain adapter over annotation.review persistence; Phase 10 must avoid duplicate state ownership while preserving native reply continuity.",
         "Signed-PDF rewrite warning/detection remains unproven in the normal editable Save contract.",
-        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005."
+        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005.",
+        "The Phase 10 local-agent handoff is published/read-back on issue #288; no candidate response exists yet at the time of binding."
       ]
     },
     "evidence": {
@@ -116,12 +117,16 @@
       "ODR-0006 / RM-0004 make WP-010 the sole serial frontier.",
       "Issue #288 is the Phase 10 provider coordination contract.",
       "EP-10-001 and QSET-10-001 define the fresh phase-transition qualification boundary.",
-      "Draft PR #289 tracks the prepared Phase 10 route; DOBS-10-001 confirms the observed exact-head changes are Relay-only and qualification remains pending."
+      "Draft PR #289 tracks the prepared Phase 10 route; DOBS-10-001 confirms the observed exact-head changes are Relay-only and qualification remains pending.",
+      "EXECREQ-10-QUAL-STEP1 is published and provider-read-back on issue #288 as comment 5755677968.",
+      "A one-time 60-minute Phase 10 local takeover response check is scheduled."
     ],
     "observed": {
       "issue": 288,
       "pull_request": 289,
-      "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
+      "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+      "local_candidate_handoff_comment": 5755677968,
+      "response_check_minutes": 60
     },
     "superseded_operations": []
   },
