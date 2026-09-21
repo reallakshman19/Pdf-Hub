@@ -55,13 +55,14 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "A fresh independent local candidate/session must fetch the live phase10/native-annotation-interoperability branch after QSET-10-002 conformance corrections, reconstruct corrected EP-10-001/QSET-10-002 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY, then close only F10-01/F10-02/F10-03. Issue #288 comments 5762501612 and 5763399306 are the current handoff basis. STEP-10-02 remains gated."
+      "next_action": "A fresh independent local candidate/session must fetch the live phase10/native-annotation-interoperability branch, reconstruct final conformance-repaired EP-10-001 and QSET-10-002 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, obtain fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY bound to EP digest d406f916..., then close only F10-01/F10-02/F10-03. Issue #288 comment 5763479256 is the current qualification supersession/handoff. STEP-10-02 remains gated."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
+        "Final pre-qualification conformance repair completed EP-10-001 semantic/self-contained/report-contract rules: valid replan inheritance, protocol-valid anti-drift effects, TEST-only delegated expected evidence, 13/13 source-bound report payload contracts, and truthful STEP-10-01 implementation state.",
+        "Current EP-10-001 digest is sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1. QSET-10-002 is rebound to this digest with validator-compliant Q1-Q5 focus/anchor semantics. No candidate is admitted against this final contract.",
         "Pinned V2.5 conformance repair completed the EP-10-001 quality-router partition: software-design, coding, ui-ux, testing, code-review, accessibility, migration and github-delivery are applicable; engineering-numerics and performance are explicitly not applicable.",
-        "The EP contract digest is now sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4. QSET-10-001 / DISC-10-001 / QUAL-10-001 / TC-10-001 remain historical evidence only and cannot authorize writes against the corrected contract.",
         "F10-01: STEP-10-01 manifest/fixtures lack an explicit deterministic reply/review/IRT contract and raw PDF object-reference verification across repeated saves.",
         "F10-02: the declared external-edit precedence surface is wider than AnnotationInteroperabilityOracle.reconcileExternalEdits() and its tests currently implement.",
         "F10-03: the two-save native round-trip test exercises only 8 of 17 supported types; the acceptance substrate must fail closed across all 17.",
@@ -69,17 +70,16 @@
         "STEP-10-02 Unicode appearance remains bounded by a qualified font/resource strategy; semantic Unicode content must not be conflated with appearance fidelity.",
         "STEP-10-03 named-viewer support claims still require retained viewer-specific evidence; PDF Hub/PDF.js does not substitute for Adobe/Preview/Chrome-native/Foxit evidence.",
         "STEP-10-04 signed-save warning and native review-state precedence remain later Phase 10 work.",
-        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005.",
-        "QSET-10-002 was rechecked against pinned validate_question_set.py semantics before fresh qualification: Q2 focus and anchor namespaces were corrected; the live QSET now binds the unchanged corrected EP digest and uses only EP-native anchor IDs."
+        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 10 STEP-10-01 remains implemented but unaccepted. EP-10-001 quality routing is repaired to the full ten-blueprint V2.5 partition. QSET-10-002 now also has its deterministic validator defects corrected before any fresh candidate admission: Q2 focus is ENGINEERING_PROBLEM and all anchors resolve to incoming EP IDs. The QSET still binds exact EP digest sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4. Fresh qualification/candidate WRITE remains pending; AC-10-01 remains zero earned weight and STEP-10-02 remains gated.",
+      "summary": "Phase 10 STEP-10-01 material remains present but unaccepted. Final pre-qualification contract repair is complete: EP-10-001 now satisfies the mirrored pinned self-contained/semantic/report/quality rules checked in this environment, and QSET-10-002 is rebound to exact EP digest sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1. Earlier e7519b17... qualification authority is superseded before any fresh candidate admission. Fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY remain pending; AC-10-01 remains zero earned weight and STEP-10-02 remains gated.",
       "not_run": [
         {
           "command": "Fresh Phase 10 requalification against QSET-10-002",
-          "reason": "No incoming candidate DISC/QUAL/TC exists yet for the corrected EP digest.",
+          "reason": "No incoming candidate DISC/QUAL/TC exists yet for final repaired EP digest d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1.",
           "head_ref": null
         },
         {
@@ -127,7 +127,6 @@
       "ODR-0006 / RM-0004 make WP-010 the sole serial frontier.",
       "Issue #288 is the Phase 10 provider coordination contract.",
       "EP-10-001 quality-router conformance was repaired to partition all ten pinned V2.5 procedures exactly once.",
-      "Corrected EP-10-001 digest is sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4.",
       "QSET-10-002 is the current qualification set for the corrected same-phase material boundary.",
       "Prior QSET-10-001 / DISC-10-001 / QUAL-10-001 / TC-10-001 are superseded for write authority by the corrected EP digest; their historical evidence remains retained.",
       "AC-10-01 remains IN_PROGRESS at zero earned weight with F10-01/F10-02/F10-03 open.",
@@ -137,7 +136,8 @@
       "STEP-10-05 gated certification/QRV/checkpoint/successor design is published on issue #288 as comment 5762556182; it preserves deferred Phase 8G/9 obligations and computes WP-011 only after genuine WP-010 completion.",
       "DOBS-10-006 records PR #289 provider mergeable=false at head 825c1fbd49ca29f23456ea6348cacd3a3070fd5a; the stacked Phase 9 base is unchanged and no conflict cause is inferred.",
       "QSET-10-002 conformance correction is published on issue #288 as comment 5763399306; Q2 focus and invalid non-EP anchor labels were repaired before any fresh candidate admission.",
-      "DOBS-10-007 observes the corrected QSET-10-002 route at head c8c0a76f... as draft/mergeable; exact-head workflow again had runner_id 0 and zero steps, so CI remains NOT_RUN_INFRASTRUCTURE."
+      "Final EP-10-001 semantic conformance repair is complete; qualification authority is rebound to digest sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1.",
+      "Issue #288 comment 5763479256 supersedes earlier Phase 10 fresh-qualification digest references; use the live EP-10-001/QSET-10-002 pair."
     ],
     "observed": {
       "issue": 288,
@@ -147,14 +147,15 @@
       "relay_review_comment": 5756857247,
       "prior_correction_contract_comment": 5757052699,
       "prior_live_head_rule_comment": 5757440172,
-      "corrected_ep_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
+      "corrected_ep_digest": "sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1",
       "current_question_set": "QSET-10-002",
-      "corrected_requalification_handoff_comment": 5762501612,
+      "corrected_requalification_handoff_comment": 5763479256,
       "current_delivery_observation": "DOBS-10-007",
       "step_10_05_gated_design_comment": 5762556182,
       "corrected_takeover_response_check_minutes": 60,
       "qset_10_002_conformance_correction_comment": 5763399306,
-      "qset_10_002_corrected_head": "7c07d4ef0bdaf3c61f46e1a186e1b7143d0b844c"
+      "qset_10_002_corrected_head": "7c07d4ef0bdaf3c61f46e1a186e1b7143d0b844c",
+      "final_qualification_supersession_comment": 5763479256
     },
     "superseded_operations": []
   },
@@ -201,8 +202,8 @@
     "projection_ready": true,
     "handover_ready": false,
     "reasons": [
-      "Fresh QSET-10-002 exists for the corrected EP digest, but the pinned baton/quality-router validators have not been executed in this environment.",
-      "No candidate is currently admitted against the corrected EP digest."
+      "Final EP/QSET contract has been repaired and mirrored against pinned validator semantics, but pinned repository validators have not been executed from a dependency-capable checkout.",
+      "No candidate is currently admitted against EP digest d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1."
     ]
   },
   "chat_context_required": false
