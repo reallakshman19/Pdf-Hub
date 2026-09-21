@@ -114,12 +114,13 @@
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
       "ODR-0005 keeps Phase 9 takeover/STEP-9-01 pending and issue #286 open.",
       "ODR-0006 / RM-0004 make WP-010 the sole serial frontier.",
-      "Issue #288 is the Phase 10 coordination contract.",
-      "EP-10-001 and QSET-10-001 define the fresh phase-transition qualification boundary."
+      "Issue #288 is the Phase 10 provider coordination contract.",
+      "EP-10-001 and QSET-10-001 define the fresh phase-transition qualification boundary.",
+      "Draft PR #289 tracks the prepared Phase 10 route; DOBS-10-001 confirms the observed exact-head changes are Relay-only and qualification remains pending."
     ],
     "observed": {
       "issue": 288,
-      "pull_request": null,
+      "pull_request": 289,
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
     },
     "superseded_operations": []
@@ -127,8 +128,16 @@
   "delivery": {
     "required": true,
     "provider": "GITHUB",
-    "observation": null,
-    "observations": []
+    "observation": {
+      "id": "DOBS-10-001",
+      "path": "agents/relay/delivery/DOBS-10-001.yaml"
+    },
+    "observations": [
+      {
+        "id": "DOBS-10-001",
+        "path": "agents/relay/delivery/DOBS-10-001.yaml"
+      }
+    ]
   },
   "relay_readiness": {
     "baton_ready": true,
