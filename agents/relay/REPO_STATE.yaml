@@ -70,7 +70,7 @@
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "RM-0004, issue #288, EP-10-001 and QSET-10-001 prepare the Phase 10 native-annotation interoperability route under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. No Phase 10 product implementation, candidate DISC/QUAL/TC, acceptance or external-viewer evidence exists yet. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
+      "summary": "RM-0004, issue #288, EP-10-001 and QSET-10-001 prepare the Phase 10 route under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. DOBS-10-001 records the prepared-route provider state. A verified local-agent handoff and read-only baseline evidence are published on issue #288. No Phase 10 product implementation, candidate DISC/QUAL/TC, TEST-10-01, external-viewer evidence or acceptance exists yet. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
       "not_run": [
         {
           "command": "Phase 10 qualification",
@@ -119,14 +119,16 @@
       "EP-10-001 and QSET-10-001 define the fresh phase-transition qualification boundary.",
       "Draft PR #289 tracks the prepared Phase 10 route; DOBS-10-001 confirms the observed exact-head changes are Relay-only and qualification remains pending.",
       "EXECREQ-10-QUAL-STEP1 is published and provider-read-back on issue #288 as comment 5755677968.",
-      "A one-time 60-minute Phase 10 local takeover response check is scheduled."
+      "A one-time 60-minute Phase 10 local takeover response check is scheduled.",
+      "Read-only Phase 10 production/test-gap baseline is published on issue #288 as comment 5755687964."
     ],
     "observed": {
       "issue": 288,
       "pull_request": 289,
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
       "local_candidate_handoff_comment": 5755677968,
-      "response_check_minutes": 60
+      "response_check_minutes": 60,
+      "read_only_baseline_comment": 5755687964
     },
     "superseded_operations": []
   },
