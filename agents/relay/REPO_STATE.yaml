@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "The admitted Phase 10 candidate must pull the current branch, rerun pinned material_write_ready.py for candidate antigravity-gemini-candidate-20260921-phase10, and close only F10-01/F10-02/F10-03 per issue #288 comments 5757052699 and 5757406858. The Relay-only tail after candidate head 8987020c... does not change EP-10-001/QSET-10-001 and does not by itself require requalification. Do not begin STEP-10-02 until AC-10-01 is accepted."
+      "next_action": "The admitted Phase 10 candidate must fetch the live tip of phase10/native-annotation-interoperability at execution time, verify the qualified EP/QSET contract is unchanged, rerun pinned material_write_ready.py, and close only F10-01/F10-02/F10-03 per issue #288 comments 5757052699 and 5757440172. Do not begin STEP-10-02 until AC-10-01 is accepted."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
@@ -141,7 +141,8 @@
       "STEP-10-02 gated appearance-stream design is published on issue #288 as comment 5757213291; it is preparatory only and does not bypass AC-10-01.",
       "STEP-10-03 gated named-viewer evidence design is published on issue #288 as comment 5757336879; PDF Hub/PDF.js evidence is explicitly separated from named external-viewer support claims.",
       "STEP-10-04 gated signed-save/review design is published on issue #288 as comment 5757365859; it specifies pre-write signature-risk detection and native review-state precedence over stale custom metadata.",
-      "STEP-10-01 current-head supersession is published on issue #288 as comment 5757406858; it proves the post-candidate tail is Relay-only and instructs the admitted candidate to rerun live material-write readiness without unnecessary requalification."
+      "STEP-10-01 current-head supersession is published on issue #288 as comment 5757406858; it proves the post-candidate tail is Relay-only and instructs the admitted candidate to rerun live material-write readiness without unnecessary requalification.",
+      "STEP-10-01 correction live-head rule is published on issue #288 as comment 5757440172; it supersedes prior hard-coded correction SHAs and requires write-readiness against the branch tip at execution time."
     ],
     "observed": {
       "issue": 288,
@@ -157,7 +158,8 @@
       "step_10_03_gated_design_comment": 5757336879,
       "step_10_04_gated_design_comment": 5757365859,
       "step_10_01_correction_head_supersession_comment": 5757406858,
-      "current_correction_source_head": "bb59943e6a9b2c8de912b5c6a190b9d7b513f5df"
+      "current_correction_source_head": "bb59943e6a9b2c8de912b5c6a190b9d7b513f5df",
+      "step_10_01_live_head_rule_comment": 5757440172
     },
     "superseded_operations": []
   },
