@@ -1,0 +1,50 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0005",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "DEFERRAL",
+    "statement": "Skip the fresh Phase 9 takeover qualification for now and add it to the pending list on issue #286.",
+    "source": "Owner instruction received 2026-09-21T01:37:22Z."
+  },
+  "effects": {
+    "requirement_disposition": "PENDING_NOT_SATISFIED",
+    "grants_material_write_authority": false,
+    "pending_items": [
+      "Fresh repository-only Phase 9 candidate qualification on QSET-9-003 under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+      "Candidate-specific TAKEOVER_CERTIFIED and MATERIAL_WRITE_READY for EP-9-001.",
+      "Dependent bounded STEP-9-01 retained-fixture validation/binding and signed-fixture sourcing."
+    ]
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "EP",
+      "PHASE"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-009"
+    ],
+    "work_packages": [
+      "WP-009"
+    ],
+    "execution_packages": [
+      "EP-9-001"
+    ],
+    "issues": [
+      "ISSUE-286"
+    ]
+  },
+  "required_reconciliation": [
+    "Keep issue #286 open and mark the skipped qualification and dependent STEP-9-01 continuation PENDING_NOT_SATISFIED.",
+    "Disable the scheduled Phase 9 qualification response check.",
+    "Do not infer DISC/QUAL/TC, TAKEOVER_CERTIFIED, MATERIAL_WRITE_READY, acceptance progress, or fixture promotion from the deferral.",
+    "Preserve the route-level WRITE authority separately from candidate admission under the pinned Common protocol."
+  ],
+  "status": "APPLIED"
+}
