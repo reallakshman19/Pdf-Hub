@@ -462,9 +462,10 @@
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "Fresh Phase 10 takeover is valid and candidate-specific MATERIAL_WRITE_READY was reported PASS on head 8987020cba5a090e6757457b8ca9d4dba93df565.",
-        "STEP-10-01 fixture/oracle implementation exists and local audit/Vitest PASS results are retained on issue #288.",
-        "Acceptance remains unearned because Relay review findings F10-01, F10-02 and F10-03 are open: explicit reply/IRT contract, precedence-policy/implementation alignment, and all-17-type fail-closed round-trip/oracle coverage."
+        "STEP-10-01 fixture/oracle implementation exists, but Relay findings F10-01/F10-02/F10-03 remain open.",
+        "Pinned V2.5 conformance review found the prior EP-10-001 quality router omitted ui-ux, accessibility and migration. The corrected EP digest is sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4.",
+        "Prior QSET-10-001/DISC-10-001/QUAL-10-001/TC-10-001 are historical only after the EP digest change. Fresh QSET-10-002 qualification and candidate-specific MATERIAL_WRITE_READY are required before corrective writes.",
+        "No AC-10-01 weight is earned until the corrected route closes F10-01/F10-02/F10-03 with executed audit/test evidence."
       ]
     },
     {
