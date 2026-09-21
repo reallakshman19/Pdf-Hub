@@ -457,12 +457,14 @@
     {
       "id": "AC-10-01",
       "ep_id": "EP-10-001",
-      "status": "NOT_STARTED",
+      "status": "IN_PROGRESS",
       "earned_weight": 0,
       "total_weight": 20,
       "percent": 0,
       "basis": [
-        "Phase 10 fixture/oracle implementation has not started; fresh phase-transition qualification is pending."
+        "Fresh Phase 10 takeover is valid and candidate-specific MATERIAL_WRITE_READY was reported PASS on head 8987020cba5a090e6757457b8ca9d4dba93df565.",
+        "STEP-10-01 fixture/oracle implementation exists and local audit/Vitest PASS results are retained on issue #288.",
+        "Acceptance remains unearned because Relay review findings F10-01, F10-02 and F10-03 are open: explicit reply/IRT contract, precedence-policy/implementation alignment, and all-17-type fail-closed round-trip/oracle coverage."
       ]
     },
     {
