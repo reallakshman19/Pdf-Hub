@@ -834,21 +834,17 @@
   },
   "qualification_boundary": {
     "required": true,
-    "trigger": "PHASE_CHANGED",
-    "from_phase": "PHASE-009",
+    "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
+    "from_phase": "PHASE-010",
     "to_phase": "PHASE-010",
     "changed_dimensions": [
-      "PRODUCTION_PATH",
       "ENGINEERING_AUTHORITY",
-      "VERIFICATION_ORACLE",
-      "PROTECTED_INVARIANT",
-      "QUALITY_ROUTER"
+      "VERIFICATION_ORACLE"
     ],
     "basis": [
-      "Phase 10 moves from document-level fidelity lab work to native annotation save/appearance/interoperability behavior.",
-      "Verification changes to annotation semantic round trips plus named external-viewer evidence and save/export separation.",
-      "Signed rewrite warnings and review/native-reply continuity introduce distinct protected invariants.",
-      "Pinned V2.5 conformance repair completes the mandatory ten-blueprint quality-router partition; because this changes the EP contract digest, prior QSET/QUAL/TC bindings cannot authorize further writes."
+      "Pinned V2.5 conformance repair expands the Phase 10 engineering review authority to include UI/UX, accessibility and migration procedures that were silently omitted.",
+      "Verification authority now includes those quality procedures in addition to the existing semantic/interoperability oracles.",
+      "Because the EP contract digest changes, prior QSET/QUAL/TC bindings cannot authorize further writes even though the nominal roadmap phase remains PHASE-010."
     ],
     "question_policy": "DEFAULT",
     "question_policy_basis": [
