@@ -12,7 +12,7 @@
     "lane_id": null,
     "roadmap_revision": "RM-0004",
     "work_package": "WP-010",
-    "ep_contract_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4"
+    "ep_contract_digest": "sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1"
   },
   "boundary": {
     "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
@@ -23,8 +23,8 @@
       "VERIFICATION_ORACLE"
     ],
     "basis": [
-      "The active EP quality router was conformance-repaired to partition all ten built-in V2.5 quality procedures exactly once.",
-      "UI/UX, accessibility and migration review authority are now explicit and applicable; prior QSET/QUAL/TC objects are bound to an older EP digest.",
+      "The active EP quality router is conformance-repaired to partition all ten built-in V2.5 quality procedures exactly once.",
+      "The active EP now also satisfies pinned semantic/self-contained/report-contract rules: valid replan inheritance, valid anti-drift effects, TEST-only delegated expected evidence, and source-bound report payload contracts.",
       "STEP-10-01 implementation remains unaccepted with F10-01/F10-02/F10-03 open, so the first authorized material slice after fresh qualification is correction-only."
     ]
   },
