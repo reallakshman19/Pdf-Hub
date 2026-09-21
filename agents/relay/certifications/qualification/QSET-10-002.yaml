@@ -35,9 +35,8 @@
       "anchors": [
         "WP-010",
         "INPUT-10-02",
-        "F10-01",
-        "F10-02",
-        "F10-03"
+        "AC-10-01",
+        "TEST-10-01"
       ],
       "prompt": "Trace the current editable annotation Save/reopen path on the live branch. Identify the production Save entrypoint, annotation/review state owner, stable annotation identity authority, reply relationship authority, reader/import path, and downstream rendering/consumer path. State whether production /AP generation exists now and state where stale PDFHubData can override externally edited standard fields in the current reader.",
       "required_output_keys": [
@@ -54,9 +53,7 @@
       "anchors": [
         "AC-10-01",
         "TEST-10-01",
-        "F10-01",
-        "F10-02",
-        "F10-03"
+        "STEP-10-01"
       ],
       "prompt": "Reconstruct why STEP-10-01 is implemented but not yet acceptance-complete. Explain the three open findings: missing executable reply/IRT fixture semantics, mismatch between declared external-edit precedence and implemented/tested oracle coverage, and two-save coverage that does not fail closed across all 17 supported annotation types. Also explain why the quality-router repair requires fresh qualification even though the nominal phase is still PHASE-010.",
       "reconstruction_mode": "LOGIC_RECONSTRUCTION",
@@ -95,7 +92,7 @@
         "AC-10-01",
         "AC-10-02",
         "AC-10-04",
-        "QUALITY_ROUTER"
+        "INPUT-10-03"
       ],
       "prompt": "State the consequence of any one of these mutations: treating /IRT as an NM string instead of a PDF object reference; normal Save flattening editable annotations; stale PDFHubData overriding a recognized external standard-field edit; starting STEP-10-02 before AC-10-01 is accepted; or using the old QSET-10-001/TC-10-001 as write authority after the EP digest changed. Name the protected invariant and the exact falsifier.",
       "mutation": {
