@@ -1,0 +1,73 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0006",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "INTENT_MUTATION",
+    "statement": "Proceed to the next roadmap work after deferring the current Phase 9 takeover qualification and dependent STEP-9-01 continuation.",
+    "source": "Owner instruction received 2026-09-21T01:50:15Z."
+  },
+  "effects": {
+    "requirement_disposition": "NOT_APPLICABLE",
+    "grants_material_write_authority": false,
+    "pending_items": [
+      "ODR-0003 deferred Phase 8G certification remains PENDING_NOT_SATISFIED.",
+      "ODR-0005 deferred Phase 9 takeover qualification and dependent STEP-9-01 continuation remain PENDING_NOT_SATISFIED."
+    ]
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "PROGRAM",
+      "PHASE",
+      "SCOPE"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-009",
+      "PHASE-010"
+    ],
+    "work_packages": [
+      "WP-009",
+      "WP-010"
+    ],
+    "execution_packages": [
+      "EP-9-001"
+    ],
+    "issues": [
+      "ISSUE-286",
+      "ISSUE-288"
+    ]
+  },
+  "change_intake": {
+    "previous_concept": "WP-010 was sequenced behind completion of WP-009, while WP-009's live candidate takeover/STEP-9-01 continuation is now Owner-deferred.",
+    "requested_concept": "Keep Phase 9 open and unsatisfied, but resequence the roadmap so WP-010 becomes the next serial executable frontier now.",
+    "retained_behavior": [
+      "Issue #286 remains open and its deferred qualification/STEP-9-01 obligations remain PENDING_NOT_SATISFIED.",
+      "No Phase 9 acceptance, completion, fidelity PASS, fixture promotion, or merge claim is created by the resequence.",
+      "Phase 10 remains native annotation interoperability hardening rather than new annotation breadth."
+    ],
+    "invalidated_behavior": [
+      "The prior sequencing assumption that WP-010 must wait for resolution of the Owner-deferred WP-009 takeover/STEP-9-01 obligations.",
+      "EP-9-001 serving as the active serial execution route while its current write continuation is Owner-deferred."
+    ],
+    "new_scope": [
+      "Make WP-010 / Phase 10 the next serial frontier.",
+      "Track Phase 10 through issue #288 and a new semantic execution package.",
+      "Carry Phase 8G and Phase 9 pending obligations explicitly as predecessor limitations."
+    ]
+  },
+  "required_reconciliation": [
+    "Create OWNER_INTENT_MUTATION roadmap revision RM-0004.",
+    "Move WP-009 to FUTURE/WAITING without changing its 0% acceptance or open issue state.",
+    "Activate PHASE-010 / WP-010 and remove the deferred WP-009 obligation from WP-010's executable dependency chain while retaining completed architectural predecessors.",
+    "Create a new Progress Basis bound to RM-0004 without changing earned progress.",
+    "Reconcile ISSUE_GRAPH with issue #288 and retained pending issues #284/#286.",
+    "Retire EP-9-001 from active route custody and prepare the Phase 10 successor route."
+  ],
+  "status": "APPLIED"
+}
