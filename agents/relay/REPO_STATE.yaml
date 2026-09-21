@@ -66,7 +66,8 @@
         "Signed-PDF rewrite warning/detection remains unproven in the normal editable Save contract.",
         "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005.",
         "The Phase 10 local-agent handoff is published/read-back on issue #288; no candidate response exists yet at the time of binding.",
-        "Read-only Phase 10 matrix found a concrete external-edit precedence risk: nativeAnnotationReader merges standard nativeData first and PDFHubData second, so stale custom metadata can shadow externally edited standard Contents/style/callout fields if a viewer preserves PDFHubData."
+        "Read-only Phase 10 matrix found a concrete external-edit precedence risk: nativeAnnotationReader merges standard nativeData first and PDFHubData second, so stale custom metadata can shadow externally edited standard Contents/style/callout fields if a viewer preserves PDFHubData.",
+        "Current provider readback for PR #289 reports mergeable=false at the evidence-tail head; cause is not inferred from available provider data and the PR is not readiness-eligible regardless because qualification/acceptance remain pending."
       ]
     },
     "evidence": {
@@ -122,7 +123,8 @@
       "EXECREQ-10-QUAL-STEP1 is published and provider-read-back on issue #288 as comment 5755677968.",
       "A one-time 60-minute Phase 10 local takeover response check is scheduled.",
       "Read-only Phase 10 production/test-gap baseline is published on issue #288 as comment 5755687964.",
-      "Read-only supported-type/external-edit precedence matrix is published on issue #288 as comment 5756059644; it is preparatory evidence only."
+      "Read-only supported-type/external-edit precedence matrix is published on issue #288 as comment 5756059644; it is preparatory evidence only.",
+      "Phase 10 schema reuse recommendation is published on issue #288 as comment 5756071953; reuse Phase 9 provenance/availability/diagnostic conventions without reusing mutation-specific domain types."
     ],
     "observed": {
       "issue": 288,
@@ -131,7 +133,8 @@
       "local_candidate_handoff_comment": 5755677968,
       "response_check_minutes": 60,
       "read_only_baseline_comment": 5755687964,
-      "phase10_type_matrix_comment": 5756059644
+      "phase10_type_matrix_comment": 5756059644,
+      "phase10_schema_reuse_comment": 5756071953
     },
     "superseded_operations": []
   },
@@ -139,13 +142,17 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "id": "DOBS-10-001",
-      "path": "agents/relay/delivery/DOBS-10-001.yaml"
+      "id": "DOBS-10-002",
+      "path": "agents/relay/delivery/DOBS-10-002.yaml"
     },
     "observations": [
       {
         "id": "DOBS-10-001",
         "path": "agents/relay/delivery/DOBS-10-001.yaml"
+      },
+      {
+        "id": "DOBS-10-002",
+        "path": "agents/relay/delivery/DOBS-10-002.yaml"
       }
     ]
   },
