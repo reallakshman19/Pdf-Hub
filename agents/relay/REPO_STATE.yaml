@@ -65,12 +65,13 @@
         "ReviewThread remains a transitional domain adapter over annotation.review persistence; Phase 10 must avoid duplicate state ownership while preserving native reply continuity.",
         "Signed-PDF rewrite warning/detection remains unproven in the normal editable Save contract.",
         "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005.",
-        "The Phase 10 local-agent handoff is published/read-back on issue #288; no candidate response exists yet at the time of binding."
+        "The Phase 10 local-agent handoff is published/read-back on issue #288; no candidate response exists yet at the time of binding.",
+        "Read-only Phase 10 matrix found a concrete external-edit precedence risk: nativeAnnotationReader merges standard nativeData first and PDFHubData second, so stale custom metadata can shadow externally edited standard Contents/style/callout fields if a viewer preserves PDFHubData."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "RM-0004, issue #288, EP-10-001 and QSET-10-001 prepare the Phase 10 route under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. DOBS-10-001 records the prepared-route provider state. A verified local-agent handoff and read-only baseline evidence are published on issue #288. No Phase 10 product implementation, candidate DISC/QUAL/TC, TEST-10-01, external-viewer evidence or acceptance exists yet. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
+      "summary": "RM-0004, issue #288, EP-10-001 and QSET-10-001 prepare the Phase 10 route under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. DOBS-10-001 records the prepared-route provider state. Verified issue comments now include the local-agent handoff, the initial read-only production/test-gap baseline, and an exact supported-type/external-edit precedence matrix. No Phase 10 product implementation, candidate DISC/QUAL/TC, TEST-10-01, external-viewer evidence or acceptance exists yet. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
       "not_run": [
         {
           "command": "Phase 10 qualification",
@@ -120,7 +121,8 @@
       "Draft PR #289 tracks the prepared Phase 10 route; DOBS-10-001 confirms the observed exact-head changes are Relay-only and qualification remains pending.",
       "EXECREQ-10-QUAL-STEP1 is published and provider-read-back on issue #288 as comment 5755677968.",
       "A one-time 60-minute Phase 10 local takeover response check is scheduled.",
-      "Read-only Phase 10 production/test-gap baseline is published on issue #288 as comment 5755687964."
+      "Read-only Phase 10 production/test-gap baseline is published on issue #288 as comment 5755687964.",
+      "Read-only supported-type/external-edit precedence matrix is published on issue #288 as comment 5756059644; it is preparatory evidence only."
     ],
     "observed": {
       "issue": 288,
@@ -128,7 +130,8 @@
       "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
       "local_candidate_handoff_comment": 5755677968,
       "response_check_minutes": 60,
-      "read_only_baseline_comment": 5755687964
+      "read_only_baseline_comment": 5755687964,
+      "phase10_type_matrix_comment": 5756059644
     },
     "superseded_operations": []
   },
