@@ -11,22 +11,22 @@
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0003",
+    "revision": "RM-0004",
     "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml"
   },
   "current_position": {
     "objective": "OBJ-READINESS",
-    "phase": "PHASE-009",
-    "work_package": "WP-009",
+    "phase": "PHASE-010",
+    "work_package": "WP-010",
     "work_packages": []
   },
   "execution_policy": {
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-9-001",
-    "path": "agents/relay/execution-packages/EP-9-001.yaml",
-    "state": "ACTIVE",
+    "id": "NONE",
+    "path": null,
+    "state": "NONE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -48,44 +48,37 @@
     "overall_percent": 66.67,
     "phase_percent": 0,
     "ep_percent": 0,
-    "basis_revision": "PB-0002"
+    "basis_revision": "PB-0003"
   },
   "status_planes": {
     "execution": {
-      "state": "ACTIVE",
+      "state": "RECONCILING",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Owner deferral ODR-0005 places the fresh Phase 9 takeover qualification and its dependent STEP-9-01 continuation in PENDING_NOT_SATISFIED. Do not wait on the disabled qualification timer and do not infer candidate admission. Resume only when the Owner explicitly reopens the qualification or issues a separate authority change."
+      "next_action": "Create the Phase 10 successor branch and semantic EP/QSET for WP-010 / issue #288 under pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8. Phase 8G and Phase 9 deferred obligations remain PENDING_NOT_SATISFIED and must not be treated as complete."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
       "findings": [
-        "ODR-0005 defers fresh Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1; issue #286 records this as PENDING_NOT_SATISFIED.",
-        "Historical DISC-9-001 / QUAL-9-001 / TC-9-001 and QSET-9-002 remain stale for further writes under the pinned Common basis/current EP contract.",
-        "QSET-9-003 remains the current prepared qualification set, bound to EP digest sha256:11f32eeab89e1c594640e6213f62983e5a7e55d3ccb1cfa692ab0800d84f421c, but no candidate is admitted.",
-        "Read-only provenance evidence for ArabicCIDTrueType.pdf and encrypted-with-images.pdf remains informational; neither manifest entry is promoted by the deferral.",
-        "STEP-9-01 still has required-pending specialist obligations including complex-font/unicode, encrypted, and signed coverage.",
-        "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
+        "ODR-0003 keeps Phase 8G executable certification PENDING_NOT_SATISFIED on issue #284.",
+        "ODR-0005 keeps Phase 9 fresh takeover qualification and dependent STEP-9-01 continuation PENDING_NOT_SATISFIED on issue #286.",
+        "ODR-0006 / RM-0004 resequence WP-010 as the sole frontier without awarding Phase 9 acceptance.",
+        "Phase 10 will require fresh qualification because the phase, production annotation-write boundary, verification oracle and signed-PDF warning semantics change."
       ]
     },
     "evidence": {
       "state": "PARTIAL",
-      "summary": "Phase 9 product substrate remains frozen. ODR-0005 defers the fresh QSET-9-003 takeover qualification and its dependent bounded STEP-9-01 continuation. Issue #286 contains the pending list. No new DISC/QUAL/TC, candidate admission, fixture promotion, acceptance weight, or Phase 9 product write is claimed.",
+      "summary": "RM-0004 moves the serial frontier to WP-010 / Phase 10. Phase 8G and Phase 9 remain open with Owner-deferred obligations and zero newly earned acceptance. No Phase 10 product implementation or acceptance evidence exists yet.",
       "not_run": [
-        {
-          "command": "Pinned-protocol Phase 9 takeover qualification / EXECREQ-9-QUAL-STEP1",
-          "reason": "Owner-deferred under ODR-0005; remains PENDING_NOT_SATISFIED.",
-          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
-        },
-        {
-          "command": "Dependent STEP-9-01 retained-fixture/signed-fixture continuation",
-          "reason": "Depends on the Owner-deferred fresh candidate qualification and remains PENDING_NOT_SATISFIED.",
-          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
-        },
         {
           "command": "npm run certify:phase8g",
           "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
           "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
+        },
+        {
+          "command": "Pinned-protocol Phase 9 takeover qualification / dependent STEP-9-01 continuation",
+          "reason": "Owner-deferred under ODR-0005; remains PENDING_NOT_SATISFIED.",
+          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         }
       ]
     },
@@ -103,30 +96,24 @@
     "target": null,
     "adapter": null,
     "plan": null,
-    "roadmap_revision": "RM-0003",
-    "execution_ref": "EP-9-001",
+    "roadmap_revision": "RM-0004",
+    "execution_ref": "NONE",
     "receipt": null,
     "basis": [
       "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
-      "ODR-0004 / RM-0003 make WP-009 the Phase 9 frontier.",
-      "Owner pinned engineering-pr-delivery-v2.5 to Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
-      "QSET-9-003 remains the prepared Phase 9 qualification set; no current candidate is admitted.",
-      "ODR-0005 defers the fresh takeover qualification and dependent STEP-9-01 continuation as PENDING_NOT_SATISFIED on issue #286.",
-      "The scheduled qualification response check was disabled."
+      "ODR-0005 keeps Phase 9 takeover/STEP-9-01 continuation pending and issue #286 open.",
+      "ODR-0006 plus RM-0004 resequence WP-010 as the sole serial frontier.",
+      "Issue #288 is the Phase 10 coordination contract."
     ],
     "observed": {
-      "issue": 286,
-      "pull_request": 287,
-      "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-      "fresh_candidate_handoff_comment": 5752971346,
-      "retained_fixture_evidence_comment": 5753014419,
-      "response_check_minutes": null,
-      "takeover_deferral": "ODR-0005"
+      "issue": 288,
+      "pull_request": null,
+      "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
     },
     "superseded_operations": []
   },
   "delivery": {
-    "required": true,
+    "required": false,
     "provider": "GITHUB",
     "observation": {
       "id": "DOBS-9-004",
@@ -152,10 +139,12 @@
     ]
   },
   "relay_readiness": {
-    "baton_ready": true,
+    "baton_ready": false,
     "projection_ready": true,
-    "handover_ready": true,
-    "reasons": []
+    "handover_ready": false,
+    "reasons": [
+      "Phase 10 successor EP/QSET has not yet been created on its execution branch."
+    ]
   },
   "chat_context_required": false
 }
