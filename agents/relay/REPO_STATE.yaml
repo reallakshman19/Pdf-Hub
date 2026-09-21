@@ -70,7 +70,7 @@
       "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "The admitted Phase 10 candidate must correct STEP-10-01 findings F10-01/F10-02/F10-03 on the live branch, rerun pinned material-write readiness for the new exact head, rerun the Phase 10 audit and focused pdf-annotations Vitest suite, and post evidence to issue #288. Do not begin STEP-10-02 until AC-10-01 is accepted."
+      "next_action": "The admitted Phase 10 candidate should pull the live branch, rerun pinned material_write_ready.py because Relay-only commits advanced the head after the prior WRITE result, then apply only the STEP-10-01 correction contract in issue #288 comment 5757052699. Do not modify EP-10-001/QSET-10-001 and do not begin STEP-10-02."
     },
     "quality": {
       "state": "OPEN_FINDINGS",
@@ -131,7 +131,8 @@
       "DISC-10-001 / QUAL-10-001 / TC-10-001 are present and digest-verified; candidate antigravity-gemini-candidate-20260921-phase10 is admitted.",
       "Candidate STEP-10-01 report is issue #288 comment 5756264130.",
       "Relay acceptance review and bounded corrections F10-01/F10-02/F10-03 are issue #288 comment 5756857247.",
-      "DOBS-10-003 observes candidate head 8987020cba5a090e6757457b8ca9d4dba93df565 as mergeable/draft, with exact-head workflow NOT_RUN_INFRASTRUCTURE."
+      "DOBS-10-003 observes candidate head 8987020cba5a090e6757457b8ca9d4dba93df565 as mergeable/draft, with exact-head workflow NOT_RUN_INFRASTRUCTURE.",
+      "Exact STEP-10-01 corrective execution contract for F10-01/F10-02/F10-03 is published on issue #288 as comment 5757052699."
     ],
     "observed": {
       "issue": 288,
@@ -141,7 +142,8 @@
       "candidate_completion_report_comment": 5756264130,
       "relay_review_comment": 5756857247,
       "candidate_material_head": "8987020cba5a090e6757457b8ca9d4dba93df565",
-      "response_check_minutes": 60
+      "response_check_minutes": 60,
+      "step_10_01_correction_contract_comment": 5757052699
     },
     "superseded_operations": []
   },
