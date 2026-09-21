@@ -1,8 +1,8 @@
 {
   "schema_version": "relay-v2.5",
   "progress_basis": {
-    "id": "PB-0002",
-    "roadmap_revision": "RM-0003",
+    "id": "PB-0003",
+    "roadmap_revision": "RM-0004",
     "method": "Each roadmap work package contributes one unit when accepted complete. EP, implementation-step and acceptance progress is earned only from durable acceptance evidence, never implementation effort."
   },
   "overall": {
