@@ -70,8 +70,10 @@ node scripts/phase10-validate-viewer-evidence.mjs C:\path\to\viewer-evidence.jso
 or:
 
 ```powershell
-pnpm run validate:phase10-viewer-evidence -- C:\path\to\viewer-evidence.json
+pnpm run validate:phase10-viewer-evidence C:\path\to\viewer-evidence.json
 ```
+
+With pnpm 10, do not insert a standalone `--` before the evidence path: pnpm forwards it literally and the validator will try to open a file named `--`.
 
 The validator has three outcomes:
 

@@ -158,10 +158,15 @@ for (const token of [
   'render=PASS',
   'reopen_editability=PASS',
   'No compatibility claim',
+  'pnpm run validate:phase10-viewer-evidence C:\\path\\to\\viewer-evidence.json',
 ]) {
   if (!docsContent.includes(token)) {
     errors.push(`qualification runbook missing required operator contract: ${token}`);
   }
+}
+
+if (docsContent.includes('pnpm run validate:phase10-viewer-evidence -- ')) {
+  errors.push('qualification runbook must not pass a literal -- before the evidence path under pnpm 10');
 }
 
 if (errors.length > 0) {
