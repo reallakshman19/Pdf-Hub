@@ -160,8 +160,6 @@
         "Open",
         "C",
         "T",
-        "StateModel",
-        "State",
         "M",
         "CreationDate"
       ],
@@ -171,8 +169,8 @@
           "comment",
           "sticky-note"
         ],
-        "disambiguationField": "StateModel",
-        "rule": "Text annotation with Review state model and/or associated reply threads"
+        "disambiguationField": "IRT topology",
+        "rule": "Root Text annotation with reply and/or Review state children linked through IRT is a comment; root-level StateModel remains a legacy-read compatibility signal"
       },
       "geometry": {
         "x": 50,
@@ -690,8 +688,8 @@
         "comment",
         "sticky-note"
       ],
-      "primary_distinction": "StateModel dictionary presence or thread reply structure vs standalone sticky note",
-      "oracle_rule": "If StateModel or review status is present, classify as comment; otherwise classify as sticky-note"
+      "primary_distinction": "Review reply/state IRT topology vs standalone sticky note; root-level StateModel is accepted only for legacy compatibility",
+      "oracle_rule": "If the Text root participates in review reply/state IRT topology, classify as comment; otherwise classify as sticky-note unless legacy StateModel/custom metadata proves comment semantics"
     },
     "Square": {
       "candidate_types": [
@@ -770,12 +768,22 @@
     "repeated_save": {
       "cycles": 2,
       "identity_exact": [
-        "NM"
+        "root NM",
+        "reply NM",
+        "state NM"
       ],
       "relationship_exact": [
-        "IRT"
+        "reply IRT",
+        "state IRT"
       ],
       "duplicates_allowed": false
+    },
+    "state": {
+      "nm": "phase10-review-root-1:state:Review",
+      "subtype": "Text",
+      "relationship": "IRT_OBJECT_REFERENCE",
+      "stateModel": "Review",
+      "initialState": "Completed"
     }
   }
 }
