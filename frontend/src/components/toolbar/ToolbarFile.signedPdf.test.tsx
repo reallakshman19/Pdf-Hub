@@ -29,6 +29,16 @@ vi.mock('@/core/pdf-signatures/signatureRisk', () => ({
   inspectPdfSignatureRisk: mocks.inspectPdfSignatureRisk,
 }));
 
+vi.mock('@/core/admission/openPdf', () => ({
+  admitAndOpenPdfFile: vi.fn(),
+  firstAdmissionErrorMessage: vi.fn(() => null),
+}));
+
+vi.mock('@/core/logger/service', () => ({
+  error: vi.fn(),
+  warn: vi.fn(),
+}));
+
 vi.mock('@/core/document/commitPipeline', () => ({
   composeEditablePdf: mocks.composeEditablePdf,
   composeCommittedPdf: mocks.composeCommittedPdf,
@@ -135,6 +145,8 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.beginSaveOperation).not.toHaveBeenCalled();
     expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
     expect(mocks.savePdfBytes).not.toHaveBeenCalled();
+    expect(mocks.saveAnnotations).not.toHaveBeenCalled();
+    expect(mocks.saveAnnotations).not.toHaveBeenCalled();
     expect(mocks.commitWorkingCopy).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
