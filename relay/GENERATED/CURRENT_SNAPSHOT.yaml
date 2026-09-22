@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
-    "state_digest": "sha256:be7e30df1c7b3c0c754de0143258e99aa31af5fa0ac43faddd06cdb853aa0e6d",
+    "state_digest": "sha256:bf16cf491143510835ea7fac636464bfcba62831247c9c08012181fa12be6c82",
     "material_basis": {
       "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
-      "tree_digest": "sha256:be9b5561879ebf5d64cca17a97a3308d6d576302c9c1e4e02dc7d3a4fa637cc0",
+      "tree_digest": "sha256:28f5949e98b86b2c4a89d52e46d0a75eeb944dca983cbe91f10db35a3cddaf21",
       "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
       "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
     },
-    "coordination_head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924"
+    "coordination_head": "bc7607fa77757f56f7cc8a41ff48e5beeb14d267"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -45,42 +45,19 @@
     ]
   },
   "execution": {
-    "lifecycle": "ACTIVE",
-    "work_package": "WP-010",
-    "ep": "EP-10-SIGNED-PDF-WARNING",
-    "lease": "LEASE-10-SIGNED-PDF-CHECKPOINT",
-    "executor": "chatgpt-gpt56-sol"
+    "lifecycle": "IDLE",
+    "work_package": null,
+    "ep": null,
+    "lease": null,
+    "executor": null
   },
   "scope": {
-    "allowed_writes": [
-      "frontend/src/core/pdf-signatures/**",
-      "frontend/src/components/toolbar/ToolbarFile.tsx",
-      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.tsx",
-      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.test.tsx",
-      "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx",
-      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
-      "Docs/SAVE_SEMANTICS.md",
-      "relay/**"
-    ],
-    "protected": [
-      "agents/relay/**",
-      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
-      "frontend/src/core/document/commitPipeline.ts",
-      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
-    ],
-    "prohibited": [
-      "Signature creation or cryptographic validation",
-      "Signature-preserving incremental-write architecture",
-      "Claiming an existing signature remains valid after PDF Hub Save/Save As",
-      "Production /AP appearance-stream implementation",
-      "Named external-viewer compatibility claims",
-      "New annotation types",
-      "MERGE",
-      "RELEASE"
-    ]
+    "allowed_writes": [],
+    "protected": [],
+    "prohibited": []
   },
   "material": {
-    "base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+    "base": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
     "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
     "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
     "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
@@ -106,15 +83,9 @@
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": "Add failing structural signature-risk tests and Save cancellation/continue witnesses before changing production code.",
+    "immediate_material_action": null,
     "delivery_action": "Perform the explicitly authorized delivery transition.",
-    "stop_conditions": [
-      "Any required change expands into signature creation or signature-preserving incremental writes.",
-      "The detector cannot distinguish populated signatures from empty /Sig fields on the supported parser surface.",
-      "Save/Save As semantics would need to be merged with Export Flattened.",
-      "The frozen agents/relay/** V2.5 tree changes.",
-      "The stacked base branch moves across a material-sensitive path."
-    ]
+    "stop_conditions": []
   },
   "handoff": {
     "zero_context_takeover_possible": true,
@@ -122,8 +93,6 @@
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
-      "relay/WORK/EP-10-SIGNED-PDF-WARNING.yaml",
-      "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
       "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
     ]
   }

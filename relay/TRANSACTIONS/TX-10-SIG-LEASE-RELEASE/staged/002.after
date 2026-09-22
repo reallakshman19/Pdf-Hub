@@ -1,0 +1,43 @@
+{
+  "schema_version": "relay-v3-lease",
+  "id": "LEASE-10-SIGNED-PDF-CHECKPOINT",
+  "route": "SERIAL:EP-10-SIGNED-PDF-WARNING",
+  "executor": {
+    "id": "chatgpt-gpt56-sol"
+  },
+  "basis": {
+    "ep_id": "EP-10-SIGNED-PDF-WARNING",
+    "ep_digest": "sha256:7f25f30bb3dfb088f823d10d703de764561260493fbaaea1adba83c6c147c6fc",
+    "material_base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+    "predecessor_checkpoint": "CP-10-INTEROP-FIX-001",
+    "protocol_basis": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/engineering-pr-delivery-v3"
+  },
+  "authority": {
+    "actions": [
+      "READ",
+      "ANALYZE",
+      "MATERIAL_WRITE",
+      "TEST",
+      "CHECKPOINT",
+      "HANDOVER",
+      "LOCAL_EXECUTION_EXPORT",
+      "DRAFT_PR_UPDATE"
+    ]
+  },
+  "admission": {
+    "method": "DETERMINISTIC",
+    "result": "PASS",
+    "repository_only": true,
+    "qualification": {
+      "required": false,
+      "qset": null,
+      "evaluator": null,
+      "result": null,
+      "evidence": []
+    }
+  },
+  "state": "RELEASED",
+  "invalidation": {
+    "reasons": []
+  }
+}
