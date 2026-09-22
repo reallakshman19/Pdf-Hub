@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0007-AP-QUALIFICATION",
-    "state_digest": "sha256:8e600610aa5ceecd7dacbede538a61c189289c2a952e73b23636fd67c1ebb3e8",
+    "state_digest": "sha256:de2bcd38cd0636e956848d608685406909be15a370f0f890a873a1272a592359",
     "material_basis": {
       "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
-      "tree_digest": "sha256:bdae93ef5bf06fd351ade7e9a509441eb3579a7a97b6d9fc8bfae0a5b9c9f59d",
+      "tree_digest": "sha256:3d6bd58eb4ec07dbaf967c6746137e6ab8e77418ff7f150f6872384d341161fd",
       "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
       "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
     },
-    "coordination_head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b"
+    "coordination_head": "ae35c8e2b82d1c6516abb3fa2b3fad8239452eac"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -45,43 +45,19 @@
     ]
   },
   "execution": {
-    "lifecycle": "ACTIVE",
-    "work_package": "WP-010",
-    "ep": "EP-10-AP-QUALIFICATION",
-    "lease": "LEASE-10-APQ-CHECKPOINT",
-    "executor": "chatgpt-gpt56-sol"
+    "lifecycle": "IDLE",
+    "work_package": null,
+    "ep": null,
+    "lease": null,
+    "executor": null
   },
   "scope": {
-    "allowed_writes": [
-      "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts",
-      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationManifest.json",
-      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationEvidence.example.json",
-      "frontend/scripts/phase10-viewer-qualification-audit.mjs",
-      "frontend/scripts/phase10-validate-viewer-evidence.mjs",
-      "Docs/PHASE10_VIEWER_QUALIFICATION.md",
-      "frontend/package.json",
-      "relay/**"
-    ],
-    "protected": [
-      "agents/relay/**",
-      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
-      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
-      "frontend/src/core/document/commitPipeline.ts",
-      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
-    ],
-    "prohibited": [
-      "Production /AP appearance-stream generation",
-      "Changing native annotation writer/reader semantics",
-      "Named external-viewer compatibility claims without recorded evidence",
-      "Treating missing or NOT_RUN viewer observations as PASS",
-      "New annotation product types",
-      "Signature architecture changes",
-      "MERGE",
-      "RELEASE"
-    ]
+    "allowed_writes": [],
+    "protected": [],
+    "prohibited": []
   },
   "material": {
-    "base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+    "base": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
     "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
     "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
     "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
@@ -108,14 +84,8 @@
   },
   "next": {
     "immediate_material_action": null,
-    "delivery_action": "Move PR #292 ready and synchronize provider state; merge remains owner-reserved.",
-    "stop_conditions": [
-      "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
-      "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
-      "The harness cannot prove that generated PDFs come from the production writer.",
-      "The frozen agents/relay/** V2.5 tree changes.",
-      "The stacked base branch moves across a material-sensitive path."
-    ]
+    "delivery_action": "PR #292 is ready; merge remains owner-reserved. Next substantive work is external-viewer execution using the qualified harness.",
+    "stop_conditions": []
   },
   "handoff": {
     "zero_context_takeover_possible": true,
@@ -123,8 +93,6 @@
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
-      "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
-      "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
       "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml"
     ]
   }

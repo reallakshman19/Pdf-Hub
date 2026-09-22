@@ -1,0 +1,99 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0007-AP-QUALIFICATION",
+    "state_digest": "sha256:de2bcd38cd0636e956848d608685406909be15a370f0f890a873a1272a592359",
+    "material_basis": {
+      "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+      "tree_digest": "sha256:3d6bd58eb4ec07dbaf967c6746137e6ab8e77418ff7f150f6872384d341161fd",
+      "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
+      "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
+    },
+    "coordination_head": "ae35c8e2b82d1c6516abb3fa2b3fad8239452eac"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Qualify Phase 10 native annotation appearance interoperability with production-writer corpus evidence before deciding whether /AP implementation is required."
+  },
+  "programme": {
+    "accepted_progress": 4.76,
+    "completed_work": [
+      "WP-010"
+    ],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "IDLE",
+    "work_package": null,
+    "ep": null,
+    "lease": null,
+    "executor": null
+  },
+  "scope": {
+    "allowed_writes": [],
+    "protected": [],
+    "prohibited": []
+  },
+  "material": {
+    "base": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+    "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+    "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
+    "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
+  },
+  "evidence": {
+    "latest_checkpoint": "CP-10-AP-QUALIFICATION-001",
+    "latest_material_validation": {
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
+    }
+  },
+  "controls": {
+    "execution_blockers": [],
+    "handover_blockers": [],
+    "delivery_blockers": [],
+    "informational": []
+  },
+  "delivery": {
+    "issue": null,
+    "pr": 292,
+    "lifecycle": "DECLARED",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": null,
+    "delivery_action": "PR #292 is ready; merge remains owner-reserved. Next substantive work is external-viewer execution using the qualified harness.",
+    "stop_conditions": []
+  },
+  "handoff": {
+    "zero_context_takeover_possible": true,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
+      "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml"
+    ]
+  }
+}

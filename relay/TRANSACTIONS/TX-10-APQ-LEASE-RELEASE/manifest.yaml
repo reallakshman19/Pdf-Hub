@@ -1,0 +1,49 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-APQ-LEASE-RELEASE",
+  "command": "RELEASE_LEASE",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T17:29:00Z",
+  "updated_at": "2026-09-22T17:29:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:75ffd695fcb7451d640b670b53c98f3037d955d2415520741c1982ce88af7100",
+      "after_digest": "sha256:fcb931d4718f8c5623ccba01af7d454b5c95e9c00e73e11961590bd385780ec0",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:0cd0b2ca4e360446bfe6da7264ffcaccbad7fb584460af328cab32e71f29241d",
+      "after_digest": "sha256:12d4198ebe924876127f3dab0b332a85eb0d089a865a0d61c1e7797a66b65755",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:a0f2ea481da86b090c218dfb151b3703feb450f6b0f46ece870de719208d2c52",
+      "after_digest": "sha256:2dc1201759c728b73a28d363e90c7ddd77d626b740ebdbc4d54b3760ec751558",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/backups/002.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:5d5785f1faeab76a2559b78d47de02aa3524d5d26c148165c5c6390e99e8397b",
+      "after_digest": "sha256:b13cf2bd06a612303223e0875dd5d9f7b9ed606148acfa075ba04f32bd618436",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-RELEASE/backups/003.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
+    "relay/STATE.yaml"
+  ]
+}
