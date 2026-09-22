@@ -15,9 +15,10 @@ export interface PdfSignatureRiskResult {
  * Detects applied PDF signatures on the structural surface exposed by pdf-lib.
  *
  * This is deliberately not cryptographic signature validation. A signature is
- * considered applied only when a signature dictionary has both a meaningful
- * /ByteRange and non-zero /Contents. An empty /Sig form field alone is not
- * enough to classify a document as signed.
+ * considered applied only when a current signature field/certification entry
+ * resolves to a signature dictionary with both a meaningful /ByteRange and
+ * non-zero /Contents. An empty /Sig form field alone is not enough to classify
+ * a document as signed.
  */
 export async function inspectPdfSignatureRisk(
   bytes: Uint8Array,
@@ -36,36 +37,44 @@ export async function inspectPdfSignatureRisk(
     });
 
     const signatures = new Set<string>();
+    const visitedFields = new Set<string>();
 
-    for (const [ref, object] of document.context.enumerateIndirectObjects()) {
-      if (!(object instanceof PDFDict)) {
-        continue;
+    const acroForm = document.catalog.lookup(PDFName.of('AcroForm'));
+    if (acroForm instanceof PDFDict) {
+      const fields = acroForm.lookup(PDFName.of('Fields'));
+      if (fields instanceof PDFArray) {
+        inspectSignatureFields(
+          fields,
+          null,
+          'AcroForm.Fields',
+          signatures,
+          visitedFields,
+          {
+            PDFArray,
+            PDFDict,
+            PDFName,
+            PDFNumber,
+          },
+        );
       }
+    }
 
-      if (isAppliedSignatureDictionary(object, {
-        PDFArray,
-        PDFName,
-        PDFNumber,
-      })) {
-        signatures.add(ref.toString());
-      }
-
-      const fieldType = object.get(PDFName.of('FT'));
-      if (fieldType?.toString() !== '/Sig') {
-        continue;
-      }
-
-      const rawValue = object.get(PDFName.of('V'));
-      const value = object.lookup(PDFName.of('V'));
-      if (
-        value instanceof PDFDict
-        && isAppliedSignatureDictionary(value, {
-          PDFArray,
-          PDFName,
-          PDFNumber,
-        })
-      ) {
-        signatures.add(rawValue?.toString() ?? `${ref.toString()}:V`);
+    const perms = document.catalog.lookup(PDFName.of('Perms'));
+    if (perms instanceof PDFDict) {
+      for (const name of ['DocMDP', 'UR', 'UR3']) {
+        const key = PDFName.of(name);
+        const rawValue = perms.get(key);
+        const value = perms.lookup(key);
+        if (
+          value instanceof PDFDict
+          && isAppliedSignatureDictionary(value, {
+            PDFArray,
+            PDFName,
+            PDFNumber,
+          })
+        ) {
+          signatures.add(signatureKey(rawValue, value, `Perms.${name}`));
+        }
       }
     }
 
@@ -90,6 +99,83 @@ export async function inspectPdfSignatureRisk(
       reason: 'PDF_PARSE_FAILED',
     };
   }
+}
+
+function inspectSignatureFields(
+  fields: import('pdf-lib').PDFArray,
+  inheritedFieldType: string | null,
+  path: string,
+  signatures: Set<string>,
+  visitedFields: Set<string>,
+  lib: {
+    PDFArray: typeof import('pdf-lib').PDFArray;
+    PDFDict: typeof import('pdf-lib').PDFDict;
+    PDFName: typeof import('pdf-lib').PDFName;
+    PDFNumber: typeof import('pdf-lib').PDFNumber;
+  },
+): void {
+  const {
+    PDFArray,
+    PDFDict,
+    PDFName,
+    PDFNumber,
+  } = lib;
+
+  for (let index = 0; index < fields.size(); index += 1) {
+    const rawField = fields.get(index);
+    const field = fields.lookup(index);
+    if (!(field instanceof PDFDict)) {
+      continue;
+    }
+
+    const fieldPath = `${path}[${index}]`;
+    const fieldKey = signatureKey(rawField, field, fieldPath);
+    if (visitedFields.has(fieldKey)) {
+      continue;
+    }
+    visitedFields.add(fieldKey);
+
+    const ownFieldType = field.get(PDFName.of('FT'))?.toString() ?? null;
+    const fieldType = ownFieldType ?? inheritedFieldType;
+
+    if (fieldType === '/Sig') {
+      const rawValue = field.get(PDFName.of('V'));
+      const value = field.lookup(PDFName.of('V'));
+      if (
+        value instanceof PDFDict
+        && isAppliedSignatureDictionary(value, {
+          PDFArray,
+          PDFName,
+          PDFNumber,
+        })
+      ) {
+        signatures.add(signatureKey(rawValue, value, `${fieldPath}.V`));
+      }
+    }
+
+    const kids = field.lookup(PDFName.of('Kids'));
+    if (kids instanceof PDFArray) {
+      inspectSignatureFields(
+        kids,
+        fieldType,
+        `${fieldPath}.Kids`,
+        signatures,
+        visitedFields,
+        lib,
+      );
+    }
+  }
+}
+
+function signatureKey(
+  rawValue: unknown,
+  resolvedValue: unknown,
+  fallback: string,
+): string {
+  if (rawValue && rawValue !== resolvedValue) {
+    return String(rawValue);
+  }
+  return fallback;
 }
 
 function isAppliedSignatureDictionary(
