@@ -80,11 +80,11 @@
     "issue": null,
     "pr": 291,
     "lifecycle": "DECLARED",
-    "merge_authorized": true
+    "merge_authorized": false
   },
   "next": {
     "immediate_material_action": null,
-    "delivery_action": "Merge PR #291 into phase10/postmerge-interoperability-fix under direct Owner authorization.",
+    "delivery_action": "PR #291 is merged. Proceed only through a newly admitted Phase 10 EP.",
     "stop_conditions": []
   },
   "handoff": {
