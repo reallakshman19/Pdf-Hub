@@ -95,6 +95,39 @@
           "Focused Vitest 7/7 PASS and Phase 10 audit PASS at ab7d66a64b924d83fff1921021217c5b9293f6ce."
         ]
       }
+    },
+    {
+      "id": "CTRL-10-SIG-INDEPENDENT-REVIEW",
+      "kind": "QUALITY",
+      "state": "OPEN",
+      "source": {
+        "type": "VALIDATOR",
+        "ref": "EP-10-SIGNED-PDF-WARNING quality_policy HIGH_RISK / independent_review REQUIRED"
+      },
+      "condition": "Independent review is required before checkpoint acceptance and PR-ready transition for the signed-PDF rewrite warning EP.",
+      "blocks": [
+        "CHECKPOINT",
+        "PR_READY",
+        "MERGE",
+        "RELEASE",
+        "CLOSE_TASK"
+      ],
+      "permits": [
+        "READ",
+        "ANALYZE",
+        "TEST",
+        "DRAFT_PR_UPDATE",
+        "HANDOVER",
+        "LOCAL_EXECUTION_EXPORT"
+      ],
+      "tracking": {
+        "kind": "PENDING",
+        "id": "PEND-10-SIG-INDEPENDENT-REVIEW"
+      },
+      "resolution": {
+        "condition": "An independent reviewer examines exact material head 9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d and reports no unresolved blocking findings.",
+        "evidence": []
+      }
     }
   ]
 }

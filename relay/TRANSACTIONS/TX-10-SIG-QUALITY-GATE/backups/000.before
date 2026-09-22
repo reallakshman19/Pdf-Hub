@@ -1,0 +1,100 @@
+{
+  "schema_version": "relay-v3-controls",
+  "controls": [
+    {
+      "id": "CTRL-MIGRATION-RECONCILE",
+      "kind": "PROTOCOL",
+      "state": "RESOLVED",
+      "source": {
+        "type": "VALIDATOR",
+        "ref": "relay/MIGRATION/V25_REPORT.yaml"
+      },
+      "condition": "Legacy V2.5 intent/evidence has not yet been reconciled into native V3 execution authority.",
+      "blocks": [
+        "MATERIAL_WRITE",
+        "TEST",
+        "CHECKPOINT",
+        "HANDOVER",
+        "LOCAL_EXECUTION_EXPORT",
+        "DRAFT_PR_UPDATE",
+        "PR_READY",
+        "MERGE",
+        "RELEASE",
+        "CLOSE_TASK"
+      ],
+      "permits": [
+        "READ",
+        "ANALYZE"
+      ],
+      "resolution": {
+        "condition": "Native V3 roadmap/frontier/EP/lease/checkpoint disposition is established without rewriting V2.5 history.",
+        "evidence": [
+          "relay/MIGRATION/V25_REPORT.yaml source validation PASS",
+          "Native V3 staged lifecycle reconciled to IDLE; current Phase 10 will be admitted natively after cutover; legacy receipts are not imported as V3 authority."
+        ]
+      }
+    },
+    {
+      "id": "CTRL-V25-INTELLIGENCE-CONTINUITY",
+      "kind": "PROTOCOL",
+      "state": "RESOLVED",
+      "source": {
+        "type": "REPOSITORY",
+        "ref": "Common#421"
+      },
+      "condition": "V3 cutover must not retire V2.5 roadmap admission, ROADMAP_EVENTS, checkpoint/progress reconciliation, discovery, Owner-delta, or handover intelligence before continuity is proven.",
+      "blocks": [
+        "PROTOCOL_CUTOVER"
+      ],
+      "permits": [
+        "READ",
+        "ANALYZE"
+      ],
+      "resolution": {
+        "condition": "Common#421 continuity acceptance is evidenced: governed roadmap/event/checkpoint/progress intelligence remains semantically intact across the selected V3 authority boundary.",
+        "evidence": [
+          "relay/GENERATED/INTELLIGENCE_CONTINUITY.yaml ready=true",
+          "relay/GENERATED/tasks/EP-10-001.snapshot.yaml",
+          "relay/GENERATED/improvements/PRE-CUTOVER.improvement.yaml"
+        ]
+      }
+    },
+    {
+      "id": "CTRL-10-INDEPENDENT-REVIEW",
+      "kind": "QUALITY",
+      "state": "RESOLVED",
+      "source": {
+        "type": "VALIDATOR",
+        "ref": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/skills/engineering-pr-delivery-v3/schemas/ep.schema.yaml"
+      },
+      "condition": "EP-10-INTEROP-FIX is HIGH_RISK and requires an independent review before quality can be CLEAR and a checkpoint/PR-ready transition can be accepted.",
+      "blocks": [
+        "CHECKPOINT",
+        "PR_READY",
+        "MERGE",
+        "RELEASE",
+        "CLOSE_TASK"
+      ],
+      "permits": [
+        "READ",
+        "ANALYZE",
+        "TEST",
+        "DRAFT_PR_UPDATE",
+        "HANDOVER",
+        "LOCAL_EXECUTION_EXPORT"
+      ],
+      "tracking": {
+        "kind": "PENDING",
+        "id": "PEND-10-INDEPENDENT-REVIEW"
+      },
+      "resolution": {
+        "condition": "A reviewer independent of executor chatgpt-gpt56-sol reviews the exact material diff through ab7d66a64b924d83fff1921021217c5b9293f6ce, reports no unresolved blocking findings, and binds the review to that exact head.",
+        "evidence": [
+          "PR #290 comment 5776266360: independent review CLEAR at exact material head ab7d66a64b924d83fff1921021217c5b9293f6ce",
+          "Independent reviewer reported no blocking findings after read-only review of the bounded frontend diff.",
+          "Focused Vitest 7/7 PASS and Phase 10 audit PASS at ab7d66a64b924d83fff1921021217c5b9293f6ce."
+        ]
+      }
+    }
+  ]
+}
