@@ -7,7 +7,7 @@
   "execution": {
     "lifecycle": "ACTIVE",
     "ep": "EP-10-INTEROP-FIX",
-    "lease": "LEASE-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-CHECKPOINT",
     "route": "SERIAL:EP-10-INTEROP-FIX"
   },
   "accepted": {

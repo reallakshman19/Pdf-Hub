@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0005-V3-ADMISSION",
-    "state_digest": "sha256:fe89f9ccd2d29ad914b05a96661a1c54d6f352bb0d8950eb6a3135624bf57d5d",
+    "state_digest": "sha256:78ff6edf0dd77b5f1a349aba57477755003d916d2d28cc6619ce69d1018cec89",
     "material_basis": {
-      "head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61",
-      "tree_digest": "sha256:d9506502212585eb8f84839f799008470c1dcd39a25298ec88fe5e23a9f19901",
-      "relevant_paths_digest": "sha256:94f3c52a014dc0e00a3f7ab69ed0d13a5dd3904a45f36b8f942eb9f9dba14f06",
+      "head": "2e33a7b55cd63f84133b794c1a4ade0391fb8324",
+      "tree_digest": "sha256:8fa81adb1fd0021e8d03346ad0db8f511f012ea4efebd52259eca40985781a83",
+      "relevant_paths_digest": "sha256:1ad1e51a4670973a5dc569e1831056d15c4c6e9dba44faa1d42890b2a11e0354",
       "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
     },
-    "coordination_head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61"
+    "coordination_head": "2e33a7b55cd63f84133b794c1a4ade0391fb8324"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -47,7 +47,7 @@
     "lifecycle": "ACTIVE",
     "work_package": "WP-010",
     "ep": "EP-10-INTEROP-FIX",
-    "lease": "LEASE-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-CHECKPOINT",
     "executor": "chatgpt-gpt56-sol"
   },
   "scope": {
@@ -75,8 +75,8 @@
   },
   "material": {
     "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
-    "head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61",
-    "relevant_paths_digest": "sha256:94f3c52a014dc0e00a3f7ab69ed0d13a5dd3904a45f36b8f942eb9f9dba14f06",
+    "head": "2e33a7b55cd63f84133b794c1a4ade0391fb8324",
+    "relevant_paths_digest": "sha256:1ad1e51a4670973a5dc569e1831056d15c4c6e9dba44faa1d42890b2a11e0354",
     "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
   },
   "evidence": {
@@ -112,7 +112,7 @@
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
       "relay/WORK/EP-10-INTEROP-FIX.yaml",
-      "relay/LEASES/LEASE-10-INTEROP-FIX.yaml"
+      "relay/LEASES/LEASE-10-INTEROP-CHECKPOINT.yaml"
     ]
   }
 }

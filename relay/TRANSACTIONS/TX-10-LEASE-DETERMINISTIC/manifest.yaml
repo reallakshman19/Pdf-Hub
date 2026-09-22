@@ -1,0 +1,58 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-LEASE-DETERMINISTIC",
+  "command": "ACTIVATE_LEASE",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T12:16:00Z",
+  "updated_at": "2026-09-22T12:16:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:53e8d6c1167b4ac931772c26318932f3e2298986f49ea0b07460b093b58c9cde",
+      "after_digest": "sha256:42e3e8a4281fee7f47cf19f70b4ede2ae64854c6844ec5aa9507b71b3baf7050",
+      "staged_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:0d6dfc5286cd88196cab6304ab464dc38f6d39428af07ef1b8c7ad2713539037",
+      "after_digest": "sha256:b2727035d9596618f38a21d467b7751ee1fb94b1ad47b56bcc6977035520b6be",
+      "staged_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-INTEROP-CHECKPOINT.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:b49ea093957990cec6838f087547c9a2f76256439b481ce85039dc00970cc897",
+      "staged_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/staged/002.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-INTEROP-FIX.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:34daf43b06a0c00eb960de6d09305dc2cf0bf1b1087a7cdbbc823c45b4153fb3",
+      "after_digest": "sha256:860e2bac6dd3353a1462d25984779557d243c261e7bd4c7e34143ba3d00b6c9a",
+      "staged_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/backups/003.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:4bc211aae4d0f49ee99fc9124f5d365854e9d4e78ea1da8c878e50aa35199cb6",
+      "after_digest": "sha256:1cd0a7afacd441c2a4ed639eb88c39889ee583c929b21cfd5d93283e3f887c1d",
+      "staged_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/staged/004.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-LEASE-DETERMINISTIC/backups/004.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-INTEROP-CHECKPOINT.yaml",
+    "relay/LEASES/LEASE-10-INTEROP-FIX.yaml",
+    "relay/STATE.yaml"
+  ]
+}
