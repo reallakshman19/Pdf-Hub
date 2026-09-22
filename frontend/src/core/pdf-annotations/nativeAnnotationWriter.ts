@@ -80,6 +80,7 @@ export async function writeNativePdfAnnotations(
             Type: 'Annot',
             Subtype: 'Text',
             Rect: replyRect(annotation, page),
+            P: page.ref,
             Contents: pdfText(lib, reply.content),
             T: pdfText(lib, reply.author || 'Unknown'),
             NM: lib.PDFString.of(replyAnnotationName(annotation.id, reply.id)),
@@ -104,6 +105,7 @@ export async function writeNativePdfAnnotations(
             Type: 'Annot',
             Subtype: 'Text',
             Rect: replyRect(annotation, page),
+            P: page.ref,
             T: pdfText(lib, review.author || 'Unknown'),
             NM: lib.PDFString.of(stateAnnotationName(annotation.id)),
             M: lib.PDFString.of(pdfDate(review.updatedAt)),
@@ -181,10 +183,10 @@ function removeManagedAnnotationFamily(
 }
 
 function isStateAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
-  return Boolean(
-    dict.lookupMaybe(lib.PDFName.of('StateModel'), lib.PDFName)
-    || dict.lookupMaybe(lib.PDFName.of('State'), lib.PDFName),
-  );
+  const stateModel =
+    dict.lookupMaybe(lib.PDFName.of('StateModel'), lib.PDFName)?.decodeText();
+  const state = dict.lookupMaybe(lib.PDFName.of('State'), lib.PDFName)?.decodeText();
+  return stateModel === 'Review' && Boolean(state);
 }
 
 function isReplyAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
