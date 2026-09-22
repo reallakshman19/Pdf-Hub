@@ -1,0 +1,30 @@
+{
+  "schema_version": "relay-v3",
+  "roadmap": {
+    "revision": "RM-0005-V3-ADMISSION",
+    "path": "relay/ROADMAP/ROADMAP.yaml"
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "ep": "EP-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-CHECKPOINT",
+    "route": "SERIAL:EP-10-INTEROP-FIX"
+  },
+  "accepted": {
+    "checkpoint": null
+  },
+  "controls": {
+    "path": "relay/CONTROLS/controls.yaml"
+  },
+  "delivery": {
+    "required": true,
+    "primary_vehicle": {
+      "provider": "GITHUB",
+      "kind": "PULL_REQUEST",
+      "number": 290
+    }
+  },
+  "generated": {
+    "snapshot": "relay/GENERATED/CURRENT_SNAPSHOT.yaml"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": "relay-v3-checkpoint",
+  "id": "CP-10-INTEROP-FIX-001",
+  "ep": "EP-10-INTEROP-FIX",
+  "material_result": {
+    "head": "46ee82341c4dac3167379a22ee3c897d7c59c088",
+    "relevant_paths_digest": "sha256:84729e8184ba2bb1fdab0b051e61328e9a0fc2b4a5779a440876fd0fe03191de",
+    "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-FIX-01",
+      "result": "PASS",
+      "evidence": [
+        "Issue #288 comment 5776307775: exact-head focused Vitest 7/7 PASS and Phase 10 audit PASS.",
+        "Production witness mutates native /Contents and /State while stale PDFHubData/PDFHubReviewStatus remain, then verifies native values win on read/save/read.",
+        "PR #290 comment 5776266360: independent review CLEAR on exact product head ab7d66a64b924d83fff1921021217c5b9293f6ce."
+      ]
+    },
+    {
+      "id": "AC-10-FIX-02",
+      "result": "PASS",
+      "evidence": [
+        "Deterministic review fixture asserts stable root /NM and reply /IRT as a PDFRef to the root before and after a second PDF Hub save.",
+        "Focused Vitest 7/7 PASS at ab7d66a64b924d83fff1921021217c5b9293f6ce.",
+        "Independent review CLEAR: no blocking identity or relationship findings."
+      ]
+    },
+    {
+      "id": "AC-10-FIX-03",
+      "result": "PASS",
+      "evidence": [
+        "Repeated-save test uses the complete PHASE10_SUPPORTED_TYPES set rather than the prior 8-type subset.",
+        "Both save/re-read cycles assert actual.type === expected.type for every deterministic supported annotation.",
+        "Phase 10 audit reports all 17 canonical annotation types covered."
+      ]
+    },
+    {
+      "id": "AC-10-FIX-04",
+      "result": "PASS",
+      "evidence": [
+        "Phase 10 audit PASS with explicit precedence surface, pending DA/QuadPoints, review-thread contract, Save/Export separation and /AP expectations.",
+        "Protected nativeAnnotationWriter.ts and commitPipeline.ts diff is empty.",
+        "No production /AP implementation was introduced."
+      ]
+    }
+  ],
+  "validation": {
+    "focused_tests": "PASS",
+    "spec_delivery": "NOT_APPLICABLE",
+    "full_guardrails": "NOT_APPLICABLE"
+  },
+  "quality": {
+    "policy": "HIGH_RISK",
+    "result": "CLEAR"
+  },
+  "known_limitations": [
+    "Repository-wide typecheck/build are not claimed PASS: they fail in unrelated files byte-identical to material base 6f16bc859d3bd6975969ac408a3b119d7431fbb0, and the available local runtime was Node v24.11.1 while package engines require >=22 <23.",
+    "Production /AP appearance-stream generation and named external-viewer evidence remain outside this bounded fix.",
+    "DA and QuadPoints remain explicit pending external-edit precedence fields.",
+    "Signed-PDF rewrite warning remains a separate Phase 10 obligation."
+  ],
+  "discoveries": [
+    "The concrete external-edit-return defect was production precedence, not identity architecture: stale private cache overrode legitimate native /Contents and /State edits.",
+    "Existing native /NM and /IRT writer semantics were sufficient and did not require redesign.",
+    "The Phase 10 two-save oracle previously covered only 8 of 17 supported annotation types; the corrected test now exercises the complete supported set."
+  ],
+  "handoff": {
+    "what_changed": [
+      "nativeAnnotationReader now treats recognized standard PDF fields as authoritative over stale PDF Hub private cache, with private metadata retained as fallback.",
+      "A deterministic root/reply review lifecycle witness now proves /NM identity, true /IRT object references, external /Contents and /State precedence, and no duplicate root/reply across another PDF Hub save.",
+      "Repeated-save coverage now exercises all 17 supported annotation types and asserts semantic type continuity.",
+      "Phase 10 manifest/audit now declares the exact reader-enforced precedence boundary and explicit pending DA/QuadPoints limitations."
+    ],
+    "what_is_true_now": [
+      "Focused Phase 10 interoperability suite passes 7/7 at exact product material head ab7d66a64b924d83fff1921021217c5b9293f6ce.",
+      "Phase 10 interoperability audit passes.",
+      "Independent HIGH_RISK review is CLEAR with no blocking findings.",
+      "nativeAnnotationWriter.ts, commitPipeline.ts and frozen agents/relay/** were not changed by the bounded product fix."
+    ],
+    "what_remains_uncertain": [
+      "Named external-viewer appearance interoperability is still unproved.",
+      "Whether explicit /AP streams are required for each representative viewer/type family remains to be established by evidence.",
+      "Full repository typecheck/build health remains baseline-broken outside this EP.",
+      "Signed-PDF rewrite warning behavior remains unimplemented."
+    ],
+    "do_not_break": [
+      "Normal Save must remain editable-native and distinct from Export Flattened.",
+      "Do not replace /NM or /IRT with a product-only identity/relationship model.",
+      "Do not mutate frozen agents/relay/** V2.5 history after V3 cutover.",
+      "Do not infer named-viewer compatibility from structural tests alone."
+    ],
+    "attempted_and_rejected": [
+      "A broad production /AP implementation was deliberately not started because it belongs to a separate evidence-backed step.",
+      "A review-thread architecture rewrite was rejected; the failing witness was solved by correcting native-vs-private precedence.",
+      "Repository-wide typecheck/build failures were not relabeled PASS merely because they pre-existed this diff."
+    ],
+    "resume_from": [
+      "Draft PR #290 on phase10/postmerge-interoperability-fix.",
+      "Issue #288 for remaining Phase 10 obligations.",
+      "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml after checkpoint acceptance."
+    ],
+    "first_successor_action": "Move PR #290 from draft to ready only after the accepted checkpoint is projected; keep merge/release owner-reserved and treat /AP/viewer evidence as a separate next EP."
+  }
+}
