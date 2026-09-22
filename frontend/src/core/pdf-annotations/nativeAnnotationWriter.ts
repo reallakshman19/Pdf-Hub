@@ -96,6 +96,26 @@ export async function writeNativePdfAnnotations(
         annots.push(replyRef);
         replyCount += 1;
       }
+
+      if (annotation.data.review) {
+        const review = annotation.data.review;
+        const stateRef = doc.context.register(
+          doc.context.obj({
+            Type: 'Annot',
+            Subtype: 'Text',
+            Rect: replyRect(annotation, page),
+            T: pdfText(lib, review.author || 'Unknown'),
+            NM: lib.PDFString.of(stateAnnotationName(annotation.id)),
+            M: lib.PDFString.of(pdfDate(review.updatedAt)),
+            CreationDate: lib.PDFString.of(pdfDate(review.createdAt)),
+            IRT: rootRef,
+            StateModel: 'Review',
+            State: reviewStateName(review.status),
+            PDFHubReviewStatus: lib.PDFString.of(review.status),
+          }),
+        );
+        annots.push(stateRef);
+      }
     }
   }
 
@@ -124,17 +144,53 @@ function removeManagedAnnotationFamily(
   annotationId: string,
   lib: PdfLibModule,
 ): void {
+  let rootRefKey: string | null = null;
+
+  for (let index = 0; index < annots.size(); index += 1) {
+    const dict = annots.lookupMaybe(index, lib.PDFDict);
+    if (!dict) continue;
+
+    const name = dict.lookupMaybe(lib.PDFName.of('NM'), lib.PDFString)?.decodeText();
+    if (name !== annotationId) continue;
+
+    rootRefKey = pdfObjectKey(annots.get(index), lib);
+    break;
+  }
+
   for (let index = annots.size() - 1; index >= 0; index -= 1) {
     const dict = annots.lookupMaybe(index, lib.PDFDict);
     if (!dict) continue;
 
     const name = dict.lookupMaybe(lib.PDFName.of('NM'), lib.PDFString)?.decodeText();
-    if (!name) continue;
+    const irtKey = pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib);
+    const relatedToManagedRoot = Boolean(
+      rootRefKey
+      && irtKey === rootRefKey
+      && (isReplyAnnotation(dict, lib) || isStateAnnotation(dict, lib)),
+    );
 
-    if (name === annotationId || name.startsWith(`${annotationId}:reply:`)) {
+    if (
+      name === annotationId
+      || name?.startsWith(`${annotationId}:reply:`)
+      || name?.startsWith(`${annotationId}:state:`)
+      || relatedToManagedRoot
+    ) {
       annots.remove(index);
     }
   }
+}
+
+function isStateAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
+  return Boolean(
+    dict.lookupMaybe(lib.PDFName.of('StateModel'), lib.PDFName)
+    || dict.lookupMaybe(lib.PDFName.of('State'), lib.PDFName),
+  );
+}
+
+function isReplyAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
+  if (isStateAnnotation(dict, lib)) return false;
+  const replyType = dict.lookupMaybe(lib.PDFName.of('RT'), lib.PDFName)?.decodeText();
+  return !replyType || replyType === 'R';
 }
 
 function registerNativeAnnotation(
@@ -182,8 +238,8 @@ function registerNativeAnnotation(
   }
 
   if (annotation.data.review) {
-    base.StateModel = 'Review';
-    base.State = reviewStateName(annotation.data.review.status);
+    // Keep private status only as a backward-compatible cache. Portable review
+    // state is written as a separate state annotation linked through /IRT.
     base.PDFHubReviewStatus = lib.PDFString.of(annotation.data.review.status);
   }
 
@@ -580,6 +636,14 @@ function pdfDate(timestamp: number): string {
 
 function replyAnnotationName(annotationId: string, replyId: string): string {
   return `${annotationId}:reply:${replyId}`;
+}
+
+function stateAnnotationName(annotationId: string): string {
+  return `${annotationId}:state:Review`;
+}
+
+function pdfObjectKey(value: unknown, lib: PdfLibModule): string | null {
+  return value instanceof lib.PDFRef ? value.toString() : null;
 }
 
 function finite(value: unknown, fallback: number): number {
