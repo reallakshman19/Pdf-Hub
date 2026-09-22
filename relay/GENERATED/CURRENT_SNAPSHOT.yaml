@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0007-AP-QUALIFICATION",
-    "state_digest": "sha256:c55d6860487301415deaa01f4aeda8ad0dc1bbbf286d086b2a75a5bfe5429426",
+    "state_digest": "sha256:89b227130dcd7e360de8464bf468fffa819afc9fd685adf2f961ecc25d395f94",
     "material_basis": {
-      "head": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
-      "tree_digest": "sha256:5277ae62e38ca59fecdc363cc432d8f0f3d9966675def300cf9a37ee9660ba6c",
-      "relevant_paths_digest": "sha256:6277153bc25ff62a49711856059b96a6789641239a6910631ee76a3e81ff98f8",
-      "dependency_digest": "sha256:32772b674ad6a9608edf860b2192ae6a1021dbe2aa01fb7f9b81aafc43df6652"
+      "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
+      "tree_digest": "sha256:af5168d01ea08dd311e40932375a1f14a185dd331ac3ba9d682baf6824f2a985",
+      "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+      "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
     },
-    "coordination_head": "a259ecc48168c202aa0bc6743aa3092a302255b8"
+    "coordination_head": "e5464b69d080ce80fc871b88c93aef13853164ab"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -48,7 +48,7 @@
     "lifecycle": "ACTIVE",
     "work_package": "WP-010",
     "ep": "EP-10-AP-QUALIFICATION",
-    "lease": "LEASE-10-AP-QUALIFICATION",
+    "lease": "LEASE-10-APQ-CHECKPOINT",
     "executor": "chatgpt-gpt56-sol"
   },
   "scope": {
@@ -82,13 +82,17 @@
   },
   "material": {
     "base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
-    "head": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
-    "relevant_paths_digest": "sha256:6277153bc25ff62a49711856059b96a6789641239a6910631ee76a3e81ff98f8",
-    "dependency_digest": "sha256:32772b674ad6a9608edf860b2192ae6a1021dbe2aa01fb7f9b81aafc43df6652"
+    "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
+    "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+    "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
   },
   "evidence": {
     "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
-    "latest_material_validation": {}
+    "latest_material_validation": {
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
+    }
   },
   "controls": {
     "execution_blockers": [],
@@ -103,8 +107,8 @@
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": "Add failing qualification-manifest/corpus/evidence-validator tests before any harness implementation.",
-    "delivery_action": "Update draft PR #292 only; merge/release are not authorized.",
+    "immediate_material_action": null,
+    "delivery_action": "Accept checkpoint if exact-head evidence remains valid, then move PR #292 ready.",
     "stop_conditions": [
       "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
       "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
@@ -120,7 +124,7 @@
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
       "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
-      "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
+      "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
       "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
     ]
   }

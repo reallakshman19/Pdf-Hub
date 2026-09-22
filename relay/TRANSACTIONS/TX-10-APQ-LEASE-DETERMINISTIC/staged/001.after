@@ -1,0 +1,131 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0007-AP-QUALIFICATION",
+    "state_digest": "sha256:89b227130dcd7e360de8464bf468fffa819afc9fd685adf2f961ecc25d395f94",
+    "material_basis": {
+      "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
+      "tree_digest": "sha256:af5168d01ea08dd311e40932375a1f14a185dd331ac3ba9d682baf6824f2a985",
+      "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+      "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
+    },
+    "coordination_head": "e5464b69d080ce80fc871b88c93aef13853164ab"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Qualify Phase 10 native annotation appearance interoperability with production-writer corpus evidence before deciding whether /AP implementation is required."
+  },
+  "programme": {
+    "accepted_progress": 4.76,
+    "completed_work": [
+      "WP-010"
+    ],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-AP-QUALIFICATION",
+    "lease": "LEASE-10-APQ-CHECKPOINT",
+    "executor": "chatgpt-gpt56-sol"
+  },
+  "scope": {
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationManifest.json",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationEvidence.example.json",
+      "frontend/scripts/phase10-viewer-qualification-audit.mjs",
+      "frontend/scripts/phase10-validate-viewer-evidence.mjs",
+      "Docs/PHASE10_VIEWER_QUALIFICATION.md",
+      "frontend/package.json",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream generation",
+      "Changing native annotation writer/reader semantics",
+      "Named external-viewer compatibility claims without recorded evidence",
+      "Treating missing or NOT_RUN viewer observations as PASS",
+      "New annotation product types",
+      "Signature architecture changes",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "material": {
+    "base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+    "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
+    "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+    "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
+  },
+  "evidence": {
+    "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
+    "latest_material_validation": {
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
+    }
+  },
+  "controls": {
+    "execution_blockers": [],
+    "handover_blockers": [],
+    "delivery_blockers": [],
+    "informational": []
+  },
+  "delivery": {
+    "issue": null,
+    "pr": 292,
+    "lifecycle": "DECLARED",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": null,
+    "delivery_action": "Accept checkpoint if exact-head evidence remains valid, then move PR #292 ready.",
+    "stop_conditions": [
+      "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
+      "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
+      "The harness cannot prove that generated PDFs come from the production writer.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "The stacked base branch moves across a material-sensitive path."
+    ]
+  },
+  "handoff": {
+    "zero_context_takeover_possible": true,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
+      "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
+      "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
+      "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
+    ]
+  }
+}

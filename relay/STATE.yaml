@@ -7,7 +7,7 @@
   "execution": {
     "lifecycle": "ACTIVE",
     "ep": "EP-10-AP-QUALIFICATION",
-    "lease": "LEASE-10-AP-QUALIFICATION",
+    "lease": "LEASE-10-APQ-CHECKPOINT",
     "route": "SERIAL:EP-10-AP-QUALIFICATION"
   },
   "accepted": {
