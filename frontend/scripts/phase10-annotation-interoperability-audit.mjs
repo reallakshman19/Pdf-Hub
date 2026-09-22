@@ -118,6 +118,45 @@ if (!manifest.policies?.signed_pdf_rewrite_policy?.warn_on_rewrite) {
   errors.push('Manifest policies must declare signed PDF rewrite warning');
 }
 
+const signatureRiskPath = path.join(frontendRoot, 'src/core/pdf-signatures/signatureRisk.ts');
+const toolbarFilePath = path.join(frontendRoot, 'src/components/toolbar/ToolbarFile.tsx');
+const signatureDialogPath = path.join(frontendRoot, 'src/components/toolbar/SignedPdfRewriteWarningDialog.tsx');
+
+for (const requiredPath of [signatureRiskPath, toolbarFilePath, signatureDialogPath]) {
+  if (!fs.existsSync(requiredPath)) {
+    errors.push(`Missing signed-PDF rewrite warning implementation file: ${requiredPath}`);
+  }
+}
+
+if (fs.existsSync(signatureRiskPath)) {
+  const signatureRiskContent = fs.readFileSync(signatureRiskPath, 'utf-8');
+  for (const token of ['ByteRange', 'Contents', "PDFName.of('FT')", "'/Sig'", "status: 'SIGNED'"]) {
+    if (!signatureRiskContent.includes(token)) {
+      errors.push(`Signature-risk detector must contain structural token: ${token}`);
+    }
+  }
+}
+
+if (fs.existsSync(toolbarFilePath)) {
+  const toolbarContent = fs.readFileSync(toolbarFilePath, 'utf-8');
+  if (!toolbarContent.includes('await inspectPdfSignatureRisk(workingBytes)')) {
+    errors.push('Toolbar Save must inspect signature risk before rewrite');
+  }
+  if (!toolbarContent.includes('setSignatureWarningCount(risk.signatureCount)')) {
+    errors.push('Toolbar Save must surface the signed-PDF warning before continuing');
+  }
+}
+
+if (fs.existsSync(signatureDialogPath)) {
+  const signatureDialogContent = fs.readFileSync(signatureDialogPath, 'utf-8');
+  if (!signatureDialogContent.includes('Saving may invalidate existing digital signatures')) {
+    errors.push('Signed-PDF warning must explicitly state invalidation risk');
+  }
+  if (!signatureDialogContent.includes('does not currently preserve signature validity')) {
+    errors.push('Signed-PDF warning must not imply signature preservation');
+  }
+}
+
 if (errors.length > 0) {
   console.error('\nAudit FAILED with errors:');
   errors.forEach((err) => console.error(`  - ${err}`));
@@ -130,4 +169,5 @@ console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
 console.log('[PASS] Deterministic root/reply /NM + /IRT repeated-save fixture contract verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
+console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');

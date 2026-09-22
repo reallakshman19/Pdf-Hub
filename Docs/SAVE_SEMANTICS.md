@@ -21,58 +21,23 @@
 
 Editable annotations/comments and a flattened visual export are different product outcomes and must remain separate actions.
 
-## Current implementation as of 2026-09-18
+## Current implementation as of 2026-09-22
 
-The current toolbar Save path calls:
+The toolbar normal Save path calls:
 
-`composeCommittedPdf()`
+`composeEditablePdf()`
 
-That function currently:
-1. starts from `workingBytes`;
-2. bakes Writer elements into the PDF;
-3. calls `PdfEditAdapter.exportWithAnnotations()`;
-4. produces new full PDF bytes.
+That path:
+1. starts from the active `workingBytes`;
+2. commits Writer elements as document content;
+3. serializes supported application annotations as editable native PDF `/Annot` objects;
+4. returns new full PDF bytes for Save/Save As.
 
-The annotation export path currently draws annotation appearances into page content rather than serializing supported annotations as native PDF `/Annot` objects.
+Explicit flattened exports use `composeCommittedPdf()` instead. Normal Save therefore remains semantically distinct from Export Flattened.
 
-After Save, `ToolbarFile`:
-- commits those new bytes as the working/original session state;
-- clears the in-memory annotation overlay store;
-- clears committed Writer elements.
+The current native annotation writer preserves the supported PDF-native annotation model, including stable managed `/NM` names and PDF-native reply `/IRT` relationships. Phase 10 interoperability tests separately exercise repeated-save type/identity continuity and external native-field precedence.
 
-Therefore **normal Save currently flattens application annotations**.
-
-This is a known product-contract violation tracked by roadmap issue #167 and must be repaired in Phase 1.
-
-## Required Phase 1 change
-
-Split the writer paths conceptually into:
-
-```text
-saveEditablePdf()
-  - preserve native annotation objects
-  - preserve supported review metadata
-  - bake only document content that is intentionally content
-
-exportFlattenedPdf()
-  - render/burn annotation appearances
-  - render/burn overlays as required
-  - never replace or clear editable state in the active session
-```
-
-Native PDF annotation support should cover common interoperable types where feasible:
-- `/Text`
-- `/Highlight`
-- `/Underline`
-- `/StrikeOut`
-- `/FreeText`
-- `/Ink`
-- `/Square`
-- `/Circle`
-- `/Line`
-- `/Stamp`
-
-Appearance streams must be generated when needed for viewer compatibility.
+Normal Save still rewrites PDF bytes rather than providing a signature-preserving incremental update contract. Signed-PDF risk is therefore handled by an explicit preflight warning, described below.
 
 ## Save-state rule
 
@@ -84,7 +49,11 @@ Do not clear editable annotation state merely because its visual appearance was 
 
 Structural/content changes may invalidate existing digital signatures.
 
-Until signature-preserving/incremental-save behavior is implemented, saving a signed PDF must surface a clear warning rather than implying signature preservation.
+Before normal Save/Save As, PDF Hub inspects the current PDF for an applied signature structure on the supported pdf-lib surface. The detector requires a meaningful `/ByteRange` plus non-zero signature `/Contents`; an empty `/Sig` form field by itself is not treated as an applied signature.
+
+When an applied signature is detected, Save pauses before PDF composition or file write and warns that PDF Hub rewrites the file and **does not currently preserve signature validity**. The user may cancel with no Save write side effects or explicitly choose **Save Anyway**.
+
+This is rewrite-risk detection, not cryptographic validation. PDF Hub does not claim that an existing signature remains valid after Save/Save As, and it does not yet implement signature-preserving incremental writes.
 
 ## Testing contract
 
