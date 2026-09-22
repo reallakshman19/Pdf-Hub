@@ -1,0 +1,31 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-SIG-MERGED-DELIVERY-SYNC",
+  "command": "SYNC_DELIVERY",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:31:00Z",
+  "updated_at": "2026-09-22T16:31:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:52c53dd0928e31ac517c58b6b16a2a5325b5d3ef8f8f8a39966ccbf2feb8093d",
+      "after_digest": "sha256:baa6d77fa2b3c582d63482b9a2683b8da59c8c765b93e969ced961bb3a304350",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-MERGED-DELIVERY-SYNC/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-MERGED-DELIVERY-SYNC/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/DELIVERY_STATUS.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:a2e7a26743a64432a7a608dfa820f3fed621047b68ee380030d7a77037fa8243",
+      "after_digest": "sha256:fce753e5d4b62f19ba957dcf8e23bfdcf9e21bf325175c07061fc15302214c45",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-MERGED-DELIVERY-SYNC/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-MERGED-DELIVERY-SYNC/backups/001.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/DELIVERY_STATUS.yaml"
+  ]
+}

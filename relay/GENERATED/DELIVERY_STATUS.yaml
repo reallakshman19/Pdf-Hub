@@ -6,10 +6,10 @@
     "kind": "PULL_REQUEST",
     "number": 291
   },
-  "observed_at": "2026-09-22T16:12:00Z",
-  "provider_ref": "PR #291 @ 0d5adb93d273f056aa63252fe67fc373f74042b4; workflow run 35752240383 / job 106829061720 completed with provider conclusion failure and zero executed steps",
-  "lifecycle": "READY",
+  "observed_at": "2026-09-22T16:31:00Z",
+  "provider_ref": "PR #291 merged by Owner-authorized action; merge commit 21d990078cf22639b51c3c24e4d17818bea8dea1",
+  "lifecycle": "MERGED",
   "checks": "UNKNOWN",
-  "review": "PENDING",
-  "mergeability": "MERGEABLE"
+  "review": "UNKNOWN",
+  "mergeability": "NOT_APPLICABLE"
 }
