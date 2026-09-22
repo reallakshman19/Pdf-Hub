@@ -1,0 +1,350 @@
+{
+  "schema_version": "relay-v3-task-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "source_protocol": "V2_5",
+  "identity": {
+    "work_package": "WP-010",
+    "ep": "EP-10-001",
+    "issue": null,
+    "delivery_vehicle": null
+  },
+  "purpose": {
+    "programme_outcome": "Complete PDF Hub readiness roadmap",
+    "current_goal": "Native annotation interoperability",
+    "task_outcome": "Native annotation writer emits required /AP appearance streams and reader/writer round trips preserve semantic identity, geometry, replies and review mapping.; Permanent interoperability fixtures verify PDF Hub plus externally evidenced viewers without overclaiming unsupported compatibility.; ReviewThread remains a domain/review concept rather than becoming duplicate visual annotation storage.",
+    "why_this_task_exists": "The current native writer emits standard /Annot dictionaries and reply relationships, but it does not generate explicit /AP appearance streams. The reader imports standard fields best-effort, and ReviewThread remains a transitional adapter over annotation.review persistence. Target save semantics already require editable native Save/Save As and separate flattened export."
+  },
+  "lineage": {
+    "predecessor_checkpoint": "NONE",
+    "upstream_dependencies": [
+      "WP-8F"
+    ],
+    "roadmap_admission": {
+      "disposition": "MAPPED_EXISTING_WP",
+      "revision": "RM-0004",
+      "basis": [
+        "RM-0004 computes WP-010 as the sole serial frontier.",
+        "Issue #288 defines the Phase 10 interoperability work contract.",
+        "SAVE_SEMANTICS requires editable native Save/Save As distinct from flattened export and warns on signed rewrites.",
+        "The annotation concept requires explicit appearance streams and external-viewer verification."
+      ]
+    }
+  },
+  "parent_issue": {
+    "repository": null,
+    "number": null,
+    "title": null,
+    "state": null,
+    "url": null,
+    "baseline": null,
+    "current": null,
+    "updates": []
+  },
+  "parent_issue_progress": {
+    "checklist": [],
+    "summary": {
+      "complete": 0,
+      "partial": 0,
+      "pending": 0,
+      "blocked": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 0
+    }
+  },
+  "current_task_progress": {
+    "checklist": [
+      {
+        "id": "AC-10-01",
+        "statement": "Permanent native-annotation fixtures and semantic inventory declare identity, geometry/content/reply and required /AP expectations for supported types.",
+        "state": "PENDING",
+        "evidence": [
+          "STEP-10-01 fixture/oracle implementation exists, but Relay findings F10-01/F10-02/F10-03 remain open.",
+          "Pinned V2.5 conformance review found the prior EP-10-001 quality router omitted ui-ux, accessibility and migration. The corrected EP digest is sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4.",
+          "Prior QSET-10-001/DISC-10-001/QUAL-10-001/TC-10-001 are historical only after the EP digest change. Fresh QSET-10-002 qualification and candidate-specific MATERIAL_WRITE_READY are required before corrective writes.",
+          "No AC-10-01 weight is earned until the corrected route closes F10-01/F10-02/F10-03 with executed audit/test evidence."
+        ]
+      },
+      {
+        "id": "AC-10-02",
+        "statement": "Required /AP generation and repeated Save/reopen preserve supported native editability/appearance without duplication.",
+        "state": "PENDING",
+        "evidence": [
+          "No Phase 10 /AP implementation or repeated-save acceptance evidence exists yet."
+        ]
+      },
+      {
+        "id": "AC-10-03",
+        "statement": "Every claimed supported external viewer has retained round-trip evidence; unavailable/failing viewers remain unclaimed.",
+        "state": "PENDING",
+        "evidence": [
+          "No named external-viewer compatibility evidence has been executed/retained yet."
+        ]
+      },
+      {
+        "id": "AC-10-04",
+        "statement": "Save/Save As/Flattened/Searchable semantics remain distinct and bounded ReviewThread/native-reply continuity has no hidden flattening or duplication.",
+        "state": "PENDING",
+        "evidence": [
+          "Save/export/review continuity hardening has not started under Phase 10."
+        ]
+      },
+      {
+        "id": "AC-10-05",
+        "statement": "Signed-PDF rewrite risk is detected/warned truthfully and Phase 10 audit/certification/docs expose the verified support matrix.",
+        "state": "PENDING",
+        "evidence": [
+          "Signed-rewrite warning and Phase 10 certification evidence have not been produced."
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 0,
+      "partial": 0,
+      "pending": 5,
+      "blocked": 0,
+      "total": 5
+    }
+  },
+  "offloads": [],
+  "pending_items": [],
+  "known_issues": [],
+  "improvement_vs_original_issue": {
+    "baseline_digest": null,
+    "items": []
+  },
+  "scope": {
+    "write": [
+      "frontend/src/core/pdf-annotations/",
+      "frontend/src/core/review/",
+      "frontend/src/core/document/",
+      "frontend/src/components/",
+      "frontend/e2e/",
+      "frontend/scripts/",
+      "frontend/package.json",
+      "Docs/SAVE_SEMANTICS.md",
+      "ARCHITECTURE.md",
+      "agents/relay/"
+    ],
+    "read": [
+      "frontend/src/core/annotations/",
+      "frontend/src/adapters/pdf-renderer/",
+      "GitHub issues #183, #284, #286, #288"
+    ],
+    "protected": [
+      "Save/Save As preserve editable native annotation semantics; explicit flattened export remains separate.",
+      "Annotation visual identity and ReviewThread/discussion identity remain distinct concepts.",
+      "Repeated saves upsert managed annotations rather than duplicate them.",
+      "PageId/PageGraph and immutable revision/history authority remain unchanged.",
+      "Viewer compatibility is claimed only from named retained evidence.",
+      "Signed rewrites do not imply preserved cryptographic validity.",
+      "Phase 8G and Phase 9 remain pending/unsatisfied until separately reconciled."
+    ],
+    "prohibited": [
+      "New annotation product types/features",
+      "OCR internationalization",
+      "Public SDK",
+      "Existing-text editing",
+      "Signing creation or signature validation system",
+      "Wholesale review/annotation-model rewrite"
+    ]
+  },
+  "inputs": [
+    {
+      "id": "INPUT-10-01",
+      "role": "Phase 10 interoperability contract",
+      "authority": "Verified GitHub coordination issue",
+      "source_ref": "GitHub issue #288",
+      "freshness": "CURRENT"
+    },
+    {
+      "id": "INPUT-10-02",
+      "role": "Current native annotation production path",
+      "authority": "Production code",
+      "source_ref": "commitPipeline.ts + nativeAnnotationWriter.ts + nativeAnnotationReader.ts",
+      "freshness": "CURRENT"
+    },
+    {
+      "id": "INPUT-10-03",
+      "role": "Save semantics contract",
+      "authority": "Repository product documentation",
+      "source_ref": "Docs/SAVE_SEMANTICS.md",
+      "freshness": "CURRENT"
+    },
+    {
+      "id": "INPUT-10-04",
+      "role": "Deferred predecessor obligations",
+      "authority": "Owner decisions and issue state",
+      "source_ref": "ODR-0003 + ODR-0005 + issues #284/#286",
+      "freshness": "CURRENT"
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "BENCH-10-01",
+      "purpose": "Define what must survive Save/reopen independent of UI rendering.",
+      "role": "Native annotation semantic round-trip oracle",
+      "source_ref": "Issue #288 + SAVE_SEMANTICS",
+      "oracle": "REFERENCE_DATA",
+      "expected": "After repeated Save/reopen, supported annotations remain native, non-duplicated and semantically equivalent; required appearance streams remain valid.",
+      "required": true,
+      "current_result": "UNKNOWN",
+      "evidence_basis": {
+        "material_ref": null,
+        "checkpoint": null
+      }
+    },
+    {
+      "id": "BENCH-10-02",
+      "purpose": "Prevent unsupported viewer compatibility claims.",
+      "role": "Viewer interoperability oracle",
+      "source_ref": "Issue #288 viewer matrix",
+      "oracle": "REFERENCE_DATA",
+      "expected": "Only viewers with retained passing evidence are listed as supported; unsupported/unavailable viewers remain unclaimed.",
+      "required": true,
+      "current_result": "UNKNOWN",
+      "evidence_basis": {
+        "material_ref": null,
+        "checkpoint": null
+      }
+    },
+    {
+      "id": "BENCH-10-03",
+      "purpose": "Prevent hidden flattening or active-state loss.",
+      "role": "Save/export separation oracle",
+      "source_ref": "Docs/SAVE_SEMANTICS.md",
+      "oracle": "FROZEN_GOLDEN",
+      "expected": "Each command produces only its declared file/session effect.",
+      "required": true,
+      "current_result": "UNKNOWN",
+      "evidence_basis": {
+        "material_ref": null,
+        "checkpoint": null
+      }
+    },
+    {
+      "id": "BENCH-10-04",
+      "purpose": "Prevent false signature-preservation claims.",
+      "role": "Signed rewrite truth oracle",
+      "source_ref": "SAVE_SEMANTICS + issue #288",
+      "oracle": "REFERENCE_DATA",
+      "expected": "No signed rewrite is presented as preserving signature validity by default.",
+      "required": true,
+      "current_result": "UNKNOWN",
+      "evidence_basis": {
+        "material_ref": null,
+        "checkpoint": null
+      }
+    }
+  ],
+  "benchmark_debt": {
+    "required_missing": [
+      "BENCH-10-01",
+      "BENCH-10-02",
+      "BENCH-10-03",
+      "BENCH-10-04"
+    ],
+    "stale": [],
+    "optional": []
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "lease_or_custody": null,
+    "executor": null,
+    "route": "SERIAL:EP-10-001",
+    "branch": "phase10/postmerge-interoperability-fix"
+  },
+  "material": {
+    "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+    "current_head": "127cc85d395c3e9188db36eefd5f5bac9b603706"
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-01",
+      "state": "NOT_PROVED",
+      "statement": "Permanent native-annotation fixtures and semantic inventory declare identity, geometry/content/reply and required /AP expectations for supported types.",
+      "evidence": [
+        "STEP-10-01 fixture/oracle implementation exists, but Relay findings F10-01/F10-02/F10-03 remain open.",
+        "Pinned V2.5 conformance review found the prior EP-10-001 quality router omitted ui-ux, accessibility and migration. The corrected EP digest is sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4.",
+        "Prior QSET-10-001/DISC-10-001/QUAL-10-001/TC-10-001 are historical only after the EP digest change. Fresh QSET-10-002 qualification and candidate-specific MATERIAL_WRITE_READY are required before corrective writes.",
+        "No AC-10-01 weight is earned until the corrected route closes F10-01/F10-02/F10-03 with executed audit/test evidence."
+      ]
+    },
+    {
+      "id": "AC-10-02",
+      "state": "NOT_PROVED",
+      "statement": "Required /AP generation and repeated Save/reopen preserve supported native editability/appearance without duplication.",
+      "evidence": [
+        "No Phase 10 /AP implementation or repeated-save acceptance evidence exists yet."
+      ]
+    },
+    {
+      "id": "AC-10-03",
+      "state": "NOT_PROVED",
+      "statement": "Every claimed supported external viewer has retained round-trip evidence; unavailable/failing viewers remain unclaimed.",
+      "evidence": [
+        "No named external-viewer compatibility evidence has been executed/retained yet."
+      ]
+    },
+    {
+      "id": "AC-10-04",
+      "state": "NOT_PROVED",
+      "statement": "Save/Save As/Flattened/Searchable semantics remain distinct and bounded ReviewThread/native-reply continuity has no hidden flattening or duplication.",
+      "evidence": [
+        "Save/export/review continuity hardening has not started under Phase 10."
+      ]
+    },
+    {
+      "id": "AC-10-05",
+      "state": "NOT_PROVED",
+      "statement": "Signed-PDF rewrite risk is detected/warned truthfully and Phase 10 audit/certification/docs expose the verified support matrix.",
+      "evidence": [
+        "Signed-rewrite warning and Phase 10 certification evidence have not been produced."
+      ]
+    }
+  ],
+  "controls": {
+    "material_write": [],
+    "checkpoint": [],
+    "handover": [],
+    "pr_ready": [],
+    "merge": [],
+    "release": []
+  },
+  "knowledge_state": {
+    "known_true": [],
+    "known_false": [],
+    "unknown": [],
+    "assumptions": []
+  },
+  "negative_knowledge": [],
+  "preserve": {
+    "accepted_do_not_reopen": []
+  },
+  "history": {
+    "recent_events": []
+  },
+  "next": {
+    "immediate_action": "A fresh repository-grounded candidate reconstructs the post-merge RM-0004 / issue #288 / EP-10-001 route, creates fresh DISC/TC under the THREE_PASS_COMPLETE qualification exemption, derives live MATERIAL_WRITE_READY, then closes only STEP-10-01 findings F10-01/F10-02/F10-03.",
+    "next_value_frontier": "External annotation appearance/interoperability hardening",
+    "stop_conditions": [
+      "OWNER_DECISION_REQUIRED",
+      "ESSENTIAL_INPUT_MISSING",
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "SUPERSEDED_EP",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "reconstruction_sources": [
+    "agents/relay/REPO_STATE.yaml",
+    "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+    "agents/relay/roadmap/PROGRESS.yaml",
+    "agents/relay/roadmap/ROADMAP_EVENTS.yaml",
+    "agents/relay/execution-packages/EP-10-001.yaml"
+  ]
+}

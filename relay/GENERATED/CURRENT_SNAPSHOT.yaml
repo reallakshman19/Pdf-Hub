@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0004",
-    "state_digest": "sha256:5ad66fccb9b881a6eb96f30a4b07e5fcdfb4d30b6e81128e83ac583b2d1a28bf",
+    "state_digest": "sha256:a1e8c47b83f64b0cd1634706b594918c0697e788f4d87df7bc98746869f47d0d",
     "material_basis": {
-      "head": "25780bef7401cf7558bc622518a452b00712e540",
+      "head": "127cc85d395c3e9188db36eefd5f5bac9b603706",
       "tree_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
     },
-    "coordination_head": "25780bef7401cf7558bc622518a452b00712e540"
+    "coordination_head": "127cc85d395c3e9188db36eefd5f5bac9b603706"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -44,7 +44,7 @@
     ]
   },
   "execution": {
-    "lifecycle": "INITIALIZING",
+    "lifecycle": "IDLE",
     "work_package": null,
     "ep": null,
     "lease": null,
@@ -56,8 +56,8 @@
     "prohibited": []
   },
   "material": {
-    "base": "25780bef7401cf7558bc622518a452b00712e540",
-    "head": "25780bef7401cf7558bc622518a452b00712e540",
+    "base": "127cc85d395c3e9188db36eefd5f5bac9b603706",
+    "head": "127cc85d395c3e9188db36eefd5f5bac9b603706",
     "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
@@ -66,15 +66,9 @@
     "latest_material_validation": {}
   },
   "controls": {
-    "execution_blockers": [
-      "CTRL-MIGRATION-RECONCILE"
-    ],
-    "handover_blockers": [
-      "CTRL-MIGRATION-RECONCILE"
-    ],
-    "delivery_blockers": [
-      "CTRL-MIGRATION-RECONCILE"
-    ],
+    "execution_blockers": [],
+    "handover_blockers": [],
+    "delivery_blockers": [],
     "informational": []
   },
   "delivery": {
@@ -84,20 +78,21 @@
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": "Reconcile legacy intent/evidence into native V3 present authority before material work.",
+    "immediate_material_action": "Admit the Phase 10 native annotation interoperability correction as the first native V3 task.",
     "delivery_action": null,
     "stop_conditions": [
-      "Do not infer native V3 acceptance or custody from V2.5 receipts."
+      "Do not mutate agents/relay/** after V3 activation.",
+      "Do not start STEP-10-02 /AP work before the bounded reliability correction is independently evidenced."
     ]
   },
   "handoff": {
-    "zero_context_takeover_possible": false,
+    "zero_context_takeover_possible": true,
     "reconstruction_sources": [
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
-      "relay/MIGRATION/V25_REPORT.yaml",
-      "agents/relay/REPO_STATE.yaml"
+      "relay/GENERATED/INTELLIGENCE_CONTINUITY.yaml",
+      "relay/EVENTS.jsonl"
     ]
   }
 }

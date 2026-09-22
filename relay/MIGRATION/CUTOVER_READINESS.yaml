@@ -1,0 +1,32 @@
+{
+  "schema_version": "relay-v3-cutover-readiness",
+  "authority": "DERIVED_CUTOVER_READINESS",
+  "assessed_at": "2026-09-22T11:18:30Z",
+  "ready": true,
+  "checks": {
+    "v3_conformance": "PASS",
+    "legacy_digest_unchanged": "PASS",
+    "source_validation": "PASS",
+    "migration_control_resolved": "PASS",
+    "roadmap_intelligence_continuity": "PASS",
+    "native_lifecycle_ready": "PASS",
+    "protocol_selection_prepared": "PASS"
+  },
+  "basis": [
+    "v3_conformance_errors=0",
+    "migration_report_errors=0",
+    "protocol_selection_errors=0",
+    "legacy_bootstrap=sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a",
+    "legacy_freeze=sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a",
+    "legacy_live=sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a",
+    "source_validation=PASS",
+    "lifecycle=IDLE",
+    "migration_control=RESOLVED",
+    "roadmap_intelligence_continuity=RESOLVED",
+    "roadmap_intelligence_evidence=3",
+    "intelligence_continuity_report=PASS",
+    "intelligence_continuity_errors=0",
+    "intelligence_continuity_recomputed=PASS",
+    "intelligence_continuity_recompute_error="
+  ]
+}

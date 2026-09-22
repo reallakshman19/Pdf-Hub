@@ -4,7 +4,7 @@
     {
       "id": "CTRL-MIGRATION-RECONCILE",
       "kind": "PROTOCOL",
-      "state": "OPEN",
+      "state": "RESOLVED",
       "source": {
         "type": "VALIDATOR",
         "ref": "relay/MIGRATION/V25_REPORT.yaml"
@@ -28,13 +28,16 @@
       ],
       "resolution": {
         "condition": "Native V3 roadmap/frontier/EP/lease/checkpoint disposition is established without rewriting V2.5 history.",
-        "evidence": []
+        "evidence": [
+          "relay/MIGRATION/V25_REPORT.yaml source validation PASS",
+          "Native V3 staged lifecycle reconciled to IDLE; current Phase 10 will be admitted natively after cutover; legacy receipts are not imported as V3 authority."
+        ]
       }
     },
     {
       "id": "CTRL-V25-INTELLIGENCE-CONTINUITY",
       "kind": "PROTOCOL",
-      "state": "OPEN",
+      "state": "RESOLVED",
       "source": {
         "type": "REPOSITORY",
         "ref": "Common#421"
@@ -49,7 +52,11 @@
       ],
       "resolution": {
         "condition": "Common#421 continuity acceptance is evidenced: governed roadmap/event/checkpoint/progress intelligence remains semantically intact across the selected V3 authority boundary.",
-        "evidence": []
+        "evidence": [
+          "relay/GENERATED/INTELLIGENCE_CONTINUITY.yaml ready=true",
+          "relay/GENERATED/tasks/EP-10-001.snapshot.yaml",
+          "relay/GENERATED/improvements/PRE-CUTOVER.improvement.yaml"
+        ]
       }
     }
   ]
