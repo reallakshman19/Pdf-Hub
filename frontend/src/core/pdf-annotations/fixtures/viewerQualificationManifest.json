@@ -1,0 +1,116 @@
+{
+  "schema_version": "phase10-viewer-qualification-v1",
+  "phase": "PHASE-010",
+  "work_package": "WP-010",
+  "production_writer": {
+    "module": "src/core/pdf-annotations/nativeAnnotationWriter.ts",
+    "export": "writeNativePdfAnnotations"
+  },
+  "supported_annotation_types": [
+    "textbox",
+    "callout",
+    "sticky-note",
+    "highlight",
+    "underline",
+    "strikeout",
+    "squiggly",
+    "shape-rect",
+    "shape-ellipse",
+    "shape-polygon",
+    "shape-cloud",
+    "line",
+    "arrow",
+    "ink",
+    "stamp",
+    "comment",
+    "redaction"
+  ],
+  "appearance_families": {
+    "free-text": {
+      "types": [
+        "textbox",
+        "callout"
+      ],
+      "render_probe": "Text is visible with intended box/callout geometry.",
+      "edit_probe": "Viewer exposes a native FreeText annotation and permits a normal text/style edit."
+    },
+    "notes-review": {
+      "types": [
+        "sticky-note",
+        "comment"
+      ],
+      "render_probe": "Note/comment marker and contents are visible.",
+      "edit_probe": "Viewer exposes a native note/comment object and permits content/review interaction."
+    },
+    "text-markup": {
+      "types": [
+        "highlight",
+        "underline",
+        "strikeout",
+        "squiggly"
+      ],
+      "render_probe": "Markup follows the intended quadrilateral region.",
+      "edit_probe": "Viewer exposes native text-markup selection and permits a normal style/delete edit."
+    },
+    "shapes": {
+      "types": [
+        "shape-rect",
+        "shape-ellipse",
+        "shape-polygon",
+        "shape-cloud"
+      ],
+      "render_probe": "Shape geometry, stroke/fill, and cloudy border where applicable are visible.",
+      "edit_probe": "Viewer exposes a native shape annotation and permits a normal geometry/style edit."
+    },
+    "linework": {
+      "types": [
+        "line",
+        "arrow"
+      ],
+      "render_probe": "Line geometry and endpoint style are visible.",
+      "edit_probe": "Viewer exposes a native line annotation and permits a normal geometry/style edit."
+    },
+    "ink": {
+      "types": [
+        "ink"
+      ],
+      "render_probe": "Ink strokes are visible in the intended geometry.",
+      "edit_probe": "Viewer exposes a native ink annotation and permits selection/delete or supported style editing."
+    },
+    "stamp-mask": {
+      "types": [
+        "stamp",
+        "redaction"
+      ],
+      "render_probe": "Stamp or visual redaction-mask appearance is visible.",
+      "edit_probe": "Viewer exposes the managed annotation as a native selectable annotation object."
+    }
+  },
+  "baseline": {
+    "managed_annotation_name_field": "NM",
+    "require_expected_subtype": true,
+    "require_absent_ap": true,
+    "claim": "Current qualification baseline intentionally contains no production /AP streams."
+  },
+  "evidence_contract": {
+    "viewer_required_fields": [
+      "id",
+      "name",
+      "version",
+      "platform"
+    ],
+    "observation_required_fields": [
+      "viewer_id",
+      "annotation_type",
+      "render",
+      "reopen_editability",
+      "evidence_ref"
+    ],
+    "result_values": [
+      "PASS",
+      "FAIL",
+      "NOT_RUN"
+    ],
+    "qualification_rule": "Every declared viewer/type pair must exist with render=PASS, reopen_editability=PASS, and non-empty evidence_ref. Missing, FAIL, or NOT_RUN cannot qualify."
+  }
+}
