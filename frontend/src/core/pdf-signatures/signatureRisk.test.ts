@@ -61,6 +61,17 @@ async function createCertifiedPdf(): Promise<Uint8Array> {
 }
 
 describe('inspectPdfSignatureRisk', () => {
+  it('returns UNKNOWN rather than UNSIGNED when the PDF cannot be parsed', async () => {
+    const result = await inspectPdfSignatureRisk(new Uint8Array([1, 2, 3, 4]));
+
+    expect(result).toEqual({
+      status: 'UNKNOWN',
+      signatureCount: 0,
+      evidence: [],
+      reason: 'PDF_PARSE_FAILED',
+    });
+  });
+
   it('reports an ordinary PDF as unsigned', async () => {
     const doc = await PDFDocument.create();
     doc.addPage();

@@ -8,6 +8,7 @@ describe('SignedPdfRewriteWarningDialog', () => {
     render(
       <SignedPdfRewriteWarningDialog
         signatureCount={2}
+        status="SIGNED"
         onCancel={vi.fn()}
         onContinue={vi.fn()}
       />,
@@ -18,6 +19,23 @@ describe('SignedPdfRewriteWarningDialog', () => {
     expect(screen.queryByText(/signature.*preserved/i)).toBeNull();
   });
 
+  it('warns explicitly when signature state cannot be determined', () => {
+    render(
+      <SignedPdfRewriteWarningDialog
+        status="UNKNOWN"
+        signatureCount={0}
+        onCancel={vi.fn()}
+        onContinue={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/could not determine whether this PDF contains digital signatures/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/saving may invalidate signatures if they are present/i)).toBeInTheDocument();
+    expect(screen.getByText(/does not currently preserve signature validity/i)).toBeInTheDocument();
+  });
+
   it('supports an explicit cancel or Save Anyway decision', () => {
     const onCancel = vi.fn();
     const onContinue = vi.fn();
@@ -25,6 +43,7 @@ describe('SignedPdfRewriteWarningDialog', () => {
     render(
       <SignedPdfRewriteWarningDialog
         signatureCount={1}
+        status="SIGNED"
         onCancel={onCancel}
         onContinue={onContinue}
       />,

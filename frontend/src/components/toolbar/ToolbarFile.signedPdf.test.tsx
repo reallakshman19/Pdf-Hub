@@ -135,6 +135,35 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledTimes(1);
   });
 
+  it('fails safe when signature state is unknown and waits for explicit confirmation', async () => {
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({
+      status: 'UNKNOWN',
+      signatureCount: 0,
+      evidence: [],
+      reason: 'PDF_PARSE_FAILED',
+    });
+
+    render(<ToolbarFile />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(
+      await screen.findByText(/could not determine whether this PDF contains digital signatures/i),
+    ).toBeInTheDocument();
+    expect(mocks.beginSaveOperation).not.toHaveBeenCalled();
+    expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
+    expect(mocks.savePdfBytes).not.toHaveBeenCalled();
+    expect(mocks.saveAnnotations).not.toHaveBeenCalled();
+    expect(mocks.commitWorkingCopy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Anyway' }));
+
+    await waitFor(() => {
+      expect(mocks.composeEditablePdf).toHaveBeenCalledTimes(1);
+      expect(mocks.savePdfBytes).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('warns before any save side effect and Cancel leaves the document untouched', async () => {
     render(<ToolbarFile />);
 
