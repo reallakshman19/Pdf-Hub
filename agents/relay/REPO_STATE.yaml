@@ -34,10 +34,10 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-283",
+    "id": null,
     "path": null,
     "merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-    "note": "WP-8F merged under documented #183 infrastructure exception; engineering material remained aabc1765244353ea263ecb94635a3188d2b77153 and executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "note": "WP-8F merged under documented #183 infrastructure exception; engineering material remained aabc1765244353ea263ecb94635a3188d2b77153 and executable certification remained NOT_RUN because Actions received no runner and executed zero steps. Historical only; cleared from active predecessor authority during V3 migration source validation."
   },
   "predecessor_replan": {
     "id": null,
