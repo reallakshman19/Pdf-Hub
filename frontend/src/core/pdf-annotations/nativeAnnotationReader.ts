@@ -43,9 +43,14 @@ export async function readNativePdfAnnotations(
     const page = doc.getPage(pageIndex);
     const records = readPageAnnotationRecords(page, lib);
     const roots = records.filter((record) => !record.dict.get(lib.PDFName.of('IRT')));
-    const replies = records.filter((record) => Boolean(record.dict.get(lib.PDFName.of('IRT'))));
+    const related = records.filter((record) => Boolean(record.dict.get(lib.PDFName.of('IRT'))));
+    const states = related.filter((record) => isReviewStateRecord(record.dict, lib));
+    const replies = related.filter((record) => isReplyRecord(record.dict, lib));
+
+    skippedCount += related.length - states.length - replies.length;
 
     const rootByRef = new Map<string, PdfAnnotation>();
+    const rootRecordByRef = new Map<string, NativeRecord>();
 
     for (const record of roots) {
       const parsed = parseRootAnnotation(
@@ -64,6 +69,7 @@ export async function readNativePdfAnnotations(
       annotations.push(parsed);
       if (record.refKey) {
         rootByRef.set(record.refKey, parsed);
+        rootRecordByRef.set(record.refKey, record);
       }
     }
 
@@ -71,11 +77,14 @@ export async function readNativePdfAnnotations(
       const parentRef = record.dict.get(lib.PDFName.of('IRT'));
       const parentKey = pdfObjectKey(parentRef, lib);
       const parent = parentKey ? rootByRef.get(parentKey) : undefined;
+      const parentRecord = parentKey ? rootRecordByRef.get(parentKey) : undefined;
 
-      if (!parent) {
+      if (!parent || !parentRecord) {
         skippedCount += 1;
         continue;
       }
+
+      promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
 
       const reply = parseReply(record.dict, parent.id, record.index, lib);
       if (!reply) {
@@ -93,6 +102,38 @@ export async function readNativePdfAnnotations(
         },
       };
       parent.updatedAt = Math.max(parent.updatedAt, reply.createdAt);
+    }
+
+    const orderedStates = [...states].sort((left, right) => {
+      const timestampDelta =
+        reviewStateTimestamp(left.dict, lib) - reviewStateTimestamp(right.dict, lib);
+      return timestampDelta || left.index - right.index;
+    });
+
+    for (const record of orderedStates) {
+      const parentRef = record.dict.get(lib.PDFName.of('IRT'));
+      const parentKey = pdfObjectKey(parentRef, lib);
+      const parent = parentKey ? rootByRef.get(parentKey) : undefined;
+      const parentRecord = parentKey ? rootRecordByRef.get(parentKey) : undefined;
+
+      if (!parent || !parentRecord) {
+        skippedCount += 1;
+        continue;
+      }
+
+      promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
+
+      const review = ensureReviewMetadata(parent, lib, undefined);
+      const updatedAt = reviewStateTimestamp(record.dict, lib) || review.updatedAt;
+      parent.data = {
+        ...parent.data,
+        review: {
+          ...review,
+          status: readReviewStatus(record.dict, lib, review.status),
+          updatedAt: Math.max(review.updatedAt, updatedAt),
+        },
+      };
+      parent.updatedAt = Math.max(parent.updatedAt, updatedAt);
     }
   }
 
@@ -218,15 +259,61 @@ function parseReply(
     ?? readPdfDate(dict, 'M', lib)
     ?? Date.now();
 
+  const privateId = readText(dict, 'PDFHubReplyId', lib);
+  const annotationName = readText(dict, 'NM', lib);
+
   return {
     id:
-      readText(dict, 'PDFHubReplyId', lib)
-      ?? readText(dict, 'NM', lib)
+      privateId
+      ?? replyIdFromAnnotationName(annotationName, parentId)
+      ?? annotationName
       ?? `${parentId}:native-reply:${index}`,
     author: readText(dict, 'T', lib) ?? 'Unknown',
     content,
     createdAt,
   };
+}
+
+function replyIdFromAnnotationName(
+  annotationName: string | null,
+  parentId: string,
+): string | null {
+  if (!annotationName) return null;
+  const prefix = `${parentId}:reply:`;
+  return annotationName.startsWith(prefix) && annotationName.length > prefix.length
+    ? annotationName.slice(prefix.length)
+    : null;
+}
+
+function isReviewStateRecord(dict: PDFDict, lib: PdfLibModule): boolean {
+  return (
+    readName(dict, 'StateModel', lib) === 'Review'
+    && Boolean(readName(dict, 'State', lib))
+  );
+}
+
+function isReplyRecord(dict: PDFDict, lib: PdfLibModule): boolean {
+  if (isReviewStateRecord(dict, lib)) return false;
+  const replyType = readName(dict, 'RT', lib);
+  return replyType === null || replyType === 'R';
+}
+
+function promoteStandardTextRootToComment(
+  annotation: PdfAnnotation,
+  rootDict: PDFDict,
+  lib: PdfLibModule,
+): void {
+  if (annotation.type !== 'sticky-note') return;
+  if (readText(rootDict, 'PDFHubType', lib)) return;
+  annotation.type = 'comment';
+}
+
+function reviewStateTimestamp(dict: PDFDict, lib: PdfLibModule): number {
+  return (
+    readPdfDate(dict, 'M', lib)
+    ?? readPdfDate(dict, 'CreationDate', lib)
+    ?? 0
+  );
 }
 
 function ensureReviewMetadata(
@@ -366,7 +453,9 @@ function annotationTypeFromSubtype(
 ): PdfAnnotation['type'] | null {
   switch (subtype) {
     case 'Text':
-      return 'sticky-note';
+      return readName(dict, 'StateModel', lib) === 'Review'
+        ? 'comment'
+        : 'sticky-note';
     case 'Highlight':
       return 'highlight';
     case 'Underline':
