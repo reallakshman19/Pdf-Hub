@@ -2,8 +2,8 @@
   "schema_version": "relay-v2.5",
   "identity": {
     "ep_id": "EP-10-001",
-    "branch": "phase10/native-annotation-interoperability",
-    "base_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "branch": "phase10/postmerge-interoperability-fix",
+    "base_ref": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
     "execution_state": "ACTIVE",
     "previous_checkpoint": "NONE",
     "previous_join": null,
@@ -21,10 +21,10 @@
     ]
   },
   "git_basis": {
-    "expected_branch": "phase10/native-annotation-interoperability",
-    "material_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "expected_branch": "phase10/postmerge-interoperability-fix",
+    "material_ref": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
     "base_branch": "phase9/pdf-fidelity-laboratory",
-    "base_observed_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "base_observed_ref": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
     "drift_policy": "RECHECK_BEFORE_WRITE",
     "drift_receipt": null
   },
@@ -72,7 +72,7 @@
       "ODR-0005 defers Phase 9 takeover qualification and dependent STEP-9-01 continuation.",
       "ODR-0006 / RM-0004 resequence WP-010 as the next serial frontier without satisfying Phase 9."
     ],
-    "current_implementation_state": "STEP-10-01 fixture/oracle material is present on the branch but remains unaccepted. Relay review findings F10-01/F10-02/F10-03 are open. No STEP-10-02 production /AP implementation has started.",
+    "current_implementation_state": "PR #289 is merged into phase9/pdf-fidelity-laboratory at 6f16bc859d3bd6975969ac408a3b119d7431fbb0. STEP-10-01 fixture/oracle material remains present but unaccepted; F10-01/F10-02/F10-03 remain open. The post-merge continuation branch is phase10/postmerge-interoperability-fix. No STEP-10-02 production /AP implementation has started.",
     "known_problems": [
       "nativeAnnotationWriter.ts writes subtype-specific dictionaries but no explicit /AP appearance stream.",
       "Viewer behavior may therefore depend on whether an external viewer regenerates annotation appearances.",
@@ -113,7 +113,7 @@
       "id": "DSTEP-10-02",
       "action": "VERIFY_GIT",
       "target": "live checkout",
-      "question": "Is the active checkout phase10/native-annotation-interoperability descended from exact RM-0004 handoff 78e55b0ed9816bce6ed2126d589c7ec7f19b93da?",
+      "question": "Is the active checkout phase10/postmerge-interoperability-fix descended from the exact merged Phase 10 material baseline 6f16bc859d3bd6975969ac408a3b119d7431fbb0 on phase9/pdf-fidelity-laboratory, with only coordination/evidence changes before MATERIAL_WRITE?",
       "expected_outputs": [
         "branch",
         "HEAD",
@@ -121,7 +121,7 @@
         "drift classification"
       ],
       "receipt_required": true,
-      "on_failure": "Withhold candidate material writes and reconcile Git routing."
+      "on_failure": "Withhold candidate material writes and reconcile the post-merge Git route/basis."
     },
     {
       "id": "DSTEP-10-03",
@@ -744,7 +744,7 @@
     "steps": [
       {
         "order": 1,
-        "action": "A fresh independent local candidate reconstructs the conformance-corrected RM-0004 / issue #288 / EP-10-001 from repository state, answers QSET-10-002, obtains fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY, then closes only STEP-10-01 findings F10-01/F10-02/F10-03.",
+        "action": "A fresh repository-grounded candidate reconstructs the post-merge RM-0004 / issue #288 / EP-10-001 route, creates fresh DISC/TC under the THREE_PASS_COMPLETE qualification exemption, derives live MATERIAL_WRITE_READY, then closes only STEP-10-01 findings F10-01/F10-02/F10-03.",
         "targets": [
           "agents/relay/certifications",
           "frontend/src/core/pdf-annotations/",
@@ -769,45 +769,46 @@
         "acceptance": [
           "AC-10-01"
         ],
-        "expected_result": "The incoming candidate independently validates the corrected quality-router contract and then completes only the bounded STEP-10-01 acceptance corrections: explicit reply/IRT oracle, precedence-policy alignment, and fail-closed all-17-type fixture coverage.",
+        "expected_result": "The incoming candidate independently reconstructs the corrected post-merge route and then completes only the bounded STEP-10-01 acceptance corrections: explicit reply/IRT oracle, precedence-policy alignment, and fail-closed all-17-type fixture coverage.",
         "stop_if": [
-          "QSET-10-002 / fresh DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
-          "Live route/Git basis becomes stale.",
-          "EP-10-001 or QSET-10-002 changes after qualification.",
+          "Fresh DISC/TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "Live route/Git basis becomes stale or phase9/pdf-fidelity-laboratory moves in a relevant way.",
+          "EP-10-001 changes after takeover certification.",
           "The correction expands into STEP-10-02 /AP production implementation before AC-10-01 is accepted."
         ],
         "execution_requirement": {
           "id": "EXECREQ-10-REQUAL-CORRECTION",
           "type": "EXTERNAL_ENVIRONMENT",
-          "actor": "FRESH_INDEPENDENT_LOCAL_CANDIDATE",
+          "actor": "FRESH_REPOSITORY_GROUNDED_CANDIDATE",
           "environment": {
             "kind": "LOCAL_AGENT_WITH_REPOSITORY_CHECKOUT",
-            "description": "Independent local agent/session with Pdf-Hub checkout and Common pinned at 65518fd5340599b2a0fb88db5041f6c96389ccb8, able to run pinned V2.5 validators and focused frontend tests."
+            "description": "Candidate/session able to reconstruct Pdf-Hub repository/GitHub state and run or truthfully classify the pinned V2.5 validators and focused frontend tests."
           },
           "command": null,
-          "instruction": "Reconstruct corrected EP-10-001/QSET-10-002 from repository state only; create/validate fresh DISC/QUAL/TC; derive live MATERIAL_WRITE_READY; only if WRITE, close F10-01/F10-02/F10-03 inside STEP-10-01 and post exact evidence to issue #288.",
+          "instruction": "Reconstruct post-merge EP-10-001 from repository state only; use the THREE_PASS_COMPLETE qualification exemption recorded on issue #288; create/validate fresh DISC/TC; derive live MATERIAL_WRITE_READY; only if WRITE, close F10-01/F10-02/F10-03 inside STEP-10-01 and post exact evidence to issue #288.",
           "working_directory": "<local-checkout>/Pdf-Hub",
           "required_basis": [
             "repository reallaksh19/Pdf-Hub",
-            "branch phase10/native-annotation-interoperability",
+            "branch phase10/postmerge-interoperability-fix",
             "roadmap RM-0004 / WP-010",
             "issue #288",
-            "handoff/base 78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
-            "Common engineering-pr-delivery-v2.5 pinned to 65518fd5340599b2a0fb88db5041f6c96389ccb8",
-            "current conformance-corrected EP-10-001 and QSET-10-002 from repository at execution time",
+            "merged Phase 10 material baseline 6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+            "Common engineering-pr-delivery-v3 pinned to c87cf87b313801e42ecd0fcc7d36af0d90c5f400 for protocol selection/compatibility semantics",
+            "live execution remains V2.5 compatibility under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 because no V3 selector is active",
+            "THREE_PASS_COMPLETE durable basis: issue #288 comment 5775352655",
             "issues #284 and #286 remain PENDING_NOT_SATISFIED"
           ],
-          "unavailable_here_reason": "This session prepared the conformance-corrected EP/QSET boundary and cannot validly act as its independent incoming candidate/evaluator; a dependency-capable local checkout is also required for pinned validators and focused frontend tests.",
+          "unavailable_here_reason": "The connected GitHub environment can reconcile provider/control state and author repository files, but it cannot execute the repository-local pinned validators or frontend Vitest suite; material writes remain blocked until live MATERIAL_WRITE_READY is independently established.",
           "expected_evidence": [
             "TEST-10-01"
           ],
           "blocks": [
-            "candidate-specific TAKEOVER_CERTIFIED on corrected EP digest",
-            "candidate-specific MATERIAL_WRITE_READY on corrected EP digest",
-            "STEP-10-01 correction writes",
+            "candidate-specific TAKEOVER_CERTIFIED on the post-merge EP digest",
+            "candidate-specific MATERIAL_WRITE_READY on the post-merge route",
+            "STEP-10-01 product correction writes",
             "STEP-10-02 start"
           ],
-          "success_condition": "A non-preparer candidate posts fresh repository-only DISC/QUAL/TC accepted by pinned validators for corrected EP-10-001, derives MATERIAL_WRITE_READY, closes F10-01/F10-02/F10-03 only, and posts audit/TEST-10-01 evidence to issue #288.",
+          "success_condition": "A repository-grounded candidate produces fresh DISC/TC accepted by pinned validators for the post-merge EP-10-001, derives MATERIAL_WRITE_READY, closes F10-01/F10-02/F10-03 only, and posts audit/TEST-10-01 evidence to issue #288.",
           "clears": [
             "corrected Phase 10 takeover admission",
             "qualified candidate authorization for STEP-10-01 correction",
@@ -815,7 +816,7 @@
           ],
           "delegation": {
             "mode": "LOCAL_AGENT",
-            "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase10/native-annotation-interoperability. Work from a local checkout root. Governing protocol: reallaksh19/Common@65518fd5340599b2a0fb88db5041f6c96389ccb8/skills/engineering-pr-delivery-v2.5. Current route: RM-0004 / WP-010 / issue #288 / PR #289. Read agents/relay/REPO_STATE.yaml, agents/relay/execution-packages/EP-10-001.yaml and agents/relay/certifications/qualification/QSET-10-002.yaml from repository only; do not rely on predecessor chat. Use a candidate identity different from the preparer recorded in QSET-10-002. Produce fresh DISC-10-* covering every receipt-required DSTEP with conversation_context_used:false. Answer Q1-Q5 exactly, obtain independent/deterministic QUAL-10-* PASS, create route-bound TC-10-* PASS, run pinned material_write_ready.py with your candidate id, and do not touch product files unless it returns WRITE. If WRITE, remain strictly inside STEP-10-01 and close Relay findings F10-01/F10-02/F10-03: encode deterministic root/reply identity and /IRT object-reference expectations with repeated-save verification; align enforced external-edit precedence claims with oracle/test coverage and explicitly mark pending fields; drive fixture/oracle validation fail-closed across all 17 supported annotation types. Do not implement production /AP streams, do not start STEP-10-02, do not add annotation types, do not broaden viewer claims, and do not alter Phase 8G/9 pending dispositions. Run npm run audit:phase10-annotation-interoperability and npx vitest run src/core/pdf-annotations/. Post back to issue #288: candidate id; DISC/QUAL/TC ids/paths/digests; validator outputs; material_write_ready result; exact head; files changed; F10-01/F10-02/F10-03 mapping; commands/results; remaining gaps; any stop condition.",
+            "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase10/postmerge-interoperability-fix. Governing protocol selection semantics: reallaksh19/Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/skills/engineering-pr-delivery-v3; because Pdf-Hub has no active V3 selector, execute under its live V2.5 compatibility authority pinned in REPO_STATE. Current route: RM-0004 / WP-010 / issue #288. THREE_PASS_COMPLETE is durably recorded in issue comment 5775352655, so follow-on QSET/QUAL is NOT_APPLICABLE; DISC/TC and live MATERIAL_WRITE_READY remain mandatory. Reconstruct repository state only. Create fresh DISC-10-* covering every receipt-required DSTEP with conversation_context_used:false, create route-bound TC-10-* evaluated by validate_takeover_certification.py, run pinned validators and material_write_ready.py with your candidate id, and do not touch product files unless it returns WRITE. If WRITE, remain strictly inside STEP-10-01 and close F10-01/F10-02/F10-03 only: deterministic root/reply identity and raw /IRT object-reference expectations across repeated saves; align external-edit precedence claims with implemented/tested coverage; fail-closed repeated-save fixture/oracle coverage for all 17 supported annotation types. Do not implement production /AP streams or start STEP-10-02. Run npm run audit:phase10-annotation-interoperability and npx vitest run src/core/pdf-annotations/. Post exact evidence to issue #288.",
             "publication": {
               "target": "CURRENT_WORK_ISSUE",
               "method": "COMMENT",
@@ -824,10 +825,10 @@
             },
             "response_check": {
               "timer_required": true,
-              "timer_title": "Phase 10 corrected takeover check",
+              "timer_title": "Phase 10 post-merge takeover check",
               "after_minutes": 60,
               "selection_reason": "Qualification plus local fixture/oracle setup is multi-step local verification.",
-              "on_due": "Read issue #288 for fresh QSET-10-002 candidate evidence, validate it against the corrected EP digest/current route/pinned Common, then reconcile before further material work.",
+              "on_due": "Read issue #288 for fresh post-merge DISC/TC/material-write/test evidence and reconcile before product work.",
               "on_no_response": "Report WAITING truthfully and schedule another check only if useful; do not infer takeover, WRITE, AC-10-01 acceptance, or STEP-10-02 authorization."
             }
           }
@@ -836,7 +837,7 @@
     ]
   },
   "qualification_boundary": {
-    "required": true,
+    "required": false,
     "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
     "from_phase": "PHASE-010",
     "to_phase": "PHASE-010",
@@ -845,19 +846,16 @@
       "VERIFICATION_ORACLE"
     ],
     "basis": [
-      "Pinned V2.5 conformance repair expands the Phase 10 engineering review authority to include UI/UX, accessibility and migration procedures that were silently omitted.",
-      "Verification authority now includes those quality procedures in addition to the existing semantic/interoperability oracles.",
-      "Because the EP contract digest changes, prior QSET/QUAL/TC bindings cannot authorize further writes even though the nominal roadmap phase remains PHASE-010."
+      "THREE_PASS_COMPLETE: issue #288 comment 5775352655 durably records the completed standalone three-pass terminal disposition for the current Phase 10 continuation.",
+      "Pinned Common engineering-pr-delivery-v2.5 explicitly makes follow-on QSET/QUAL NOT_APPLICABLE after THREE_PASS_COMPLETE while retaining DISC/TC/tests/source authority/MATERIAL_WRITE_READY.",
+      "Common engineering-pr-delivery-v3 at c87cf87b313801e42ecd0fcc7d36af0d90c5f400 leaves repositories without an activated relay/PROTOCOL_SELECTION.yaml on V2.5 compatibility behavior; Pdf-Hub has no active V3 selector."
     ],
     "question_policy": "DEFAULT",
     "question_policy_basis": [
-      "Owner requested normal Proceed next and did not suppress Phase 10 qualification questions."
+      "THREE_PASS_COMPLETE removes redundant follow-on qualification; this is not SUPPRESSED_BY_OWNER."
     ],
-    "not_applicable_reason": null,
-    "question_set": {
-      "id": "QSET-10-002",
-      "path": "agents/relay/certifications/qualification/QSET-10-002.yaml"
-    }
+    "not_applicable_reason": "THREE_PASS_COMPLETE",
+    "question_set": null
   },
   "quality": {
     "applicable": [
