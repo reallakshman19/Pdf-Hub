@@ -1,14 +1,14 @@
 {
   "schema_version": "relay-v3",
   "roadmap": {
-    "revision": "RM-0006-SIGNED-PDF-WARNING",
+    "revision": "RM-0007-AP-QUALIFICATION",
     "path": "relay/ROADMAP/ROADMAP.yaml"
   },
   "execution": {
-    "lifecycle": "IDLE",
-    "ep": null,
-    "lease": null,
-    "route": null
+    "lifecycle": "ACTIVE",
+    "ep": "EP-10-AP-QUALIFICATION",
+    "lease": "LEASE-10-AP-QUALIFICATION",
+    "route": "SERIAL:EP-10-AP-QUALIFICATION"
   },
   "accepted": {
     "checkpoint": "CP-10-SIGNED-PDF-WARNING-001"
@@ -21,7 +21,7 @@
     "primary_vehicle": {
       "provider": "GITHUB",
       "kind": "PULL_REQUEST",
-      "number": 291
+      "number": 292
     }
   },
   "generated": {

@@ -1,0 +1,67 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-APQ-ADMIT",
+  "command": "ADMIT_TASK",
+  "actor": "owner",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:36:00Z",
+  "updated_at": "2026-09-22T16:36:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:a7c201fb59a7f7ad1da043555231cdca7ccb64670956d90501949df3be71aa65",
+      "after_digest": "sha256:c2418c02b3bc02c15822f722c79f35afaf8c576f4bcca40401dd4db31c8bf6b7",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:6a63c0f7a633b046ef51724ca69e7560f6d96c1a1df4efead55fa3982ebed823",
+      "after_digest": "sha256:2c9e06622807c0092bb3cd53bf6f6371e19f06b2188036a04b79babd6f884714",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:e2b0560056f369917c19fb3f7994c0e71a5274966fceb1bfa89ae5ea041340b0",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/002.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/ROADMAP/ROADMAP.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:6f57b54ff0441f185b677337125ae41ac79e27836fc7c156c87be88560c06ae7",
+      "after_digest": "sha256:0b705434d8972e24d4916095c555dcc4915a5478e2e1bf11a7e04b31a02c7b92",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/backups/003.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:34a0fc7e4288cbcfec302f9b4b1ed5125eafd13155a765f6388d5546dea55020",
+      "after_digest": "sha256:b36f29ac608952e8caf76eb5f2b68ac8e87aa580a3135fe2d41ebc1b09e54a56",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/004.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/backups/004.before"
+    },
+    {
+      "path": "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:cb77cbe5f3c1ba2f459ef9ff79f4769873a3fd25fd6bb032ace16fad9094fda6",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-ADMIT/staged/005.after",
+      "backup_path": null
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
+    "relay/ROADMAP/ROADMAP.yaml",
+    "relay/STATE.yaml",
+    "relay/WORK/EP-10-AP-QUALIFICATION.yaml"
+  ]
+}

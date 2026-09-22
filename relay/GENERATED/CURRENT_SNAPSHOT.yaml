@@ -2,19 +2,19 @@
   "schema_version": "relay-v3-snapshot",
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
-    "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
-    "state_digest": "sha256:bf16cf491143510835ea7fac636464bfcba62831247c9c08012181fa12be6c82",
+    "roadmap_revision": "RM-0007-AP-QUALIFICATION",
+    "state_digest": "sha256:c55d6860487301415deaa01f4aeda8ad0dc1bbbf286d086b2a75a5bfe5429426",
     "material_basis": {
-      "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
-      "tree_digest": "sha256:28f5949e98b86b2c4a89d52e46d0a75eeb944dca983cbe91f10db35a3cddaf21",
-      "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
-      "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
+      "head": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+      "tree_digest": "sha256:5277ae62e38ca59fecdc363cc432d8f0f3d9966675def300cf9a37ee9660ba6c",
+      "relevant_paths_digest": "sha256:6277153bc25ff62a49711856059b96a6789641239a6910631ee76a3e81ff98f8",
+      "dependency_digest": "sha256:32772b674ad6a9608edf860b2192ae6a1021dbe2aa01fb7f9b81aafc43df6652"
     },
-    "coordination_head": "bc7607fa77757f56f7cc8a41ff48e5beeb14d267"
+    "coordination_head": "a259ecc48168c202aa0bc6743aa3092a302255b8"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
-    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+    "current_goal": "Qualify Phase 10 native annotation appearance interoperability with production-writer corpus evidence before deciding whether /AP implementation is required."
   },
   "programme": {
     "accepted_progress": 4.76,
@@ -45,30 +45,50 @@
     ]
   },
   "execution": {
-    "lifecycle": "IDLE",
-    "work_package": null,
-    "ep": null,
-    "lease": null,
-    "executor": null
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-AP-QUALIFICATION",
+    "lease": "LEASE-10-AP-QUALIFICATION",
+    "executor": "chatgpt-gpt56-sol"
   },
   "scope": {
-    "allowed_writes": [],
-    "protected": [],
-    "prohibited": []
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationManifest.json",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationEvidence.example.json",
+      "frontend/scripts/phase10-viewer-qualification-audit.mjs",
+      "frontend/scripts/phase10-validate-viewer-evidence.mjs",
+      "Docs/PHASE10_VIEWER_QUALIFICATION.md",
+      "frontend/package.json",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream generation",
+      "Changing native annotation writer/reader semantics",
+      "Named external-viewer compatibility claims without recorded evidence",
+      "Treating missing or NOT_RUN viewer observations as PASS",
+      "New annotation product types",
+      "Signature architecture changes",
+      "MERGE",
+      "RELEASE"
+    ]
   },
   "material": {
-    "base": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
-    "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
-    "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
-    "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
+    "base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+    "head": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+    "relevant_paths_digest": "sha256:6277153bc25ff62a49711856059b96a6789641239a6910631ee76a3e81ff98f8",
+    "dependency_digest": "sha256:32772b674ad6a9608edf860b2192ae6a1021dbe2aa01fb7f9b81aafc43df6652"
   },
   "evidence": {
     "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
-    "latest_material_validation": {
-      "focused_tests": "PASS",
-      "spec_delivery": "NOT_APPLICABLE",
-      "full_guardrails": "NOT_APPLICABLE"
-    }
+    "latest_material_validation": {}
   },
   "controls": {
     "execution_blockers": [],
@@ -78,14 +98,20 @@
   },
   "delivery": {
     "issue": null,
-    "pr": 291,
+    "pr": 292,
     "lifecycle": "DECLARED",
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": null,
-    "delivery_action": "PR #291 is merged. Proceed only through a newly admitted Phase 10 EP.",
-    "stop_conditions": []
+    "immediate_material_action": "Add failing qualification-manifest/corpus/evidence-validator tests before any harness implementation.",
+    "delivery_action": "Update draft PR #292 only; merge/release are not authorized.",
+    "stop_conditions": [
+      "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
+      "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
+      "The harness cannot prove that generated PDFs come from the production writer.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "The stacked base branch moves across a material-sensitive path."
+    ]
   },
   "handoff": {
     "zero_context_takeover_possible": true,
@@ -93,6 +119,8 @@
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
+      "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
+      "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
       "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
     ]
   }

@@ -1,0 +1,156 @@
+{
+  "schema_version": "relay-v3-ep",
+  "id": "EP-10-AP-QUALIFICATION",
+  "work_package": "WP-010",
+  "outcome": {
+    "statement": "Produce a reproducible production-writer annotation corpus and fail-closed external-viewer evidence contract that identifies where appearance streams are actually required, without adding production /AP generation or making compatibility claims."
+  },
+  "basis": {
+    "predecessor_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
+    "material_base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
+    "protocol_basis": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/engineering-pr-delivery-v3",
+    "semantic_dependencies": [
+      {
+        "path": "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "reason": "Qualification corpus must be produced through the current production native writer."
+      },
+      {
+        "path": "frontend/src/core/pdf-annotations/fixtures/annotationFixtures.ts",
+        "reason": "Deterministic fixtures define the complete 17-type production qualification corpus."
+      },
+      {
+        "path": "frontend/src/core/pdf-annotations/fixtures/annotationManifest.json",
+        "reason": "Existing Phase 10 standard-field and appearance expectations are the source contract."
+      },
+      {
+        "path": "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+        "reason": "Existing semantic oracle remains authoritative for subtype/type identity checks."
+      },
+      {
+        "path": "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts",
+        "reason": "Executable production-writer corpus and raw /AP baseline witness."
+      },
+      {
+        "path": "frontend/src/core/pdf-annotations/fixtures/viewerQualificationManifest.json",
+        "reason": "Appearance-family mapping and fail-closed observation contract."
+      },
+      {
+        "path": "frontend/scripts/phase10-viewer-qualification-audit.mjs",
+        "reason": "Static qualification harness audit."
+      },
+      {
+        "path": "frontend/scripts/phase10-validate-viewer-evidence.mjs",
+        "reason": "External observation evidence validator."
+      },
+      {
+        "path": "Docs/PHASE10_VIEWER_QUALIFICATION.md",
+        "reason": "Operator workflow for generating corpus and recording viewer evidence."
+      }
+    ]
+  },
+  "scope": {
+    "write": [
+      "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationManifest.json",
+      "frontend/src/core/pdf-annotations/fixtures/viewerQualificationEvidence.example.json",
+      "frontend/scripts/phase10-viewer-qualification-audit.mjs",
+      "frontend/scripts/phase10-validate-viewer-evidence.mjs",
+      "Docs/PHASE10_VIEWER_QUALIFICATION.md",
+      "frontend/package.json",
+      "relay/**"
+    ],
+    "read": [
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+      "frontend/src/core/pdf-annotations/fixtures/**",
+      "frontend/src/core/annotations/**"
+    ],
+    "protect": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+    ],
+    "prohibit": [
+      "Production /AP appearance-stream generation",
+      "Changing native annotation writer/reader semantics",
+      "Named external-viewer compatibility claims without recorded evidence",
+      "Treating missing or NOT_RUN viewer observations as PASS",
+      "New annotation product types",
+      "Signature architecture changes",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-APQ-01",
+      "statement": "The qualification manifest covers all 17 supported annotation types exactly once across explicit appearance families and remains aligned with the existing Phase 10 annotation manifest.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts"
+        },
+        {
+          "oracle": "Every PHASE10_SUPPORTED_TYPES entry maps to one appearance family and source appearanceStreamRequired remains true."
+        }
+      ]
+    },
+    {
+      "id": "AC-10-APQ-02",
+      "statement": "The executable corpus is generated through writeNativePdfAnnotations(), and raw inspection proves the current managed root annotation for every supported type retains expected /NM and subtype while /AP is absent.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/src/core/pdf-annotations/viewerQualificationCorpus.test.ts"
+        },
+        {
+          "oracle": "Production writer output, not hand-authored PDF fixture output, is inspected for /AP baseline."
+        }
+      ]
+    },
+    {
+      "id": "AC-10-APQ-03",
+      "statement": "External-viewer evidence validation is fail-closed: every declared viewer/type observation requires exact viewer/version/platform, render result, reopen/editability result, and evidence reference; missing/NOT_RUN observations cannot qualify.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/scripts/phase10-validate-viewer-evidence.mjs"
+        },
+        {
+          "oracle": "Overall qualification PASS is impossible unless every declared viewer/type pair has render=PASS and reopen_editability=PASS with durable evidence_ref."
+        }
+      ]
+    },
+    {
+      "id": "AC-10-APQ-04",
+      "statement": "The qualification audit/docs provide a reproducible local corpus/evidence workflow and introduce no production /AP implementation or named-viewer compatibility claim.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/scripts/phase10-viewer-qualification-audit.mjs"
+        },
+        {
+          "oracle": "Protected production writer/reader/commit-pipeline diffs remain empty."
+        }
+      ]
+    }
+  ],
+  "quality_policy": {
+    "level": "STANDARD",
+    "independent_review": "OPTIONAL"
+  },
+  "admission_policy": {
+    "qualification": "NOT_REQUIRED",
+    "question_policy": "NONE"
+  },
+  "next": {
+    "first_action": "Add failing qualification-manifest/corpus/evidence-validator tests before any harness implementation.",
+    "stop_conditions": [
+      "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
+      "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
+      "The harness cannot prove that generated PDFs come from the production writer.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "The stacked base branch moves across a material-sensitive path."
+    ]
+  }
+}

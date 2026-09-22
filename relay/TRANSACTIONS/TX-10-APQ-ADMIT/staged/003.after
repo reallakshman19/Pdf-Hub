@@ -1,0 +1,198 @@
+{
+  "schema_version": "relay-v3-roadmap",
+  "revision": "RM-0007-AP-QUALIFICATION",
+  "title": "PDF Hub Professional / Personal / Basic readiness roadmap",
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Qualify Phase 10 native annotation appearance interoperability with production-writer corpus evidence before deciding whether /AP implementation is required."
+  },
+  "work_packages": [
+    {
+      "id": "WP-004",
+      "title": "Complete canonical command/session/history convergence",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": []
+    },
+    {
+      "id": "WP-005",
+      "title": "Complete stable page identity and logical PageLabels",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-004"
+      ]
+    },
+    {
+      "id": "WP-006",
+      "title": "Complete professional header/footer engine",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-005"
+      ]
+    },
+    {
+      "id": "WP-007",
+      "title": "Complete PdfMutationEngine and transaction-local mutation session",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-006"
+      ]
+    },
+    {
+      "id": "WP-8A",
+      "title": "DocumentSource contract and bounded adapters",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-007"
+      ]
+    },
+    {
+      "id": "WP-8B",
+      "title": "Source-aware primary admission",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8A"
+      ]
+    },
+    {
+      "id": "WP-8C1",
+      "title": "WorkingRevisionStore and OPFS/memory adapters",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8B"
+      ]
+    },
+    {
+      "id": "WP-8C2",
+      "title": "Revision-aware primary sessions",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8C1"
+      ]
+    },
+    {
+      "id": "WP-8C3",
+      "title": "Revision-first canonical mutation publication",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8C2"
+      ]
+    },
+    {
+      "id": "WP-8D1",
+      "title": "PDF.js DocumentSource range transport substrate",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8C3"
+      ]
+    },
+    {
+      "id": "WP-8D2",
+      "title": "Revision-backed primary workspace rendering",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8D1"
+      ]
+    },
+    {
+      "id": "WP-8D3",
+      "title": "Migrate remaining active renderer consumers",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8D2"
+      ]
+    },
+    {
+      "id": "WP-8E",
+      "title": "History journal and bounded checkpoints",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8D3"
+      ]
+    },
+    {
+      "id": "WP-8F",
+      "title": "Incremental visible/nearby-first indexing",
+      "weight": 1,
+      "state": "COMPLETE",
+      "depends_on": [
+        "WP-8E"
+      ]
+    },
+    {
+      "id": "WP-8G",
+      "title": "Large-document performance corpus and certification",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-8F"
+      ]
+    },
+    {
+      "id": "WP-009",
+      "title": "Permanent fidelity corpus and engine hardening",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-8F"
+      ]
+    },
+    {
+      "id": "WP-010",
+      "title": "External annotation appearance/interoperability hardening",
+      "weight": 1,
+      "state": "ACTIVE",
+      "depends_on": [
+        "WP-8F"
+      ]
+    },
+    {
+      "id": "WP-011",
+      "title": "Unicode multilingual OCR and resumable execution",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-010"
+      ]
+    },
+    {
+      "id": "WP-012",
+      "title": "Public SDK over canonical command/session model",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-011"
+      ]
+    },
+    {
+      "id": "WP-013",
+      "title": "Safe native/reconstructed existing text editing",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-012"
+      ]
+    },
+    {
+      "id": "WP-014",
+      "title": "Final desktop/mobile workflow hardening",
+      "weight": 1,
+      "state": "PLANNED",
+      "depends_on": [
+        "WP-013"
+      ]
+    }
+  ]
+}

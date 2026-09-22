@@ -1,10 +1,10 @@
 {
   "schema_version": "relay-v3-roadmap",
-  "revision": "RM-0006-SIGNED-PDF-WARNING",
+  "revision": "RM-0007-AP-QUALIFICATION",
   "title": "PDF Hub Professional / Personal / Basic readiness roadmap",
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
-    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+    "current_goal": "Qualify Phase 10 native annotation appearance interoperability with production-writer corpus evidence before deciding whether /AP implementation is required."
   },
   "work_packages": [
     {
