@@ -1,0 +1,170 @@
+{
+  "schema_version": "relay-v3-task-admission",
+  "roadmap": {
+    "disposition": "MAPPED_EXISTING_WP",
+    "new_revision": "RM-0005-V3-ADMISSION",
+    "basis": [
+      "Owner directed proceed fix under V3.",
+      "WP-010 already represents native annotation interoperability; no new concept/work package is required."
+    ],
+    "work_package": {
+      "id": "WP-010",
+      "title": "External annotation appearance/interoperability hardening",
+      "weight": 1,
+      "state": "ACTIVE",
+      "depends_on": [
+        "WP-8F"
+      ]
+    }
+  },
+  "ep": {
+    "schema_version": "relay-v3-ep",
+    "id": "EP-10-INTEROP-FIX",
+    "work_package": "WP-010",
+    "outcome": {
+      "statement": "Close the bounded native-annotation persistence defects that prevent a standards-native review thread from surviving external edit/return and repeated PDF Hub saves without stale-state restoration, identity loss, or duplication."
+    },
+    "basis": {
+      "predecessor_checkpoint": null,
+      "material_base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+      "protocol_basis": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/engineering-pr-delivery-v3",
+      "semantic_dependencies": [
+        {
+          "path": "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+          "reason": "Production import precedence and native review-state reconstruction."
+        },
+        {
+          "path": "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+          "reason": "Native /NM and /IRT serialization contract that must remain unchanged."
+        },
+        {
+          "path": "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+          "reason": "Executable lifecycle witness and all-supported-type repeated-save proof."
+        },
+        {
+          "path": "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+          "reason": "Machine-readable external-edit precedence policy."
+        },
+        {
+          "path": "frontend/src/core/pdf-annotations/fixtures/**",
+          "reason": "Deterministic semantic inventory for supported annotation types and reply relationships."
+        }
+      ]
+    },
+    "scope": {
+      "write": [
+        "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+        "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+        "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+        "frontend/src/core/pdf-annotations/fixtures/**",
+        "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+        "relay/**"
+      ],
+      "read": [
+        "frontend/src/core/pdf-annotations/**",
+        "frontend/src/core/document/commitPipeline.ts",
+        "frontend/src/core/review/**",
+        "Docs/SAVE_SEMANTICS.md"
+      ],
+      "protect": [
+        "agents/relay/**",
+        "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "frontend/src/core/document/commitPipeline.ts"
+      ],
+      "prohibit": [
+        "Production /AP appearance-stream implementation (STEP-10-02)",
+        "New annotation product types",
+        "Signature creation or signature-preserving rewrite architecture",
+        "Phase 11+ work",
+        "MERGE",
+        "RELEASE"
+      ]
+    },
+    "acceptance": [
+      {
+        "id": "AC-10-FIX-01",
+        "statement": "Recognized externally edited standard PDF content/review-state fields override stale PDF Hub private cache on production re-import, while private data remains a fallback when native fields are absent.",
+        "evidence_requirements": [
+          {
+            "test": "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+          },
+          {
+            "oracle": "standard-field precedence witness"
+          }
+        ]
+      },
+      {
+        "id": "AC-10-FIX-02",
+        "statement": "A deterministic root/reply review fixture preserves stable /NM identity and a true /IRT object-reference relationship through two PDF Hub saves without duplicate roots or replies.",
+        "evidence_requirements": [
+          {
+            "test": "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+          },
+          {
+            "oracle": "raw PDF /NM and /IRT graph inspection"
+          }
+        ]
+      },
+      {
+        "id": "AC-10-FIX-03",
+        "statement": "Repeated-save semantic coverage fails closed across all 17 supported annotation types rather than an 8-type subset.",
+        "evidence_requirements": [
+          {
+            "test": "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+          },
+          {
+            "oracle": "PHASE10_SUPPORTED_TYPES complete-set equality"
+          }
+        ]
+      },
+      {
+        "id": "AC-10-FIX-04",
+        "statement": "The Phase 10 audit reflects the corrected STEP-10-01 contract and no production /AP implementation is introduced.",
+        "evidence_requirements": [
+          {
+            "test": "frontend/scripts/phase10-annotation-interoperability-audit.mjs"
+          },
+          {
+            "oracle": "git diff contains no nativeAnnotationWriter.ts change"
+          }
+        ]
+      }
+    ],
+    "quality_policy": {
+      "level": "HIGH_RISK",
+      "independent_review": "REQUIRED"
+    },
+    "admission_policy": {
+      "qualification": "NOT_REQUIRED",
+      "question_policy": "NONE"
+    },
+    "next": {
+      "first_action": "Add the failing external-edit-return production-reader witness before changing nativeAnnotationReader.ts; then make the smallest precedence correction and close F10-01/F10-02/F10-03 only.",
+      "stop_conditions": [
+        "Any required change expands into production /AP generation.",
+        "Any change requires rewriting native annotation identity or reply serialization rather than preserving the current /NM and /IRT model.",
+        "The frozen agents/relay/** V2.5 tree changes.",
+        "A base-branch delta intersects the EP material sensitivity."
+      ]
+    }
+  },
+  "lease": {
+    "id": "LEASE-10-INTEROP-FIX",
+    "executor_id": "chatgpt-gpt56-sol",
+    "method": "OWNER_OVERRIDE",
+    "qualification": null,
+    "owner_basis": {
+      "direct_utterance_digest": "sha256:5db824894829c313f4fb2832e7f0917f9fa5f86318d0eae261b956a03dfd39bd",
+      "session_timestamp": "2026-09-22T11:13:02Z"
+    },
+    "branch": "phase10/postmerge-interoperability-fix"
+  },
+  "delivery": {
+    "required": true,
+    "primary_vehicle": {
+      "provider": "GITHUB",
+      "kind": "PULL_REQUEST",
+      "number": 290
+    }
+  }
+}

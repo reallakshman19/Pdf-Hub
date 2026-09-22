@@ -2,15 +2,15 @@
   "schema_version": "relay-v3-snapshot",
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
-    "roadmap_revision": "RM-0004",
-    "state_digest": "sha256:a1e8c47b83f64b0cd1634706b594918c0697e788f4d87df7bc98746869f47d0d",
+    "roadmap_revision": "RM-0005-V3-ADMISSION",
+    "state_digest": "sha256:fe89f9ccd2d29ad914b05a96661a1c54d6f352bb0d8950eb6a3135624bf57d5d",
     "material_basis": {
-      "head": "127cc85d395c3e9188db36eefd5f5bac9b603706",
+      "head": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
       "tree_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
     },
-    "coordination_head": "127cc85d395c3e9188db36eefd5f5bac9b603706"
+    "coordination_head": "8ab779949698d5b13acfbd7606b05b56031d3b65"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -44,20 +44,38 @@
     ]
   },
   "execution": {
-    "lifecycle": "IDLE",
-    "work_package": null,
-    "ep": null,
-    "lease": null,
-    "executor": null
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-FIX",
+    "executor": "chatgpt-gpt56-sol"
   },
   "scope": {
-    "allowed_writes": [],
-    "protected": [],
-    "prohibited": []
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+      "frontend/src/core/pdf-annotations/fixtures/**",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/document/commitPipeline.ts"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream implementation (STEP-10-02)",
+      "New annotation product types",
+      "Signature creation or signature-preserving rewrite architecture",
+      "Phase 11+ work",
+      "MERGE",
+      "RELEASE"
+    ]
   },
   "material": {
-    "base": "127cc85d395c3e9188db36eefd5f5bac9b603706",
-    "head": "127cc85d395c3e9188db36eefd5f5bac9b603706",
+    "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+    "head": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
     "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
@@ -72,17 +90,19 @@
     "informational": []
   },
   "delivery": {
-    "issue": null,
-    "pr": null,
-    "lifecycle": "NOT_REQUIRED",
+    "issue": 288,
+    "pr": 290,
+    "lifecycle": "DRAFT",
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": "Admit the Phase 10 native annotation interoperability correction as the first native V3 task.",
-    "delivery_action": null,
+    "immediate_material_action": "Add the failing external-edit-return production-reader witness before changing nativeAnnotationReader.ts; then make the smallest precedence correction and close F10-01/F10-02/F10-03 only.",
+    "delivery_action": "Update draft PR #290 only; no merge/release authority.",
     "stop_conditions": [
-      "Do not mutate agents/relay/** after V3 activation.",
-      "Do not start STEP-10-02 /AP work before the bounded reliability correction is independently evidenced."
+      "Any required change expands into production /AP generation.",
+      "Any change requires rewriting native annotation identity or reply serialization rather than preserving the current /NM and /IRT model.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "A base-branch delta intersects the EP material sensitivity."
     ]
   },
   "handoff": {
@@ -90,8 +110,8 @@
     "reconstruction_sources": [
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
-      "relay/CONTROLS/controls.yaml",
-      "relay/GENERATED/INTELLIGENCE_CONTINUITY.yaml",
+      "relay/WORK/EP-10-INTEROP-FIX.yaml",
+      "relay/LEASES/LEASE-10-INTEROP-FIX.yaml",
       "relay/EVENTS.jsonl"
     ]
   }
