@@ -5,12 +5,12 @@
     "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
     "state_digest": "sha256:5d2ffbf22dce3039a09549e1104df8cb1d5112a0ce41225950c03a5d6da965f3",
     "material_basis": {
-      "head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d",
-      "tree_digest": "sha256:32aa8d9c7f66bf8055f054765c295cf926a196dfd02e59e151ef0bc0ef3f0214",
-      "relevant_paths_digest": "sha256:4b27dba5937a1969ccbd6e5e8d15e66db9021cde6bc2b3e7124eba23eab8e435",
-      "dependency_digest": "sha256:4d35c070cd2a9c0f1931cbdc9e2016c591328e7153f9b0c233f76e482ece2037"
+      "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
+      "tree_digest": "sha256:4eb29d099af40b6f2a5dae964aa47bb052b63c139a1dc3cf9d1124e40aebc5cb",
+      "relevant_paths_digest": "sha256:e19f125fa7d11e294b2d1b9c09a293d315d2d102d8df600d00f7273202fd4d54",
+      "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
     },
-    "coordination_head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d"
+    "coordination_head": "2790e71d7da722e96db80481d8c4e21bb2523dfa"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -81,51 +81,17 @@
   },
   "material": {
     "base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
-    "head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d",
-    "relevant_paths_digest": "sha256:4b27dba5937a1969ccbd6e5e8d15e66db9021cde6bc2b3e7124eba23eab8e435",
-    "dependency_digest": "sha256:4d35c070cd2a9c0f1931cbdc9e2016c591328e7153f9b0c233f76e482ece2037"
+    "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
+    "relevant_paths_digest": "sha256:e19f125fa7d11e294b2d1b9c09a293d315d2d102d8df600d00f7273202fd4d54",
+    "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
   },
   "evidence": {
     "latest_checkpoint": "CP-10-INTEROP-FIX-001",
     "latest_material_validation": {
-      "head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d",
-      "toolbar_signed_save": {
-        "result": "PASS",
-        "tests": "4/4"
-      },
-      "signature_detector": {
-        "result": "PASS",
-        "tests": "5/5"
-      },
-      "warning_dialog": {
-        "result": "PASS",
-        "tests": "2/2"
-      },
-      "annotation_interoperability": {
-        "result": "PASS",
-        "tests": "7/7"
-      },
-      "phase10_audit": {
-        "result": "PASS"
-      },
-      "protected_diffs": "PASS_EMPTY",
-      "working_tree": "CLEAN",
-      "typecheck": {
-        "result": "FAIL_PREEXISTING",
-        "basis": "reported error files byte-identical to admitted base"
-      },
-      "build": {
-        "result": "FAIL_PREEXISTING",
-        "basis": "same unrelated baseline parser failures"
-      },
-      "runtime": {
-        "node": "v24.11.1",
-        "pnpm": "10.23.0",
-        "engine_conformance": "NODE_OUTSIDE_DECLARED_22_RANGE"
-      },
-      "evidence_refs": [
-        "PR#291 comment 5778210588"
-      ]
+      "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
+      "result": "STALE_PENDING_REVALIDATION",
+      "reason": "Product material changed after the previous exact-head local validation; UNKNOWN signature state now fails safe and requires fresh execution evidence.",
+      "supersedes_head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d"
     }
   },
   "controls": {
@@ -148,7 +114,7 @@
   },
   "next": {
     "immediate_material_action": null,
-    "delivery_action": "Obtain independent review of exact head 9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d; keep PR #291 draft until resolved.",
+    "delivery_action": "Revalidate exact material head 2790e71d7da722e96db80481d8c4e21bb2523dfa, then obtain independent review of that same exact head.",
     "stop_conditions": [
       "Any required change expands into signature creation or signature-preserving incremental writes.",
       "The detector cannot distinguish populated signatures from empty /Sig fields on the supported parser surface.",

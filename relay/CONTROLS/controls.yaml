@@ -104,7 +104,7 @@
         "type": "VALIDATOR",
         "ref": "EP-10-SIGNED-PDF-WARNING quality_policy HIGH_RISK / independent_review REQUIRED"
       },
-      "condition": "Independent review is required before checkpoint acceptance and PR-ready transition for the signed-PDF rewrite warning EP.",
+      "condition": "Independent review is required before checkpoint acceptance and PR-ready transition for the current signed-PDF rewrite warning material.",
       "blocks": [
         "CHECKPOINT",
         "PR_READY",
@@ -125,7 +125,7 @@
         "id": "PEND-10-SIG-INDEPENDENT-REVIEW"
       },
       "resolution": {
-        "condition": "An independent reviewer examines exact material head 9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d and reports no unresolved blocking findings.",
+        "condition": "An independent reviewer examines exact material head 2790e71d7da722e96db80481d8c4e21bb2523dfa and reports no unresolved blocking findings.",
         "evidence": []
       }
     }
