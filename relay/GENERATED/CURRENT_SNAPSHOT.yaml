@@ -2,15 +2,15 @@
   "schema_version": "relay-v3-snapshot",
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
-    "roadmap_revision": "RM-0005-V3-ADMISSION",
-    "state_digest": "sha256:9a05c261a922d9efb5af69d6016fa1a31cebc3a2244d75493556ef726741f353",
+    "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
+    "state_digest": "sha256:5d2ffbf22dce3039a09549e1104df8cb1d5112a0ce41225950c03a5d6da965f3",
     "material_basis": {
-      "head": "46ee82341c4dac3167379a22ee3c897d7c59c088",
-      "tree_digest": "sha256:72ccd5b3b4c070f13a2da1d709cf86281e05cadef09d92678b4e3479faa75d5e",
-      "relevant_paths_digest": "sha256:84729e8184ba2bb1fdab0b051e61328e9a0fc2b4a5779a440876fd0fe03191de",
-      "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+      "head": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+      "tree_digest": "sha256:23079f9fa14746b51520fba00cd31bc5e68b851d13e5d7208c168303922277b8",
+      "relevant_paths_digest": "sha256:5f094d2c43788a59a5951e74c8094ddc836013af50aaaf023af5f6c1b4484830",
+      "dependency_digest": "sha256:58567679a8841b65b88cfededb072130d1ed1d163fe4d859c1db2754bc8d22d4"
     },
-    "coordination_head": "97a9716708ee45d1a96df04ff50ccd658b0e86d6"
+    "coordination_head": "0b228427eefdb6de1ccc05b6aa779519227ca818"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -45,30 +45,49 @@
     ]
   },
   "execution": {
-    "lifecycle": "IDLE",
-    "work_package": null,
-    "ep": null,
-    "lease": null,
-    "executor": null
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-SIGNED-PDF-WARNING",
+    "lease": "LEASE-10-SIGNED-PDF-WARNING",
+    "executor": "chatgpt-gpt56-sol"
   },
   "scope": {
-    "allowed_writes": [],
-    "protected": [],
-    "prohibited": []
+    "allowed_writes": [
+      "frontend/src/core/pdf-signatures/**",
+      "frontend/src/components/toolbar/ToolbarFile.tsx",
+      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.tsx",
+      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.test.tsx",
+      "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "Docs/SAVE_SEMANTICS.md",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+    ],
+    "prohibited": [
+      "Signature creation or cryptographic validation",
+      "Signature-preserving incremental-write architecture",
+      "Claiming an existing signature remains valid after PDF Hub Save/Save As",
+      "Production /AP appearance-stream implementation",
+      "Named external-viewer compatibility claims",
+      "New annotation types",
+      "MERGE",
+      "RELEASE"
+    ]
   },
   "material": {
-    "base": "46ee82341c4dac3167379a22ee3c897d7c59c088",
-    "head": "46ee82341c4dac3167379a22ee3c897d7c59c088",
-    "relevant_paths_digest": "sha256:84729e8184ba2bb1fdab0b051e61328e9a0fc2b4a5779a440876fd0fe03191de",
-    "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+    "base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+    "head": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+    "relevant_paths_digest": "sha256:5f094d2c43788a59a5951e74c8094ddc836013af50aaaf023af5f6c1b4484830",
+    "dependency_digest": "sha256:58567679a8841b65b88cfededb072130d1ed1d163fe4d859c1db2754bc8d22d4"
   },
   "evidence": {
     "latest_checkpoint": "CP-10-INTEROP-FIX-001",
-    "latest_material_validation": {
-      "focused_tests": "PASS",
-      "spec_delivery": "NOT_APPLICABLE",
-      "full_guardrails": "NOT_APPLICABLE"
-    }
+    "latest_material_validation": {}
   },
   "controls": {
     "execution_blockers": [],
@@ -78,14 +97,20 @@
   },
   "delivery": {
     "issue": null,
-    "pr": 290,
+    "pr": 291,
     "lifecycle": "DECLARED",
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": null,
-    "delivery_action": "Perform the explicitly authorized delivery transition.",
-    "stop_conditions": []
+    "immediate_material_action": "Add failing structural signature-risk tests and Save cancellation/continue witnesses before changing production code.",
+    "delivery_action": "Update draft PR #291 only; merge/release are not authorized.",
+    "stop_conditions": [
+      "Any required change expands into signature creation or signature-preserving incremental writes.",
+      "The detector cannot distinguish populated signatures from empty /Sig fields on the supported parser surface.",
+      "Save/Save As semantics would need to be merged with Export Flattened.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "The stacked base branch moves across a material-sensitive path."
+    ]
   },
   "handoff": {
     "zero_context_takeover_possible": true,
@@ -93,6 +118,8 @@
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
       "relay/CONTROLS/controls.yaml",
+      "relay/WORK/EP-10-SIGNED-PDF-WARNING.yaml",
+      "relay/LEASES/LEASE-10-SIGNED-PDF-WARNING.yaml",
       "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml"
     ]
   }

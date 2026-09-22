@@ -1,6 +1,6 @@
 {
   "schema_version": "relay-v3-roadmap",
-  "revision": "RM-0005-V3-ADMISSION",
+  "revision": "RM-0006-SIGNED-PDF-WARNING",
   "title": "PDF Hub Professional / Personal / Basic readiness roadmap",
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
