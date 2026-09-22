@@ -4,12 +4,12 @@
   "vehicle": {
     "provider": "GITHUB",
     "kind": "PULL_REQUEST",
-    "number": 291
+    "number": 292
   },
-  "observed_at": "2026-09-22T16:31:00Z",
-  "provider_ref": "PR #291 merged by Owner-authorized action; merge commit 21d990078cf22639b51c3c24e4d17818bea8dea1",
-  "lifecycle": "MERGED",
+  "observed_at": "2026-09-22T17:27:00Z",
+  "provider_ref": "PR #292 @ 66c11c80f0afea8e6e8a6ac8f081e0f3ff7d6b93; workflow run 35760329610 / job 106856485012 completed with provider conclusion failure and zero executed steps",
+  "lifecycle": "READY",
   "checks": "UNKNOWN",
-  "review": "UNKNOWN",
-  "mergeability": "NOT_APPLICABLE"
+  "review": "PENDING",
+  "mergeability": "MERGEABLE"
 }
