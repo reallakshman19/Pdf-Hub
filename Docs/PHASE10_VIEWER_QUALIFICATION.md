@@ -37,7 +37,7 @@ Copy:
 
 to a working evidence file outside the source tree.
 
-Replace the placeholder corpus material head and viewer identity with exact values observed during the run:
+The example is structurally valid but intentionally NOT_RUN. Replace its illustrative corpus material head and viewer identity with exact values observed during the run:
 
 - viewer name;
 - exact viewer version;

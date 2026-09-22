@@ -1,12 +1,12 @@
 {
   "schema_version": "phase10-viewer-evidence-v1",
-  "corpus_material_head": "REPLACE_WITH_EXACT_PRODUCT_HEAD",
+  "corpus_material_head": "0000000000000000000000000000000000000000",
   "viewers": [
     {
       "id": "viewer-1",
-      "name": "REPLACE_WITH_VIEWER_NAME",
-      "version": "REPLACE_WITH_VERSION",
-      "platform": "REPLACE_WITH_PLATFORM"
+      "name": "Example Viewer",
+      "version": "0.0.0",
+      "platform": "Example Platform"
     }
   ],
   "observations": [
