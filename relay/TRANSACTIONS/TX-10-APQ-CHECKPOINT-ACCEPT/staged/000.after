@@ -1,0 +1,105 @@
+{
+  "schema_version": "relay-v3-checkpoint",
+  "id": "CP-10-AP-QUALIFICATION-001",
+  "ep": "EP-10-AP-QUALIFICATION",
+  "material_result": {
+    "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+    "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
+    "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-APQ-01",
+      "result": "PASS",
+      "evidence": [
+        "viewerQualificationCorpus.test.ts maps the canonical 17 supported types exactly once across explicit appearance families.",
+        "Clean-room focused run: viewer qualification corpus 3/3 PASS and prior annotation interoperability 7/7 PASS.",
+        "Phase 10 viewer qualification audit PASS confirms canonical type order and source annotationManifest appearanceStreamRequired=true alignment."
+      ]
+    },
+    {
+      "id": "AC-10-APQ-02",
+      "result": "PASS",
+      "evidence": [
+        "Clean-room corpus generation produced 17 PDFs and 17 corpus-index entries.",
+        "corpus-index production_writer.export=writeNativePdfAnnotations.",
+        "All 17 index entries report apPresent=false; raw test inspection also asserts expected /NM and subtype through production writer output."
+      ]
+    },
+    {
+      "id": "AC-10-APQ-03",
+      "result": "PASS",
+      "evidence": [
+        "viewerQualificationCorpus.test.ts exercises validator fail-closed cases and a fully populated synthetic qualification case.",
+        "Clean-room example evidence invocation returned NOT QUALIFIED / NOT_RUN with exit code 1, proving unexecuted observations cannot qualify.",
+        "Corrected pnpm 10 invocation rerun at exact product head e5464b69d080ce80fc871b88c93aef13853164ab preserved the intended exit-1 behavior."
+      ]
+    },
+    {
+      "id": "AC-10-APQ-04",
+      "result": "PASS",
+      "evidence": [
+        "phase10-viewer-qualification-audit PASS after the docs-only pnpm invocation correction.",
+        "Docs/PHASE10_VIEWER_QUALIFICATION.md defines reproducible corpus generation, per-viewer/type observations, and evidence validation.",
+        "nativeAnnotationWriter.ts, nativeAnnotationReader.ts, commitPipeline.ts, prior annotationInteroperability.test.ts, and frozen agents/relay/** remain unchanged from material base."
+      ]
+    }
+  ],
+  "validation": {
+    "focused_tests": "PASS",
+    "spec_delivery": "NOT_APPLICABLE",
+    "full_guardrails": "NOT_APPLICABLE"
+  },
+  "quality": {
+    "policy": "STANDARD",
+    "result": "CLEAR"
+  },
+  "known_limitations": [
+    "This checkpoint qualifies the corpus/evidence harness only; no named external viewer has been qualified.",
+    "No external-viewer render or reopen/editability observations are recorded by this checkpoint.",
+    "Production /AP appearance streams remain absent and prohibited in this EP.",
+    "The harness proves current production output has no /AP; it does not prove that /AP is required or unnecessary for any named viewer until external evidence is collected.",
+    "Local validation used Node v24.11.1 while package engines require >=22 <23; repository-wide typecheck/build are not claimed PASS."
+  ],
+  "discoveries": [
+    "Current production writer output for all 17 supported annotation types can be deterministically generated and structurally inspected with /AP absent.",
+    "Viewer qualification can be made fail-closed: missing, FAIL, or NOT_RUN observations cannot become a compatibility claim.",
+    "pnpm 10 forwards a standalone -- literally for this package script, so the operator runbook must pass the evidence path directly."
+  ],
+  "handoff": {
+    "what_changed": [
+      "Added a 17-type production-writer viewer qualification corpus test and appearance-family manifest.",
+      "Added a fail-closed external-viewer evidence validator and structurally valid NOT_RUN example.",
+      "Added viewer qualification audit and operator runbook.",
+      "Added package scripts for corpus test, viewer audit, and evidence validation."
+    ],
+    "what_is_true_now": [
+      "Clean-room focused validation passes 10/10 at the product material series.",
+      "Corpus generation produces 17 PDFs and 17 index entries through writeNativePdfAnnotations.",
+      "All generated managed annotations in the qualification corpus have /AP absent.",
+      "Unexecuted external-viewer evidence returns NOT QUALIFIED and cannot create a compatibility claim.",
+      "No protected production annotation writer/reader/commit pipeline file was changed."
+    ],
+    "what_remains_uncertain": [
+      "Which named external viewers render each annotation family acceptably without /AP.",
+      "Which named viewers preserve native/selectable editability after their own save/reopen cycle.",
+      "Whether any appearance family actually requires production /AP for target viewer interoperability."
+    ],
+    "do_not_break": [
+      "Do not claim named-viewer compatibility from structural tests or generated corpus alone.",
+      "Do not treat NOT_RUN or missing viewer observations as PASS.",
+      "Do not add production /AP until external viewer evidence justifies the smallest necessary implementation slice.",
+      "Do not mutate frozen agents/relay/** V2.5 history."
+    ],
+    "attempted_and_rejected": [
+      "A runbook command using `pnpm run ... -- <path>` was rejected after clean-room evidence showed pnpm 10 passed the literal -- as argv[2].",
+      "Production /AP implementation was deliberately deferred until external-viewer evidence exists."
+    ],
+    "resume_from": [
+      "PR #292 on phase10/appearance-viewer-qualification.",
+      "Issue #288 for remaining external-viewer execution and any evidence-driven /AP implementation.",
+      "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml after acceptance."
+    ],
+    "first_successor_action": "Move PR #292 ready, synchronize delivery, release execution custody, then run the generated corpus in explicitly selected external viewers before admitting any production /AP EP."
+  }
+}

@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0007-AP-QUALIFICATION",
-    "state_digest": "sha256:89b227130dcd7e360de8464bf468fffa819afc9fd685adf2f961ecc25d395f94",
+    "state_digest": "sha256:8e600610aa5ceecd7dacbede538a61c189289c2a952e73b23636fd67c1ebb3e8",
     "material_basis": {
-      "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
-      "tree_digest": "sha256:af5168d01ea08dd311e40932375a1f14a185dd331ac3ba9d682baf6824f2a985",
-      "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+      "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+      "tree_digest": "sha256:bdae93ef5bf06fd351ade7e9a509441eb3579a7a97b6d9fc8bfae0a5b9c9f59d",
+      "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
       "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
     },
-    "coordination_head": "e5464b69d080ce80fc871b88c93aef13853164ab"
+    "coordination_head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -82,12 +82,12 @@
   },
   "material": {
     "base": "63018353bf11e10f5fbe9cf005d2ccf4e3888fc7",
-    "head": "e5464b69d080ce80fc871b88c93aef13853164ab",
-    "relevant_paths_digest": "sha256:65694012a3c3472b0e639ebb5a2b97b0b1d228cf1449c2ab410916e1d74ca04b",
+    "head": "a60d3ae3855f7123ccc333b01e97c8c95d9a8c4b",
+    "relevant_paths_digest": "sha256:c4771f7c3cc8abfca80bb751f9064076b9af369e32014f2aeb61fffaa2586475",
     "dependency_digest": "sha256:26092cca2dfac0c18d53254d747404f99737c7e64758ed7d6c9b5edde76a4d44"
   },
   "evidence": {
-    "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
+    "latest_checkpoint": "CP-10-AP-QUALIFICATION-001",
     "latest_material_validation": {
       "focused_tests": "PASS",
       "spec_delivery": "NOT_APPLICABLE",
@@ -108,7 +108,7 @@
   },
   "next": {
     "immediate_material_action": null,
-    "delivery_action": "Accept checkpoint if exact-head evidence remains valid, then move PR #292 ready.",
+    "delivery_action": "Move PR #292 ready and synchronize provider state; merge remains owner-reserved.",
     "stop_conditions": [
       "Any proposed change requires modifying nativeAnnotationWriter.ts or nativeAnnotationReader.ts.",
       "Any viewer/type is represented as compatible without explicit render and reopen/editability evidence.",
@@ -125,7 +125,7 @@
       "relay/CONTROLS/controls.yaml",
       "relay/WORK/EP-10-AP-QUALIFICATION.yaml",
       "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
-      "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
+      "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml"
     ]
   }
 }

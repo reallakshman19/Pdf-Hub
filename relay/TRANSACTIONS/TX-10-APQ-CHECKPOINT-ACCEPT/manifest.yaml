@@ -1,0 +1,49 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-APQ-CHECKPOINT-ACCEPT",
+  "command": "ACCEPT_CHECKPOINT",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T17:24:00Z",
+  "updated_at": "2026-09-22T17:24:00Z",
+  "operations": [
+    {
+      "path": "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:588241aaf53a7b9bed145302a5cd571978df0b397bb5151cc2f738c6d11d0c0e",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/staged/000.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:08da47d36bbcadaf6a1a036337b3af88dbf79e616c79f0a51456b8748370f41e",
+      "after_digest": "sha256:4e97643d212a818cf3e8d4779574c9641a6cf64b2a2fe03a689d549ea694d275",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/backups/001.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:1ba1194b57b898d27bda9edc00b0390f4b7980ce81ed11b7985ab5b08ffe68a3",
+      "after_digest": "sha256:0cd0b2ca4e360446bfe6da7264ffcaccbad7fb584460af328cab32e71f29241d",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/backups/002.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:39d4a9616924ce23a2377a152fdfdeb3424ba1eb44249a479d6be65613f7b564",
+      "after_digest": "sha256:5d5785f1faeab76a2559b78d47de02aa3524d5d26c148165c5c6390e99e8397b",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-CHECKPOINT-ACCEPT/backups/003.before"
+    }
+  ],
+  "applied": [
+    "relay/CHECKPOINTS/CP-10-AP-QUALIFICATION-001.yaml",
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/STATE.yaml"
+  ]
+}

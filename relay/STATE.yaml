@@ -11,7 +11,7 @@
     "route": "SERIAL:EP-10-AP-QUALIFICATION"
   },
   "accepted": {
-    "checkpoint": "CP-10-SIGNED-PDF-WARNING-001"
+    "checkpoint": "CP-10-AP-QUALIFICATION-001"
   },
   "controls": {
     "path": "relay/CONTROLS/controls.yaml"
