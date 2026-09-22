@@ -11,7 +11,7 @@
     "route": "SERIAL:EP-10-SIGNED-PDF-WARNING"
   },
   "accepted": {
-    "checkpoint": "CP-10-INTEROP-FIX-001"
+    "checkpoint": "CP-10-SIGNED-PDF-WARNING-001"
   },
   "controls": {
     "path": "relay/CONTROLS/controls.yaml"

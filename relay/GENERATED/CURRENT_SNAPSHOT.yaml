@@ -3,14 +3,14 @@
   "authority": "DERIVED_READ_MODEL",
   "generated_from": {
     "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
-    "state_digest": "sha256:58431edf7f8c73a0d84aff589b0143a20c6c89fe494f8a10bb481d92714f8a6c",
+    "state_digest": "sha256:be7e30df1c7b3c0c754de0143258e99aa31af5fa0ac43faddd06cdb853aa0e6d",
     "material_basis": {
-      "head": "86f54370653fb4029068950bbdd644e5e646ae37",
-      "tree_digest": "sha256:fed78bfbfa77aaeaa007750676bec7f740d94fb9d2fe544796b87156120dd3b3",
-      "relevant_paths_digest": "sha256:ffb189e713c1fcf989602e81b384a2506fdfe85db2c3c5110c5ec907a86440fa",
+      "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+      "tree_digest": "sha256:be9b5561879ebf5d64cca17a97a3308d6d576302c9c1e4e02dc7d3a4fa637cc0",
+      "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
       "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
     },
-    "coordination_head": "86f54370653fb4029068950bbdd644e5e646ae37"
+    "coordination_head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -81,12 +81,12 @@
   },
   "material": {
     "base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
-    "head": "86f54370653fb4029068950bbdd644e5e646ae37",
-    "relevant_paths_digest": "sha256:ffb189e713c1fcf989602e81b384a2506fdfe85db2c3c5110c5ec907a86440fa",
+    "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+    "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
     "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
   },
   "evidence": {
-    "latest_checkpoint": "CP-10-INTEROP-FIX-001",
+    "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
     "latest_material_validation": {
       "focused_tests": "PASS",
       "spec_delivery": "NOT_APPLICABLE",
@@ -124,7 +124,7 @@
       "relay/CONTROLS/controls.yaml",
       "relay/WORK/EP-10-SIGNED-PDF-WARNING.yaml",
       "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
-      "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml"
+      "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
     ]
   }
 }
