@@ -1,0 +1,58 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-SIG-LEASE-DETERMINISTIC",
+  "command": "ACTIVATE_LEASE",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:06:30Z",
+  "updated_at": "2026-09-22T16:06:30Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:f17707e21d12af72f8a69d4616945660018a5b7e5a1a355d79c95f977c82a4df",
+      "after_digest": "sha256:481cdec4d90606920c056180178f7add15cc34c9ebabd8cf8ccc9684362023f7",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:5e58bc871d396a0e70436b94cd6b7f3603e93735753973384509b31be052bd0e",
+      "after_digest": "sha256:206582eac30ade58f0e35fc0ff4d88b6829f7a2f2d98c45e8ceda096fde18aa9",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:8b4ea122f41d2b80555d03566f63ae3ac251b1e118a3993d39d4633df6360204",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/staged/002.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-SIGNED-PDF-WARNING.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:b4ed643064faebad59d1a1062967080a4b582676daafeea06d8004887464def5",
+      "after_digest": "sha256:fcfb09c029e203e12a689550bbec442b947003ce9d65b855d930dc1597d6bd8c",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/backups/003.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:c7ff45740d4c1f27e5334060e8f0adf786b9f0761c18f5cfb28132039db87c15",
+      "after_digest": "sha256:297c36498c0ee26cfda72e7d6d6b6da385957f922fd17beb1fdbd6b143c72e43",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/staged/004.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-DETERMINISTIC/backups/004.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
+    "relay/LEASES/LEASE-10-SIGNED-PDF-WARNING.yaml",
+    "relay/STATE.yaml"
+  ]
+}

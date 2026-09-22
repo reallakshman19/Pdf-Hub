@@ -1,0 +1,30 @@
+{
+  "schema_version": "relay-v3",
+  "roadmap": {
+    "revision": "RM-0006-SIGNED-PDF-WARNING",
+    "path": "relay/ROADMAP/ROADMAP.yaml"
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "ep": "EP-10-SIGNED-PDF-WARNING",
+    "lease": "LEASE-10-SIGNED-PDF-CHECKPOINT",
+    "route": "SERIAL:EP-10-SIGNED-PDF-WARNING"
+  },
+  "accepted": {
+    "checkpoint": "CP-10-INTEROP-FIX-001"
+  },
+  "controls": {
+    "path": "relay/CONTROLS/controls.yaml"
+  },
+  "delivery": {
+    "required": true,
+    "primary_vehicle": {
+      "provider": "GITHUB",
+      "kind": "PULL_REQUEST",
+      "number": 291
+    }
+  },
+  "generated": {
+    "snapshot": "relay/GENERATED/CURRENT_SNAPSHOT.yaml"
+  }
+}

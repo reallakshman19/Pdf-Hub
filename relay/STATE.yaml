@@ -7,7 +7,7 @@
   "execution": {
     "lifecycle": "ACTIVE",
     "ep": "EP-10-SIGNED-PDF-WARNING",
-    "lease": "LEASE-10-SIGNED-PDF-WARNING",
+    "lease": "LEASE-10-SIGNED-PDF-CHECKPOINT",
     "route": "SERIAL:EP-10-SIGNED-PDF-WARNING"
   },
   "accepted": {
