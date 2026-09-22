@@ -69,7 +69,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const commentRes = AnnotationInteroperabilityOracle.resolveSubtypeAmbiguity({
       subtype: 'Text',
       open: false,
-      stateModel: 'Review',
+      stateModel: null,
+      hasReviewRelations: true,
     });
     expect(commentRes.resolvedType).toBe('comment');
 
