@@ -43,6 +43,23 @@ async function createPdfWithSignatureField(options: {
   return new Uint8Array(await doc.save({ useObjectStreams: false }));
 }
 
+async function createCertifiedPdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  doc.addPage();
+
+  const signatureRef = doc.context.register(doc.context.obj({
+    Type: PDFName.of('Sig'),
+    ByteRange: [0, 64, 128, 32],
+    Contents: PDFHexString.of('0a0b0c0d'),
+  }));
+  const permsRef = doc.context.register(doc.context.obj({
+    DocMDP: signatureRef,
+  }));
+  doc.catalog.set(PDFName.of('Perms'), permsRef);
+
+  return new Uint8Array(await doc.save({ useObjectStreams: false }));
+}
+
 describe('inspectPdfSignatureRisk', () => {
   it('reports an ordinary PDF as unsigned', async () => {
     const doc = await PDFDocument.create();
@@ -75,6 +92,14 @@ describe('inspectPdfSignatureRisk', () => {
 
     expect(result.status).toBe('UNSIGNED');
     expect(result.signatureCount).toBe(0);
+  });
+
+  it('detects a catalog certification signature through /Perms /DocMDP', async () => {
+    const result = await inspectPdfSignatureRisk(await createCertifiedPdf());
+
+    expect(result.status).toBe('SIGNED');
+    expect(result.signatureCount).toBe(1);
+    expect(result.evidence).toContain('BYTE_RANGE_AND_CONTENTS');
   });
 
   it('detects a populated signature dictionary exactly once', async () => {
