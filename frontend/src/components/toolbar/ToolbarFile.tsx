@@ -15,8 +15,14 @@ import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitP
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useShallow } from 'zustand/react/shallow';
+import { inspectPdfSignatureRisk, type PdfSignatureRiskStatus } from '@/core/pdf-signatures/signatureRisk';
+import { SignedPdfRewriteWarningDialog } from './SignedPdfRewriteWarningDialog';
 
 export const ToolbarFile: React.FC = () => {
+  const [signatureWarning, setSignatureWarning] = React.useState<{
+    status: Extract<PdfSignatureRiskStatus, 'SIGNED' | 'UNKNOWN'>;
+    signatureCount: number;
+  } | null>(null);
   const {
     workingBytes,
     fileName,
@@ -110,7 +116,7 @@ export const ToolbarFile: React.FC = () => {
     }
   };
 
-  const handleSave = async () => {
+  const performEditableSave = async () => {
     if (!workingBytes || !fileName) {
       return;
     }
@@ -175,6 +181,39 @@ export const ToolbarFile: React.FC = () => {
         message: 'Failed to save the document. Please try again.',
       });
     }
+  };
+
+  const handleSave = async () => {
+    if (!workingBytes || !fileName) {
+      return;
+    }
+
+    const risk = await inspectPdfSignatureRisk(workingBytes);
+    if (risk.status === 'SIGNED' || risk.status === 'UNKNOWN') {
+      if (risk.status === 'UNKNOWN') {
+        warn('session', 'Unable to determine PDF signature state before Save', {
+          reason: risk.reason,
+          fileName,
+        });
+      }
+
+      setSignatureWarning({
+        status: risk.status,
+        signatureCount: risk.signatureCount,
+      });
+      return;
+    }
+
+    await performEditableSave();
+  };
+
+  const handleSignedSaveCancel = () => {
+    setSignatureWarning(null);
+  };
+
+  const handleSignedSaveContinue = () => {
+    setSignatureWarning(null);
+    void performEditableSave();
   };
 
   const handleExportReview = async () => {
@@ -252,7 +291,8 @@ export const ToolbarFile: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center space-x-1">
+    <>
+      <div className="flex items-center space-x-1">
       <Tooltip content="Open PDF">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleOpen}>
           <FolderOpen className="w-4 h-4" />
@@ -260,7 +300,7 @@ export const ToolbarFile: React.FC = () => {
       </Tooltip>
 
       <Tooltip content="Save">
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative" onClick={handleSave} disabled={!workingBytes}>
+        <Button aria-label="Save" variant="ghost" size="icon" className="h-8 w-8 relative" onClick={handleSave} disabled={!workingBytes}>
           <Save className="w-4 h-4" />
           {isDirty && (
             <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full border border-white dark:border-slate-900" />
@@ -285,7 +325,17 @@ export const ToolbarFile: React.FC = () => {
           <Download className="w-4 h-4" />
         </Button>
       </Tooltip>
-    </div>
+      </div>
+
+      {signatureWarning ? (
+        <SignedPdfRewriteWarningDialog
+          status={signatureWarning.status}
+          signatureCount={signatureWarning.signatureCount}
+          onCancel={handleSignedSaveCancel}
+          onContinue={handleSignedSaveContinue}
+        />
+      ) : null}
+    </>
   );
 };
 

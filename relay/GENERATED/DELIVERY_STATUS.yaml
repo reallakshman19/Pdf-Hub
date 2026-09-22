@@ -4,10 +4,10 @@
   "vehicle": {
     "provider": "GITHUB",
     "kind": "PULL_REQUEST",
-    "number": 290
+    "number": 291
   },
-  "observed_at": "2026-09-22T12:21:00Z",
-  "provider_ref": "PR #290 @ 72dfb6cc8b34f02fd96f3c3b4115be6082daea77; workflow run 35726347914 / job 106740815346 completed with provider conclusion failure and zero executed steps",
+  "observed_at": "2026-09-22T16:12:00Z",
+  "provider_ref": "PR #291 @ 0d5adb93d273f056aa63252fe67fc373f74042b4; workflow run 35752240383 / job 106829061720 completed with provider conclusion failure and zero executed steps",
   "lifecycle": "READY",
   "checks": "UNKNOWN",
   "review": "PENDING",

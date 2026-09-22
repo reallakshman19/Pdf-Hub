@@ -1,0 +1,15 @@
+{
+  "schema_version": "relay-v3-delivery-status",
+  "authority": "PROVIDER_READBACK",
+  "vehicle": {
+    "provider": "GITHUB",
+    "kind": "PULL_REQUEST",
+    "number": 290
+  },
+  "observed_at": "2026-09-22T12:21:00Z",
+  "provider_ref": "PR #290 @ 72dfb6cc8b34f02fd96f3c3b4115be6082daea77; workflow run 35726347914 / job 106740815346 completed with provider conclusion failure and zero executed steps",
+  "lifecycle": "READY",
+  "checks": "UNKNOWN",
+  "review": "PENDING",
+  "mergeability": "MERGEABLE"
+}

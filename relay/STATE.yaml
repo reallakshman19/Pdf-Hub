@@ -1,7 +1,7 @@
 {
   "schema_version": "relay-v3",
   "roadmap": {
-    "revision": "RM-0005-V3-ADMISSION",
+    "revision": "RM-0006-SIGNED-PDF-WARNING",
     "path": "relay/ROADMAP/ROADMAP.yaml"
   },
   "execution": {
@@ -11,7 +11,7 @@
     "route": null
   },
   "accepted": {
-    "checkpoint": "CP-10-INTEROP-FIX-001"
+    "checkpoint": "CP-10-SIGNED-PDF-WARNING-001"
   },
   "controls": {
     "path": "relay/CONTROLS/controls.yaml"
@@ -21,7 +21,7 @@
     "primary_vehicle": {
       "provider": "GITHUB",
       "kind": "PULL_REQUEST",
-      "number": 290
+      "number": 291
     }
   },
   "generated": {

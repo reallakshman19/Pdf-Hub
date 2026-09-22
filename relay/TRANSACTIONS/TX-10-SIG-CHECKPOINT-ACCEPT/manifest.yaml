@@ -1,0 +1,49 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-SIG-CHECKPOINT-ACCEPT",
+  "command": "ACCEPT_CHECKPOINT",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:09:00Z",
+  "updated_at": "2026-09-22T16:09:00Z",
+  "operations": [
+    {
+      "path": "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:02eee9c41876abb012c9d974d6104c50bc0b572ec0b52f17ccfe13c5de104f59",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/staged/000.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:481cdec4d90606920c056180178f7add15cc34c9ebabd8cf8ccc9684362023f7",
+      "after_digest": "sha256:aff9cbcc27b6ce95016378d9ba85e8b9581c74a0de0a7d135c421f37cb1d8aed",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/backups/001.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:206582eac30ade58f0e35fc0ff4d88b6829f7a2f2d98c45e8ceda096fde18aa9",
+      "after_digest": "sha256:0e3f01997a6f4bf755bb092effec990fc03c4e522d5d608dfc92c12e7bb498b7",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/backups/002.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:297c36498c0ee26cfda72e7d6d6b6da385957f922fd17beb1fdbd6b143c72e43",
+      "after_digest": "sha256:c99486a1a098df13d01eac64c6672f03a91ba5ab91a08d4d45aed585c240b48f",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-CHECKPOINT-ACCEPT/backups/003.before"
+    }
+  ],
+  "applied": [
+    "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml",
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/STATE.yaml"
+  ]
+}

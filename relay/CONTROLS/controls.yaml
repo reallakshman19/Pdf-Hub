@@ -95,6 +95,62 @@
           "Focused Vitest 7/7 PASS and Phase 10 audit PASS at ab7d66a64b924d83fff1921021217c5b9293f6ce."
         ]
       }
+    },
+    {
+      "id": "CTRL-10-SIG-INDEPENDENT-REVIEW",
+      "kind": "QUALITY",
+      "state": "RESOLVED",
+      "source": {
+        "type": "VALIDATOR",
+        "ref": "EP-10-SIGNED-PDF-WARNING quality_policy HIGH_RISK / independent_review REQUIRED"
+      },
+      "condition": "Independent review is required before checkpoint acceptance and PR-ready transition for the current signed-PDF rewrite warning material.",
+      "blocks": [
+        "CHECKPOINT",
+        "PR_READY",
+        "MERGE",
+        "RELEASE",
+        "CLOSE_TASK"
+      ],
+      "permits": [
+        "READ",
+        "ANALYZE",
+        "TEST",
+        "DRAFT_PR_UPDATE",
+        "HANDOVER",
+        "LOCAL_EXECUTION_EXPORT"
+      ],
+      "tracking": {
+        "kind": "PENDING",
+        "id": "PEND-10-SIG-INDEPENDENT-REVIEW"
+      },
+      "resolution": {
+        "condition": "An independent reviewer examines exact material head 2790e71d7da722e96db80481d8c4e21bb2523dfa and reports no unresolved blocking findings.",
+        "evidence": [
+          "PR #291 comment 5779758352: independent review CLEAR at exact product material head 2790e71d7da722e96db80481d8c4e21bb2523dfa",
+          "Independent read-only reviewer reported no blocking findings.",
+          "Blank-workspace focused validation: 21/21 tests PASS and Phase 10 audit PASS.",
+          "Protected nativeAnnotationWriter.ts / commitPipeline.ts and frozen agents/relay/** diffs are empty."
+        ]
+      }
+    },
+    {
+      "id": "CTRL-OWNER-MERGE-PR291",
+      "kind": "OWNER",
+      "state": "OPEN",
+      "source": {
+        "type": "OWNER",
+        "ref": "direct-owner:merge-pr-291@2026-09-22T16:28:31Z"
+      },
+      "condition": "Owner explicitly authorizes merging PR #291 into phase10/postmerge-interoperability-fix.",
+      "blocks": [],
+      "permits": [
+        "MERGE"
+      ],
+      "resolution": {
+        "condition": "PR #291 is merged or this authority is revoked.",
+        "evidence": []
+      }
     }
   ]
 }

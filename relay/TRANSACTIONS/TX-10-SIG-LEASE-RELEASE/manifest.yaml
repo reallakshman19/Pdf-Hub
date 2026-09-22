@@ -1,0 +1,49 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-SIG-LEASE-RELEASE",
+  "command": "RELEASE_LEASE",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:14:00Z",
+  "updated_at": "2026-09-22T16:14:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:9bd6c1b273785b399e1d77b4dc5381720c66bca0dc4f9645410c2c39d98fc0b8",
+      "after_digest": "sha256:52c53dd0928e31ac517c58b6b16a2a5325b5d3ef8f8f8a39966ccbf2feb8093d",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:0e3f01997a6f4bf755bb092effec990fc03c4e522d5d608dfc92c12e7bb498b7",
+      "after_digest": "sha256:6866e02daa8392f46156a6c0de083abebf28f5bad649b39cc741f23240742318",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:8b4ea122f41d2b80555d03566f63ae3ac251b1e118a3993d39d4633df6360204",
+      "after_digest": "sha256:2a2ebde06a337c4aa43f2dbba3a2f70554c86e13b82bc4332a528afafc61b27d",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/backups/002.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:c99486a1a098df13d01eac64c6672f03a91ba5ab91a08d4d45aed585c240b48f",
+      "after_digest": "sha256:34a0fc7e4288cbcfec302f9b4b1ed5125eafd13155a765f6388d5546dea55020",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-LEASE-RELEASE/backups/003.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-SIGNED-PDF-CHECKPOINT.yaml",
+    "relay/STATE.yaml"
+  ]
+}
