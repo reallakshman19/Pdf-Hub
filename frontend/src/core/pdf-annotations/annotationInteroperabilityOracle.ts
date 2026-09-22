@@ -15,6 +15,7 @@ export interface NativeDictInspector {
   open?: boolean;
   contents?: string | null;
   stateModel?: string | null;
+  hasReviewRelations?: boolean;
   intent?: string | null;
   calloutLine?: number[] | null;
   borderEffect?: { style?: string; intensity?: number } | null;
@@ -76,13 +77,18 @@ export class AnnotationInteroperabilityOracle {
       case 'Text': {
         const isComment =
           Boolean(inspector.stateModel)
+          || Boolean(inspector.hasReviewRelations)
           || Boolean(inspector.customType === 'comment');
         return {
           resolvedType: isComment ? 'comment' : 'sticky-note',
           sharedSubtype: 'Text',
-          distinguishingField: inspector.stateModel ? 'StateModel' : 'Open/Icon',
+          distinguishingField: inspector.stateModel
+            ? 'StateModel'
+            : inspector.hasReviewRelations
+              ? 'IRT topology'
+              : 'Open/Icon',
           reason: isComment
-            ? 'Text annotation has review state model or review discussion hierarchy'
+            ? 'Text annotation participates in review-state/reply topology or carries legacy review state'
             : 'Text annotation represents a standalone canvas sticky note',
         };
       }
