@@ -143,7 +143,10 @@
     "generate:phase9-fidelity-fixtures": "node scripts/phase9-generate-fidelity-fixtures.mjs",
     "audit:phase9-fidelity-corpus": "node scripts/phase9-fidelity-corpus-audit.mjs",
     "certify:phase9-step1": "npm run audit:phase9-fidelity-corpus && vitest run src/core/pdf-fidelity/manifestValidation.test.ts --pool=forks --maxWorkers=1",
-    "audit:phase10-annotation-interoperability": "node scripts/phase10-annotation-interoperability-audit.mjs"
+    "audit:phase10-annotation-interoperability": "node scripts/phase10-annotation-interoperability-audit.mjs",
+    "audit:phase10-viewer-qualification": "node scripts/phase10-viewer-qualification-audit.mjs",
+    "validate:phase10-viewer-evidence": "node scripts/phase10-validate-viewer-evidence.mjs",
+    "test:phase10-viewer-corpus": "vitest run src/core/pdf-annotations/viewerQualificationCorpus.test.ts --pool=forks --maxWorkers=1"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
