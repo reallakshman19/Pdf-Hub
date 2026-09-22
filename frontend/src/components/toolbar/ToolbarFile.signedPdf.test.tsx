@@ -114,7 +114,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
 
     render(<ToolbarFile />);
 
-    fireEvent.click(screen.getAllByRole('button')[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mocks.composeEditablePdf).toHaveBeenCalledTimes(1);
@@ -128,7 +128,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
   it('warns before any save side effect and Cancel leaves the document untouched', async () => {
     render(<ToolbarFile />);
 
-    fireEvent.click(screen.getAllByRole('button')[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText(/may invalidate existing digital signatures/i)).toBeInTheDocument();
     expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledWith(mocks.session.workingBytes);
@@ -147,7 +147,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
   it('continues through the existing editable Save path only after confirmation', async () => {
     render(<ToolbarFile />);
 
-    fireEvent.click(screen.getAllByRole('button')[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('button', { name: 'Save Anyway' });
     fireEvent.click(screen.getByRole('button', { name: 'Save Anyway' }));
 
@@ -170,7 +170,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
 
     render(<ToolbarFile />);
 
-    fireEvent.click(screen.getAllByRole('button')[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Save Anyway' }));
 
     await waitFor(() => {
