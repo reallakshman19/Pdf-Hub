@@ -128,6 +128,11 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     );
     expect(integrity1.valid).toBe(true);
 
+    for (const expected of initialAnnotations) {
+      const actual = read1.annotations.find((annotation) => annotation.id === expected.id);
+      expect(actual?.type).toBe(expected.type);
+    }
+
     // Save 2 (repeated save)
     const save2 = await writeNativePdfAnnotations(save1.bytes, read1.annotations);
     const read2 = await readNativePdfAnnotations(save2.bytes);
@@ -136,6 +141,11 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       read2.annotations,
     );
     expect(integrity2.valid).toBe(true);
+
+    for (const expected of initialAnnotations) {
+      const actual = read2.annotations.find((annotation) => annotation.id === expected.id);
+      expect(actual?.type).toBe(expected.type);
+    }
 
     // Verify /NM uniqueness in raw PDF
     const doc = await PDFDocument.load(save2.bytes);
