@@ -133,6 +133,24 @@
           "Protected nativeAnnotationWriter.ts / commitPipeline.ts and frozen agents/relay/** diffs are empty."
         ]
       }
+    },
+    {
+      "id": "CTRL-OWNER-MERGE-PR291",
+      "kind": "OWNER",
+      "state": "OPEN",
+      "source": {
+        "type": "OWNER",
+        "ref": "direct-owner:merge-pr-291@2026-09-22T16:28:31Z"
+      },
+      "condition": "Owner explicitly authorizes merging PR #291 into phase10/postmerge-interoperability-fix.",
+      "blocks": [],
+      "permits": [
+        "MERGE"
+      ],
+      "resolution": {
+        "condition": "PR #291 is merged or this authority is revoked.",
+        "evidence": []
+      }
     }
   ]
 }
