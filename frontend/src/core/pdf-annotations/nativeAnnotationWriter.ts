@@ -152,7 +152,7 @@ function removeManagedAnnotationFamily(
     const dict = annots.lookupMaybe(index, lib.PDFDict);
     if (!dict) continue;
 
-    const name = dict.lookupMaybe(lib.PDFName.of('NM'), lib.PDFString)?.decodeText();
+    const name = readAnnotationName(dict, lib);
     if (name !== annotationId) continue;
 
     rootRefKey = pdfObjectKey(annots.get(index), lib);
@@ -163,7 +163,7 @@ function removeManagedAnnotationFamily(
     const dict = annots.lookupMaybe(index, lib.PDFDict);
     if (!dict) continue;
 
-    const name = dict.lookupMaybe(lib.PDFName.of('NM'), lib.PDFString)?.decodeText();
+    const name = readAnnotationName(dict, lib);
     const irtKey = pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib);
     const relatedToManagedRoot = Boolean(
       rootRefKey
@@ -180,6 +180,14 @@ function removeManagedAnnotationFamily(
       annots.remove(index);
     }
   }
+}
+
+function readAnnotationName(dict: PDFDict, lib: PdfLibModule): string | null {
+  const value = dict.lookup(lib.PDFName.of('NM'));
+  if (value instanceof lib.PDFString || value instanceof lib.PDFHexString) {
+    return value.decodeText();
+  }
+  return null;
 }
 
 function isStateAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
