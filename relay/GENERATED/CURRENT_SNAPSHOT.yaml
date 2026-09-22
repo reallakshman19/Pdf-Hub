@@ -5,12 +5,12 @@
     "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
     "state_digest": "sha256:5d2ffbf22dce3039a09549e1104df8cb1d5112a0ce41225950c03a5d6da965f3",
     "material_basis": {
-      "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
-      "tree_digest": "sha256:4eb29d099af40b6f2a5dae964aa47bb052b63c139a1dc3cf9d1124e40aebc5cb",
-      "relevant_paths_digest": "sha256:e19f125fa7d11e294b2d1b9c09a293d315d2d102d8df600d00f7273202fd4d54",
+      "head": "67df3ac8073fea1f9e133903936a679b7387c506",
+      "tree_digest": "sha256:e89dbcd6164a3231273721e529d3e2c18954a75e4fbe9740d5e0e36262db3706",
+      "relevant_paths_digest": "sha256:6f86fd7a467b2628a3eabdc7831f5d2ef2b60416c3786ef27cf577e27b116f9b",
       "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
     },
-    "coordination_head": "2790e71d7da722e96db80481d8c4e21bb2523dfa"
+    "coordination_head": "67df3ac8073fea1f9e133903936a679b7387c506"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -81,30 +81,23 @@
   },
   "material": {
     "base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
-    "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
-    "relevant_paths_digest": "sha256:e19f125fa7d11e294b2d1b9c09a293d315d2d102d8df600d00f7273202fd4d54",
+    "head": "67df3ac8073fea1f9e133903936a679b7387c506",
+    "relevant_paths_digest": "sha256:6f86fd7a467b2628a3eabdc7831f5d2ef2b60416c3786ef27cf577e27b116f9b",
     "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
   },
   "evidence": {
     "latest_checkpoint": "CP-10-INTEROP-FIX-001",
     "latest_material_validation": {
-      "head": "2790e71d7da722e96db80481d8c4e21bb2523dfa",
-      "result": "STALE_PENDING_REVALIDATION",
-      "reason": "Product material changed after the previous exact-head local validation; UNKNOWN signature state now fails safe and requires fresh execution evidence.",
-      "supersedes_head": "9d41f9e000b7a5ddd34999290bbeeb0e25d9ee7d"
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
     }
   },
   "controls": {
-    "execution_blockers": [
-      "CTRL-10-SIG-INDEPENDENT-REVIEW"
-    ],
+    "execution_blockers": [],
     "handover_blockers": [],
-    "delivery_blockers": [
-      "CTRL-10-SIG-INDEPENDENT-REVIEW"
-    ],
-    "informational": [
-      "Repository-wide typecheck/build remain baseline-broken outside this EP; focused signature/Save evidence is green."
-    ]
+    "delivery_blockers": [],
+    "informational": []
   },
   "delivery": {
     "issue": null,
@@ -113,8 +106,8 @@
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": null,
-    "delivery_action": "Revalidate exact material head 2790e71d7da722e96db80481d8c4e21bb2523dfa, then obtain independent review of that same exact head.",
+    "immediate_material_action": "Add failing structural signature-risk tests and Save cancellation/continue witnesses before changing production code.",
+    "delivery_action": "Perform the explicitly authorized delivery transition.",
     "stop_conditions": [
       "Any required change expands into signature creation or signature-preserving incremental writes.",
       "The detector cannot distinguish populated signatures from empty /Sig fields on the supported parser surface.",

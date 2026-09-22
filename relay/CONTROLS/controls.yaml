@@ -99,7 +99,7 @@
     {
       "id": "CTRL-10-SIG-INDEPENDENT-REVIEW",
       "kind": "QUALITY",
-      "state": "OPEN",
+      "state": "RESOLVED",
       "source": {
         "type": "VALIDATOR",
         "ref": "EP-10-SIGNED-PDF-WARNING quality_policy HIGH_RISK / independent_review REQUIRED"
@@ -126,7 +126,12 @@
       },
       "resolution": {
         "condition": "An independent reviewer examines exact material head 2790e71d7da722e96db80481d8c4e21bb2523dfa and reports no unresolved blocking findings.",
-        "evidence": []
+        "evidence": [
+          "PR #291 comment 5779758352: independent review CLEAR at exact product material head 2790e71d7da722e96db80481d8c4e21bb2523dfa",
+          "Independent read-only reviewer reported no blocking findings.",
+          "Blank-workspace focused validation: 21/21 tests PASS and Phase 10 audit PASS.",
+          "Protected nativeAnnotationWriter.ts / commitPipeline.ts and frozen agents/relay/** diffs are empty."
+        ]
       }
     }
   ]

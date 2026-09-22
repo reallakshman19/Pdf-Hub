@@ -1,0 +1,40 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-SIG-REVIEW-CLEAR",
+  "command": "RESOLVE_CONTROL",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T16:04:30Z",
+  "updated_at": "2026-09-22T16:04:30Z",
+  "operations": [
+    {
+      "path": "relay/CONTROLS/controls.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:334fcc7098531eefa053385638ce22469f230b5bac509bcef68307588da36226",
+      "after_digest": "sha256:d51969cc6a98b0aaaea65e5279a4f4efd032922dbbe3b87220c01e1eb87f7394",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/backups/000.before"
+    },
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:65f5bb95108dbb085d810779579fae747fcee80000189283ee01a409f4ddc333",
+      "after_digest": "sha256:f17707e21d12af72f8a69d4616945660018a5b7e5a1a355d79c95f977c82a4df",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/backups/001.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:80115cb1b7e2a4c8c9742156a80a084d6737a70fdf20d308fc76dfd8207efd0f",
+      "after_digest": "sha256:5e58bc871d396a0e70436b94cd6b7f3603e93735753973384509b31be052bd0e",
+      "staged_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-SIG-REVIEW-CLEAR/backups/002.before"
+    }
+  ],
+  "applied": [
+    "relay/CONTROLS/controls.yaml",
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml"
+  ]
+}
