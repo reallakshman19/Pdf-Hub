@@ -15,11 +15,14 @@ import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitP
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useShallow } from 'zustand/react/shallow';
-import { inspectPdfSignatureRisk } from '@/core/pdf-signatures/signatureRisk';
+import { inspectPdfSignatureRisk, type PdfSignatureRiskStatus } from '@/core/pdf-signatures/signatureRisk';
 import { SignedPdfRewriteWarningDialog } from './SignedPdfRewriteWarningDialog';
 
 export const ToolbarFile: React.FC = () => {
-  const [signatureWarningCount, setSignatureWarningCount] = React.useState<number | null>(null);
+  const [signatureWarning, setSignatureWarning] = React.useState<{
+    status: Extract<PdfSignatureRiskStatus, 'SIGNED' | 'UNKNOWN'>;
+    signatureCount: number;
+  } | null>(null);
   const {
     workingBytes,
     fileName,
@@ -186,27 +189,30 @@ export const ToolbarFile: React.FC = () => {
     }
 
     const risk = await inspectPdfSignatureRisk(workingBytes);
-    if (risk.status === 'SIGNED') {
-      setSignatureWarningCount(risk.signatureCount);
-      return;
-    }
+    if (risk.status === 'SIGNED' || risk.status === 'UNKNOWN') {
+      if (risk.status === 'UNKNOWN') {
+        warn('session', 'Unable to determine PDF signature state before Save', {
+          reason: risk.reason,
+          fileName,
+        });
+      }
 
-    if (risk.status === 'UNKNOWN') {
-      warn('session', 'Unable to determine PDF signature state before Save', {
-        reason: risk.reason,
-        fileName,
+      setSignatureWarning({
+        status: risk.status,
+        signatureCount: risk.signatureCount,
       });
+      return;
     }
 
     await performEditableSave();
   };
 
   const handleSignedSaveCancel = () => {
-    setSignatureWarningCount(null);
+    setSignatureWarning(null);
   };
 
   const handleSignedSaveContinue = () => {
-    setSignatureWarningCount(null);
+    setSignatureWarning(null);
     void performEditableSave();
   };
 
@@ -321,9 +327,10 @@ export const ToolbarFile: React.FC = () => {
       </Tooltip>
       </div>
 
-      {signatureWarningCount !== null ? (
+      {signatureWarning ? (
         <SignedPdfRewriteWarningDialog
-          signatureCount={signatureWarningCount}
+          status={signatureWarning.status}
+          signatureCount={signatureWarning.signatureCount}
           onCancel={handleSignedSaveCancel}
           onContinue={handleSignedSaveContinue}
         />

@@ -51,9 +51,9 @@ Structural/content changes may invalidate existing digital signatures.
 
 Before normal Save/Save As, PDF Hub inspects the current PDF for an applied signature structure on the supported pdf-lib surface. The detector requires a meaningful `/ByteRange` plus non-zero signature `/Contents`; an empty `/Sig` form field by itself is not treated as an applied signature.
 
-When an applied signature is detected, Save pauses before PDF composition or file write and warns that PDF Hub rewrites the file and **does not currently preserve signature validity**. The user may cancel with no Save write side effects or explicitly choose **Save Anyway**.
+When an applied signature is detected, Save pauses before PDF composition or file write and warns that PDF Hub rewrites the file and **does not currently preserve signature validity**. If signature state cannot be determined on the supported parser surface, Save also pauses and surfaces that uncertainty instead of silently proceeding. In either case, the user may cancel with no Save write side effects or explicitly choose **Save Anyway**.
 
-This is rewrite-risk detection, not cryptographic validation. PDF Hub does not claim that an existing signature remains valid after Save/Save As, and it does not yet implement signature-preserving incremental writes.
+This is rewrite-risk detection, not cryptographic validation. PDF Hub does not claim that an existing signature remains valid after Save/Save As, does not treat an unknown signature state as unsigned, and does not yet implement signature-preserving incremental writes.
 
 ## Testing contract
 

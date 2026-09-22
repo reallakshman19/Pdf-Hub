@@ -142,8 +142,11 @@ if (fs.existsSync(toolbarFilePath)) {
   if (!toolbarContent.includes('await inspectPdfSignatureRisk(workingBytes)')) {
     errors.push('Toolbar Save must inspect signature risk before rewrite');
   }
-  if (!toolbarContent.includes('setSignatureWarningCount(risk.signatureCount)')) {
-    errors.push('Toolbar Save must surface the signed-PDF warning before continuing');
+  if (!toolbarContent.includes("risk.status === 'SIGNED' || risk.status === 'UNKNOWN'")) {
+    errors.push('Toolbar Save must fail safe for both SIGNED and UNKNOWN signature state');
+  }
+  if (!toolbarContent.includes('setSignatureWarning({')) {
+    errors.push('Toolbar Save must surface the signature-risk warning before continuing');
   }
 }
 
@@ -154,6 +157,9 @@ if (fs.existsSync(signatureDialogPath)) {
   }
   if (!signatureDialogContent.includes('does not currently preserve signature validity')) {
     errors.push('Signed-PDF warning must not imply signature preservation');
+  }
+  if (!signatureDialogContent.includes('could not determine whether this PDF contains digital signatures')) {
+    errors.push('Signature warning must surface UNKNOWN detection state instead of failing open');
   }
 }
 
