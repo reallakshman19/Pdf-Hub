@@ -1,0 +1,26 @@
+{
+  "schema_version": "relay-v3",
+  "roadmap": {
+    "revision": "RM-0004",
+    "path": "relay/ROADMAP/ROADMAP.yaml"
+  },
+  "execution": {
+    "lifecycle": "INITIALIZING",
+    "ep": null,
+    "lease": null,
+    "route": null
+  },
+  "accepted": {
+    "checkpoint": null
+  },
+  "controls": {
+    "path": "relay/CONTROLS/controls.yaml"
+  },
+  "delivery": {
+    "required": false,
+    "primary_vehicle": null
+  },
+  "generated": {
+    "snapshot": "relay/GENERATED/CURRENT_SNAPSHOT.yaml"
+  }
+}

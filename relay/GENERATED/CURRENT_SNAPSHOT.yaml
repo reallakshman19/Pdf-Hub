@@ -1,0 +1,103 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0004",
+    "state_digest": "sha256:5ad66fccb9b881a6eb96f30a4b07e5fcdfb4d30b6e81128e83ac583b2d1a28bf",
+    "material_basis": {
+      "head": "25780bef7401cf7558bc622518a452b00712e540",
+      "tree_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "coordination_head": "25780bef7401cf7558bc622518a452b00712e540"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+  },
+  "programme": {
+    "accepted_progress": 0,
+    "completed_work": [],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-010",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "INITIALIZING",
+    "work_package": null,
+    "ep": null,
+    "lease": null,
+    "executor": null
+  },
+  "scope": {
+    "allowed_writes": [],
+    "protected": [],
+    "prohibited": []
+  },
+  "material": {
+    "base": "25780bef7401cf7558bc622518a452b00712e540",
+    "head": "25780bef7401cf7558bc622518a452b00712e540",
+    "relevant_paths_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "dependency_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "evidence": {
+    "latest_checkpoint": null,
+    "latest_material_validation": {}
+  },
+  "controls": {
+    "execution_blockers": [
+      "CTRL-MIGRATION-RECONCILE"
+    ],
+    "handover_blockers": [
+      "CTRL-MIGRATION-RECONCILE"
+    ],
+    "delivery_blockers": [
+      "CTRL-MIGRATION-RECONCILE"
+    ],
+    "informational": []
+  },
+  "delivery": {
+    "issue": null,
+    "pr": null,
+    "lifecycle": "NOT_REQUIRED",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": "Reconcile legacy intent/evidence into native V3 present authority before material work.",
+    "delivery_action": null,
+    "stop_conditions": [
+      "Do not infer native V3 acceptance or custody from V2.5 receipts."
+    ]
+  },
+  "handoff": {
+    "zero_context_takeover_possible": false,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
+      "relay/MIGRATION/V25_REPORT.yaml",
+      "agents/relay/REPO_STATE.yaml"
+    ]
+  }
+}
