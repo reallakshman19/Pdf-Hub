@@ -5,12 +5,12 @@
     "roadmap_revision": "RM-0005-V3-ADMISSION",
     "state_digest": "sha256:fe89f9ccd2d29ad914b05a96661a1c54d6f352bb0d8950eb6a3135624bf57d5d",
     "material_basis": {
-      "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
-      "tree_digest": "sha256:5801dbac4f88bd6951a7a7d477bf4c3512e1053f7abe7218207d3aaeea15790f",
-      "relevant_paths_digest": "sha256:f1307846b5a3e299e5216cec1792550ea7310c454c5a694d051d12b882f76b11",
+      "head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61",
+      "tree_digest": "sha256:d9506502212585eb8f84839f799008470c1dcd39a25298ec88fe5e23a9f19901",
+      "relevant_paths_digest": "sha256:94f3c52a014dc0e00a3f7ab69ed0d13a5dd3904a45f36b8f942eb9f9dba14f06",
       "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
     },
-    "coordination_head": "ab7d66a64b924d83fff1921021217c5b9293f6ce"
+    "coordination_head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61"
   },
   "owner": {
     "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
@@ -75,71 +75,34 @@
   },
   "material": {
     "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
-    "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
-    "relevant_paths_digest": "sha256:f1307846b5a3e299e5216cec1792550ea7310c454c5a694d051d12b882f76b11",
+    "head": "094ab7d6c8c1de1c38fd219ac433f204aa9f5a61",
+    "relevant_paths_digest": "sha256:94f3c52a014dc0e00a3f7ab69ed0d13a5dd3904a45f36b8f942eb9f9dba14f06",
     "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
   },
   "evidence": {
     "latest_checkpoint": null,
-    "latest_material_validation": {
-      "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
-      "focused_vitest": {
-        "result": "PASS",
-        "tests": "7/7",
-        "command": "pnpm exec vitest run src/core/pdf-annotations/annotationInteroperability.test.ts --pool=forks --maxWorkers=1"
-      },
-      "phase10_audit": {
-        "result": "PASS",
-        "command": "pnpm run audit:phase10-annotation-interoperability"
-      },
-      "protected_writer_commit_pipeline_diff": "PASS_EMPTY",
-      "frozen_v25_tree_diff": "PASS_EMPTY",
-      "working_tree": "CLEAN",
-      "typecheck": {
-        "result": "FAIL_PREEXISTING",
-        "basis": "Every reported source file is byte-identical to material base 6f16bc859d3bd6975969ac408a3b119d7431fbb0."
-      },
-      "build": {
-        "result": "FAIL_PREEXISTING",
-        "basis": "Fails in the same unrelated byte-identical files as typecheck."
-      },
-      "runtime": {
-        "node": "v24.11.1",
-        "pnpm": "10.23.0",
-        "engine_conformance": "NODE_OUTSIDE_DECLARED_22_RANGE"
-      },
-      "evidence_refs": [
-        "issue#288:5776099220",
-        "user local rerun bound to ab7d66a64b924d83fff1921021217c5b9293f6ce"
-      ]
-    }
+    "latest_material_validation": {}
   },
   "controls": {
-    "execution_blockers": [
-      "CTRL-10-INDEPENDENT-REVIEW"
-    ],
+    "execution_blockers": [],
     "handover_blockers": [],
-    "delivery_blockers": [
-      "CTRL-10-INDEPENDENT-REVIEW"
-    ],
-    "informational": [
-      "Repository-wide typecheck/build remain pre-existing failures outside the bounded Phase 10 diff; focused tests/audit are green."
-    ]
+    "delivery_blockers": [],
+    "informational": []
   },
   "delivery": {
-    "issue": 288,
+    "issue": null,
     "pr": 290,
-    "lifecycle": "DRAFT",
+    "lifecycle": "DECLARED",
     "merge_authorized": false
   },
   "next": {
-    "immediate_material_action": null,
-    "delivery_action": "Obtain independent review of exact head ab7d66a64b924d83fff1921021217c5b9293f6ce; keep PR #290 draft until CTRL-10-INDEPENDENT-REVIEW is resolved.",
+    "immediate_material_action": "Add the failing external-edit-return production-reader witness before changing nativeAnnotationReader.ts; then make the smallest precedence correction and close F10-01/F10-02/F10-03 only.",
+    "delivery_action": "Perform the explicitly authorized delivery transition.",
     "stop_conditions": [
-      "Do not mark quality CLEAR or accept a checkpoint without independent review bound to the exact head.",
-      "Do not start STEP-10-02 production /AP work.",
-      "Do not mutate frozen agents/relay/** V2.5 history.",
-      "Do not merge/release under the current OWNER_OVERRIDE lease."
+      "Any required change expands into production /AP generation.",
+      "Any change requires rewriting native annotation identity or reply serialization rather than preserving the current /NM and /IRT model.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "A base-branch delta intersects the EP material sensitivity."
     ]
   },
   "handoff": {
@@ -147,9 +110,9 @@
     "reconstruction_sources": [
       "relay/ROADMAP/ROADMAP.yaml",
       "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
       "relay/WORK/EP-10-INTEROP-FIX.yaml",
-      "relay/LEASES/LEASE-10-INTEROP-FIX.yaml",
-      "relay/EVENTS.jsonl"
+      "relay/LEASES/LEASE-10-INTEROP-FIX.yaml"
     ]
   }
 }
