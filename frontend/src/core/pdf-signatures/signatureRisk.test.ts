@@ -14,11 +14,7 @@ async function createPdfWithSignatureField(options: {
   const doc = await PDFDocument.create();
   doc.addPage();
 
-  const fieldEntries: Record<string, unknown> = {
-    FT: PDFName.of('Sig'),
-    T: PDFString.of('Signature1'),
-  };
-
+  let field;
   if (options.populated) {
     const signature = doc.context.obj({
       Type: PDFName.of('Sig'),
@@ -26,10 +22,19 @@ async function createPdfWithSignatureField(options: {
       Contents: PDFHexString.of(options.zeroContents ? '00000000' : '01020304'),
     });
     const signatureRef = doc.context.register(signature);
-    fieldEntries.V = signatureRef;
+    field = doc.context.obj({
+      FT: PDFName.of('Sig'),
+      T: PDFString.of('Signature1'),
+      V: signatureRef,
+    });
+  } else {
+    field = doc.context.obj({
+      FT: PDFName.of('Sig'),
+      T: PDFString.of('Signature1'),
+    });
   }
 
-  const fieldRef = doc.context.register(doc.context.obj(fieldEntries));
+  const fieldRef = doc.context.register(field);
   const acroFormRef = doc.context.register(doc.context.obj({
     Fields: [fieldRef],
   }));

@@ -105,6 +105,26 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     mocks.savePdfBytes.mockResolvedValue(null);
   });
 
+  it('saves an unsigned PDF without showing the signature warning', async () => {
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({
+      status: 'UNSIGNED',
+      signatureCount: 0,
+      evidence: [],
+    });
+
+    render(<ToolbarFile />);
+
+    fireEvent.click(screen.getAllByRole('button')[1]);
+
+    await waitFor(() => {
+      expect(mocks.composeEditablePdf).toHaveBeenCalledTimes(1);
+      expect(mocks.savePdfBytes).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.queryByText(/may invalidate existing digital signatures/i)).toBeNull();
+    expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledTimes(1);
+  });
+
   it('warns before any save side effect and Cancel leaves the document untouched', async () => {
     render(<ToolbarFile />);
 
