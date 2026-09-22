@@ -88,6 +88,24 @@ if (!manifest.policies?.external_edit_precedence?.standard_fields_override_custo
   errors.push('Manifest policies must declare external edit precedence (standard fields override custom data)');
 }
 
+const precedence = manifest.policies?.external_edit_precedence;
+const expectedReaderFields = ['Contents', 'Rect', 'C', 'IC', 'CL', 'L', 'Vertices', 'InkList', 'State'];
+if (JSON.stringify(precedence?.reader_enforced_fields) !== JSON.stringify(expectedReaderFields)) {
+  errors.push('External-edit precedence must declare the exact production-reader enforced field set');
+}
+if (JSON.stringify(precedence?.pending_fields) !== JSON.stringify(['DA', 'QuadPoints'])) {
+  errors.push('DA and QuadPoints must remain explicit pending reader limitations in STEP-10-01');
+}
+
+const reviewFixture = manifest.review_thread_fixture;
+if (!reviewFixture
+  || reviewFixture.root?.nm !== 'phase10-review-root-1'
+  || reviewFixture.reply?.relationship !== 'IRT_OBJECT_REFERENCE'
+  || reviewFixture.repeated_save?.cycles !== 2
+  || reviewFixture.repeated_save?.duplicates_allowed !== false) {
+  errors.push('Manifest must declare deterministic root/reply /NM + /IRT repeated-save fixture semantics');
+}
+
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
   errors.push('Manifest policies must declare save preserves native annotations');
 }
@@ -109,5 +127,7 @@ if (errors.length > 0) {
 console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
-console.log('[PASS] External-edit precedence, Save/Export separation, and signed rewrite policies verified.');
+console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
+console.log('[PASS] Deterministic root/reply /NM + /IRT repeated-save fixture contract verified.');
+console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('=== Phase 10 Audit PASSED ===');

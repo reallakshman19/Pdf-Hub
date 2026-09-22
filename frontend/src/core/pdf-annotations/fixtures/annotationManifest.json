@@ -247,7 +247,7 @@
       },
       "defaults": {
         "borderColor": "#2563eb",
-        "opacity": 1.0
+        "opacity": 1
       }
     },
     "strikeout": {
@@ -279,7 +279,7 @@
       },
       "defaults": {
         "borderColor": "#dc2626",
-        "opacity": 1.0
+        "opacity": 1
       }
     },
     "squiggly": {
@@ -311,7 +311,7 @@
       },
       "defaults": {
         "borderColor": "#16a34a",
-        "opacity": 1.0
+        "opacity": 1
       }
     },
     "shape-rect": {
@@ -680,7 +680,7 @@
       "defaults": {
         "backgroundColor": "#000000",
         "borderColor": "#000000",
-        "opacity": 1.0
+        "opacity": 1
       }
     }
   },
@@ -726,19 +726,22 @@
     },
     "external_edit_precedence": {
       "standard_fields_override_custom_data": true,
-      "monitored_fields": [
+      "reader_enforced_fields": [
         "Contents",
         "Rect",
         "C",
         "IC",
-        "DA",
         "CL",
         "L",
-        "QuadPoints",
         "Vertices",
-        "InkList"
+        "InkList",
+        "State"
       ],
-      "rationale": "When a PDF is edited in an external viewer, standard PDF dictionary fields reflect the latest edits and must take precedence over stale serialized PDFHubData."
+      "pending_fields": [
+        "DA",
+        "QuadPoints"
+      ],
+      "rationale": "Recognized standard PDF state is authoritative on re-import. Fields not yet represented by the production reader remain explicit pending limitations rather than implied support."
     },
     "save_vs_export_separation": {
       "save_preserves_native_annotations": true,
@@ -750,6 +753,29 @@
       "warn_on_rewrite": true,
       "prevent_false_validity_claims": true,
       "rationale": "Full document rewrite invalidates cryptographic signatures. Users must be warned explicitly."
+    }
+  },
+  "review_thread_fixture": {
+    "root": {
+      "type": "comment",
+      "nm": "phase10-review-root-1",
+      "initialContents": "Original review text",
+      "initialReviewState": "resolved"
+    },
+    "reply": {
+      "id": "phase10-review-reply-1",
+      "relationship": "IRT_OBJECT_REFERENCE",
+      "replyType": "R"
+    },
+    "repeated_save": {
+      "cycles": 2,
+      "identity_exact": [
+        "NM"
+      ],
+      "relationship_exact": [
+        "IRT"
+      ],
+      "duplicates_allowed": false
     }
   }
 }

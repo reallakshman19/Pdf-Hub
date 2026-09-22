@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFRef, PDFString } from 'pdf-lib';
 
-import { ANNOTATION_TYPES, type AnnotationType } from '@/core/annotations/annotationTypes';
+import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import {
   getAllPhase10Fixtures,
   getFixtureMetadata,
   createDeterministicAnnotation,
+  createDeterministicReviewThreadFixture,
   PHASE10_SUPPORTED_TYPES,
 } from './fixtures/annotationFixtures';
 import { AnnotationInteroperabilityOracle } from './annotationInteroperabilityOracle';
@@ -107,16 +108,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
   it('proves two-save native round-trip maintains /NM identity without duplicates', async () => {
     const baseBytes = await createEmptyPdf();
-    const testTypes: AnnotationType[] = [
-      'textbox',
-      'callout',
-      'sticky-note',
-      'highlight',
-      'shape-rect',
-      'line',
-      'comment',
-      'redaction',
-    ];
+    const testTypes = [...PHASE10_SUPPORTED_TYPES];
 
     const initialAnnotations = testTypes.map((type, idx) =>
       createDeterministicAnnotation(type, {
@@ -150,6 +142,89 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const page = doc.getPage(0);
     const annotsArray = page.node.lookup(PDFName.of('Annots')) as any;
     expect(annotsArray.size()).toBe(testTypes.length);
+  });
+
+  it('preserves native reply identity and prefers external standard edits over stale private cache', async () => {
+    const baseBytes = await createEmptyPdf();
+    const root = createDeterministicReviewThreadFixture();
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
+    expect(save1.annotationCount).toBe(1);
+    expect(save1.replyCount).toBe(1);
+
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const externalPage = externalDoc.getPage(0);
+    const externalAnnots = externalPage.node.lookup(PDFName.of('Annots')) as any;
+
+    let rootRef: PDFRef | null = null;
+    let rootDict: any = null;
+    let replyRef: PDFRef | null = null;
+    let replyDict: any = null;
+
+    for (let index = 0; index < externalAnnots.size(); index += 1) {
+      const ref = externalAnnots.get(index);
+      const dict = externalAnnots.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+
+      if (nm === root.id) {
+        rootRef = ref;
+        rootDict = dict;
+      } else if (dict.lookup(PDFName.of('PDFHubReplyId'))?.decodeText?.() === 'phase10-review-reply-1') {
+        replyRef = ref;
+        replyDict = dict;
+      }
+    }
+
+    expect(rootRef).toBeInstanceOf(PDFRef);
+    expect(replyRef).toBeInstanceOf(PDFRef);
+    expect(replyDict.get(PDFName.of('IRT'))).toBeInstanceOf(PDFRef);
+    expect(replyDict.get(PDFName.of('IRT')).toString()).toBe(rootRef?.toString());
+
+    // Simulate a standards-capable external writer changing native state while
+    // preserving unknown PDF Hub private metadata verbatim.
+    rootDict.set(PDFName.of('Contents'), PDFString.of('Externally revised review text'));
+    rootDict.set(PDFName.of('State'), PDFName.of('Rejected'));
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+
+    expect(returned.annotations).toHaveLength(1);
+    expect(returned.annotations[0].id).toBe(root.id);
+    expect(returned.annotations[0].data.text).toBe('Externally revised review text');
+    expect(returned.annotations[0].data.review?.status).toBe('rejected');
+    expect(returned.annotations[0].data.review?.replies).toHaveLength(1);
+    expect(returned.annotations[0].data.review?.replies[0].id).toBe('phase10-review-reply-1');
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const read2 = await readNativePdfAnnotations(save2.bytes);
+
+    expect(read2.annotations).toHaveLength(1);
+    expect(read2.annotations[0].id).toBe(root.id);
+    expect(read2.annotations[0].data.text).toBe('Externally revised review text');
+    expect(read2.annotations[0].data.review?.status).toBe('rejected');
+    expect(read2.annotations[0].data.review?.replies).toHaveLength(1);
+
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    expect(annots2.size()).toBe(2);
+
+    let rootRef2: PDFRef | null = null;
+    let replyIrt2: unknown = null;
+    for (let index = 0; index < annots2.size(); index += 1) {
+      const ref = annots2.get(index);
+      const dict = annots2.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === root.id) {
+        rootRef2 = ref;
+      }
+      if (dict.lookup(PDFName.of('PDFHubReplyId'))?.decodeText?.() === 'phase10-review-reply-1') {
+        replyIrt2 = dict.get(PDFName.of('IRT'));
+      }
+    }
+
+    expect(rootRef2).toBeInstanceOf(PDFRef);
+    expect(replyIrt2).toBeInstanceOf(PDFRef);
+    expect((replyIrt2 as PDFRef).toString()).toBe(rootRef2?.toString());
   });
 
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
