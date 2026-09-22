@@ -146,7 +146,6 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
     expect(mocks.savePdfBytes).not.toHaveBeenCalled();
     expect(mocks.saveAnnotations).not.toHaveBeenCalled();
-    expect(mocks.saveAnnotations).not.toHaveBeenCalled();
     expect(mocks.commitWorkingCopy).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -154,6 +153,8 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.beginSaveOperation).not.toHaveBeenCalled();
     expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
     expect(mocks.savePdfBytes).not.toHaveBeenCalled();
+    expect(mocks.saveAnnotations).not.toHaveBeenCalled();
+    expect(mocks.commitWorkingCopy).not.toHaveBeenCalled();
   });
 
   it('continues through the existing editable Save path only after confirmation', async () => {
