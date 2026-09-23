@@ -10,6 +10,12 @@ import {
   resumeOcrBatchTasks,
 } from '../ocrResumeState';
 
+const RESUME_EXECUTION_CONFIG = {
+  forceOcr: false,
+  rasterScale: 2,
+  maxCanvasPixels: 16_000_000,
+};
+
 describe('ocrResumeState', () => {
   it('preserves completed work and requeues interrupted/retryable work', async () => {
     const original = createOcrBatchTasksFromPages({
@@ -28,6 +34,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       snapshot: createOcrBatchSchedulerSnapshot(original),
       now: '2026-09-23T00:00:00.000Z',
     });
@@ -37,6 +44,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks: createOcrBatchTasksFromPages({
         pages: makePages(4),
         batchSize: 1,
@@ -75,6 +83,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       snapshot: createOcrBatchSchedulerSnapshot(tasks),
     });
 
@@ -99,6 +108,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'table-heavy',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks,
     })).toThrowError(OcrResumeStateError);
   });
@@ -108,6 +118,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       snapshot: createOcrBatchSchedulerSnapshot(
         createOcrBatchTasksFromPages({
           pages: makePages(1),
@@ -131,6 +142,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks: createOcrBatchTasksFromPages({
         pages: makePages(1),
         batchSize: 1,
@@ -143,6 +155,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       snapshot: createOcrBatchSchedulerSnapshot(
         createOcrBatchTasksFromPages({
           pages: makePages(4),
@@ -156,6 +169,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks: createOcrBatchTasksFromPages({
         pages: makePages(4),
         batchSize: 1,
