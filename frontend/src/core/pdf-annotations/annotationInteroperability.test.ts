@@ -582,6 +582,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     let firstReplyRef2: PDFRef | null = null;
     let nestedReplyRef2: PDFRef | null = null;
     let opaqueReplyRef2: PDFRef | null = null;
+    let opaqueReplyIrt2: PDFRef | null = null;
     let rootStateIrt: unknown = null;
     let nestedStateIrt: unknown = null;
 
@@ -610,7 +611,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       }
       if (nm === 'external-opaque-reply') {
         opaqueReplyRef2 = ref;
-        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
+        opaqueReplyIrt2 = dict.get(PDFName.of('IRT')) as PDFRef;
         expect(dict.lookup(PDFName.of('VendorOpaqueMeta')).decodeText()).toBe('must-survive');
         expect(dict.get(PDFName.of('Contents'))).toBeUndefined();
       }
@@ -620,6 +621,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(firstReplyRef2).toBeInstanceOf(PDFRef);
     expect(nestedReplyRef2).toBeInstanceOf(PDFRef);
     expect(opaqueReplyRef2).toBeInstanceOf(PDFRef);
+    expect(opaqueReplyIrt2).toBeInstanceOf(PDFRef);
+    expect(opaqueReplyIrt2?.toString()).toBe(rootRef2?.toString());
     expect((rootStateIrt as PDFRef).toString()).toBe(rootRef2?.toString());
     expect((nestedStateIrt as PDFRef).toString()).toBe(nestedReplyRef2?.toString());
 
