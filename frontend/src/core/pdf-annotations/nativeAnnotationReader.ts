@@ -620,7 +620,7 @@ function readDefaultAppearance(
       const r = Number(tokens[index - 3]);
       const g = Number(tokens[index - 2]);
       const b = Number(tokens[index - 1]);
-      if ([r, g, b].every(Number.isFinite)) {
+      if ([r, g, b].every((value) => Number.isFinite(value))) {
         textColor = rgbToHex(r, g, b);
       }
       continue;
@@ -631,7 +631,7 @@ function readDefaultAppearance(
       const m = Number(tokens[index - 3]);
       const y = Number(tokens[index - 2]);
       const k = Number(tokens[index - 1]);
-      if ([c, m, y, k].every(Number.isFinite)) {
+      if ([c, m, y, k].every((value) => Number.isFinite(value))) {
         textColor = rgbToHex(
           1 - Math.min(1, c + k),
           1 - Math.min(1, m + k),
