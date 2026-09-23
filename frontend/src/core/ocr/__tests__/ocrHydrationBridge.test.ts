@@ -69,6 +69,11 @@ describe('ocrHydrationBridge', () => {
       ...makeResumeToken('doc-config-restore'),
       engineId: 'tesseract-js',
       profileId: 'table-heavy',
+      executionConfig: {
+        forceOcr: true,
+        rasterScale: 3,
+        maxCanvasPixels: 24_000_000,
+      },
       tasks: [
         {
           id: 'ocr-batch-1',
@@ -93,6 +98,12 @@ describe('ocrHydrationBridge', () => {
     expect(result.restored).toBe(true);
     expect(useOcrStore.getState().engineId).toBe('tesseract-js');
     expect(useOcrStore.getState().profileId).toBe('table-heavy');
+    expect(useOcrStore.getState().forceOcr).toBe(true);
+    expect(useOcrStore.getState().resumeToken?.executionConfig).toEqual({
+      forceOcr: true,
+      rasterScale: 3,
+      maxCanvasPixels: 24_000_000,
+    });
     expect(useOcrStore.getState().resumeToken?.engineId).toBe('tesseract-js');
     expect(useOcrStore.getState().resumeToken?.profileId).toBe('table-heavy');
   });
