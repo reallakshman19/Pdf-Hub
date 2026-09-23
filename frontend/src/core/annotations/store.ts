@@ -543,15 +543,9 @@ export const useAnnotationStore =
                   && annotation.data.anchor !== null
                     ? {
                         x:
-                          (
-                            annotation.data.anchor
-                            as { x: number }
-                          ).x + 18,
+                          (annotation.data.anchor as { x: number }).x + 18,
                         y:
-                          (
-                            annotation.data.anchor
-                            as { y: number }
-                          ).y
+                          (annotation.data.anchor as { y: number }).y
                           + 18
                           + index * 4,
                       }
@@ -563,15 +557,9 @@ export const useAnnotationStore =
                   && annotation.data.knee !== null
                     ? {
                         x:
-                          (
-                            annotation.data.knee
-                            as { x: number }
-                          ).x + 18,
+                          (annotation.data.knee as { x: number }).x + 18,
                         y:
-                          (
-                            annotation.data.knee
-                            as { y: number }
-                          ).y
+                          (annotation.data.knee as { y: number }).y
                           + 18
                           + index * 4,
                       }
@@ -926,10 +914,7 @@ export const useAnnotationStore =
                     ...(annotation.data.style
                     && typeof annotation.data.style
                       === 'object'
-                      ? (
-                          annotation.data.style
-                          as AnnotationStyle
-                        )
+                      ? (annotation.data.style as AnnotationStyle)
                       : {}),
                     ...guardedStylePatch,
                   },
