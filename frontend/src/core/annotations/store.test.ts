@@ -178,6 +178,36 @@ describe('annotation store', () => {
     current = useAnnotationStore.getState().annotations[0];
     expect(current.data.text).toBe('Plain root edit is still allowed');
 
+    const beforeReplyMutation = current;
+    store.updateAnnotation(thread.id, {
+      data: {
+        ...current.data,
+        review: {
+          ...current.data.review!,
+          replies: current.data.review!.replies.map((reply) =>
+            reply.id === 'rich-reply'
+              ? { ...reply, content: 'Blocked rich reply edit' }
+              : reply),
+        },
+      },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current).toBe(beforeReplyMutation);
+    expect(current.data.review?.replies[0].content).toBe('Native rich reply');
+
+    store.updateAnnotation(thread.id, {
+      data: {
+        ...current.data,
+        review: {
+          ...current.data.review!,
+          replies: [],
+        },
+      },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.review?.replies).toHaveLength(1);
+    expect(current.data.review?.replies[0].id).toBe('rich-reply');
+
     store.copySelection();
     expect(useAnnotationStore.getState().clipboard).toEqual([]);
 
