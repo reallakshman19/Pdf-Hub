@@ -26,6 +26,7 @@ export * from './pdfPageRasterizer';
 export * from './ocrRegionRasterBridge';
 export * from './ocrExecutionPolicy';
 export * from './ocrBatchScheduler';
+export * from './ocrResumeState';
 export * from './workers/ocrWorkerTypes';
 export * from './workers/ocrWorkerClient';
 export * from './workers/ocrWorkerEntrypoint';
