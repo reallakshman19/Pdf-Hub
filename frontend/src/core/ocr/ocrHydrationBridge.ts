@@ -164,6 +164,7 @@ export function hydrateOcrStoreFromProjectPayload(
     ),
     engineId: resumeToken?.engineId,
     profileId: resumeToken?.profileId,
+    forceOcr: resumeToken?.executionConfig.forceOcr,
     resumeToken,
     updatedAt: input.updatedAt ?? input.payload.manifest.updatedAt,
   });
@@ -295,6 +296,7 @@ function cloneOcrResumeToken(
 ): OcrResumeTokenV1 {
   return {
     ...token,
+    executionConfig: { ...token.executionConfig },
     tasks: token.tasks.map((task) => ({
       ...task,
       pageIndexes: [...task.pageIndexes],
