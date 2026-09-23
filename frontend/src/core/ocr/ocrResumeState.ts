@@ -12,12 +12,19 @@ export interface OcrResumeTaskState {
   errorMessage?: string;
 }
 
+export interface OcrResumeExecutionConfig {
+  forceOcr: boolean;
+  rasterScale: number;
+  maxCanvasPixels: number;
+}
+
 export interface OcrResumeTokenV1 {
   schema: 'pdf-hub-ocr-resume';
   schemaVersion: 1;
   documentFingerprint: string;
   engineId: string;
   profileId: string;
+  executionConfig: OcrResumeExecutionConfig;
   createdAt: string;
   tasks: OcrResumeTaskState[];
 }
@@ -28,6 +35,7 @@ export class OcrResumeStateError extends Error {
     | 'OCR_RESUME_DOCUMENT_MISMATCH'
     | 'OCR_RESUME_ENGINE_MISMATCH'
     | 'OCR_RESUME_PROFILE_MISMATCH'
+    | 'OCR_RESUME_EXECUTION_CONFIG_MISMATCH'
     | 'OCR_RESUME_TASK_PLAN_MISMATCH';
 
   constructor(
@@ -44,6 +52,7 @@ export function createOcrResumeToken<TInput>(input: {
   documentFingerprint: string;
   engineId: string;
   profileId: string;
+  executionConfig: OcrResumeExecutionConfig;
   snapshot: OcrBatchSchedulerSnapshot<TInput>;
   now?: string;
 }): OcrResumeTokenV1 {
@@ -57,6 +66,7 @@ export function createOcrResumeToken<TInput>(input: {
     documentFingerprint: input.documentFingerprint,
     engineId: input.engineId,
     profileId: input.profileId,
+    executionConfig: normalizeExecutionConfig(input.executionConfig),
     createdAt: input.now ?? new Date().toISOString(),
     tasks: input.snapshot.tasks.map((task) => ({
       id: task.id,
@@ -73,6 +83,7 @@ export function resumeOcrBatchTasks<TInput>(input: {
   documentFingerprint: string;
   engineId: string;
   profileId: string;
+  executionConfig: OcrResumeExecutionConfig;
   tasks: OcrBatchTask<TInput>[];
   retryFailed?: boolean;
   retryCancelled?: boolean;
@@ -98,6 +109,16 @@ export function resumeOcrBatchTasks<TInput>(input: {
     throw new OcrResumeStateError(
       'OCR_RESUME_PROFILE_MISMATCH',
       'OCR resume token was created for a different OCR profile.',
+    );
+  }
+
+  if (!ocrResumeExecutionConfigMatches(
+    input.token.executionConfig,
+    input.executionConfig,
+  )) {
+    throw new OcrResumeStateError(
+      'OCR_RESUME_EXECUTION_CONFIG_MISMATCH',
+      'OCR resume token was created for different OCR execution settings.',
     );
   }
 
@@ -152,6 +173,7 @@ export function validateOcrResumeToken(
   assertNonEmpty(token.documentFingerprint, 'documentFingerprint');
   assertNonEmpty(token.engineId, 'engineId');
   assertNonEmpty(token.profileId, 'profileId');
+  normalizeExecutionConfig(token.executionConfig);
 
   for (const [index, task] of token.tasks.entries()) {
     if (
@@ -169,6 +191,42 @@ export function validateOcrResumeToken(
       );
     }
   }
+}
+
+export function ocrResumeExecutionConfigMatches(
+  left: OcrResumeExecutionConfig,
+  right: OcrResumeExecutionConfig,
+): boolean {
+  const normalizedLeft = normalizeExecutionConfig(left);
+  const normalizedRight = normalizeExecutionConfig(right);
+
+  return normalizedLeft.forceOcr === normalizedRight.forceOcr
+    && normalizedLeft.rasterScale === normalizedRight.rasterScale
+    && normalizedLeft.maxCanvasPixels === normalizedRight.maxCanvasPixels;
+}
+
+function normalizeExecutionConfig(
+  config: OcrResumeExecutionConfig,
+): OcrResumeExecutionConfig {
+  if (
+    !config
+    || typeof config.forceOcr !== 'boolean'
+    || !Number.isFinite(config.rasterScale)
+    || config.rasterScale <= 0
+    || !Number.isFinite(config.maxCanvasPixels)
+    || config.maxCanvasPixels <= 0
+  ) {
+    throw new OcrResumeStateError(
+      'OCR_RESUME_TOKEN_INVALID',
+      'OCR resume token contains invalid execution settings.',
+    );
+  }
+
+  return {
+    forceOcr: config.forceOcr,
+    rasterScale: config.rasterScale,
+    maxCanvasPixels: config.maxCanvasPixels,
+  };
 }
 
 function isOcrBatchTaskStatus(
