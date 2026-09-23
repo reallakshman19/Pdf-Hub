@@ -302,10 +302,7 @@ function appendReviewStateTransitionIfNeeded(
   }
 
   const author = review.statusAuthor ?? review.author ?? 'Unknown';
-  const latestForAuthor = latestReviewStateRecord(
-    graph.records.filter((record) => record.author === author),
-  );
-  const parentRef = latestForAuthor?.ref ?? rootRef;
+  const parentRef = rootRef;
   const transitionTime = graph.records.length > 0
     ? review.updatedAt
     : review.createdAt;
