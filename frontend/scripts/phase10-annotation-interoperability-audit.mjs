@@ -169,6 +169,28 @@ if (!manifest.policies?.signed_pdf_rewrite_policy?.warn_on_rewrite) {
   errors.push('Manifest policies must declare signed PDF rewrite warning');
 }
 
+const nativeWriterPath = path.join(
+  frontendRoot,
+  'src/core/pdf-annotations/nativeAnnotationWriter.ts',
+);
+if (!fs.existsSync(nativeWriterPath)) {
+  errors.push(`Missing native annotation writer: ${nativeWriterPath}`);
+} else {
+  const nativeWriterContent = fs.readFileSync(nativeWriterPath, 'utf8');
+  for (const token of [
+    'ROOT_OWNED_KEYS',
+    'REPLY_OWNED_KEYS',
+    'preservePassiveAnnotationEntries',
+    'appearanceFieldsEquivalent',
+    'relinkPopupParent',
+    "name === 'AP' && !preserveAppearance",
+  ]) {
+    if (!nativeWriterContent.includes(token)) {
+      errors.push(`Native writer missing passive-preservation token: ${token}`);
+    }
+  }
+}
+
 const signatureRiskPath = path.join(frontendRoot, 'src/core/pdf-signatures/signatureRisk.ts');
 const toolbarFilePath = path.join(frontendRoot, 'src/components/toolbar/ToolbarFile.tsx');
 const signatureDialogPath = path.join(frontendRoot, 'src/components/toolbar/SignedPdfRewriteWarningDialog.tsx');
@@ -224,7 +246,7 @@ console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
-console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, actor provenance, and Review-state preservation verified.');
+console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, conditional /AP retention, popup relinking, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');
