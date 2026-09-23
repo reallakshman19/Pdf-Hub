@@ -176,6 +176,30 @@ describe('ocrWorkerEntrypoint', () => {
     expect(progress).toContain('page-completed');
   });
 
+  it('canonicalizes multilingual hints before worker engine recognition', async () => {
+    let observedLanguages: string[] = [];
+    const base = createFakeEngine();
+    const engine: OcrEngine = {
+      ...base,
+      async recognize(input: OcrEngineInput): Promise<OcrDocumentResult> {
+        observedLanguages = [...input.profile.languageHints];
+        return base.recognize(input);
+      },
+    };
+
+    await recognizePagesWithProgress({
+      engine,
+      payload: {
+        ...makeRecognizeRequest().payload,
+        languageHints: ['eng', 'hin', 'eng', 'tam'],
+      },
+      signal: new AbortController().signal,
+      postProgress: () => undefined,
+    });
+
+    expect(observedLanguages).toEqual(['eng', 'hin', 'tam']);
+  });
+
   it('returns ERROR when engine throws non-cancellation failure', async () => {
     const posted: OcrWorkerResponse[] = [];
 
