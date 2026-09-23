@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WriterElementV2 } from '../../writer-v2/types';
-import { getOcrProfile } from '../ocrProfiles';
+import { getOcrProfileWithLanguages } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { createOcrCorrection } from '../ocrCorrections';
 import { createOcrRegion } from '../ocrRegionModel';
@@ -143,7 +143,10 @@ describe('ocrHydrationBridge', () => {
 async function makePayload(documentFingerprint: string) {
   const result = await mockOcrEngine.recognize({
     documentFingerprint,
-    profile: getOcrProfile('clean-scan'),
+    profile: getOcrProfileWithLanguages(
+      'clean-scan',
+      ['eng', 'hin'],
+    ),
     pages: [
       {
         pageIndex: 0,
@@ -204,7 +207,7 @@ function makeResumeToken(
     schema: 'pdf-hub-ocr-resume',
     schemaVersion: 1,
     documentFingerprint,
-    engineId: 'tesseract-js',
+    engineId: 'mock',
     profileId: 'clean-scan',
     languages: ['eng', 'hin'],
     createdAt: '2026-01-01T00:00:00.000Z',
