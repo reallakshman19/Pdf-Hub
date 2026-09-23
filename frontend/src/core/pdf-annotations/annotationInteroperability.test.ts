@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName, PDFRef, PDFString } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFName, PDFRef, PDFString } from 'pdf-lib';
 
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import {
@@ -486,6 +486,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
         Rect: [70, 680, 88, 698],
         T: PDFString.of('Nested Reviewer'),
         Contents: PDFString.of('Nested external reply'),
+        Subj: PDFString.of('External nested subject'),
+        VendorReplyMeta: PDFString.of('preserve-nested'),
         NM: PDFString.of('external-nested-reply'),
         M: PDFString.of('D:20231114221500Z'),
         CreationDate: PDFString.of('D:20231114221500Z'),
@@ -555,6 +557,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       if (nm === `${root.id}:reply:external-nested-reply`) {
         nestedReplyRef2 = ref;
         expect(dict.get(PDFName.of('IRT')).toString()).toBe(firstReplyRef2?.toString());
+        expect(dict.lookup(PDFName.of('Subj')).decodeText()).toBe('External nested subject');
+        expect(dict.lookup(PDFName.of('VendorReplyMeta')).decodeText()).toBe('preserve-nested');
+        expect(dict.lookup(PDFName.of('Rect')).toString()).toBe('[ 70 680 88 698 ]');
       }
       if (nm === `${root.id}:state:Review`) {
         rootStateIrt = dict.get(PDFName.of('IRT'));
@@ -582,6 +587,78 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const doc3 = await PDFDocument.load(save3.bytes);
     const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
     expect(annots3.size()).toBe(5);
+  });
+
+  it('preserves passive external dictionary fields and only drops /AP after a local appearance edit', async () => {
+    const baseBytes = await createEmptyPdf();
+    const textbox = createDeterministicAnnotation('textbox', {
+      id: 'phase10-passive-root-1',
+      data: {
+        text: 'Passive field baseline',
+        fontSize: 14,
+        borderColor: '#2563eb',
+        backgroundColor: '#eff6ff',
+      },
+    });
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const rootDict = annots.lookup(0) as PDFDict;
+
+    rootDict.set(PDFName.of('Subj'), PDFString.of('External subject'));
+    rootDict.set(PDFName.of('RC'), PDFString.of('<p>External rich text</p>'));
+    rootDict.set(PDFName.of('VendorInteropMeta'), PDFString.of('keep-me'));
+
+    const appearanceStream = externalDoc.context.flateStream(
+      'q 0 0 10 10 re S Q',
+      {
+        Type: 'XObject',
+        Subtype: 'Form',
+        BBox: [0, 0, 10, 10],
+        Resources: {},
+      },
+    );
+    const appearanceRef = externalDoc.context.register(appearanceStream);
+    rootDict.set(
+      PDFName.of('AP'),
+      externalDoc.context.obj({ N: appearanceRef }),
+    );
+
+    const externallySaved = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallySaved);
+    const save2 = await writeNativePdfAnnotations(externallySaved, returned.annotations);
+
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const root2 = annots2.lookup(0) as PDFDict;
+
+    expect(root2.lookup(PDFName.of('Subj')).decodeText()).toBe('External subject');
+    expect(root2.lookup(PDFName.of('RC')).decodeText()).toBe('<p>External rich text</p>');
+    expect(root2.lookup(PDFName.of('VendorInteropMeta')).decodeText()).toBe('keep-me');
+    expect(root2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
+
+    const locallyEdited = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        text: 'Locally edited after external appearance generation',
+      },
+      updatedAt: returned.annotations[0].updatedAt + 1_000,
+    };
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const root3 = annots3.lookup(0) as PDFDict;
+
+    expect(root3.lookup(PDFName.of('Subj')).decodeText()).toBe('External subject');
+    expect(root3.lookup(PDFName.of('RC')).decodeText()).toBe('<p>External rich text</p>');
+    expect(root3.lookup(PDFName.of('VendorInteropMeta')).decodeText()).toBe('keep-me');
+    expect(root3.get(PDFName.of('AP'))).toBeUndefined();
+    expect(root3.lookup(PDFName.of('Contents')).decodeText()).toBe(
+      'Locally edited after external appearance generation',
+    );
   });
 
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
