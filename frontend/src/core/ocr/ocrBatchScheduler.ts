@@ -328,6 +328,39 @@ export function createRetryTasksFromFailedBatches<TInput>(
     }));
 }
 
+export function mergeOcrBatchRetrySnapshot<TInput>(
+  original: OcrBatchSchedulerSnapshot<TInput>,
+  retry: OcrBatchSchedulerSnapshot<TInput>,
+): OcrBatchSchedulerSnapshot<TInput> {
+  const retryByPages = new Map(
+    retry.tasks.map((task) => [
+      task.pageIndexes.join(','),
+      task,
+    ]),
+  );
+
+  const mergedTasks = original.tasks.map((task) => {
+    const retried = retryByPages.get(task.pageIndexes.join(','));
+    if (!retried) return cloneTask(task);
+
+    return {
+      ...task,
+      status: retried.status,
+      startedAt: retried.startedAt,
+      finishedAt: retried.finishedAt,
+      errorMessage: retried.errorMessage,
+    };
+  });
+
+  return createOcrBatchSchedulerSnapshot(
+    mergedTasks,
+    [
+      ...original.diagnostics,
+      ...retry.diagnostics,
+    ],
+  );
+}
+
 export function cancelQueuedOcrBatchTasks<TInput>(
   tasks: OcrBatchTask<TInput>[],
   now = new Date().toISOString(),
