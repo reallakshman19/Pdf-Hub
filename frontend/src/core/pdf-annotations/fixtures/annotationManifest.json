@@ -733,13 +733,16 @@
         "L",
         "Vertices",
         "InkList",
-        "State"
-      ],
-      "pending_fields": [
+        "State",
         "DA",
         "QuadPoints"
       ],
-      "rationale": "Recognized standard PDF state is authoritative on re-import. Fields not yet represented by the production reader remain explicit pending limitations rather than implied support."
+      "pending_fields": [],
+      "rationale": "Recognized standard PDF state is authoritative on re-import. DA and QuadPoints are now represented by the production reader/writer rather than remaining implied or pending support.",
+      "field_mappings": {
+        "DA": "FreeText DA overrides cached fontSize/textColor. Exact source DA is reused on a no-op; supported local font-size/color edits rewrite those operators while preserving the external font resource token.",
+        "QuadPoints": "Text-markup QuadPoints override cached geometry and are projected as Rect-normalized textMarkupQuads. Exact source QuadPoints are reused on a no-op; local Rect move/resize regenerates scaled PDF-space quads."
+      }
     },
     "save_vs_export_separation": {
       "save_preserves_native_annotations": true,
