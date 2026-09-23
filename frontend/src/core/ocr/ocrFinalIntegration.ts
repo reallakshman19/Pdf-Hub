@@ -31,6 +31,7 @@ import {
   type OcrResumeTokenV1,
 } from './ocrResumeState';
 import type { OcrWorkerClient } from './workers/ocrWorkerClient';
+import { ocrLanguageSetsEqual } from './ocrLanguageSet';
 import type { OcrRasterWorkerClient } from './workers/ocrRasterWorkerClient';
 import type { OcrJobRunnerSnapshot } from './ocrJobRunner';
 
@@ -184,6 +185,12 @@ export async function runFinalOcrIntegrationJob(
       assertPersistedResultsCoverCompletedTasks(
         executableTasks,
         input.existingResult ?? null,
+        {
+          documentFingerprint: input.documentFingerprint,
+          engineId: input.engineId,
+          profileId: input.requestedProfileId,
+          languages: resolvedLanguages,
+        },
       );
       emitDiagnostic({
         level: 'info',
@@ -301,6 +308,12 @@ export async function runFinalOcrIntegrationJob(
 function assertPersistedResultsCoverCompletedTasks(
   tasks: OcrBatchTask<OcrEnginePageInput[]>[],
   existingResult: OcrDocumentResult | null,
+  expected: {
+    documentFingerprint: string;
+    engineId: string;
+    profileId: OcrProfileId;
+    languages: string[];
+  },
 ): void {
   const completedPageIndexes = new Set(
     tasks
@@ -310,8 +323,24 @@ function assertPersistedResultsCoverCompletedTasks(
 
   if (completedPageIndexes.size === 0) return;
 
+  if (!existingResult) {
+    throw new Error(
+      'OCR resume state preserves completed batches but no persisted OCR result is available.',
+    );
+  }
+
+  if (
+    existingResult.documentFingerprint !== expected.documentFingerprint
+    || existingResult.engineId !== expected.engineId
+    || existingResult.profileId !== expected.profileId
+  ) {
+    throw new Error(
+      'OCR persisted result does not match the resume document/engine/profile configuration.',
+    );
+  }
+
   const persistedPageIndexes = new Set(
-    existingResult?.pages.map((page) => page.pageIndex) ?? [],
+    existingResult.pages.map((page) => page.pageIndex),
   );
 
   const missing = [...completedPageIndexes].filter(
@@ -321,6 +350,19 @@ function assertPersistedResultsCoverCompletedTasks(
   if (missing.length > 0) {
     throw new Error(
       `OCR resume state references completed page(s) without persisted OCR results: ${missing.join(', ')}.`,
+    );
+  }
+
+  const incompatibleLanguagePages = existingResult.pages
+    .filter((page) => completedPageIndexes.has(page.pageIndex))
+    .filter(
+      (page) => !ocrLanguageSetsEqual(page.languageHints, expected.languages),
+    )
+    .map((page) => page.pageIndex);
+
+  if (incompatibleLanguagePages.length > 0) {
+    throw new Error(
+      `OCR persisted result language set does not match resume state for page(s): ${incompatibleLanguagePages.join(', ')}.`,
     );
   }
 }
