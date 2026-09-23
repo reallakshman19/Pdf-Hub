@@ -33,6 +33,7 @@ function WorkflowProbe(props: UseOcrRunWorkflowInput) {
       <div data-testid="workflow-has-pending-resume">{String(workflow.hasPendingResume)}</div>
       <div data-testid="workflow-raster-scale">{workflow.executionPolicy.rasterScale}</div>
       <div data-testid="workflow-max-canvas">{workflow.executionPolicy.maxCanvasPixels}</div>
+      <div data-testid="workflow-max-pages">{workflow.executionPolicy.maxPagesPerJob}</div>
       <div data-testid="workflow-error">{workflow.errorMessage ?? ''}</div>
       <button type="button" onClick={() => void workflow.runSelectedOcr()}>
         Run model OCR
@@ -210,6 +211,52 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('true');
   });
 
+  it('restores a policy-limited checkpoint even when the raw page scope is larger', () => {
+    const token: OcrResumeTokenV1 = {
+      ...makeResumeToken('workflow-page-limit'),
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 2,
+        maxCanvasPixels: 16_000_000,
+        maxPagesPerJob: 2,
+        allowLargeJobs: false,
+      },
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0, 1],
+          status: 'failed',
+          errorMessage: 'Interrupted before completion.',
+        },
+      ],
+    };
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'workflow-page-limit',
+      resumeToken: token,
+    });
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="workflow-page-limit"
+        selectedPageIndexes={[0, 1, 2, 3]}
+        pageCount={4}
+        pages={[
+          pageInput(0),
+          pageInput(1),
+          pageInput(2),
+          pageInput(3),
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('0,1,2,3');
+    expect(screen.getByTestId('workflow-max-pages').textContent).toBe('2');
+    expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('true');
+    expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
+  });
+
   it('ignores a checkpoint whose page scope does not match the requested scope', () => {
     useOcrStore.getState().setOcrResult(
       createOcrDemoResult('clean-text', 'workflow-new-scope'),
@@ -265,13 +312,7 @@ function makeResumeToken(
       {
         id: 'ocr-batch-1',
         index: 0,
-        pageIndexes: [0],
-        status: 'completed',
-      },
-      {
-        id: 'ocr-batch-2',
-        index: 1,
-        pageIndexes: [1],
+        pageIndexes: [0, 1],
         status: 'failed',
         errorMessage: 'Synthetic interrupted batch.',
       },
