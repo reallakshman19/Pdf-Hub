@@ -42,6 +42,7 @@ export interface OcrWorkerRecognizePagesPayload {
   documentFingerprint: string;
   engineId: string;
   profileId: OcrProfileId;
+  languageHints?: string[];
   pages: OcrEnginePageInput[];
   forceOcr?: boolean;
 }
