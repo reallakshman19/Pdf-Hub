@@ -216,10 +216,20 @@ function parseRootAnnotation(
 ): PdfAnnotation | null {
   const subtype = readName(dict, 'Subtype', lib);
   const customType = readText(dict, 'PDFHubType', lib);
-  const type =
+  const standardType = annotationTypeFromSubtype(dict, subtype, lib);
+  const validCustomType =
     customType && isAnnotationType(customType)
       ? customType
-      : annotationTypeFromSubtype(dict, subtype, lib);
+      : null;
+
+  // Portable standard fields are authoritative whenever the subtype has a
+  // standards-native disambiguator. Text comment-vs-sticky remains an
+  // application distinction when no reply/state topology is available, so the
+  // private type is retained only for that specific ambiguity.
+  const type =
+    subtype === 'Text' && validCustomType
+      ? validCustomType
+      : standardType ?? validCustomType;
 
   if (!type) return null;
 
