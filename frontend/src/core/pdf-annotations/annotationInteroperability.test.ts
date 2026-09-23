@@ -743,6 +743,148 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     );
   });
 
+  it('treats external FreeText DA as authoritative and preserves it exactly until local typography changes', async () => {
+    const baseBytes = await createEmptyPdf();
+    const textbox = createDeterministicAnnotation('textbox', {
+      id: 'phase10-da-precedence-1',
+      data: {
+        text: 'DA precedence',
+        fontSize: 14,
+        textColor: '#000000',
+      },
+    });
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict = annots.lookup(0) as PDFDict;
+
+    const externalDa = '/ExternalFont 19 Tf 0.2 0.4 0.6 rg';
+    dict.set(PDFName.of('DA'), PDFString.of(externalDa));
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+
+    expect(returned.annotations).toHaveLength(1);
+    expect(returned.annotations[0].data.fontSize).toBe(19);
+    expect(returned.annotations[0].data.textColor).toBe('#336699');
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const dict2 = doc2.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    expect(dict2.lookup(PDFName.of('DA')).decodeText()).toBe(externalDa);
+
+    const locallyEdited = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        fontSize: 23,
+        textColor: '#ff0000',
+      },
+      updatedAt: returned.annotations[0].updatedAt + 1_000,
+    };
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const dict3 = doc3.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const da3 = dict3.lookup(PDFName.of('DA')).decodeText();
+
+    expect(da3).toContain('/ExternalFont 23 Tf');
+    expect(da3).toContain('1 0 0 rg');
+
+    const read3 = await readNativePdfAnnotations(save3.bytes);
+    expect(read3.annotations[0].data.fontSize).toBe(23);
+    expect(read3.annotations[0].data.textColor).toBe('#ff0000');
+  });
+
+  it('treats external QuadPoints as authoritative multi-quad geometry and rescales them with local Rect edits', async () => {
+    const baseBytes = await createEmptyPdf();
+    const highlight = createDeterministicAnnotation('highlight', {
+      id: 'phase10-quadpoints-precedence-1',
+    });
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [highlight]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict = annots.lookup(0) as PDFDict;
+
+    // Fixture Rect is x=50..250 and app y=120..138 on an 800pt page,
+    // so PDF-space y=680..662. Two separate markup quads exercise the
+    // geometry that a single Rect cannot preserve.
+    const externalQuads = [
+      50, 680,
+      140, 680,
+      50, 671,
+      140, 671,
+      145, 680,
+      250, 680,
+      145, 671,
+      250, 671,
+    ];
+    dict.set(PDFName.of('QuadPoints'), externalDoc.context.obj(externalQuads));
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+    const quads = returned.annotations[0].data.textMarkupQuads;
+
+    expect(Array.isArray(quads)).toBe(true);
+    expect(quads).toHaveLength(16);
+    expect(quads?.[0]).toBeCloseTo(0);
+    expect(quads?.[1]).toBeCloseTo(0);
+    expect(quads?.[2]).toBeCloseTo(0.45);
+    expect(quads?.[5]).toBeCloseTo(0.5);
+    expect(quads?.[8]).toBeCloseTo(0.475);
+    expect(quads?.[10]).toBeCloseTo(1);
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const dict2 = doc2.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const quadArray2 = dict2.lookup(PDFName.of('QuadPoints')) as any;
+    const rawQuads2 = Array.from(
+      { length: quadArray2.size() },
+      (_, index) => quadArray2.lookup(index).asNumber(),
+    );
+    expect(rawQuads2).toEqual(externalQuads);
+
+    const movedAndResized = {
+      ...returned.annotations[0],
+      rect: {
+        x: 100,
+        y: 200,
+        width: 300,
+        height: 36,
+      },
+      updatedAt: returned.annotations[0].updatedAt + 1_000,
+    };
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [movedAndResized]);
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const dict3 = doc3.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const quadArray3 = dict3.lookup(PDFName.of('QuadPoints')) as any;
+    const rawQuads3 = Array.from(
+      { length: quadArray3.size() },
+      (_, index) => quadArray3.lookup(index).asNumber(),
+    );
+
+    expect(rawQuads3).toHaveLength(16);
+    expect(rawQuads3[0]).toBeCloseTo(100);
+    expect(rawQuads3[1]).toBeCloseTo(600);
+    expect(rawQuads3[2]).toBeCloseTo(235);
+    expect(rawQuads3[5]).toBeCloseTo(582);
+    expect(rawQuads3[8]).toBeCloseTo(242.5);
+    expect(rawQuads3[10]).toBeCloseTo(400);
+
+    const read3 = await readNativePdfAnnotations(save3.bytes);
+    expect(read3.annotations[0].data.textMarkupQuads).toEqual(
+      expect.arrayContaining([
+        expect.closeTo(0),
+        expect.closeTo(0),
+        expect.closeTo(0.45),
+        expect.closeTo(0),
+      ]),
+    );
+  });
+
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
     const standardFields = {
       Contents: 'Externally edited comment text in Adobe Acrobat',
