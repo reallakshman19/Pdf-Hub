@@ -234,7 +234,10 @@ export function createOcrProjectPayloadFromStore(
     corrections: store.corrections,
     regions: store.regions,
     writerInsertionQueue: input.writerInsertionQueue ?? createOcrWriterInsertionQueue(),
-    resumeToken: input.resumeToken ?? store.resumeToken,
+    resumeToken:
+      input.resumeToken !== undefined
+        ? input.resumeToken
+        : store.resumeToken,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
