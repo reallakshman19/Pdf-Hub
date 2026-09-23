@@ -894,7 +894,7 @@
       "appearance_rule": "A no-op preserves existing RC/DS/AP. An allowed appearance-driving edit such as Rect or border mutation preserves RC/DS but drops stale AP under the normal appearance-equivalence rule.",
       "writer_failure_code": "NATIVE_RICH_TEXT_EDIT_UNSUPPORTED",
       "clone_rule": "Copy/duplicate and manual cross-page reassignment are blocked when a root or represented review reply depends on native RC. A new logical annotation ID has no source RC/DS object to preserve, so cloning is unsupported until native rich-text cloning is implemented.",
-      "reply_rule": "Represented review replies with RC carry their own NATIVE_PRESERVED_READ_ONLY marker and protected flat-text snapshot. No-op saves reuse source Contents and preserve RC; reply text changes or cloned threads fail closed."
+      "reply_rule": "Represented review replies with RC carry their own NATIVE_PRESERVED_READ_ONLY marker and protected flat-text snapshot. No-op saves reuse source Contents and preserve RC; reply text edits or removal are blocked in the store and fail closed in the writer if bypassed; cloned threads with no source RC also fail closed."
     }
   },
   "review_thread_fixture": {
