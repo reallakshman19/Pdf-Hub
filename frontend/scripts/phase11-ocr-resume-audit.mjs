@@ -19,6 +19,9 @@ const files = Object.fromEntries(
       'src/components/ocr/OcrPanel.tsx',
       'src/core/writer-v2/export/exportCurrentWriterProject.ts',
       'src/core/writer-v2/export/projectImportController.ts',
+      'src/core/commands/transaction/documentTransaction.ts',
+      'src/core/document-history/transactions.ts',
+      'src/core/document-history/journal/recoveryExecutor.ts',
     ].map(async (path) => [
       path,
       await readFile(new URL(path, ROOT), 'utf8'),
@@ -147,6 +150,16 @@ requireTokens('src/core/writer-v2/export/projectImportController.ts', [
   'useOcrStore.setState(ocrSnapshot, true)',
 ]);
 
+for (const path of [
+  'src/core/commands/transaction/documentTransaction.ts',
+  'src/core/document-history/transactions.ts',
+  'src/core/document-history/journal/recoveryExecutor.ts',
+]) {
+  requireTokens(path, [
+    'resumeToken: null',
+  ]);
+}
+
 rejectTokens('src/core/ocr/ocrResumeState.ts', [
   'ocrLanguageSet',
   'languageHints',
@@ -168,6 +181,7 @@ if (errors.length > 0) {
   console.log('[PASS] Store and final integration enforce resumable execution without silent reprocessing.');
   console.log('[PASS] Completed checkpoint pages are deferred before rasterization.');
   console.log('[PASS] Project save/reopen path persists and restores OCR checkpoint state.');
+  console.log('[PASS] Structural mutation, undo/redo and history recovery invalidate resume state that their older history schemas cannot prove.');
   console.log('[PASS] Resume OCR restores an explicit saved page scope instead of inheriting unrelated UI defaults.');
   console.log('[PASS] Multilingual OCR scope is absent from the resume-token contract.');
   console.log('=== Phase 11 OCR Resume Audit PASSED ===');
