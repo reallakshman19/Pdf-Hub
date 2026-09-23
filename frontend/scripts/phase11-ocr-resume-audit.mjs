@@ -75,6 +75,7 @@ requireTokens('src/core/ocr/ocrStore.ts', [
   'acceptResumeToken',
   'validateOcrResumeToken',
   'resumeTokenMatchesConfiguration',
+  'resumeTokenCompletedPagesArePersisted',
   'mergeCompatibleOcrResults',
 ]);
 
@@ -103,6 +104,9 @@ requireTokens('src/components/ocr/workflow/useOcrRunWorkflow.ts', [
   'resumeTokenMatchesBatchPlan',
   'currentExecutionPlan.allowedPageIndexes',
   'currentBatchSize',
+  'store.resumeToken.documentFingerprint === effectiveDocumentFingerprint',
+  'store.resumeToken.engineId === store.engineId',
+  'store.resumeToken.profileId === store.profileId',
   'captureBatchSnapshot',
   'mergeOcrBatchRetrySnapshot',
   'hasPendingResume',
@@ -141,7 +145,8 @@ if (errors.length > 0) {
   console.log('[PASS] Scheduler preserves terminal batches and retry snapshots preserve full topology.');
   console.log('[PASS] Project manifest persistence is fail-closed for completed-page evidence.');
   console.log('[PASS] Hydration restores compatible checkpoints and discards document-rebound state.');
-  console.log('[PASS] Store rejects malformed/config-mismatched checkpoints before they can surface as resumable work.');
+  console.log('[PASS] Store and workflow reject stale document/engine/profile checkpoints before they can surface as resumable work.');
+  console.log('[PASS] Store rejects checkpoints whose completed-page evidence is missing or failed.');
   console.log('[PASS] Completed checkpoints require persisted non-failed OCR pages.');
   console.log('[PASS] Store and final integration enforce resumable execution without silent reprocessing.');
   console.log('[PASS] Completed checkpoint pages are deferred before rasterization.');
