@@ -189,6 +189,7 @@ export function validateOcrResumeToken(
   assertNonEmpty(token.documentFingerprint, 'documentFingerprint');
   assertNonEmpty(token.engineId, 'engineId');
   assertNonEmpty(token.profileId, 'profileId');
+  assertIsoTimestamp(token.createdAt, 'createdAt');
   if (!Object.prototype.hasOwnProperty.call(OCR_PROFILES, token.profileId)) {
     throw new OcrResumeStateError(
       'OCR_RESUME_TOKEN_INVALID',
@@ -202,12 +203,19 @@ export function validateOcrResumeToken(
 
   for (const [index, task] of token.tasks.entries()) {
     if (
-      task.index !== index
-      || !task.id
+      !task
+      || typeof task !== 'object'
+      || task.index !== index
+      || typeof task.id !== 'string'
+      || task.id.trim().length === 0
       || taskIds.has(task.id)
       || !Array.isArray(task.pageIndexes)
       || task.pageIndexes.length === 0
       || !isOcrBatchTaskStatus(task.status)
+      || (
+        task.errorMessage !== undefined
+        && typeof task.errorMessage !== 'string'
+      )
       || task.pageIndexes.some(
         (pageIndex) => !Number.isInteger(pageIndex) || pageIndex < 0,
       )
@@ -356,13 +364,29 @@ function assertTaskPlanMatches<TInput>(
 }
 
 function assertNonEmpty(
-  value: string,
+  value: unknown,
   field: string,
-): void {
-  if (!value?.trim()) {
+): asserts value is string {
+  if (
+    typeof value !== 'string'
+    || value.trim().length === 0
+  ) {
     throw new OcrResumeStateError(
       'OCR_RESUME_TOKEN_INVALID',
-      `OCR resume token is missing ${field}.`,
+      `OCR resume token is missing or has invalid ${field}.`,
+    );
+  }
+}
+
+function assertIsoTimestamp(
+  value: unknown,
+  field: string,
+): asserts value is string {
+  assertNonEmpty(value, field);
+  if (!Number.isFinite(Date.parse(value))) {
+    throw new OcrResumeStateError(
+      'OCR_RESUME_TOKEN_INVALID',
+      `OCR resume token contains invalid ${field}.`,
     );
   }
 }
