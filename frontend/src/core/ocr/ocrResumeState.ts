@@ -3,6 +3,7 @@ import type {
   OcrBatchTask,
   OcrBatchTaskStatus,
 } from './ocrBatchScheduler';
+import type { OcrProfileId } from './ocrProfiles';
 import {
   normalizeOcrLanguageSet,
   ocrLanguageSetsEqual,
@@ -22,7 +23,7 @@ export interface OcrResumeTokenV1 {
   schemaVersion: 1;
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   languages: string[];
   createdAt: string;
   tasks: OcrResumeTaskState[];
@@ -50,7 +51,7 @@ export class OcrResumeStateError extends Error {
 export function createOcrResumeToken<TInput>(input: {
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   languages: OcrLanguageSetInput;
   snapshot: OcrBatchSchedulerSnapshot<TInput>;
   now?: string;
@@ -81,7 +82,7 @@ export function resumeOcrBatchTasks<TInput>(input: {
   token: OcrResumeTokenV1;
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   languages: OcrLanguageSetInput;
   tasks: OcrBatchTask<TInput>[];
   retryFailed?: boolean;
