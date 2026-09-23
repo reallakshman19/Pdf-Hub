@@ -25,6 +25,7 @@ export interface RunWorkerOcrJobInput {
   documentFingerprint: string;
   engineId: string;
   requestedProfileId: OcrProfileId;
+  languageHints?: string[];
   pages: OcrEnginePageInput[];
   forceOcr?: boolean;
   signal?: AbortSignal;
@@ -79,6 +80,7 @@ export async function runWorkerOcrJob(
         documentFingerprint: input.documentFingerprint,
         engineId: input.engineId,
         profileId: input.requestedProfileId,
+        languageHints: input.languageHints,
         pages: input.pages,
         forceOcr: input.forceOcr,
       },
