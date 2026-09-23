@@ -9,6 +9,7 @@ export type { OcrReviewFocus } from './types';
 import type { OcrProfileId } from './ocrProfiles';
 import {
   normalizeOcrLanguageSet,
+  ocrLanguageSetsEqual,
 } from './ocrLanguageSet';
 import type { OcrResumeTokenV1 } from './ocrResumeState';
 import type {
@@ -250,7 +251,11 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       documentFingerprint: snapshot.job.documentFingerprint ?? previous.documentFingerprint,
       activeJobId: snapshot.job.id,
       jobs,
-      result: snapshot.partialResult,
+      result: mergeCompatibleOcrResults(
+        previous.result,
+        snapshot.partialResult,
+        previous.languageHints,
+      ),
       lastUpdatedAt: new Date().toISOString(),
       dirty: true,
     };
@@ -564,6 +569,43 @@ export function recomputeOcrDerivedState(
     searchIndex,
     confidenceSummary,
     lowConfidenceWords,
+  };
+}
+
+function mergeCompatibleOcrResults(
+  current: OcrDocumentResult | null,
+  next: OcrDocumentResult,
+  expectedLanguages: string[],
+): OcrDocumentResult {
+  if (
+    !current
+    || current.documentFingerprint !== next.documentFingerprint
+    || current.engineId !== next.engineId
+    || current.profileId !== next.profileId
+    || current.pages.some(
+      (page) => !ocrLanguageSetsEqual(page.languageHints, expectedLanguages),
+    )
+  ) {
+    return next;
+  }
+
+  const pages = new Map(
+    current.pages.map((page) => [page.pageIndex, page]),
+  );
+  for (const page of next.pages) {
+    pages.set(page.pageIndex, page);
+  }
+
+  return {
+    ...next,
+    createdAt: current.createdAt,
+    pages: [...pages.values()].sort(
+      (left, right) => left.pageIndex - right.pageIndex,
+    ),
+    diagnostics: [
+      ...current.diagnostics,
+      ...next.diagnostics,
+    ],
   };
 }
 
