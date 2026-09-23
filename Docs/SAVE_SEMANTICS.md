@@ -35,7 +35,11 @@ That path:
 
 Explicit flattened exports use `composeCommittedPdf()` instead. Normal Save therefore remains semantically distinct from Export Flattened.
 
-The current native annotation writer preserves the supported PDF-native annotation model, including stable managed `/NM` names, reply `/IRT` relationships, and review state as a separate linked Text annotation carrying `/StateModel /Review` plus `/State`. Review state is not written onto the visual/root annotation. Phase 10 interoperability tests exercise repeated-save identity/topology continuity, standards-only re-import after `PDFHub*` metadata removal, and external native-field precedence.
+The current native annotation writer preserves the supported PDF-native annotation model, including stable managed `/NM` names, reply `/IRT` relationships, and review state as separate linked Text annotations carrying string-valued `/StateModel Review` plus `/State`. Review state is not written onto the visual/root annotation. Existing Review state-transition annotations are preserved: the first transition points to the review root, and subsequent same-author transitions may point to the previous state annotation. A no-op PDF Hub save does not collapse or append state history; a genuine application status change appends a new transition.
+
+PDF Review state is author-specific, while the current PDF Hub application model exposes one thread status. PDF Hub therefore preserves all native Review-state chains in the file but projects the latest observable Review transition into the single application status, using native timestamps with annotation order as a deterministic fallback. Parallel author-specific states are not yet surfaced as separate UI statuses.
+
+Phase 10 interoperability tests exercise repeated-save identity/topology continuity, chained state-history preservation, standards-only re-import after `PDFHub*` metadata removal, and external native-field precedence.
 
 Normal Save still rewrites PDF bytes rather than providing a signature-preserving incremental update contract. Signed-PDF risk is therefore handled by an explicit preflight warning, described below.
 
