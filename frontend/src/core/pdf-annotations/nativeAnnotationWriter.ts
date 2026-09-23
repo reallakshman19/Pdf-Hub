@@ -301,7 +301,7 @@ function appendReviewStateTransitionIfNeeded(
     return;
   }
 
-  const author = review.author || 'Unknown';
+  const author = review.statusAuthor ?? review.author ?? 'Unknown';
   const latestForAuthor = latestReviewStateRecord(
     graph.records.filter((record) => record.author === author),
   );
