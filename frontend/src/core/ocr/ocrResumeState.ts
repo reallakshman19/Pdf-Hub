@@ -193,20 +193,39 @@ export function validateOcrResumeToken(
   }
   normalizeExecutionConfig(token.executionConfig);
 
+  const taskIds = new Set<string>();
+  const ownedPageIndexes = new Set<number>();
+
   for (const [index, task] of token.tasks.entries()) {
     if (
       task.index !== index
       || !task.id
+      || taskIds.has(task.id)
       || !Array.isArray(task.pageIndexes)
+      || task.pageIndexes.length === 0
       || !isOcrBatchTaskStatus(task.status)
       || task.pageIndexes.some(
         (pageIndex) => !Number.isInteger(pageIndex) || pageIndex < 0,
+      )
+      || new Set(task.pageIndexes).size !== task.pageIndexes.length
+      || task.pageIndexes.some(
+        (pageIndex, pageOffset) =>
+          pageOffset > 0
+          && pageIndex <= task.pageIndexes[pageOffset - 1],
+      )
+      || task.pageIndexes.some(
+        (pageIndex) => ownedPageIndexes.has(pageIndex),
       )
     ) {
       throw new OcrResumeStateError(
         'OCR_RESUME_TOKEN_INVALID',
         `Malformed OCR resume task at index ${index}.`,
       );
+    }
+
+    taskIds.add(task.id);
+    for (const pageIndex of task.pageIndexes) {
+      ownedPageIndexes.add(pageIndex);
     }
   }
 }
