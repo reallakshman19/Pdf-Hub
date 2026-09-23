@@ -21,6 +21,10 @@ import {
   annotationForTargetPage,
   normalizeAnnotationPageAnchors,
 } from './pageAnchor';
+import {
+  guardNativeInteropAnnotationPatch,
+  guardNativeInteropStylePatch,
+} from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -319,20 +323,39 @@ export const useAnnotationStore =
       const nextAnnotations = state.annotations.map((annotation) => {
         if (annotation.id !== id) return annotation;
 
+        const guardedPatch = guardNativeInteropAnnotationPatch(
+          annotation,
+          data,
+        );
+        if (Object.keys(guardedPatch).length === 0) {
+          return annotation;
+        }
+
         const updated: PdfAnnotation = {
           ...annotation,
-          ...data,
+          ...guardedPatch,
           updatedAt: Date.now(),
         };
 
-        return typeof data.pageNumber === 'number' && data.pageId === undefined
+        return (
+          typeof guardedPatch.pageNumber === 'number'
+          && guardedPatch.pageId === undefined
+        )
           ? annotationForTargetPage(
               updated,
               useSessionStore.getState().pageGraph,
-              data.pageNumber,
+              guardedPatch.pageNumber,
             )
           : updated;
       });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(state, nextAnnotations);
     }),
@@ -344,20 +367,39 @@ export const useAnnotationStore =
         const patch = patchMap.get(annotation.id);
         if (!patch) return annotation;
 
+        const guardedPatch = guardNativeInteropAnnotationPatch(
+          annotation,
+          patch,
+        );
+        if (Object.keys(guardedPatch).length === 0) {
+          return annotation;
+        }
+
         const updated: PdfAnnotation = {
           ...annotation,
-          ...patch,
+          ...guardedPatch,
           updatedAt: Date.now(),
         };
 
-        return typeof patch.pageNumber === 'number' && patch.pageId === undefined
+        return (
+          typeof guardedPatch.pageNumber === 'number'
+          && guardedPatch.pageId === undefined
+        )
           ? annotationForTargetPage(
               updated,
               useSessionStore.getState().pageGraph,
-              patch.pageNumber,
+              guardedPatch.pageNumber,
             )
           : updated;
       });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(state, nextAnnotations);
     }),
@@ -805,62 +847,70 @@ export const useAnnotationStore =
       if (targetIds.length === 0) return state;
 
       const selectedSet = new Set(targetIds);
-      const nextAnnotations = state.annotations.map(
-        (annotation) =>
-          selectedSet.has(annotation.id)
-            ? {
+      const nextAnnotations = state.annotations.map((annotation) => {
+        if (!selectedSet.has(annotation.id)) return annotation;
+
+        const guardedStylePatch = guardNativeInteropStylePatch(
+          annotation,
+          stylePatch,
+        );
+        if (Object.keys(guardedStylePatch).length === 0) {
+          return annotation;
+        }
+
+        return {
                 ...annotation,
                 data: {
                   ...annotation.data,
-                  ...(stylePatch.fill
+                  ...(guardedStylePatch.fill
                     ? {
                         backgroundColor:
-                          stylePatch.fill,
+                          guardedStylePatch.fill,
                       }
                     : {}),
-                  ...(stylePatch.stroke
+                  ...(guardedStylePatch.stroke
                     ? {
                         borderColor:
-                          stylePatch.stroke,
+                          guardedStylePatch.stroke,
                       }
                     : {}),
-                  ...(stylePatch.strokeWidth
+                  ...(guardedStylePatch.strokeWidth
                     !== undefined
                     ? {
                         borderWidth:
-                          stylePatch.strokeWidth,
+                          guardedStylePatch.strokeWidth,
                       }
                     : {}),
-                  ...(stylePatch.textColor
+                  ...(guardedStylePatch.textColor
                     ? {
                         textColor:
-                          stylePatch.textColor,
+                          guardedStylePatch.textColor,
                       }
                     : {}),
-                  ...(stylePatch.opacity
+                  ...(guardedStylePatch.opacity
                     !== undefined
                     ? {
                         opacity:
-                          stylePatch.opacity,
+                          guardedStylePatch.opacity,
                       }
                     : {}),
-                  ...(stylePatch.fontSize
+                  ...(guardedStylePatch.fontSize
                     !== undefined
                     ? {
                         fontSize:
-                          stylePatch.fontSize,
+                          guardedStylePatch.fontSize,
                       }
                     : {}),
-                  ...(stylePatch.fontWeight
+                  ...(guardedStylePatch.fontWeight
                     ? {
                         fontWeight:
-                          stylePatch.fontWeight,
+                          guardedStylePatch.fontWeight,
                       }
                     : {}),
-                  ...(stylePatch.textAlign
+                  ...(guardedStylePatch.textAlign
                     ? {
                         textAlign:
-                          stylePatch.textAlign,
+                          guardedStylePatch.textAlign,
                       }
                     : {}),
                   style: {
@@ -872,13 +922,20 @@ export const useAnnotationStore =
                           as AnnotationStyle
                         )
                       : {}),
-                    ...stylePatch,
+                    ...guardedStylePatch,
                   },
                 },
                 updatedAt: Date.now(),
-              }
-            : annotation,
-      );
+              };
+      });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(
         state,
