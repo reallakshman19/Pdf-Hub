@@ -915,6 +915,236 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(quads3?.[3]).toBeCloseTo(0);
   });
 
+  it('prefers external FreeText CL/Q/Border/F over stale PDF Hub type and style cache', async () => {
+    const baseBytes = await createEmptyPdf();
+    const textbox = createDeterministicAnnotation('textbox', {
+      id: 'phase10-field-symmetry-freetext-1',
+      data: {
+        text: 'External callout conversion',
+        textAlign: 'left',
+        borderWidth: 1,
+        borderStyle: 'solid',
+        locked: false,
+      },
+    });
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict = annots.lookup(0) as PDFDict;
+
+    dict.delete(PDFName.of('IT'));
+    dict.set(
+      PDFName.of('CL'),
+      externalDoc.context.obj([280, 500, 250, 560]),
+    );
+    dict.set(PDFName.of('Q'), externalDoc.context.obj(2));
+    dict.set(
+      PDFName.of('Border'),
+      externalDoc.context.obj([0, 0, 4, [3, 2]]),
+    );
+    dict.set(PDFName.of('F'), externalDoc.context.obj(132));
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+    const annotation = returned.annotations[0];
+
+    expect(annotation.type).toBe('callout');
+    expect(annotation.data.textAlign).toBe('right');
+    expect(annotation.data.borderWidth).toBe(4);
+    expect(annotation.data.borderStyle).toBe('dashed');
+    expect(annotation.data.locked).toBe(true);
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict2 = annots2.lookup(0) as PDFDict;
+
+    expect(dict2.lookup(PDFName.of('Q')).asNumber()).toBe(2);
+    expect(dict2.lookup(PDFName.of('F')).asNumber()).toBe(132);
+    const border2 = dict2.lookup(PDFName.of('Border')) as any;
+    expect(border2.lookup(2).asNumber()).toBe(4);
+    const dash2 = border2.lookup(3) as any;
+    expect(dash2.lookup(0).asNumber()).toBe(3);
+    expect(dash2.lookup(1).asNumber()).toBe(2);
+    expect(dict2.lookup(PDFName.of('IT')).decodeText()).toBe('FreeTextCallout');
+
+    const locallyEdited = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        textAlign: 'center' as const,
+        borderWidth: 2,
+        borderStyle: 'dotted' as const,
+        locked: false,
+      },
+      updatedAt: returned.annotations[0].updatedAt + 1_000,
+    };
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict3 = annots3.lookup(0) as PDFDict;
+
+    expect(dict3.lookup(PDFName.of('Q')).asNumber()).toBe(1);
+    expect(dict3.lookup(PDFName.of('F')).asNumber()).toBe(4);
+    const border3 = dict3.lookup(PDFName.of('Border')) as any;
+    expect(border3.lookup(2).asNumber()).toBe(2);
+    const dash3 = border3.lookup(3) as any;
+    expect(dash3.lookup(0).asNumber()).toBe(1);
+    expect(dash3.lookup(1).asNumber()).toBe(1);
+
+    const read3 = await readNativePdfAnnotations(save3.bytes);
+    expect(read3.annotations[0].type).toBe('callout');
+    expect(read3.annotations[0].data.textAlign).toBe('center');
+    expect(read3.annotations[0].data.borderWidth).toBe(2);
+    expect(read3.annotations[0].data.borderStyle).toBe('dotted');
+    expect(read3.annotations[0].data.locked).toBe(false);
+  });
+
+  it('uses standard BE and LE to override stale private subtype ambiguity while preserving exact no-op objects', async () => {
+    const baseBytes = await createEmptyPdf();
+
+    const line = createDeterministicAnnotation('line', {
+      id: 'phase10-field-symmetry-line-1',
+    });
+    const lineSave = await writeNativePdfAnnotations(baseBytes, [line]);
+    const lineDoc = await PDFDocument.load(lineSave.bytes);
+    const lineAnnots = lineDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const lineDict = lineAnnots.lookup(0) as PDFDict;
+    lineDict.set(
+      PDFName.of('LE'),
+      lineDoc.context.obj([
+        PDFName.of('Circle'),
+        PDFName.of('ClosedArrow'),
+      ]),
+    );
+
+    const externalLine = new Uint8Array(await lineDoc.save());
+    const lineRead = await readNativePdfAnnotations(externalLine);
+    expect(lineRead.annotations[0].type).toBe('arrow');
+    expect(lineRead.annotations[0].data.lineStartCap).toBe('circle');
+    expect(lineRead.annotations[0].data.lineEndCap).toBe('arrow');
+
+    const lineSave2 = await writeNativePdfAnnotations(externalLine, lineRead.annotations);
+    const lineDoc2 = await PDFDocument.load(lineSave2.bytes);
+    const lineDict2 = (lineDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    const endings2 = lineDict2.lookup(PDFName.of('LE')) as any;
+    expect(endings2.lookup(0).decodeText()).toBe('Circle');
+    expect(endings2.lookup(1).decodeText()).toBe('ClosedArrow');
+
+    const rect = createDeterministicAnnotation('shape-rect', {
+      id: 'phase10-field-symmetry-cloud-1',
+    });
+    const rectSave = await writeNativePdfAnnotations(baseBytes, [rect]);
+    const rectDoc = await PDFDocument.load(rectSave.bytes);
+    const rectAnnots = rectDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const rectDict = rectAnnots.lookup(0) as PDFDict;
+    rectDict.set(
+      PDFName.of('BE'),
+      rectDoc.context.obj({
+        S: PDFName.of('C'),
+        I: 2.5,
+      }),
+    );
+
+    const externalCloud = new Uint8Array(await rectDoc.save());
+    const cloudRead = await readNativePdfAnnotations(externalCloud);
+    expect(cloudRead.annotations[0].type).toBe('shape-cloud');
+
+    const cloudSave2 = await writeNativePdfAnnotations(externalCloud, cloudRead.annotations);
+    const cloudDoc2 = await PDFDocument.load(cloudSave2.bytes);
+    const cloudDict2 = (cloudDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    const be2 = cloudDict2.lookup(PDFName.of('BE')) as PDFDict;
+    expect(be2.lookup(PDFName.of('S')).decodeText()).toBe('C');
+    expect(be2.lookup(PDFName.of('I')).asNumber()).toBe(2.5);
+  });
+
+  it('preserves external Text Open/Name and Stamp Name until the represented local semantic changes', async () => {
+    const baseBytes = await createEmptyPdf();
+
+    const sticky = createDeterministicAnnotation('sticky-note', {
+      id: 'phase10-field-symmetry-note-1',
+      data: {
+        text: 'Native icon preservation',
+        isCollapsed: true,
+      },
+    });
+    const stickySave = await writeNativePdfAnnotations(baseBytes, [sticky]);
+    const stickyDoc = await PDFDocument.load(stickySave.bytes);
+    const stickyAnnots = stickyDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const stickyDict = stickyAnnots.lookup(0) as PDFDict;
+    stickyDict.set(PDFName.of('Name'), PDFName.of('Key'));
+    stickyDict.set(PDFName.of('Open'), stickyDoc.context.obj(true));
+
+    const externalSticky = new Uint8Array(await stickyDoc.save());
+    const stickyRead = await readNativePdfAnnotations(externalSticky);
+    expect(stickyRead.annotations[0].type).toBe('sticky-note');
+    expect(stickyRead.annotations[0].data.isCollapsed).toBe(false);
+
+    const stickySave2 = await writeNativePdfAnnotations(
+      externalSticky,
+      stickyRead.annotations,
+    );
+    const stickyDoc2 = await PDFDocument.load(stickySave2.bytes);
+    const stickyDict2 = (stickyDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    expect(stickyDict2.lookup(PDFName.of('Name')).decodeText()).toBe('Key');
+    expect(stickyDict2.lookup(PDFName.of('Open')).toString()).toBe('true');
+
+    const collapsed = {
+      ...stickyRead.annotations[0],
+      data: {
+        ...stickyRead.annotations[0].data,
+        isCollapsed: true,
+      },
+      updatedAt: stickyRead.annotations[0].updatedAt + 1_000,
+    };
+    const stickySave3 = await writeNativePdfAnnotations(stickySave2.bytes, [collapsed]);
+    const stickyDoc3 = await PDFDocument.load(stickySave3.bytes);
+    const stickyDict3 = (stickyDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    expect(stickyDict3.lookup(PDFName.of('Name')).decodeText()).toBe('Key');
+    expect(stickyDict3.lookup(PDFName.of('Open')).toString()).toBe('false');
+
+    const stamp = createDeterministicAnnotation('stamp', {
+      id: 'phase10-field-symmetry-stamp-1',
+    });
+    const stampSave = await writeNativePdfAnnotations(baseBytes, [stamp]);
+    const stampDoc = await PDFDocument.load(stampSave.bytes);
+    const stampAnnots = stampDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const stampDict = stampAnnots.lookup(0) as PDFDict;
+    stampDict.set(PDFName.of('Name'), PDFName.of('ExternalCustomStamp'));
+
+    const externalStamp = new Uint8Array(await stampDoc.save());
+    const stampRead = await readNativePdfAnnotations(externalStamp);
+    expect(stampRead.annotations[0].data.stampStyle).toBe('custom');
+
+    const stampSave2 = await writeNativePdfAnnotations(externalStamp, stampRead.annotations);
+    const stampDoc2 = await PDFDocument.load(stampSave2.bytes);
+    const stampDict2 = (stampDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    expect(stampDict2.lookup(PDFName.of('Name')).decodeText()).toBe(
+      'ExternalCustomStamp',
+    );
+
+    const rejectedStamp = {
+      ...stampRead.annotations[0],
+      data: {
+        ...stampRead.annotations[0].data,
+        stampStyle: 'rejected' as const,
+      },
+      updatedAt: stampRead.annotations[0].updatedAt + 1_000,
+    };
+    const stampSave3 = await writeNativePdfAnnotations(stampSave2.bytes, [rejectedStamp]);
+    const stampDoc3 = await PDFDocument.load(stampSave3.bytes);
+    const stampDict3 = (stampDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    expect(stampDict3.lookup(PDFName.of('Name')).decodeText()).toBe('Rejected');
+  });
+
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
     const standardFields = {
       Contents: 'Externally edited comment text in Adobe Acrobat',
