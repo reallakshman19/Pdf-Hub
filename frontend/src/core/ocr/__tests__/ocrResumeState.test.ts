@@ -189,6 +189,16 @@ describe('ocrResumeState', () => {
     })).toThrowError(OcrResumeStateError);
   });
 
+  it('refuses to create an empty OCR checkpoint', () => {
+    expect(() => createOcrResumeToken({
+      documentFingerprint: 'doc-empty-checkpoint',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
+      snapshot: createOcrBatchSchedulerSnapshot([]),
+    })).toThrowError(OcrResumeStateError);
+  });
+
   it('rejects ambiguous or empty persisted batch topology', () => {
     const token = createOcrResumeToken({
       documentFingerprint: 'doc-a',
