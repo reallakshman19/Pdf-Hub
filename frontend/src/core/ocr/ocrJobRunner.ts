@@ -18,7 +18,11 @@ import {
   runOcrPreflight,
   type OcrPreflightResult,
 } from './ocrPreflight';
-import { getOcrProfile, type OcrProfileId } from './ocrProfiles';
+import {
+  getOcrProfile,
+  getOcrProfileWithLanguages,
+  type OcrProfileId,
+} from './ocrProfiles';
 import { defaultOcrEngineRegistry } from './engines/ocrEngineRegistry';
 
 export interface OcrJobRunnerPageInput {
@@ -41,6 +45,7 @@ export interface RunOcrJobInput {
   documentFingerprint: string;
   engineId?: string;
   requestedProfileId?: OcrProfileId;
+  languageHints?: string[];
   forceOcr?: boolean;
   selectedPageIndexes?: number[];
   pages: OcrJobRunnerPageInput[];
@@ -160,6 +165,10 @@ export async function runOcrJob(
             width: getPageByIndex(input.pages, decision.pageIndex)?.width ?? 0,
             height: getPageByIndex(input.pages, decision.pageIndex)?.height ?? 0,
             profileId: decision.profile.id,
+            languageHints: getOcrProfileWithLanguages(
+              decision.profile.id,
+              input.languageHints,
+            ).languageHints,
             diagnostics: decision.diagnostics,
           }),
         ),
@@ -257,6 +266,7 @@ export async function runOcrJob(
         documentFingerprint: input.documentFingerprint,
         page,
         profileId: profile.id,
+        languageHints: input.languageHints,
       });
 
       completedPages.push(pageResult);
@@ -341,6 +351,10 @@ export async function runOcrJob(
             width: getPageByIndex(input.pages, decision.pageIndex)?.width ?? 0,
             height: getPageByIndex(input.pages, decision.pageIndex)?.height ?? 0,
             profileId: decision.profile.id,
+            languageHints: getOcrProfileWithLanguages(
+              decision.profile.id,
+              input.languageHints,
+            ).languageHints,
             diagnostics: decision.diagnostics,
           }),
         ),
@@ -366,6 +380,7 @@ async function recognizeSinglePage(input: {
   documentFingerprint: string;
   page: OcrJobRunnerPageInput;
   profileId: OcrProfileId;
+  languageHints?: string[];
 }): Promise<OcrPageResult> {
   const enginePage: OcrEnginePageInput = {
     pageIndex: input.page.pageIndex,
@@ -376,7 +391,10 @@ async function recognizeSinglePage(input: {
 
   const engineResult = await input.engine.recognize({
     documentFingerprint: input.documentFingerprint,
-    profile: getOcrProfile(input.profileId),
+    profile: getOcrProfileWithLanguages(
+      input.profileId,
+      input.languageHints,
+    ),
     pages: [enginePage],
   });
 
@@ -412,6 +430,7 @@ function createSkippedPageResult(input: {
   width: number;
   height: number;
   profileId: string;
+  languageHints: string[];
   diagnostics: OcrDiagnostic[];
 }): OcrPageResult {
   return {
@@ -420,7 +439,7 @@ function createSkippedPageResult(input: {
     status: 'skipped',
     pageType: 'bornDigital',
     orientationDeg: 0,
-    languageHints: ['eng'],
+    languageHints: [...input.languageHints],
     width: input.width,
     height: input.height,
     words: [],
