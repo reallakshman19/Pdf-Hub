@@ -149,7 +149,7 @@
     "test:phase10-viewer-corpus": "vitest run src/core/pdf-annotations/viewerQualificationCorpus.test.ts --pool=forks --maxWorkers=1",
     "validate:phase10-returned-review": "node scripts/phase10-validate-returned-review.mjs",
     "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs",
-    "test:phase11-ocr-resume": "vitest run src/core/ocr/__tests__/ocrBatchScheduler.test.ts src/core/ocr/__tests__/ocrResumeState.test.ts src/core/ocr/__tests__/ocrProjectCodec.test.ts src/core/ocr/__tests__/ocrHydrationBridge.test.ts src/core/ocr/__tests__/ocrStore.test.ts src/core/ocr/__tests__/ocrFinalIntegration.test.ts --pool=forks --maxWorkers=1"
+    "test:phase11-ocr-resume": "vitest run src/core/ocr/__tests__/ocrBatchScheduler.test.ts src/core/ocr/__tests__/ocrResumeState.test.ts src/core/ocr/__tests__/ocrProjectCodec.test.ts src/core/ocr/__tests__/ocrHydrationBridge.test.ts src/core/ocr/__tests__/ocrStore.test.ts src/core/ocr/__tests__/ocrFinalIntegration.test.ts src/components/ocr/__tests__/useOcrRunWorkflow.test.tsx --pool=forks --maxWorkers=1"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
