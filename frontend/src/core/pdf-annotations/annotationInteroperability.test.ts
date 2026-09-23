@@ -783,7 +783,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const dict2 = doc2.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict2 = annots2.lookup(0) as PDFDict;
     expect(dict2.lookup(PDFName.of('DA')).decodeText()).toBe(externalDa);
     expect(dict2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
 
@@ -799,7 +800,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const dict3 = doc3.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict3 = annots3.lookup(0) as PDFDict;
     const da3 = dict3.lookup(PDFName.of('DA')).decodeText();
 
     expect(da3).toContain('/ExternalFont 23 Tf');
@@ -864,7 +866,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const dict2 = doc2.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict2 = annots2.lookup(0) as PDFDict;
     const quadArray2 = dict2.lookup(PDFName.of('QuadPoints')) as any;
     const rawQuads2 = Array.from(
       { length: quadArray2.size() },
@@ -886,7 +889,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [movedAndResized]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const dict3 = doc3.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict3 = annots3.lookup(0) as PDFDict;
     const quadArray3 = dict3.lookup(PDFName.of('QuadPoints')) as any;
     const rawQuads3 = Array.from(
       { length: quadArray3.size() },
