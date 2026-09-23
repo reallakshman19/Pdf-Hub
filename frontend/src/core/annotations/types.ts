@@ -43,6 +43,14 @@ export interface AnnotationNativeInteropState {
   richText?: boolean;
   /** FreeText /DS default style is present and preserved with /RC. */
   defaultStyle?: boolean;
+  /** Native semantics observed at import time; used as a writer fail-closed oracle. */
+  protectedSnapshot?: {
+    type: AnnotationType;
+    text: string;
+    fontSize?: number;
+    textColor?: string;
+    textAlign?: 'left' | 'center' | 'right';
+  };
 }
 
 export interface AnnotationData extends Record<string, unknown> {
