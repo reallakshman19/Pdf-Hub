@@ -281,14 +281,14 @@
         },
         {
           "id": "PHASE-011",
-          "title": "OCR internationalization and resumability",
+          "title": "OCR resumability",
           "state": "PLANNED",
           "definition": "DETAILED",
           "weight": 10,
           "work_packages": [
             {
               "id": "WP-011",
-              "title": "Unicode multilingual OCR and resumable execution",
+              "title": "Resumable OCR execution",
               "state": "PLANNED",
               "definition": "DETAILED",
               "execution_status": "WAITING",
@@ -296,7 +296,7 @@
               "depends_on": [
                 "WP-010"
               ],
-              "issue": null
+              "issue": 302
             }
           ]
         },
