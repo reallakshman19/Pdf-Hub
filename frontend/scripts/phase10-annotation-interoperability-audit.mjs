@@ -120,6 +120,15 @@ if (!reviewProjection
   errors.push('Manifest must declare native review-state chain preservation and application projection boundary');
 }
 
+const transitionAuthor = reviewProjection?.transition_author;
+if (!transitionAuthor
+  || transitionAuthor.native_source !== 'State annotation T text string'
+  || transitionAuthor.imported_projection !== 'ReviewMetadata.statusAuthor'
+  || transitionAuthor.local_status_action_default !== 'Current User'
+  || !transitionAuthor.chain_rule?.includes('same statusAuthor')) {
+  errors.push('Manifest must declare Review state transition author provenance and same-author chaining');
+}
+
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
   errors.push('Manifest policies must declare save preserves native annotations');
 }
@@ -187,7 +196,7 @@ console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
-console.log('[PASS] Deterministic root/reply/state relationships and chained Review-state preservation verified.');
+console.log('[PASS] Deterministic root/reply/state relationships, actor provenance, and chained Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');
