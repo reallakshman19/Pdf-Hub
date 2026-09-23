@@ -126,11 +126,12 @@ if (!precedence?.type_precedence_rule?.includes('recognized standard fields over
   errors.push('Manifest must require standard subtype semantics to override stale PDFHubType');
 }
 
-const declaredStandardFields = new Set(
-  Object.values(manifest.fixtures)
-    .flatMap((fixture) => fixture.standardPdfFields ?? []),
-);
 const fieldCoverage = manifest.policies?.standard_field_coverage;
+const declaredStandardFields = new Set([
+  ...Object.values(manifest.fixtures)
+    .flatMap((fixture) => fixture.standardPdfFields ?? []),
+  ...(fieldCoverage?.supplemental_declared_fields ?? []),
+]);
 const coverageSets = [
   fieldCoverage?.semantic_reader_fields,
   fieldCoverage?.classification_fields,
