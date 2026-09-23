@@ -753,7 +753,7 @@
         "F": "Import the standard Locked flag bit into data.locked; on rewrite toggle only that bit and preserve all other external annotation flag bits.",
         "Border": "Import border width plus solid/dashed/dotted/none style; reuse the source Border object on a semantic no-op and regenerate only after a supported local border edit.",
         "Q": "FreeText quadding 0/1/2 maps to left/center/right textAlign and overrides stale private data.",
-        "Open": "Text annotation Open maps inversely to sticky-note isCollapsed; externally supplied Name/icon is preserved independently.",
+        "Open": "Text annotation Open maps inversely to data.isCollapsed for both review comments and standalone sticky notes; externally supplied Name/icon is preserved independently.",
         "Name": "Stamp Name maps recognized standard stamp names to stampStyle and preserves unknown external names while style remains custom; Text annotation icon names are preserved on rewrite.",
         "LE": "Line endings map supported standard endings to lineStartCap/lineEndCap; source LE is reused on no-op so unrepresented standard ending names are not normalized away.",
         "IT": "FreeTextCallout participates in standards-native textbox/callout classification; unrecognized external intent values are preserved when the annotation remains a textbox.",
