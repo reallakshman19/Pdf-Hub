@@ -751,6 +751,13 @@
       "warn_on_rewrite": true,
       "prevent_false_validity_claims": true,
       "rationale": "Full document rewrite invalidates cryptographic signatures. Users must be warned explicitly."
+    },
+    "review_state_projection": {
+      "native_model": "AUTHOR_SPECIFIC_CHAINED_STATE_TRANSITIONS",
+      "application_model": "SINGLE_THREAD_STATUS",
+      "projection_rule": "Project the latest observable Review transition by modification/creation timestamp with annotation order as a deterministic fallback.",
+      "preservation_rule": "Preserve all native Review state transition annotations and their IRT chains. A PDF Hub save appends a transition only when the application review status differs semantically from the latest native Review state.",
+      "limitation": "Parallel author-specific Review states are preserved in the PDF but are not yet surfaced as separate application statuses."
     }
   },
   "review_thread_fixture": {
@@ -776,14 +783,19 @@
         "reply IRT",
         "state IRT"
       ],
-      "duplicates_allowed": false
+      "duplicates_allowed": false,
+      "state_history_preserved": true,
+      "noop_save_appends_state": false,
+      "semantic_state_change_appends_transition": true
     },
     "state": {
       "nm": "phase10-review-root-1:state:Review",
       "subtype": "Text",
       "relationship": "IRT_OBJECT_REFERENCE",
       "stateModel": "Review",
-      "initialState": "Completed"
+      "initialState": "Completed",
+      "encoding": "TEXT_STRING",
+      "transition_rule": "The first state annotation points to the review root. Additional state changes for the same author are appended in reply to that author's previous state annotation; existing native transition history is preserved."
     }
   }
 }
