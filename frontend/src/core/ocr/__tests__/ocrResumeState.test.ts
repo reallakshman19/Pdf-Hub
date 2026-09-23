@@ -125,6 +125,30 @@ describe('ocrResumeState', () => {
       },
       tasks,
     })).toThrowError(OcrResumeStateError);
+
+    expect(() => resumeOcrBatchTasks({
+      token,
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: {
+        ...RESUME_EXECUTION_CONFIG,
+        maxPagesPerJob: 10,
+      },
+      tasks,
+    })).toThrowError(OcrResumeStateError);
+
+    expect(() => resumeOcrBatchTasks({
+      token,
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: {
+        ...RESUME_EXECUTION_CONFIG,
+        allowLargeJobs: true,
+      },
+      tasks,
+    })).toThrowError(OcrResumeStateError);
   });
 
   it('rejects malformed persisted task statuses instead of treating them as queued', () => {
