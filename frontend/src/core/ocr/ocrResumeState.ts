@@ -72,7 +72,7 @@ export function createOcrResumeToken<TInput>(input: {
   assertNonEmpty(input.engineId, 'engineId');
   assertNonEmpty(input.profileId, 'profileId');
 
-  return {
+  const token: OcrResumeTokenV1 = {
     schema: 'pdf-hub-ocr-resume',
     schemaVersion: 1,
     documentFingerprint: input.documentFingerprint,
@@ -88,6 +88,9 @@ export function createOcrResumeToken<TInput>(input: {
       ...(task.errorMessage ? { errorMessage: task.errorMessage } : {}),
     })),
   };
+
+  validateOcrResumeToken(token);
+  return token;
 }
 
 export function resumeOcrBatchTasks<TInput>(input: {
