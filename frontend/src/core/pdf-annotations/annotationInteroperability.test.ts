@@ -867,6 +867,20 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       writeNativePdfAnnotations(save2.bytes, [changedReply]),
     ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
 
+    const removedReply = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        review: {
+          ...returned.annotations[0].data.review!,
+          replies: [],
+        },
+      },
+    };
+    await expect(
+      writeNativePdfAnnotations(save2.bytes, [removedReply]),
+    ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
+
     const clonedThread = {
       ...returned.annotations[0],
       id: 'phase10-rich-reply-clone',
