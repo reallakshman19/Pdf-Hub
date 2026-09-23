@@ -43,12 +43,21 @@ export function guardNativeInteropAnnotationPatch(
 
   const guarded: Partial<PdfAnnotation> = { ...patch };
 
-  if (patch.type !== undefined && patch.type !== annotation.type) {
-    delete guarded.type;
+  if (patch.type !== undefined) {
+    if (patch.type !== annotation.type) {
+      Reflect.deleteProperty(guarded, 'type');
+    } else {
+      Reflect.deleteProperty(guarded, 'type');
+    }
   }
 
   if (patch.data) {
-    guarded.data = guardRichTextDataPatch(annotation.data, patch.data);
+    const nextData = guardRichTextDataPatch(annotation.data, patch.data);
+    if (shallowObjectEquivalent(annotation.data, nextData)) {
+      Reflect.deleteProperty(guarded, 'data');
+    } else {
+      guarded.data = nextData;
+    }
   }
 
   return guarded;
@@ -62,7 +71,7 @@ export function guardNativeInteropStylePatch(
 
   const guarded = { ...stylePatch };
   for (const key of RICH_TEXT_PROTECTED_STYLE_KEYS) {
-    delete guarded[key];
+    Reflect.deleteProperty(guarded, key);
   }
   return guarded;
 }
@@ -92,11 +101,14 @@ function guardRichTextDataPatch(
       if (currentStyle) {
         restoreOwnValue(guardedStyle, currentStyle, key);
       } else {
-        delete guardedStyle[key];
+        Reflect.deleteProperty(guardedStyle, key);
       }
     }
 
-    guarded.style = guardedStyle;
+    guarded.style =
+      currentStyle && shallowObjectEquivalent(currentStyle, guardedStyle)
+        ? currentStyle
+        : guardedStyle;
   }
 
   return guarded;
@@ -113,6 +125,19 @@ function restoreOwnValue<
   if (Object.prototype.hasOwnProperty.call(source, key)) {
     target[key] = source[key];
   } else {
-    delete target[key];
+    Reflect.deleteProperty(target, key);
   }
+}
+
+function shallowObjectEquivalent(
+  left: object,
+  right: object,
+): boolean {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  if (leftEntries.length !== rightEntries.length) return false;
+
+  return leftEntries.every(([key, value]) =>
+    Object.prototype.hasOwnProperty.call(right, key)
+    && Object.is(value, (right as Record<string, unknown>)[key]));
 }
