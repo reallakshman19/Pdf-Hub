@@ -148,7 +148,8 @@
     "validate:phase10-viewer-evidence": "node scripts/phase10-validate-viewer-evidence.mjs",
     "test:phase10-viewer-corpus": "vitest run src/core/pdf-annotations/viewerQualificationCorpus.test.ts --pool=forks --maxWorkers=1",
     "validate:phase10-returned-review": "node scripts/phase10-validate-returned-review.mjs",
-    "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs"
+    "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs",
+    "test:phase11-ocr-core": "vitest run src/core/ocr/__tests__/ocrTypes.test.ts src/core/ocr/__tests__/ocrLanguageSet.test.ts src/core/ocr/__tests__/ocrBatchScheduler.test.ts src/core/ocr/__tests__/ocrResumeState.test.ts --pool=forks --maxWorkers=1"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
