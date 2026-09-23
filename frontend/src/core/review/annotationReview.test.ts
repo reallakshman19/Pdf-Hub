@@ -55,12 +55,33 @@ describe('annotation review canonicalization', () => {
     expect(Object.prototype.hasOwnProperty.call(migrated.data, 'reviewStatus')).toBe(false);
   });
 
-  it('writes status changes into canonical review metadata only', () => {
-    const updated = withAnnotationReviewStatus(annotation({}), 'rejected', 300);
+  it('writes status changes with transition actor provenance without changing thread author', () => {
+    const input = annotation({
+      review: {
+        author: 'Original Reviewer',
+        createdAt: 100,
+        updatedAt: 200,
+        status: 'open',
+        replies: [],
+      },
+    });
+
+    const updated = withAnnotationReviewStatus(input, 'rejected', 300);
 
     expect(updated.updatedAt).toBe(300);
+    expect(updated.data.review?.author).toBe('Original Reviewer');
     expect(updated.data.review?.status).toBe('rejected');
+    expect(updated.data.review?.statusAuthor).toBe('Current User');
     expect(updated.data.review?.updatedAt).toBe(300);
     expect(Object.prototype.hasOwnProperty.call(updated.data, 'reviewStatus')).toBe(false);
+
+    const explicitlyAttributed = withAnnotationReviewStatus(
+      updated,
+      'resolved',
+      400,
+      'Reviewer Two',
+    );
+    expect(explicitlyAttributed.data.review?.author).toBe('Original Reviewer');
+    expect(explicitlyAttributed.data.review?.statusAuthor).toBe('Reviewer Two');
   });
 });
