@@ -264,7 +264,9 @@ export async function runFinalOcrIntegrationJob(
     engineId: input.engineId,
     profileId: input.requestedProfileId,
     results: [
-      ...(input.existingResult ? [input.existingResult] : []),
+      ...(input.resumeToken && input.existingResult
+        ? [input.existingResult]
+        : []),
       ...batchRun.results.map((item) => item.output),
     ],
     diagnostics: [
