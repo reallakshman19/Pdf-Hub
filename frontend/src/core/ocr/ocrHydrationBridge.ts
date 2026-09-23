@@ -162,6 +162,8 @@ export function hydrateOcrStoreFromProjectPayload(
       input.payload.regions,
       expectedDocumentFingerprint ?? payloadDocumentFingerprint,
     ),
+    engineId: resumeToken?.engineId,
+    profileId: resumeToken?.profileId,
     resumeToken,
     updatedAt: input.updatedAt ?? input.payload.manifest.updatedAt,
   });
