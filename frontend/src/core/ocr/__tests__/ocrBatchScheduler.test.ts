@@ -9,6 +9,7 @@ import {
   createOcrBatchSchedulerSnapshot,
   createOcrBatchTasksFromPages,
   createRetryTasksFromFailedBatches,
+  mergeOcrBatchRetrySnapshot,
   runOcrBatchScheduler,
 } from '../ocrBatchScheduler';
 
@@ -148,6 +149,41 @@ describe('ocrBatchScheduler', () => {
     expect(retryTasks[0].id).toBe('retry-1');
     expect(retryTasks[0].status).toBe('queued');
     expect(retryTasks[0].errorMessage).toBeUndefined();
+  });
+
+  it('merges retry status back into the original full batch topology', () => {
+    const originalTasks = createOcrBatchTasksFromPages({
+      pages: makePages(3),
+      batchSize: 1,
+      idPrefix: 'original',
+    });
+    originalTasks[0].status = 'completed';
+    originalTasks[1].status = 'failed';
+    originalTasks[2].status = 'completed';
+
+    const original = createOcrBatchSchedulerSnapshot(originalTasks);
+    const retryTasks = createRetryTasksFromFailedBatches(original, {
+      idPrefix: 'retry',
+    });
+    retryTasks[0].status = 'completed';
+
+    const merged = mergeOcrBatchRetrySnapshot(
+      original,
+      createOcrBatchSchedulerSnapshot(retryTasks),
+    );
+
+    expect(merged.tasks).toHaveLength(3);
+    expect(merged.tasks.map((task) => task.id)).toEqual([
+      'original-1',
+      'original-2',
+      'original-3',
+    ]);
+    expect(merged.tasks.map((task) => task.status)).toEqual([
+      'completed',
+      'completed',
+      'completed',
+    ]);
+    expect(merged.status).toBe('completed');
   });
 
   it('cancels queued tasks', () => {
