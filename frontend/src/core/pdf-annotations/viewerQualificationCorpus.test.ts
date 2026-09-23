@@ -294,7 +294,7 @@ describe('Phase 10 viewer appearance qualification corpus', () => {
 
     for (const type of PHASE10_SUPPORTED_TYPES) {
       expect(familyFor(type)).toBeTruthy();
-      expect(getFixtureMetadata(type).appearanceStreamRequired).toBe(true);
+      expect(getFixtureMetadata(type).appearanceStreamPolicy).toBe('EVIDENCE_GATED');
     }
 
     expect(Object.keys(qualificationManifest.interoperability_journeys)).toEqual([
