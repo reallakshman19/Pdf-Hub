@@ -1,5 +1,5 @@
 {
-  "schema_version": "phase10-viewer-evidence-v1",
+  "schema_version": "phase10-viewer-evidence-v2",
   "corpus_material_head": "0000000000000000000000000000000000000000",
   "viewers": [
     {
@@ -14,120 +14,149 @@
       "viewer_id": "viewer-1",
       "annotation_type": "textbox",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "callout",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "sticky-note",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "highlight",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "underline",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "strikeout",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "squiggly",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "shape-rect",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "shape-ellipse",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "shape-polygon",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "shape-cloud",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "line",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "arrow",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "ink",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "stamp",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "comment",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
     },
     {
       "viewer_id": "viewer-1",
       "annotation_type": "redaction",
       "render": "NOT_RUN",
-      "reopen_editability": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
       "evidence_ref": ""
+    }
+  ],
+  "journey_observations": [
+    {
+      "viewer_id": "viewer-1",
+      "journey_id": "review-round-trip",
+      "render": "NOT_RUN",
+      "native_interaction": "NOT_RUN",
+      "edit_save_reopen": "NOT_RUN",
+      "return_semantics": "NOT_RUN",
+      "evidence_ref": "",
+      "external_mutation": "NOT_RUN"
     }
   ]
 }
