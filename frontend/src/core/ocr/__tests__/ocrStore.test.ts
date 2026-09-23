@@ -93,6 +93,21 @@ describe('ocrStore', () => {
     expect(useOcrStore.getState().resumeToken).toBeNull();
   });
 
+  it('clears resume state when a replacement OCR result uses another configuration', async () => {
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-store',
+      resumeToken: makeResumeToken('doc-store'),
+    });
+
+    const document = await createMockDocument();
+    useOcrStore.getState().setOcrResult({
+      ...document,
+      engineId: 'different-engine',
+    });
+
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+  });
+
   it('sets OCR result and supports store search', async () => {
     const document = await createMockDocument();
 
