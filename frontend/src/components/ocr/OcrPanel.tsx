@@ -103,6 +103,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     const token = store.resumeToken;
     if (
       !token
+      || !token.tasks.some((task) => task.status !== 'completed')
       || (
         documentFingerprint
         && token.documentFingerprint !== documentFingerprint
