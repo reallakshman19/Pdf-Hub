@@ -12,6 +12,7 @@ const files = Object.fromEntries(
       'src/core/ocr/ocrHydrationBridge.ts',
       'src/core/ocr/ocrStore.ts',
       'src/core/ocr/ocrFinalIntegration.ts',
+      'src/core/ocr/ocrPipelineBatchPlanner.ts',
       'src/components/ocr/workflow/useOcrRunWorkflow.ts',
       'src/components/ocr/workflow/OcrRunControls.tsx',
       'src/core/writer-v2/export/exportCurrentWriterProject.ts',
@@ -77,9 +78,17 @@ requireTokens('src/core/ocr/ocrFinalIntegration.ts', [
   'existingResult?: OcrDocumentResult | null',
   'resumeOcrBatchTasks',
   'assertPersistedResultsCoverCompletedTasks',
+  'deferredResumePageIndexes',
   'OCR_FINAL_RESUME_APPLIED',
   'OCR_FINAL_RESUME_INVALID',
   "page.status === 'failed'",
+]);
+
+requireTokens('src/core/ocr/ocrPipelineBatchPlanner.ts', [
+  'deferredPageIndexes',
+  'OCR_PIPELINE_RESUME_PAGES_DEFERRED',
+  'activePageIndexes',
+  'deferredInputs',
 ]);
 
 requireTokens('src/components/ocr/workflow/useOcrRunWorkflow.ts', [
@@ -125,6 +134,7 @@ if (errors.length > 0) {
   console.log('[PASS] Project manifest persistence is fail-closed for completed-page evidence.');
   console.log('[PASS] Hydration restores compatible checkpoints and discards document-rebound state.');
   console.log('[PASS] Store and final integration enforce resumable execution without silent reprocessing.');
+  console.log('[PASS] Completed checkpoint pages are deferred before rasterization.');
   console.log('[PASS] Project save/reopen path persists and restores OCR checkpoint state.');
   console.log('[PASS] Resume OCR is explicit in the workflow UI.');
   console.log('[PASS] Multilingual OCR scope is absent from the resume-token contract.');
