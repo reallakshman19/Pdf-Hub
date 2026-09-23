@@ -21,7 +21,12 @@ import {
 import {
   runOcrBatchScheduler,
   type OcrBatchSchedulerSnapshot,
+  type OcrBatchTask,
 } from './ocrBatchScheduler';
+import {
+  resumeOcrBatchTasks,
+  type OcrResumeTokenV1,
+} from './ocrResumeState';
 import type { OcrWorkerClient } from './workers/ocrWorkerClient';
 import type { OcrRasterWorkerClient } from './workers/ocrRasterWorkerClient';
 import type { OcrJobRunnerSnapshot } from './ocrJobRunner';
@@ -31,6 +36,8 @@ export interface RunFinalOcrIntegrationJobInput {
   documentFingerprint: string;
   engineId: string;
   requestedProfileId: OcrProfileId;
+  resumeToken?: OcrResumeTokenV1 | null;
+  existingResult?: OcrDocumentResult | null;
   forceOcr?: boolean;
 
   mode: OcrPipelineMode;
@@ -74,6 +81,8 @@ export interface OcrFinalIntegrationDiagnostic {
     | 'OCR_FINAL_BATCH_PLAN_READY'
     | 'OCR_FINAL_BATCH_RUN_STARTED'
     | 'OCR_FINAL_BATCH_RUN_COMPLETED'
+    | 'OCR_FINAL_RESUME_APPLIED'
+    | 'OCR_FINAL_RESUME_INVALID'
     | 'OCR_FINAL_RESULT_MERGED'
     | 'OCR_FINAL_NO_RESULTS'
     | 'OCR_FINAL_CANCELLED';
@@ -152,6 +161,42 @@ export async function runFinalOcrIntegrationJob(
     message: `${batchPlan.batchTasks.length} OCR batch task(s) prepared using ${batchPlan.rasterPlanKind}.`,
   });
 
+  let executableTasks = batchPlan.batchTasks;
+  if (input.resumeToken) {
+    try {
+      executableTasks = resumeOcrBatchTasks({
+        token: input.resumeToken,
+        documentFingerprint: input.documentFingerprint,
+        engineId: input.engineId,
+        profileId: input.requestedProfileId,
+        tasks: batchPlan.batchTasks,
+      });
+      assertPersistedResultsCoverCompletedTasks(
+        executableTasks,
+        input.existingResult ?? null,
+        {
+          documentFingerprint: input.documentFingerprint,
+          engineId: input.engineId,
+          profileId: input.requestedProfileId,
+        },
+      );
+      emitDiagnostic({
+        level: 'info',
+        code: 'OCR_FINAL_RESUME_APPLIED',
+        message: `OCR resume state applied: ${executableTasks.filter((task) => task.status === 'completed').length} completed batch(es) preserved without rerun.`,
+      });
+    } catch (error) {
+      emitDiagnostic({
+        level: 'error',
+        code: 'OCR_FINAL_RESUME_INVALID',
+        message: error instanceof Error
+          ? error.message
+          : 'OCR resume state is invalid.',
+      });
+      throw error;
+    }
+  }
+
   emitDiagnostic({
     level: 'info',
     code: 'OCR_FINAL_BATCH_RUN_STARTED',
@@ -159,7 +204,7 @@ export async function runFinalOcrIntegrationJob(
   });
 
   const batchRun = await runOcrBatchScheduler<OcrEnginePageInput[], OcrDocumentResult>({
-    tasks: batchPlan.batchTasks,
+    tasks: executableTasks,
     concurrency: input.batchConcurrency ?? 1,
     signal: input.signal,
     runTask: async (task, signal) => {
@@ -179,6 +224,16 @@ export async function runFinalOcrIntegrationJob(
         signal,
         onProgress: input.onProgress,
       });
+
+      const failedPageIndexes = pipelineResult.result.pages
+        .filter((page) => page.status === 'failed')
+        .map((page) => page.pageIndex);
+
+      if (failedPageIndexes.length > 0) {
+        throw new Error(
+          `OCR batch ${task.id} returned failed page(s): ${failedPageIndexes.join(', ')}.`,
+        );
+      }
 
       return pipelineResult.result;
     },
@@ -205,7 +260,12 @@ export async function runFinalOcrIntegrationJob(
     documentFingerprint: input.documentFingerprint,
     engineId: input.engineId,
     profileId: input.requestedProfileId,
-    results: batchRun.results.map((item) => item.output),
+    results: [
+      ...(input.resumeToken && input.existingResult
+        ? [input.existingResult]
+        : []),
+      ...batchRun.results.map((item) => item.output),
+    ],
     diagnostics: [
       ...mapFinalDiagnosticsToOcrDiagnostics(diagnostics),
       ...batchPlan.resolvedMode.diagnostics.map((diagnostic) => ({
@@ -242,6 +302,54 @@ export async function runFinalOcrIntegrationJob(
     diagnostics,
     batchSnapshot: batchRun.snapshot,
   };
+}
+
+function assertPersistedResultsCoverCompletedTasks(
+  tasks: OcrBatchTask<OcrEnginePageInput[]>[],
+  existingResult: OcrDocumentResult | null,
+  expected: {
+    documentFingerprint: string;
+    engineId: string;
+    profileId: OcrProfileId;
+  },
+): void {
+  const completedPageIndexes = new Set(
+    tasks
+      .filter((task) => task.status === 'completed')
+      .flatMap((task) => task.pageIndexes),
+  );
+
+  if (completedPageIndexes.size === 0) return;
+
+  if (!existingResult) {
+    throw new Error(
+      'OCR resume state preserves completed batches but no persisted OCR result is available.',
+    );
+  }
+
+  if (
+    existingResult.documentFingerprint !== expected.documentFingerprint
+    || existingResult.engineId !== expected.engineId
+    || existingResult.profileId !== expected.profileId
+  ) {
+    throw new Error(
+      'OCR persisted result does not match the resume document/engine/profile configuration.',
+    );
+  }
+
+  const persistedPageIndexes = new Set(
+    existingResult.pages.map((page) => page.pageIndex),
+  );
+
+  const missing = [...completedPageIndexes].filter(
+    (pageIndex) => !persistedPageIndexes.has(pageIndex),
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `OCR resume state references completed page(s) without persisted OCR results: ${missing.join(', ')}.`,
+    );
+  }
 }
 
 export function mergeOcrDocumentResults(input: {
