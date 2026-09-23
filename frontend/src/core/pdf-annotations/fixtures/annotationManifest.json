@@ -757,7 +757,14 @@
       "application_model": "SINGLE_THREAD_STATUS",
       "projection_rule": "Project the latest observable Review transition by modification/creation timestamp with annotation order as a deterministic fallback.",
       "preservation_rule": "Preserve all native Review state transition annotations and their IRT chains. A PDF Hub save appends a transition only when the application review status differs semantically from the latest native Review state.",
-      "limitation": "Parallel author-specific Review states are preserved in the PDF but are not yet surfaced as separate application statuses."
+      "limitation": "Parallel author-specific Review states are preserved in the PDF but are not yet surfaced as separate application statuses.",
+      "transition_author": {
+        "native_source": "State annotation T text string",
+        "imported_projection": "ReviewMetadata.statusAuthor",
+        "local_status_action_default": "Current User",
+        "write_rule": "New Review state transitions use statusAuthor when known; thread author is only a fallback for legacy/imported metadata lacking transition-actor provenance.",
+        "chain_rule": "A newly appended Review state transition points to the latest preserved state transition by the same statusAuthor, or to the review root when that author has no prior state."
+      }
     }
   },
   "review_thread_fixture": {
