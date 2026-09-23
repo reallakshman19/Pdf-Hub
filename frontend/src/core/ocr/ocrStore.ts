@@ -152,6 +152,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
           profileId,
           forceOcr,
         },
+        input.result ?? null,
       ),
       forceOcr,
       selectedPageIndexes: normalizePageIndexes(input.selectedPageIndexes ?? []),
@@ -196,6 +197,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
           profileId: current.profileId,
           forceOcr: current.forceOcr,
         },
+        current.result,
       ),
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
@@ -231,28 +233,36 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       return;
     }
     const jobs = upsertJob(previous.jobs, snapshot.job);
+    const nextResult = mergeCompatibleOcrResults(
+      previous.result,
+      snapshot.partialResult,
+    );
+    const nextDocumentFingerprint =
+      snapshot.job.documentFingerprint
+      ?? previous.documentFingerprint;
+    const nextEngineId =
+      snapshot.job.engineId
+      ?? previous.engineId;
+    const nextProfileId =
+      snapshot.job.profileId
+      ?? previous.profileId;
 
     const nextState: OcrStoreState = {
       ...previous,
-      documentFingerprint: snapshot.job.documentFingerprint ?? previous.documentFingerprint,
+      documentFingerprint: nextDocumentFingerprint,
       activeJobId: snapshot.job.id,
       jobs,
-      resumeToken: resumeTokenMatchesConfiguration(
+      resumeToken: acceptResumeToken(
         previous.resumeToken,
         {
-          documentFingerprint:
-            snapshot.job.documentFingerprint
-            ?? previous.documentFingerprint,
-          engineId: snapshot.job.engineId ?? previous.engineId,
-          profileId: snapshot.job.profileId ?? previous.profileId,
+          documentFingerprint: nextDocumentFingerprint,
+          engineId: nextEngineId,
+          profileId: nextProfileId,
+          forceOcr: previous.forceOcr,
         },
-      )
-        ? previous.resumeToken
-        : null,
-      result: mergeCompatibleOcrResults(
-        previous.result,
-        snapshot.partialResult,
+        nextResult,
       ),
+      result: nextResult,
       lastUpdatedAt: new Date().toISOString(),
       dirty: true,
     };
@@ -276,18 +286,18 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       ...previous,
       documentFingerprint: result?.documentFingerprint ?? previous.documentFingerprint,
       result,
-      resumeToken:
-        result
-        && resumeTokenMatchesConfiguration(
-          previous.resumeToken,
-          {
-            documentFingerprint: result.documentFingerprint,
-            engineId: result.engineId,
-            profileId: result.profileId,
-          },
-        )
-          ? previous.resumeToken
-          : null,
+      resumeToken: result
+        ? acceptResumeToken(
+            previous.resumeToken,
+            {
+              documentFingerprint: result.documentFingerprint,
+              engineId: result.engineId,
+              profileId: result.profileId,
+              forceOcr: previous.forceOcr,
+            },
+            result,
+          )
+        : null,
       lastUpdatedAt: new Date().toISOString(),
       dirty: true,
     };
@@ -587,6 +597,7 @@ function acceptResumeToken(
     profileId: OcrProfileId;
     forceOcr: boolean;
   },
+  persistedResult: OcrDocumentResult | null,
 ): OcrResumeTokenV1 | null {
   if (!token) return null;
 
@@ -608,7 +619,42 @@ function acceptResumeToken(
     return null;
   }
 
+  if (!resumeTokenCompletedPagesArePersisted(token, persistedResult)) {
+    return null;
+  }
+
   return cloneResumeToken(token);
+}
+
+function resumeTokenCompletedPagesArePersisted(
+  token: OcrResumeTokenV1,
+  result: OcrDocumentResult | null,
+): boolean {
+  const completedPageIndexes = new Set(
+    token.tasks
+      .filter((task) => task.status === 'completed')
+      .flatMap((task) => task.pageIndexes),
+  );
+
+  if (completedPageIndexes.size === 0) return true;
+  if (!result) return false;
+
+  if (
+    result.documentFingerprint !== token.documentFingerprint
+    || result.engineId !== token.engineId
+    || result.profileId !== token.profileId
+  ) {
+    return false;
+  }
+
+  const pagesByIndex = new Map(
+    result.pages.map((page) => [page.pageIndex, page]),
+  );
+
+  return [...completedPageIndexes].every((pageIndex) => {
+    const page = pagesByIndex.get(pageIndex);
+    return Boolean(page && page.status !== 'failed');
+  });
 }
 
 function resumeTokenMatchesConfiguration(
