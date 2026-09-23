@@ -19,6 +19,7 @@ import {
 } from '@/core/ocr/ocrBatchScheduler';
 import {
   createOcrResumeToken,
+  normalizeOcrResumeExecutionConfig,
   ocrResumeExecutionConfigMatches,
 } from '@/core/ocr/ocrResumeState';
 import {
@@ -93,12 +94,20 @@ export function useOcrRunWorkflow({
   const [pipelineMode, setPipelineMode] = React.useState<OcrPipelineMode>('main');
   const [pipelineMessages, setPipelineMessages] = React.useState<string[]>([]);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const [executionPolicy, setExecutionPolicy] = React.useState<OcrExecutionPolicy>(() =>
-    createOcrExecutionPolicy({
-      rasterScale: store.resumeToken?.executionConfig.rasterScale,
-      maxCanvasPixels: store.resumeToken?.executionConfig.maxCanvasPixels,
-    }),
-  );
+  const [executionPolicy, setExecutionPolicy] = React.useState<OcrExecutionPolicy>(() => {
+    const restoredConfig = store.resumeToken
+      ? normalizeOcrResumeExecutionConfig(
+          store.resumeToken.executionConfig,
+        )
+      : null;
+
+    return createOcrExecutionPolicy({
+      rasterScale: restoredConfig?.rasterScale,
+      maxCanvasPixels: restoredConfig?.maxCanvasPixels,
+      maxPagesPerJob: restoredConfig?.maxPagesPerJob,
+      allowLargeJobs: restoredConfig?.allowLargeJobs,
+    });
+  });
   const lastResumeTokenRef = React.useRef(store.resumeToken);
   const [activeAbort, setActiveAbort] = React.useState<ReturnType<typeof createOcrAbortControllerWithTimeout> | null>(null);
   const [executionDiagnostics, setExecutionDiagnostics] = React.useState<string[]>([]);
@@ -110,12 +119,17 @@ export function useOcrRunWorkflow({
     const resumeToken = store.resumeToken;
 
     if (resumeToken && lastResumeTokenRef.current !== resumeToken) {
+      const restoredConfig = normalizeOcrResumeExecutionConfig(
+        resumeToken.executionConfig,
+      );
       lastResumeTokenRef.current = resumeToken;
       setExecutionPolicy((current) =>
         createOcrExecutionPolicy({
           ...current,
-          rasterScale: resumeToken.executionConfig.rasterScale,
-          maxCanvasPixels: resumeToken.executionConfig.maxCanvasPixels,
+          rasterScale: restoredConfig.rasterScale,
+          maxCanvasPixels: restoredConfig.maxCanvasPixels,
+          maxPagesPerJob: restoredConfig.maxPagesPerJob,
+          allowLargeJobs: restoredConfig.allowLargeJobs,
         }),
       );
       return;
@@ -131,13 +145,17 @@ export function useOcrRunWorkflow({
           forceOcr: store.forceOcr,
           rasterScale: executionPolicy.rasterScale,
           maxCanvasPixels: executionPolicy.maxCanvasPixels,
+          maxPagesPerJob: executionPolicy.maxPagesPerJob,
+          allowLargeJobs: executionPolicy.allowLargeJobs,
         },
       )
     ) {
       useOcrStore.getState().setOcrResumeToken(null);
     }
   }, [
+    executionPolicy.allowLargeJobs,
     executionPolicy.maxCanvasPixels,
+    executionPolicy.maxPagesPerJob,
     executionPolicy.rasterScale,
     store.forceOcr,
     store.resumeToken,
@@ -183,6 +201,8 @@ export function useOcrRunWorkflow({
     forceOcr: store.forceOcr,
     rasterScale: executionPolicy.rasterScale,
     maxCanvasPixels: executionPolicy.maxCanvasPixels,
+    maxPagesPerJob: executionPolicy.maxPagesPerJob,
+    allowLargeJobs: executionPolicy.allowLargeJobs,
   };
 
   const applicableResumeToken =
@@ -250,8 +270,10 @@ export function useOcrRunWorkflow({
     );
   }, [
     effectiveDocumentFingerprint,
+    currentResumeExecutionConfig.allowLargeJobs,
     currentResumeExecutionConfig.forceOcr,
     currentResumeExecutionConfig.maxCanvasPixels,
+    currentResumeExecutionConfig.maxPagesPerJob,
     currentResumeExecutionConfig.rasterScale,
     store.engineId,
     store.profileId,
