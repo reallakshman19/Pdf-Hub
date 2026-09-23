@@ -114,6 +114,45 @@ describe('ocrPipelineBatchPlanner', () => {
     expect(pageInputs.pageInputs.map((page) => page.pageIndex)).toEqual([0, 1]);
   });
 
+  it('does not rasterize deferred completed resume pages', async () => {
+    const rasterRequests: number[][] = [];
+    const rasterClient = {
+      async rasterizePages(payload) {
+        rasterRequests.push([...payload.pageIndexes]);
+        return makePages(payload.pageIndexes);
+      },
+      dispose() {
+        return undefined;
+      },
+    } satisfies Pick<OcrRasterWorkerClient, 'rasterizePages' | 'dispose'>;
+
+    const plan = await createOcrPipelineBatchPlan({
+      mode: 'worker-raster-worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      pdfBytes: new Uint8Array([1, 2, 3]),
+      pageIndexes: [0, 1, 2, 3],
+      deferredPageIndexes: [0, 1],
+      batchSize: 2,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+      rasterWorkerClient: rasterClient,
+    });
+
+    expect(rasterRequests).toEqual([[2, 3]]);
+    expect(plan.pageInputs.map((page) => page.pageIndex)).toEqual([0, 1, 2, 3]);
+    expect(plan.batchTasks[0].pageIndexes).toEqual([0, 1]);
+    expect(plan.batchTasks[1].pageIndexes).toEqual([2, 3]);
+    expect(
+      plan.diagnostics.some(
+        (item) => item.code === 'OCR_PIPELINE_RESUME_PAGES_DEFERRED',
+      ),
+    ).toBe(true);
+  });
+
   it('creates full worker-raster batch plan using worker raster client', async () => {
     const rasterClient = {
       async rasterizePages(payload, options) {
