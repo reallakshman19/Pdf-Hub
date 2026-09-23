@@ -4,6 +4,8 @@ import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
   importPdfHubWriterProjectFromReader,
@@ -368,6 +370,7 @@ export async function commitStagedWriterProjectImport(
   const sessionSnapshot = useSessionStore.getState();
   const writerSnapshot = useWriterV2Store.getState();
   const editorSnapshot = useEditorStore.getState();
+  const ocrSnapshot = useOcrStore.getState();
 
   try {
     const mode = project.documentMeta?.mode ?? inferredModeFromProject(project);
@@ -401,6 +404,24 @@ export async function commitStagedWriterProjectImport(
       persistedAt: project.manifest.updatedAt,
       documentMeta: project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null,
     });
+
+    useOcrStore.getState().clearOcr();
+    if (project.ocrProject) {
+      const restoredOcr = hydrateOcrStoreFromProjectPayload({
+        payload: project.ocrProject,
+        expectedDocumentFingerprint: project.manifest.documentFingerprint,
+      });
+
+      if (!restoredOcr.restored) {
+        throw new Error(
+          restoredOcr.diagnostics.find(
+            (diagnostic) => diagnostic.level === 'error',
+          )?.message
+          ?? 'Writer project OCR payload could not be restored.',
+        );
+      }
+    }
+
     useEditorStore.getState().setActiveMode('write');
     assertOperationCurrent(operation, 'standalone Writer project after commit');
 
@@ -415,6 +436,7 @@ export async function commitStagedWriterProjectImport(
     useSessionStore.setState(sessionSnapshot, true);
     useWriterV2Store.setState(writerSnapshot, true);
     useEditorStore.setState(editorSnapshot, true);
+    useOcrStore.setState(ocrSnapshot, true);
     throw error;
   } finally {
     registered.revoked = true;
