@@ -896,7 +896,7 @@ function addSubtypeFields(
     case 'comment':
     case 'sticky-note':
       target.Name = textAnnotationNameValue(sourceDict, lib);
-      target.Open = annotation.type === 'sticky-note' && annotation.data.isCollapsed === false;
+      target.Open = annotation.data.isCollapsed === false;
       target.C = colorArray(fill);
       return;
 
