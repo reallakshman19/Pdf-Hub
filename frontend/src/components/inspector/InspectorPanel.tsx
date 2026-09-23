@@ -3,7 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
-import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
+import {
+  hasNativeRichTextSemantics,
+  isNativeRichTextReadOnly,
+} from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Minus, X } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
@@ -405,6 +408,7 @@ const PropertiesTab: React.FC<{
   toggleLockSelection,
 }) => {
   const richTextReadOnly = isNativeRichTextReadOnly(annotation);
+  const richTextStructuralReadOnly = hasNativeRichTextSemantics(annotation);
 
   const updateRect = (key: 'x' | 'y' | 'width' | 'height', value: string) => {
     const next = Number(value);
@@ -431,7 +435,7 @@ const PropertiesTab: React.FC<{
       <LabeledSelect
         label="Type"
         value={annotation.type}
-        disabled={richTextReadOnly}
+        disabled={richTextStructuralReadOnly}
         onChange={(value) => updateAnnotation(annotation.id, { type: value as AnnotationType })}
         options={ANNOTATION_TYPES.map((type) => ({ label: type, value: type }))}
       />
