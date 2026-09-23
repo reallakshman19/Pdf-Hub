@@ -104,7 +104,7 @@ Where the viewer supports annotation editing:
 3. close and reopen in that viewer;
 4. confirm the edited work remains native;
 5. reopen the externally saved PDF in PDF Hub;
-6. verify root/reply identity, review state, geometry/content, and no duplication;
+6. verify root/reply identity, review state, geometry/content, nested reply parentage where present, and no duplication;
 7. save again in PDF Hub and structurally verify the graph again;
 8. record `external_mutation=PASS` only when the returned-file probe reports a non-empty `external_delta`;
 9. record `return_semantics=PASS` only when that return path succeeds.
@@ -130,7 +130,9 @@ The probe:
 7. reopens through the production reader;
 8. repeats a second PDF Hub save/reopen;
 9. requires semantic convergence with no reply-ID drift or managed relationship duplication;
-10. writes `phase10-review-return-evidence-v1` JSON containing `external_delta` only after all assertions pass.
+10. compares normalized native reply topology (`id`, `parentReplyId`, depth, author/content) before and after the two PDF Hub saves;
+11. preserves reply-attached Review-state relationships without projecting those states onto the root thread;
+12. writes `phase10-review-return-evidence-v1` JSON containing `external_delta` only after all assertions pass.
 
 A no-op external open/save fails qualification. A successful command prints `RETURN SEMANTICS QUALIFIED`. Use the generated JSON report as the durable evidence reference for the journey return claim.
 
