@@ -753,7 +753,7 @@
       "rationale": "Full document rewrite invalidates cryptographic signatures. Users must be warned explicitly."
     },
     "review_state_projection": {
-      "native_model": "AUTHOR_SPECIFIC_CHAINED_STATE_TRANSITIONS",
+      "native_model": "AUTHOR_SPECIFIC_REVIEW_STATE_ANNOTATIONS",
       "application_model": "SINGLE_THREAD_STATUS",
       "projection_rule": "Project the latest observable Review transition by modification/creation timestamp with annotation order as a deterministic fallback.",
       "preservation_rule": "Preserve all native Review state transition annotations and their existing IRT topology. New PDF Hub Review state transitions refer directly to the original review annotation and are appended only when the application review status differs semantically from the latest native Review state.",
@@ -765,6 +765,13 @@
         "write_rule": "New Review state transitions use statusAuthor when known; thread author is only a fallback for legacy/imported metadata lacking transition-actor provenance.",
         "chain_rule": "New Review state transitions refer directly to the original review annotation regardless of author. Existing imported state-to-state chains are preserved as legacy topology."
       }
+    },
+    "reply_thread_topology": {
+      "native_model": "IRT_REPLY_GRAPH",
+      "persistence_model": "FLAT_REPLY_ARRAY_WITH_PARENT_REPLY_ID",
+      "ui_projection": "FLAT_MESSAGES",
+      "preservation_rule": "Preserve direct and nested RT=R reply ancestry through ReviewReply.parentReplyId. Rewritten native replies reconstruct IRT to the logical parent reply; missing or cyclic parent IDs fail safe to the review root.",
+      "reply_state_rule": "Preserve and relink state annotations attached to replies, but never project those reply-attached states onto the root review status."
     }
   },
   "review_thread_fixture": {
@@ -803,6 +810,12 @@
       "initialState": "Completed",
       "encoding": "TEXT_STRING",
       "transition_rule": "New Review state annotations refer directly to the original review annotation through IRT. Legacy/imported state-to-state chains are accepted and preserved without destructive normalization."
+    },
+    "external_nested_reply": {
+      "relationship": "IRT_TO_REPLY",
+      "app_projection": "ReviewReply.parentReplyId",
+      "identity_rule": "Nested reply logical identity is stable across private-metadata loss and repeated PDF Hub saves.",
+      "state_on_reply_rule": "A Review state whose IRT targets a reply is preserved and relinked to that reply when replies are rewritten, but it does not update the root thread status."
     }
   }
 }
