@@ -641,6 +641,7 @@ function installRecoveryCheckpoint(
     recomputeOcrDerivedState({
       ...currentOcr,
       ...restoredOcr,
+      resumeToken: null,
       activeJobId: null,
       jobs: [],
       dirty: hasOcrState,
