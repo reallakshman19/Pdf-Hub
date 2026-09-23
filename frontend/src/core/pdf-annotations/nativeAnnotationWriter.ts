@@ -47,6 +47,7 @@ interface ReviewStateRecord {
 interface ReviewStateGraph {
   rootRefKey: string | null;
   records: ReviewStateRecord[];
+  rootStateRecords: ReviewStateRecord[];
 }
 
 interface ExistingReplyRecord {
@@ -239,7 +240,7 @@ function collectExistingReplyGraph(
   }
 
   if (!rootRefKey) {
-    return { rootRefKey: null, records: [] };
+    return { rootRefKey: null, records: [], rootStateRecords: [] };
   }
 
   const byRef = new Map(candidates.map((record) => [record.refKey, record]));
@@ -330,21 +331,38 @@ function collectReviewStateGraph(
     return { rootRefKey: null, records: [] };
   }
 
-  const records = candidates.filter((record) => {
+  const stateRefKeys = new Set(candidates.map((record) => record.refKey));
+  const records: ReviewStateRecord[] = [];
+  const rootStateRecords: ReviewStateRecord[] = [];
+
+  for (const record of candidates) {
     let parentKey = record.parentKey;
     const visited = new Set<string>();
+    let reachesRoot = false;
+    let stateOnlyAncestry = true;
 
     while (parentKey) {
-      if (parentKey === rootRefKey) return true;
-      if (visited.has(parentKey)) return false;
+      if (parentKey === rootRefKey) {
+        reachesRoot = true;
+        break;
+      }
+      if (visited.has(parentKey)) break;
       visited.add(parentKey);
+
+      if (!stateRefKeys.has(parentKey)) {
+        stateOnlyAncestry = false;
+      }
       parentKey = parentByRef.get(parentKey) ?? null;
     }
 
-    return false;
-  });
+    if (!reachesRoot) continue;
+    records.push(record);
+    if (stateOnlyAncestry) {
+      rootStateRecords.push(record);
+    }
+  }
 
-  return { rootRefKey, records };
+  return { rootRefKey, records, rootStateRecords };
 }
 
 function writeNativeReplies(
@@ -464,7 +482,7 @@ function appendReviewStateTransitionIfNeeded(
   if (!review) return;
 
   const desiredStatus = review.status;
-  const latest = latestReviewStateRecord(graph.records);
+  const latest = latestReviewStateRecord(graph.rootStateRecords);
   if (latest && reviewStatusFromState(latest.state) === desiredStatus) {
     return;
   }
