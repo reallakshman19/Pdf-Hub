@@ -64,6 +64,39 @@ describe('ocrHydrationBridge', () => {
     ).toBe(true);
   });
 
+  it('restores checkpoint engine and profile configuration', () => {
+    const resumeToken: OcrResumeTokenV1 = {
+      ...makeResumeToken('doc-config-restore'),
+      engineId: 'tesseract-js',
+      profileId: 'table-heavy',
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0],
+          status: 'failed',
+          errorMessage: 'Interrupted before completion.',
+        },
+      ],
+    };
+
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-config-restore',
+      resumeToken,
+    });
+
+    const result = hydrateOcrStoreFromProjectPayload({
+      payload,
+      expectedDocumentFingerprint: 'doc-config-restore',
+    });
+
+    expect(result.restored).toBe(true);
+    expect(useOcrStore.getState().engineId).toBe('tesseract-js');
+    expect(useOcrStore.getState().profileId).toBe('table-heavy');
+    expect(useOcrStore.getState().resumeToken?.engineId).toBe('tesseract-js');
+    expect(useOcrStore.getState().resumeToken?.profileId).toBe('table-heavy');
+  });
+
   it('normalizes fingerprint when expected document differs', async () => {
     const payload = await makePayload('old-doc');
 
