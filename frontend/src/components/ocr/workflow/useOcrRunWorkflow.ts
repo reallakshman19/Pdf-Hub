@@ -124,9 +124,13 @@ export function useOcrRunWorkflow({
 
   const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
   const hasInputSource = Boolean(pdfBytes || (pages && pages.length > 0));
+  const applicableResumeToken =
+    selectedPages.length === 0
+      ? store.resumeToken
+      : null;
 
   const hasPendingResume = Boolean(
-    store.resumeToken?.tasks.some((task) => task.status !== 'completed'),
+    applicableResumeToken?.tasks.some((task) => task.status !== 'completed'),
   );
 
   const state: OcrRunWorkflowState = isRunning
@@ -259,8 +263,6 @@ export function useOcrRunWorkflow({
     store.engineId,
     store.forceOcr,
     store.profileId,
-    store.resumeToken,
-    store.result,
   ]);
 
   const runSelectedOcr = React.useCallback(async () => {
@@ -302,8 +304,8 @@ export function useOcrRunWorkflow({
         documentFingerprint: effectiveDocumentFingerprint,
         engineId: store.engineId,
         requestedProfileId: store.profileId,
-        resumeToken: store.resumeToken,
-        existingResult: store.result,
+        resumeToken: applicableResumeToken,
+        existingResult: applicableResumeToken ? store.result : null,
         forceOcr: store.forceOcr,
         mode: pipelineMode,
         pdfBytes,
@@ -354,9 +356,11 @@ export function useOcrRunWorkflow({
     pdfBytes,
     pipelineMode,
     requestedPageIndexes,
+    applicableResumeToken,
     store.engineId,
     store.forceOcr,
     store.profileId,
+    store.result,
   ]);
 
   const clearOcr = React.useCallback(() => {
