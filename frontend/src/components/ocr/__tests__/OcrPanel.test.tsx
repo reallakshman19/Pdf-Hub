@@ -13,6 +13,8 @@ import {
 
 import { OcrPanel } from '../OcrPanel';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrDemoResult } from '@/core/ocr/fixtures/ocrDemoFixtures';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 
 const pageInputs = [
   {
@@ -57,6 +59,31 @@ describe('OcrPanel primary workflow', () => {
 
     expect(runSettings.open).toBe(false);
     expect(advancedWorkflow.open).toBe(false);
+  });
+
+  it('shows Resume OCR when a compatible checkpoint is restored', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'doc-resume-panel'),
+    );
+    useOcrStore.getState().setOcrResumeToken(
+      makeResumeToken('doc-resume-panel'),
+    );
+
+    render(
+      <OcrPanel
+        documentFingerprint="doc-resume-panel"
+        selectedPageIndexes={[0, 1]}
+        pageCount={2}
+        pages={pageInputs}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: /resume ocr/i }),
+    ).toBeTruthy();
+    expect(screen.getByTestId('ocr-run-status').textContent).toMatch(
+      /checkpoint restored/i,
+    );
   });
 
   it('disables recognition when no real PDF or raster source exists', () => {
@@ -230,4 +257,37 @@ describe('OcrPanel primary workflow', () => {
     expect(screen.getByTestId('ocr-project-section')).toBeTruthy();
     expect(screen.getByTestId('ocr-diagnostics-section')).toBeTruthy();
   });
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'completed',
+      },
+      {
+        id: 'ocr-batch-2',
+        index: 1,
+        pageIndexes: [1],
+        status: 'failed',
+        errorMessage: 'Synthetic interrupted batch.',
+      },
+    ],
+  };
+}
+
 });
