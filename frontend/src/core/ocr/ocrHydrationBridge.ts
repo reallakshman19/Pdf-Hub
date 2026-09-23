@@ -162,6 +162,8 @@ export function hydrateOcrStoreFromProjectPayload(
       input.payload.regions,
       expectedDocumentFingerprint ?? payloadDocumentFingerprint,
     ),
+    languageHints: resumeToken?.languages,
+    resumeToken,
     updatedAt: input.updatedAt ?? input.payload.manifest.updatedAt,
   });
 
@@ -228,7 +230,7 @@ export function createOcrProjectPayloadFromStore(
     corrections: store.corrections,
     regions: store.regions,
     writerInsertionQueue: input.writerInsertionQueue ?? createOcrWriterInsertionQueue(),
-    resumeToken: input.resumeToken ?? null,
+    resumeToken: input.resumeToken ?? store.resumeToken,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
