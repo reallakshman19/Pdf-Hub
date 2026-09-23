@@ -84,6 +84,7 @@ export function OcrEngineControls({
 
 export interface OcrRunActionsProps {
   running: boolean;
+  resumeAvailable?: boolean;
   onRun: () => void;
   onClear: () => void;
   onCancel?: () => void;
@@ -94,6 +95,7 @@ export interface OcrRunActionsProps {
 
 export function OcrRunActions({
   running,
+  resumeAvailable = false,
   onRun,
   onClear,
   onCancel,
@@ -118,7 +120,7 @@ export function OcrRunActions({
         ) : (
           <>
             <Search className="mr-1 h-3.5 w-3.5" />
-            Recognize text
+            {resumeAvailable ? 'Resume OCR' : 'Recognize text'}
           </>
         )}
       </Button>
