@@ -92,20 +92,48 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     forceOcr: state.forceOcr,
     jobs: state.jobs,
     profileId: state.profileId,
+    resumeToken: state.resumeToken,
     lowConfidenceWords: state.lowConfidenceWords,
     regions: state.regions,
     setForceOcr: state.setForceOcr,
     setOcrEngineId: state.setOcrEngineId,
     setOcrProfileId: state.setOcrProfileId,
   })));
-  const [pageScope, setPageScope] = React.useState<OcrPageScope>(
-    selectedPageIndexes.length > 0 ? 'selected' : 'all',
+  const resumePageIndexes = React.useMemo(() => {
+    const token = store.resumeToken;
+    if (
+      !token
+      || (
+        documentFingerprint
+        && token.documentFingerprint !== documentFingerprint
+      )
+    ) {
+      return [];
+    }
+
+    return [...new Set(
+      token.tasks.flatMap((task) => task.pageIndexes),
+    )].sort((left, right) => left - right);
+  }, [documentFingerprint, store.resumeToken]);
+
+  const [pageScope, setPageScope] = React.useState<OcrPageScope>(() =>
+    resumePageIndexes.length > 0
+      ? 'resume'
+      : selectedPageIndexes.length > 0
+        ? 'selected'
+        : 'all',
   );
 
   React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- document changes reset the user-facing page scope to the active selection.
-    setPageScope(selectedPageIndexes.length > 0 ? 'selected' : 'all');
-  }, [documentFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- document/checkpoint changes restore the user-facing OCR scope.
+    setPageScope(
+      resumePageIndexes.length > 0
+        ? 'resume'
+        : selectedPageIndexes.length > 0
+          ? 'selected'
+          : 'all',
+    );
+  }, [documentFingerprint, resumePageIndexes, selectedPageIndexes.length]);
 
   const scopedPageIndexes = React.useMemo(() => {
     const maxPageCount = Math.max(1, pageCount);
@@ -121,11 +149,17 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
         .sort((a, b) => a - b);
     }
 
+    if (pageScope === 'resume' && resumePageIndexes.length > 0) {
+      return resumePageIndexes
+        .filter((pageIndex) => pageIndex >= 0 && pageIndex < maxPageCount);
+    }
+
     return Array.from({ length: maxPageCount }, (_, pageIndex) => pageIndex);
   }, [
     currentPageIndex,
     pageCount,
     pageScope,
+    resumePageIndexes,
     selectedPageIndexes,
   ]);
 
@@ -219,6 +253,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
             value={pageScope}
             currentPageIndex={currentPageIndex}
             selectedPageIndexes={selectedPageIndexes}
+            resumePageIndexes={resumePageIndexes}
             pageCount={pageCount}
             disabled={runWorkflow.isRunning}
             onChange={setPageScope}
