@@ -147,6 +147,16 @@ if (!reviewFixture.external_nested_reply
   errors.push('Manifest must declare the external nested-reply interoperability fixture');
 }
 
+
+const dictionaryPreservation = manifest.policies?.native_dictionary_preservation;
+if (!dictionaryPreservation
+  || !dictionaryPreservation.ownership_rule?.includes('Other standard, vendor, and extension')
+  || !dictionaryPreservation.reply_passive_rule?.includes('copied forward')
+  || !dictionaryPreservation.appearance_rule?.includes('semantically unchanged')
+  || !dictionaryPreservation.appearance_rule?.includes('stale AP is omitted')) {
+  errors.push('Manifest must declare passive native dictionary and conditional /AP preservation');
+}
+
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
   errors.push('Manifest policies must declare save preserves native annotations');
 }
@@ -214,7 +224,7 @@ console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
-console.log('[PASS] Root/reply/state relationships, nested reply topology, actor provenance, and Review-state preservation verified.');
+console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');
