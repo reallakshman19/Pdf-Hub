@@ -815,7 +815,36 @@ function squareAnnotationType(
 function readAnnotationBorder(
   dict: PDFDict,
   lib: PdfLibModule,
-): { width: number; style: 'solid' | 'dashed' | 'dotted' | 'none' } | null {
+): {
+  width: number;
+  style: 'solid' | 'dashed' | 'dotted' | 'none' | undefined;
+} | null {
+  const borderStyle = dict.lookupMaybe(lib.PDFName.of('BS'), lib.PDFDict);
+  if (borderStyle) {
+    const width =
+      borderStyle.lookupMaybe(lib.PDFName.of('W'), lib.PDFNumber)?.asNumber()
+      ?? 1;
+    if (!Number.isFinite(width)) return null;
+    if (width <= 0) return { width: 0, style: 'none' };
+
+    const styleName =
+      borderStyle.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText()
+      ?? 'S';
+    if (styleName === 'S') return { width, style: 'solid' };
+    if (styleName === 'D') {
+      const dash = borderStyle.lookupMaybe(lib.PDFName.of('D'), lib.PDFArray);
+      const dashValues = dash ? readPdfArrayNumbers(dash, lib) : [];
+      const dotted = dashValues.length > 0
+        && dashValues.every((value) => value <= 1.5);
+      return { width, style: dotted ? 'dotted' : 'dashed' };
+    }
+
+    // Bevelled/inset/underline styles are standards-native but not currently
+    // editable in PDF Hub. Width remains usable; undefined explicitly clears
+    // any stale private borderStyle while the source BS dictionary is preserved.
+    return { width, style: undefined };
+  }
+
   const border = dict.lookupMaybe(lib.PDFName.of('Border'), lib.PDFArray);
   if (!border || border.size() < 3) return null;
 
