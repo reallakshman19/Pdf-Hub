@@ -840,7 +840,7 @@ function registerNativeAnnotation(
     M: lib.PDFString.of(pdfDate(modifiedAt)),
     CreationDate: lib.PDFString.of(pdfDate(createdAt)),
     T: pdfText(lib, author),
-    F: 4,
+    F: annotationFlagsValue(annotation, sourceDict, lib),
     PDFHubVersion: 1,
     PDFHubType: lib.PDFString.of(annotation.type),
     PDFHubData: pdfText(lib, JSON.stringify(serializableAnnotationData(annotation))),
@@ -895,7 +895,7 @@ function addSubtypeFields(
   switch (annotation.type) {
     case 'comment':
     case 'sticky-note':
-      target.Name = 'Comment';
+      target.Name = textAnnotationNameValue(sourceDict, lib);
       target.Open = annotation.type === 'sticky-note' && annotation.data.isCollapsed === false;
       target.C = colorArray(fill);
       return;
@@ -931,12 +931,20 @@ function addSubtypeFields(
       target.Q = textAlignment(annotation.data.textAlign);
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
 
       if (annotation.type === 'callout') {
         target.IT = 'FreeTextCallout';
         const calloutLine = calloutCoordinates(annotation, geometry);
         if (calloutLine) target.CL = calloutLine;
+      } else {
+        const sourceIntent = sourceDict?.get(lib.PDFName.of('IT'));
+        if (sourceIntent) target.IT = sourceIntent;
       }
       return;
     }
@@ -946,17 +954,27 @@ function addSubtypeFields(
     case 'redaction':
       target.C = colorArray(annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : stroke);
       target.IC = colorArray(annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : fill);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
       target.CA = opacity;
       if (annotation.type === 'shape-cloud') {
-        target.BE = { S: 'C', I: 1 };
+        target.BE = cloudBorderEffectValue(sourceDict, lib);
       }
       return;
 
     case 'shape-ellipse':
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
       target.CA = opacity;
       return;
 
@@ -964,34 +982,47 @@ function addSubtypeFields(
       target.Vertices = polygonVertices(annotation, geometry);
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
       target.CA = opacity;
       return;
 
     case 'line':
     case 'arrow':
       target.L = lineCoordinates(annotation, geometry);
-      target.LE = [
-        lineEnding(annotation.data.lineStartCap, 'None'),
-        lineEnding(
-          annotation.data.lineEndCap,
-          annotation.type === 'arrow' ? 'OpenArrow' : 'None',
-        ),
-      ];
+      target.LE = lineEndingsValue(
+        annotation,
+        sourceDict,
+        lib,
+      );
       target.C = colorArray(stroke);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
       target.CA = opacity;
       return;
 
     case 'ink':
       target.InkList = inkLists(annotation, geometry);
       target.C = colorArray(stroke);
-      target.Border = [0, 0, borderWidth];
+      target.Border = annotationBorderValue(
+        annotation,
+        borderWidth,
+        sourceDict,
+        lib,
+      );
       target.CA = opacity;
       return;
 
     case 'stamp':
-      target.Name = stampName(annotation.data.stampStyle);
+      target.Name = stampNameValue(annotation, sourceDict, lib);
       target.C = colorArray(stroke);
       target.CA = opacity;
       return;
@@ -1516,6 +1547,212 @@ function annotationText(annotation: PdfAnnotation): string {
     return annotation.data.review.title.trim();
   }
   return '';
+}
+
+function annotationFlagsValue(
+  annotation: PdfAnnotation,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): number {
+  const sourceFlags =
+    sourceDict?.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber()
+    ?? 4;
+  const flags = Math.max(0, Math.trunc(sourceFlags));
+
+  if (typeof annotation.data.locked !== 'boolean') {
+    return flags;
+  }
+
+  return annotation.data.locked
+    ? (flags | 128)
+    : (flags & ~128);
+}
+
+function textAnnotationNameValue(
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  return sourceDict?.get(lib.PDFName.of('Name')) ?? 'Comment';
+}
+
+function annotationBorderValue(
+  annotation: PdfAnnotation,
+  fallbackWidth: number,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const desiredWidth =
+    annotation.data.borderStyle === 'none'
+      ? 0
+      : fallbackWidth;
+  const desiredStyle =
+    annotation.data.borderStyle === 'dashed'
+    || annotation.data.borderStyle === 'dotted'
+    || annotation.data.borderStyle === 'none'
+      ? annotation.data.borderStyle
+      : 'solid';
+
+  const sourceObject = sourceDict?.get(lib.PDFName.of('Border'));
+  const sourceBorder = sourceDict
+    ? readBorderSemantics(sourceDict, lib)
+    : null;
+
+  if (
+    sourceObject
+    && sourceBorder
+    && nearlyEqual(sourceBorder.width, desiredWidth)
+    && sourceBorder.style === desiredStyle
+  ) {
+    return sourceObject;
+  }
+
+  if (desiredWidth <= 0 || desiredStyle === 'none') {
+    return [0, 0, 0];
+  }
+
+  if (desiredStyle === 'dotted') {
+    return [0, 0, desiredWidth, [1, 1]];
+  }
+
+  if (desiredStyle === 'dashed') {
+    return [0, 0, desiredWidth, [3, 2]];
+  }
+
+  return [0, 0, desiredWidth];
+}
+
+function readBorderSemantics(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): { width: number; style: 'solid' | 'dashed' | 'dotted' | 'none' } | null {
+  const border = dict.lookupMaybe(lib.PDFName.of('Border'), lib.PDFArray);
+  if (!border || border.size() < 3) return null;
+
+  const width = border.lookupMaybe(2, lib.PDFNumber)?.asNumber();
+  if (typeof width !== 'number' || !Number.isFinite(width)) return null;
+  if (width <= 0) return { width: 0, style: 'none' };
+
+  const dash = border.lookupMaybe(3, lib.PDFArray);
+  if (!dash || dash.size() === 0) {
+    return { width, style: 'solid' };
+  }
+
+  const values = readPdfArrayValues(dash, lib);
+  const dotted = values.length > 0
+    && values.every((value) => value <= 1.5);
+  return { width, style: dotted ? 'dotted' : 'dashed' };
+}
+
+function cloudBorderEffectValue(
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const sourceObject = sourceDict?.get(lib.PDFName.of('BE'));
+  const effect = sourceDict?.lookupMaybe(lib.PDFName.of('BE'), lib.PDFDict);
+  const style = effect?.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText();
+  return sourceObject && style === 'C'
+    ? sourceObject
+    : { S: 'C', I: 1 };
+}
+
+function lineEndingsValue(
+  annotation: PdfAnnotation,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const sourceObject = sourceDict?.get(lib.PDFName.of('LE'));
+  const sourceEndings = sourceDict
+    ? readPdfLineEndings(sourceDict, lib)
+    : null;
+
+  const desiredStart = annotation.data.lineStartCap;
+  const desiredEnd = annotation.data.lineEndCap;
+
+  if (sourceObject && sourceEndings) {
+    const sourceStart = lineCapFromPdfEnding(sourceEndings[0]);
+    const sourceEnd = lineCapFromPdfEnding(sourceEndings[1]);
+    const startMatches =
+      sourceStart === undefined
+        ? desiredStart === undefined
+        : sourceStart === desiredStart;
+    const endMatches =
+      sourceEnd === undefined
+        ? desiredEnd === undefined
+        : sourceEnd === desiredEnd;
+
+    if (startMatches && endMatches) {
+      return sourceObject;
+    }
+  }
+
+  return [
+    lineEnding(desiredStart, 'None'),
+    lineEnding(
+      desiredEnd,
+      annotation.type === 'arrow' ? 'OpenArrow' : 'None',
+    ),
+  ];
+}
+
+function readPdfLineEndings(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): [string, string] | null {
+  const array = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray);
+  if (!array || array.size() < 2) return null;
+  const start = array.lookupMaybe(0, lib.PDFName)?.decodeText();
+  const end = array.lookupMaybe(1, lib.PDFName)?.decodeText();
+  return start && end ? [start, end] : null;
+}
+
+function lineCapFromPdfEnding(
+  value: string,
+): 'none' | 'arrow' | 'circle' | 'square' | undefined {
+  if (value === 'None') return 'none';
+  if (
+    value === 'OpenArrow'
+    || value === 'ClosedArrow'
+    || value === 'ROpenArrow'
+    || value === 'RClosedArrow'
+  ) {
+    return 'arrow';
+  }
+  if (value === 'Circle') return 'circle';
+  if (value === 'Square') return 'square';
+  return undefined;
+}
+
+function stampNameValue(
+  annotation: PdfAnnotation,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const sourceObject = sourceDict?.get(lib.PDFName.of('Name'));
+  const sourceName = sourceDict
+    ?.lookupMaybe(lib.PDFName.of('Name'), lib.PDFName)
+    ?.decodeText();
+
+  if (
+    sourceObject
+    && sourceName
+    && stampStyleFromPdfName(sourceName) === (
+      annotation.data.stampStyle ?? 'custom'
+    )
+  ) {
+    return sourceObject;
+  }
+
+  return stampName(annotation.data.stampStyle);
+}
+
+function stampStyleFromPdfName(
+  value: string,
+): 'approved' | 'rejected' | 'draft' | 'confidential' | 'custom' {
+  if (value === 'Approved') return 'approved';
+  if (value === 'Rejected') return 'rejected';
+  if (value === 'Draft') return 'draft';
+  if (value === 'Confidential') return 'confidential';
+  return 'custom';
 }
 
 function reviewStateName(status: 'open' | 'resolved' | 'rejected'): string {
