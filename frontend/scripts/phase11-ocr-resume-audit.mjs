@@ -36,6 +36,8 @@ requireTokens('src/core/ocr/ocrResumeState.ts', [
   'forceOcr',
   'rasterScale',
   'maxCanvasPixels',
+  'maxPagesPerJob',
+  'allowLargeJobs',
   'OCR_RESUME_DOCUMENT_MISMATCH',
   'OCR_RESUME_ENGINE_MISMATCH',
   'OCR_RESUME_PROFILE_MISMATCH',
@@ -98,7 +100,9 @@ requireTokens('src/core/ocr/ocrPipelineBatchPlanner.ts', [
 requireTokens('src/components/ocr/workflow/useOcrRunWorkflow.ts', [
   'createOcrResumeToken',
   'ocrResumeExecutionConfigMatches',
-  'resumeTokenMatchesPageScope',
+  'resumeTokenMatchesBatchPlan',
+  'currentExecutionPlan.allowedPageIndexes',
+  'currentBatchSize',
   'captureBatchSnapshot',
   'mergeOcrBatchRetrySnapshot',
   'hasPendingResume',
@@ -133,7 +137,7 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log('=== Phase 11 OCR Resume Audit ===');
-  console.log('[PASS] Checkpoints bind document, engine, profile, execution settings, and batch topology.');
+  console.log('[PASS] Checkpoints bind document, engine, profile, raster/page-limit execution settings, and exact batch topology.');
   console.log('[PASS] Scheduler preserves terminal batches and retry snapshots preserve full topology.');
   console.log('[PASS] Project manifest persistence is fail-closed for completed-page evidence.');
   console.log('[PASS] Hydration restores compatible checkpoints and discards document-rebound state.');
