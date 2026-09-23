@@ -746,7 +746,7 @@
         "LE"
       ],
       "pending_fields": [],
-      "rationale": "Recognized standard PDF state is authoritative on re-import. DA and QuadPoints are now represented by the production reader/writer rather than remaining implied or pending support.",
+      "rationale": "Recognized standard PDF state is authoritative on re-import. Fully represented fields are projected into the application model; RC and DS are preserved as explicit NATIVE_PRESERVED_READ_ONLY semantics rather than treated as editable or silently ignored.",
       "field_mappings": {
         "DA": "FreeText DA overrides cached fontSize/textColor. Exact source DA is reused on a no-op; supported local font-size/color edits rewrite those operators while preserving the external font resource token.",
         "QuadPoints": "Text-markup QuadPoints override cached geometry and are projected as Rect-normalized textMarkupQuads. Exact source QuadPoints are reused on a no-op; local Rect move/resize regenerates scaled PDF-space quads.",
@@ -775,7 +775,10 @@
         "CreationDate",
         "T"
       ],
-      "preserved_only_fields": [],
+      "preserved_only_fields": [
+        "RC",
+        "DS"
+      ],
       "type_precedence_rule": "For standard-resolvable subtype ambiguities (FreeText, Square, Line), recognized standard fields override stale PDFHubType. Text comment-vs-sticky may retain valid private type only where native reply/state topology does not resolve the application distinction."
     },
     "save_vs_export_separation": {
