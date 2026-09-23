@@ -94,13 +94,54 @@ export function useOcrRunWorkflow({
   const [pipelineMessages, setPipelineMessages] = React.useState<string[]>([]);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [executionPolicy, setExecutionPolicy] = React.useState<OcrExecutionPolicy>(() =>
-    createOcrExecutionPolicy(),
+    createOcrExecutionPolicy({
+      rasterScale: store.resumeToken?.executionConfig.rasterScale,
+      maxCanvasPixels: store.resumeToken?.executionConfig.maxCanvasPixels,
+    }),
   );
+  const lastResumeTokenRef = React.useRef(store.resumeToken);
   const [activeAbort, setActiveAbort] = React.useState<ReturnType<typeof createOcrAbortControllerWithTimeout> | null>(null);
   const [executionDiagnostics, setExecutionDiagnostics] = React.useState<string[]>([]);
   const [estimatedMemoryBytes, setEstimatedMemoryBytes] = React.useState(0);
   const [batchSnapshot, setBatchSnapshot] = React.useState<OcrBatchSchedulerSnapshot | null>(null);
   const [lastBatchController, setLastBatchController] = React.useState<AbortController | null>(null);
+
+  React.useEffect(() => {
+    const resumeToken = store.resumeToken;
+
+    if (resumeToken && lastResumeTokenRef.current !== resumeToken) {
+      lastResumeTokenRef.current = resumeToken;
+      setExecutionPolicy((current) =>
+        createOcrExecutionPolicy({
+          ...current,
+          rasterScale: resumeToken.executionConfig.rasterScale,
+          maxCanvasPixels: resumeToken.executionConfig.maxCanvasPixels,
+        }),
+      );
+      return;
+    }
+
+    lastResumeTokenRef.current = resumeToken;
+
+    if (
+      resumeToken
+      && !ocrResumeExecutionConfigMatches(
+        resumeToken.executionConfig,
+        {
+          forceOcr: store.forceOcr,
+          rasterScale: executionPolicy.rasterScale,
+          maxCanvasPixels: executionPolicy.maxCanvasPixels,
+        },
+      )
+    ) {
+      useOcrStore.getState().setOcrResumeToken(null);
+    }
+  }, [
+    executionPolicy.maxCanvasPixels,
+    executionPolicy.rasterScale,
+    store.forceOcr,
+    store.resumeToken,
+  ]);
 
   const selectedPages = React.useMemo(
     () => selectedPageIndexes.length > 0
