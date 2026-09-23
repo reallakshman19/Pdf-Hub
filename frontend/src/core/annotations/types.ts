@@ -29,6 +29,22 @@ export interface Point2D {
   y: number;
 }
 
+export type NativeInteropFidelityClass =
+  | 'NATIVE_SUPPORTED'
+  | 'NATIVE_PRESERVED_READ_ONLY'
+  | 'NATIVE_DEGRADED'
+  | 'VISUAL_ONLY'
+  | 'UNKNOWN';
+
+export interface AnnotationNativeInteropState {
+  fidelityClass: NativeInteropFidelityClass;
+  reason?: 'RICH_TEXT';
+  /** Native /RC rich-text semantics are present and must not be flattened silently. */
+  richText?: boolean;
+  /** FreeText /DS default style is present and preserved with /RC. */
+  defaultStyle?: boolean;
+}
+
 export interface AnnotationData extends Record<string, unknown> {
   // ── text ──────────────────────────────────────────────
   text?: string;
@@ -88,6 +104,7 @@ export interface AnnotationData extends Record<string, unknown> {
   style?: AnnotationStyle;
   geometryVersion?: number;
   normalizedGeometry?: unknown;
+  nativeInterop?: AnnotationNativeInteropState;
 }
 
 export interface PdfAnnotation {
