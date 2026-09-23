@@ -41,6 +41,8 @@ PDF Review state is author-specific, while the current PDF Hub application model
 
 Phase 10 interoperability tests exercise repeated-save identity/topology continuity, standards-only re-import after `PDFHub*` metadata removal, external native-field precedence, nested `RT=R` reply ancestry, and preservation/relinking of Review-state objects attached to replies. The UI may present replies as a flat list, but persistence retains each nested reply's logical parent as `parentReplyId`; reply-attached state never silently becomes the root thread's review status.
 
+When PDF Hub rewrites a managed root or reply, it owns only the fields represented by the supported annotation model. Other standard, extension, and vendor dictionary entries are copied forward. An externally generated `/AP` is also copied forward when PDF Hub's appearance-driving native fields are semantically unchanged. If a PDF Hub edit changes those owned appearance fields, the old `/AP` is omitted rather than retained as a stale appearance that could override the edit.
+
 Normal Save still rewrites PDF bytes rather than providing a signature-preserving incremental update contract. Signed-PDF risk is therefore handled by an explicit preflight warning, described below.
 
 ## Save-state rule
