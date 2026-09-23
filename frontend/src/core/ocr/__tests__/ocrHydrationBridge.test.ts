@@ -156,6 +156,24 @@ describe('ocrHydrationBridge', () => {
     expect(exported.manifest.resumeToken?.documentFingerprint).toBe('doc-store-export');
   });
 
+  it('allows project export to explicitly omit the store checkpoint', async () => {
+    const payload = await makePayload('doc-store-no-checkpoint');
+
+    hydrateOcrStoreFromProjectPayload({
+      payload,
+      expectedDocumentFingerprint: 'doc-store-no-checkpoint',
+    });
+
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
+    const exported = createOcrProjectPayloadFromStore({
+      resumeToken: null,
+    });
+
+    expect(exported.manifest.resumeToken).toBeUndefined();
+    expect(exported.result?.pages).toHaveLength(1);
+  });
+
   it('summarizes OCR project payload', async () => {
     const payload = await makePayload('doc-summary');
 
