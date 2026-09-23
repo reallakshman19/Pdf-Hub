@@ -136,14 +136,16 @@ if (!replyTopology
   || replyTopology.persistence_model !== 'FLAT_REPLY_ARRAY_WITH_PARENT_REPLY_ID'
   || replyTopology.ui_projection !== 'FLAT_MESSAGES'
   || !replyTopology.preservation_rule?.includes('ReviewReply.parentReplyId')
-  || !replyTopology.reply_state_rule?.includes('never project')) {
+  || !replyTopology.reply_state_rule?.includes('never project')
+  || !replyTopology.unparsed_reply_rule?.includes('remain native')) {
   errors.push('Manifest must declare nested reply topology preservation and reply-state isolation');
 }
 
 if (!reviewFixture.external_nested_reply
   || reviewFixture.external_nested_reply.relationship !== 'IRT_TO_REPLY'
   || reviewFixture.external_nested_reply.app_projection !== 'ReviewReply.parentReplyId'
-  || !reviewFixture.external_nested_reply.state_on_reply_rule?.includes('does not update the root thread status')) {
+  || !reviewFixture.external_nested_reply.state_on_reply_rule?.includes('does not update the root thread status')
+  || !reviewFixture.external_nested_reply.opaque_descendant?.includes('lacking Contents remains native')) {
   errors.push('Manifest must declare the external nested-reply interoperability fixture');
 }
 
@@ -183,6 +185,8 @@ if (!fs.existsSync(nativeWriterPath)) {
     'preservePassiveAnnotationEntries',
     'appearanceFieldsEquivalent',
     'relinkPopupParent',
+    'relinkPreservedReplyParents',
+    'representedReplyIds',
     "name === 'AP' && !preserveAppearance",
   ]) {
     if (!nativeWriterContent.includes(token)) {
