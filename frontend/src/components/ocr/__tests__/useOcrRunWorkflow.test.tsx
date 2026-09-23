@@ -278,6 +278,39 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('false');
   });
 
+  it('does not surface a stale checkpoint from another document even when topology matches', () => {
+    const staleToken: OcrResumeTokenV1 = {
+      ...makeResumeToken('previous-document'),
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0],
+          status: 'failed',
+          errorMessage: 'Interrupted batch.',
+        },
+      ],
+    };
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'previous-document',
+      resumeToken: staleToken,
+    });
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="current-document"
+        selectedPageIndexes={[0]}
+        pageCount={1}
+        pages={[pageInput(0)]}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('0');
+    expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('false');
+    expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
+  });
+
   it('does not mark an idle/ready model as cancelled when cancel is not available', () => {
     render(
       <WorkflowProbe
