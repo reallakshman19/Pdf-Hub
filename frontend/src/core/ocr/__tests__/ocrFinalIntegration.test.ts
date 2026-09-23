@@ -318,6 +318,66 @@ describe('ocrFinalIntegration', () => {
     ).rejects.toThrow('no persisted OCR result');
   });
 
+  it('rejects incompatible persisted OCR output even when resumed batches are retryable', async () => {
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-config-mismatch',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 2,
+        maxCanvasPixels: 16_000_000,
+      },
+      snapshot: {
+        status: 'failed',
+        tasks: [
+          {
+            id: 'ocr-batch-1',
+            index: 0,
+            pageIndexes: [0],
+            input: createPlaceholderOcrPageInputs([0]),
+            status: 'failed',
+            errorMessage: 'Retryable batch.',
+          },
+        ],
+        completedCount: 0,
+        failedCount: 1,
+        cancelledCount: 0,
+        runningCount: 0,
+        queuedCount: 0,
+        totalCount: 1,
+        progress: 1,
+        diagnostics: [],
+      },
+    });
+
+    await expect(
+      runFinalOcrIntegrationJob({
+        id: 'final-job-config-mismatch',
+        documentFingerprint: 'doc-final-config-mismatch',
+        engineId: 'mock',
+        requestedProfileId: 'clean-scan',
+        resumeToken: token,
+        existingResult: {
+          ...makeResult('doc-final-config-mismatch', [0]),
+          engineId: 'different-engine',
+        },
+        mode: 'worker-ocr',
+        capabilities: {
+          workerSupported: true,
+          ocrWorkerSupported: true,
+          rasterWorkerSupported: true,
+        },
+        explicitPages: createPlaceholderOcrPageInputs([0]),
+        requestedPageIndexes: [0],
+        totalPages: 1,
+        policy: createOcrExecutionPolicy(),
+        batchSize: 1,
+        workerClient: makeWorkerClient(),
+      }),
+    ).rejects.toThrow('does not match the resume document/engine/profile');
+  });
+
   it('keeps semantic OCR page failures retryable', async () => {
     const failedWorkerClient: Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> = {
       async recognizePages(payload) {
