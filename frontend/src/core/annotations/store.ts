@@ -24,6 +24,7 @@ import {
 import {
   guardNativeInteropAnnotationPatch,
   guardNativeInteropStylePatch,
+  hasNativeRichTextSemantics,
 } from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -490,22 +491,26 @@ export const useAnnotationStore =
           ? [state.activeAnnotationId]
           : [];
 
-      const copied = selectedAnnotations(state.annotations, ids).map((annotation) => ({
-        ...annotation,
-        data: { ...annotation.data },
-      }));
+      const copied = selectedAnnotations(state.annotations, ids)
+        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+        .map((annotation) => ({
+          ...annotation,
+          data: { ...annotation.data },
+        }));
 
       return { clipboard: copied };
     }),
 
   pasteClipboard: (targetPage) => {
-    const sourceClipboard = get().clipboard.map(
-      (annotation) => ({
-        ...annotation,
-        rect: { ...annotation.rect },
-        data: { ...annotation.data },
-      }),
-    );
+    const sourceClipboard = get().clipboard
+      .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+      .map(
+        (annotation) => ({
+          ...annotation,
+          rect: { ...annotation.rect },
+          data: { ...annotation.data },
+        }),
+      );
 
     runMutation((state) => {
       if (sourceClipboard.length === 0) return state;
@@ -603,7 +608,9 @@ export const useAnnotationStore =
       if (ids.length === 0) return state;
 
       const now = Date.now();
-      const duplicated = selectedAnnotations(state.annotations, ids).map((annotation, index) => ({
+      const duplicated = selectedAnnotations(state.annotations, ids)
+        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+        .map((annotation, index) => ({
         ...annotation,
         id: uuidv4(),
         rect: {
@@ -635,6 +642,8 @@ export const useAnnotationStore =
         createdAt: now,
         updatedAt: now,
       }));
+
+      if (duplicated.length === 0) return state;
 
       return annotationSnapshot(
         state,
