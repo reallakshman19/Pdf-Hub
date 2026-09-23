@@ -24,6 +24,7 @@ import {
   registerWorkingRevisionStore,
 } from '@/core/revision-store/registry';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 import {
   commitDocumentMutation,
 } from './documentTransaction';
@@ -110,6 +111,33 @@ const afterAnnotation: PdfAnnotation = {
   rect: { x: 20, y: 20, width: 20, height: 10 },
   updatedAt: 2,
 };
+
+function retryableResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+      maxPagesPerJob: 25,
+      allowLargeJobs: false,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [{
+      id: 'resume-batch-1',
+      index: 0,
+      pageIndexes: [0],
+      status: 'failed',
+      errorMessage: 'Retryable checkpoint.',
+    }],
+  };
+}
 
 describe('document transaction history memory', () => {
   beforeEach(() => {
@@ -218,6 +246,11 @@ describe('document transaction history memory', () => {
       },
     });
 
+    useOcrStore.getState().setOcrResumeToken(
+      retryableResumeToken('hash-1'),
+    );
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
     const result = await commitDocumentMutation({
       command: command('hash-1', 'revision-rotate'),
       label: 'Revision-aware rotation',
@@ -239,6 +272,7 @@ describe('document transaction history memory', () => {
       originalRevisionId: 'hash-1',
       activeRevisionId: 'hash-2',
     });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
 
     const transaction =
       useHistoryStore.getState().undoStack.at(-1);
@@ -304,7 +338,13 @@ describe('document transaction history memory', () => {
       ],
     });
 
+    useOcrStore.getState().setOcrResumeToken(
+      retryableResumeToken('hash-2'),
+    );
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
     await expect(applyUndo()).resolves.toBe(true);
+    expect(useOcrStore.getState().resumeToken).toBeNull();
     expect(useSessionStore.getState()).toMatchObject({
       documentKey: 'hash-1',
       activeRevisionId: 'hash-1',
@@ -316,7 +356,13 @@ describe('document transaction history memory', () => {
       entries: [{ transactionId: transaction?.id }],
     });
 
+    useOcrStore.getState().setOcrResumeToken(
+      retryableResumeToken('hash-1'),
+    );
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
     await expect(applyRedo()).resolves.toBe(true);
+    expect(useOcrStore.getState().resumeToken).toBeNull();
     expect(useSessionStore.getState()).toMatchObject({
       documentKey: 'hash-2',
       activeRevisionId: 'hash-2',
