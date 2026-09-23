@@ -589,7 +589,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(annots3.size()).toBe(5);
   });
 
-  it('preserves passive external dictionary fields and only drops /AP after a local appearance edit', async () => {
+  it('preserves passive external dictionary fields, popup backlinks, and only drops stale /AP after a local appearance edit', async () => {
     const baseBytes = await createEmptyPdf();
     const textbox = createDeterministicAnnotation('textbox', {
       id: 'phase10-passive-root-1',
@@ -603,8 +603,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const rootDict = annots.lookup(0) as PDFDict;
+    const externalAnnots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const oldRootRef = externalAnnots.get(0) as PDFRef;
+    const rootDict = externalAnnots.lookup(0) as PDFDict;
 
     rootDict.set(PDFName.of('Subj'), PDFString.of('External subject'));
     rootDict.set(PDFName.of('RC'), PDFString.of('<p>External rich text</p>'));
@@ -625,18 +626,53 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       externalDoc.context.obj({ N: appearanceRef }),
     );
 
+    const popupDict = externalDoc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Popup',
+      Rect: [220, 620, 420, 760],
+      Parent: oldRootRef,
+      Open: false,
+    }) as PDFDict;
+    const popupRef = externalDoc.context.register(popupDict);
+    externalAnnots.push(popupRef);
+    rootDict.set(PDFName.of('Popup'), popupRef);
+
     const externallySaved = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallySaved);
     const save2 = await writeNativePdfAnnotations(externallySaved, returned.annotations);
 
-    const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const root2 = annots2.lookup(0) as PDFDict;
+    const findManagedRoot = (
+      doc: PDFDocument,
+    ): { ref: PDFRef; dict: PDFDict; annots: any } => {
+      const annots = doc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+      for (let index = 0; index < annots.size(); index += 1) {
+        const ref = annots.get(index);
+        const dict = annots.lookup(index) as PDFDict;
+        const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+        if (nm === 'phase10-passive-root-1') {
+          expect(ref).toBeInstanceOf(PDFRef);
+          return { ref, dict, annots };
+        }
+      }
+      throw new Error('Managed passive-field root not found');
+    };
 
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const managed2 = findManagedRoot(doc2);
+    const root2 = managed2.dict;
+
+    expect(managed2.annots.size()).toBe(2);
     expect(root2.lookup(PDFName.of('Subj')).decodeText()).toBe('External subject');
     expect(root2.lookup(PDFName.of('RC')).decodeText()).toBe('<p>External rich text</p>');
     expect(root2.lookup(PDFName.of('VendorInteropMeta')).decodeText()).toBe('keep-me');
     expect(root2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
+    expect(root2.get(PDFName.of('Popup'))).toBeInstanceOf(PDFRef);
+
+    const popup2 = doc2.context.lookup(root2.get(PDFName.of('Popup')) as PDFRef, PDFDict);
+    expect(popup2.get(PDFName.of('Parent'))).toBeInstanceOf(PDFRef);
+    expect((popup2.get(PDFName.of('Parent')) as PDFRef).toString()).toBe(
+      managed2.ref.toString(),
+    );
 
     const locallyEdited = {
       ...returned.annotations[0],
@@ -649,15 +685,21 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const root3 = annots3.lookup(0) as PDFDict;
+    const managed3 = findManagedRoot(doc3);
+    const root3 = managed3.dict;
 
+    expect(managed3.annots.size()).toBe(2);
     expect(root3.lookup(PDFName.of('Subj')).decodeText()).toBe('External subject');
     expect(root3.lookup(PDFName.of('RC')).decodeText()).toBe('<p>External rich text</p>');
     expect(root3.lookup(PDFName.of('VendorInteropMeta')).decodeText()).toBe('keep-me');
     expect(root3.get(PDFName.of('AP'))).toBeUndefined();
     expect(root3.lookup(PDFName.of('Contents')).decodeText()).toBe(
       'Locally edited after external appearance generation',
+    );
+
+    const popup3 = doc3.context.lookup(root3.get(PDFName.of('Popup')) as PDFRef, PDFDict);
+    expect((popup3.get(PDFName.of('Parent')) as PDFRef).toString()).toBe(
+      managed3.ref.toString(),
     );
   });
 
