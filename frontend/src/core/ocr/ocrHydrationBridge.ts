@@ -15,6 +15,7 @@ import {
   createOcrProjectPayload,
   validateOcrProjectPayload,
 } from './ocrProjectCodec';
+import type { OcrResumeTokenV1 } from './ocrResumeState';
 import type { OcrStoreState } from './ocrStore';
 import {
   useOcrStore,
@@ -28,7 +29,9 @@ export interface OcrHydrationDiagnostics {
     | 'NO_OCR_PROJECT_PAYLOAD'
     | 'INVALID_OCR_PROJECT_PAYLOAD'
     | 'DOCUMENT_FINGERPRINT_MISMATCH'
-    | 'WRITER_INSERTION_QUEUE_RESTORED';
+    | 'WRITER_INSERTION_QUEUE_RESTORED'
+    | 'OCR_RESUME_STATE_RESTORED'
+    | 'OCR_RESUME_STATE_DISCARDED';
   message: string;
 }
 
@@ -39,6 +42,7 @@ export interface OcrHydrationResult {
   corrections: OcrCorrection[];
   regions: OcrRegion[];
   writerInsertionQueue: OcrWriterInsertionQueueState;
+  resumeToken: OcrResumeTokenV1 | null;
   diagnostics: OcrHydrationDiagnostics[];
 }
 
@@ -53,6 +57,7 @@ export interface CreateOcrProjectPayloadFromStoreInput {
   documentFingerprint?: string | null;
   store?: OcrStoreState;
   writerInsertionQueue?: OcrWriterInsertionQueueState | null;
+  resumeToken?: OcrResumeTokenV1 | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -80,6 +85,7 @@ export function hydrateOcrStoreFromProjectPayload(
       corrections: [],
       regions: [],
       writerInsertionQueue: createOcrWriterInsertionQueue(),
+      resumeToken: null,
       diagnostics: [
         {
           level: 'warning',
@@ -100,6 +106,7 @@ export function hydrateOcrStoreFromProjectPayload(
       corrections: [],
       regions: [],
       writerInsertionQueue: createOcrWriterInsertionQueue(),
+      resumeToken: null,
       diagnostics: [
         {
           level: 'error',
@@ -123,6 +130,21 @@ export function hydrateOcrStoreFromProjectPayload(
       level: 'warning',
       code: 'DOCUMENT_FINGERPRINT_MISMATCH',
       message: `OCR payload fingerprint "${payloadDocumentFingerprint}" differs from expected document fingerprint "${expectedDocumentFingerprint}".`,
+    });
+  }
+
+  const resumeToken =
+    input.payload.manifest.resumeToken
+    && (!expectedDocumentFingerprint
+      || expectedDocumentFingerprint === payloadDocumentFingerprint)
+      ? cloneOcrResumeToken(input.payload.manifest.resumeToken)
+      : null;
+
+  if (input.payload.manifest.resumeToken && !resumeToken) {
+    diagnostics.push({
+      level: 'warning',
+      code: 'OCR_RESUME_STATE_DISCARDED',
+      message: 'OCR resume state was discarded because the project was rebound to a different document fingerprint.',
     });
   }
 
@@ -157,6 +179,14 @@ export function hydrateOcrStoreFromProjectPayload(
     });
   }
 
+  if (resumeToken) {
+    diagnostics.push({
+      level: 'info',
+      code: 'OCR_RESUME_STATE_RESTORED',
+      message: 'OCR resumable execution state restored for caller/workflow handling.',
+    });
+  }
+
   return {
     restored: true,
     documentFingerprint: expectedDocumentFingerprint ?? payloadDocumentFingerprint,
@@ -176,6 +206,7 @@ export function hydrateOcrStoreFromProjectPayload(
       input.payload.writerInsertionQueue,
       expectedDocumentFingerprint ?? payloadDocumentFingerprint,
     ),
+    resumeToken,
     diagnostics,
   };
 }
@@ -197,6 +228,7 @@ export function createOcrProjectPayloadFromStore(
     corrections: store.corrections,
     regions: store.regions,
     writerInsertionQueue: input.writerInsertionQueue ?? createOcrWriterInsertionQueue(),
+    resumeToken: input.resumeToken ?? null,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
@@ -246,9 +278,26 @@ export function normalizeOcrProjectPayloadForDocument(
       payload.writerInsertionQueue,
       documentFingerprint,
     ),
+    resumeToken:
+      payload.manifest.documentFingerprint === documentFingerprint
+        ? payload.manifest.resumeToken ?? null
+        : null,
     createdAt: payload.manifest.createdAt,
     updatedAt: payload.manifest.updatedAt,
   });
+}
+
+function cloneOcrResumeToken(
+  token: OcrResumeTokenV1,
+): OcrResumeTokenV1 {
+  return {
+    ...token,
+    languages: [...token.languages],
+    tasks: token.tasks.map((task) => ({
+      ...task,
+      pageIndexes: [...task.pageIndexes],
+    })),
+  };
 }
 
 function normalizeResultFingerprint(
