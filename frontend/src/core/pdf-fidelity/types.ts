@@ -91,12 +91,19 @@ export interface FidelityFixtureProvenance {
   reproducible: boolean;
 }
 
+export interface FidelityFixtureIntegrity {
+  /** Git blob SHA-1 of the retained artifact bytes: sha1("blob <len>\\0" + bytes). */
+  gitBlobSha1: string;
+  byteLength: number;
+}
+
 export interface FidelityFixtureManifestEntry {
   id: string;
   title: string;
   classes: FidelityFixtureClass[];
   availability: FidelityFixtureAvailability;
   provenance: FidelityFixtureProvenance;
+  integrity?: FidelityFixtureIntegrity;
   artifactPath: string | null;
   generatorId: string | null;
   structures: FidelityStructureKind[];
@@ -120,6 +127,7 @@ export interface FidelityManifestDiagnostic {
     | 'UNKNOWN_CLASS'
     | 'MISSING_REQUIRED_CLASS'
     | 'MISSING_PROVENANCE'
+    | 'MISSING_INTEGRITY'
     | 'MISSING_BASELINE_EXPECTATION'
     | 'MISSING_MUTATION_EXPECTATION'
     | 'INVALID_AVAILABILITY';
