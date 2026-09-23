@@ -27,6 +27,15 @@ const validatorPath = path.join(
   frontendRoot,
   'scripts/phase10-validate-viewer-evidence.mjs',
 );
+const returnedReviewValidatorPath = path.join(
+  frontendRoot,
+  'scripts/phase10-validate-returned-review.mjs',
+);
+const returnedReviewProbePath = path.join(
+  frontendRoot,
+  'src/core/pdf-annotations/viewerReturnedReviewProbe.test.ts',
+);
+const packagePath = path.join(frontendRoot, 'package.json');
 const docsPath = path.resolve(frontendRoot, '..', 'Docs/PHASE10_VIEWER_QUALIFICATION.md');
 
 const requiredPaths = [
@@ -36,6 +45,9 @@ const requiredPaths = [
   corpusTestPath,
   writerPath,
   validatorPath,
+  returnedReviewValidatorPath,
+  returnedReviewProbePath,
+  packagePath,
   docsPath,
 ];
 
@@ -58,6 +70,9 @@ const typesContent = fs.readFileSync(typesPath, 'utf8');
 const corpusTest = fs.readFileSync(corpusTestPath, 'utf8');
 const writerContent = fs.readFileSync(writerPath, 'utf8');
 const validatorContent = fs.readFileSync(validatorPath, 'utf8');
+const returnedReviewValidatorContent = fs.readFileSync(returnedReviewValidatorPath, 'utf8');
+const returnedReviewProbeContent = fs.readFileSync(returnedReviewProbePath, 'utf8');
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const docsContent = fs.readFileSync(docsPath, 'utf8');
 
 const typeMatch = typesContent.match(/export const ANNOTATION_TYPES = \s*\[([^\]]+)\]/);
@@ -111,6 +126,14 @@ for (const type of canonicalTypes) {
   }
 }
 
+if (qualification.schema_version !== 'phase10-viewer-qualification-v2') {
+  errors.push('viewer qualification manifest must use phase10-viewer-qualification-v2');
+}
+
+if (!qualification.review_journeys?.['review-round-trip']) {
+  errors.push('viewer qualification manifest must declare review-round-trip journey');
+}
+
 if (qualification.production_writer?.export !== 'writeNativePdfAnnotations') {
   errors.push('qualification corpus must identify writeNativePdfAnnotations as production writer');
 }
@@ -132,15 +155,57 @@ for (const token of [
 
 for (const token of [
   'NOT QUALIFIED',
-  'render',
-  'reopen_editability',
+  'QUALIFIED CAPABILITY PROFILE',
+  'native_interaction',
+  'edit_save_reopen',
+  'external_mutation',
+  'return_semantics',
+  'UNSUPPORTED',
+  'journey_observations',
   'evidence_ref',
   "observation.render !== 'PASS'",
-  "observation.reopen_editability !== 'PASS'",
 ]) {
   if (!validatorContent.includes(token)) {
-    errors.push(`viewer evidence validator missing fail-closed token: ${token}`);
+    errors.push(`viewer evidence validator missing capability/fail-closed token: ${token}`);
   }
+}
+
+if (validatorContent.includes('reopen_editability')) {
+  errors.push('viewer evidence validator must not retain the v1 reopen_editability contract');
+}
+
+for (const token of [
+  'viewerReturnedReviewProbe.test.ts',
+  'PHASE10_RETURNED_REVIEW_PDF',
+  'PHASE10_RETURN_REPORT_PATH',
+  'RETURN SEMANTICS QUALIFIED',
+]) {
+  if (!returnedReviewValidatorContent.includes(token)) {
+    errors.push(`returned-review validator missing required token: ${token}`);
+  }
+}
+
+for (const token of [
+  'readNativePdfAnnotations',
+  'writeNativePdfAnnotations',
+  'phase10-review-return-evidence-v1',
+  'semanticSnapshot',
+  'externalDelta',
+  'external_delta',
+  'parentReplyId',
+  'replyTopology',
+  'rawGraphSummary',
+]) {
+  if (!returnedReviewProbeContent.includes(token)) {
+    errors.push(`returned-review probe missing production/evidence token: ${token}`);
+  }
+}
+
+if (
+  packageJson.scripts?.['validate:phase10-returned-review']
+  !== 'node scripts/phase10-validate-returned-review.mjs'
+) {
+  errors.push('package.json must expose validate:phase10-returned-review');
 }
 
 for (const forbidden of [
@@ -155,8 +220,15 @@ for (const forbidden of [
 
 for (const token of [
   'PHASE10_VIEWER_CORPUS_DIR',
+  'review-round-trip',
   'render=PASS',
-  'reopen_editability=PASS',
+  'native_interaction',
+  'edit_save_reopen',
+  'external_mutation',
+  'UNSUPPORTED',
+  'return_semantics',
+  'validate:phase10-returned-review',
+  'RETURN SEMANTICS QUALIFIED',
   'No compatibility claim',
   'pnpm run validate:phase10-viewer-evidence C:\\path\\to\\viewer-evidence.json',
 ]) {
@@ -178,9 +250,11 @@ if (errors.length > 0) {
 console.log('=== Phase 10 Viewer Qualification Audit ===');
 console.log('[PASS] Canonical 17-type corpus coverage is exact.');
 console.log('[PASS] Appearance-family mapping covers every supported type exactly once.');
+console.log('[PASS] Review-round-trip journey is mandatory and generated through the production writer.');
 console.log('[PASS] Corpus is bound to the production native annotation writer.');
 console.log('[PASS] Current qualification baseline requires managed annotations to have no /AP.');
-console.log('[PASS] External-viewer evidence validator is fail-closed.');
+console.log('[PASS] External-viewer evidence validator is fail-closed and capability-scoped.');
+console.log('[PASS] Returned-review probe replays external output through the production reader/writer and emits durable evidence.');
 console.log('[PASS] Production native annotation writer contains no /AP implementation token.');
 console.log('[PASS] Operator runbook preserves evidence-before-implementation boundary.');
 console.log('=== Phase 10 Viewer Qualification Audit PASSED ===');
