@@ -200,7 +200,7 @@ export async function runOcrBatchScheduler<TInput, TOutput>(
       const task = tasks[cursor];
       cursor += 1;
 
-      if (!task) {
+      if (!task || task.status !== 'queued') {
         continue;
       }
 
