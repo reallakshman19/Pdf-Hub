@@ -229,14 +229,32 @@ function assertNativeRichTextRootMutationSupported(
   if (currentText !== snapshot.text) {
     throw nativeRichTextMutationError(annotation.id, 'text');
   }
+  if (!optionalStringEqual(annotation.data.content, snapshot.content)) {
+    throw nativeRichTextMutationError(annotation.id, 'content');
+  }
   if (!optionalNumberEqual(annotation.data.fontSize, snapshot.fontSize)) {
     throw nativeRichTextMutationError(annotation.id, 'font size');
+  }
+  if (!optionalStringEqual(annotation.data.fontWeight, snapshot.fontWeight)) {
+    throw nativeRichTextMutationError(annotation.id, 'font weight');
+  }
+  if (!optionalStringEqual(annotation.data.fontStyle, snapshot.fontStyle)) {
+    throw nativeRichTextMutationError(annotation.id, 'font style');
+  }
+  if (!optionalStringEqual(annotation.data.fontFamily, snapshot.fontFamily)) {
+    throw nativeRichTextMutationError(annotation.id, 'font family');
   }
   if (!optionalStringEqual(annotation.data.textColor, snapshot.textColor)) {
     throw nativeRichTextMutationError(annotation.id, 'text color');
   }
   if (!optionalStringEqual(annotation.data.textAlign, snapshot.textAlign)) {
     throw nativeRichTextMutationError(annotation.id, 'text alignment');
+  }
+  if (!optionalNumberEqual(annotation.data.lineHeight, snapshot.lineHeight)) {
+    throw nativeRichTextMutationError(annotation.id, 'line height');
+  }
+  if (!optionalBooleanEqual(annotation.data.autoSize, snapshot.autoSize)) {
+    throw nativeRichTextMutationError(annotation.id, 'auto size');
   }
 }
 
@@ -291,6 +309,14 @@ function optionalNumberEqual(
 function optionalStringEqual(
   left: unknown,
   right: string | undefined,
+): boolean {
+  if (right === undefined) return left === undefined;
+  return left === right;
+}
+
+function optionalBooleanEqual(
+  left: unknown,
+  right: boolean | undefined,
 ): boolean {
   if (right === undefined) return left === undefined;
   return left === right;
