@@ -486,7 +486,7 @@ function nativeData(
     else if (alignment === 0) data.textAlign = 'left';
   }
 
-  if (type === 'sticky-note') {
+  if (type === 'sticky-note' || type === 'comment') {
     const open = readBoolean(dict, 'Open', lib);
     if (typeof open === 'boolean') {
       data.isCollapsed = !open;
