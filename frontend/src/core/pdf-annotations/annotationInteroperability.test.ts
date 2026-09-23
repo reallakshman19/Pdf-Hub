@@ -761,6 +761,18 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const externalDa = '/ExternalFont 19 Tf 0.2 0.4 0.6 rg';
     dict.set(PDFName.of('DA'), PDFString.of(externalDa));
+    const daAppearance = externalDoc.context.register(
+      externalDoc.context.flateStream('q Q', {
+        Type: 'XObject',
+        Subtype: 'Form',
+        BBox: [0, 0, 10, 10],
+        Resources: {},
+      }),
+    );
+    dict.set(
+      PDFName.of('AP'),
+      externalDoc.context.obj({ N: daAppearance }),
+    );
 
     const externallyEdited = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallyEdited);
@@ -773,6 +785,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const doc2 = await PDFDocument.load(save2.bytes);
     const dict2 = doc2.getPage(0).node.lookup(PDFName.of('Annots'))?.lookup(0) as PDFDict;
     expect(dict2.lookup(PDFName.of('DA')).decodeText()).toBe(externalDa);
+    expect(dict2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
 
     const locallyEdited = {
       ...returned.annotations[0],
@@ -791,6 +804,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     expect(da3).toContain('/ExternalFont 23 Tf');
     expect(da3).toContain('1 0 0 rg');
+    expect(dict3.get(PDFName.of('AP'))).toBeUndefined();
 
     const read3 = await readNativePdfAnnotations(save3.bytes);
     expect(read3.annotations[0].data.fontSize).toBe(23);
@@ -822,6 +836,18 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       250, 671,
     ];
     dict.set(PDFName.of('QuadPoints'), externalDoc.context.obj(externalQuads));
+    const quadAppearance = externalDoc.context.register(
+      externalDoc.context.flateStream('q Q', {
+        Type: 'XObject',
+        Subtype: 'Form',
+        BBox: [0, 0, 10, 10],
+        Resources: {},
+      }),
+    );
+    dict.set(
+      PDFName.of('AP'),
+      externalDoc.context.obj({ N: quadAppearance }),
+    );
 
     const externallyEdited = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallyEdited);
@@ -845,6 +871,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       (_, index) => quadArray2.lookup(index).asNumber(),
     );
     expect(rawQuads2).toEqual(externalQuads);
+    expect(dict2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
 
     const movedAndResized = {
       ...returned.annotations[0],
@@ -873,6 +900,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(rawQuads3[5]).toBeCloseTo(582);
     expect(rawQuads3[8]).toBeCloseTo(242.5);
     expect(rawQuads3[10]).toBeCloseTo(400);
+    expect(dict3.get(PDFName.of('AP'))).toBeUndefined();
 
     const read3 = await readNativePdfAnnotations(save3.bytes);
     const quads3 = read3.annotations[0].data.textMarkupQuads;
