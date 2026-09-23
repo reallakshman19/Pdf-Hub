@@ -272,7 +272,7 @@ function parseRootAnnotation(
     Boolean(data.review)
     || type === 'comment'
     || type === 'sticky-note'
-    || Boolean(readName(dict, 'StateModel', lib));
+    || Boolean(readTextOrName(dict, 'StateModel', lib));
 
   if (shouldHaveReview) {
     annotation.data = {
