@@ -240,7 +240,7 @@ function collectExistingReplyGraph(
   }
 
   if (!rootRefKey) {
-    return { rootRefKey: null, records: [], rootStateRecords: [] };
+    return { rootRefKey: null, records: [] };
   }
 
   const byRef = new Map(candidates.map((record) => [record.refKey, record]));
@@ -328,7 +328,7 @@ function collectReviewStateGraph(
   }
 
   if (!rootRefKey) {
-    return { rootRefKey: null, records: [] };
+    return { rootRefKey: null, records: [], rootStateRecords: [] };
   }
 
   const stateRefKeys = new Set(candidates.map((record) => record.refKey));
