@@ -92,6 +92,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-b',
       engineId: 'tesseract-js',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks,
     })).toThrowError(OcrResumeStateError);
 
@@ -100,6 +101,7 @@ describe('ocrResumeState', () => {
       documentFingerprint: 'doc-a',
       engineId: 'other-engine',
       profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
       tasks,
     })).toThrowError(OcrResumeStateError);
 
@@ -109,6 +111,18 @@ describe('ocrResumeState', () => {
       engineId: 'tesseract-js',
       profileId: 'table-heavy',
       executionConfig: RESUME_EXECUTION_CONFIG,
+      tasks,
+    })).toThrowError(OcrResumeStateError);
+
+    expect(() => resumeOcrBatchTasks({
+      token,
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: {
+        ...RESUME_EXECUTION_CONFIG,
+        rasterScale: 3,
+      },
       tasks,
     })).toThrowError(OcrResumeStateError);
   });
