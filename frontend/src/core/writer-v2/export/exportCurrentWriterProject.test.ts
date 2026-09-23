@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { useWriterV2Store } from '../writerV2Store';
+import { useOcrStore } from '../../ocr/ocrStore';
+import type { OcrResumeTokenV1 } from '../../ocr/ocrResumeState';
 import type { WriterElementV2 } from '../types';
 import {
   exportCurrentWriterProject,
@@ -45,6 +47,7 @@ function element(id: string): WriterElementV2 {
 describe('exportCurrentWriterProject', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
+    useOcrStore.getState().clearOcr();
   });
 
   it('exports current active writer store as project ZIP', async () => {
@@ -62,6 +65,38 @@ describe('exportCurrentWriterProject', () => {
 
     expect(imported.manifest.schema).toBe('pdf-hub-project');
     expect(imported.elements[0].plainText).toBe('Current project export');
+  });
+
+  it('round-trips a pending OCR resume checkpoint through current project export', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assetRecords: [],
+    });
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-1',
+      resumeToken: makeResumeToken('doc-1'),
+    });
+
+    const bytes = await exportCurrentWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+    });
+
+    const imported = await importPdfHubWriterProject(bytes);
+
+    expect(imported.ocrProject?.manifest.resumeToken).toMatchObject({
+      schema: 'pdf-hub-ocr-resume',
+      documentFingerprint: 'doc-1',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+    });
+    expect(imported.ocrProject?.manifest.resumeToken?.tasks).toEqual([
+      expect.objectContaining({
+        pageIndexes: [0],
+        status: 'failed',
+      }),
+    ]);
   });
 
   it('throws when document fingerprint is missing', async () => {
@@ -128,4 +163,31 @@ describe('exportCurrentWriterProject', () => {
     expect(calledWithFingerprint).toBe('doc-1');
     expect(bytes).toEqual(new Uint8Array([4, 5, 6]));
   });
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'failed',
+        errorMessage: 'Interrupted OCR batch.',
+      },
+    ],
+  };
+}
+
 });
