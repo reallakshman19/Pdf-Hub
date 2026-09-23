@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
+import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Minus, X } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
@@ -403,6 +404,8 @@ const PropertiesTab: React.FC<{
   setReviewStatusForSelection,
   toggleLockSelection,
 }) => {
+  const richTextReadOnly = isNativeRichTextReadOnly(annotation);
+
   const updateRect = (key: 'x' | 'y' | 'width' | 'height', value: string) => {
     const next = Number(value);
     if (Number.isNaN(next)) {
@@ -428,6 +431,7 @@ const PropertiesTab: React.FC<{
       <LabeledSelect
         label="Type"
         value={annotation.type}
+        disabled={richTextReadOnly}
         onChange={(value) => updateAnnotation(annotation.id, { type: value as AnnotationType })}
         options={ANNOTATION_TYPES.map((type) => ({ label: type, value: type }))}
       />
@@ -479,15 +483,27 @@ const PropertiesTab: React.FC<{
       </label>
 
       {isTextLike(annotation.type) && (
-        <LabeledTextarea
-          label="Text"
-          value={typeof annotation.data.text === 'string' ? annotation.data.text : ''}
-          onChange={(value) =>
-            updateAnnotation(annotation.id, {
-              data: { ...annotation.data, text: value },
-            })
-          }
-        />
+        richTextReadOnly ? (
+          <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <div className="font-medium">Native rich text — preserved read-only</div>
+            <div className="whitespace-pre-wrap break-words text-xs">
+              {typeof annotation.data.text === 'string' ? annotation.data.text : ''}
+            </div>
+            <p className="text-xs opacity-80">
+              PDF Hub preserves the PDF /RC rich-text content and formatting. Plain-text or type edits are disabled because they cannot be round-tripped without losing native formatting.
+            </p>
+          </div>
+        ) : (
+          <LabeledTextarea
+            label="Text"
+            value={typeof annotation.data.text === 'string' ? annotation.data.text : ''}
+            onChange={(value) =>
+              updateAnnotation(annotation.id, {
+                data: { ...annotation.data, text: value },
+              })
+            }
+          />
+        )
       )}
     </div>
   );
@@ -496,6 +512,7 @@ const PropertiesTab: React.FC<{
 const StyleTab: React.FC<{
   annotation: PdfAnnotation;
 }> = ({ annotation }) => {
+  const richTextReadOnly = isNativeRichTextReadOnly(annotation);
   const { updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
     updateStyleForSelection: state.updateStyleForSelection,
   })));
@@ -554,6 +571,13 @@ const StyleTab: React.FC<{
       </Section>
 
       {isTextLike && (
+        richTextReadOnly ? (
+          <Section title="Typography">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Native /RC rich-text typography is preserved read-only. Geometry, border, opacity, review state, and thread operations remain editable.
+            </p>
+          </Section>
+        ) : (
         <Section title="Typography">
           <TwoColumnRow>
             <LabeledColorInput
@@ -589,6 +613,7 @@ const StyleTab: React.FC<{
             Auto-size text box
           </label>
         </Section>
+        )
       )}
 
       {isCallout && (
@@ -766,9 +791,15 @@ const LabeledSelect: React.FC<{
   value: string;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
-}> = ({ label, value, onChange, options }) => (
+  disabled?: boolean;
+}> = ({ label, value, onChange, options, disabled = false }) => (
   <LabeledInputShell label={label}>
-    <select className={baseInputClass} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      className={baseInputClass}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
