@@ -11,6 +11,7 @@ describe('OCR core types and validation', () => {
   it('normalizes OCR text for search', () => {
     expect(normalizeOcrText('  PIPE   Support  ')).toBe('pipe support');
     expect(normalizeOcrText('ＡＢＣ')).toBe('abc');
+    expect(normalizeOcrText('  नमस्ते   世界   CAFÉ  ')).toBe('नमस्ते 世界 café');
   });
 
   it('clamps confidence into 0–1 range', () => {
