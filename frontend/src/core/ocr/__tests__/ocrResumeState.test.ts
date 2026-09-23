@@ -8,6 +8,7 @@ import {
   OcrResumeStateError,
   createOcrResumeToken,
   resumeOcrBatchTasks,
+  validateOcrResumeToken,
 } from '../ocrResumeState';
 
 const RESUME_EXECUTION_CONFIG = {
@@ -185,6 +186,65 @@ describe('ocrResumeState', () => {
         pages: makePages(1),
         batchSize: 1,
       }),
+    })).toThrowError(OcrResumeStateError);
+  });
+
+  it('rejects ambiguous or empty persisted batch topology', () => {
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
+      snapshot: createOcrBatchSchedulerSnapshot(
+        createOcrBatchTasksFromPages({
+          pages: makePages(2),
+          batchSize: 1,
+        }),
+      ),
+    });
+
+    expect(() => validateOcrResumeToken({
+      ...token,
+      tasks: [
+        {
+          ...token.tasks[0],
+          pageIndexes: [],
+        },
+        token.tasks[1],
+      ],
+    })).toThrowError(OcrResumeStateError);
+
+    expect(() => validateOcrResumeToken({
+      ...token,
+      tasks: [
+        token.tasks[0],
+        {
+          ...token.tasks[1],
+          id: token.tasks[0].id,
+        },
+      ],
+    })).toThrowError(OcrResumeStateError);
+
+    expect(() => validateOcrResumeToken({
+      ...token,
+      tasks: [
+        token.tasks[0],
+        {
+          ...token.tasks[1],
+          pageIndexes: [0],
+        },
+      ],
+    })).toThrowError(OcrResumeStateError);
+
+    expect(() => validateOcrResumeToken({
+      ...token,
+      tasks: [
+        {
+          ...token.tasks[0],
+          pageIndexes: [1, 0],
+        },
+        token.tasks[1],
+      ],
     })).toThrowError(OcrResumeStateError);
   });
 
