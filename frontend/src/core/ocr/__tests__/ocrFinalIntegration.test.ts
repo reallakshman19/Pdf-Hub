@@ -17,6 +17,7 @@ import {
   mergeOcrDocumentResults,
   runFinalOcrIntegrationJob,
 } from '../ocrFinalIntegration';
+import { createOcrResumeToken } from '../ocrResumeState';
 
 describe('ocrFinalIntegration', () => {
   it('merges OCR document results by page index', () => {
@@ -93,6 +94,181 @@ describe('ocrFinalIntegration', () => {
     expect(diagnostics).toContain('OCR_FINAL_EXECUTION_PLAN_READY');
     expect(diagnostics).toContain('OCR_FINAL_RESULT_MERGED');
     expect(batchStatuses.length).toBeGreaterThan(0);
+  });
+
+  it('resumes completed batches without invoking OCR again', async () => {
+    let recognitionCalls = 0;
+    const workerClient = makeWorkerClient(() => {
+      recognitionCalls += 1;
+    });
+
+    const first = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-first',
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0, 1]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy: createOcrExecutionPolicy({
+        maxPagesPerJob: 5,
+      }),
+      batchSize: 1,
+      workerClient,
+    });
+
+    expect(recognitionCalls).toBe(2);
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      snapshot: first.batchSnapshot,
+      now: '2026-09-23T00:00:00.000Z',
+    });
+
+    recognitionCalls = 0;
+
+    const resumed = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-second',
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      resumeToken: token,
+      existingResult: first.result,
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0, 1]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy: createOcrExecutionPolicy({
+        maxPagesPerJob: 5,
+      }),
+      batchSize: 1,
+      workerClient,
+    });
+
+    expect(recognitionCalls).toBe(0);
+    expect(resumed.result.pages.map((page) => page.pageIndex)).toEqual([0, 1]);
+    expect(
+      resumed.diagnostics.some(
+        (diagnostic) => diagnostic.code === 'OCR_FINAL_RESUME_APPLIED',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects completed resume state when persisted OCR pages are missing', async () => {
+    const first = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-source',
+      documentFingerprint: 'doc-final-resume-missing',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0]),
+      requestedPageIndexes: [0],
+      totalPages: 1,
+      policy: createOcrExecutionPolicy(),
+      batchSize: 1,
+      workerClient: makeWorkerClient(),
+    });
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-resume-missing',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      snapshot: first.batchSnapshot,
+    });
+
+    await expect(
+      runFinalOcrIntegrationJob({
+        id: 'final-job-resume-invalid',
+        documentFingerprint: 'doc-final-resume-missing',
+        engineId: 'mock',
+        requestedProfileId: 'clean-scan',
+        resumeToken: token,
+        existingResult: null,
+        mode: 'worker-ocr',
+        capabilities: {
+          workerSupported: true,
+          ocrWorkerSupported: true,
+          rasterWorkerSupported: true,
+        },
+        explicitPages: createPlaceholderOcrPageInputs([0]),
+        requestedPageIndexes: [0],
+        totalPages: 1,
+        policy: createOcrExecutionPolicy(),
+        batchSize: 1,
+        workerClient: makeWorkerClient(),
+      }),
+    ).rejects.toThrow('no persisted OCR result');
+  });
+
+  it('keeps semantic OCR page failures retryable', async () => {
+    const failedWorkerClient: Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> = {
+      async recognizePages(payload) {
+        return {
+          documentFingerprint: payload.documentFingerprint,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          engineId: payload.engineId,
+          profileId: payload.profileId,
+          pages: payload.pages.map((page) => ({
+            ...makePage(page.pageIndex),
+            status: 'failed' as const,
+            diagnostics: [
+              {
+                level: 'error' as const,
+                code: 'OCR_ENGINE_FAILED',
+                pageIndex: page.pageIndex,
+                message: 'Synthetic semantic OCR failure.',
+              },
+            ],
+          })),
+          diagnostics: [],
+        };
+      },
+      dispose() {
+        return undefined;
+      },
+    };
+
+    const result = await runFinalOcrIntegrationJob({
+      id: 'final-job-semantic-failure',
+      documentFingerprint: 'doc-final-semantic-failure',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0]),
+      requestedPageIndexes: [0],
+      totalPages: 1,
+      policy: createOcrExecutionPolicy(),
+      batchSize: 1,
+      workerClient: failedWorkerClient,
+    });
+
+    expect(result.batchSnapshot.status).toBe('failed');
+    expect(result.batchSnapshot.failedCount).toBe(1);
+    expect(result.batchSnapshot.tasks[0].status).toBe('failed');
+    expect(result.result.pages).toEqual([]);
   });
 
   it('runs final integration job with worker raster and worker OCR', async () => {
@@ -180,9 +356,12 @@ describe('ocrFinalIntegration', () => {
   });
 });
 
-function makeWorkerClient(): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> {
+function makeWorkerClient(
+  onRecognize?: () => void,
+): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> {
   return {
     async recognizePages(payload, options) {
+      onRecognize?.();
       options?.onProgress?.({
         status: 'running',
         completedPages: 0,
