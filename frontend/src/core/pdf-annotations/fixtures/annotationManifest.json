@@ -26,7 +26,6 @@
     "textbox": {
       "type": "textbox",
       "pdfSubtype": "FreeText",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -59,12 +58,12 @@
         "fontSize": 14,
         "borderColor": "#2563eb",
         "backgroundColor": "#eff6ff"
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "callout": {
       "type": "callout",
       "pdfSubtype": "FreeText",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -105,12 +104,12 @@
         },
         "borderColor": "#475569",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "sticky-note": {
       "type": "sticky-note",
       "pdfSubtype": "Text",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -144,12 +143,12 @@
         "author": "Reviewer Alice",
         "backgroundColor": "#fef08a",
         "isCollapsed": false
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "comment": {
       "type": "comment",
       "pdfSubtype": "Text",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -182,12 +181,12 @@
         "text": "Review comment item",
         "author": "Lead Reviewer",
         "backgroundColor": "#fed7aa"
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "highlight": {
       "type": "highlight",
       "pdfSubtype": "Highlight",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -214,12 +213,12 @@
       "defaults": {
         "backgroundColor": "#fde047",
         "opacity": 0.4
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "underline": {
       "type": "underline",
       "pdfSubtype": "Underline",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -246,12 +245,12 @@
       "defaults": {
         "borderColor": "#2563eb",
         "opacity": 1
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "strikeout": {
       "type": "strikeout",
       "pdfSubtype": "StrikeOut",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -278,12 +277,12 @@
       "defaults": {
         "borderColor": "#dc2626",
         "opacity": 1
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "squiggly": {
       "type": "squiggly",
       "pdfSubtype": "Squiggly",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -310,12 +309,12 @@
       "defaults": {
         "borderColor": "#16a34a",
         "opacity": 1
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "shape-rect": {
       "type": "shape-rect",
       "pdfSubtype": "Square",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -347,12 +346,12 @@
         "backgroundColor": "#e0f2fe",
         "borderWidth": 2,
         "opacity": 0.9
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "shape-ellipse": {
       "type": "shape-ellipse",
       "pdfSubtype": "Circle",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -382,12 +381,12 @@
         "backgroundColor": "#ede9fe",
         "borderWidth": 2,
         "opacity": 0.85
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "shape-polygon": {
       "type": "shape-polygon",
       "pdfSubtype": "Polygon",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -432,12 +431,12 @@
         "backgroundColor": "#d1fae5",
         "borderWidth": 2,
         "opacity": 0.9
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "shape-cloud": {
       "type": "shape-cloud",
       "pdfSubtype": "Square",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -470,12 +469,12 @@
         "backgroundColor": "#ccfbf1",
         "borderWidth": 2,
         "opacity": 0.8
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "line": {
       "type": "line",
       "pdfSubtype": "Line",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -513,12 +512,12 @@
         "lineEndCap": "none",
         "borderColor": "#334155",
         "borderWidth": 2
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "arrow": {
       "type": "arrow",
       "pdfSubtype": "Line",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -556,12 +555,12 @@
         "lineEndCap": "arrow",
         "borderColor": "#e11d48",
         "borderWidth": 2
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "ink": {
       "type": "ink",
       "pdfSubtype": "Ink",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -610,12 +609,12 @@
         "borderColor": "#4f46e5",
         "borderWidth": 3,
         "opacity": 0.95
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "stamp": {
       "type": "stamp",
       "pdfSubtype": "Stamp",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -643,12 +642,12 @@
         "stampStyle": "approved",
         "borderColor": "#15803d",
         "opacity": 0.9
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     },
     "redaction": {
       "type": "redaction",
       "pdfSubtype": "Square",
-      "appearanceStreamRequired": true,
       "standardPdfFields": [
         "Subtype",
         "Rect",
@@ -679,7 +678,8 @@
         "backgroundColor": "#000000",
         "borderColor": "#000000",
         "opacity": 1
-      }
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
     }
   },
   "subtype_ambiguities": {
@@ -719,8 +719,13 @@
   },
   "policies": {
     "appearance_stream_requirement": {
-      "enforce_ap_for_all_supported_types": true,
-      "rationale": "External viewers without dynamic appearance generation (Adobe Acrobat, Preview, third-party viewers) depend on explicit /AP streams to render annotations."
+      "strategy": "EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE",
+      "baseline_ap": "ABSENT",
+      "default_requirement": "NOT_REQUIRED_WITHOUT_EVIDENCE",
+      "activation_rule": "Production /AP generation may be introduced only after durable named-viewer evidence records render=FAIL for a specific annotation type/family on the exact production material under test.",
+      "scope_rule": "Any /AP implementation must be bounded to the failing viewer/type/family evidence and requalified after the change; passing families must not acquire /AP merely because another family failed.",
+      "claim_rule": "Structural inspection alone cannot declare /AP required or viewer compatibility. Named viewer/version/platform evidence is required.",
+      "rationale": "Phase 10 qualifies standards-native dictionaries empirically before adding appearance streams, avoiding unnecessary or stale /AP generation."
     },
     "external_edit_precedence": {
       "standard_fields_override_custom_data": true,
