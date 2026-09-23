@@ -19,6 +19,7 @@ import {
 } from '@/core/ocr/ocrBatchScheduler';
 import {
   createOcrResumeToken,
+  ocrResumeExecutionConfigMatches,
 } from '@/core/ocr/ocrResumeState';
 import {
   runFinalOcrIntegrationJob,
@@ -124,8 +125,19 @@ export function useOcrRunWorkflow({
 
   const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
   const hasInputSource = Boolean(pdfBytes || (pages && pages.length > 0));
+  const currentResumeExecutionConfig = {
+    forceOcr: store.forceOcr,
+    rasterScale: executionPolicy.rasterScale,
+    maxCanvasPixels: executionPolicy.maxCanvasPixels,
+  };
+
   const applicableResumeToken =
     selectedPages.length === 0
+    && store.resumeToken
+    && ocrResumeExecutionConfigMatches(
+      store.resumeToken.executionConfig,
+      currentResumeExecutionConfig,
+    )
       ? store.resumeToken
       : null;
 
@@ -174,11 +186,15 @@ export function useOcrRunWorkflow({
         documentFingerprint: effectiveDocumentFingerprint,
         engineId: store.engineId,
         profileId: store.profileId,
+        executionConfig: currentResumeExecutionConfig,
         snapshot,
       }),
     );
   }, [
     effectiveDocumentFingerprint,
+    currentResumeExecutionConfig.forceOcr,
+    currentResumeExecutionConfig.maxCanvasPixels,
+    currentResumeExecutionConfig.rasterScale,
     store.engineId,
     store.profileId,
   ]);
