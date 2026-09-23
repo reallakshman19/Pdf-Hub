@@ -735,14 +735,43 @@
         "InkList",
         "State",
         "DA",
-        "QuadPoints"
+        "QuadPoints",
+        "F",
+        "Border",
+        "Q",
+        "Open",
+        "Name",
+        "LE"
       ],
       "pending_fields": [],
       "rationale": "Recognized standard PDF state is authoritative on re-import. DA and QuadPoints are now represented by the production reader/writer rather than remaining implied or pending support.",
       "field_mappings": {
         "DA": "FreeText DA overrides cached fontSize/textColor. Exact source DA is reused on a no-op; supported local font-size/color edits rewrite those operators while preserving the external font resource token.",
-        "QuadPoints": "Text-markup QuadPoints override cached geometry and are projected as Rect-normalized textMarkupQuads. Exact source QuadPoints are reused on a no-op; local Rect move/resize regenerates scaled PDF-space quads."
-      }
+        "QuadPoints": "Text-markup QuadPoints override cached geometry and are projected as Rect-normalized textMarkupQuads. Exact source QuadPoints are reused on a no-op; local Rect move/resize regenerates scaled PDF-space quads.",
+        "F": "Import the standard Locked flag bit into data.locked; on rewrite toggle only that bit and preserve all other external annotation flag bits.",
+        "Border": "Import border width plus solid/dashed/dotted/none style; reuse the source Border object on a semantic no-op and regenerate only after a supported local border edit.",
+        "Q": "FreeText quadding 0/1/2 maps to left/center/right textAlign and overrides stale private data.",
+        "Open": "Text annotation Open maps inversely to sticky-note isCollapsed; externally supplied Name/icon is preserved independently.",
+        "Name": "Stamp Name maps recognized standard stamp names to stampStyle and preserves unknown external names while style remains custom; Text annotation icon names are preserved on rewrite.",
+        "LE": "Line endings map supported standard endings to lineStartCap/lineEndCap; source LE is reused on no-op so unrepresented standard ending names are not normalized away.",
+        "IT": "FreeTextCallout participates in standards-native textbox/callout classification; unrecognized external intent values are preserved when the annotation remains a textbox.",
+        "BE": "Cloud border effect participates in standards-native Square classification; the source cloud BE dictionary, including intensity, is preserved on no-op."
+      },
+      "classification_fields": [
+        "Subtype",
+        "IT",
+        "CL",
+        "BE",
+        "LE"
+      ],
+      "identity_lifecycle_fields": [
+        "NM",
+        "M",
+        "CreationDate",
+        "T"
+      ],
+      "preserved_only_fields": [],
+      "type_precedence_rule": "For standard-resolvable subtype ambiguities (FreeText, Square, Line), recognized standard fields override stale PDFHubType. Text comment-vs-sticky may retain valid private type only where native reply/state topology does not resolve the application distinction."
     },
     "save_vs_export_separation": {
       "save_preserves_native_annotations": true,
@@ -789,6 +818,44 @@
       "reply_passive_rule": "Reply fields outside PDF Hub's reply identity/content/thread ownership, including externally supplied Rect/style/extension metadata, are copied forward when the logical reply is rewritten.",
       "appearance_rule": "An existing AP entry is preserved only when every PDF Hub-owned appearance-driving field is semantically unchanged. If a local edit changes those fields, stale AP is omitted rather than allowed to override the edited native state.",
       "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes."
+    },
+    "standard_field_coverage": {
+      "source": "Union of fixtures[*].standardPdfFields",
+      "semantic_reader_fields": [
+        "Contents",
+        "Rect",
+        "C",
+        "IC",
+        "CL",
+        "L",
+        "Vertices",
+        "InkList",
+        "State",
+        "DA",
+        "QuadPoints",
+        "F",
+        "Border",
+        "Q",
+        "Open",
+        "Name",
+        "LE"
+      ],
+      "classification_fields": [
+        "Subtype",
+        "IT",
+        "CL",
+        "BE",
+        "LE"
+      ],
+      "identity_lifecycle_fields": [
+        "NM",
+        "M",
+        "CreationDate",
+        "T"
+      ],
+      "preserved_only_fields": [],
+      "ignored_fields": [],
+      "rule": "Every declared standard field must be covered by at least one explicit category. Unclassified declared fields fail the Phase 10 audit."
     }
   },
   "review_thread_fixture": {
