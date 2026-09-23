@@ -230,6 +230,18 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       documentFingerprint: snapshot.job.documentFingerprint ?? previous.documentFingerprint,
       activeJobId: snapshot.job.id,
       jobs,
+      resumeToken: resumeTokenMatchesConfiguration(
+        previous.resumeToken,
+        {
+          documentFingerprint:
+            snapshot.job.documentFingerprint
+            ?? previous.documentFingerprint,
+          engineId: snapshot.job.engineId ?? previous.engineId,
+          profileId: snapshot.job.profileId ?? previous.profileId,
+        },
+      )
+        ? previous.resumeToken
+        : null,
       result: mergeCompatibleOcrResults(
         previous.result,
         snapshot.partialResult,
@@ -257,6 +269,18 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       ...previous,
       documentFingerprint: result?.documentFingerprint ?? previous.documentFingerprint,
       result,
+      resumeToken:
+        result
+        && resumeTokenMatchesConfiguration(
+          previous.resumeToken,
+          {
+            documentFingerprint: result.documentFingerprint,
+            engineId: result.engineId,
+            profileId: result.profileId,
+          },
+        )
+          ? previous.resumeToken
+          : null,
       lastUpdatedAt: new Date().toISOString(),
       dirty: true,
     };
@@ -546,6 +570,23 @@ export function recomputeOcrDerivedState(
     confidenceSummary,
     lowConfidenceWords,
   };
+}
+
+function resumeTokenMatchesConfiguration(
+  token: OcrResumeTokenV1 | null,
+  configuration: {
+    documentFingerprint: string | null;
+    engineId: string;
+    profileId: OcrProfileId;
+  },
+): boolean {
+  return Boolean(
+    token
+    && configuration.documentFingerprint
+    && token.documentFingerprint === configuration.documentFingerprint
+    && token.engineId === configuration.engineId
+    && token.profileId === configuration.profileId,
+  );
 }
 
 function mergeCompatibleOcrResults(
