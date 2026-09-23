@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { createOcrDemoResult } from '@/core/ocr/fixtures/ocrDemoFixtures';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 import {
   useOcrRunWorkflow,
   type UseOcrRunWorkflowInput,
@@ -135,6 +136,15 @@ describe('useOcrRunWorkflow', () => {
     });
 
     expect(useOcrStore.getState().correctedResult?.documentFingerprint).toBe('workflow-run');
+    expect(useOcrStore.getState().resumeToken).toMatchObject({
+      schema: 'pdf-hub-ocr-resume',
+      documentFingerprint: 'workflow-run',
+    });
+    expect(
+      useOcrStore.getState().resumeToken?.tasks.every(
+        (task) => task.status === 'completed',
+      ),
+    ).toBe(true);
 
     fireEvent.click(screen.getByText('Clear model OCR'));
 
@@ -142,7 +152,29 @@ describe('useOcrRunWorkflow', () => {
       expect(useOcrStore.getState().correctedResult).toBeNull();
     });
 
+    expect(useOcrStore.getState().resumeToken).toBeNull();
     expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
+  });
+
+  it('restores pending checkpoint pages as a runnable workflow even with partial OCR results', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'workflow-resume'),
+    );
+    useOcrStore.getState().setOcrResumeToken(
+      makeResumeToken('workflow-resume'),
+    );
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="workflow-resume"
+        pageCount={2}
+        pages={[pageInput(0), pageInput(1)]}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('0,1');
+    expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
+    expect(screen.getByTestId('workflow-can-run').textContent).toBe('true');
   });
 
   it('does not mark an idle/ready model as cancelled when cancel is not available', () => {
@@ -160,4 +192,32 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-error').textContent).toBe('');
     expect(screen.getByTestId('workflow-can-cancel').textContent).toBe('false');
   });
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'completed',
+      },
+      {
+        id: 'ocr-batch-2',
+        index: 1,
+        pageIndexes: [1],
+        status: 'failed',
+        errorMessage: 'Synthetic interrupted batch.',
+      },
+    ],
+  };
+}
+
 });
