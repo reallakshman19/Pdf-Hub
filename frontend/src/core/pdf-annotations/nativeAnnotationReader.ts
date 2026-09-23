@@ -143,6 +143,7 @@ export async function readNativePdfAnnotations(
         review: {
           ...review,
           status: readReviewStatus(record.dict, lib, review.status),
+          statusAuthor: readText(record.dict, 'T', lib) ?? review.statusAuthor,
           updatedAt: Math.max(review.updatedAt, updatedAt),
         },
       };
@@ -377,6 +378,7 @@ function ensureReviewMetadata(
     createdAt: current?.createdAt ?? annotation.createdAt,
     updatedAt: current?.updatedAt ?? annotation.updatedAt,
     status,
+    statusAuthor: current?.statusAuthor,
     title: current?.title,
     category: current?.category,
     replies: current?.replies ?? [],
