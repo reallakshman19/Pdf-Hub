@@ -1145,6 +1145,75 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(stampDict3.lookup(PDFName.of('Name')).decodeText()).toBe('Rejected');
   });
 
+  it('honors BS over Border and removes stale BS after a supported local border edit', async () => {
+    const baseBytes = await createEmptyPdf();
+    const rect = createDeterministicAnnotation('shape-rect', {
+      id: 'phase10-field-symmetry-bs-1',
+      data: {
+        borderWidth: 2,
+        borderStyle: 'solid',
+      },
+    });
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [rect]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const dict = annots.lookup(0) as PDFDict;
+
+    // Border deliberately disagrees with BS. PDF semantics require BS to win.
+    dict.set(
+      PDFName.of('Border'),
+      externalDoc.context.obj([0, 0, 9]),
+    );
+    dict.set(
+      PDFName.of('BS'),
+      externalDoc.context.obj({
+        W: 3,
+        S: PDFName.of('D'),
+        D: [4, 2],
+      }),
+    );
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+
+    expect(returned.annotations[0].data.borderWidth).toBe(3);
+    expect(returned.annotations[0].data.borderStyle).toBe('dashed');
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const dict2 = (doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    const bs2 = dict2.lookup(PDFName.of('BS')) as PDFDict;
+    expect(bs2.lookup(PDFName.of('W')).asNumber()).toBe(3);
+    expect(bs2.lookup(PDFName.of('S')).decodeText()).toBe('D');
+    const dash2 = bs2.lookup(PDFName.of('D')) as any;
+    expect(dash2.lookup(0).asNumber()).toBe(4);
+    expect(dash2.lookup(1).asNumber()).toBe(2);
+
+    const locallyEdited = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        borderWidth: 5,
+        borderStyle: 'solid' as const,
+      },
+      updatedAt: returned.annotations[0].updatedAt + 1_000,
+    };
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const dict3 = (doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
+      .lookup(0) as PDFDict;
+    const bs3 = dict3.lookup(PDFName.of('BS')) as PDFDict;
+    expect(bs3.lookup(PDFName.of('W')).asNumber()).toBe(5);
+    expect(bs3.lookup(PDFName.of('S')).decodeText()).toBe('S');
+
+    const read3 = await readNativePdfAnnotations(save3.bytes);
+    expect(read3.annotations[0].data.borderWidth).toBe(5);
+    expect(read3.annotations[0].data.borderStyle).toBe('solid');
+  });
+
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
     const standardFields = {
       Contents: 'Externally edited comment text in Adobe Acrobat',
