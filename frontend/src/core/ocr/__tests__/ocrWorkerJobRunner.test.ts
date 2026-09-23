@@ -79,6 +79,39 @@ describe('ocrWorkerJobRunner', () => {
     expect(snapshots).toContain('completed');
   });
 
+  it('forwards multilingual hints to the worker request', async () => {
+    let observedLanguages: string[] | undefined;
+
+    const client: Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> = {
+      async recognizePages(payload) {
+        observedLanguages = payload.languageHints;
+        return makeOcrResult();
+      },
+      dispose() {
+        return undefined;
+      },
+    };
+
+    await runWorkerOcrJob({
+      id: 'worker-job-language',
+      documentFingerprint: 'doc-worker-job',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      languageHints: ['eng', 'hin', 'tam'],
+      pages: [
+        {
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        },
+      ],
+      workerClient: client,
+    });
+
+    expect(observedLanguages).toEqual(['eng', 'hin', 'tam']);
+  });
+
   it('disposes default/injected client when requested', async () => {
     let disposed = false;
 
