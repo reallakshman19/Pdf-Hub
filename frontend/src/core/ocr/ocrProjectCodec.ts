@@ -3,6 +3,8 @@ import type { OcrDocumentResult, OcrBlock, OcrTableBlock } from './types';
 import type { OcrCorrection } from './ocrCorrections';
 import type { OcrRegion } from './ocrRegionModel';
 import type { OcrWriterInsertionQueueState } from './ocrWriterInsertion';
+import type { OcrResumeTokenV1 } from './ocrResumeState';
+import { validateOcrResumeToken } from './ocrResumeState';
 import {
   JSZipProjectArchiveReader,
   type ProjectArchiveReader,
@@ -15,6 +17,7 @@ export interface OcrProjectArchiveV1 {
   documentFingerprint: string;
   createdAt: string;
   updatedAt: string;
+  resumeToken?: OcrResumeTokenV1 | null;
   files: {
     result: 'ocr/result.json';
     corrections: 'ocr/corrections.json';
@@ -43,6 +46,7 @@ export interface CreateOcrProjectPayloadInput {
   corrections?: OcrCorrection[];
   regions?: OcrRegion[];
   writerInsertionQueue?: OcrWriterInsertionQueueState | null;
+  resumeToken?: OcrResumeTokenV1 | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -57,6 +61,7 @@ export interface OcrProjectCodecValidationResult {
       | 'INVALID_OCR_PROJECT_VERSION'
       | 'MISSING_DOCUMENT_FINGERPRINT'
       | 'MISMATCHED_DOCUMENT_FINGERPRINT'
+      | 'INVALID_OCR_RESUME_TOKEN'
       | 'MISSING_OCR_FILE'
       | 'INVALID_OCR_JSON';
     message: string;
@@ -117,6 +122,9 @@ export function createOcrProjectPayload(
     documentFingerprint: input.documentFingerprint,
     createdAt,
     updatedAt,
+    ...(input.resumeToken
+      ? { resumeToken: cloneOcrResumeToken(input.resumeToken) }
+      : {}),
     files: {
       result: 'ocr/result.json',
       corrections: 'ocr/corrections.json',
@@ -336,6 +344,27 @@ export function validateOcrProjectManifest(
     });
   }
 
+  if (manifest.resumeToken) {
+    try {
+      validateOcrResumeToken(manifest.resumeToken);
+      if (manifest.resumeToken.documentFingerprint !== manifest.documentFingerprint) {
+        diagnostics.push({
+          level: 'error',
+          code: 'MISMATCHED_DOCUMENT_FINGERPRINT',
+          message: 'OCR resume token documentFingerprint does not match OCR manifest.',
+        });
+      }
+    } catch (error) {
+      diagnostics.push({
+        level: 'error',
+        code: 'INVALID_OCR_RESUME_TOKEN',
+        message: error instanceof Error
+          ? error.message
+          : 'OCR project manifest contains an invalid resume token.',
+      });
+    }
+  }
+
   if (!diagnostics.some((diagnostic) => diagnostic.level === 'error')) {
     diagnostics.push({
       level: 'info',
@@ -378,6 +407,18 @@ async function readOcrJsonFile<T>(
         : `Invalid OCR JSON file ${path}.`,
     );
   }
+}
+
+function cloneOcrResumeToken(
+  token: OcrResumeTokenV1,
+): OcrResumeTokenV1 {
+  return {
+    ...token,
+    tasks: token.tasks.map((task) => ({
+      ...task,
+      pageIndexes: [...task.pageIndexes],
+    })),
+  };
 }
 
 function normalizeOcrDocumentResultFingerprint(
