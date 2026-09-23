@@ -739,6 +739,7 @@
         "QuadPoints",
         "F",
         "Border",
+        "BS",
         "Q",
         "Open",
         "Name",
@@ -756,7 +757,8 @@
         "Name": "Stamp Name maps recognized standard stamp names to stampStyle and preserves unknown external names while style remains custom; Text annotation icon names are preserved on rewrite.",
         "LE": "Line endings map supported standard endings to lineStartCap/lineEndCap; source LE is reused on no-op so unrepresented standard ending names are not normalized away.",
         "IT": "FreeTextCallout participates in standards-native textbox/callout classification; unrecognized external intent values are preserved when the annotation remains a textbox.",
-        "BE": "Cloud border effect participates in standards-native Square classification; the source cloud BE dictionary, including intensity, is preserved on no-op."
+        "BE": "Cloud border effect participates in standards-native Square classification; the source cloud BE dictionary, including intensity, is preserved on no-op.",
+        "BS": "When present, BS is authoritative over Border. Supported W/S/D semantics map to borderWidth/borderStyle; exact source BS is reused on no-op. Supported local border edits regenerate/remove BS so a stale external style dictionary cannot override the edit. Unsupported BS styles are preserved while no supported local style replacement is requested."
       },
       "classification_fields": [
         "Subtype",
@@ -837,6 +839,7 @@
         "QuadPoints",
         "F",
         "Border",
+        "BS",
         "Q",
         "Open",
         "Name",
@@ -865,7 +868,8 @@
         "State",
         "StateModel",
         "IRT",
-        "RT"
+        "RT",
+        "BS"
       ]
     }
   },
