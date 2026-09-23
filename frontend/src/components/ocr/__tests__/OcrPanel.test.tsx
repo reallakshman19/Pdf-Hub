@@ -86,6 +86,40 @@ describe('OcrPanel primary workflow', () => {
     );
   });
 
+  it('restores checkpoint page scope instead of defaulting reopened OCR to all pages', () => {
+    const token: OcrResumeTokenV1 = {
+      ...makeResumeToken('doc-resume-subset'),
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [1],
+          status: 'failed',
+          errorMessage: 'Interrupted selected-page OCR.',
+        },
+      ],
+    };
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-resume-subset',
+      resumeToken: token,
+    });
+
+    render(
+      <OcrPanel
+        documentFingerprint="doc-resume-subset"
+        selectedPageIndexes={[]}
+        pageCount={2}
+        pages={pageInputs}
+      />,
+    );
+
+    const resume = screen.getByRole('radio', { name: /resume/i }) as HTMLInputElement;
+    expect(resume.checked).toBe(true);
+    expect(screen.getByText('1 checkpoint page')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /resume ocr/i })).toBeTruthy();
+  });
+
   it('disables recognition when no real PDF or raster source exists', () => {
     render(
       <OcrPanel
@@ -276,13 +310,7 @@ function makeResumeToken(
       {
         id: 'ocr-batch-1',
         index: 0,
-        pageIndexes: [0],
-        status: 'completed',
-      },
-      {
-        id: 'ocr-batch-2',
-        index: 1,
-        pageIndexes: [1],
+        pageIndexes: [0, 1],
         status: 'failed',
         errorMessage: 'Synthetic interrupted batch.',
       },
