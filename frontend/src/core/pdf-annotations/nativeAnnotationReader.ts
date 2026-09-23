@@ -104,7 +104,10 @@ export async function readNativePdfAnnotations(
         ? recordByRef.get(immediateParentKey)
         : undefined;
       const parentReplyId =
-        immediateParentRecord && isReplyRecord(immediateParentRecord.dict, lib)
+        immediateParentKey
+        && !rootByRef.has(immediateParentKey)
+        && immediateParentRecord
+        && isReplyRecord(immediateParentRecord.dict, lib)
           ? replyLogicalId(
               immediateParentRecord.dict,
               parent.id,
