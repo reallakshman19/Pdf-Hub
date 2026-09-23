@@ -440,7 +440,7 @@ function writeNativeReplies(
   const replyRefById = new Map<string, PDFRef>();
   const replyDictById = new Map<string, PDFDict>();
   const sourceById = new Map(
-    sourceGraph.records.map((record) => [record.logicalId, record.dict]),
+    sourceGraph.records.map((record) => [record.logicalId, record]),
   );
 
   for (const reply of replies) {
@@ -463,7 +463,7 @@ function writeNativeReplies(
     }) as PDFDict;
 
     preservePassiveAnnotationEntries(
-      sourceById.get(reply.id) ?? null,
+      sourceById.get(reply.id)?.dict ?? null,
       replyDict,
       REPLY_OWNED_KEYS,
       REPLY_APPEARANCE_KEYS,
@@ -471,7 +471,7 @@ function writeNativeReplies(
     );
 
     const replyRef = doc.context.register(replyDict);
-    relinkPopupParent(sourceById.get(reply.id) ?? null, replyRef, lib);
+    relinkPopupParent(sourceById.get(reply.id)?.dict ?? null, replyRef, lib);
     annots.push(replyRef);
     replyRefById.set(reply.id, replyRef);
     replyDictById.set(reply.id, replyDict);
