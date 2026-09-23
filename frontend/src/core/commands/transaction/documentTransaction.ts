@@ -234,6 +234,7 @@ function commitOcrPageState(state: OcrPageAnchoredState): void {
     recomputeOcrDerivedState({
       ...current,
       ...cloneOcrPageAnchoredState(state),
+      resumeToken: null,
       activeJobId: null,
       jobs: [],
       dirty: hasOcrState,
