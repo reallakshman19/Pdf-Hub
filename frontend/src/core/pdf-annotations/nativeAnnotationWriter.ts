@@ -856,7 +856,17 @@ function registerNativeAnnotation(
     base.PDFHubReviewStatus = lib.PDFString.of(annotation.data.review.status);
   }
 
-  addSubtypeFields(base, annotation, geometry, stroke, fill, opacity, borderWidth, lib);
+  addSubtypeFields(
+    base,
+    annotation,
+    geometry,
+    stroke,
+    fill,
+    opacity,
+    borderWidth,
+    sourceDict,
+    lib,
+  );
 
   const dict = doc.context.obj(base) as PDFDict;
   preservePassiveAnnotationEntries(
@@ -879,6 +889,7 @@ function addSubtypeFields(
   fill: PdfColor,
   opacity: number,
   borderWidth: number,
+  sourceDict: PDFDict | null,
   lib: PdfLibModule,
 ): void {
   switch (annotation.type) {
@@ -893,7 +904,12 @@ function addSubtypeFields(
     case 'underline':
     case 'strikeout':
     case 'squiggly':
-      target.QuadPoints = quadPoints(geometry);
+      target.QuadPoints = textMarkupQuadPoints(
+        annotation,
+        geometry,
+        sourceDict,
+        lib,
+      );
       target.C = colorArray(
         annotation.type === 'highlight' ? fill : stroke,
       );
@@ -906,7 +922,12 @@ function addSubtypeFields(
         typeof annotation.data.fontSize === 'number'
           ? clamp(annotation.data.fontSize, 6, 144)
           : 12;
-      target.DA = lib.PDFString.of(`/Helvetica ${fontSize} Tf 0 g`);
+      target.DA = defaultAppearanceValue(
+        annotation,
+        fontSize,
+        sourceDict,
+        lib,
+      );
       target.Q = textAlignment(annotation.data.textAlign);
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
@@ -1028,7 +1049,59 @@ function toPdfGeometry(annotation: PdfAnnotation, page: PDFPage): AnnotationGeom
   };
 }
 
-function quadPoints(geometry: AnnotationGeometry): number[] {
+function textMarkupQuadPoints(
+  annotation: PdfAnnotation,
+  geometry: AnnotationGeometry,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const normalized = readFiniteNumberArray(annotation.data.textMarkupQuads);
+  const validNormalized = Boolean(
+    normalized
+    && normalized.length >= 8
+    && normalized.length % 8 === 0,
+  );
+
+  const sourceQuadObject = sourceDict?.get(lib.PDFName.of('QuadPoints'));
+  const sourceQuadArray = sourceDict
+    ? sourceDict.lookupMaybe(lib.PDFName.of('QuadPoints'), lib.PDFArray)
+    : undefined;
+  const sourceRect = sourceDict
+    ? readPdfNumberArray(sourceDict, 'Rect', lib)
+    : null;
+
+  if (
+    validNormalized
+    && sourceQuadObject
+    && sourceQuadArray
+    && sourceRect
+    && numberArraysEquivalent(sourceRect, geometry.rect)
+  ) {
+    const sourceValues = readPdfArrayValues(sourceQuadArray, lib);
+    const sourceNormalized = normalizePdfQuadPoints(
+      sourceValues,
+      geometry,
+    );
+    if (
+      sourceNormalized
+      && numberArraysEquivalent(sourceNormalized, normalized!)
+    ) {
+      return sourceQuadObject;
+    }
+  }
+
+  if (validNormalized) {
+    const values: number[] = [];
+    for (let index = 0; index + 1 < normalized!.length; index += 2) {
+      const nx = normalized![index];
+      const ny = normalized![index + 1];
+      const appX = annotation.rect.x + (nx * annotation.rect.width);
+      const appY = annotation.rect.y + (ny * annotation.rect.height);
+      values.push(appX, geometry.pageHeight - appY);
+    }
+    return values;
+  }
+
   const left = geometry.x;
   const right = geometry.x + geometry.width;
   const bottom = geometry.y;
@@ -1040,6 +1113,281 @@ function quadPoints(geometry: AnnotationGeometry): number[] {
     left, bottom,
     right, bottom,
   ];
+}
+
+function normalizePdfQuadPoints(
+  values: number[],
+  geometry: AnnotationGeometry,
+): number[] | null {
+  if (
+    values.length < 8
+    || values.length % 8 !== 0
+    || geometry.width <= 0
+    || geometry.height <= 0
+  ) {
+    return null;
+  }
+
+  const normalized: number[] = [];
+  const appRectY = geometry.pageHeight - geometry.y - geometry.height;
+  for (let index = 0; index + 1 < values.length; index += 2) {
+    const appX = values[index];
+    const appY = geometry.pageHeight - values[index + 1];
+    const nx = (appX - geometry.x) / geometry.width;
+    const ny = (appY - appRectY) / geometry.height;
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
+    normalized.push(nx, ny);
+  }
+  return normalized;
+}
+
+function defaultAppearanceValue(
+  annotation: PdfAnnotation,
+  fontSize: number,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  const sourceObject = sourceDict?.get(lib.PDFName.of('DA'));
+  const sourceText = sourceDict
+    ? readTextObject(sourceDict, 'DA', lib)
+    : null;
+  const desiredColor = readColor(annotation.data.textColor, { r: 0, g: 0, b: 0 });
+  const hasExplicitTextColor =
+    typeof annotation.data.textColor === 'string'
+    && annotation.data.textColor !== 'transparent';
+
+  if (sourceObject && sourceText) {
+    const parsed = parseDefaultAppearance(sourceText);
+    const fontMatches =
+      typeof parsed.fontSize === 'number'
+      && nearlyEqual(parsed.fontSize, fontSize);
+    const colorMatches =
+      !hasExplicitTextColor
+      || (
+        parsed.textColor
+        && colorsEquivalent(parsed.textColor, desiredColor)
+      );
+
+    if (fontMatches && colorMatches) {
+      return sourceObject;
+    }
+
+    return lib.PDFString.of(
+      rewriteDefaultAppearance(
+        sourceText,
+        fontSize,
+        desiredColor,
+        hasExplicitTextColor,
+      ),
+    );
+  }
+
+  return lib.PDFString.of(
+    `/Helvetica ${formatPdfNumber(fontSize)} Tf ${formatPdfColor(desiredColor)} rg`,
+  );
+}
+
+function parseDefaultAppearance(
+  source: string,
+): { fontSize?: number; textColor?: PdfColor } {
+  const tokens = source.trim().split(/\s+/).filter(Boolean);
+  let fontSize: number | undefined;
+  let textColor: PdfColor | undefined;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const operator = tokens[index];
+
+    if (operator === 'Tf' && index >= 1) {
+      const size = Number(tokens[index - 1]);
+      if (Number.isFinite(size) && size > 0) fontSize = size;
+      continue;
+    }
+
+    if (operator === 'g' && index >= 1) {
+      const gray = Number(tokens[index - 1]);
+      if (Number.isFinite(gray)) {
+        textColor = { r: clamp(gray, 0, 1), g: clamp(gray, 0, 1), b: clamp(gray, 0, 1) };
+      }
+      continue;
+    }
+
+    if (operator === 'rg' && index >= 3) {
+      const r = Number(tokens[index - 3]);
+      const g = Number(tokens[index - 2]);
+      const b = Number(tokens[index - 1]);
+      if ([r, g, b].every((value) => Number.isFinite(value))) {
+        textColor = {
+          r: clamp(r, 0, 1),
+          g: clamp(g, 0, 1),
+          b: clamp(b, 0, 1),
+        };
+      }
+      continue;
+    }
+
+    if (operator === 'k' && index >= 4) {
+      const cyan = Number(tokens[index - 4]);
+      const magenta = Number(tokens[index - 3]);
+      const yellow = Number(tokens[index - 2]);
+      const black = Number(tokens[index - 1]);
+      if ([cyan, magenta, yellow, black].every((value) => Number.isFinite(value))) {
+        textColor = {
+          r: 1 - Math.min(1, cyan + black),
+          g: 1 - Math.min(1, magenta + black),
+          b: 1 - Math.min(1, yellow + black),
+        };
+      }
+    }
+  }
+
+  return { fontSize, textColor };
+}
+
+function rewriteDefaultAppearance(
+  source: string,
+  fontSize: number,
+  color: PdfColor,
+  rewriteColor: boolean,
+): string {
+  const tokens = source.trim().split(/\s+/).filter(Boolean);
+  let fontUpdated = false;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index] === 'Tf' && index >= 1) {
+      tokens[index - 1] = formatPdfNumber(fontSize);
+      fontUpdated = true;
+    }
+  }
+
+  if (!fontUpdated) {
+    tokens.push('/Helvetica', formatPdfNumber(fontSize), 'Tf');
+  }
+
+  if (rewriteColor) {
+    let colorIndex = -1;
+    let operandCount = 0;
+    for (let index = tokens.length - 1; index >= 0; index -= 1) {
+      if (tokens[index] === 'g') {
+        colorIndex = index;
+        operandCount = 1;
+        break;
+      }
+      if (tokens[index] === 'rg') {
+        colorIndex = index;
+        operandCount = 3;
+        break;
+      }
+      if (tokens[index] === 'k') {
+        colorIndex = index;
+        operandCount = 4;
+        break;
+      }
+    }
+
+    const replacement = [
+      formatPdfNumber(color.r),
+      formatPdfNumber(color.g),
+      formatPdfNumber(color.b),
+      'rg',
+    ];
+
+    if (colorIndex >= operandCount) {
+      tokens.splice(
+        colorIndex - operandCount,
+        operandCount + 1,
+        ...replacement,
+      );
+    } else {
+      tokens.push(...replacement);
+    }
+  }
+
+  return tokens.join(' ');
+}
+
+function readTextObject(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): string | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (value instanceof lib.PDFString || value instanceof lib.PDFHexString) {
+    return value.decodeText();
+  }
+  return null;
+}
+
+function readPdfNumberArray(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): number[] | null {
+  const array = dict.lookupMaybe(lib.PDFName.of(key), lib.PDFArray);
+  return array ? readPdfArrayValues(array, lib) : null;
+}
+
+function readPdfArrayValues(
+  array: PDFArray,
+  lib: PdfLibModule,
+): number[] {
+  const values: number[] = [];
+  for (let index = 0; index < array.size(); index += 1) {
+    const value = array.lookupMaybe(index, lib.PDFNumber);
+    if (!value) return [];
+    values.push(value.asNumber());
+  }
+  return values;
+}
+
+function readFiniteNumberArray(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+  const values = value.map(Number);
+  return values.every((entry) => Number.isFinite(entry))
+    ? values
+    : null;
+}
+
+function numberArraysEquivalent(
+  left: number[],
+  right: number[],
+  epsilon = 1e-8,
+): boolean {
+  return (
+    left.length === right.length
+    && left.every((value, index) => nearlyEqual(value, right[index], epsilon))
+  );
+}
+
+function nearlyEqual(
+  left: number,
+  right: number,
+  epsilon = 1e-8,
+): boolean {
+  return Math.abs(left - right) <= epsilon;
+}
+
+function colorsEquivalent(
+  left: PdfColor,
+  right: PdfColor,
+  epsilon = 1 / 255,
+): boolean {
+  return (
+    nearlyEqual(left.r, right.r, epsilon)
+    && nearlyEqual(left.g, right.g, epsilon)
+    && nearlyEqual(left.b, right.b, epsilon)
+  );
+}
+
+function formatPdfNumber(value: number): string {
+  return String(Number(value.toFixed(6)));
+}
+
+function formatPdfColor(color: PdfColor): string {
+  return [
+    formatPdfNumber(color.r),
+    formatPdfNumber(color.g),
+    formatPdfNumber(color.b),
+  ].join(' ');
 }
 
 function polygonVertices(
