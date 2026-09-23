@@ -419,6 +419,8 @@ export function useOcrRunWorkflow({
     cancelBatchQueue,
     retryFailedBatches,
   };
+}
+
 function resumeTokenMatchesPageScope(
   tasks: Array<{ pageIndexes: number[] }>,
   requestedPageIndexes: number[],
@@ -435,6 +437,4 @@ function resumeTokenMatchesPageScope(
     && tokenPages.every(
       (pageIndex, index) => pageIndex === requestedPages[index],
     );
-}
-
 }
