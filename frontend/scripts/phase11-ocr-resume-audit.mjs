@@ -55,6 +55,7 @@ requireTokens('src/core/ocr/ocrProjectCodec.ts', [
   'validateOcrResumeToken',
   'completedPageIndexes',
   'missingCompletedPages',
+  'failedCompletedPages',
   'INVALID_OCR_RESUME_TOKEN',
 ]);
 
@@ -69,6 +70,8 @@ requireTokens('src/core/ocr/ocrHydrationBridge.ts', [
 requireTokens('src/core/ocr/ocrStore.ts', [
   'resumeToken: OcrResumeTokenV1 | null',
   'setOcrResumeToken',
+  'acceptResumeToken',
+  'validateOcrResumeToken',
   'resumeTokenMatchesConfiguration',
   'mergeCompatibleOcrResults',
 ]);
@@ -78,6 +81,7 @@ requireTokens('src/core/ocr/ocrFinalIntegration.ts', [
   'existingResult?: OcrDocumentResult | null',
   'resumeOcrBatchTasks',
   'assertPersistedResultsCoverCompletedTasks',
+  'failedCompletedPages',
   'deferredResumePageIndexes',
   'OCR_FINAL_RESUME_APPLIED',
   'OCR_FINAL_RESUME_INVALID',
@@ -133,6 +137,8 @@ if (errors.length > 0) {
   console.log('[PASS] Scheduler preserves terminal batches and retry snapshots preserve full topology.');
   console.log('[PASS] Project manifest persistence is fail-closed for completed-page evidence.');
   console.log('[PASS] Hydration restores compatible checkpoints and discards document-rebound state.');
+  console.log('[PASS] Store rejects malformed/config-mismatched checkpoints before they can surface as resumable work.');
+  console.log('[PASS] Completed checkpoints require persisted non-failed OCR pages.');
   console.log('[PASS] Store and final integration enforce resumable execution without silent reprocessing.');
   console.log('[PASS] Completed checkpoint pages are deferred before rasterization.');
   console.log('[PASS] Project save/reopen path persists and restores OCR checkpoint state.');
