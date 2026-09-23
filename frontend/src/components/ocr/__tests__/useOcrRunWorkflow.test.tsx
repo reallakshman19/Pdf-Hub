@@ -201,6 +201,11 @@ function makeResumeToken(
     documentFingerprint,
     engineId: 'mock',
     profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+    },
     createdAt: '2026-09-23T00:00:00.000Z',
     tasks: [
       {
