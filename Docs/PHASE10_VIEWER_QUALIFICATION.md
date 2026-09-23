@@ -130,9 +130,10 @@ The probe:
 7. reopens through the production reader;
 8. repeats a second PDF Hub save/reopen;
 9. requires semantic convergence with no reply-ID drift or managed relationship duplication;
-10. compares normalized native reply topology (`id`, `parentReplyId`, depth, author/content) before and after the two PDF Hub saves;
-11. preserves reply-attached Review-state relationships without projecting those states onto the root thread;
-12. writes `phase10-review-return-evidence-v1` JSON containing `external_delta` only after all assertions pass.
+10. compares normalized native reply topology (`id`, `parentReplyId`, depth, author/content) before and after the two PDF Hub saves, including opaque native replies that are not projected into the app model;
+11. requires externally supplied `/AP` presence, `Subj`, and rich-text `RC` on managed roots/replies to survive those no-op saves where present;
+12. preserves reply-attached Review-state relationships without projecting those states onto the root thread;
+13. writes `phase10-review-return-evidence-v1` JSON containing `external_delta` only after all assertions pass.
 
 A no-op external open/save fails qualification. A successful command prints `RETURN SEMANTICS QUALIFIED`. Use the generated JSON report as the durable evidence reference for the journey return claim.
 
