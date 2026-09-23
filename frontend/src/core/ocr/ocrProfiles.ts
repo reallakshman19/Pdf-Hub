@@ -1,3 +1,8 @@
+import {
+  normalizeOcrLanguageSet,
+  type OcrLanguageSetInput,
+} from './ocrLanguageSet';
+
 export type OcrProfileId =
   | 'clean-scan'
   | 'low-quality-scan'
@@ -101,6 +106,19 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
 
 export function getOcrProfile(profileId: OcrProfileId): OcrProfile {
   return OCR_PROFILES[profileId];
+}
+
+export function getOcrProfileWithLanguages(
+  profileId: OcrProfileId,
+  languages?: OcrLanguageSetInput,
+): OcrProfile {
+  const profile = getOcrProfile(profileId);
+  return {
+    ...profile,
+    languageHints: normalizeOcrLanguageSet(
+      languages ?? profile.languageHints,
+    ),
+  };
 }
 
 export function listOcrProfiles(): OcrProfile[] {
