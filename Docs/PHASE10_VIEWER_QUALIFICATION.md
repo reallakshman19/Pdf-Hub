@@ -223,6 +223,14 @@ An exit-0 profile does **not** mean every capability is supported. Claims must m
 
 This work does **not** add appearance streams.
 
-Use viewer evidence to define the smallest subsequent implementation slice by appearance family. If standard native dictionaries already render reliably in a target viewer, that is evidence against unnecessary `/AP` work for that viewer/type. If rendering fails, the evidence must identify the affected viewer/type/family before `/AP` is implemented.
+Use viewer evidence to define the smallest subsequent implementation slice by appearance family. The activation rule is strict:
+
+- only an observed `render=FAIL` may authorize production `/AP` work;
+- the evidence must identify the exact viewer name, version, platform, annotation type, appearance family, durable evidence reference, and product-material SHA;
+- `render=PASS` is evidence against adding `/AP` for that observed viewer/type;
+- `render=NOT_RUN` cannot authorize implementation;
+- `UNSUPPORTED` in native interaction or editing is a capability boundary, not appearance-stream evidence;
+- an authorized `/AP` slice is limited to the failing type/family; passing or untested families remain unchanged;
+- after `/AP` changes, rerun the affected viewer/type/family observations against the new exact product material; prior PASS evidence is not carried forward automatically.
 
 **No compatibility claim** is valid from structural PDF inspection alone. Named-viewer claims require the external observations above. Edit-round-trip claims require `edit_save_reopen=PASS` plus successful return semantics for every applicable interoperability journey; rich-text claims must also retain the `NATIVE_PRESERVED_READ_ONLY` boundary on return to PDF Hub.
