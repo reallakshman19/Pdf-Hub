@@ -821,7 +821,7 @@
       "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes."
     },
     "standard_field_coverage": {
-      "source": "Union of fixtures[*].standardPdfFields",
+      "source": "Union of fixtures[*].standardPdfFields plus review-graph supplemental fields",
       "semantic_reader_fields": [
         "Contents",
         "Rect",
@@ -847,7 +847,10 @@
         "IT",
         "CL",
         "BE",
-        "LE"
+        "LE",
+        "StateModel",
+        "IRT",
+        "RT"
       ],
       "identity_lifecycle_fields": [
         "NM",
@@ -857,7 +860,13 @@
       ],
       "preserved_only_fields": [],
       "ignored_fields": [],
-      "rule": "Every declared standard field must be covered by at least one explicit category. Unclassified declared fields fail the Phase 10 audit."
+      "rule": "Every declared standard field must be covered by at least one explicit category. Unclassified declared fields fail the Phase 10 audit.",
+      "supplemental_declared_fields": [
+        "State",
+        "StateModel",
+        "IRT",
+        "RT"
+      ]
     }
   },
   "review_thread_fixture": {
