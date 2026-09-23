@@ -103,7 +103,7 @@ if (!reviewFixture
   || reviewFixture.reply?.relationship !== 'IRT_OBJECT_REFERENCE'
   || reviewFixture.state?.relationship !== 'IRT_OBJECT_REFERENCE'
   || reviewFixture.state?.encoding !== 'TEXT_STRING'
-  || !reviewFixture.state?.transition_rule?.includes('previous state annotation')
+  || !reviewFixture.state?.transition_rule?.includes('original review annotation')
   || reviewFixture.repeated_save?.cycles !== 2
   || reviewFixture.repeated_save?.duplicates_allowed !== false
   || reviewFixture.repeated_save?.state_history_preserved !== true
@@ -125,8 +125,8 @@ if (!transitionAuthor
   || transitionAuthor.native_source !== 'State annotation T text string'
   || transitionAuthor.imported_projection !== 'ReviewMetadata.statusAuthor'
   || transitionAuthor.local_status_action_default !== 'Current User'
-  || !transitionAuthor.chain_rule?.includes('same statusAuthor')) {
-  errors.push('Manifest must declare Review state transition author provenance and same-author chaining');
+  || !transitionAuthor.chain_rule?.includes('original review annotation')) {
+  errors.push('Manifest must declare Review state transition author provenance and direct-root IRT emission');
 }
 
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
