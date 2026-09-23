@@ -100,6 +100,7 @@ function semanticSnapshot(annotations: PdfAnnotation[]) {
         category: comment!.data.review?.category ?? null,
         replies: replies.map((reply) => ({
           id: reply.id,
+          parentReplyId: reply.parentReplyId ?? null,
           author: reply.author,
           content: reply.content,
         })),
@@ -183,6 +184,26 @@ async function normalizedBaselineSnapshot() {
   const written = await writeNativePdfAnnotations(baseBytes, [highlight, review]);
   const read = await readNativePdfAnnotations(written.bytes);
   return semanticSnapshot(read.annotations);
+}
+
+function rawReplyLogicalId(
+  dict: PDFDict,
+  index: number,
+): string {
+  const privateId = readText(dict, 'PDFHubReplyId');
+  const annotationName = readText(dict, 'NM');
+  const prefix = 'phase10-review-root-1:reply:';
+
+  return (
+    privateId
+    ?? (
+      annotationName?.startsWith(prefix) && annotationName.length > prefix.length
+        ? annotationName.slice(prefix.length)
+        : null
+    )
+    ?? annotationName
+    ?? `phase10-review-root-1:native-reply:${index}`
+  );
 }
 
 async function rawGraphSummary(bytes: Uint8Array) {
@@ -282,10 +303,35 @@ async function rawGraphSummary(bytes: Uint8Array) {
   );
   expect(originalReply, 'original reply native identity must remain discoverable').toBeTruthy();
 
+  const replyIdByRef = new Map(
+    replies
+      .filter(({ record }) => Boolean(record.refKey))
+      .map(({ record }) => [
+        record.refKey!,
+        rawReplyLogicalId(record.dict, record.index),
+      ]),
+  );
+
   return {
     annotationCount: annots.size(),
     relatedCount: related.length,
     replyCount: replies.length,
+    replyTopology: replies
+      .map(({ record, depth }) => {
+        const irt = record.dict.get(PDFName.of('IRT'));
+        const parentKey = irt instanceof PDFRef ? irt.toString() : null;
+        return {
+          id: rawReplyLogicalId(record.dict, record.index),
+          parentReplyId:
+            parentKey && parentKey !== commentKey
+              ? replyIdByRef.get(parentKey) ?? null
+              : null,
+          depth,
+          author: readText(record.dict, 'T'),
+          content: readText(record.dict, 'Contents'),
+        };
+      })
+      .sort((left, right) => left.id.localeCompare(right.id)),
     stateCount: states.length,
     stateTransitions: states
       .map(({ record, depth }) => ({
@@ -332,6 +378,7 @@ describe.skipIf(!PROBE_ENABLED)('Phase 10 externally returned review journey', (
     expect(rawFinal.stateCount).toBe(rawReturned.stateCount);
     expect(rawFinal.stateTransitions).toEqual(rawReturned.stateTransitions);
     expect(rawFinal.replyCount).toBe(snapshot1.comment.review.replies.length);
+    expect(rawFinal.replyTopology).toEqual(rawReturned.replyTopology);
 
     const finalRelatedNames = rawFinal.relatedNames.filter(
       (name): name is string => typeof name === 'string',
