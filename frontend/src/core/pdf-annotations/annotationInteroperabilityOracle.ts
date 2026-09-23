@@ -169,8 +169,9 @@ export class AnnotationInteroperabilityOracle {
   }
 
   /**
-   * Returns the declared production-reader precedence boundary. Fields listed as
-   * pending are intentionally not claimed as preserved native edit semantics yet.
+   * Returns the declared production-reader precedence boundary. Phase 10 keeps
+   * the pending list machine-readable; the completed native contract currently
+   * expects it to be empty.
    */
   public static getExternalEditPrecedencePolicy(): {
     readerEnforcedFields: readonly string[];
@@ -185,8 +186,9 @@ export class AnnotationInteroperabilityOracle {
 
   /**
    * Reconciles direct application-data mappings used by the semantic oracle.
-   * Production reader tests separately prove Rect/CL/State handling because those
-   * fields require page-coordinate or review-model interpretation.
+   * Production reader tests separately prove Rect/CL/State/DA/QuadPoints handling
+   * because those fields require coordinate, appearance-string, or review-model
+   * interpretation.
    */
   public static reconcileExternalEdits(
     standardFields: Record<string, unknown>,
