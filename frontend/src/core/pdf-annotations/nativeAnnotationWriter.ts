@@ -123,7 +123,15 @@ export async function writeNativePdfAnnotations(
       const existingRoot = findManagedRootDict(annots, annotation.id, lib);
       const replyGraph = collectExistingReplyGraph(annots, annotation.id, lib);
       const stateGraph = collectReviewStateGraph(annots, annotation.id, lib);
-      removeManagedAnnotationFamily(annots, annotation.id, replyGraph, lib);
+      const replies = annotation.data.review?.replies ?? [];
+      const representedReplyIds = new Set(replies.map((reply) => reply.id));
+      removeManagedAnnotationFamily(
+        annots,
+        annotation.id,
+        replyGraph,
+        representedReplyIds,
+        lib,
+      );
 
       const rootRef = registerNativeAnnotation(
         doc,
@@ -135,7 +143,6 @@ export async function writeNativePdfAnnotations(
       annots.push(rootRef);
       annotationCount += 1;
 
-      const replies = annotation.data.review?.replies ?? [];
       const replyRefById = writeNativeReplies(
         doc,
         page,
@@ -147,6 +154,14 @@ export async function writeNativePdfAnnotations(
         lib,
       );
       replyCount += replies.length;
+
+      relinkPreservedReplyParents(
+        replyGraph,
+        representedReplyIds,
+        rootRef,
+        replyRefById,
+        lib,
+      );
 
       relinkReviewStateParents(
         stateGraph,
@@ -208,9 +223,14 @@ function removeManagedAnnotationFamily(
   annots: PDFArray,
   annotationId: string,
   replyGraph: ExistingReplyGraph,
+  representedReplyIds: Set<string>,
   lib: PdfLibModule,
 ): void {
-  const replyRefKeys = new Set(replyGraph.records.map((record) => record.refKey));
+  const replyRefKeys = new Set(
+    replyGraph.records
+      .filter((record) => representedReplyIds.has(record.logicalId))
+      .map((record) => record.refKey),
+  );
 
   for (let index = annots.size() - 1; index >= 0; index -= 1) {
     const raw = annots.get(index);
@@ -222,7 +242,6 @@ function removeManagedAnnotationFamily(
 
     if (
       name === annotationId
-      || name?.startsWith(`${annotationId}:reply:`)
       || Boolean(refKey && replyRefKeys.has(refKey))
     ) {
       annots.remove(index);
@@ -460,10 +479,16 @@ function writeNativeReplies(
 
   const replyById = new Map(replies.map((reply) => [reply.id, reply]));
   for (const reply of replies) {
-    const parentReplyId = validParentReplyId(reply, replyById);
+    const parentReplyId = validParentReplyId(
+      reply,
+      replyById,
+      sourceById,
+    );
     if (!parentReplyId) continue;
 
-    const parentRef = replyRefById.get(parentReplyId);
+    const parentRef =
+      replyRefById.get(parentReplyId)
+      ?? sourceById.get(parentReplyId)?.ref;
     const replyDict = replyDictById.get(reply.id);
     if (parentRef && replyDict) {
       replyDict.set(lib.PDFName.of('IRT'), parentRef);
@@ -476,9 +501,17 @@ function writeNativeReplies(
 function validParentReplyId(
   reply: ReviewReply,
   replyById: Map<string, ReviewReply>,
+  sourceById: Map<string, ExistingReplyRecord>,
 ): string | null {
   const directParentId = reply.parentReplyId;
   if (!directParentId || directParentId === reply.id) return null;
+
+  // A parent absent from the app model may still be a preserved opaque native
+  // reply. The collected source graph is already constrained to an acyclic
+  // path back to the managed root, so retaining that native parent is safe.
+  if (!replyById.has(directParentId)) {
+    return sourceById.has(directParentId) ? directParentId : null;
+  }
 
   let currentId: string | undefined = directParentId;
   const visited = new Set<string>([reply.id]);
@@ -487,11 +520,47 @@ function validParentReplyId(
     if (visited.has(currentId)) return null;
     visited.add(currentId);
     const current = replyById.get(currentId);
-    if (!current) return null;
+    if (!current) {
+      return sourceById.has(currentId) ? directParentId : null;
+    }
     currentId = current.parentReplyId;
   }
 
   return directParentId;
+}
+
+function relinkPreservedReplyParents(
+  graph: ExistingReplyGraph,
+  representedReplyIds: Set<string>,
+  newRootRef: PDFRef,
+  replyRefById: Map<string, PDFRef>,
+  lib: PdfLibModule,
+): void {
+  if (!graph.rootRefKey) return;
+
+  const replyIdByOldRef = new Map(
+    graph.records.map((record) => [record.refKey, record.logicalId]),
+  );
+
+  for (const record of graph.records) {
+    if (representedReplyIds.has(record.logicalId)) continue;
+
+    if (record.parentKey === graph.rootRefKey) {
+      record.dict.set(lib.PDFName.of('IRT'), newRootRef);
+      continue;
+    }
+
+    const parentReplyId = record.parentKey
+      ? replyIdByOldRef.get(record.parentKey)
+      : undefined;
+    const newParentRef = parentReplyId
+      ? replyRefById.get(parentReplyId)
+      : undefined;
+
+    if (newParentRef) {
+      record.dict.set(lib.PDFName.of('IRT'), newParentRef);
+    }
+  }
 }
 
 function relinkReviewStateParents(
