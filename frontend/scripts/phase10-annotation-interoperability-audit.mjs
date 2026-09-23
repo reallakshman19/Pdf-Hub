@@ -118,7 +118,7 @@ for (const field of requiredReaderFields) {
 if (!Array.isArray(precedence?.pending_fields) || precedence.pending_fields.length !== 0) {
   errors.push('External-edit precedence must have no remaining pending fields');
 }
-for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'BS', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE']) {
+for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'BS', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE', 'RC', 'DS']) {
   if (!precedence?.field_mappings?.[field]) {
     errors.push(`Manifest missing standard-field mapping for ${field}`);
   }
@@ -152,6 +152,24 @@ for (const field of coveredStandardFields) {
 }
 if (!Array.isArray(fieldCoverage?.ignored_fields) || fieldCoverage.ignored_fields.length !== 0) {
   errors.push('Declared standard-field coverage must not silently ignore fields');
+}
+
+
+for (const field of ['RC', 'DS']) {
+  if (!fieldCoverage?.preserved_only_fields?.includes(field)) {
+    errors.push(`Native rich-text field must be covered as preserved-only semantics: ${field}`);
+  }
+}
+
+const richTextFidelity = manifest.policies?.rich_text_fidelity;
+if (!richTextFidelity
+  || richTextFidelity.fidelity_class !== 'NATIVE_PRESERVED_READ_ONLY'
+  || richTextFidelity.rich_text_field !== 'RC'
+  || richTextFidelity.free_text_default_style_field !== 'DS'
+  || richTextFidelity.writer_failure_code !== 'NATIVE_RICH_TEXT_EDIT_UNSUPPORTED'
+  || !richTextFidelity.mutation_rule?.includes('blocks annotation type, plain text, and typography mutations')
+  || !richTextFidelity.writer_rule?.includes('fails with NATIVE_RICH_TEXT_EDIT_UNSUPPORTED')) {
+  errors.push('Manifest must declare fail-closed native rich-text preservation semantics');
 }
 
 const reviewFixture = manifest.review_thread_fixture;
@@ -212,8 +230,9 @@ if (!dictionaryPreservation
   || !dictionaryPreservation.ownership_rule?.includes('Other standard, vendor, and extension')
   || !dictionaryPreservation.reply_passive_rule?.includes('copied forward')
   || !dictionaryPreservation.appearance_rule?.includes('semantically unchanged')
-  || !dictionaryPreservation.appearance_rule?.includes('stale AP is omitted')) {
-  errors.push('Manifest must declare passive native dictionary and conditional /AP preservation');
+  || !dictionaryPreservation.appearance_rule?.includes('stale AP is omitted')
+  || !dictionaryPreservation.rich_text_rule?.includes('NATIVE_PRESERVED_READ_ONLY')) {
+  errors.push('Manifest must declare passive native dictionary, conditional /AP, and rich-text preservation');
 }
 
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
@@ -253,6 +272,8 @@ if (!fs.existsSync(nativeWriterPath)) {
     'lineEndingsValue',
     'stampNameValue',
     'cloudBorderEffectValue',
+    'assertNativeRichTextRootMutationSupported',
+    'NATIVE_RICH_TEXT_EDIT_UNSUPPORTED',
   ]) {
     if (!nativeWriterContent.includes(token)) {
       errors.push(`Native writer missing passive-preservation token: ${token}`);
@@ -277,9 +298,49 @@ if (!fs.existsSync(nativeReaderPath)) {
     "readNumber(dict, 'F'",
     "readBoolean(dict, 'Open'",
     "readNumberArray(dict, 'CL'",
+    "PDFName.of('RC')",
+    "NATIVE_PRESERVED_READ_ONLY",
   ]) {
     if (!nativeReaderContent.includes(token)) {
       errors.push(`Native reader missing standard-field symmetry token: ${token}`);
+    }
+  }
+}
+
+const nativeInteropGuardPath = path.join(
+  frontendRoot,
+  'src/core/annotations/nativeInteropFidelity.ts',
+);
+const annotationStorePath = path.join(
+  frontendRoot,
+  'src/core/annotations/store.ts',
+);
+for (const requiredPath of [nativeInteropGuardPath, annotationStorePath]) {
+  if (!fs.existsSync(requiredPath)) {
+    errors.push(`Missing native interoperability fidelity guard file: ${requiredPath}`);
+  }
+}
+if (fs.existsSync(nativeInteropGuardPath)) {
+  const fidelityContent = fs.readFileSync(nativeInteropGuardPath, 'utf8');
+  for (const token of [
+    'isNativeRichTextReadOnly',
+    'guardNativeInteropAnnotationPatch',
+    'guardNativeInteropStylePatch',
+    'NATIVE_PRESERVED_READ_ONLY',
+  ]) {
+    if (!fidelityContent.includes(token)) {
+      errors.push(`Native interoperability fidelity guard missing token: ${token}`);
+    }
+  }
+}
+if (fs.existsSync(annotationStorePath)) {
+  const storeContent = fs.readFileSync(annotationStorePath, 'utf8');
+  for (const token of [
+    'guardNativeInteropAnnotationPatch',
+    'guardNativeInteropStylePatch',
+  ]) {
+    if (!storeContent.includes(token)) {
+      errors.push(`Annotation store missing fidelity guard token: ${token}`);
     }
   }
 }
@@ -338,7 +399,7 @@ if (errors.length > 0) {
 console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
-console.log('[PASS] External-edit precedence covers every declared standard field with no silent gaps.');
+console.log('[PASS] External-edit precedence covers every declared standard field; RC/DS are preserved read-only with fail-closed mutation guards.');
 console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, conditional /AP retention, popup relinking, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
