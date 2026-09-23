@@ -272,6 +272,20 @@ export function validateOcrProjectPayload(
   }
 
   if (payload.manifest.resumeToken) {
+    if (
+      payload.result
+      && (
+        payload.result.engineId !== payload.manifest.resumeToken.engineId
+        || payload.result.profileId !== payload.manifest.resumeToken.profileId
+      )
+    ) {
+      diagnostics.push({
+        level: 'error',
+        code: 'INVALID_OCR_RESUME_TOKEN',
+        message: 'OCR resume state does not match the persisted OCR result engine/profile.',
+      });
+    }
+
     const completedPageIndexes = [...new Set(
       payload.manifest.resumeToken.tasks
         .filter((task) => task.status === 'completed')
@@ -286,17 +300,6 @@ export function validateOcrProjectPayload(
           message: 'OCR resume state preserves completed batches but the project has no persisted OCR result.',
         });
       } else {
-        if (
-          payload.result.engineId !== payload.manifest.resumeToken.engineId
-          || payload.result.profileId !== payload.manifest.resumeToken.profileId
-        ) {
-          diagnostics.push({
-            level: 'error',
-            code: 'INVALID_OCR_RESUME_TOKEN',
-            message: 'OCR resume state does not match the persisted OCR result engine/profile.',
-          });
-        }
-
         const persistedPageIndexes = new Set(
           payload.result.pages.map((page) => page.pageIndex),
         );
