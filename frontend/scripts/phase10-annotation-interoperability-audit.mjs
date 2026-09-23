@@ -89,12 +89,28 @@ if (!manifest.policies?.external_edit_precedence?.standard_fields_override_custo
 }
 
 const precedence = manifest.policies?.external_edit_precedence;
-const expectedReaderFields = ['Contents', 'Rect', 'C', 'IC', 'CL', 'L', 'Vertices', 'InkList', 'State'];
+const expectedReaderFields = [
+  'Contents',
+  'Rect',
+  'C',
+  'IC',
+  'CL',
+  'L',
+  'Vertices',
+  'InkList',
+  'State',
+  'DA',
+  'QuadPoints',
+];
 if (JSON.stringify(precedence?.reader_enforced_fields) !== JSON.stringify(expectedReaderFields)) {
   errors.push('External-edit precedence must declare the exact production-reader enforced field set');
 }
-if (JSON.stringify(precedence?.pending_fields) !== JSON.stringify(['DA', 'QuadPoints'])) {
-  errors.push('DA and QuadPoints must remain explicit pending reader limitations in STEP-10-01');
+if (!Array.isArray(precedence?.pending_fields) || precedence.pending_fields.length !== 0) {
+  errors.push('DA and QuadPoints precedence must be closed with no remaining pending fields');
+}
+if (!precedence?.field_mappings?.DA?.includes('fontSize/textColor')
+  || !precedence?.field_mappings?.QuadPoints?.includes('textMarkupQuads')) {
+  errors.push('Manifest must declare DA and QuadPoints application mappings');
 }
 
 const reviewFixture = manifest.review_thread_fixture;
@@ -188,6 +204,8 @@ if (!fs.existsSync(nativeWriterPath)) {
     'relinkPreservedReplyParents',
     'representedReplyIds',
     "name === 'AP' && !preserveAppearance",
+    'defaultAppearanceValue',
+    'textMarkupQuadPoints',
   ]) {
     if (!nativeWriterContent.includes(token)) {
       errors.push(`Native writer missing passive-preservation token: ${token}`);
@@ -249,7 +267,7 @@ if (errors.length > 0) {
 console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
-console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
+console.log('[PASS] External-edit precedence includes DA and QuadPoints with no pending fields.');
 console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, conditional /AP retention, popup relinking, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
