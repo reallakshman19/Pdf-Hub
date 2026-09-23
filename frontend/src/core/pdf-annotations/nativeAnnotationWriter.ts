@@ -207,7 +207,19 @@ function assertNativeRichTextRootMutationSupported(
   annotation: PdfAnnotation,
   lib: PdfLibModule,
 ): void {
-  if (!hasNativeRichText(source, lib)) return;
+  const annotationHasRichText =
+    annotation.data.nativeInterop?.fidelityClass === 'NATIVE_PRESERVED_READ_ONLY'
+    && annotation.data.nativeInterop.reason === 'RICH_TEXT'
+    && annotation.data.nativeInterop.richText === true;
+  const sourceHasRichText = hasNativeRichText(source, lib);
+
+  if (annotationHasRichText && !sourceHasRichText) {
+    throw nativeRichTextMutationError(
+      annotation.id,
+      'source /RC unavailable for preservation',
+    );
+  }
+  if (!sourceHasRichText) return;
 
   const snapshot = annotation.data.nativeInterop?.protectedSnapshot;
   if (
@@ -269,10 +281,27 @@ function assertNativeRichTextReplyMutationsSupported(
 
   for (const reply of replies) {
     const source = sourceById.get(reply.id);
-    if (!hasNativeRichText(source ?? null, lib)) continue;
+    const sourceHasRichText = hasNativeRichText(source ?? null, lib);
+    const replyHasRichText =
+      reply.nativeInterop?.fidelityClass === 'NATIVE_PRESERVED_READ_ONLY'
+      && reply.nativeInterop.reason === 'RICH_TEXT'
+      && reply.nativeInterop.richText === true;
 
-    const sourceContents = readTextObject(source!, 'Contents', lib) ?? '';
-    if (reply.content !== sourceContents) {
+    if (replyHasRichText && !sourceHasRichText) {
+      throw nativeRichTextMutationError(
+        `${reply.id}`,
+        'source /RC unavailable for reply preservation',
+      );
+    }
+    if (!sourceHasRichText) continue;
+
+    if (!replyHasRichText) {
+      throw nativeRichTextMutationError(
+        `${reply.id}`,
+        'missing reply protected import snapshot',
+      );
+    }
+    if (reply.content !== reply.nativeInterop.protectedContent) {
       throw nativeRichTextMutationError(
         `${reply.id}`,
         'reply text',
@@ -579,7 +608,11 @@ function writeNativeReplies(
       Subtype: 'Text',
       Rect: replyRect(annotation, page),
       P: page.ref,
-      Contents: pdfText(lib, reply.content),
+      Contents: replyContentsValue(
+        reply,
+        sourceById.get(reply.id)?.dict ?? null,
+        lib,
+      ),
       T: pdfText(lib, reply.author || 'Unknown'),
       NM: lib.PDFString.of(replyAnnotationName(annotation.id, reply.id)),
       PDFHubReplyId: lib.PDFString.of(reply.id),
@@ -626,6 +659,18 @@ function writeNativeReplies(
   }
 
   return replyRefById;
+}
+
+function replyContentsValue(
+  reply: ReviewReply,
+  source: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  if (hasNativeRichText(source, lib)) {
+    const sourceContents = source?.get(lib.PDFName.of('Contents'));
+    if (sourceContents) return sourceContents;
+  }
+  return pdfText(lib, reply.content);
 }
 
 function validParentReplyId(
