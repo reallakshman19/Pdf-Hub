@@ -4,6 +4,7 @@ import { getOcrProfile } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { createOcrCorrection } from '../ocrCorrections';
 import { createOcrRegion } from '../ocrRegionModel';
+import type { OcrResumeTokenV1 } from '../ocrResumeState';
 import {
   createOcrWriterInsertionCandidate,
   createOcrWriterInsertionQueue,
@@ -30,6 +31,7 @@ describe('ocrHydrationBridge', () => {
     });
 
     expect(result.restored).toBe(false);
+    expect(result.resumeToken).toBeNull();
     expect(result.diagnostics[0].code).toBe('NO_OCR_PROJECT_PAYLOAD');
     expect(useOcrStore.getState().result).toBeNull();
   });
@@ -53,6 +55,13 @@ describe('ocrHydrationBridge', () => {
     expect(state.searchIndex).not.toBeNull();
     expect(state.confidenceSummary?.totalWords).toBeGreaterThan(0);
     expect(result.writerInsertionQueue.candidates).toHaveLength(1);
+    expect(result.resumeToken?.documentFingerprint).toBe('doc-hydrate');
+    expect(useOcrStore.getState().resumeToken?.documentFingerprint).toBe('doc-hydrate');
+    expect(
+      result.diagnostics.some(
+        (item) => item.code === 'OCR_RESUME_STATE_RESTORED',
+      ),
+    ).toBe(true);
   });
 
   it('normalizes fingerprint when expected document differs', async () => {
@@ -72,6 +81,13 @@ describe('ocrHydrationBridge', () => {
     expect(state.corrections[0].documentFingerprint).toBe('new-doc');
     expect(state.regions[0].documentFingerprint).toBe('new-doc');
     expect(result.writerInsertionQueue.candidates[0].element.documentFingerprint).toBe('new-doc');
+    expect(result.resumeToken).toBeNull();
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+    expect(
+      result.diagnostics.some(
+        (item) => item.code === 'OCR_RESUME_STATE_DISCARDED',
+      ),
+    ).toBe(true);
   });
 
   it('creates OCR project payload from current OCR store', async () => {
@@ -93,6 +109,7 @@ describe('ocrHydrationBridge', () => {
     expect(exported.corrections).toHaveLength(1);
     expect(exported.regions).toHaveLength(1);
     expect(exported.writerInsertionQueue.candidates).toHaveLength(1);
+    expect(exported.manifest.resumeToken?.documentFingerprint).toBe('doc-store-export');
   });
 
   it('summarizes OCR project payload', async () => {
@@ -124,6 +141,7 @@ describe('ocrHydrationBridge', () => {
     expect(normalized.corrections[0].documentFingerprint).toBe('normalized-doc');
     expect(normalized.regions[0].documentFingerprint).toBe('normalized-doc');
     expect(normalized.writerInsertionQueue.candidates[0].element.documentFingerprint).toBe('normalized-doc');
+    expect(normalized.manifest.resumeToken).toBeUndefined();
   });
 });
 
@@ -178,9 +196,31 @@ async function makePayload(documentFingerprint: string) {
         element: makeWriterElement(documentFingerprint),
       }),
     ]),
+    resumeToken: makeResumeToken(documentFingerprint),
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
   });
+}
+
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'completed',
+      },
+    ],
+  };
 }
 
 function makeWriterElement(documentFingerprint: string): WriterElementV2 {
