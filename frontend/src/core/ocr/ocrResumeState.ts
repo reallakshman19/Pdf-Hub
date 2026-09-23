@@ -3,7 +3,10 @@ import type {
   OcrBatchTask,
   OcrBatchTaskStatus,
 } from './ocrBatchScheduler';
-import type { OcrProfileId } from './ocrProfiles';
+import {
+  OCR_PROFILES,
+  type OcrProfileId,
+} from './ocrProfiles';
 import {
   normalizeOcrLanguageSet,
   ocrLanguageSetsEqual,
@@ -178,6 +181,12 @@ export function validateOcrResumeToken(
   assertNonEmpty(token.documentFingerprint, 'documentFingerprint');
   assertNonEmpty(token.engineId, 'engineId');
   assertNonEmpty(token.profileId, 'profileId');
+  if (!(token.profileId in OCR_PROFILES)) {
+    throw new OcrResumeStateError(
+      'OCR_RESUME_TOKEN_INVALID',
+      `OCR resume token has unsupported profileId: ${String(token.profileId)}.`,
+    );
+  }
   normalizeOcrLanguageSet(token.languages);
 
   for (const [index, task] of token.tasks.entries()) {
