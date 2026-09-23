@@ -180,6 +180,40 @@ describe('ocrProjectCodec', () => {
     ).toBe(true);
   });
 
+  it('rejects persisted OCR result from another engine even when no batch is completed', async () => {
+    const result = await createMockOcrResult('doc-resume-engine-mismatch');
+    const token: OcrResumeTokenV1 = {
+      ...makeResumeToken('doc-resume-engine-mismatch'),
+      engineId: 'tesseract-js',
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0],
+          status: 'failed',
+          errorMessage: 'Retryable batch.',
+        },
+      ],
+    };
+
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-resume-engine-mismatch',
+      result,
+      resumeToken: token,
+    });
+
+    const validation = validateOcrProjectPayload(payload);
+
+    expect(validation.valid).toBe(false);
+    expect(
+      validation.diagnostics.some(
+        (item) =>
+          item.code === 'INVALID_OCR_RESUME_TOKEN'
+          && item.message.includes('engine/profile'),
+      ),
+    ).toBe(true);
+  });
+
   it('returns null when ZIP has no OCR manifest', async () => {
     const zip = new JSZip();
 
