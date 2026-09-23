@@ -513,6 +513,22 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     );
     annots.push(nestedStateRef);
 
+    const opaqueReplyRef = externalDoc.context.register(
+      externalDoc.context.obj({
+        Type: 'Annot',
+        Subtype: 'Text',
+        Rect: [90, 640, 108, 658],
+        T: PDFString.of('Opaque Reviewer'),
+        NM: PDFString.of('external-opaque-reply'),
+        M: PDFString.of('D:20231114221700Z'),
+        CreationDate: PDFString.of('D:20231114221700Z'),
+        IRT: rootRef,
+        RT: 'R',
+        VendorOpaqueMeta: PDFString.of('must-survive'),
+      }),
+    );
+    annots.push(opaqueReplyRef);
+
     const externallyEdited = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallyEdited);
 
@@ -537,11 +553,12 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const doc2 = await PDFDocument.load(save2.bytes);
     const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    expect(annots2.size()).toBe(5);
+    expect(annots2.size()).toBe(6);
 
     let rootRef2: PDFRef | null = null;
     let firstReplyRef2: PDFRef | null = null;
     let nestedReplyRef2: PDFRef | null = null;
+    let opaqueReplyRef2: PDFRef | null = null;
     let rootStateIrt: unknown = null;
     let nestedStateIrt: unknown = null;
 
@@ -568,11 +585,18 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
         nestedStateIrt = dict.get(PDFName.of('IRT'));
         expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('Rejected');
       }
+      if (nm === 'external-opaque-reply') {
+        opaqueReplyRef2 = ref;
+        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
+        expect(dict.lookup(PDFName.of('VendorOpaqueMeta')).decodeText()).toBe('must-survive');
+        expect(dict.get(PDFName.of('Contents'))).toBeUndefined();
+      }
     }
 
     expect(rootRef2).toBeInstanceOf(PDFRef);
     expect(firstReplyRef2).toBeInstanceOf(PDFRef);
     expect(nestedReplyRef2).toBeInstanceOf(PDFRef);
+    expect(opaqueReplyRef2).toBeInstanceOf(PDFRef);
     expect((rootStateIrt as PDFRef).toString()).toBe(rootRef2?.toString());
     expect((nestedStateIrt as PDFRef).toString()).toBe(nestedReplyRef2?.toString());
 
@@ -586,7 +610,23 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const doc3 = await PDFDocument.load(save3.bytes);
     const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    expect(annots3.size()).toBe(5);
+    expect(annots3.size()).toBe(6);
+
+    let rootRef3: PDFRef | null = null;
+    let opaqueIrt3: PDFRef | null = null;
+    for (let index = 0; index < annots3.size(); index += 1) {
+      const ref = annots3.get(index);
+      const dict = annots3.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === root.id) rootRef3 = ref;
+      if (nm === 'external-opaque-reply') {
+        opaqueIrt3 = dict.get(PDFName.of('IRT'));
+        expect(dict.lookup(PDFName.of('VendorOpaqueMeta')).decodeText()).toBe('must-survive');
+      }
+    }
+    expect(rootRef3).toBeInstanceOf(PDFRef);
+    expect(opaqueIrt3).toBeInstanceOf(PDFRef);
+    expect(opaqueIrt3?.toString()).toBe(rootRef3?.toString());
   });
 
   it('preserves passive external dictionary fields, popup backlinks, and only drops stale /AP after a local appearance edit', async () => {
