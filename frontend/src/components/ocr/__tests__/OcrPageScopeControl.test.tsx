@@ -20,6 +20,35 @@ describe('OcrPageScopeControl', () => {
     expect(screen.getByText('6 pages')).toBeTruthy();
   });
 
+  it('shows Resume only when checkpoint pages are available', () => {
+    const { rerender } = render(
+      <OcrPageScopeControl
+        value="resume"
+        currentPageIndex={0}
+        selectedPageIndexes={[]}
+        resumePageIndexes={[1, 3]}
+        pageCount={5}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('radio', { name: /resume/i })).toBeTruthy();
+    expect(screen.getByText('2 checkpoint pages')).toBeTruthy();
+
+    rerender(
+      <OcrPageScopeControl
+        value="all"
+        currentPageIndex={0}
+        selectedPageIndexes={[]}
+        resumePageIndexes={[]}
+        pageCount={5}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('radio', { name: /resume/i })).toBeNull();
+  });
+
   it('disables Selected when there is no page selection', () => {
     render(
       <OcrPageScopeControl
