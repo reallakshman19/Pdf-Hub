@@ -212,6 +212,7 @@ async function rawGraphSummary(bytes: Uint8Array) {
   const annots = page.node.lookup(PDFName.of('Annots'), PDFArray);
 
   let highlightRef: PDFRef | null = null;
+  let highlightRoot: PDFDict | null = null;
   let commentRef: PDFRef | null = null;
   let commentRoot: PDFDict | null = null;
   const records: Array<{
@@ -232,6 +233,7 @@ async function rawGraphSummary(bytes: Uint8Array) {
 
     if (nm === 'phase10-review-journey-highlight-1') {
       highlightRef = ref;
+      highlightRoot = dict;
     }
     if (nm === 'phase10-review-root-1') {
       commentRef = ref;
@@ -240,6 +242,7 @@ async function rawGraphSummary(bytes: Uint8Array) {
   }
 
   expect(highlightRef).toBeInstanceOf(PDFRef);
+  expect(highlightRoot).toBeTruthy();
   expect(commentRef).toBeInstanceOf(PDFRef);
   expect(commentRoot).toBeTruthy();
   expect(readName(commentRoot!, 'StateModel')).toBeNull();
@@ -312,8 +315,22 @@ async function rawGraphSummary(bytes: Uint8Array) {
       ]),
   );
 
+  const rootPassive = {
+    highlight: {
+      hasAppearance: Boolean(highlightRoot!.get(PDFName.of('AP'))),
+      subject: readText(highlightRoot!, 'Subj'),
+      richText: readText(highlightRoot!, 'RC'),
+    },
+    comment: {
+      hasAppearance: Boolean(commentRoot!.get(PDFName.of('AP'))),
+      subject: readText(commentRoot!, 'Subj'),
+      richText: readText(commentRoot!, 'RC'),
+    },
+  };
+
   return {
     annotationCount: annots.size(),
+    rootPassive,
     relatedCount: related.length,
     replyCount: replies.length,
     replyTopology: replies
@@ -329,6 +346,9 @@ async function rawGraphSummary(bytes: Uint8Array) {
           depth,
           author: readText(record.dict, 'T'),
           content: readText(record.dict, 'Contents'),
+          subject: readText(record.dict, 'Subj'),
+          richText: readText(record.dict, 'RC'),
+          hasAppearance: Boolean(record.dict.get(PDFName.of('AP'))),
         };
       })
       .sort((left, right) => left.id.localeCompare(right.id)),
@@ -377,8 +397,9 @@ describe.skipIf(!PROBE_ENABLED)('Phase 10 externally returned review journey', (
     const rawFinal = await rawGraphSummary(save3.bytes);
     expect(rawFinal.stateCount).toBe(rawReturned.stateCount);
     expect(rawFinal.stateTransitions).toEqual(rawReturned.stateTransitions);
-    expect(rawFinal.replyCount).toBe(snapshot1.comment.review.replies.length);
+    expect(rawFinal.replyCount).toBe(rawReturned.replyCount);
     expect(rawFinal.replyTopology).toEqual(rawReturned.replyTopology);
+    expect(rawFinal.rootPassive).toEqual(rawReturned.rootPassive);
 
     const finalRelatedNames = rawFinal.relatedNames.filter(
       (name): name is string => typeof name === 'string',
