@@ -89,6 +89,7 @@ export interface RunOcrPipelineInput {
   documentFingerprint: string;
   engineId: string;
   requestedProfileId: OcrProfileId;
+  languageHints?: string[];
   forceOcr?: boolean;
 
   mode: OcrPipelineMode;
@@ -246,6 +247,7 @@ export async function runOcrPipelineRecognition(
       documentFingerprint: input.documentFingerprint,
       engineId: input.engineId,
       requestedProfileId: input.requestedProfileId,
+      languageHints: input.languageHints,
       forceOcr: input.forceOcr,
       pages: input.pageInputs,
       signal: input.signal,
@@ -264,6 +266,7 @@ export async function runOcrPipelineRecognition(
     documentFingerprint: input.documentFingerprint,
     engineId: input.engineId,
     requestedProfileId: input.requestedProfileId,
+    languageHints: input.languageHints,
     forceOcr: input.forceOcr,
     selectedPageIndexes: input.pageIndexes,
     pages: input.pageInputs,
