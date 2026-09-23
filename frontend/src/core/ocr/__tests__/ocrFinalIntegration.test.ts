@@ -129,6 +129,11 @@ describe('ocrFinalIntegration', () => {
       documentFingerprint: 'doc-final-resume',
       engineId: 'mock',
       profileId: 'clean-scan',
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 2,
+        maxCanvasPixels: 16_000_000,
+      },
       snapshot: first.batchSnapshot,
       now: '2026-09-23T00:00:00.000Z',
     });
@@ -191,6 +196,11 @@ describe('ocrFinalIntegration', () => {
       documentFingerprint: 'doc-final-resume-missing',
       engineId: 'mock',
       profileId: 'clean-scan',
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 2,
+        maxCanvasPixels: 16_000_000,
+      },
       snapshot: first.batchSnapshot,
     });
 
