@@ -9,6 +9,12 @@ export interface ReviewMessage {
   createdAt: number;
   /** Logical parent reply when this message is nested below another reply. */
   parentReplyId?: string;
+  nativeInterop?: {
+    fidelityClass: 'NATIVE_PRESERVED_READ_ONLY';
+    reason: 'RICH_TEXT';
+    richText: true;
+    protectedContent: string;
+  };
 }
 
 /**
