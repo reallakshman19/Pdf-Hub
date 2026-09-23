@@ -771,7 +771,8 @@
       "persistence_model": "FLAT_REPLY_ARRAY_WITH_PARENT_REPLY_ID",
       "ui_projection": "FLAT_MESSAGES",
       "preservation_rule": "Preserve direct and nested RT=R reply ancestry through ReviewReply.parentReplyId. Rewritten native replies reconstruct IRT to the logical parent reply; missing or cyclic parent IDs fail safe to the review root.",
-      "reply_state_rule": "Preserve and relink state annotations attached to replies, but never project those reply-attached states onto the root review status."
+      "reply_state_rule": "Preserve and relink state annotations attached to replies, but never project those reply-attached states onto the root review status.",
+      "unparsed_reply_rule": "RT=R descendants that cannot be represented as ReviewReply, for example a reply with no parseable Contents, remain native and are not deleted. Their IRT is relinked when a managed root or represented parent reply is rewritten."
     },
     "native_dictionary_preservation": {
       "ownership_rule": "PDF Hub rewrites only fields it semantically owns for the supported annotation model. Other standard, vendor, and extension dictionary entries are copied forward.",
@@ -828,7 +829,8 @@
       "relationship": "IRT_TO_REPLY",
       "app_projection": "ReviewReply.parentReplyId",
       "identity_rule": "Nested reply logical identity is stable across private-metadata loss and repeated PDF Hub saves.",
-      "state_on_reply_rule": "A Review state whose IRT targets a reply is preserved and relinked to that reply when replies are rewritten, but it does not update the root thread status."
+      "state_on_reply_rule": "A Review state whose IRT targets a reply is preserved and relinked to that reply when replies are rewritten, but it does not update the root thread status.",
+      "opaque_descendant": "An external RT=R reply lacking Contents remains native across repeated PDF Hub saves with passive metadata and repaired IRT."
     }
   }
 }
