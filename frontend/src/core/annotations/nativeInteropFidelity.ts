@@ -35,6 +35,20 @@ export function isNativeRichTextReadOnly(
   );
 }
 
+export function hasNativeRichTextSemantics(
+  annotation: PdfAnnotation,
+): boolean {
+  if (isNativeRichTextReadOnly(annotation)) return true;
+  return Boolean(
+    annotation.data.review?.replies.some(
+      (reply) =>
+        reply.nativeInterop?.fidelityClass === 'NATIVE_PRESERVED_READ_ONLY'
+        && reply.nativeInterop.reason === 'RICH_TEXT'
+        && reply.nativeInterop.richText === true,
+    ),
+  );
+}
+
 export function guardNativeInteropAnnotationPatch(
   annotation: PdfAnnotation,
   patch: Partial<PdfAnnotation>,
@@ -45,6 +59,12 @@ export function guardNativeInteropAnnotationPatch(
 
   if (patch.type !== undefined) {
     Reflect.deleteProperty(guarded, 'type');
+  }
+  if (patch.pageNumber !== undefined) {
+    Reflect.deleteProperty(guarded, 'pageNumber');
+  }
+  if (patch.pageId !== undefined) {
+    Reflect.deleteProperty(guarded, 'pageId');
   }
 
   if (patch.data) {
@@ -76,7 +96,7 @@ function guardRichTextDataPatch(
   current: AnnotationData,
   incoming: AnnotationData,
 ): AnnotationData {
-  const guarded: AnnotationData = { ...incoming };
+  const guarded: AnnotationData = { ...current, ...incoming };
 
   for (const key of RICH_TEXT_PROTECTED_DATA_KEYS) {
     restoreOwnValue(guarded, current, key);
