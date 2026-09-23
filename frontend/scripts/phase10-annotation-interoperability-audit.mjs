@@ -118,6 +118,9 @@ for (const field of requiredReaderFields) {
 if (!Array.isArray(precedence?.pending_fields) || precedence.pending_fields.length !== 0) {
   errors.push('External-edit precedence must have no remaining pending fields');
 }
+if (JSON.stringify(precedence?.preserved_only_fields) !== JSON.stringify(['RC', 'DS'])) {
+  errors.push('External-edit precedence must classify RC and DS as preserved-only semantics');
+}
 for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'BS', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE', 'RC', 'DS']) {
   if (!precedence?.field_mappings?.[field]) {
     errors.push(`Manifest missing standard-field mapping for ${field}`);
