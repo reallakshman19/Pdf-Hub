@@ -238,6 +238,16 @@ export async function runFinalOcrIntegrationJob(
         onProgress: input.onProgress,
       });
 
+      const failedPageIndexes = pipelineResult.result.pages
+        .filter((page) => page.status === 'failed')
+        .map((page) => page.pageIndex);
+
+      if (failedPageIndexes.length > 0) {
+        throw new Error(
+          `OCR batch ${task.id} returned failed page(s): ${failedPageIndexes.join(', ')}.`,
+        );
+      }
+
       return pipelineResult.result;
     },
     onSnapshot: input.onBatchSnapshot,
