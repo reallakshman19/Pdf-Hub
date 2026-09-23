@@ -122,6 +122,16 @@ describe('annotation store', () => {
     expect(current.data.fontSize).toBe(12);
     expect(current.data.textColor).toBe('#112233');
     expect(current.data.borderColor).toBe('#00ff00');
+
+    const beforePage = current.pageNumber;
+    store.updateAnnotation('rich-1', { pageNumber: 2 });
+    expect(useAnnotationStore.getState().annotations[0].pageNumber).toBe(beforePage);
+
+    store.copySelection();
+    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+
+    store.duplicateSelection();
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
   });
 
   it('setSelection normalizes unknown/duplicate ids and sets active id', () => {
