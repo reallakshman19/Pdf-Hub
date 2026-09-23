@@ -162,6 +162,24 @@ describe('ocrProjectCodec', () => {
     ).toBe(true);
   });
 
+  it('rejects completed resume state when persisted OCR pages are absent', () => {
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-resume-no-result',
+      resumeToken: makeResumeToken('doc-resume-no-result'),
+    });
+
+    const validation = validateOcrProjectPayload(payload);
+
+    expect(validation.valid).toBe(false);
+    expect(
+      validation.diagnostics.some(
+        (item) =>
+          item.code === 'INVALID_OCR_RESUME_TOKEN'
+          && item.message.includes('no persisted OCR result'),
+      ),
+    ).toBe(true);
+  });
+
   it('returns null when ZIP has no OCR manifest', async () => {
     const zip = new JSZip();
 
