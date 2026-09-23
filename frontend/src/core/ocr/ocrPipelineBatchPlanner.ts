@@ -30,6 +30,11 @@ export interface OcrPipelineBatchPlannerInput {
   explicitPages?: OcrEnginePageInput[];
 
   pageIndexes: number[];
+  /**
+   * Pages proven complete by a validated resume checkpoint. These retain
+   * batch topology using inert placeholder inputs but are not rasterized.
+   */
+  deferredPageIndexes?: number[];
   batchSize: number;
 
   rasterScale: number;
@@ -57,6 +62,7 @@ export interface OcrPipelineBatchPlannerDiagnostic {
     | 'OCR_PIPELINE_PLACEHOLDER_PAGES_USED'
     | 'OCR_PIPELINE_MAIN_RASTER_USED'
     | 'OCR_PIPELINE_WORKER_RASTER_USED'
+    | 'OCR_PIPELINE_RESUME_PAGES_DEFERRED'
     | 'OCR_PIPELINE_BATCH_SIZE_NORMALIZED';
   message: string;
 }
@@ -97,11 +103,24 @@ export async function createOcrPipelineBatchPlan(
     };
   }
 
+  const deferredPageIndexes = normalizePipelinePageIndexes(
+    input.deferredPageIndexes ?? [],
+  ).filter((pageIndex) => pageIndexes.includes(pageIndex));
+
   const { rasterPlanKind, pageInputs } = await resolvePipelinePageInputsForBatchPlan({
     ...input,
     pageIndexes,
+    deferredPageIndexes,
     effectiveMode: resolvedMode.effectiveMode,
   });
+
+  if (deferredPageIndexes.length > 0) {
+    diagnostics.push({
+      level: 'info',
+      code: 'OCR_PIPELINE_RESUME_PAGES_DEFERRED',
+      message: `${deferredPageIndexes.length} completed OCR page(s) retained in batch topology without rasterization.`,
+    });
+  }
 
   if (rasterPlanKind === 'explicit-pages') {
     diagnostics.push({
@@ -159,34 +178,47 @@ export async function createOcrPipelineBatchPlan(
 export async function resolvePipelinePageInputsForBatchPlan(
   input: OcrPipelineBatchPlannerInput & {
     pageIndexes: number[];
+    deferredPageIndexes?: number[];
     effectiveMode: OcrPipelineMode;
   },
 ): Promise<{
   rasterPlanKind: OcrPipelineRasterPlanKind;
   pageInputs: OcrEnginePageInput[];
 }> {
+  const deferred = new Set(input.deferredPageIndexes ?? []);
+  const activePageIndexes = input.pageIndexes.filter(
+    (pageIndex) => !deferred.has(pageIndex),
+  );
+  const deferredInputs = createPlaceholderOcrPageInputs(
+    input.pageIndexes.filter((pageIndex) => deferred.has(pageIndex)),
+  );
+
   if (input.explicitPages && input.explicitPages.length > 0) {
+    const activeInputs = filterExplicitPagesByPageIndexes(
+      input.explicitPages,
+      activePageIndexes,
+    );
     return {
       rasterPlanKind: 'explicit-pages',
-      pageInputs: filterExplicitPagesByPageIndexes(
-        input.explicitPages,
-        input.pageIndexes,
-      ),
+      pageInputs: mergePageInputs(activeInputs, deferredInputs),
     };
   }
 
-  if (!input.pdfBytes) {
+  if (!input.pdfBytes || activePageIndexes.length === 0) {
     return {
       rasterPlanKind: 'placeholder-pages',
-      pageInputs: createPlaceholderOcrPageInputs(input.pageIndexes),
+      pageInputs: mergePageInputs(
+        createPlaceholderOcrPageInputs(activePageIndexes),
+        deferredInputs,
+      ),
     };
   }
 
   const useWorkerRaster = input.effectiveMode === 'worker-raster-worker-ocr';
 
-  const pageInputs = await rasterizeForOcrWithOptionalWorker({
+  const activeInputs = await rasterizeForOcrWithOptionalWorker({
     pdfBytes: input.pdfBytes,
-    pageIndexes: input.pageIndexes,
+    pageIndexes: activePageIndexes,
     scale: input.rasterScale,
     maxCanvasPixels: input.maxCanvasPixels,
     useWorker: useWorkerRaster,
@@ -200,8 +232,17 @@ export async function resolvePipelinePageInputsForBatchPlan(
     rasterPlanKind: useWorkerRaster
       ? 'worker-raster'
       : 'main-thread-raster',
-    pageInputs,
+    pageInputs: mergePageInputs(activeInputs, deferredInputs),
   };
+}
+
+function mergePageInputs(
+  active: OcrEnginePageInput[],
+  deferred: OcrEnginePageInput[],
+): OcrEnginePageInput[] {
+  return [...active, ...deferred].sort(
+    (left, right) => left.pageIndex - right.pageIndex,
+  );
 }
 
 export function normalizePipelinePageIndexes(
