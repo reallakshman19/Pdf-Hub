@@ -1109,6 +1109,43 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(stickyDict3.lookup(PDFName.of('Name')).decodeText()).toBe('Key');
     expect(stickyDict3.lookup(PDFName.of('Open')).toString()).toBe('false');
 
+    const reviewComment = createDeterministicReviewThreadFixture();
+    const commentSave = await writeNativePdfAnnotations(baseBytes, [reviewComment]);
+    const commentDoc = await PDFDocument.load(commentSave.bytes);
+    const commentAnnots = commentDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    let commentRoot: PDFDict | null = null;
+    for (let index = 0; index < commentAnnots.size(); index += 1) {
+      const candidate = commentAnnots.lookup(index) as PDFDict;
+      if (candidate.lookup(PDFName.of('NM'))?.decodeText?.() === reviewComment.id) {
+        commentRoot = candidate;
+        break;
+      }
+    }
+    expect(commentRoot).toBeTruthy();
+    commentRoot!.set(PDFName.of('Open'), commentDoc.context.obj(true));
+
+    const externalComment = new Uint8Array(await commentDoc.save());
+    const commentRead = await readNativePdfAnnotations(externalComment);
+    expect(commentRead.annotations[0].type).toBe('comment');
+    expect(commentRead.annotations[0].data.isCollapsed).toBe(false);
+
+    const commentSave2 = await writeNativePdfAnnotations(
+      externalComment,
+      commentRead.annotations,
+    );
+    const commentDoc2 = await PDFDocument.load(commentSave2.bytes);
+    const commentAnnots2 = commentDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    let commentRoot2: PDFDict | null = null;
+    for (let index = 0; index < commentAnnots2.size(); index += 1) {
+      const candidate = commentAnnots2.lookup(index) as PDFDict;
+      if (candidate.lookup(PDFName.of('NM'))?.decodeText?.() === reviewComment.id) {
+        commentRoot2 = candidate;
+        break;
+      }
+    }
+    expect(commentRoot2).toBeTruthy();
+    expect(commentRoot2!.lookup(PDFName.of('Open')).toString()).toBe('true');
+
     const stamp = createDeterministicAnnotation('stamp', {
       id: 'phase10-field-symmetry-stamp-1',
     });
