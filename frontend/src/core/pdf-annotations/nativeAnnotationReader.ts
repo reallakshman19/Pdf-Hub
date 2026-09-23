@@ -51,6 +51,11 @@ export async function readNativePdfAnnotations(
 
     const rootByRef = new Map<string, PdfAnnotation>();
     const rootRecordByRef = new Map<string, NativeRecord>();
+    const recordByRef = new Map(
+      records
+        .filter((record): record is NativeRecord & { refKey: string } => Boolean(record.refKey))
+        .map((record) => [record.refKey, record]),
+    );
 
     for (const record of roots) {
       const parsed = parseRootAnnotation(
@@ -74,16 +79,20 @@ export async function readNativePdfAnnotations(
     }
 
     for (const record of replies) {
-      const parentRef = record.dict.get(lib.PDFName.of('IRT'));
-      const parentKey = pdfObjectKey(parentRef, lib);
-      const parent = parentKey ? rootByRef.get(parentKey) : undefined;
-      const parentRecord = parentKey ? rootRecordByRef.get(parentKey) : undefined;
+      const resolved = resolveRootForRelatedRecord(
+        record,
+        rootByRef,
+        rootRecordByRef,
+        recordByRef,
+        lib,
+      );
 
-      if (!parent || !parentRecord) {
+      if (!resolved) {
         skippedCount += 1;
         continue;
       }
 
+      const { parent, parentRecord } = resolved;
       promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
 
       const reply = parseReply(record.dict, parent.id, record.index, lib);
@@ -111,16 +120,20 @@ export async function readNativePdfAnnotations(
     });
 
     for (const record of orderedStates) {
-      const parentRef = record.dict.get(lib.PDFName.of('IRT'));
-      const parentKey = pdfObjectKey(parentRef, lib);
-      const parent = parentKey ? rootByRef.get(parentKey) : undefined;
-      const parentRecord = parentKey ? rootRecordByRef.get(parentKey) : undefined;
+      const resolved = resolveRootForRelatedRecord(
+        record,
+        rootByRef,
+        rootRecordByRef,
+        recordByRef,
+        lib,
+      );
 
-      if (!parent || !parentRecord) {
+      if (!resolved) {
         skippedCount += 1;
         continue;
       }
 
+      const { parent, parentRecord } = resolved;
       promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
 
       const review = ensureReviewMetadata(parent, lib, undefined);
@@ -287,8 +300,8 @@ function replyIdFromAnnotationName(
 
 function isReviewStateRecord(dict: PDFDict, lib: PdfLibModule): boolean {
   return (
-    readName(dict, 'StateModel', lib) === 'Review'
-    && Boolean(readName(dict, 'State', lib))
+    readTextOrName(dict, 'StateModel', lib) === 'Review'
+    && Boolean(readTextOrName(dict, 'State', lib))
   );
 }
 
@@ -296,6 +309,34 @@ function isReplyRecord(dict: PDFDict, lib: PdfLibModule): boolean {
   if (isReviewStateRecord(dict, lib)) return false;
   const replyType = readName(dict, 'RT', lib);
   return replyType === null || replyType === 'R';
+}
+
+function resolveRootForRelatedRecord(
+  record: NativeRecord,
+  rootByRef: Map<string, PdfAnnotation>,
+  rootRecordByRef: Map<string, NativeRecord>,
+  recordByRef: Map<string, NativeRecord>,
+  lib: PdfLibModule,
+): { parent: PdfAnnotation; parentRecord: NativeRecord } | null {
+  let current: NativeRecord | undefined = record;
+  const visited = new Set<string>();
+
+  while (current) {
+    const parentKey = pdfObjectKey(current.dict.get(lib.PDFName.of('IRT')), lib);
+    if (!parentKey) return null;
+
+    const parent = rootByRef.get(parentKey);
+    const parentRecord = rootRecordByRef.get(parentKey);
+    if (parent && parentRecord) {
+      return { parent, parentRecord };
+    }
+
+    if (visited.has(parentKey)) return null;
+    visited.add(parentKey);
+    current = recordByRef.get(parentKey);
+  }
+
+  return null;
 }
 
 function promoteStandardTextRootToComment(
@@ -453,7 +494,7 @@ function annotationTypeFromSubtype(
 ): PdfAnnotation['type'] | null {
   switch (subtype) {
     case 'Text':
-      return readName(dict, 'StateModel', lib) === 'Review'
+      return readTextOrName(dict, 'StateModel', lib) === 'Review'
         ? 'comment'
         : 'sticky-note';
     case 'Highlight':
@@ -503,7 +544,7 @@ function readReviewStatus(
 ): ReviewStatus {
   // /State is the portable native review value and may have been changed by an
   // external PDF writer while PDFHubReviewStatus remained untouched.
-  const state = readName(dict, 'State', lib);
+  const state = readTextOrName(dict, 'State', lib);
   if (state === 'Completed' || state === 'Accepted') return 'resolved';
   if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
   if (state === 'None') return 'open';
@@ -564,6 +605,22 @@ function readName(
   lib: PdfLibModule,
 ): string | null {
   return dict.lookupMaybe(lib.PDFName.of(key), lib.PDFName)?.decodeText() ?? null;
+}
+
+function readTextOrName(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): string | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (
+    value instanceof lib.PDFString
+    || value instanceof lib.PDFHexString
+    || value instanceof lib.PDFName
+  ) {
+    return value.decodeText();
+  }
+  return null;
 }
 
 function readNumber(
