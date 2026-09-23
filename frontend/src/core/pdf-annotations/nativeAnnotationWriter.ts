@@ -124,6 +124,16 @@ export async function writeNativePdfAnnotations(
       const replyGraph = collectExistingReplyGraph(annots, annotation.id, lib);
       const stateGraph = collectReviewStateGraph(annots, annotation.id, lib);
       const replies = annotation.data.review?.replies ?? [];
+      assertNativeRichTextRootMutationSupported(
+        existingRoot,
+        annotation,
+        lib,
+      );
+      assertNativeRichTextReplyMutationsSupported(
+        replyGraph,
+        replies,
+        lib,
+      );
       const representedReplyIds = new Set(replies.map((reply) => reply.id));
       removeManagedAnnotationFamily(
         annots,
@@ -190,6 +200,100 @@ export async function writeNativePdfAnnotations(
     annotationCount,
     replyCount,
   };
+}
+
+function assertNativeRichTextRootMutationSupported(
+  source: PDFDict | null,
+  annotation: PdfAnnotation,
+  lib: PdfLibModule,
+): void {
+  if (!hasNativeRichText(source, lib)) return;
+
+  const snapshot = annotation.data.nativeInterop?.protectedSnapshot;
+  if (
+    annotation.data.nativeInterop?.fidelityClass !== 'NATIVE_PRESERVED_READ_ONLY'
+    || annotation.data.nativeInterop.reason !== 'RICH_TEXT'
+    || !snapshot
+  ) {
+    throw nativeRichTextMutationError(annotation.id, 'missing protected import snapshot');
+  }
+
+  const currentText =
+    typeof annotation.data.text === 'string'
+      ? annotation.data.text
+      : '';
+
+  if (annotation.type !== snapshot.type) {
+    throw nativeRichTextMutationError(annotation.id, 'annotation type');
+  }
+  if (currentText !== snapshot.text) {
+    throw nativeRichTextMutationError(annotation.id, 'text');
+  }
+  if (!optionalNumberEqual(annotation.data.fontSize, snapshot.fontSize)) {
+    throw nativeRichTextMutationError(annotation.id, 'font size');
+  }
+  if (!optionalStringEqual(annotation.data.textColor, snapshot.textColor)) {
+    throw nativeRichTextMutationError(annotation.id, 'text color');
+  }
+  if (!optionalStringEqual(annotation.data.textAlign, snapshot.textAlign)) {
+    throw nativeRichTextMutationError(annotation.id, 'text alignment');
+  }
+}
+
+function assertNativeRichTextReplyMutationsSupported(
+  graph: ExistingReplyGraph,
+  replies: ReviewReply[],
+  lib: PdfLibModule,
+): void {
+  const sourceById = new Map(
+    graph.records.map((record) => [record.logicalId, record.dict]),
+  );
+
+  for (const reply of replies) {
+    const source = sourceById.get(reply.id);
+    if (!hasNativeRichText(source ?? null, lib)) continue;
+
+    const sourceContents = readTextObject(source!, 'Contents', lib) ?? '';
+    if (reply.content !== sourceContents) {
+      throw nativeRichTextMutationError(
+        `${reply.id}`,
+        'reply text',
+      );
+    }
+  }
+}
+
+function hasNativeRichText(
+  dict: PDFDict | null,
+  lib: PdfLibModule,
+): boolean {
+  return Boolean(dict?.get(lib.PDFName.of('RC')));
+}
+
+function nativeRichTextMutationError(
+  annotationId: string,
+  field: string,
+): Error {
+  return new Error(
+    `NATIVE_RICH_TEXT_EDIT_UNSUPPORTED: ${annotationId}: ${field}. `
+    + 'This annotation contains native /RC rich text that PDF Hub preserves read-only.',
+  );
+}
+
+function optionalNumberEqual(
+  left: unknown,
+  right: number | undefined,
+): boolean {
+  if (right === undefined) return left === undefined;
+  return typeof left === 'number' && nearlyEqual(left, right);
+}
+
+function optionalStringEqual(
+  left: unknown,
+  right: string | undefined,
+): boolean {
+  if (right === undefined) return left === undefined;
+  return left === right;
 }
 
 function getOrCreateAnnotsArray(
@@ -846,7 +950,13 @@ function registerNativeAnnotation(
     PDFHubData: pdfText(lib, JSON.stringify(serializableAnnotationData(annotation))),
   };
 
-  if (contents) {
+  const sourceContents =
+    hasNativeRichText(sourceDict, lib)
+      ? sourceDict?.get(lib.PDFName.of('Contents'))
+      : undefined;
+  if (sourceContents) {
+    base.Contents = sourceContents;
+  } else if (contents) {
     base.Contents = pdfText(lib, contents);
   }
 
@@ -928,7 +1038,11 @@ function addSubtypeFields(
         sourceDict,
         lib,
       );
-      target.Q = textAlignment(annotation.data.textAlign);
+      target.Q = freeTextAlignmentValue(
+        annotation,
+        sourceDict,
+        lib,
+      );
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
       applyAnnotationBorderFields(
@@ -1192,6 +1306,14 @@ function defaultAppearanceValue(
   const hasExplicitTextColor =
     typeof annotation.data.textColor === 'string'
     && annotation.data.textColor !== 'transparent';
+
+  if (
+    sourceObject
+    && sourceText
+    && hasNativeRichText(sourceDict, lib)
+  ) {
+    return sourceObject;
+  }
 
   if (sourceObject && sourceText) {
     const parsed = parseDefaultAppearance(sourceText);
@@ -1886,6 +2008,18 @@ function reviewStateName(status: 'open' | 'resolved' | 'rejected'): string {
   if (status === 'resolved') return 'Completed';
   if (status === 'rejected') return 'Rejected';
   return 'None';
+}
+
+function freeTextAlignmentValue(
+  annotation: PdfAnnotation,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown {
+  if (hasNativeRichText(sourceDict, lib)) {
+    const sourceQ = sourceDict?.get(lib.PDFName.of('Q'));
+    if (sourceQ) return sourceQ;
+  }
+  return textAlignment(annotation.data.textAlign);
 }
 
 function textAlignment(value: unknown): number {
