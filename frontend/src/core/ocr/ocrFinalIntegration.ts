@@ -169,6 +169,11 @@ export async function runFinalOcrIntegrationJob(
         documentFingerprint: input.documentFingerprint,
         engineId: input.engineId,
         profileId: input.requestedProfileId,
+        executionConfig: {
+          forceOcr: input.forceOcr ?? false,
+          rasterScale: input.policy.rasterScale,
+          maxCanvasPixels: input.policy.maxCanvasPixels,
+        },
         tasks: batchPlan.batchTasks,
       });
       assertPersistedResultsCoverCompletedTasks(
