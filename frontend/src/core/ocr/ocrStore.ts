@@ -134,16 +134,26 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   ...createInitialOcrStoreState(),
 
   hydrateOcrSession: (input) => {
+    const engineId = input.engineId ?? 'mock';
+    const profileId = input.profileId ?? 'clean-scan';
+    const forceOcr = input.forceOcr ?? false;
+
     const baseState: OcrStoreState = {
       ...get(),
       ...getInitialOcrDataState(),
       documentFingerprint: input.documentFingerprint,
-      engineId: input.engineId ?? 'mock',
-      profileId: input.profileId ?? 'clean-scan',
-      resumeToken: input.resumeToken
-        ? cloneResumeToken(input.resumeToken)
-        : null,
-      forceOcr: input.forceOcr ?? false,
+      engineId,
+      profileId,
+      resumeToken: acceptResumeToken(
+        input.resumeToken ?? null,
+        {
+          documentFingerprint: input.documentFingerprint,
+          engineId,
+          profileId,
+          forceOcr,
+        },
+      ),
+      forceOcr,
       selectedPageIndexes: normalizePageIndexes(input.selectedPageIndexes ?? []),
       result: input.result ?? null,
       corrections: [...(input.corrections ?? [])],
@@ -177,38 +187,16 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   setOcrResumeToken: (resumeToken) => {
     const current = get();
 
-    if (resumeToken) {
-      try {
-        validateOcrResumeToken(resumeToken);
-      } catch {
-        set({
-          resumeToken: null,
-          dirty: true,
-          lastUpdatedAt: new Date().toISOString(),
-        });
-        return;
-      }
-
-      if (
-        (
-          current.documentFingerprint
-          && resumeToken.documentFingerprint !== current.documentFingerprint
-        )
-        || resumeToken.engineId !== current.engineId
-        || resumeToken.profileId !== current.profileId
-        || resumeToken.executionConfig.forceOcr !== current.forceOcr
-      ) {
-        set({
-          resumeToken: null,
-          dirty: true,
-          lastUpdatedAt: new Date().toISOString(),
-        });
-        return;
-      }
-    }
-
     set({
-      resumeToken: resumeToken ? cloneResumeToken(resumeToken) : null,
+      resumeToken: acceptResumeToken(
+        resumeToken,
+        {
+          documentFingerprint: current.documentFingerprint,
+          engineId: current.engineId,
+          profileId: current.profileId,
+          forceOcr: current.forceOcr,
+        },
+      ),
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
     });
@@ -589,6 +577,38 @@ export function recomputeOcrDerivedState(
     confidenceSummary,
     lowConfidenceWords,
   };
+}
+
+function acceptResumeToken(
+  token: OcrResumeTokenV1 | null,
+  configuration: {
+    documentFingerprint: string | null;
+    engineId: string;
+    profileId: OcrProfileId;
+    forceOcr: boolean;
+  },
+): OcrResumeTokenV1 | null {
+  if (!token) return null;
+
+  try {
+    validateOcrResumeToken(token);
+  } catch {
+    return null;
+  }
+
+  if (
+    (
+      configuration.documentFingerprint
+      && token.documentFingerprint !== configuration.documentFingerprint
+    )
+    || token.engineId !== configuration.engineId
+    || token.profileId !== configuration.profileId
+    || token.executionConfig.forceOcr !== configuration.forceOcr
+  ) {
+    return null;
+  }
+
+  return cloneResumeToken(token);
 }
 
 function resumeTokenMatchesConfiguration(
