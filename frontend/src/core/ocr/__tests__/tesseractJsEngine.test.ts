@@ -26,6 +26,7 @@ describe('tesseractJsEngine', () => {
     expect(resolveTesseractLanguage(['eng'])).toBe('eng');
     expect(resolveTesseractLanguage(['eng', 'ara'])).toBe('eng+ara');
     expect(resolveTesseractLanguage([' eng ', '', 'ara'])).toBe('eng+ara');
+    expect(resolveTesseractLanguage(['eng', 'hin', 'eng', 'tam'])).toBe('eng+hin+tam');
   });
 
   it('converts Tesseract top-left bbox to PDF bottom-left rect', () => {
@@ -137,6 +138,7 @@ describe('tesseractJsEngine', () => {
 
     expect(pageResult.status).toBe('success');
     expect(pageResult.pageType).toBe('scanned');
+    expect(pageResult.languageHints).toEqual(['eng']);
     expect(pageResult.words).toHaveLength(2);
     expect(pageResult.words![0].text).toBe('Pipe');
     expect(pageResult.words![0].confidence).toBe(0.9);
