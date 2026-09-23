@@ -452,6 +452,7 @@ function writeNativeReplies(
     );
 
     const replyRef = doc.context.register(replyDict);
+    relinkPopupParent(sourceById.get(reply.id) ?? null, replyRef, lib);
     annots.push(replyRef);
     replyRefById.set(reply.id, replyRef);
     replyDictById.set(reply.id, replyDict);
@@ -674,6 +675,18 @@ function preservePassiveAnnotationEntries(
   }
 }
 
+function relinkPopupParent(
+  source: PDFDict | null,
+  newParentRef: PDFRef,
+  lib: PdfLibModule,
+): void {
+  if (!source) return;
+  const popup = source.lookupMaybe(lib.PDFName.of('Popup'), lib.PDFDict);
+  if (popup) {
+    popup.set(lib.PDFName.of('Parent'), newParentRef);
+  }
+}
+
 function appearanceFieldsEquivalent(
   source: PDFDict,
   target: PDFDict,
@@ -784,7 +797,9 @@ function registerNativeAnnotation(
     ROOT_APPEARANCE_KEYS,
     lib,
   );
-  return doc.context.register(dict);
+  const ref = doc.context.register(dict);
+  relinkPopupParent(sourceDict, ref, lib);
+  return ref;
 }
 
 function addSubtypeFields(
