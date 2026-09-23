@@ -15,6 +15,7 @@ function buildReviewMetadata(
   annotation: PdfAnnotation,
   status: ReviewStatus,
   updatedAt: number,
+  statusAuthor?: string,
 ): ReviewMetadata {
   const current = annotation.data.review;
 
@@ -24,6 +25,7 @@ function buildReviewMetadata(
     replies: current?.replies ?? [],
     ...current,
     status,
+    statusAuthor: statusAuthor ?? current?.statusAuthor,
     updatedAt,
   };
 }
@@ -94,6 +96,7 @@ export function withAnnotationReviewStatus(
   annotation: PdfAnnotation,
   status: ReviewStatus,
   updatedAt: number = Date.now(),
+  statusAuthor: string = 'Current User',
 ): PdfAnnotation {
   const dataWithoutLegacy = { ...annotation.data };
   delete dataWithoutLegacy.reviewStatus;
@@ -102,7 +105,7 @@ export function withAnnotationReviewStatus(
     ...annotation,
     data: {
       ...dataWithoutLegacy,
-      review: buildReviewMetadata(annotation, status, updatedAt),
+      review: buildReviewMetadata(annotation, status, updatedAt, statusAuthor),
     },
     updatedAt,
   };
