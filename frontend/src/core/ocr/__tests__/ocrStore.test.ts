@@ -3,6 +3,7 @@ import { getOcrProfile } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { runOcrJob } from '../ocrJobRunner';
 import { createOcrCorrection } from '../ocrCorrections';
+import type { OcrResumeTokenV1 } from '../ocrResumeState';
 import { useSessionStore } from '../../session/store';
 import {
   recomputeOcrDerivedState,
@@ -21,6 +22,7 @@ describe('ocrStore', () => {
     expect(state.documentFingerprint).toBeNull();
     expect(state.engineId).toBe('mock');
     expect(state.profileId).toBe('clean-scan');
+    expect(state.resumeToken).toBeNull();
     expect(state.forceOcr).toBe(false);
     expect(state.selectedPageIndexes).toEqual([]);
     expect(state.result).toBeNull();
@@ -63,6 +65,32 @@ describe('ocrStore', () => {
     expect(state.forceOcr).toBe(true);
     expect(state.selectedPageIndexes).toEqual([1, 2, 3]);
     expect(state.dirty).toBe(true);
+  });
+
+  it('invalidates resume state when OCR execution settings change', () => {
+    const store = useOcrStore.getState();
+
+    store.hydrateOcrSession({
+      documentFingerprint: 'doc-resume-settings',
+      resumeToken: makeResumeToken('doc-resume-settings'),
+    });
+
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
+    store.setOcrEngineId('mock-custom');
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    store.setOcrResumeToken(makeResumeToken('doc-resume-settings'));
+    store.setOcrProfileId('table-heavy');
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    store.setOcrResumeToken(makeResumeToken('doc-resume-settings'));
+    store.setForceOcr(true);
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    store.setOcrResumeToken(makeResumeToken('doc-resume-settings'));
+    store.setSelectedOcrPages([0, 1]);
+    expect(useOcrStore.getState().resumeToken).toBeNull();
   });
 
   it('sets OCR result and supports store search', async () => {
@@ -240,6 +268,38 @@ describe('ocrStore', () => {
     expect(state.searchIndex).not.toBeNull();
   });
 
+  it('accumulates compatible batch-local OCR results instead of overwriting prior pages', async () => {
+    const runPage = async (pageIndex: number) => {
+      await runOcrJob({
+        id: `job-store-batch-${pageIndex}`,
+        documentFingerprint: 'doc-store-batches',
+        engineId: 'mock',
+        requestedProfileId: 'clean-scan',
+        forceOcr: true,
+        selectedPageIndexes: [pageIndex],
+        pages: [
+          {
+            pageIndex,
+            imageBytes: new Uint8Array([1, 2, 3]),
+            width: 595,
+            height: 842,
+            imageCount: 1,
+          },
+        ],
+        onProgress: (snapshot) => {
+          useOcrStore.getState().applyOcrJobSnapshot(snapshot);
+        },
+      });
+    };
+
+    await runPage(0);
+    await runPage(1);
+
+    expect(
+      useOcrStore.getState().result?.pages.map((page) => page.pageIndex),
+    ).toEqual([0, 1]);
+  });
+
   it('gets OCR page result from corrected result', async () => {
     const document = await createMockDocument();
 
@@ -396,6 +456,27 @@ describe('ocrStore', () => {
   });
 
 });
+
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'completed',
+      },
+    ],
+  };
+}
 
 async function createMockDocument() {
   return mockOcrEngine.recognize({
