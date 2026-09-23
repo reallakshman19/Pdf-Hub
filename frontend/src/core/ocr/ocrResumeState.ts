@@ -158,6 +158,7 @@ export function validateOcrResumeToken(
       task.index !== index
       || !task.id
       || !Array.isArray(task.pageIndexes)
+      || !isOcrBatchTaskStatus(task.status)
       || task.pageIndexes.some(
         (pageIndex) => !Number.isInteger(pageIndex) || pageIndex < 0,
       )
@@ -168,6 +169,16 @@ export function validateOcrResumeToken(
       );
     }
   }
+}
+
+function isOcrBatchTaskStatus(
+  status: unknown,
+): status is OcrBatchTaskStatus {
+  return status === 'queued'
+    || status === 'running'
+    || status === 'completed'
+    || status === 'failed'
+    || status === 'cancelled';
 }
 
 function resumedTaskStatus(
