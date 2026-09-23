@@ -143,8 +143,9 @@
       "render_probe": "Highlight and comment/reply/review state are visibly represented without hidden flattening.",
       "native_interaction_probe": "Where the viewer exposes annotation interaction, highlight and comment remain native/selectable objects and reply/review state is discoverable as supported by that viewer.",
       "edit_save_reopen_probe": "Where annotation editing is supported, edit the review work, save normally, close/reopen, and verify the edited work remains native.",
-      "return_probe": "After an external save where supported, reopen in PDF Hub and verify root/reply identity, review state, geometry/content, and no duplication before another PDF Hub save.",
-      "required_external_mutation": "For edit-capable viewers, perform at least one detectable standards-native change: comment Contents, review State, reply Contents/author/thread membership, or highlight geometry/style represented by the production reader. Open/save without semantic mutation does not qualify."
+      "return_probe": "After an external save where supported, reopen in PDF Hub and verify root/reply identity, review state, geometry/content, nested reply parentReplyId/IRT topology, and no duplication before another PDF Hub save.",
+      "required_external_mutation": "For edit-capable viewers, perform at least one detectable standards-native change: comment Contents, review State, reply Contents/author/thread membership, or highlight geometry/style represented by the production reader. Open/save without semantic mutation does not qualify.",
+      "return_topology_rule": "If a viewer adds or preserves reply-to-reply threading, the returned-file probe must retain each logical reply parent across two subsequent PDF Hub saves. Reply-attached state objects must remain attached to the rewritten reply and must not become the root review status."
     }
   }
 }
