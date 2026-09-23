@@ -608,12 +608,7 @@ function acceptResumeToken(
   }
 
   if (
-    (
-      configuration.documentFingerprint
-      && token.documentFingerprint !== configuration.documentFingerprint
-    )
-    || token.engineId !== configuration.engineId
-    || token.profileId !== configuration.profileId
+    !resumeTokenMatchesConfiguration(token, configuration)
     || token.executionConfig.forceOcr !== configuration.forceOcr
   ) {
     return null;
