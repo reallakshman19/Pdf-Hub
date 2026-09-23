@@ -462,6 +462,31 @@ function nativeData(
     data.backgroundColor = stroke;
   }
 
+  if (
+    type === 'highlight'
+    || type === 'underline'
+    || type === 'strikeout'
+    || type === 'squiggly'
+  ) {
+    const quads = readNormalizedTextMarkupQuads(
+      dict,
+      rect,
+      pageHeight,
+      lib,
+    );
+    if (quads) data.textMarkupQuads = quads;
+  }
+
+  if (type === 'textbox' || type === 'callout') {
+    const defaultAppearance = readDefaultAppearance(dict, lib);
+    if (typeof defaultAppearance.fontSize === 'number') {
+      data.fontSize = defaultAppearance.fontSize;
+    }
+    if (defaultAppearance.textColor) {
+      data.textColor = defaultAppearance.textColor;
+    }
+  }
+
   if (type === 'line' || type === 'arrow') {
     const line = readNumberArray(dict, 'L', lib);
     if (line && line.length >= 4) {
@@ -527,6 +552,102 @@ function nativeData(
   }
 
   return data;
+}
+
+function readNormalizedTextMarkupQuads(
+  dict: PDFDict,
+  rect: PdfAnnotation['rect'],
+  pageHeight: number,
+  lib: PdfLibModule,
+): number[] | null {
+  const values = readNumberArray(dict, 'QuadPoints', lib);
+  if (
+    !values
+    || values.length < 8
+    || values.length % 8 !== 0
+    || rect.width <= 0
+    || rect.height <= 0
+  ) {
+    return null;
+  }
+
+  const normalized: number[] = [];
+  for (let index = 0; index + 1 < values.length; index += 2) {
+    const pdfX = values[index];
+    const pdfY = values[index + 1];
+    const appX = pdfX;
+    const appY = pageHeight - pdfY;
+    const nx = (appX - rect.x) / rect.width;
+    const ny = (appY - rect.y) / rect.height;
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
+    normalized.push(nx, ny);
+  }
+
+  return normalized;
+}
+
+function readDefaultAppearance(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): { fontSize?: number; textColor?: string } {
+  const source = readText(dict, 'DA', lib);
+  if (!source) return {};
+
+  const tokens = source.trim().split(/\s+/).filter(Boolean);
+  let fontSize: number | undefined;
+  let textColor: string | undefined;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const operator = tokens[index];
+
+    if (operator === 'Tf' && index >= 1) {
+      const size = Number(tokens[index - 1]);
+      if (Number.isFinite(size) && size > 0) {
+        fontSize = size;
+      }
+      continue;
+    }
+
+    if (operator === 'g' && index >= 1) {
+      const gray = Number(tokens[index - 1]);
+      if (Number.isFinite(gray)) {
+        textColor = rgbToHex(gray, gray, gray);
+      }
+      continue;
+    }
+
+    if (operator === 'rg' && index >= 3) {
+      const r = Number(tokens[index - 3]);
+      const g = Number(tokens[index - 2]);
+      const b = Number(tokens[index - 1]);
+      if ([r, g, b].every(Number.isFinite)) {
+        textColor = rgbToHex(r, g, b);
+      }
+      continue;
+    }
+
+    if (operator === 'k' && index >= 4) {
+      const c = Number(tokens[index - 4]);
+      const m = Number(tokens[index - 3]);
+      const y = Number(tokens[index - 2]);
+      const k = Number(tokens[index - 1]);
+      if ([c, m, y, k].every(Number.isFinite)) {
+        textColor = rgbToHex(
+          1 - Math.min(1, c + k),
+          1 - Math.min(1, m + k),
+          1 - Math.min(1, y + k),
+        );
+      }
+    }
+  }
+
+  return { fontSize, textColor };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const byte = (value: number) =>
+    Math.max(0, Math.min(255, Math.round(value * 255)));
+  return `#${byte(r).toString(16).padStart(2, '0')}${byte(g).toString(16).padStart(2, '0')}${byte(b).toString(16).padStart(2, '0')}`;
 }
 
 function annotationTypeFromSubtype(
