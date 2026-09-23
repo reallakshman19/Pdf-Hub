@@ -172,6 +172,96 @@ describe('ocrFinalIntegration', () => {
     ).toBe(true);
   });
 
+  it('fully completed PDF-source resume performs zero raster and zero OCR calls', async () => {
+    let rasterCalls = 0;
+    let recognitionCalls = 0;
+
+    const rasterClient = {
+      async rasterizePages(payload) {
+        rasterCalls += 1;
+        return createPlaceholderOcrPageInputs(payload.pageIndexes);
+      },
+      dispose() {
+        return undefined;
+      },
+    } satisfies Pick<OcrRasterWorkerClient, 'rasterizePages' | 'dispose'>;
+
+    const workerClient = makeWorkerClient(() => {
+      recognitionCalls += 1;
+    });
+
+    const policy = createOcrExecutionPolicy({
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+      maxPagesPerJob: 5,
+    });
+
+    const first = await runFinalOcrIntegrationJob({
+      id: 'final-job-raster-resume-first',
+      documentFingerprint: 'doc-final-raster-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      mode: 'worker-raster-worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      pdfBytes: new Uint8Array([1, 2, 3]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy,
+      batchSize: 1,
+      rasterWorkerClient: rasterClient,
+      workerClient,
+    });
+
+    expect(rasterCalls).toBe(1);
+    expect(recognitionCalls).toBe(2);
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-raster-resume',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: policy.rasterScale,
+        maxCanvasPixels: policy.maxCanvasPixels,
+      },
+      snapshot: first.batchSnapshot,
+    });
+
+    rasterCalls = 0;
+    recognitionCalls = 0;
+
+    const resumed = await runFinalOcrIntegrationJob({
+      id: 'final-job-raster-resume-second',
+      documentFingerprint: 'doc-final-raster-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      resumeToken: token,
+      existingResult: first.result,
+      mode: 'worker-raster-worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      pdfBytes: new Uint8Array([1, 2, 3]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy,
+      batchSize: 1,
+      rasterWorkerClient: rasterClient,
+      workerClient,
+    });
+
+    expect(rasterCalls).toBe(0);
+    expect(recognitionCalls).toBe(0);
+    expect(resumed.batchSnapshot.completedCount).toBe(2);
+    expect(resumed.result.pages.map((page) => page.pageIndex)).toEqual([0, 1]);
+  });
+
   it('rejects completed resume state when persisted OCR pages are missing', async () => {
     const first = await runFinalOcrIntegrationJob({
       id: 'final-job-resume-source',
