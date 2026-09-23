@@ -122,19 +122,27 @@ export async function createOcrPipelineBatchPlan(
     });
   }
 
+  const activePageCount =
+    pageInputs.length - deferredPageIndexes.length;
+
   if (rasterPlanKind === 'explicit-pages') {
     diagnostics.push({
       level: 'info',
       code: 'OCR_PIPELINE_EXPLICIT_PAGES_USED',
-      message: `${pageInputs.length} explicit OCR page input(s) used.`,
+      message: `${activePageCount} active explicit OCR page input(s) used.`,
     });
   }
 
   if (rasterPlanKind === 'placeholder-pages') {
     diagnostics.push({
-      level: 'warning',
+      level: deferredPageIndexes.length === pageInputs.length
+        ? 'info'
+        : 'warning',
       code: 'OCR_PIPELINE_PLACEHOLDER_PAGES_USED',
-      message: `${pageInputs.length} placeholder OCR page input(s) used because PDF bytes were unavailable.`,
+      message:
+        deferredPageIndexes.length === pageInputs.length
+          ? 'All OCR pages are already complete; inert placeholders retain batch topology without rasterization.'
+          : `${activePageCount} placeholder OCR page input(s) used because PDF bytes were unavailable.`,
     });
   }
 
@@ -142,7 +150,7 @@ export async function createOcrPipelineBatchPlan(
     diagnostics.push({
       level: 'info',
       code: 'OCR_PIPELINE_MAIN_RASTER_USED',
-      message: `${pageInputs.length} OCR page input(s) rasterized on main thread.`,
+      message: `${activePageCount} active OCR page input(s) rasterized on main thread.`,
     });
   }
 
@@ -150,7 +158,7 @@ export async function createOcrPipelineBatchPlan(
     diagnostics.push({
       level: 'info',
       code: 'OCR_PIPELINE_WORKER_RASTER_USED',
-      message: `${pageInputs.length} OCR page input(s) rasterized through worker path.`,
+      message: `${activePageCount} active OCR page input(s) rasterized through worker path.`,
     });
   }
 
