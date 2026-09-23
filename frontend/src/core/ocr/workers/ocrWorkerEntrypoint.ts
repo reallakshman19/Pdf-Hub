@@ -7,7 +7,7 @@ import {
   defaultOcrEngineRegistry,
 } from '../engines/ocrEngineRegistry';
 import {
-  getOcrProfile,
+  getOcrProfileWithLanguages,
 } from '../ocrProfiles';
 import type {
   OcrDocumentResult,
@@ -238,7 +238,10 @@ export async function recognizePagesWithProgress(input: {
   signal: AbortSignal;
   postProgress: (progress: OcrWorkerProgressPayload) => void;
 }): Promise<OcrDocumentResult> {
-  const profile = getOcrProfile(input.payload.profileId);
+  const profile = getOcrProfileWithLanguages(
+    input.payload.profileId,
+    input.payload.languageHints,
+  );
   const pages: OcrPageResult[] = [];
 
   input.postProgress({
