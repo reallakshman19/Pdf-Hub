@@ -455,6 +455,135 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(annots5.size()).toBe(6);
   });
 
+  it('preserves nested reply topology and reply-attached state without projecting it onto the root', async () => {
+    const baseBytes = await createEmptyPdf();
+    const root = createDeterministicReviewThreadFixture();
+
+    const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+
+    let rootRef: PDFRef | null = null;
+    let firstReplyRef: PDFRef | null = null;
+
+    for (let index = 0; index < annots.size(); index += 1) {
+      const ref = annots.get(index);
+      const dict = annots.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === root.id) rootRef = ref;
+      if (nm === `${root.id}:reply:phase10-review-reply-1`) {
+        firstReplyRef = ref;
+      }
+    }
+
+    expect(rootRef).toBeInstanceOf(PDFRef);
+    expect(firstReplyRef).toBeInstanceOf(PDFRef);
+
+    const nestedReplyRef = externalDoc.context.register(
+      externalDoc.context.obj({
+        Type: 'Annot',
+        Subtype: 'Text',
+        Rect: [70, 680, 88, 698],
+        T: PDFString.of('Nested Reviewer'),
+        Contents: PDFString.of('Nested external reply'),
+        NM: PDFString.of('external-nested-reply'),
+        M: PDFString.of('D:20231114221500Z'),
+        CreationDate: PDFString.of('D:20231114221500Z'),
+        IRT: firstReplyRef,
+        RT: 'R',
+      }),
+    );
+    annots.push(nestedReplyRef);
+
+    const nestedStateRef = externalDoc.context.register(
+      externalDoc.context.obj({
+        Type: 'Annot',
+        Subtype: 'Text',
+        Rect: [70, 660, 88, 678],
+        T: PDFString.of('Nested Reviewer'),
+        NM: PDFString.of('external-nested-reply-state'),
+        M: PDFString.of('D:20231114221600Z'),
+        CreationDate: PDFString.of('D:20231114221600Z'),
+        IRT: nestedReplyRef,
+        StateModel: PDFString.of('Review'),
+        State: PDFString.of('Rejected'),
+      }),
+    );
+    annots.push(nestedStateRef);
+
+    const externallyEdited = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallyEdited);
+
+    expect(returned.annotations).toHaveLength(1);
+    expect(returned.annotations[0].data.review?.status).toBe('resolved');
+    expect(returned.annotations[0].data.review?.replies).toHaveLength(2);
+
+    const nestedReply = returned.annotations[0].data.review?.replies.find(
+      (reply) => reply.id === 'external-nested-reply',
+    );
+    expect(nestedReply?.parentReplyId).toBe('phase10-review-reply-1');
+    expect(nestedReply?.content).toBe('Nested external reply');
+
+    const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
+    const read2 = await readNativePdfAnnotations(save2.bytes);
+
+    expect(read2.annotations[0].data.review?.status).toBe('resolved');
+    const nestedReply2 = read2.annotations[0].data.review?.replies.find(
+      (reply) => reply.id === 'external-nested-reply',
+    );
+    expect(nestedReply2?.parentReplyId).toBe('phase10-review-reply-1');
+
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    expect(annots2.size()).toBe(5);
+
+    let rootRef2: PDFRef | null = null;
+    let firstReplyRef2: PDFRef | null = null;
+    let nestedReplyRef2: PDFRef | null = null;
+    let rootStateIrt: unknown = null;
+    let nestedStateIrt: unknown = null;
+
+    for (let index = 0; index < annots2.size(); index += 1) {
+      const ref = annots2.get(index);
+      const dict = annots2.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+
+      if (nm === root.id) rootRef2 = ref;
+      if (nm === `${root.id}:reply:phase10-review-reply-1`) {
+        firstReplyRef2 = ref;
+      }
+      if (nm === `${root.id}:reply:external-nested-reply`) {
+        nestedReplyRef2 = ref;
+        expect(dict.get(PDFName.of('IRT')).toString()).toBe(firstReplyRef2?.toString());
+      }
+      if (nm === `${root.id}:state:Review`) {
+        rootStateIrt = dict.get(PDFName.of('IRT'));
+      }
+      if (nm === 'external-nested-reply-state') {
+        nestedStateIrt = dict.get(PDFName.of('IRT'));
+        expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('Rejected');
+      }
+    }
+
+    expect(rootRef2).toBeInstanceOf(PDFRef);
+    expect(firstReplyRef2).toBeInstanceOf(PDFRef);
+    expect(nestedReplyRef2).toBeInstanceOf(PDFRef);
+    expect((rootStateIrt as PDFRef).toString()).toBe(rootRef2?.toString());
+    expect((nestedStateIrt as PDFRef).toString()).toBe(nestedReplyRef2?.toString());
+
+    const save3 = await writeNativePdfAnnotations(save2.bytes, read2.annotations);
+    const read3 = await readNativePdfAnnotations(save3.bytes);
+    const nestedReply3 = read3.annotations[0].data.review?.replies.find(
+      (reply) => reply.id === 'external-nested-reply',
+    );
+    expect(nestedReply3?.parentReplyId).toBe('phase10-review-reply-1');
+    expect(read3.annotations[0].data.review?.status).toBe('resolved');
+
+    const doc3 = await PDFDocument.load(save3.bytes);
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    expect(annots3.size()).toBe(5);
+  });
+
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
     const standardFields = {
       Contents: 'Externally edited comment text in Adobe Acrobat',
