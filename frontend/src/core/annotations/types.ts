@@ -61,9 +61,15 @@ export interface AnnotationData extends Record<string, unknown> {
   lineStartCap?: 'none' | 'arrow' | 'circle' | 'square';
   lineEndCap?: 'none' | 'arrow' | 'circle' | 'square';
 
-  // ── ink / polygon ─────────────────────────────────────
+  // ── ink / polygon / text markup ───────────────────────
   paths?: Array<number[]>;
   points?: number[];
+  /**
+   * Text-markup quadrilateral x/y pairs normalized to the annotation Rect.
+   * Values preserve native multi-quad geometry while remaining portable across
+   * local translation/resizing. Eight numbers represent one quadrilateral.
+   */
+  textMarkupQuads?: number[];
 
   // ── stamp ─────────────────────────────────────────────
   stampLabel?: string;
