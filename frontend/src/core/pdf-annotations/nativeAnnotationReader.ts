@@ -264,6 +264,19 @@ function parseRootAnnotation(
       reason: 'RICH_TEXT',
       richText: true,
       defaultStyle: dict.get(lib.PDFName.of('DS')) !== undefined,
+      protectedSnapshot: {
+        type,
+        text: typeof data.text === 'string' ? data.text : '',
+        ...(typeof data.fontSize === 'number' ? { fontSize: data.fontSize } : {}),
+        ...(typeof data.textColor === 'string' ? { textColor: data.textColor } : {}),
+        ...(
+          data.textAlign === 'left'
+          || data.textAlign === 'center'
+          || data.textAlign === 'right'
+            ? { textAlign: data.textAlign }
+            : {}
+        ),
+      },
     };
   }
 
