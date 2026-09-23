@@ -67,6 +67,27 @@ interface ExistingReplyGraph {
 const DEFAULT_STROKE: PdfColor = { r: 0.25, g: 0.35, b: 0.5 };
 const DEFAULT_FILL: PdfColor = { r: 1, g: 0.95, b: 0.3 };
 
+const ROOT_OWNED_KEYS = new Set([
+  'Type', 'Subtype', 'Rect', 'P', 'NM', 'M', 'CreationDate', 'T', 'F',
+  'Contents', 'PDFHubVersion', 'PDFHubType', 'PDFHubData', 'PDFHubReviewStatus',
+  'State', 'StateModel', 'IRT', 'RT',
+  'Name', 'Open', 'C', 'CA', 'IC', 'Border', 'DA', 'Q', 'IT', 'CL', 'BE',
+  'Vertices', 'L', 'LE', 'InkList', 'QuadPoints',
+]);
+
+const ROOT_APPEARANCE_KEYS = [
+  'Subtype', 'Rect', 'Contents', 'F', 'Name', 'Open', 'C', 'CA', 'IC',
+  'Border', 'DA', 'Q', 'IT', 'CL', 'BE', 'Vertices', 'L', 'LE',
+  'InkList', 'QuadPoints',
+] as const;
+
+const REPLY_OWNED_KEYS = new Set([
+  'Type', 'Subtype', 'P', 'Contents', 'T', 'NM', 'PDFHubReplyId',
+  'M', 'CreationDate', 'IRT', 'RT',
+]);
+
+const REPLY_APPEARANCE_KEYS = ['Subtype', 'Contents'] as const;
+
 /**
  * Writes PDF Hub annotations as native PDF /Annot dictionaries.
  *
@@ -99,11 +120,18 @@ export async function writeNativePdfAnnotations(
     const annots = getOrCreateAnnotsArray(doc, page, lib);
 
     for (const annotation of pageAnnotations) {
+      const existingRoot = findManagedRootDict(annots, annotation.id, lib);
       const replyGraph = collectExistingReplyGraph(annots, annotation.id, lib);
       const stateGraph = collectReviewStateGraph(annots, annotation.id, lib);
       removeManagedAnnotationFamily(annots, annotation.id, replyGraph, lib);
 
-      const rootRef = registerNativeAnnotation(doc, page, annotation, lib);
+      const rootRef = registerNativeAnnotation(
+        doc,
+        page,
+        annotation,
+        existingRoot,
+        lib,
+      );
       annots.push(rootRef);
       annotationCount += 1;
 
@@ -115,6 +143,7 @@ export async function writeNativePdfAnnotations(
         annotation,
         rootRef,
         replies,
+        replyGraph,
         lib,
       );
       replyCount += replies.length;
@@ -159,6 +188,20 @@ function getOrCreateAnnotsArray(
 
   page.node.set(lib.PDFName.of('Annots'), existing);
   return existing;
+}
+
+function findManagedRootDict(
+  annots: PDFArray,
+  annotationId: string,
+  lib: PdfLibModule,
+): PDFDict | null {
+  for (let index = 0; index < annots.size(); index += 1) {
+    const dict = annots.lookupMaybe(index, lib.PDFDict);
+    if (dict && readAnnotationName(dict, lib) === annotationId) {
+      return dict;
+    }
+  }
+  return null;
 }
 
 function removeManagedAnnotationFamily(
@@ -372,10 +415,14 @@ function writeNativeReplies(
   annotation: PdfAnnotation,
   rootRef: PDFRef,
   replies: ReviewReply[],
+  sourceGraph: ExistingReplyGraph,
   lib: PdfLibModule,
 ): Map<string, PDFRef> {
   const replyRefById = new Map<string, PDFRef>();
   const replyDictById = new Map<string, PDFDict>();
+  const sourceById = new Map(
+    sourceGraph.records.map((record) => [record.logicalId, record.dict]),
+  );
 
   for (const reply of replies) {
     const replyDict = doc.context.obj({
@@ -395,6 +442,15 @@ function writeNativeReplies(
       IRT: rootRef,
       RT: 'R',
     }) as PDFDict;
+
+    preservePassiveAnnotationEntries(
+      sourceById.get(reply.id) ?? null,
+      replyDict,
+      REPLY_OWNED_KEYS,
+      REPLY_APPEARANCE_KEYS,
+      lib,
+    );
+
     const replyRef = doc.context.register(replyDict);
     annots.push(replyRef);
     replyRefById.set(reply.id, replyRef);
@@ -590,10 +646,88 @@ function readPdfDateValue(
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function preservePassiveAnnotationEntries(
+  source: PDFDict | null,
+  target: PDFDict,
+  ownedKeys: Set<string>,
+  appearanceKeys: readonly string[],
+  lib: PdfLibModule,
+): void {
+  if (!source) return;
+
+  const preserveAppearance = appearanceFieldsEquivalent(
+    source,
+    target,
+    appearanceKeys,
+    lib,
+  );
+
+  for (const key of source.keys()) {
+    const name = key.decodeText();
+    if (ownedKeys.has(name)) continue;
+    if (name === 'AP' && !preserveAppearance) continue;
+
+    const value = source.get(key);
+    if (value) {
+      target.set(key, value);
+    }
+  }
+}
+
+function appearanceFieldsEquivalent(
+  source: PDFDict,
+  target: PDFDict,
+  keys: readonly string[],
+  lib: PdfLibModule,
+): boolean {
+  return keys.every((key) => {
+    const name = lib.PDFName.of(key);
+    return pdfObjectsEquivalent(source.get(name), target.get(name), lib);
+  });
+}
+
+function pdfObjectsEquivalent(
+  left: unknown,
+  right: unknown,
+  lib: PdfLibModule,
+): boolean {
+  return JSON.stringify(pdfSemanticValue(left, lib))
+    === JSON.stringify(pdfSemanticValue(right, lib));
+}
+
+function pdfSemanticValue(
+  value: unknown,
+  lib: PdfLibModule,
+): unknown {
+  if (value === undefined || value === null) return null;
+
+  if (value instanceof lib.PDFString || value instanceof lib.PDFHexString) {
+    return { type: 'string', value: value.decodeText() };
+  }
+  if (value instanceof lib.PDFName) {
+    return { type: 'name', value: value.decodeText() };
+  }
+  if (value instanceof lib.PDFNumber) {
+    return { type: 'number', value: value.asNumber() };
+  }
+  if (value instanceof lib.PDFArray) {
+    return Array.from({ length: value.size() }, (_, index) =>
+      pdfSemanticValue(value.get(index), lib));
+  }
+  if (value instanceof lib.PDFDict) {
+    return value.keys()
+      .map((key) => [key.decodeText(), pdfSemanticValue(value.get(key), lib)] as const)
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+  }
+
+  return { type: 'other', value: String(value) };
+}
+
 function registerNativeAnnotation(
   doc: PDFDocument,
   page: PDFPage,
   annotation: PdfAnnotation,
+  sourceDict: PDFDict | null,
   lib: PdfLibModule,
 ): PDFRef {
   const geometry = toPdfGeometry(annotation, page);
@@ -643,6 +777,13 @@ function registerNativeAnnotation(
   addSubtypeFields(base, annotation, geometry, stroke, fill, opacity, borderWidth, lib);
 
   const dict = doc.context.obj(base) as PDFDict;
+  preservePassiveAnnotationEntries(
+    sourceDict,
+    dict,
+    ROOT_OWNED_KEYS,
+    ROOT_APPEARANCE_KEYS,
+    lib,
+  );
   return doc.context.register(dict);
 }
 
