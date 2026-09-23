@@ -85,6 +85,7 @@ export async function readNativePdfAnnotations(
         rootRecordByRef,
         recordByRef,
         lib,
+        isReplyRecord,
       );
 
       if (!resolved) {
@@ -95,7 +96,30 @@ export async function readNativePdfAnnotations(
       const { parent, parentRecord } = resolved;
       promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
 
-      const reply = parseReply(record.dict, parent.id, record.index, lib);
+      const immediateParentKey = pdfObjectKey(
+        record.dict.get(lib.PDFName.of('IRT')),
+        lib,
+      );
+      const immediateParentRecord = immediateParentKey
+        ? recordByRef.get(immediateParentKey)
+        : undefined;
+      const parentReplyId =
+        immediateParentRecord && isReplyRecord(immediateParentRecord.dict, lib)
+          ? replyLogicalId(
+              immediateParentRecord.dict,
+              parent.id,
+              immediateParentRecord.index,
+              lib,
+            )
+          : undefined;
+
+      const reply = parseReply(
+        record.dict,
+        parent.id,
+        record.index,
+        lib,
+        parentReplyId,
+      );
       if (!reply) {
         skippedCount += 1;
         continue;
@@ -126,6 +150,7 @@ export async function readNativePdfAnnotations(
         rootRecordByRef,
         recordByRef,
         lib,
+        isReviewStateRecord,
       );
 
       if (!resolved) {
@@ -264,6 +289,7 @@ function parseReply(
   parentId: string,
   index: number,
   lib: PdfLibModule,
+  parentReplyId?: string,
 ): ReviewReply | null {
   const content = readText(dict, 'Contents', lib)?.trim();
   if (!content) return null;
@@ -273,19 +299,30 @@ function parseReply(
     ?? readPdfDate(dict, 'M', lib)
     ?? Date.now();
 
-  const privateId = readText(dict, 'PDFHubReplyId', lib);
-  const annotationName = readText(dict, 'NM', lib);
-
   return {
-    id:
-      privateId
-      ?? replyIdFromAnnotationName(annotationName, parentId)
-      ?? annotationName
-      ?? `${parentId}:native-reply:${index}`,
+    id: replyLogicalId(dict, parentId, index, lib),
     author: readText(dict, 'T', lib) ?? 'Unknown',
     content,
     createdAt,
+    ...(parentReplyId ? { parentReplyId } : {}),
   };
+}
+
+function replyLogicalId(
+  dict: PDFDict,
+  parentId: string,
+  index: number,
+  lib: PdfLibModule,
+): string {
+  const privateId = readText(dict, 'PDFHubReplyId', lib);
+  const annotationName = readText(dict, 'NM', lib);
+
+  return (
+    privateId
+    ?? replyIdFromAnnotationName(annotationName, parentId)
+    ?? annotationName
+    ?? `${parentId}:native-reply:${index}`
+  );
 }
 
 function replyIdFromAnnotationName(
@@ -318,6 +355,7 @@ function resolveRootForRelatedRecord(
   rootRecordByRef: Map<string, NativeRecord>,
   recordByRef: Map<string, NativeRecord>,
   lib: PdfLibModule,
+  mayTraverse: (dict: PDFDict, lib: PdfLibModule) => boolean,
 ): { parent: PdfAnnotation; parentRecord: NativeRecord } | null {
   let current: NativeRecord | undefined = record;
   const visited = new Set<string>();
@@ -334,7 +372,9 @@ function resolveRootForRelatedRecord(
 
     if (visited.has(parentKey)) return null;
     visited.add(parentKey);
-    current = recordByRef.get(parentKey);
+    const next = recordByRef.get(parentKey);
+    if (!next || !mayTraverse(next.dict, lib)) return null;
+    current = next;
   }
 
   return null;
