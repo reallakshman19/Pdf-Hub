@@ -47,9 +47,15 @@ export interface AnnotationNativeInteropState {
   protectedSnapshot?: {
     type: AnnotationType;
     text: string;
+    content?: string;
     fontSize?: number;
+    fontWeight?: 'normal' | 'bold';
+    fontStyle?: 'normal' | 'italic';
+    fontFamily?: string;
     textColor?: string;
     textAlign?: 'left' | 'center' | 'right';
+    lineHeight?: number;
+    autoSize?: boolean;
   };
 }
 
