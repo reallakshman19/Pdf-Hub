@@ -1,11 +1,12 @@
 import React from 'react';
 
-export type OcrPageScope = 'current' | 'selected' | 'all';
+export type OcrPageScope = 'current' | 'selected' | 'resume' | 'all';
 
 export interface OcrPageScopeControlProps {
   value: OcrPageScope;
   currentPageIndex: number;
   selectedPageIndexes: number[];
+  resumePageIndexes?: number[];
   pageCount: number;
   disabled?: boolean;
   onChange: (scope: OcrPageScope) => void;
@@ -15,6 +16,7 @@ export const OcrPageScopeControl: React.FC<OcrPageScopeControlProps> = ({
   value,
   currentPageIndex,
   selectedPageIndexes,
+  resumePageIndexes = [],
   pageCount,
   disabled = false,
   onChange,
@@ -24,6 +26,7 @@ export const OcrPageScopeControl: React.FC<OcrPageScopeControlProps> = ({
     Math.min(currentPageIndex + 1, Math.max(1, pageCount)),
   );
   const selectedCount = selectedPageIndexes.length;
+  const resumeCount = resumePageIndexes.length;
 
   const options: Array<{
     value: OcrPageScope;
@@ -42,6 +45,13 @@ export const OcrPageScopeControl: React.FC<OcrPageScopeControlProps> = ({
       detail: selectedCount > 0 ? `${selectedCount} page${selectedCount === 1 ? '' : 's'}` : 'No pages selected',
       disabled: selectedCount === 0,
     },
+    ...(resumeCount > 0
+      ? [{
+          value: 'resume' as const,
+          label: 'Resume',
+          detail: `${resumeCount} checkpoint page${resumeCount === 1 ? '' : 's'}`,
+        }]
+      : []),
     {
       value: 'all',
       label: 'All',
@@ -51,7 +61,7 @@ export const OcrPageScopeControl: React.FC<OcrPageScopeControlProps> = ({
 
   return (
     <fieldset
-      className="grid grid-cols-3 gap-2"
+      className="grid grid-cols-2 gap-2 sm:grid-cols-4"
       data-testid="ocr-page-scope"
       disabled={disabled}
     >
