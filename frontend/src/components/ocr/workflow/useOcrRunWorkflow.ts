@@ -13,9 +13,13 @@ import {
 } from '@/core/ocr/ocrExecutionPolicy';
 import {
   createRetryTasksFromFailedBatches,
+  mergeOcrBatchRetrySnapshot,
   runOcrBatchScheduler,
   type OcrBatchSchedulerSnapshot,
 } from '@/core/ocr/ocrBatchScheduler';
+import {
+  createOcrResumeToken,
+} from '@/core/ocr/ocrResumeState';
 import {
   runFinalOcrIntegrationJob,
 } from '@/core/ocr/ocrFinalIntegration';
@@ -73,6 +77,9 @@ export function useOcrRunWorkflow({
     engineId: state.engineId,
     forceOcr: state.forceOcr,
     profileId: state.profileId,
+    languageHints: state.languageHints,
+    resumeToken: state.resumeToken,
+    result: state.result,
     selectedPageIndexes: state.selectedPageIndexes,
   })));
 
@@ -101,28 +108,39 @@ export function useOcrRunWorkflow({
     [selectedPageIndexes, store.selectedPageIndexes],
   );
 
-  const requestedPageIndexes = React.useMemo(
-    () => selectedPages.length > 0
-      ? selectedPages
-      : Array.from(
-          { length: Math.max(1, pageCount) },
-          (_, index) => index,
-        ),
-    [pageCount, selectedPages],
-  );
+  const requestedPageIndexes = React.useMemo(() => {
+    if (selectedPages.length > 0) return selectedPages;
+
+    if (store.resumeToken) {
+      return [...new Set(
+        store.resumeToken.tasks.flatMap((task) => task.pageIndexes),
+      )].sort((a, b) => a - b);
+    }
+
+    return Array.from(
+      { length: Math.max(1, pageCount) },
+      (_, index) => index,
+    );
+  }, [pageCount, selectedPages, store.resumeToken]);
 
   const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
   const hasInputSource = Boolean(pdfBytes || (pages && pages.length > 0));
+
+  const hasPendingResume = Boolean(
+    store.resumeToken?.tasks.some((task) => task.status !== 'completed'),
+  );
 
   const state: OcrRunWorkflowState = isRunning
     ? 'running'
     : errorMessage
       ? 'error'
-      : hasCurrentDocumentResult
-        ? 'complete'
-        : hasInputSource && requestedPageIndexes.length > 0
-          ? 'ready'
-          : 'idle';
+      : hasPendingResume && hasInputSource
+        ? 'ready'
+        : hasCurrentDocumentResult
+          ? 'complete'
+          : hasInputSource && requestedPageIndexes.length > 0
+            ? 'ready'
+            : 'idle';
 
   const canRun = !isRunning && hasInputSource && requestedPageIndexes.length > 0;
   const canClear = !isRunning;
@@ -143,6 +161,26 @@ export function useOcrRunWorkflow({
     lastBatchController?.abort();
     setLastBatchController(null);
   }, [lastBatchController]);
+
+  const captureBatchSnapshot = React.useCallback((
+    snapshot: OcrBatchSchedulerSnapshot,
+  ) => {
+    setBatchSnapshot(snapshot);
+    useOcrStore.getState().setOcrResumeToken(
+      createOcrResumeToken({
+        documentFingerprint: effectiveDocumentFingerprint,
+        engineId: store.engineId,
+        profileId: store.profileId,
+        languages: store.languageHints,
+        snapshot,
+      }),
+    );
+  }, [
+    effectiveDocumentFingerprint,
+    store.engineId,
+    store.languageHints,
+    store.profileId,
+  ]);
 
   const retryFailedBatches = React.useCallback(async () => {
     if (!batchSnapshot) return;
@@ -165,6 +203,7 @@ export function useOcrRunWorkflow({
             documentFingerprint: effectiveDocumentFingerprint,
             engineId: store.engineId,
             requestedProfileId: store.profileId,
+            languageHints: store.languageHints,
             forceOcr: store.forceOcr,
             mode: pipelineMode,
             explicitPages: task.input,
@@ -187,7 +226,13 @@ export function useOcrRunWorkflow({
 
           return task.pageIndexes;
         },
-        onSnapshot: setBatchSnapshot,
+        onSnapshot: (retrySnapshot) => {
+          const merged = mergeOcrBatchRetrySnapshot(
+            batchSnapshot,
+            retrySnapshot,
+          );
+          captureBatchSnapshot(merged);
+        },
       });
     } catch (error) {
       setErrorMessage(
@@ -200,12 +245,14 @@ export function useOcrRunWorkflow({
     }
   }, [
     batchSnapshot,
+    captureBatchSnapshot,
     effectiveDocumentFingerprint,
     executionPolicy.maxCanvasPixels,
     executionPolicy.rasterScale,
     pipelineMode,
     store.engineId,
     store.forceOcr,
+    store.languageHints,
     store.profileId,
   ]);
 
@@ -248,6 +295,9 @@ export function useOcrRunWorkflow({
         documentFingerprint: effectiveDocumentFingerprint,
         engineId: store.engineId,
         requestedProfileId: store.profileId,
+        languageHints: store.languageHints,
+        resumeToken: store.resumeToken,
+        existingResult: store.result,
         forceOcr: store.forceOcr,
         mode: pipelineMode,
         pdfBytes,
@@ -264,7 +314,7 @@ export function useOcrRunWorkflow({
             diagnostic.message,
           ]);
         },
-        onBatchSnapshot: setBatchSnapshot,
+        onBatchSnapshot: captureBatchSnapshot,
         onProgress: (snapshot) => {
           useOcrStore.getState().applyOcrJobSnapshot(snapshot);
         },
@@ -290,6 +340,7 @@ export function useOcrRunWorkflow({
     }
   }, [
     canRun,
+    captureBatchSnapshot,
     effectiveDocumentFingerprint,
     executionPolicy,
     pageCount,
@@ -299,7 +350,10 @@ export function useOcrRunWorkflow({
     requestedPageIndexes,
     store.engineId,
     store.forceOcr,
+    store.languageHints,
     store.profileId,
+    store.resumeToken,
+    store.result,
   ]);
 
   const clearOcr = React.useCallback(() => {
