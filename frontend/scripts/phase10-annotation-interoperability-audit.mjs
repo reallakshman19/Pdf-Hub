@@ -101,9 +101,23 @@ const reviewFixture = manifest.review_thread_fixture;
 if (!reviewFixture
   || reviewFixture.root?.nm !== 'phase10-review-root-1'
   || reviewFixture.reply?.relationship !== 'IRT_OBJECT_REFERENCE'
+  || reviewFixture.state?.relationship !== 'IRT_OBJECT_REFERENCE'
+  || reviewFixture.state?.encoding !== 'TEXT_STRING'
+  || !reviewFixture.state?.transition_rule?.includes('previous state annotation')
   || reviewFixture.repeated_save?.cycles !== 2
-  || reviewFixture.repeated_save?.duplicates_allowed !== false) {
-  errors.push('Manifest must declare deterministic root/reply /NM + /IRT repeated-save fixture semantics');
+  || reviewFixture.repeated_save?.duplicates_allowed !== false
+  || reviewFixture.repeated_save?.state_history_preserved !== true
+  || reviewFixture.repeated_save?.noop_save_appends_state !== false
+  || reviewFixture.repeated_save?.semantic_state_change_appends_transition !== true) {
+  errors.push('Manifest must declare deterministic root/reply/state native relationship and transition-history semantics');
+}
+
+const reviewProjection = manifest.policies?.review_state_projection;
+if (!reviewProjection
+  || reviewProjection.native_model !== 'AUTHOR_SPECIFIC_CHAINED_STATE_TRANSITIONS'
+  || reviewProjection.application_model !== 'SINGLE_THREAD_STATUS'
+  || !reviewProjection.preservation_rule?.includes('Preserve all native Review state transition annotations')) {
+  errors.push('Manifest must declare native review-state chain preservation and application projection boundary');
 }
 
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
@@ -173,7 +187,7 @@ console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
-console.log('[PASS] Deterministic root/reply /NM + /IRT repeated-save fixture contract verified.');
+console.log('[PASS] Deterministic root/reply/state relationships and chained Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');
