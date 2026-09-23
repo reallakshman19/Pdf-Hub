@@ -150,6 +150,41 @@ describe('ocrStore', () => {
     expect(useOcrStore.getState().resumeToken).toBeNull();
   });
 
+  it('drops completed checkpoints when persisted OCR evidence is removed or failed', async () => {
+    const document = await createMockDocument();
+    const completedToken = makeCompletedResumeToken('doc-store');
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-store',
+      result: document,
+      resumeToken: completedToken,
+    });
+
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
+    useOcrStore.getState().setOcrResult({
+      ...document,
+      pages: [],
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-store',
+      result: document,
+      resumeToken: completedToken,
+    });
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
+    useOcrStore.getState().setOcrResult({
+      ...document,
+      pages: document.pages.map((page) => ({
+        ...page,
+        status: 'failed' as const,
+      })),
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+  });
+
   it('clears resume state when a replacement OCR result uses another configuration', async () => {
     useOcrStore.getState().hydrateOcrSession({
       documentFingerprint: 'doc-store',
@@ -549,9 +584,24 @@ function makeResumeToken(
         id: 'ocr-batch-1',
         index: 0,
         pageIndexes: [0],
-        status: 'completed',
+        status: 'failed',
+        errorMessage: 'Retryable checkpoint.',
       },
     ],
+  };
+}
+
+function makeCompletedResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  const token = makeResumeToken(documentFingerprint);
+  return {
+    ...token,
+    tasks: token.tasks.map((task) => ({
+      ...task,
+      status: 'completed',
+      errorMessage: undefined,
+    })),
   };
 }
 
