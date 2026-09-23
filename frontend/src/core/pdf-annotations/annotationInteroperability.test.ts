@@ -303,7 +303,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(annots3.size()).toBe(3);
   });
 
-  it('preserves chained review-state history and appends only a genuine new state transition', async () => {
+  it('preserves legacy chained review-state history but emits new states against the original annotation', async () => {
     const baseBytes = await createEmptyPdf();
     const root = createDeterministicReviewThreadFixture();
 
@@ -387,8 +387,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(secondStateDict2.get(PDFName.of('IRT')).toString()).toBe(firstStateRef2?.toString());
     expect(secondStateDict2.lookup(PDFName.of('State')).decodeText()).toBe('Rejected');
 
-    // PDF Hub's first status change by Current User starts that author's
-    // state chain at the review root; it must not be attributed to Lead Reviewer.
+    // PDF Hub's first status change by Current User follows the current ISO
+    // contract: direct /IRT to the original review root, with distinct actor provenance.
     const currentUserResolved = withAnnotationReviewStatus(
       returned.annotations[0],
       'resolved',
@@ -419,8 +419,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     }
     expect(currentUserStateRef).toBeInstanceOf(PDFRef);
 
-    // The next status change by the same Current User must extend that user's
-    // state chain by replying to the previous Current User state.
+    // A second status change by the same Current User must also point directly
+    // to the original review root; PDF Hub does not emit the older state-to-state form.
     const currentUserOpen = withAnnotationReviewStatus(
       read3.annotations[0],
       'open',
@@ -442,7 +442,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
       if (nm === `${root.id}:state:Review:3`) {
         secondCurrentUserStateRef = ref;
-        expect(dict.get(PDFName.of('IRT')).toString()).toBe(currentUserStateRef?.toString());
+        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
         expect(dict.lookup(PDFName.of('T')).decodeText()).toBe('Current User');
         expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('None');
       }
