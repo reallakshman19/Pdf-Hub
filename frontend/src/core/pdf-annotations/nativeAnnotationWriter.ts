@@ -32,6 +32,22 @@ interface AnnotationGeometry {
   pageHeight: number;
 }
 
+interface ReviewStateRecord {
+  ref: PDFRef;
+  refKey: string;
+  dict: PDFDict;
+  index: number;
+  parentKey: string | null;
+  author: string;
+  state: string;
+  timestamp: number;
+}
+
+interface ReviewStateGraph {
+  rootRefKey: string | null;
+  records: ReviewStateRecord[];
+}
+
 const DEFAULT_STROKE: PdfColor = { r: 0.25, g: 0.35, b: 0.5 };
 const DEFAULT_FILL: PdfColor = { r: 1, g: 0.95, b: 0.3 };
 
@@ -67,11 +83,14 @@ export async function writeNativePdfAnnotations(
     const annots = getOrCreateAnnotsArray(doc, page, lib);
 
     for (const annotation of pageAnnotations) {
+      const stateGraph = collectReviewStateGraph(annots, annotation.id, lib);
       removeManagedAnnotationFamily(annots, annotation.id, lib);
 
       const rootRef = registerNativeAnnotation(doc, page, annotation, lib);
       annots.push(rootRef);
       annotationCount += 1;
+
+      relinkReviewStateRoots(stateGraph, rootRef, lib);
 
       const replies = annotation.data.review?.replies ?? [];
       for (const reply of replies) {
@@ -99,24 +118,15 @@ export async function writeNativePdfAnnotations(
       }
 
       if (annotation.data.review) {
-        const review = annotation.data.review;
-        const stateRef = doc.context.register(
-          doc.context.obj({
-            Type: 'Annot',
-            Subtype: 'Text',
-            Rect: replyRect(annotation, page),
-            P: page.ref,
-            T: pdfText(lib, review.author || 'Unknown'),
-            NM: lib.PDFString.of(stateAnnotationName(annotation.id)),
-            M: lib.PDFString.of(pdfDate(review.updatedAt)),
-            CreationDate: lib.PDFString.of(pdfDate(review.createdAt)),
-            IRT: rootRef,
-            StateModel: 'Review',
-            State: reviewStateName(review.status),
-            PDFHubReviewStatus: lib.PDFString.of(review.status),
-          }),
+        appendReviewStateTransitionIfNeeded(
+          doc,
+          page,
+          annots,
+          annotation,
+          rootRef,
+          stateGraph,
+          lib,
         );
-        annots.push(stateRef);
       }
     }
   }
@@ -165,17 +175,16 @@ function removeManagedAnnotationFamily(
 
     const name = readAnnotationName(dict, lib);
     const irtKey = pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib);
-    const relatedToManagedRoot = Boolean(
+    const relatedReplyToManagedRoot = Boolean(
       rootRefKey
       && irtKey === rootRefKey
-      && (isReplyAnnotation(dict, lib) || isStateAnnotation(dict, lib)),
+      && isReplyAnnotation(dict, lib),
     );
 
     if (
       name === annotationId
       || name?.startsWith(`${annotationId}:reply:`)
-      || name?.startsWith(`${annotationId}:state:`)
-      || relatedToManagedRoot
+      || relatedReplyToManagedRoot
     ) {
       annots.remove(index);
     }
@@ -191,9 +200,8 @@ function readAnnotationName(dict: PDFDict, lib: PdfLibModule): string | null {
 }
 
 function isStateAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
-  const stateModel =
-    dict.lookupMaybe(lib.PDFName.of('StateModel'), lib.PDFName)?.decodeText();
-  const state = dict.lookupMaybe(lib.PDFName.of('State'), lib.PDFName)?.decodeText();
+  const stateModel = readTextOrName(dict, 'StateModel', lib);
+  const state = readTextOrName(dict, 'State', lib);
   return stateModel === 'Review' && Boolean(state);
 }
 
@@ -201,6 +209,202 @@ function isReplyAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
   if (isStateAnnotation(dict, lib)) return false;
   const replyType = dict.lookupMaybe(lib.PDFName.of('RT'), lib.PDFName)?.decodeText();
   return !replyType || replyType === 'R';
+}
+
+function collectReviewStateGraph(
+  annots: PDFArray,
+  annotationId: string,
+  lib: PdfLibModule,
+): ReviewStateGraph {
+  let rootRefKey: string | null = null;
+  const candidates: ReviewStateRecord[] = [];
+
+  for (let index = 0; index < annots.size(); index += 1) {
+    const raw = annots.get(index);
+    const dict = annots.lookupMaybe(index, lib.PDFDict);
+    if (!dict) continue;
+
+    const refKey = pdfObjectKey(raw, lib);
+    if (readAnnotationName(dict, lib) === annotationId) {
+      rootRefKey = refKey;
+    }
+
+    if (!refKey || !(raw instanceof lib.PDFRef) || !isStateAnnotation(dict, lib)) {
+      continue;
+    }
+
+    candidates.push({
+      ref: raw,
+      refKey,
+      dict,
+      index,
+      parentKey: pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib),
+      author: readTextOrName(dict, 'T', lib) ?? 'Unknown',
+      state: readTextOrName(dict, 'State', lib) ?? 'None',
+      timestamp: readPdfDateValue(dict, 'M', lib)
+        ?? readPdfDateValue(dict, 'CreationDate', lib)
+        ?? 0,
+    });
+  }
+
+  if (!rootRefKey) {
+    return { rootRefKey: null, records: [] };
+  }
+
+  const byRef = new Map(candidates.map((record) => [record.refKey, record]));
+  const records = candidates.filter((record) => {
+    let parentKey = record.parentKey;
+    const visited = new Set<string>();
+
+    while (parentKey) {
+      if (parentKey === rootRefKey) return true;
+      if (visited.has(parentKey)) return false;
+      visited.add(parentKey);
+      parentKey = byRef.get(parentKey)?.parentKey ?? null;
+    }
+
+    return false;
+  });
+
+  return { rootRefKey, records };
+}
+
+function relinkReviewStateRoots(
+  graph: ReviewStateGraph,
+  newRootRef: PDFRef,
+  lib: PdfLibModule,
+): void {
+  if (!graph.rootRefKey) return;
+
+  for (const record of graph.records) {
+    if (record.parentKey === graph.rootRefKey) {
+      record.dict.set(lib.PDFName.of('IRT'), newRootRef);
+    }
+  }
+}
+
+function appendReviewStateTransitionIfNeeded(
+  doc: PDFDocument,
+  page: PDFPage,
+  annots: PDFArray,
+  annotation: PdfAnnotation,
+  rootRef: PDFRef,
+  graph: ReviewStateGraph,
+  lib: PdfLibModule,
+): void {
+  const review = annotation.data.review;
+  if (!review) return;
+
+  const desiredStatus = review.status;
+  const latest = latestReviewStateRecord(graph.records);
+  if (latest && reviewStatusFromState(latest.state) === desiredStatus) {
+    return;
+  }
+
+  const author = review.author || 'Unknown';
+  const latestForAuthor = latestReviewStateRecord(
+    graph.records.filter((record) => record.author === author),
+  );
+  const parentRef = latestForAuthor?.ref ?? rootRef;
+  const transitionTime = graph.records.length > 0
+    ? review.updatedAt
+    : review.createdAt;
+
+  const stateRef = doc.context.register(
+    doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Text',
+      Rect: replyRect(annotation, page),
+      P: page.ref,
+      T: pdfText(lib, author),
+      NM: lib.PDFString.of(nextStateAnnotationName(annotation.id, annots, lib)),
+      M: lib.PDFString.of(pdfDate(transitionTime)),
+      CreationDate: lib.PDFString.of(pdfDate(transitionTime)),
+      IRT: parentRef,
+      StateModel: pdfText(lib, 'Review'),
+      State: pdfText(lib, reviewStateName(desiredStatus)),
+      PDFHubReviewStatus: lib.PDFString.of(desiredStatus),
+    }),
+  );
+  annots.push(stateRef);
+}
+
+function latestReviewStateRecord(
+  records: ReviewStateRecord[],
+): ReviewStateRecord | undefined {
+  return [...records].sort(
+    (left, right) =>
+      (right.timestamp - left.timestamp)
+      || (right.index - left.index),
+  )[0];
+}
+
+function reviewStatusFromState(
+  state: string,
+): 'open' | 'resolved' | 'rejected' {
+  if (state === 'Completed' || state === 'Accepted') return 'resolved';
+  if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
+  return 'open';
+}
+
+function nextStateAnnotationName(
+  annotationId: string,
+  annots: PDFArray,
+  lib: PdfLibModule,
+): string {
+  const existing = new Set<string>();
+  for (let index = 0; index < annots.size(); index += 1) {
+    const dict = annots.lookupMaybe(index, lib.PDFDict);
+    if (!dict) continue;
+    const name = readAnnotationName(dict, lib);
+    if (name) existing.add(name);
+  }
+
+  const base = stateAnnotationName(annotationId);
+  if (!existing.has(base)) return base;
+
+  let sequence = 2;
+  while (existing.has(`${base}:${sequence}`)) {
+    sequence += 1;
+  }
+  return `${base}:${sequence}`;
+}
+
+function readTextOrName(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): string | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (
+    value instanceof lib.PDFString
+    || value instanceof lib.PDFHexString
+    || value instanceof lib.PDFName
+  ) {
+    return value.decodeText();
+  }
+  return null;
+}
+
+function readPdfDateValue(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): number | null {
+  const raw = readTextOrName(dict, key, lib);
+  if (!raw) return null;
+  const match = /^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(raw);
+  if (!match) return null;
+
+  const timestamp = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6]),
+  );
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function registerNativeAnnotation(
