@@ -267,7 +267,19 @@ function parseRootAnnotation(
       protectedSnapshot: {
         type,
         text: typeof data.text === 'string' ? data.text : '',
+        ...(typeof data.content === 'string' ? { content: data.content } : {}),
         ...(typeof data.fontSize === 'number' ? { fontSize: data.fontSize } : {}),
+        ...(
+          data.fontWeight === 'normal' || data.fontWeight === 'bold'
+            ? { fontWeight: data.fontWeight }
+            : {}
+        ),
+        ...(
+          data.fontStyle === 'normal' || data.fontStyle === 'italic'
+            ? { fontStyle: data.fontStyle }
+            : {}
+        ),
+        ...(typeof data.fontFamily === 'string' ? { fontFamily: data.fontFamily } : {}),
         ...(typeof data.textColor === 'string' ? { textColor: data.textColor } : {}),
         ...(
           data.textAlign === 'left'
@@ -276,6 +288,8 @@ function parseRootAnnotation(
             ? { textAlign: data.textAlign }
             : {}
         ),
+        ...(typeof data.lineHeight === 'number' ? { lineHeight: data.lineHeight } : {}),
+        ...(typeof data.autoSize === 'boolean' ? { autoSize: data.autoSize } : {}),
       },
     };
   }
