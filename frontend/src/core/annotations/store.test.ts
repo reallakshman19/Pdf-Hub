@@ -56,6 +56,74 @@ describe('annotation store', () => {
     expect(state.selectedAnnotationIds).toEqual([]);
   });
 
+  it('keeps native rich-text semantics read-only while allowing safe geometry and border edits', () => {
+    const rich: PdfAnnotation = {
+      ...baseAnnotation('rich-1', 1, 10, 20),
+      data: {
+        text: 'Rich baseline',
+        fontSize: 12,
+        textColor: '#112233',
+        textAlign: 'left',
+        nativeInterop: {
+          fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+          reason: 'RICH_TEXT',
+          richText: true,
+          defaultStyle: true,
+          protectedSnapshot: {
+            type: 'textbox',
+            text: 'Rich baseline',
+            fontSize: 12,
+            textColor: '#112233',
+            textAlign: 'left',
+          },
+        },
+      },
+    };
+
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([rich]);
+    store.setSelection(['rich-1']);
+
+    const before = useAnnotationStore.getState().annotations[0];
+
+    store.updateAnnotation('rich-1', {
+      type: 'callout',
+      data: {
+        ...before.data,
+        text: 'Blocked plain-text edit',
+        fontSize: 24,
+        textColor: '#ff0000',
+      },
+    });
+
+    let current = useAnnotationStore.getState().annotations[0];
+    expect(current).toBe(before);
+    expect(current.type).toBe('textbox');
+    expect(current.data.text).toBe('Rich baseline');
+    expect(current.data.fontSize).toBe(12);
+    expect(current.data.textColor).toBe('#112233');
+    expect(current.updatedAt).toBe(1);
+
+    store.updateAnnotation('rich-1', {
+      rect: { x: 30, y: 40, width: 120, height: 50 },
+    });
+
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.rect).toEqual({ x: 30, y: 40, width: 120, height: 50 });
+    expect(current.data.text).toBe('Rich baseline');
+
+    store.updateStyleForSelection({
+      fontSize: 30,
+      textColor: '#ff0000',
+      stroke: '#00ff00',
+    });
+
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.fontSize).toBe(12);
+    expect(current.data.textColor).toBe('#112233');
+    expect(current.data.borderColor).toBe('#00ff00');
+  });
+
   it('setSelection normalizes unknown/duplicate ids and sets active id', () => {
     const store = useAnnotationStore.getState();
     store.setAnnotations([baseAnnotation('a1', 1, 0, 0), baseAnnotation('a2', 1, 0, 0)]);
