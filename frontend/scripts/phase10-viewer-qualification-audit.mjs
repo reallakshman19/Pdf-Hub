@@ -166,6 +166,23 @@ if (qualification.baseline?.require_absent_ap !== true) {
   errors.push('qualification baseline must require absent /AP before production /AP work begins');
 }
 
+const apActivation = qualification.ap_activation_contract;
+if (!apActivation
+  || apActivation.policy !== 'EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE'
+  || apActivation.baseline !== 'NO_PRODUCTION_AP'
+  || apActivation.authorized_trigger !== 'render=FAIL'
+  || !Array.isArray(apActivation.unauthorized_states)
+  || !apActivation.unauthorized_states.includes('render=PASS')
+  || !apActivation.unauthorized_states.includes('render=NOT_RUN')
+  || !Array.isArray(apActivation.required_evidence)
+  || !apActivation.required_evidence.includes('viewer.version')
+  || !apActivation.required_evidence.includes('viewer.platform')
+  || !apActivation.required_evidence.includes('exact_product_material_sha')
+  || !apActivation.scope_rule?.includes('only the failing annotation type/family')
+  || !apActivation.requalification_rule?.includes('do not carry forward prior PASS evidence')) {
+  errors.push('viewer qualification manifest must make /AP activation render-FAIL-only, evidence-bound, family-scoped, and subject to requalification');
+}
+
 for (const token of [
   'writeNativePdfAnnotations',
   "PDFName.of('AP')",
@@ -321,7 +338,7 @@ console.log('[PASS] Canonical 17-type corpus coverage is exact.');
 console.log('[PASS] Appearance-family mapping covers every supported type exactly once.');
 console.log('[PASS] Review and rich-text interoperability journeys are mandatory and generated through the production reader/writer path.');
 console.log('[PASS] Corpus is bound to the production native annotation writer.');
-console.log('[PASS] Current qualification baseline requires managed annotations to have no /AP.');
+console.log('[PASS] Current qualification baseline requires no managed /AP and only named-viewer render FAIL can activate bounded AP work.');
 console.log('[PASS] External-viewer evidence validator is fail-closed and capability-scoped.');
 console.log('[PASS] Returned review and rich-text probes replay external output through the production reader/writer and emit durable evidence.');
 console.log('[PASS] Production native annotation writer contains no /AP implementation token.');
