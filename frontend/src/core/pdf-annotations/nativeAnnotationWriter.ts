@@ -7,6 +7,7 @@ import type {
 } from 'pdf-lib';
 
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
+import type { ReviewReply } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 
 type PdfLibModule = typeof import('pdf-lib');
@@ -48,6 +49,20 @@ interface ReviewStateGraph {
   records: ReviewStateRecord[];
 }
 
+interface ExistingReplyRecord {
+  ref: PDFRef;
+  refKey: string;
+  dict: PDFDict;
+  index: number;
+  parentKey: string | null;
+  logicalId: string;
+}
+
+interface ExistingReplyGraph {
+  rootRefKey: string | null;
+  records: ExistingReplyRecord[];
+}
+
 const DEFAULT_STROKE: PdfColor = { r: 0.25, g: 0.35, b: 0.5 };
 const DEFAULT_FILL: PdfColor = { r: 1, g: 0.95, b: 0.3 };
 
@@ -83,39 +98,33 @@ export async function writeNativePdfAnnotations(
     const annots = getOrCreateAnnotsArray(doc, page, lib);
 
     for (const annotation of pageAnnotations) {
+      const replyGraph = collectExistingReplyGraph(annots, annotation.id, lib);
       const stateGraph = collectReviewStateGraph(annots, annotation.id, lib);
-      removeManagedAnnotationFamily(annots, annotation.id, lib);
+      removeManagedAnnotationFamily(annots, annotation.id, replyGraph, lib);
 
       const rootRef = registerNativeAnnotation(doc, page, annotation, lib);
       annots.push(rootRef);
       annotationCount += 1;
 
-      relinkReviewStateRoots(stateGraph, rootRef, lib);
-
       const replies = annotation.data.review?.replies ?? [];
-      for (const reply of replies) {
-        const replyRef = doc.context.register(
-          doc.context.obj({
-            Type: 'Annot',
-            Subtype: 'Text',
-            Rect: replyRect(annotation, page),
-            P: page.ref,
-            Contents: pdfText(lib, reply.content),
-            T: pdfText(lib, reply.author || 'Unknown'),
-            NM: lib.PDFString.of(replyAnnotationName(annotation.id, reply.id)),
-            PDFHubReplyId: lib.PDFString.of(reply.id),
-            M: lib.PDFString.of(pdfDate(reply.createdAt)),
-            CreationDate: lib.PDFString.of(pdfDate(reply.createdAt)),
-            F: 4,
-            Name: 'Comment',
-            Open: false,
-            IRT: rootRef,
-            RT: 'R',
-          }),
-        );
-        annots.push(replyRef);
-        replyCount += 1;
-      }
+      const replyRefById = writeNativeReplies(
+        doc,
+        page,
+        annots,
+        annotation,
+        rootRef,
+        replies,
+        lib,
+      );
+      replyCount += replies.length;
+
+      relinkReviewStateParents(
+        stateGraph,
+        replyGraph,
+        rootRef,
+        replyRefById,
+        lib,
+      );
 
       if (annotation.data.review) {
         appendReviewStateTransitionIfNeeded(
@@ -154,37 +163,23 @@ function getOrCreateAnnotsArray(
 function removeManagedAnnotationFamily(
   annots: PDFArray,
   annotationId: string,
+  replyGraph: ExistingReplyGraph,
   lib: PdfLibModule,
 ): void {
-  let rootRefKey: string | null = null;
-
-  for (let index = 0; index < annots.size(); index += 1) {
-    const dict = annots.lookupMaybe(index, lib.PDFDict);
-    if (!dict) continue;
-
-    const name = readAnnotationName(dict, lib);
-    if (name !== annotationId) continue;
-
-    rootRefKey = pdfObjectKey(annots.get(index), lib);
-    break;
-  }
+  const replyRefKeys = new Set(replyGraph.records.map((record) => record.refKey));
 
   for (let index = annots.size() - 1; index >= 0; index -= 1) {
+    const raw = annots.get(index);
     const dict = annots.lookupMaybe(index, lib.PDFDict);
     if (!dict) continue;
 
     const name = readAnnotationName(dict, lib);
-    const irtKey = pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib);
-    const relatedReplyToManagedRoot = Boolean(
-      rootRefKey
-      && irtKey === rootRefKey
-      && isReplyAnnotation(dict, lib),
-    );
+    const refKey = pdfObjectKey(raw, lib);
 
     if (
       name === annotationId
       || name?.startsWith(`${annotationId}:reply:`)
-      || relatedReplyToManagedRoot
+      || Boolean(refKey && replyRefKeys.has(refKey))
     ) {
       annots.remove(index);
     }
@@ -211,13 +206,13 @@ function isReplyAnnotation(dict: PDFDict, lib: PdfLibModule): boolean {
   return !replyType || replyType === 'R';
 }
 
-function collectReviewStateGraph(
+function collectExistingReplyGraph(
   annots: PDFArray,
   annotationId: string,
   lib: PdfLibModule,
-): ReviewStateGraph {
+): ExistingReplyGraph {
   let rootRefKey: string | null = null;
-  const candidates: ReviewStateRecord[] = [];
+  const candidates: ExistingReplyRecord[] = [];
 
   for (let index = 0; index < annots.size(); index += 1) {
     const raw = annots.get(index);
@@ -229,7 +224,7 @@ function collectReviewStateGraph(
       rootRefKey = refKey;
     }
 
-    if (!refKey || !(raw instanceof lib.PDFRef) || !isStateAnnotation(dict, lib)) {
+    if (!refKey || !(raw instanceof lib.PDFRef) || !isReplyAnnotation(dict, lib)) {
       continue;
     }
 
@@ -239,11 +234,7 @@ function collectReviewStateGraph(
       dict,
       index,
       parentKey: pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib),
-      author: readTextOrName(dict, 'T', lib) ?? 'Unknown',
-      state: readTextOrName(dict, 'State', lib) ?? 'None',
-      timestamp: readPdfDateValue(dict, 'M', lib)
-        ?? readPdfDateValue(dict, 'CreationDate', lib)
-        ?? 0,
+      logicalId: readReplyLogicalId(dict, annotationId, index, lib),
     });
   }
 
@@ -269,16 +260,193 @@ function collectReviewStateGraph(
   return { rootRefKey, records };
 }
 
-function relinkReviewStateRoots(
+function readReplyLogicalId(
+  dict: PDFDict,
+  annotationId: string,
+  index: number,
+  lib: PdfLibModule,
+): string {
+  const privateId = readTextOrName(dict, 'PDFHubReplyId', lib);
+  const annotationName = readAnnotationName(dict, lib);
+  const prefix = `${annotationId}:reply:`;
+
+  return (
+    privateId
+    ?? (
+      annotationName?.startsWith(prefix) && annotationName.length > prefix.length
+        ? annotationName.slice(prefix.length)
+        : null
+    )
+    ?? annotationName
+    ?? `${annotationId}:native-reply:${index}`
+  );
+}
+
+function collectReviewStateGraph(
+  annots: PDFArray,
+  annotationId: string,
+  lib: PdfLibModule,
+): ReviewStateGraph {
+  let rootRefKey: string | null = null;
+  const candidates: ReviewStateRecord[] = [];
+  const parentByRef = new Map<string, string | null>();
+
+  for (let index = 0; index < annots.size(); index += 1) {
+    const raw = annots.get(index);
+    const dict = annots.lookupMaybe(index, lib.PDFDict);
+    if (!dict) continue;
+
+    const refKey = pdfObjectKey(raw, lib);
+    if (readAnnotationName(dict, lib) === annotationId) {
+      rootRefKey = refKey;
+    }
+
+    if (refKey) {
+      parentByRef.set(
+        refKey,
+        pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib),
+      );
+    }
+
+    if (!refKey || !(raw instanceof lib.PDFRef) || !isStateAnnotation(dict, lib)) {
+      continue;
+    }
+
+    candidates.push({
+      ref: raw,
+      refKey,
+      dict,
+      index,
+      parentKey: pdfObjectKey(dict.get(lib.PDFName.of('IRT')), lib),
+      author: readTextOrName(dict, 'T', lib) ?? 'Unknown',
+      state: readTextOrName(dict, 'State', lib) ?? 'None',
+      timestamp: readPdfDateValue(dict, 'M', lib)
+        ?? readPdfDateValue(dict, 'CreationDate', lib)
+        ?? 0,
+    });
+  }
+
+  if (!rootRefKey) {
+    return { rootRefKey: null, records: [] };
+  }
+
+  const records = candidates.filter((record) => {
+    let parentKey = record.parentKey;
+    const visited = new Set<string>();
+
+    while (parentKey) {
+      if (parentKey === rootRefKey) return true;
+      if (visited.has(parentKey)) return false;
+      visited.add(parentKey);
+      parentKey = parentByRef.get(parentKey) ?? null;
+    }
+
+    return false;
+  });
+
+  return { rootRefKey, records };
+}
+
+function writeNativeReplies(
+  doc: PDFDocument,
+  page: PDFPage,
+  annots: PDFArray,
+  annotation: PdfAnnotation,
+  rootRef: PDFRef,
+  replies: ReviewReply[],
+  lib: PdfLibModule,
+): Map<string, PDFRef> {
+  const replyRefById = new Map<string, PDFRef>();
+  const replyDictById = new Map<string, PDFDict>();
+
+  for (const reply of replies) {
+    const replyDict = doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Text',
+      Rect: replyRect(annotation, page),
+      P: page.ref,
+      Contents: pdfText(lib, reply.content),
+      T: pdfText(lib, reply.author || 'Unknown'),
+      NM: lib.PDFString.of(replyAnnotationName(annotation.id, reply.id)),
+      PDFHubReplyId: lib.PDFString.of(reply.id),
+      M: lib.PDFString.of(pdfDate(reply.createdAt)),
+      CreationDate: lib.PDFString.of(pdfDate(reply.createdAt)),
+      F: 4,
+      Name: 'Comment',
+      Open: false,
+      IRT: rootRef,
+      RT: 'R',
+    }) as PDFDict;
+    const replyRef = doc.context.register(replyDict);
+    annots.push(replyRef);
+    replyRefById.set(reply.id, replyRef);
+    replyDictById.set(reply.id, replyDict);
+  }
+
+  const replyById = new Map(replies.map((reply) => [reply.id, reply]));
+  for (const reply of replies) {
+    const parentReplyId = validParentReplyId(reply, replyById);
+    if (!parentReplyId) continue;
+
+    const parentRef = replyRefById.get(parentReplyId);
+    const replyDict = replyDictById.get(reply.id);
+    if (parentRef && replyDict) {
+      replyDict.set(lib.PDFName.of('IRT'), parentRef);
+    }
+  }
+
+  return replyRefById;
+}
+
+function validParentReplyId(
+  reply: ReviewReply,
+  replyById: Map<string, ReviewReply>,
+): string | null {
+  const directParentId = reply.parentReplyId;
+  if (!directParentId || directParentId === reply.id) return null;
+
+  let currentId: string | undefined = directParentId;
+  const visited = new Set<string>([reply.id]);
+
+  while (currentId) {
+    if (visited.has(currentId)) return null;
+    visited.add(currentId);
+    const current = replyById.get(currentId);
+    if (!current) return null;
+    currentId = current.parentReplyId;
+  }
+
+  return directParentId;
+}
+
+function relinkReviewStateParents(
   graph: ReviewStateGraph,
+  replyGraph: ExistingReplyGraph,
   newRootRef: PDFRef,
+  replyRefById: Map<string, PDFRef>,
   lib: PdfLibModule,
 ): void {
   if (!graph.rootRefKey) return;
 
+  const oldReplyIdByRef = new Map(
+    replyGraph.records.map((record) => [record.refKey, record.logicalId]),
+  );
+
   for (const record of graph.records) {
     if (record.parentKey === graph.rootRefKey) {
       record.dict.set(lib.PDFName.of('IRT'), newRootRef);
+      continue;
+    }
+
+    const parentReplyId = record.parentKey
+      ? oldReplyIdByRef.get(record.parentKey)
+      : undefined;
+    const newParentReplyRef = parentReplyId
+      ? replyRefById.get(parentReplyId)
+      : undefined;
+
+    if (newParentReplyRef) {
+      record.dict.set(lib.PDFName.of('IRT'), newParentReplyRef);
     }
   }
 }
