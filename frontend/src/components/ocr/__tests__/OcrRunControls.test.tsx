@@ -109,6 +109,21 @@ describe('OCR run workflow controls', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('labels a pending checkpoint as Resume OCR', () => {
+    render(
+      <OcrRunActions
+        running={false}
+        resumeAvailable
+        onRun={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: /resume ocr/i }),
+    ).toBeTruthy();
+  });
+
   it('supports disabling recognition when no document source is available', () => {
     render(
       <OcrRunActions
