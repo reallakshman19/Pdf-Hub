@@ -156,6 +156,7 @@ function restoreHistoryState(
       recomputeOcrDerivedState({
         ...currentOcr,
         ...restoredOcr,
+        resumeToken: null,
         activeJobId: null,
         jobs: [],
         dirty: true,
