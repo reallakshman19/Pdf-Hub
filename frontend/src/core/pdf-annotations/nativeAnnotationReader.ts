@@ -249,8 +249,22 @@ function parseRootAnnotation(
   };
 
   const text = readText(dict, 'Contents', lib);
+  const hasNativeRichText = dict.get(lib.PDFName.of('RC')) !== undefined;
   if (text !== null) {
     data.text = text;
+  } else if (hasNativeRichText) {
+    // Do not fall back to stale PDFHubData text when the portable annotation
+    // carries rich native content but no flat Contents representation.
+    data.text = '';
+  }
+
+  if (hasNativeRichText) {
+    data.nativeInterop = {
+      fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+      reason: 'RICH_TEXT',
+      richText: true,
+      defaultStyle: dict.get(lib.PDFName.of('DS')) !== undefined,
+    };
   }
 
   const author = readText(dict, 'T', lib);
