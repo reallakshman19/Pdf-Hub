@@ -134,6 +134,57 @@ describe('annotation store', () => {
     expect(useAnnotationStore.getState().annotations).toHaveLength(1);
   });
 
+  it('blocks cloning or structural reassignment when only a represented reply carries native rich text', () => {
+    const thread: PdfAnnotation = {
+      ...baseAnnotation('thread-rich-reply', 1, 10, 20),
+      type: 'comment',
+      data: {
+        text: 'Plain root remains editable',
+        review: {
+          author: 'Reviewer',
+          createdAt: 1,
+          updatedAt: 1,
+          status: 'open',
+          replies: [
+            {
+              id: 'rich-reply',
+              author: 'Reviewer Two',
+              content: 'Native rich reply',
+              createdAt: 1,
+              nativeInterop: {
+                fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+                reason: 'RICH_TEXT',
+                richText: true,
+                protectedContent: 'Native rich reply',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([thread]);
+    store.setSelection([thread.id]);
+
+    store.updateAnnotation(thread.id, { type: 'textbox', pageNumber: 2 });
+    let current = useAnnotationStore.getState().annotations[0];
+    expect(current.type).toBe('comment');
+    expect(current.pageNumber).toBe(1);
+
+    store.updateAnnotation(thread.id, {
+      data: { ...current.data, text: 'Plain root edit is still allowed' },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.text).toBe('Plain root edit is still allowed');
+
+    store.copySelection();
+    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+
+    store.duplicateSelection();
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+  });
+
   it('setSelection normalizes unknown/duplicate ids and sets active id', () => {
     const store = useAnnotationStore.getState();
     store.setAnnotations([baseAnnotation('a1', 1, 0, 0), baseAnnotation('a2', 1, 0, 0)]);
