@@ -189,6 +189,61 @@ describe('ocrResumeState', () => {
     })).toThrowError(OcrResumeStateError);
   });
 
+  it('rejects hostile persisted JSON shapes with controlled resume errors', () => {
+    const valid = createOcrResumeToken({
+      documentFingerprint: 'doc-hostile-json',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      executionConfig: RESUME_EXECUTION_CONFIG,
+      snapshot: createOcrBatchSchedulerSnapshot(
+        createOcrBatchTasksFromPages({
+          pages: makePages(1),
+          batchSize: 1,
+        }),
+      ),
+      now: '2026-09-23T00:00:00.000Z',
+    });
+
+    for (const malformed of [
+      {
+        ...valid,
+        documentFingerprint: 42,
+      },
+      {
+        ...valid,
+        createdAt: 'not-a-date',
+      },
+      {
+        ...valid,
+        tasks: [null],
+      },
+      {
+        ...valid,
+        tasks: [
+          {
+            ...valid.tasks[0],
+            id: 7,
+          },
+        ],
+      },
+      {
+        ...valid,
+        tasks: [
+          {
+            ...valid.tasks[0],
+            errorMessage: 99,
+          },
+        ],
+      },
+    ]) {
+      expect(() =>
+        validateOcrResumeToken(
+          malformed as unknown as typeof valid,
+        ),
+      ).toThrowError(OcrResumeStateError);
+    }
+  });
+
   it('refuses to create an empty OCR checkpoint', () => {
     expect(() => createOcrResumeToken({
       documentFingerprint: 'doc-empty-checkpoint',
