@@ -8,6 +8,7 @@ import type {
 export type { OcrReviewFocus } from './types';
 import type { OcrProfileId } from './ocrProfiles';
 import type { OcrResumeTokenV1 } from './ocrResumeState';
+import { validateOcrResumeToken } from './ocrResumeState';
 import type {
   OcrCorrection,
   OcrCorrectionState,
@@ -174,18 +175,36 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   setOcrResumeToken: (resumeToken) => {
-    const documentFingerprint = get().documentFingerprint;
-    if (
-      resumeToken
-      && documentFingerprint
-      && resumeToken.documentFingerprint !== documentFingerprint
-    ) {
-      set({
-        resumeToken: null,
-        dirty: true,
-        lastUpdatedAt: new Date().toISOString(),
-      });
-      return;
+    const current = get();
+
+    if (resumeToken) {
+      try {
+        validateOcrResumeToken(resumeToken);
+      } catch {
+        set({
+          resumeToken: null,
+          dirty: true,
+          lastUpdatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (
+        (
+          current.documentFingerprint
+          && resumeToken.documentFingerprint !== current.documentFingerprint
+        )
+        || resumeToken.engineId !== current.engineId
+        || resumeToken.profileId !== current.profileId
+        || resumeToken.executionConfig.forceOcr !== current.forceOcr
+      ) {
+        set({
+          resumeToken: null,
+          dirty: true,
+          lastUpdatedAt: new Date().toISOString(),
+        });
+        return;
+      }
     }
 
     set({
