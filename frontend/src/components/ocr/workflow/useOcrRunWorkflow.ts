@@ -48,6 +48,7 @@ export interface UseOcrRunWorkflowResult {
   canClear: boolean;
   canCancel: boolean;
   isRunning: boolean;
+  hasPendingResume: boolean;
   pipelineMode: OcrPipelineMode;
   setPipelineMode: React.Dispatch<React.SetStateAction<OcrPipelineMode>>;
   executionPolicy: OcrExecutionPolicy;
@@ -132,8 +133,11 @@ export function useOcrRunWorkflow({
   };
 
   const applicableResumeToken =
-    selectedPages.length === 0
-    && store.resumeToken
+    store.resumeToken
+    && resumeTokenMatchesPageScope(
+      store.resumeToken.tasks,
+      requestedPageIndexes,
+    )
     && ocrResumeExecutionConfigMatches(
       store.resumeToken.executionConfig,
       currentResumeExecutionConfig,
@@ -399,6 +403,7 @@ export function useOcrRunWorkflow({
     canClear,
     canCancel,
     isRunning,
+    hasPendingResume,
     pipelineMode,
     setPipelineMode,
     executionPolicy,
@@ -414,4 +419,22 @@ export function useOcrRunWorkflow({
     cancelBatchQueue,
     retryFailedBatches,
   };
+function resumeTokenMatchesPageScope(
+  tasks: Array<{ pageIndexes: number[] }>,
+  requestedPageIndexes: number[],
+): boolean {
+  const tokenPages = [...new Set(
+    tasks.flatMap((task) => task.pageIndexes),
+  )].sort((a, b) => a - b);
+
+  const requestedPages = [...new Set(requestedPageIndexes)]
+    .filter((pageIndex) => Number.isInteger(pageIndex) && pageIndex >= 0)
+    .sort((a, b) => a - b);
+
+  return tokenPages.length === requestedPages.length
+    && tokenPages.every(
+      (pageIndex, index) => pageIndex === requestedPages[index],
+    );
+}
+
 }
