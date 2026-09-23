@@ -165,5 +165,27 @@
       "required_external_mutation": "For edit-capable viewers, perform a detectable standards-native rich-text change reflected in RC and the flat Contents counterpart; formatting changes may also alter DS. Open/save without semantic mutation does not qualify.",
       "return_preservation_rule": "The returned-file probe requires non-empty external delta, preserves returned Contents/RC/DS and AP presence across two PDF Hub no-op saves, and rejects any fidelity-class downgrade from NATIVE_PRESERVED_READ_ONLY."
     }
+  },
+  "ap_activation_contract": {
+    "policy": "EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE",
+    "baseline": "NO_PRODUCTION_AP",
+    "authorized_trigger": "render=FAIL",
+    "unauthorized_states": [
+      "render=PASS",
+      "render=NOT_RUN",
+      "native_interaction=UNSUPPORTED",
+      "edit_save_reopen=UNSUPPORTED"
+    ],
+    "required_evidence": [
+      "viewer.name",
+      "viewer.version",
+      "viewer.platform",
+      "annotation_type",
+      "appearance_family",
+      "evidence_ref",
+      "exact_product_material_sha"
+    ],
+    "scope_rule": "An AP implementation may target only the failing annotation type/family evidenced on the exact product material. Passing or untested families remain AP-disabled.",
+    "requalification_rule": "After any AP implementation, rerun every affected viewer/type/family observation and do not carry forward prior PASS evidence."
   }
 }
