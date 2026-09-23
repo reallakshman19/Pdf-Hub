@@ -144,8 +144,8 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       ...get(),
       ...getInitialOcrDataState(),
       documentFingerprint: input.documentFingerprint,
-      engineId: input.engineId ?? 'mock',
-      profileId: input.profileId ?? 'clean-scan',
+      engineId: input.engineId ?? input.resumeToken?.engineId ?? 'mock',
+      profileId: input.profileId ?? input.resumeToken?.profileId ?? 'clean-scan',
       languageHints: normalizeOcrLanguageSet(
         input.languageHints
         ?? input.resumeToken?.languages
@@ -196,10 +196,16 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   setOcrResumeToken: (resumeToken) => {
     const documentFingerprint = get().documentFingerprint;
+    const state = get();
     if (
       resumeToken
-      && documentFingerprint
-      && resumeToken.documentFingerprint !== documentFingerprint
+      && (
+        (documentFingerprint
+          && resumeToken.documentFingerprint !== documentFingerprint)
+        || resumeToken.engineId !== state.engineId
+        || resumeToken.profileId !== state.profileId
+        || !ocrLanguageSetsEqual(resumeToken.languages, state.languageHints)
+      )
     ) {
       set({
         resumeToken: null,
