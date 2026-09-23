@@ -176,6 +176,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   const runControlsNode = (
     <OcrRunActions
       running={runWorkflow.isRunning}
+      resumeAvailable={runWorkflow.hasPendingResume}
       runDisabled={!runWorkflow.canRun}
       clearDisabled={!runWorkflow.canClear}
       showClear={runWorkflow.state === 'complete' || runWorkflow.state === 'error'}
@@ -201,9 +202,11 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
   const runStatusMessage =
     runWorkflow.state === 'running'
       ? `Recognizing ${runWorkflow.requestedPageIndexes.length} page${runWorkflow.requestedPageIndexes.length === 1 ? '' : 's'}…`
-      : runWorkflow.state === 'complete'
-        ? `OCR complete. ${store.lowConfidenceWords.length} item${store.lowConfidenceWords.length === 1 ? '' : 's'} need review.`
-        : null;
+      : runWorkflow.hasPendingResume
+        ? 'OCR checkpoint restored. Completed batches will be skipped.'
+        : runWorkflow.state === 'complete'
+          ? `OCR complete. ${store.lowConfidenceWords.length} item${store.lowConfidenceWords.length === 1 ? '' : 's'} need review.`
+          : null;
 
   return (
     <div
