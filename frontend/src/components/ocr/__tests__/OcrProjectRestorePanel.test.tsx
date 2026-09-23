@@ -13,6 +13,7 @@ import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { getOcrProfile } from '@/core/ocr/ocrProfiles';
 import { mockOcrEngine } from '@/core/ocr/engines/mockOcrEngine';
 import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 import { createOcrCorrection } from '@/core/ocr/ocrCorrections';
 import { createOcrRegion } from '@/core/ocr/ocrRegionModel';
 import {
@@ -48,6 +49,25 @@ describe('OcrProjectRestorePanel', () => {
     expect(screen.getByText('Restore OCR Project')).toBeTruthy();
     expect(screen.getByText('doc-restore-panel')).toBeTruthy();
     expect(screen.getByText('Writer queue')).toBeTruthy();
+  });
+
+  it('shows pending resumable OCR batches in the project summary', async () => {
+    const base = await makePayload('doc-resume-summary');
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-resume-summary',
+      result: base.result,
+      corrections: base.corrections,
+      regions: base.regions,
+      writerInsertionQueue: base.writerInsertionQueue,
+      resumeToken: makeResumeToken('doc-resume-summary'),
+    });
+
+    render(
+      <OcrProjectRestorePanel payload={payload} />,
+    );
+
+    expect(screen.getByText('OCR resume')).toBeTruthy();
+    expect(screen.getByText('1 pending')).toBeTruthy();
   });
 
   it('restores OCR payload into store', async () => {
@@ -166,6 +186,33 @@ async function makePayload(documentFingerprint: string) {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
   });
+}
+
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'failed',
+        errorMessage: 'Interrupted OCR batch.',
+      },
+    ],
+  };
 }
 
 function makeWriterElement(documentFingerprint: string): WriterElementV2 {
