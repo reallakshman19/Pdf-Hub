@@ -104,6 +104,7 @@ const requiredReaderFields = [
   'QuadPoints',
   'F',
   'Border',
+  'BS',
   'Q',
   'Open',
   'Name',
@@ -117,7 +118,7 @@ for (const field of requiredReaderFields) {
 if (!Array.isArray(precedence?.pending_fields) || precedence.pending_fields.length !== 0) {
   errors.push('External-edit precedence must have no remaining pending fields');
 }
-for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE']) {
+for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'BS', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE']) {
   if (!precedence?.field_mappings?.[field]) {
     errors.push(`Manifest missing standard-field mapping for ${field}`);
   }
@@ -248,6 +249,7 @@ if (!fs.existsSync(nativeWriterPath)) {
     'textMarkupQuadPoints',
     'annotationFlagsValue',
     'annotationBorderValue',
+    'annotationBorderStyleValue',
     'lineEndingsValue',
     'stampNameValue',
     'cloudBorderEffectValue',
