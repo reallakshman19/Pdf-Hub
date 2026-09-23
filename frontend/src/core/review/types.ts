@@ -7,6 +7,8 @@ export interface ReviewMessage {
   author: string;
   content: string;
   createdAt: number;
+  /** Logical parent reply when this message is nested below another reply. */
+  parentReplyId?: string;
 }
 
 /**
