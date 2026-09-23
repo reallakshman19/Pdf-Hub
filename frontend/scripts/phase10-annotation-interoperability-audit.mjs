@@ -52,8 +52,8 @@ for (const type of canonicalTypes) {
   if (!f.pdfSubtype) {
     errors.push(`Fixture ${type} has no declared pdfSubtype`);
   }
-  if (f.appearanceStreamRequired !== true) {
-    errors.push(`Fixture ${type} must declare appearanceStreamRequired: true`);
+  if (f.appearanceStreamPolicy !== 'EVIDENCE_GATED') {
+    errors.push(`Fixture ${type} must declare appearanceStreamPolicy: EVIDENCE_GATED`);
   }
   if (!Array.isArray(f.standardPdfFields) || f.standardPdfFields.length === 0) {
     errors.push(`Fixture ${type} must declare non-empty standardPdfFields`);
@@ -80,8 +80,18 @@ for (const amb of requiredAmbiguities) {
 }
 
 // 3. Verify policies
-if (!manifest.policies?.appearance_stream_requirement?.enforce_ap_for_all_supported_types) {
-  errors.push('Manifest policies must enforce /AP appearance stream requirement for all supported types');
+const appearancePolicy = manifest.policies?.appearance_stream_requirement;
+if (!appearancePolicy
+  || appearancePolicy.strategy !== 'EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE'
+  || appearancePolicy.baseline_ap !== 'ABSENT'
+  || appearancePolicy.default_requirement !== 'NOT_REQUIRED_WITHOUT_EVIDENCE'
+  || !appearancePolicy.activation_rule?.includes('render=FAIL')
+  || !appearancePolicy.scope_rule?.includes('bounded')
+  || !appearancePolicy.claim_rule?.includes('Named viewer/version/platform evidence')) {
+  errors.push('Manifest must require evidence-gated, family-bounded /AP activation from named-viewer render failures');
+}
+if ('enforce_ap_for_all_supported_types' in (appearancePolicy ?? {})) {
+  errors.push('Manifest must not pre-declare /AP as required for every supported annotation type');
 }
 
 if (!manifest.policies?.external_edit_precedence?.standard_fields_override_custom_data) {
@@ -406,7 +416,7 @@ if (errors.length > 0) {
 
 console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
-console.log('[PASS] Appearance stream (/AP) expectations declared.');
+console.log('[PASS] /AP generation is evidence-gated by named-viewer render failures and bounded to affected families.');
 console.log('[PASS] External-edit precedence covers every declared standard field; RC/DS are preserved read-only with fail-closed mutation guards.');
 console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, conditional /AP retention, popup relinking, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
