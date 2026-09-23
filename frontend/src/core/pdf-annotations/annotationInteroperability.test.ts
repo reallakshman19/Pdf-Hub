@@ -149,11 +149,24 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       expect(actual?.type).toBe(expected.type);
     }
 
-    // Verify /NM uniqueness in raw PDF
+    // Verify every managed root /NM is unique. Review-capable roots may
+    // legitimately have additional native state/reply annotations, so raw
+    // annotation count is not equal to the 17 application roots.
     const doc = await PDFDocument.load(save2.bytes);
     const page = doc.getPage(0);
     const annotsArray = page.node.lookup(PDFName.of('Annots')) as any;
-    expect(annotsArray.size()).toBe(testTypes.length);
+    const annotationNames: string[] = [];
+
+    for (let index = 0; index < annotsArray.size(); index += 1) {
+      const dict = annotsArray.lookup(index) as PDFDict;
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (typeof nm === 'string') annotationNames.push(nm);
+    }
+
+    expect(new Set(annotationNames).size).toBe(annotationNames.length);
+    for (const expected of initialAnnotations) {
+      expect(annotationNames.filter((name) => name === expected.id)).toHaveLength(1);
+    }
   });
 
   it('preserves standards-native review graph and identity when private metadata is stripped', async () => {
@@ -404,20 +417,25 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
     expect(annots3.size()).toBe(5);
 
+    let rootRef3: PDFRef | null = null;
     let currentUserStateRef: PDFRef | null = null;
+    let currentUserStateIrt3: PDFRef | null = null;
     for (let index = 0; index < annots3.size(); index += 1) {
       const ref = annots3.get(index);
       const dict = annots3.lookup(index);
       const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === root.id) rootRef3 = ref;
       if (nm === `${root.id}:state:Review:2`) {
         currentUserStateRef = ref;
-        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
+        currentUserStateIrt3 = dict.get(PDFName.of('IRT')) as PDFRef;
         expect(dict.lookup(PDFName.of('T')).decodeText()).toBe('Current User');
         expect(dict.lookup(PDFName.of('StateModel')).decodeText()).toBe('Review');
         expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('Completed');
       }
     }
+    expect(rootRef3).toBeInstanceOf(PDFRef);
     expect(currentUserStateRef).toBeInstanceOf(PDFRef);
+    expect(currentUserStateIrt3?.toString()).toBe(rootRef3?.toString());
 
     // A second status change by the same Current User must also point directly
     // to the original review root; PDF Hub does not emit the older state-to-state form.
@@ -435,19 +453,24 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const annots4 = doc4.getPage(0).node.lookup(PDFName.of('Annots')) as any;
     expect(annots4.size()).toBe(6);
 
+    let rootRef4: PDFRef | null = null;
     let secondCurrentUserStateRef: PDFRef | null = null;
+    let secondCurrentUserStateIrt4: PDFRef | null = null;
     for (let index = 0; index < annots4.size(); index += 1) {
       const ref = annots4.get(index);
       const dict = annots4.lookup(index);
       const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === root.id) rootRef4 = ref;
       if (nm === `${root.id}:state:Review:3`) {
         secondCurrentUserStateRef = ref;
-        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
+        secondCurrentUserStateIrt4 = dict.get(PDFName.of('IRT')) as PDFRef;
         expect(dict.lookup(PDFName.of('T')).decodeText()).toBe('Current User');
         expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('None');
       }
     }
+    expect(rootRef4).toBeInstanceOf(PDFRef);
     expect(secondCurrentUserStateRef).toBeInstanceOf(PDFRef);
+    expect(secondCurrentUserStateIrt4?.toString()).toBe(rootRef4?.toString());
 
     const save5 = await writeNativePdfAnnotations(save4.bytes, read4.annotations);
     const doc5 = await PDFDocument.load(save5.bytes);
@@ -1251,10 +1274,18 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     };
     const stickySave3 = await writeNativePdfAnnotations(stickySave2.bytes, [collapsed]);
     const stickyDoc3 = await PDFDocument.load(stickySave3.bytes);
-    const stickyDict3 = (stickyDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    expect(stickyDict3.lookup(PDFName.of('Name')).decodeText()).toBe('Key');
-    expect(stickyDict3.lookup(PDFName.of('Open')).toString()).toBe('false');
+    const stickyAnnots3 = stickyDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    let stickyDict3: PDFDict | null = null;
+    for (let index = 0; index < stickyAnnots3.size(); index += 1) {
+      const candidate = stickyAnnots3.lookup(index) as PDFDict;
+      if (candidate.lookup(PDFName.of('NM'))?.decodeText?.() === sticky.id) {
+        stickyDict3 = candidate;
+        break;
+      }
+    }
+    expect(stickyDict3).toBeTruthy();
+    expect(stickyDict3!.lookup(PDFName.of('Name')).decodeText()).toBe('Key');
+    expect(stickyDict3!.lookup(PDFName.of('Open')).toString()).toBe('false');
 
     const reviewComment = createDeterministicReviewThreadFixture();
     const commentSave = await writeNativePdfAnnotations(baseBytes, [reviewComment]);
