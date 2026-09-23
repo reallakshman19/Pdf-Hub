@@ -168,8 +168,11 @@ if (!richTextFidelity
   || richTextFidelity.free_text_default_style_field !== 'DS'
   || richTextFidelity.writer_failure_code !== 'NATIVE_RICH_TEXT_EDIT_UNSUPPORTED'
   || !richTextFidelity.mutation_rule?.includes('blocks annotation type, plain text, and typography mutations')
-  || !richTextFidelity.writer_rule?.includes('fails with NATIVE_RICH_TEXT_EDIT_UNSUPPORTED')) {
-  errors.push('Manifest must declare fail-closed native rich-text preservation semantics');
+  || !richTextFidelity.writer_rule?.includes('fails with NATIVE_RICH_TEXT_EDIT_UNSUPPORTED')
+  || !richTextFidelity.clone_rule?.includes('Copy/duplicate')
+  || !richTextFidelity.clone_rule?.includes('cross-page reassignment')
+  || !richTextFidelity.reply_rule?.includes('review replies with RC')) {
+  errors.push('Manifest must declare fail-closed native rich-text preservation, reply, and clone semantics');
 }
 
 const reviewFixture = manifest.review_thread_fixture;
@@ -326,6 +329,7 @@ if (fs.existsSync(nativeInteropGuardPath)) {
     'isNativeRichTextReadOnly',
     'guardNativeInteropAnnotationPatch',
     'guardNativeInteropStylePatch',
+    'hasNativeRichTextSemantics',
     'NATIVE_PRESERVED_READ_ONLY',
   ]) {
     if (!fidelityContent.includes(token)) {
@@ -338,6 +342,7 @@ if (fs.existsSync(annotationStorePath)) {
   for (const token of [
     'guardNativeInteropAnnotationPatch',
     'guardNativeInteropStylePatch',
+    'hasNativeRichTextSemantics',
   ]) {
     if (!storeContent.includes(token)) {
       errors.push(`Annotation store missing fidelity guard token: ${token}`);
