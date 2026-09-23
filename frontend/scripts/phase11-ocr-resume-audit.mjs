@@ -15,6 +15,8 @@ const files = Object.fromEntries(
       'src/core/ocr/ocrPipelineBatchPlanner.ts',
       'src/components/ocr/workflow/useOcrRunWorkflow.ts',
       'src/components/ocr/workflow/OcrRunControls.tsx',
+      'src/components/ocr/workflow/OcrPageScopeControl.tsx',
+      'src/components/ocr/OcrPanel.tsx',
       'src/core/writer-v2/export/exportCurrentWriterProject.ts',
       'src/core/writer-v2/export/projectImportController.ts',
     ].map(async (path) => [
@@ -120,6 +122,18 @@ requireTokens('src/components/ocr/workflow/OcrRunControls.tsx', [
   "'Resume OCR'",
 ]);
 
+requireTokens('src/components/ocr/workflow/OcrPageScopeControl.tsx', [
+  "'resume'",
+  'resumePageIndexes',
+  'checkpoint page',
+]);
+
+requireTokens('src/components/ocr/OcrPanel.tsx', [
+  'resumePageIndexes',
+  "'resume'",
+  'resumeAvailable={runWorkflow.hasPendingResume}',
+]);
+
 requireTokens('src/core/writer-v2/export/exportCurrentWriterProject.ts', [
   'createOcrProjectPayloadFromStore',
   'useOcrStore',
@@ -154,7 +168,7 @@ if (errors.length > 0) {
   console.log('[PASS] Store and final integration enforce resumable execution without silent reprocessing.');
   console.log('[PASS] Completed checkpoint pages are deferred before rasterization.');
   console.log('[PASS] Project save/reopen path persists and restores OCR checkpoint state.');
-  console.log('[PASS] Resume OCR is explicit in the workflow UI.');
+  console.log('[PASS] Resume OCR restores an explicit saved page scope instead of inheriting unrelated UI defaults.');
   console.log('[PASS] Multilingual OCR scope is absent from the resume-token contract.');
   console.log('=== Phase 11 OCR Resume Audit PASSED ===');
 }
