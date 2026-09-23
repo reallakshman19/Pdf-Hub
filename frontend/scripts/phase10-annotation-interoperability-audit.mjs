@@ -89,10 +89,11 @@ if (!manifest.policies?.external_edit_precedence?.standard_fields_override_custo
 }
 
 const precedence = manifest.policies?.external_edit_precedence;
-const expectedReaderFields = [
+const requiredReaderFields = [
   'Contents',
   'Rect',
   'C',
+  'CA',
   'IC',
   'CL',
   'L',
@@ -101,16 +102,54 @@ const expectedReaderFields = [
   'State',
   'DA',
   'QuadPoints',
+  'F',
+  'Border',
+  'Q',
+  'Open',
+  'Name',
+  'LE',
 ];
-if (JSON.stringify(precedence?.reader_enforced_fields) !== JSON.stringify(expectedReaderFields)) {
-  errors.push('External-edit precedence must declare the exact production-reader enforced field set');
+for (const field of requiredReaderFields) {
+  if (!precedence?.reader_enforced_fields?.includes(field)) {
+    errors.push(`External-edit precedence missing production-reader field: ${field}`);
+  }
 }
 if (!Array.isArray(precedence?.pending_fields) || precedence.pending_fields.length !== 0) {
-  errors.push('DA and QuadPoints precedence must be closed with no remaining pending fields');
+  errors.push('External-edit precedence must have no remaining pending fields');
 }
-if (!precedence?.field_mappings?.DA?.includes('fontSize/textColor')
-  || !precedence?.field_mappings?.QuadPoints?.includes('textMarkupQuads')) {
-  errors.push('Manifest must declare DA and QuadPoints application mappings');
+for (const field of ['DA', 'QuadPoints', 'F', 'Border', 'Q', 'Open', 'Name', 'LE', 'IT', 'BE']) {
+  if (!precedence?.field_mappings?.[field]) {
+    errors.push(`Manifest missing standard-field mapping for ${field}`);
+  }
+}
+if (!precedence?.type_precedence_rule?.includes('recognized standard fields override stale PDFHubType')) {
+  errors.push('Manifest must require standard subtype semantics to override stale PDFHubType');
+}
+
+const declaredStandardFields = new Set(
+  Object.values(manifest.fixtures)
+    .flatMap((fixture) => fixture.standardPdfFields ?? []),
+);
+const fieldCoverage = manifest.policies?.standard_field_coverage;
+const coverageSets = [
+  fieldCoverage?.semantic_reader_fields,
+  fieldCoverage?.classification_fields,
+  fieldCoverage?.identity_lifecycle_fields,
+  fieldCoverage?.preserved_only_fields,
+].filter(Array.isArray);
+const coveredStandardFields = new Set(coverageSets.flat());
+for (const field of declaredStandardFields) {
+  if (!coveredStandardFields.has(field)) {
+    errors.push(`Declared standard field is not covered by a reader/classification/preservation policy: ${field}`);
+  }
+}
+for (const field of coveredStandardFields) {
+  if (!declaredStandardFields.has(field)) {
+    errors.push(`Standard-field coverage names a field not declared by any fixture: ${field}`);
+  }
+}
+if (!Array.isArray(fieldCoverage?.ignored_fields) || fieldCoverage.ignored_fields.length !== 0) {
+  errors.push('Declared standard-field coverage must not silently ignore fields');
 }
 
 const reviewFixture = manifest.review_thread_fixture;
@@ -206,9 +245,38 @@ if (!fs.existsSync(nativeWriterPath)) {
     "name === 'AP' && !preserveAppearance",
     'defaultAppearanceValue',
     'textMarkupQuadPoints',
+    'annotationFlagsValue',
+    'annotationBorderValue',
+    'lineEndingsValue',
+    'stampNameValue',
+    'cloudBorderEffectValue',
   ]) {
     if (!nativeWriterContent.includes(token)) {
       errors.push(`Native writer missing passive-preservation token: ${token}`);
+    }
+  }
+}
+
+const nativeReaderPath = path.join(
+  frontendRoot,
+  'src/core/pdf-annotations/nativeAnnotationReader.ts',
+);
+if (!fs.existsSync(nativeReaderPath)) {
+  errors.push(`Missing native annotation reader: ${nativeReaderPath}`);
+} else {
+  const nativeReaderContent = fs.readFileSync(nativeReaderPath, 'utf8');
+  for (const token of [
+    'readAnnotationBorder',
+    'readLineEndings',
+    'squareAnnotationType',
+    'stampStyleFromPdfName',
+    "readNumber(dict, 'Q'",
+    "readNumber(dict, 'F'",
+    "readBoolean(dict, 'Open'",
+    "readNumberArray(dict, 'CL'",
+  ]) {
+    if (!nativeReaderContent.includes(token)) {
+      errors.push(`Native reader missing standard-field symmetry token: ${token}`);
     }
   }
 }
@@ -267,7 +335,7 @@ if (errors.length > 0) {
 console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
-console.log('[PASS] External-edit precedence includes DA and QuadPoints with no pending fields.');
+console.log('[PASS] External-edit precedence covers every declared standard field with no silent gaps.');
 console.log('[PASS] Root/reply/state relationships, nested reply topology, passive dictionary fields, conditional /AP retention, popup relinking, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
