@@ -53,10 +53,13 @@ export function guardNativeInteropAnnotationPatch(
   annotation: PdfAnnotation,
   patch: Partial<PdfAnnotation>,
 ): Partial<PdfAnnotation> {
-  if (!isNativeRichTextReadOnly(annotation)) return patch;
+  if (!hasNativeRichTextSemantics(annotation)) return patch;
 
   const guarded: Partial<PdfAnnotation> = { ...patch };
 
+  // Type conversion or manual page reassignment can detach a native /RC object
+  // (including one owned by a reply) from the source dictionary needed to
+  // preserve it. Page-graph remaps use applyPageRemap and bypass this user edit guard.
   if (patch.type !== undefined) {
     Reflect.deleteProperty(guarded, 'type');
   }
@@ -67,7 +70,7 @@ export function guardNativeInteropAnnotationPatch(
     Reflect.deleteProperty(guarded, 'pageId');
   }
 
-  if (patch.data) {
+  if (patch.data && isNativeRichTextReadOnly(annotation)) {
     const nextData = guardRichTextDataPatch(annotation.data, patch.data);
     if (shallowObjectEquivalent(annotation.data, nextData)) {
       Reflect.deleteProperty(guarded, 'data');
