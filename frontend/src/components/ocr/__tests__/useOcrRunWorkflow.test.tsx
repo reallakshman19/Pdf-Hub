@@ -30,6 +30,7 @@ function WorkflowProbe(props: UseOcrRunWorkflowInput) {
       <div data-testid="workflow-can-run">{String(workflow.canRun)}</div>
       <div data-testid="workflow-can-clear">{String(workflow.canClear)}</div>
       <div data-testid="workflow-can-cancel">{String(workflow.canCancel)}</div>
+      <div data-testid="workflow-has-pending-resume">{String(workflow.hasPendingResume)}</div>
       <div data-testid="workflow-error">{workflow.errorMessage ?? ''}</div>
       <button type="button" onClick={() => void workflow.runSelectedOcr()}>
         Run model OCR
@@ -175,6 +176,28 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('0,1');
     expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
     expect(screen.getByTestId('workflow-can-run').textContent).toBe('true');
+    expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('true');
+  });
+
+  it('ignores a checkpoint whose page scope does not match the requested scope', () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('clean-text', 'workflow-new-scope'),
+    );
+    useOcrStore.getState().setOcrResumeToken(
+      makeResumeToken('workflow-new-scope'),
+    );
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="workflow-new-scope"
+        selectedPageIndexes={[1]}
+        pageCount={2}
+        pages={[pageInput(1)]}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('1');
+    expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('false');
   });
 
   it('does not mark an idle/ready model as cancelled when cancel is not available', () => {
