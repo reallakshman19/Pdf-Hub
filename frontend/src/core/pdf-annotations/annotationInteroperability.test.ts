@@ -793,6 +793,89 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(read3.annotations[0].data.text).toBe('Rich text baseline');
   });
 
+  it('preserves native rich-text review replies and rejects reply-text downgrade or clone', async () => {
+    const baseBytes = await createEmptyPdf();
+    const root = createDeterministicReviewThreadFixture();
+    const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
+
+    const externalDoc = await PDFDocument.load(save1.bytes);
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    let replyDict: PDFDict | null = null;
+
+    for (let index = 0; index < annots.size(); index += 1) {
+      const dict = annots.lookup(index) as PDFDict;
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === `${root.id}:reply:phase10-review-reply-1`) {
+        replyDict = dict;
+        break;
+      }
+    }
+
+    expect(replyDict).toBeInstanceOf(PDFDict);
+    const richReply = '<body><p>Deterministic reply</p></body>';
+    replyDict!.set(PDFName.of('RC'), PDFString.of(richReply));
+
+    const externallySaved = new Uint8Array(await externalDoc.save());
+    const returned = await readNativePdfAnnotations(externallySaved);
+    const reply = returned.annotations[0].data.review?.replies[0];
+
+    expect(reply).toMatchObject({
+      id: 'phase10-review-reply-1',
+      content: 'Deterministic reply',
+      nativeInterop: {
+        fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+        reason: 'RICH_TEXT',
+        richText: true,
+        protectedContent: 'Deterministic reply',
+      },
+    });
+
+    const save2 = await writeNativePdfAnnotations(externallySaved, returned.annotations);
+    const doc2 = await PDFDocument.load(save2.bytes);
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    let savedReply: PDFDict | null = null;
+    for (let index = 0; index < annots2.size(); index += 1) {
+      const dict = annots2.lookup(index) as PDFDict;
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === `${root.id}:reply:phase10-review-reply-1`) {
+        savedReply = dict;
+        break;
+      }
+    }
+    expect(savedReply).toBeInstanceOf(PDFDict);
+    expect(savedReply!.lookup(PDFName.of('RC')).decodeText()).toBe(richReply);
+    expect(savedReply!.lookup(PDFName.of('Contents')).decodeText()).toBe(
+      'Deterministic reply',
+    );
+
+    const changedReply = {
+      ...returned.annotations[0],
+      data: {
+        ...returned.annotations[0].data,
+        review: {
+          ...returned.annotations[0].data.review!,
+          replies: returned.annotations[0].data.review!.replies.map(
+            (candidate) =>
+              candidate.id === 'phase10-review-reply-1'
+                ? { ...candidate, content: 'Lossy edited reply' }
+                : candidate,
+          ),
+        },
+      },
+    };
+    await expect(
+      writeNativePdfAnnotations(save2.bytes, [changedReply]),
+    ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
+
+    const clonedThread = {
+      ...returned.annotations[0],
+      id: 'phase10-rich-reply-clone',
+    };
+    await expect(
+      writeNativePdfAnnotations(save2.bytes, [clonedThread]),
+    ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
+  });
+
   it('treats external FreeText DA as authoritative and preserves it exactly until local typography changes', async () => {
     const baseBytes = await createEmptyPdf();
     const textbox = createDeterministicAnnotation('textbox', {
