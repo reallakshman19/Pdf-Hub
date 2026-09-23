@@ -372,21 +372,24 @@ function assertPersistedResultsCoverCompletedTasks(
       .flatMap((task) => task.pageIndexes),
   );
 
+  if (
+    existingResult
+    && (
+      existingResult.documentFingerprint !== expected.documentFingerprint
+      || existingResult.engineId !== expected.engineId
+      || existingResult.profileId !== expected.profileId
+    )
+  ) {
+    throw new Error(
+      'OCR persisted result does not match the resume document/engine/profile configuration.',
+    );
+  }
+
   if (completedPageIndexes.size === 0) return;
 
   if (!existingResult) {
     throw new Error(
       'OCR resume state preserves completed batches but no persisted OCR result is available.',
-    );
-  }
-
-  if (
-    existingResult.documentFingerprint !== expected.documentFingerprint
-    || existingResult.engineId !== expected.engineId
-    || existingResult.profileId !== expected.profileId
-  ) {
-    throw new Error(
-      'OCR persisted result does not match the resume document/engine/profile configuration.',
     );
   }
 
