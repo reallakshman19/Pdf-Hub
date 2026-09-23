@@ -120,6 +120,38 @@ describe('OcrPanel primary workflow', () => {
     expect(screen.getByRole('button', { name: /resume ocr/i })).toBeTruthy();
   });
 
+  it('hides Resume scope when the checkpoint has no pending batches', () => {
+    const token: OcrResumeTokenV1 = {
+      ...makeResumeToken('doc-resume-complete'),
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0],
+          status: 'completed',
+        },
+      ],
+    };
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-resume-complete',
+      result: createOcrDemoResult('clean-text', 'doc-resume-complete'),
+      resumeToken: token,
+    });
+
+    render(
+      <OcrPanel
+        documentFingerprint="doc-resume-complete"
+        selectedPageIndexes={[]}
+        pageCount={1}
+        pages={[pageInputs[0]]}
+      />,
+    );
+
+    expect(screen.queryByRole('radio', { name: /resume/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /resume ocr/i })).toBeNull();
+  });
+
   it('disables recognition when no real PDF or raster source exists', () => {
     render(
       <OcrPanel
