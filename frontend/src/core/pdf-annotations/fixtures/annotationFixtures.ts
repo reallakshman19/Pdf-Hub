@@ -5,7 +5,7 @@ import manifest from './annotationManifest.json';
 export interface AnnotationFixtureDefinition {
   type: AnnotationType;
   pdfSubtype: string;
-  appearanceStreamRequired: boolean;
+  appearanceStreamPolicy: 'EVIDENCE_GATED';
   standardPdfFields: string[];
   sampleAnnotation: PdfAnnotation;
   ambiguity: {
@@ -86,7 +86,7 @@ export function getFixtureMetadata(type: AnnotationType): AnnotationFixtureDefin
   return {
     type,
     pdfSubtype: entry.pdfSubtype,
-    appearanceStreamRequired: entry.appearanceStreamRequired,
+    appearanceStreamPolicy: entry.appearanceStreamPolicy as 'EVIDENCE_GATED',
     standardPdfFields: entry.standardPdfFields,
     sampleAnnotation: createDeterministicAnnotation(type),
     ambiguity: entry.ambiguity,
