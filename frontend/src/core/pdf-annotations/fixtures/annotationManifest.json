@@ -772,6 +772,19 @@
       "ui_projection": "FLAT_MESSAGES",
       "preservation_rule": "Preserve direct and nested RT=R reply ancestry through ReviewReply.parentReplyId. Rewritten native replies reconstruct IRT to the logical parent reply; missing or cyclic parent IDs fail safe to the review root.",
       "reply_state_rule": "Preserve and relink state annotations attached to replies, but never project those reply-attached states onto the root review status."
+    },
+    "native_dictionary_preservation": {
+      "ownership_rule": "PDF Hub rewrites only fields it semantically owns for the supported annotation model. Other standard, vendor, and extension dictionary entries are copied forward.",
+      "root_passive_examples": [
+        "Subj",
+        "RC",
+        "Popup",
+        "ExData",
+        "vendor extension keys"
+      ],
+      "reply_passive_rule": "Reply fields outside PDF Hub's reply identity/content/thread ownership, including externally supplied Rect/style/extension metadata, are copied forward when the logical reply is rewritten.",
+      "appearance_rule": "An existing AP entry is preserved only when every PDF Hub-owned appearance-driving field is semantically unchanged. If a local edit changes those fields, stale AP is omitted rather than allowed to override the edited native state.",
+      "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes."
     }
   },
   "review_thread_fixture": {
