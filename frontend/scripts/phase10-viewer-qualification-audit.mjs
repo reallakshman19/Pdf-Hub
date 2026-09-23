@@ -194,6 +194,8 @@ for (const token of [
   'external_delta',
   'parentReplyId',
   'replyTopology',
+  'rootPassive',
+  'hasAppearance',
   'rawGraphSummary',
 ]) {
   if (!returnedReviewProbeContent.includes(token)) {
