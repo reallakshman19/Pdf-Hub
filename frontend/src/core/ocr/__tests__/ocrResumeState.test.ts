@@ -103,6 +103,41 @@ describe('ocrResumeState', () => {
     })).toThrowError(OcrResumeStateError);
   });
 
+  it('rejects malformed persisted task statuses instead of treating them as queued', () => {
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      snapshot: createOcrBatchSchedulerSnapshot(
+        createOcrBatchTasksFromPages({
+          pages: makePages(1),
+          batchSize: 1,
+        }),
+      ),
+    });
+
+    const malformed = {
+      ...token,
+      tasks: [
+        {
+          ...token.tasks[0],
+          status: 'mystery-status',
+        },
+      ],
+    };
+
+    expect(() => resumeOcrBatchTasks({
+      token: malformed as typeof token,
+      documentFingerprint: 'doc-a',
+      engineId: 'tesseract-js',
+      profileId: 'clean-scan',
+      tasks: createOcrBatchTasksFromPages({
+        pages: makePages(1),
+        batchSize: 1,
+      }),
+    })).toThrowError(OcrResumeStateError);
+  });
+
   it('rejects stale checkpoints when the batch topology changes', () => {
     const token = createOcrResumeToken({
       documentFingerprint: 'doc-a',
