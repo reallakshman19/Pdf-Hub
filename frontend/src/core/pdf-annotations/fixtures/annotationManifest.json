@@ -758,7 +758,9 @@
         "LE": "Line endings map supported standard endings to lineStartCap/lineEndCap; source LE is reused on no-op so unrepresented standard ending names are not normalized away.",
         "IT": "FreeTextCallout participates in standards-native textbox/callout classification; unrecognized external intent values are preserved when the annotation remains a textbox.",
         "BE": "Cloud border effect participates in standards-native Square classification; the source cloud BE dictionary, including intensity, is preserved on no-op.",
-        "BS": "When present, BS is authoritative over Border. Supported W/S/D semantics map to borderWidth/borderStyle; exact source BS is reused on no-op. Supported local border edits regenerate/remove BS so a stale external style dictionary cannot override the edit. Unsupported BS styles are preserved while no supported local style replacement is requested."
+        "BS": "When present, BS is authoritative over Border. Supported W/S/D semantics map to borderWidth/borderStyle; exact source BS is reused on no-op. Supported local border edits regenerate/remove BS so a stale external style dictionary cannot override the edit. Unsupported BS styles are preserved while no supported local style replacement is requested.",
+        "RC": "Native markup rich text is detected on import and classified NATIVE_PRESERVED_READ_ONLY. PDF Hub may display the flat Contents counterpart, but text/type/typography mutation is blocked and the writer fails closed on bypass instead of preserving stale RC beside changed plain text.",
+        "DS": "FreeText rich-text default style is preserved with native RC. PDF Hub does not claim to edit DS semantics; native rich-text typography remains read-only and the exact DS object is copied forward."
       },
       "classification_fields": [
         "Subtype",
@@ -814,13 +816,15 @@
       "root_passive_examples": [
         "Subj",
         "RC",
+        "DS",
         "Popup",
         "ExData",
         "vendor extension keys"
       ],
       "reply_passive_rule": "Reply fields outside PDF Hub's reply identity/content/thread ownership, including externally supplied Rect/style/extension metadata, are copied forward when the logical reply is rewritten.",
       "appearance_rule": "An existing AP entry is preserved only when every PDF Hub-owned appearance-driving field is semantically unchanged. If a local edit changes those fields, stale AP is omitted rather than allowed to override the edited native state.",
-      "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes."
+      "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes.",
+      "rich_text_rule": "RC and FreeText DS are preserved as native read-only semantics rather than generic passive metadata. RC-backed roots are tagged NATIVE_PRESERVED_READ_ONLY; plain-text/type/typography edits are blocked centrally and rejected by the native writer if a caller bypasses the application guard."
     },
     "standard_field_coverage": {
       "source": "Union of fixtures[*].standardPdfFields plus review-graph supplemental fields",
@@ -861,7 +865,10 @@
         "CreationDate",
         "T"
       ],
-      "preserved_only_fields": [],
+      "preserved_only_fields": [
+        "RC",
+        "DS"
+      ],
       "ignored_fields": [],
       "rule": "Every declared standard field must be covered by at least one explicit category. Unclassified declared fields fail the Phase 10 audit.",
       "supplemental_declared_fields": [
@@ -869,8 +876,20 @@
         "StateModel",
         "IRT",
         "RT",
-        "BS"
+        "BS",
+        "RC",
+        "DS"
       ]
+    },
+    "rich_text_fidelity": {
+      "fidelity_class": "NATIVE_PRESERVED_READ_ONLY",
+      "rich_text_field": "RC",
+      "free_text_default_style_field": "DS",
+      "reader_rule": "Presence of native RC marks the annotation as preserved read-only rich text and captures a protected import snapshot. Contents is the flat-text display counterpart when present; stale PDFHubData text does not replace a missing native Contents.",
+      "mutation_rule": "PDF Hub blocks annotation type, plain text, and typography mutations for RC-backed annotations. Geometry, border, opacity, review-state, thread, and other independently representable native operations remain editable.",
+      "writer_rule": "The writer reuses source Contents/DA/Q companion objects for RC-backed annotations and fails with NATIVE_RICH_TEXT_EDIT_UNSUPPORTED if protected semantics differ from the import snapshot.",
+      "appearance_rule": "A no-op preserves existing RC/DS/AP. An allowed appearance-driving edit such as Rect or border mutation preserves RC/DS but drops stale AP under the normal appearance-equivalence rule.",
+      "writer_failure_code": "NATIVE_RICH_TEXT_EDIT_UNSUPPORTED"
     }
   },
   "review_thread_fixture": {
