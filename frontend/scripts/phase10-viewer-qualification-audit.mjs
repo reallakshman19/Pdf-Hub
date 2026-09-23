@@ -192,6 +192,8 @@ for (const token of [
   'semanticSnapshot',
   'externalDelta',
   'external_delta',
+  'parentReplyId',
+  'replyTopology',
   'rawGraphSummary',
 ]) {
   if (!returnedReviewProbeContent.includes(token)) {
