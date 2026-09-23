@@ -318,6 +318,72 @@ describe('ocrFinalIntegration', () => {
     ).rejects.toThrow('no persisted OCR result');
   });
 
+  it('rejects completed checkpoints backed by failed persisted OCR pages at runtime', async () => {
+    const completedSnapshot = {
+      status: 'completed' as const,
+      tasks: [
+        {
+          id: 'ocr-batch-1',
+          index: 0,
+          pageIndexes: [0],
+          input: createPlaceholderOcrPageInputs([0]),
+          status: 'completed' as const,
+        },
+      ],
+      completedCount: 1,
+      failedCount: 0,
+      cancelledCount: 0,
+      runningCount: 0,
+      queuedCount: 0,
+      totalCount: 1,
+      progress: 1,
+      diagnostics: [],
+    };
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-failed-persisted-page',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 2,
+        maxCanvasPixels: 16_000_000,
+      },
+      snapshot: completedSnapshot,
+    });
+
+    await expect(
+      runFinalOcrIntegrationJob({
+        id: 'final-job-failed-persisted-page',
+        documentFingerprint: 'doc-final-failed-persisted-page',
+        engineId: 'mock',
+        requestedProfileId: 'clean-scan',
+        resumeToken: token,
+        existingResult: {
+          ...makeResult('doc-final-failed-persisted-page', [0]),
+          pages: [
+            {
+              ...makePage(0),
+              status: 'failed',
+            },
+          ],
+        },
+        mode: 'worker-ocr',
+        capabilities: {
+          workerSupported: true,
+          ocrWorkerSupported: true,
+          rasterWorkerSupported: true,
+        },
+        explicitPages: createPlaceholderOcrPageInputs([0]),
+        requestedPageIndexes: [0],
+        totalPages: 1,
+        policy: createOcrExecutionPolicy(),
+        batchSize: 1,
+        workerClient: makeWorkerClient(),
+      }),
+    ).rejects.toThrow('marks failed persisted page');
+  });
+
   it('rejects incompatible persisted OCR output even when resumed batches are retryable', async () => {
     const token = createOcrResumeToken({
       documentFingerprint: 'doc-final-config-mismatch',
