@@ -278,6 +278,16 @@ function assertNativeRichTextReplyMutationsSupported(
   const sourceById = new Map(
     graph.records.map((record) => [record.logicalId, record.dict]),
   );
+  const replyById = new Map(replies.map((reply) => [reply.id, reply]));
+
+  for (const [replyId, source] of sourceById) {
+    if (hasNativeRichText(source, lib) && !replyById.has(replyId)) {
+      throw nativeRichTextMutationError(
+        replyId,
+        'rich-text reply removal',
+      );
+    }
+  }
 
   for (const reply of replies) {
     const source = sourceById.get(reply.id);
