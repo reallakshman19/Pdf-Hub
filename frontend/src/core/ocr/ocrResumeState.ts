@@ -178,6 +178,7 @@ export function validateOcrResumeToken(
     token?.schema !== 'pdf-hub-ocr-resume'
     || token.schemaVersion !== 1
     || !Array.isArray(token.tasks)
+    || token.tasks.length === 0
   ) {
     throw new OcrResumeStateError(
       'OCR_RESUME_TOKEN_INVALID',
