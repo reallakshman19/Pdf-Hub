@@ -7,6 +7,7 @@ import type {
 } from './types';
 export type { OcrReviewFocus } from './types';
 import type { OcrProfileId } from './ocrProfiles';
+import type { OcrResumeTokenV1 } from './ocrResumeState';
 import type {
   OcrCorrection,
   OcrCorrectionState,
@@ -61,6 +62,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
   documentFingerprint: string | null;
   engineId: string;
   profileId: OcrProfileId;
+  resumeToken: OcrResumeTokenV1 | null;
   forceOcr: boolean;
   selectedPageIndexes: number[];
 
@@ -82,6 +84,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
     regions?: OcrRegion[];
     engineId?: string;
     profileId?: OcrProfileId;
+    resumeToken?: OcrResumeTokenV1 | null;
     forceOcr?: boolean;
     selectedPageIndexes?: number[];
     updatedAt?: string;
@@ -89,6 +92,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
 
   setOcrEngineId: (engineId: string) => void;
   setOcrProfileId: (profileId: OcrProfileId) => void;
+  setOcrResumeToken: (resumeToken: OcrResumeTokenV1 | null) => void;
   setForceOcr: (forceOcr: boolean) => void;
   setSelectedOcrPages: (pageIndexes: number[]) => void;
 
@@ -135,6 +139,9 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       documentFingerprint: input.documentFingerprint,
       engineId: input.engineId ?? 'mock',
       profileId: input.profileId ?? 'clean-scan',
+      resumeToken: input.resumeToken
+        ? cloneResumeToken(input.resumeToken)
+        : null,
       forceOcr: input.forceOcr ?? false,
       selectedPageIndexes: normalizePageIndexes(input.selectedPageIndexes ?? []),
       result: input.result ?? null,
@@ -151,6 +158,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   setOcrEngineId: (engineId) => {
     set({
       engineId,
+      resumeToken: null,
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
     });
@@ -159,6 +167,29 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   setOcrProfileId: (profileId) => {
     set({
       profileId,
+      resumeToken: null,
+      dirty: true,
+      lastUpdatedAt: new Date().toISOString(),
+    });
+  },
+
+  setOcrResumeToken: (resumeToken) => {
+    const documentFingerprint = get().documentFingerprint;
+    if (
+      resumeToken
+      && documentFingerprint
+      && resumeToken.documentFingerprint !== documentFingerprint
+    ) {
+      set({
+        resumeToken: null,
+        dirty: true,
+        lastUpdatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    set({
+      resumeToken: resumeToken ? cloneResumeToken(resumeToken) : null,
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
     });
@@ -167,6 +198,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   setForceOcr: (forceOcr) => {
     set({
       forceOcr,
+      resumeToken: null,
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
     });
@@ -175,6 +207,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   setSelectedOcrPages: (pageIndexes) => {
     set({
       selectedPageIndexes: normalizePageIndexes(pageIndexes),
+      resumeToken: null,
       dirty: true,
       lastUpdatedAt: new Date().toISOString(),
     });
@@ -197,7 +230,10 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       documentFingerprint: snapshot.job.documentFingerprint ?? previous.documentFingerprint,
       activeJobId: snapshot.job.id,
       jobs,
-      result: snapshot.partialResult,
+      result: mergeCompatibleOcrResults(
+        previous.result,
+        snapshot.partialResult,
+      ),
       lastUpdatedAt: new Date().toISOString(),
       dirty: true,
     };
@@ -418,6 +454,7 @@ export function getInitialOcrDataState() {
     documentFingerprint: null,
     engineId: 'mock',
     profileId: 'clean-scan' as OcrProfileId,
+    resumeToken: null,
     forceOcr: false,
     selectedPageIndexes: [],
 
@@ -445,6 +482,7 @@ export function createInitialOcrStoreState(): OcrStoreState {
     hydrateOcrSession: () => undefined,
     setOcrEngineId: () => undefined,
     setOcrProfileId: () => undefined,
+    setOcrResumeToken: () => undefined,
     setForceOcr: () => undefined,
     setSelectedOcrPages: () => undefined,
     applyOcrJobSnapshot: () => undefined,
@@ -507,6 +545,51 @@ export function recomputeOcrDerivedState(
     searchIndex,
     confidenceSummary,
     lowConfidenceWords,
+  };
+}
+
+function mergeCompatibleOcrResults(
+  current: OcrDocumentResult | null,
+  next: OcrDocumentResult,
+): OcrDocumentResult {
+  if (
+    !current
+    || current.documentFingerprint !== next.documentFingerprint
+    || current.engineId !== next.engineId
+    || current.profileId !== next.profileId
+  ) {
+    return next;
+  }
+
+  const pages = new Map(
+    current.pages.map((page) => [page.pageIndex, page]),
+  );
+  for (const page of next.pages) {
+    pages.set(page.pageIndex, page);
+  }
+
+  return {
+    ...next,
+    createdAt: current.createdAt,
+    pages: [...pages.values()].sort(
+      (left, right) => left.pageIndex - right.pageIndex,
+    ),
+    diagnostics: [
+      ...current.diagnostics,
+      ...next.diagnostics,
+    ],
+  };
+}
+
+function cloneResumeToken(
+  token: OcrResumeTokenV1,
+): OcrResumeTokenV1 {
+  return {
+    ...token,
+    tasks: token.tasks.map((task) => ({
+      ...task,
+      pageIndexes: [...task.pageIndexes],
+    })),
   };
 }
 
