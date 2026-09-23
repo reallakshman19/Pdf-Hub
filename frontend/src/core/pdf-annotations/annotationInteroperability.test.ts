@@ -9,6 +9,7 @@ import {
   createDeterministicReviewThreadFixture,
   PHASE10_SUPPORTED_TYPES,
 } from './fixtures/annotationFixtures';
+import { withAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { AnnotationInteroperabilityOracle } from './annotationInteroperabilityOracle';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
@@ -345,6 +346,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const externallyEdited = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallyEdited);
     expect(returned.annotations[0].data.review?.status).toBe('rejected');
+    expect(returned.annotations[0].data.review?.statusAuthor).toBe('Lead Reviewer');
 
     // No PDF Hub semantic change: preserve both native state transitions exactly
     // rather than collapsing the external history to one state object.
@@ -385,47 +387,72 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(secondStateDict2.get(PDFName.of('IRT')).toString()).toBe(firstStateRef2?.toString());
     expect(secondStateDict2.lookup(PDFName.of('State')).decodeText()).toBe('Rejected');
 
-    // A real PDF Hub state change appends a new state transition in reply to
-    // the latest state for that author.
-    const changed = {
-      ...returned.annotations[0],
-      data: {
-        ...returned.annotations[0].data,
-        review: {
-          ...returned.annotations[0].data.review!,
-          status: 'resolved' as const,
-          updatedAt: 1_700_000_500_000,
-        },
-      },
-      updatedAt: 1_700_000_500_000,
-    };
+    // PDF Hub's first status change by Current User starts that author's
+    // state chain at the review root; it must not be attributed to Lead Reviewer.
+    const currentUserResolved = withAnnotationReviewStatus(
+      returned.annotations[0],
+      'resolved',
+      1_700_000_500_000,
+    );
 
-    const save3 = await writeNativePdfAnnotations(save2.bytes, [changed]);
+    const save3 = await writeNativePdfAnnotations(save2.bytes, [currentUserResolved]);
     const read3 = await readNativePdfAnnotations(save3.bytes);
     expect(read3.annotations[0].data.review?.status).toBe('resolved');
+    expect(read3.annotations[0].data.review?.statusAuthor).toBe('Current User');
 
     const doc3 = await PDFDocument.load(save3.bytes);
     const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
     expect(annots3.size()).toBe(5);
 
-    let appendedStateRef: PDFRef | null = null;
+    let currentUserStateRef: PDFRef | null = null;
     for (let index = 0; index < annots3.size(); index += 1) {
       const ref = annots3.get(index);
       const dict = annots3.lookup(index);
       const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
       if (nm === `${root.id}:state:Review:2`) {
-        appendedStateRef = ref;
-        expect(dict.get(PDFName.of('IRT')).toString()).toBe(secondStateRef2?.toString());
+        currentUserStateRef = ref;
+        expect(dict.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
+        expect(dict.lookup(PDFName.of('T')).decodeText()).toBe('Current User');
         expect(dict.lookup(PDFName.of('StateModel')).decodeText()).toBe('Review');
         expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('Completed');
       }
     }
-    expect(appendedStateRef).toBeInstanceOf(PDFRef);
+    expect(currentUserStateRef).toBeInstanceOf(PDFRef);
 
-    const save4 = await writeNativePdfAnnotations(save3.bytes, read3.annotations);
+    // The next status change by the same Current User must extend that user's
+    // state chain by replying to the previous Current User state.
+    const currentUserOpen = withAnnotationReviewStatus(
+      read3.annotations[0],
+      'open',
+      1_700_000_600_000,
+    );
+    const save4 = await writeNativePdfAnnotations(save3.bytes, [currentUserOpen]);
+    const read4 = await readNativePdfAnnotations(save4.bytes);
+    expect(read4.annotations[0].data.review?.status).toBe('open');
+    expect(read4.annotations[0].data.review?.statusAuthor).toBe('Current User');
+
     const doc4 = await PDFDocument.load(save4.bytes);
     const annots4 = doc4.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    expect(annots4.size()).toBe(5);
+    expect(annots4.size()).toBe(6);
+
+    let secondCurrentUserStateRef: PDFRef | null = null;
+    for (let index = 0; index < annots4.size(); index += 1) {
+      const ref = annots4.get(index);
+      const dict = annots4.lookup(index);
+      const nm = dict.lookup(PDFName.of('NM'))?.decodeText?.();
+      if (nm === `${root.id}:state:Review:3`) {
+        secondCurrentUserStateRef = ref;
+        expect(dict.get(PDFName.of('IRT')).toString()).toBe(currentUserStateRef?.toString());
+        expect(dict.lookup(PDFName.of('T')).decodeText()).toBe('Current User');
+        expect(dict.lookup(PDFName.of('State')).decodeText()).toBe('None');
+      }
+    }
+    expect(secondCurrentUserStateRef).toBeInstanceOf(PDFRef);
+
+    const save5 = await writeNativePdfAnnotations(save4.bytes, read4.annotations);
+    const doc5 = await PDFDocument.load(save5.bytes);
+    const annots5 = doc5.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    expect(annots5.size()).toBe(6);
   });
 
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
