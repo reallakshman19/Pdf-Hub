@@ -82,6 +82,27 @@ export interface AnnotationData extends Record<string, unknown> {
   style?: AnnotationStyle;
   geometryVersion?: number;
   normalizedGeometry?: unknown;
+
+  // ── native PDF interoperability snapshots ─────────────
+  /**
+   * Raw PDF /QuadPoints imported for text-markup annotations.
+   * Retained so multi-quad external markup survives no-op saves and can be
+   * transformed proportionally when PDF Hub later changes the annotation rect.
+   */
+  nativeQuadPoints?: number[];
+  nativeQuadPointsSourceRect?: Rect;
+  nativeQuadPointsSourcePageHeight?: number;
+
+  /**
+   * Raw FreeText /DA and the application-visible style snapshot at import.
+   * The writer reuses /DA exactly until PDF Hub changes a represented style.
+   */
+  nativeDefaultAppearance?: string;
+  nativeDefaultAppearanceSource?: {
+    fontResource?: string;
+    fontSize?: number;
+    textColor?: string;
+  };
 }
 
 export interface PdfAnnotation {
