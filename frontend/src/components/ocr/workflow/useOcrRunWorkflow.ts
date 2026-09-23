@@ -167,6 +167,18 @@ export function useOcrRunWorkflow({
 
   const hasCurrentDocumentResult = store.correctedResult?.documentFingerprint === effectiveDocumentFingerprint;
   const hasInputSource = Boolean(pdfBytes || (pages && pages.length > 0));
+  const currentExecutionPlan = React.useMemo(
+    () => createOcrExecutionPlan({
+      requestedPageIndexes,
+      totalPages: Math.max(1, pageCount),
+      policy: executionPolicy,
+    }),
+    [executionPolicy, pageCount, requestedPageIndexes],
+  );
+  const currentBatchSize = Math.max(
+    1,
+    Math.min(5, executionPolicy.maxPagesPerJob),
+  );
   const currentResumeExecutionConfig = {
     forceOcr: store.forceOcr,
     rasterScale: executionPolicy.rasterScale,
@@ -175,9 +187,10 @@ export function useOcrRunWorkflow({
 
   const applicableResumeToken =
     store.resumeToken
-    && resumeTokenMatchesPageScope(
+    && resumeTokenMatchesBatchPlan(
       store.resumeToken.tasks,
-      requestedPageIndexes,
+      currentExecutionPlan.allowedPageIndexes,
+      currentBatchSize,
     )
     && ocrResumeExecutionConfigMatches(
       store.resumeToken.executionConfig,
@@ -462,20 +475,36 @@ export function useOcrRunWorkflow({
   };
 }
 
-function resumeTokenMatchesPageScope(
+function resumeTokenMatchesBatchPlan(
   tasks: Array<{ pageIndexes: number[] }>,
-  requestedPageIndexes: number[],
+  allowedPageIndexes: number[],
+  batchSize: number,
 ): boolean {
-  const tokenPages = [...new Set(
-    tasks.flatMap((task) => task.pageIndexes),
-  )].sort((a, b) => a - b);
-
-  const requestedPages = [...new Set(requestedPageIndexes)]
+  const normalizedPages = [...new Set(allowedPageIndexes)]
     .filter((pageIndex) => Number.isInteger(pageIndex) && pageIndex >= 0)
     .sort((a, b) => a - b);
 
-  return tokenPages.length === requestedPages.length
-    && tokenPages.every(
-      (pageIndex, index) => pageIndex === requestedPages[index],
+  const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+  const expectedBatches: number[][] = [];
+
+  for (
+    let start = 0;
+    start < normalizedPages.length;
+    start += normalizedBatchSize
+  ) {
+    expectedBatches.push(
+      normalizedPages.slice(start, start + normalizedBatchSize),
     );
+  }
+
+  if (tasks.length !== expectedBatches.length) return false;
+
+  return tasks.every((task, taskIndex) => {
+    const expectedPages = expectedBatches[taskIndex];
+    return task.pageIndexes.length === expectedPages.length
+      && task.pageIndexes.every(
+        (pageIndex, pageOffset) =>
+          pageIndex === expectedPages[pageOffset],
+      );
+  });
 }
