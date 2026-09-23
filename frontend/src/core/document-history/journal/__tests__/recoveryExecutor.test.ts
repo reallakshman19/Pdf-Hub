@@ -29,6 +29,7 @@ import {
 import {
   useOcrStore,
 } from '@/core/ocr/ocrStore';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 import {
   useSessionStore,
 } from '@/core/session/store';
@@ -344,6 +345,33 @@ async function setup(
   };
 }
 
+function recoveryResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+      maxPagesPerJob: 25,
+      allowLargeJobs: false,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [{
+      id: 'recovery-resume-batch',
+      index: 0,
+      pageIndexes: [0],
+      status: 'failed',
+      errorMessage: 'Pre-recovery retry state.',
+    }],
+  };
+}
+
 describe('executeHistoryRecovery', () => {
   beforeEach(() => {
     resetDocumentOperationQueueForTests();
@@ -409,6 +437,13 @@ describe('executeHistoryRecovery', () => {
     const persistAnnotations =
       vi.fn(async () => undefined);
 
+    useOcrStore.getState().setOcrResumeToken(
+      recoveryResumeToken('pre-recovery-document'),
+    );
+    expect(
+      useOcrStore.getState().resumeToken,
+    ).not.toBeNull();
+
     const result =
       await executeHistoryRecovery({
         resolved,
@@ -466,6 +501,11 @@ describe('executeHistoryRecovery', () => {
     ).toBe(
       CHECKPOINT_REVISION_ID,
     );
+    expect(
+      useOcrStore
+        .getState()
+        .resumeToken,
+    ).toBeNull();
     expect(
       useOcrStore
         .getState()
