@@ -458,6 +458,7 @@ function cloneOcrResumeToken(
 ): OcrResumeTokenV1 {
   return {
     ...token,
+    executionConfig: { ...token.executionConfig },
     tasks: token.tasks.map((task) => ({
       ...task,
       pageIndexes: [...task.pageIndexes],
