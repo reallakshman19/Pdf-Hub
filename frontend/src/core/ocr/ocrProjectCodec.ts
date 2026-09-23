@@ -5,6 +5,7 @@ import type { OcrRegion } from './ocrRegionModel';
 import type { OcrWriterInsertionQueueState } from './ocrWriterInsertion';
 import type { OcrResumeTokenV1 } from './ocrResumeState';
 import { validateOcrResumeToken } from './ocrResumeState';
+import { ocrLanguageSetsEqual } from './ocrLanguageSet';
 import {
   JSZipProjectArchiveReader,
   type ProjectArchiveReader,
@@ -63,6 +64,7 @@ export interface OcrProjectCodecValidationResult {
       | 'MISSING_DOCUMENT_FINGERPRINT'
       | 'MISMATCHED_DOCUMENT_FINGERPRINT'
       | 'INVALID_OCR_RESUME_TOKEN'
+      | 'MISMATCHED_OCR_RESUME_CONFIGURATION'
       | 'MISSING_OCR_FILE'
       | 'INVALID_OCR_JSON';
     message: string;
@@ -270,6 +272,63 @@ export function validateOcrProjectPayload(
       code: 'MISMATCHED_DOCUMENT_FINGERPRINT',
       message: 'OCR result documentFingerprint does not match OCR manifest.',
     });
+  }
+
+  const resumeToken = payload.manifest.resumeToken;
+  if (resumeToken) {
+    const completedPageIndexes = new Set(
+      resumeToken.tasks
+        .filter((task) => task.status === 'completed')
+        .flatMap((task) => task.pageIndexes),
+    );
+
+    if (
+      payload.result
+      && (
+        payload.result.engineId !== resumeToken.engineId
+        || payload.result.profileId !== resumeToken.profileId
+      )
+    ) {
+      diagnostics.push({
+        level: 'error',
+        code: 'MISMATCHED_OCR_RESUME_CONFIGURATION',
+        message: 'OCR result engine/profile does not match OCR resume token.',
+      });
+    }
+
+    if (completedPageIndexes.size > 0) {
+      if (!payload.result) {
+        diagnostics.push({
+          level: 'error',
+          code: 'MISMATCHED_OCR_RESUME_CONFIGURATION',
+          message: 'OCR resume token marks completed pages but the project has no persisted OCR result.',
+        });
+      } else {
+        const pagesByIndex = new Map(
+          payload.result.pages.map((page) => [page.pageIndex, page]),
+        );
+
+        for (const pageIndex of completedPageIndexes) {
+          const page = pagesByIndex.get(pageIndex);
+          if (!page) {
+            diagnostics.push({
+              level: 'error',
+              code: 'MISMATCHED_OCR_RESUME_CONFIGURATION',
+              message: `OCR resume token marks page ${pageIndex} completed but the persisted OCR result is missing that page.`,
+            });
+            continue;
+          }
+
+          if (!ocrLanguageSetsEqual(page.languageHints, resumeToken.languages)) {
+            diagnostics.push({
+              level: 'error',
+              code: 'MISMATCHED_OCR_RESUME_CONFIGURATION',
+              message: `OCR result language set for page ${pageIndex} does not match OCR resume token.`,
+            });
+          }
+        }
+      }
+    }
   }
 
   for (const correction of payload.corrections) {
