@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const root = process.cwd();
 const manifestPath =
@@ -257,6 +258,49 @@ for (const fixture of manifest.fixtures) {
       fail(
         `${fixture.id} retained fixture provenance is incomplete`,
       );
+    } else {
+      const artifactPath =
+        path.join(root, fixture.artifactPath);
+      if (!fs.existsSync(artifactPath)) {
+        fail(
+          `${fixture.id} retained fixture artifact is missing: ${fixture.artifactPath}`,
+        );
+      } else if (
+        !fixture.integrity
+        || !/^[0-9a-f]{40}$/i.test(
+          fixture.integrity.gitBlobSha1 ?? '',
+        )
+        || !Number.isInteger(
+          fixture.integrity.byteLength,
+        )
+        || fixture.integrity.byteLength <= 0
+      ) {
+        fail(
+          `${fixture.id} retained fixture integrity metadata is incomplete`,
+        );
+      } else {
+        const bytes = fs.readFileSync(artifactPath);
+        const gitBlobSha1 = createHash('sha1')
+          .update(
+            Buffer.from(
+              `blob ${bytes.byteLength}\0`,
+              'utf8',
+            ),
+          )
+          .update(bytes)
+          .digest('hex');
+
+        if (
+          bytes.byteLength
+            !== fixture.integrity.byteLength
+          || gitBlobSha1
+            !== fixture.integrity.gitBlobSha1
+        ) {
+          fail(
+            `${fixture.id} retained fixture bytes do not match declared integrity`,
+          );
+        }
+      }
     }
   } else {
     fail(
