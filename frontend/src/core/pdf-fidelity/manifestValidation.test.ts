@@ -150,6 +150,50 @@ describe(
     );
 
     it(
+      'requires immutable integrity metadata for retained fixtures',
+      () => {
+        const retained = fixture({
+          availability: 'retained',
+          provenance: {
+            kind: 'redistributable-retained',
+            source: 'upstream/test.pdf',
+            licenseOrOwnership: 'Redistributable test fixture.',
+            reproducible: true,
+          },
+          artifactPath: 'fidelity/retained/test.pdf',
+          generatorId: null,
+        });
+
+        const missing = validateFidelityCorpusManifest({
+          schemaVersion: 1,
+          corpusId: 'phase9-pdf-fidelity',
+          fixtures: [retained],
+        });
+        expect(missing.valid).toBe(false);
+        expect(missing.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: 'MISSING_INTEGRITY',
+            fixtureId: 'complete-fixture',
+          }),
+        );
+
+        const complete = validateFidelityCorpusManifest({
+          schemaVersion: 1,
+          corpusId: 'phase9-pdf-fidelity',
+          fixtures: [{
+            ...retained,
+            integrity: {
+              gitBlobSha1: '0123456789abcdef0123456789abcdef01234567',
+              byteLength: 1234,
+            },
+          }],
+        });
+        expect(complete.valid).toBe(true);
+        expect(complete.pendingFixtureIds).toEqual([]);
+      },
+    );
+
+    it(
       'rejects missing class coverage and incomplete mutation expectations',
       () => {
         const mutations =
