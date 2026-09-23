@@ -91,7 +91,8 @@ const search = read(searchPath);
 requireContains(search, searchPath, [
   'acquireActivePdfDocumentLease',
   'indexPdfDocumentIncrementally',
-  'SearchIndexer.searchRevision(',
+  'useSearchResultPublisher',
+  'publishIndexedPageResults',
   'activeRevisionId',
   'pageGraph',
   'currentPage',
@@ -105,6 +106,7 @@ forbidContains(search, searchPath, [
   'SearchIndexer.getCache(',
   'PdfRendererAdapter.acquireDocument(',
   'PdfRendererAdapter.acquireDocumentSource(',
+  'SearchIndexer.searchRevision(',
 ]);
 
 const bookmarksPath =
@@ -186,12 +188,20 @@ requireContains(
   incrementalSearchPath,
   [
     'SearchIndexer.createPageSchedule',
+    'SearchIndexer.getPageState',
     'SearchIndexer.markQueued',
     'SearchIndexer.markIndexing',
     'SearchIndexer.setPageText',
     'SearchIndexer.releaseOwner',
     'await yieldToBrowser(',
     'page?.cleanup()',
+  ],
+);
+forbidContains(
+  incrementalSearch,
+  incrementalSearchPath,
+  [
+    'SearchIndexer.getPageRecord(',
   ],
 );
 

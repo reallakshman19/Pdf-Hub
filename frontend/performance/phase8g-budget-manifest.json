@@ -1,0 +1,153 @@
+{
+  "schema_version": "phase8g-performance-budget-v1",
+  "status": "INITIAL_TARGETS",
+  "basis": {
+    "issue": 284,
+    "work_package": "WP-8G",
+    "execution_package": "EP-8G-001",
+    "note": "Targets are certification thresholds, not measured results. Exact-head benchmark evidence must record PASS/FAIL independently."
+  },
+  "result_contract": {
+    "required_environment_fields": [
+      "commit_sha",
+      "runtime",
+      "runtime_version",
+      "browser",
+      "browser_version",
+      "os",
+      "cpu",
+      "logical_cores",
+      "memory_bytes"
+    ],
+    "required_measurement_fields": [
+      "fixture_id",
+      "fixture_sha256",
+      "operation",
+      "page_count",
+      "elapsed_ms"
+    ],
+    "optional_measurement_fields": [
+      "peak_js_heap_bytes",
+      "range_requests",
+      "range_bytes",
+      "max_requested_range_bytes",
+      "long_task_ms",
+      "notes"
+    ]
+  },
+  "fixtures": {
+    "native_text": {
+      "page_counts": [
+        100,
+        500,
+        1000,
+        2500,
+        5000
+      ],
+      "active_query": "phase8g-needle",
+      "required": true
+    },
+    "image_heavy": {
+      "page_counts": [
+        100,
+        500
+      ],
+      "required": true
+    },
+    "scanned_image_only": {
+      "page_counts": [
+        100,
+        500
+      ],
+      "required": true
+    },
+    "mixed_geometry": {
+      "page_counts": [
+        100,
+        500,
+        1000
+      ],
+      "required": true
+    },
+    "metadata_rich": {
+      "page_counts": [
+        100
+      ],
+      "required": true
+    }
+  },
+  "budgets": {
+    "active_query_page_arrival_matching": {
+      "fixture_kind": "native_text",
+      "page_count": 1000,
+      "metric": "page_match_calls_per_newly_indexed_page",
+      "maximum": 1,
+      "exact": true,
+      "complexity": "O(N)",
+      "rationale": "Each unchanged-query page arrival may match only the newly indexed PageId."
+    },
+    "query_change_reextraction": {
+      "metric": "pdf_text_extractions_after_query_or_option_change",
+      "maximum": 0,
+      "exact": true
+    },
+    "range_backed_first_page": {
+      "minimum_page_count": 1000,
+      "metric": "range_bytes_before_first_renderable_page_fraction_of_file",
+      "maximum": 0.75,
+      "exact": false
+    },
+    "long_task": {
+      "metric": "max_long_task_ms_during_rapid_navigation",
+      "maximum": 50,
+      "exact": false
+    },
+    "cancellation_reprioritization": {
+      "metric": "page_jump_reprioritization_ms",
+      "maximum": 250,
+      "exact": false
+    },
+    "mutation_save_truth": {
+      "required_observations": [
+        "input_full_byte_materialization",
+        "output_full_byte_materialization",
+        "peak_memory_bytes"
+      ],
+      "prohibited_claim": "Range-backed PDF.js viewing proves mutation/save is range-bounded."
+    }
+  },
+  "observation_contracts": {
+    "incremental_indexing": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "current_page_result_ms",
+        "nearby_page_result_ms",
+        "pages_per_second",
+        "indexed_pages",
+        "failed_pages",
+        "range_requests",
+        "range_bytes",
+        "max_requested_range_bytes",
+        "peak_memory_bytes"
+      ]
+    },
+    "browser_navigation": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "max_navigation_ms",
+        "median_navigation_ms",
+        "navigation_samples",
+        "peak_js_heap_bytes"
+      ]
+    },
+    "recovery_restore": {
+      "classification": "OBSERVATION_ONLY",
+      "required_metrics": [
+        "retained_revision_storage_bytes",
+        "journal_storage_bytes",
+        "replayed_transactions",
+        "peak_memory_bytes"
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": "relay-v2.5",
+  "revision": {
+    "id": "RM-0003",
+    "from_revision": "RM-0002",
+    "to_revision": "RM-0003",
+    "classification": "OWNER_INTENT_MUTATION",
+    "trigger": {
+      "type": "OWNER_DECISION",
+      "path": "agents/relay/roadmap/owner-decisions/ODR-0004.yaml"
+    }
+  },
+  "changes": {
+    "added": [],
+    "removed": [],
+    "changed": [
+      "PHASE-008",
+      "WP-8G",
+      "PHASE-009",
+      "WP-009"
+    ],
+    "unaffected": [
+      "OBJ-READINESS",
+      "PHASE-004",
+      "WP-004",
+      "PHASE-005",
+      "WP-005",
+      "PHASE-006",
+      "WP-006",
+      "PHASE-007",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "PHASE-010",
+      "WP-010",
+      "PHASE-011",
+      "WP-011",
+      "PHASE-012",
+      "WP-012",
+      "PHASE-013",
+      "WP-013",
+      "PHASE-014",
+      "WP-014"
+    ]
+  },
+  "invalidated_execution_packages": [
+    "EP-8G-001"
+  ],
+  "issue_graph_reconciled": true,
+  "progress_basis_change": {
+    "old_basis": "PB-0001",
+    "new_basis": "PB-0002",
+    "old_total_weight": 21,
+    "new_total_weight": 21
+  },
+  "frontier_after": [
+    "WP-009"
+  ],
+  "notes": [
+    "ODR-0003 keeps Phase 8G certification PENDING_NOT_SATISFIED and issue #284 open.",
+    "WP-8G is FUTURE/WAITING rather than COMPLETE; no acceptance or earned progress is added.",
+    "WP-009 now depends on completed WP-8F architectural substrate rather than the deferred WP-8G certification run.",
+    "Phase 9 issue #286 is the active coordination contract."
+  ]
+}

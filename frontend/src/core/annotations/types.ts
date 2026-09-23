@@ -29,6 +29,36 @@ export interface Point2D {
   y: number;
 }
 
+export type NativeInteropFidelityClass =
+  | 'NATIVE_SUPPORTED'
+  | 'NATIVE_PRESERVED_READ_ONLY'
+  | 'NATIVE_DEGRADED'
+  | 'VISUAL_ONLY'
+  | 'UNKNOWN';
+
+export interface AnnotationNativeInteropState {
+  fidelityClass: NativeInteropFidelityClass;
+  reason?: 'RICH_TEXT';
+  /** Native /RC rich-text semantics are present and must not be flattened silently. */
+  richText?: boolean;
+  /** FreeText /DS default style is present and preserved with /RC. */
+  defaultStyle?: boolean;
+  /** Native semantics observed at import time; used as a writer fail-closed oracle. */
+  protectedSnapshot?: {
+    type: AnnotationType;
+    text: string;
+    content?: string;
+    fontSize?: number;
+    fontWeight?: 'normal' | 'bold';
+    fontStyle?: 'normal' | 'italic';
+    fontFamily?: string;
+    textColor?: string;
+    textAlign?: 'left' | 'center' | 'right';
+    lineHeight?: number;
+    autoSize?: boolean;
+  };
+}
+
 export interface AnnotationData extends Record<string, unknown> {
   // ── text ──────────────────────────────────────────────
   text?: string;
@@ -61,9 +91,15 @@ export interface AnnotationData extends Record<string, unknown> {
   lineStartCap?: 'none' | 'arrow' | 'circle' | 'square';
   lineEndCap?: 'none' | 'arrow' | 'circle' | 'square';
 
-  // ── ink / polygon ─────────────────────────────────────
+  // ── ink / polygon / text markup ───────────────────────
   paths?: Array<number[]>;
   points?: number[];
+  /**
+   * Text-markup quadrilateral x/y pairs normalized to the annotation Rect.
+   * Values preserve native multi-quad geometry while remaining portable across
+   * local translation/resizing. Eight numbers represent one quadrilateral.
+   */
+  textMarkupQuads?: number[];
 
   // ── stamp ─────────────────────────────────────────────
   stampLabel?: string;
@@ -82,6 +118,7 @@ export interface AnnotationData extends Record<string, unknown> {
   style?: AnnotationStyle;
   geometryVersion?: number;
   normalizedGeometry?: unknown;
+  nativeInterop?: AnnotationNativeInteropState;
 }
 
 export interface PdfAnnotation {

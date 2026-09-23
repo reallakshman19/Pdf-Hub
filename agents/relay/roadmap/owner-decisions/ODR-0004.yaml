@@ -1,0 +1,71 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0004",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "INTENT_MUTATION",
+    "statement": "Proceed with the next roadmap work while Phase 8G certification remains deferred and unsatisfied.",
+    "source": "Owner instruction received 2026-09-20T19:45:35Z."
+  },
+  "effects": {
+    "requirement_disposition": "NOT_APPLICABLE",
+    "grants_material_write_authority": false,
+    "pending_items": [
+      "ODR-0003 deferred Phase 8G certification obligations remain pending."
+    ]
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "PROGRAM",
+      "PHASE",
+      "SCOPE"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-008",
+      "PHASE-009"
+    ],
+    "work_packages": [
+      "WP-8G",
+      "WP-009"
+    ],
+    "execution_packages": [
+      "EP-8G-001"
+    ],
+    "issues": [
+      "ISSUE-284",
+      "ISSUE-286"
+    ]
+  },
+  "change_intake": {
+    "previous_concept": "WP-009 could not become executable until WP-8G was complete, so the Phase 8G certification run remained the sole serial frontier.",
+    "requested_concept": "Keep the unexecuted Phase 8G certification pending and open, but resequence the roadmap so WP-009 becomes the next serial frontier now.",
+    "retained_behavior": [
+      "WP-8G certification remains PENDING_NOT_SATISFIED and issue #284 stays open.",
+      "No Phase 8G acceptance, completion, supported-envelope, benchmark PASS or merge claim is created by the resequence.",
+      "The Phase 9 fidelity-laboratory concept and its existing architecture scope remain authoritative."
+    ],
+    "invalidated_behavior": [
+      "The prior sequencing assumption that WP-009 must wait for execution of the deferred WP-8G benchmark/certification run.",
+      "EP-8G-001 serving as the active serial execution route while its only remaining work is Owner-deferred external evidence."
+    ],
+    "new_scope": [
+      "Make WP-009 the next serial executable frontier using the completed Phase 8 architecture substrate through WP-8F while WP-8G certification remains a future pending obligation.",
+      "Track Phase 9 execution through GitHub issue #286 and a new semantic execution package."
+    ]
+  },
+  "required_reconciliation": [
+    "Create OWNER_INTENT_MUTATION roadmap revision RM-0003.",
+    "Move WP-8G to FUTURE/WAITING without changing its 0% acceptance or open issue state.",
+    "Activate PHASE-009 / WP-009 and remove the deferred WP-8G certification from WP-009's executable dependency chain while retaining WP-8F as the architectural predecessor.",
+    "Create a new Progress Basis bound to RM-0003 without changing earned progress.",
+    "Reconcile ISSUE_GRAPH with issue #286 and the retained pending issue #284.",
+    "Retire EP-8G-001 from active route custody and prepare the Phase 9 successor route."
+  ],
+  "status": "APPLIED"
+}

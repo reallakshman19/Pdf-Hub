@@ -1,0 +1,49 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-CHECKPOINT-ACCEPT",
+  "command": "ACCEPT_CHECKPOINT",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T12:19:00Z",
+  "updated_at": "2026-09-22T12:19:00Z",
+  "operations": [
+    {
+      "path": "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:2b5147ebe85c9a650352b4f379ff9c5e8d8f5a759bd3c9b30db50ee541bb6626",
+      "staged_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/staged/000.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:42e3e8a4281fee7f47cf19f70b4ede2ae64854c6844ec5aa9507b71b3baf7050",
+      "after_digest": "sha256:3feb5bfb107810bfcb46c745f47e68d1064c05aba5bc19b6cb718d8cc8c92d1a",
+      "staged_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/backups/001.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:b2727035d9596618f38a21d467b7751ee1fb94b1ad47b56bcc6977035520b6be",
+      "after_digest": "sha256:609b1483300586e03d84bbaaf81c468d2e8f0abdb3c40be825d9dc9ce0f80ff3",
+      "staged_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/backups/002.before"
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:1cd0a7afacd441c2a4ed639eb88c39889ee583c929b21cfd5d93283e3f887c1d",
+      "after_digest": "sha256:85c1a651a73e10853b43a598be578592bb0db5e4e92f1b05654c06791b84e369",
+      "staged_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/staged/003.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-CHECKPOINT-ACCEPT/backups/003.before"
+    }
+  ],
+  "applied": [
+    "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml",
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/STATE.yaml"
+  ]
+}

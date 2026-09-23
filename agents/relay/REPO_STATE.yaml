@@ -7,26 +7,26 @@
   },
   "relay_protocol": {
     "version": "2.5",
-    "basis_ref": "f42f0c27785e3dc097dc41ca0325698156b32181"
+    "basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8"
   },
   "roadmap": {
     "id": "PDFHUB-READINESS-2026",
-    "revision": "RM-0002",
+    "revision": "RM-0004",
     "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml"
   },
   "current_position": {
     "objective": "OBJ-READINESS",
-    "phase": "PHASE-008",
-    "work_package": "WP-8G",
+    "phase": "PHASE-010",
+    "work_package": "WP-010",
     "work_packages": []
   },
   "execution_policy": {
     "mode": "SERIAL"
   },
   "active_ep": {
-    "id": "EP-8F-001",
-    "path": "agents/relay/execution-packages/EP-8F-001.yaml",
-    "state": "TERMINAL",
+    "id": "EP-10-001",
+    "path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "state": "ACTIVE",
     "continuity_receipt": null
   },
   "last_checkpoint": {
@@ -34,68 +34,74 @@
     "path": null
   },
   "predecessor_join": {
-    "id": "PR-283",
+    "id": null,
     "path": null,
     "merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-    "note": "WP-8F merged under documented #183 infrastructure exception; engineering material remained aabc1765244353ea263ecb94635a3188d2b77153 and executable certification remained NOT_RUN because Actions received no runner and executed zero steps."
+    "note": "WP-8F merged under documented #183 infrastructure exception; engineering material remained aabc1765244353ea263ecb94635a3188d2b77153 and executable certification remained NOT_RUN because Actions received no runner and executed zero steps. Historical only; cleared from active predecessor authority during V3 migration source validation."
   },
   "predecessor_replan": {
     "id": null,
     "path": null
   },
-  "takeover_admissions": [
-    {
-      "route_key": "SERIAL:EP-8D3-001",
-      "candidate": {
-        "agent_instance_id": "chatgpt-gpt56-sol-20260919-8d3"
-      },
-      "discovery_receipt": {
-        "id": "DISC-8D3-004",
-        "path": "agents/relay/certifications/discovery/DISC-8D3-004.yaml"
-      },
-      "certification": {
-        "id": "TC-8D3-004",
-        "path": "agents/relay/certifications/takeover/TC-8D3-004.yaml"
-      }
-    }
-  ],
+  "takeover_admissions": [],
   "progress": {
-    "overall_percent": 52.38,
-    "phase_percent": 95,
-    "ep_percent": 100,
-    "basis_revision": "PB-0001"
+    "overall_percent": 66.67,
+    "phase_percent": 0,
+    "ep_percent": 0,
+    "basis_revision": "PB-0003"
   },
   "status_planes": {
     "execution": {
-      "state": "COMPLETE",
+      "state": "ACTIVE",
       "can_continue": true,
       "material_authority": "WRITE",
-      "next_action": "Create the WP-8G / issue #284 execution package and qualification boundary from merged main f42f0c27785e3dc097dc41ca0325698156b32181. Before product writes, satisfy the V2.5 fresh qualification requirement for the performance/oracle boundary. Carry the active-query repeated-rescan finding into 8G."
+      "next_action": "On phase10/postmerge-interoperability-fix, a fresh repository-grounded candidate must reconstruct post-merge EP-10-001 under V2.5 compatibility (V3 selector absent), create fresh DISC/TC using the THREE_PASS_COMPLETE qualification exemption recorded in issue #288 comment 5775352655, then run live MATERIAL_WRITE_READY. Only on WRITE may STEP-10-01 corrective work close F10-01/F10-02/F10-03; STEP-10-02 remains gated."
     },
     "quality": {
-      "state": "ACCEPTED_WITH_INFRA_EXCEPTION",
+      "state": "OPEN_FINDINGS",
       "findings": [
-        "Active SearchPanel no longer performs query-triggered full-document PDF text extraction.",
-        "Runtime search index identity is immutable active revision plus stable PageId; physical page numbers are resolved from the current PageGraph.",
-        "Current page and nearby pages are scheduled before requested and distant background pages.",
-        "Page extraction owns one PDFPageProxy at a time, cleans it immediately, yields between bounded batches and supports cancellation.",
-        "Owner tokens prevent superseded indexing tasks from publishing stale page text.",
-        "Partial hits and indexed/total progress are published while background indexing continues; query changes reuse indexed text.",
-        "TopNav is now a query/navigation client only, eliminating the duplicate search executor.",
-        "Workspace/admission do not eagerly invoke incremental search indexing.",
-        "Static 8F and inherited Phase 8 renderer-consumer guard simulation is clean; search core/query/scheduler module bounds are enforced.",
-        "Runner-executed certification is unavailable because open #183 terminates exact-head jobs before runner assignment.",
-        "Successor risk for WP-8G: with an active query, SearchPanel republishes by calling searchRevision after each indexed page, rescanning all indexed pages; measure this explicitly and replace with per-new-page incremental hit publication if it violates the large-document budget."
+        "Post-merge execution authority is reconciled onto phase10/postmerge-interoperability-fix from merged material baseline 6f16bc859d3bd6975969ac408a3b119d7431fbb0; current EP-10-001 digest is sha256:954d961f0a5b758882d18df7795fc437b8a50500a463e79be1ce037be48d8ce6.",
+        "THREE_PASS_COMPLETE is durably recorded in issue #288 comment 5775352655; follow-on QSET/QUAL is NOT_APPLICABLE under pinned V2.5 compatibility, while DISC/TC and live MATERIAL_WRITE_READY remain mandatory.",
+        "Common engineering-pr-delivery-v3 at c87cf87b313801e42ecd0fcc7d36af0d90c5f400 was requested by Owner, but Pdf-Hub has no active relay/PROTOCOL_SELECTION.yaml; V3 therefore requires V2.5 compatibility behavior rather than silent cutover.",
+        "Pinned V2.5 conformance repair completed the EP-10-001 quality-router partition: software-design, coding, ui-ux, testing, code-review, accessibility, migration and github-delivery are applicable; engineering-numerics and performance are explicitly not applicable.",
+        "F10-01: STEP-10-01 manifest/fixtures lack an explicit deterministic reply/review/IRT contract and raw PDF object-reference verification across repeated saves.",
+        "F10-02: the declared external-edit precedence surface is wider than AnnotationInteroperabilityOracle.reconcileExternalEdits() and its tests currently implement.",
+        "F10-03: the two-save native round-trip test exercises only 8 of 17 supported types; the acceptance substrate must fail closed across all 17.",
+        "The current native annotation writer still emits no explicit /AP appearance stream; that remains STEP-10-02 and must not start before AC-10-01 is accepted.",
+        "STEP-10-02 Unicode appearance remains bounded by a qualified font/resource strategy; semantic Unicode content must not be conflated with appearance fidelity.",
+        "STEP-10-03 named-viewer support claims still require retained viewer-specific evidence; PDF Hub/PDF.js does not substitute for Adobe/Preview/Chrome-native/Foxit evidence.",
+        "STEP-10-04 signed-save warning and native review-state precedence remain later Phase 10 work.",
+        "Phase 8G and Phase 9 obligations remain PENDING_NOT_SATISFIED under ODR-0003 and ODR-0005."
       ]
     },
     "evidence": {
-      "state": "TERMINAL_NOT_RUN",
-      "summary": "WP-8F implementation and static evidence are complete. Exact-head executable certification remains NOT_RUN under the documented #183 infrastructure exception.",
+      "state": "PARTIAL",
+      "summary": "PR #289 is merged into phase9/pdf-fidelity-laboratory at 6f16bc859d3bd6975969ac408a3b119d7431fbb0. Post-merge EP-10-001 is reconciled to continuation branch phase10/postmerge-interoperability-fix with digest sha256:954d961f0a5b758882d18df7795fc437b8a50500a463e79be1ce037be48d8ce6. THREE_PASS_COMPLETE makes QSET/QUAL not applicable; fresh DISC/TC and live MATERIAL_WRITE_READY remain pending. STEP-10-01 material is present but unaccepted with F10-01/F10-02/F10-03 open; AC-10-01 remains zero earned weight and STEP-10-02 remains gated.",
       "not_run": [
         {
-          "command": "GitHub Actions exact-head certification surfaces",
-          "reason": "At aabc1765244353ea263ecb94635a3188d2b77153, certify-writer-overlay-v2 35515873864, Guards 35515873857, Frontend CI 35515873849, OCR Workflow Certification 35515873879 and Frontend Certify 35515873865 all completed before runner assignment with runner_id 0 and steps [].",
-          "head_ref": "aabc1765244353ea263ecb94635a3188d2b77153"
+          "command": "Fresh post-merge DISC/TC + MATERIAL_WRITE_READY",
+          "reason": "No candidate has yet been admitted against the reconciled post-merge EP digest; repository-local pinned validators are not executable in the connected GitHub-only environment.",
+          "head_ref": "a57900843c0ceaa021256e49f9167f10e6e43218"
+        },
+        {
+          "command": "F10-01/F10-02/F10-03 corrective material work",
+          "reason": "Blocked on candidate-specific MATERIAL_WRITE_READY for the reconciled post-merge EP digest.",
+          "head_ref": null
+        },
+        {
+          "command": "GitHub Actions exact-head executable certification",
+          "reason": "Observed merge-commit workflow job executed zero steps; classify as NOT_RUN_INFRASTRUCTURE until repository steps actually run.",
+          "head_ref": "6f16bc859d3bd6975969ac408a3b119d7431fbb0"
+        },
+        {
+          "command": "npm run certify:phase8g",
+          "reason": "Owner-deferred under ODR-0003; remains PENDING_NOT_SATISFIED.",
+          "head_ref": "2bd1333d158897bc9c3e91dc3fb731e9b396a1af"
+        },
+        {
+          "command": "Phase 9 takeover / dependent STEP-9-01",
+          "reason": "Owner-deferred under ODR-0005; remains PENDING_NOT_SATISFIED.",
+          "head_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd"
         }
       ]
     },
@@ -113,20 +119,49 @@
     "target": null,
     "adapter": null,
     "plan": null,
-    "roadmap_revision": "RM-0002",
-    "execution_ref": "EP-8F-001",
+    "roadmap_revision": "RM-0004",
+    "execution_ref": "EP-10-001",
     "receipt": null,
     "basis": [
-      "PR #283 merged WP-8F at f42f0c27785e3dc097dc41ca0325698156b32181 and issue #282 is provider-closed.",
-      "WP-8F is COMPLETE/TERMINAL under the documented #183 NOT_RUN infrastructure exception.",
-      "Issue #284 is the verified GitHub coordination issue for WP-8G large-document performance corpus/certification.",
-      "WP-8G is the next serial frontier; Phase 9 remains waiting on WP-8G."
+      "ODR-0003 keeps Phase 8G certification pending and issue #284 open.",
+      "ODR-0005 keeps Phase 9 takeover/STEP-9-01 pending and issue #286 open.",
+      "ODR-0006 / RM-0004 make WP-010 the sole serial frontier.",
+      "Issue #288 is the Phase 10 provider coordination contract.",
+      "EP-10-001 quality-router conformance was repaired to partition all ten pinned V2.5 procedures exactly once.",
+      "Prior QSET-10-001 / DISC-10-001 / QUAL-10-001 / TC-10-001 are superseded for write authority by the corrected EP digest; their historical evidence remains retained.",
+      "AC-10-01 remains IN_PROGRESS at zero earned weight with F10-01/F10-02/F10-03 open.",
+      "Gated design packets on issue #288 for STEP-10-02/03/04 remain preparatory only and do not bypass the serial acceptance gate.",
+      "DOBS-10-005 observes the corrected Phase 10 route at exact head 221d0563c69898f03fe51ad88f9ef89e839c137d as draft/mergeable with no exact-head workflow run and no admitted candidate.",
+      "STEP-10-05 gated certification/QRV/checkpoint/successor design is published on issue #288 as comment 5762556182; it preserves deferred Phase 8G/9 obligations and computes WP-011 only after genuine WP-010 completion.",
+      "DOBS-10-006 records PR #289 provider mergeable=false at head 825c1fbd49ca29f23456ea6348cacd3a3070fd5a; the stacked Phase 9 base is unchanged and no conflict cause is inferred.",
+      "QSET-10-002 conformance correction is published on issue #288 as comment 5763399306; Q2 focus and invalid non-EP anchor labels were repaired before any fresh candidate admission.",
+      "Final EP-10-001 semantic conformance repair is complete; qualification authority is rebound to digest sha256:d406f916945bdc963de19a1f20f8f8b8d0edbff0ec55a2f4e24d0ce0fbff3de1.",
+      "PR #289 merged Phase 10 source head 4b1225f8464a6016a1f72e3a1d5b406c7a772fb8 into phase9/pdf-fidelity-laboratory as merge commit 6f16bc859d3bd6975969ac408a3b119d7431fbb0; merge did not award acceptance.",
+      "Owner requested Common engineering-pr-delivery-v3 at c87cf87b313801e42ecd0fcc7d36af0d90c5f400; because Pdf-Hub has no active V3 selector, the V3 skill requires V2.5 compatibility behavior.",
+      "Issue #288 comment 5775352655 durably records THREE_PASS_COMPLETE; follow-on QSET/QUAL is NOT_APPLICABLE, but fresh DISC/TC and live MATERIAL_WRITE_READY remain required.",
+      "EP-10-001 post-merge digest is sha256:954d961f0a5b758882d18df7795fc437b8a50500a463e79be1ce037be48d8ce6 on continuation branch phase10/postmerge-interoperability-fix.",
+      "DOBS-10-009 is the current delivery observation and records merged PR #289 plus post-merge continuation truth."
     ],
     "observed": {
-      "issue": 282,
-      "pull_request": 283,
-      "merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-      "successor_issue": 284
+      "issue": 288,
+      "pull_request": 289,
+      "predecessor_merge_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
+      "superseded_candidate_report_comment": 5756264130,
+      "relay_review_comment": 5756857247,
+      "prior_correction_contract_comment": 5757052699,
+      "prior_live_head_rule_comment": 5757440172,
+      "corrected_ep_digest": "sha256:954d961f0a5b758882d18df7795fc437b8a50500a463e79be1ce037be48d8ce6",
+      "current_question_set": null,
+      "corrected_requalification_handoff_comment": 5763479256,
+      "current_delivery_observation": "DOBS-10-009",
+      "step_10_05_gated_design_comment": 5762556182,
+      "corrected_takeover_response_check_minutes": 60,
+      "qset_10_002_conformance_correction_comment": 5763399306,
+      "qset_10_002_corrected_head": "7c07d4ef0bdaf3c61f46e1a186e1b7143d0b844c",
+      "final_qualification_supersession_comment": 5763479256,
+      "postmerge_three_pass_comment": 5775352655,
+      "postmerge_continuation_branch": "phase10/postmerge-interoperability-fix",
+      "postmerge_material_ref": "6f16bc859d3bd6975969ac408a3b119d7431fbb0"
     },
     "superseded_operations": []
   },
@@ -134,18 +169,56 @@
     "required": true,
     "provider": "GITHUB",
     "observation": {
-      "pull_request": 283,
-      "issue": 282,
-      "head_ref": "f42f0c27785e3dc097dc41ca0325698156b32181",
-      "state": "MERGED"
+      "id": "DOBS-10-009",
+      "path": "agents/relay/delivery/DOBS-10-009.yaml"
     },
-    "observations": []
+    "observations": [
+      {
+        "id": "DOBS-10-001",
+        "path": "agents/relay/delivery/DOBS-10-001.yaml"
+      },
+      {
+        "id": "DOBS-10-002",
+        "path": "agents/relay/delivery/DOBS-10-002.yaml"
+      },
+      {
+        "id": "DOBS-10-003",
+        "path": "agents/relay/delivery/DOBS-10-003.yaml"
+      },
+      {
+        "id": "DOBS-10-004",
+        "path": "agents/relay/delivery/DOBS-10-004.yaml"
+      },
+      {
+        "id": "DOBS-10-005",
+        "path": "agents/relay/delivery/DOBS-10-005.yaml"
+      },
+      {
+        "id": "DOBS-10-006",
+        "path": "agents/relay/delivery/DOBS-10-006.yaml"
+      },
+      {
+        "id": "DOBS-10-007",
+        "path": "agents/relay/delivery/DOBS-10-007.yaml"
+      },
+      {
+        "id": "DOBS-10-008",
+        "path": "agents/relay/delivery/DOBS-10-008.yaml"
+      },
+      {
+        "id": "DOBS-10-009",
+        "path": "agents/relay/delivery/DOBS-10-009.yaml"
+      }
+    ]
   },
   "relay_readiness": {
-    "baton_ready": true,
+    "baton_ready": false,
     "projection_ready": true,
-    "handover_ready": true,
-    "reasons": []
+    "handover_ready": false,
+    "reasons": [
+      "Post-merge EP/control authority is reconciled and follow-on qualification is NOT_APPLICABLE under THREE_PASS_COMPLETE, but fresh DISC/TC has not yet been deterministically validated.",
+      "Live MATERIAL_WRITE_READY has not executed for a candidate on phase10/postmerge-interoperability-fix."
+    ]
   },
   "chat_context_required": false
 }

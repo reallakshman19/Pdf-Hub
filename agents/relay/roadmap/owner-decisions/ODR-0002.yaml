@@ -1,0 +1,50 @@
+{
+  "schema_version": "relay-v2.5",
+  "id": "ODR-0002",
+  "decision": {
+    "authority": "OWNER",
+    "kind": "EXPLICIT_PROTOCOL_EXCEPTION",
+    "statement": "Proceed with WP-8G implementation in the current agent session without waiting for the fresh-candidate DISC/QUAL/TC sequence.",
+    "source": "Owner instruction received 2026-09-20T16:53:25Z: \"override, no questions\"."
+  },
+  "effects": {
+    "requirement_disposition": "EXCEPTION_RECORDED",
+    "grants_material_write_authority": false,
+    "pending_items": [
+      "This instruction does not make TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY true under engineering-pr-delivery-v2.5.",
+      "Any implementation performed under this decision must remain explicitly classified as owner-directed protocol-exception work, not qualified V2.5 work."
+    ]
+  },
+  "delivery_authorization": null,
+  "impact": {
+    "class": [
+      "PROCESS",
+      "LOCAL",
+      "QUALIFICATION_BYPASS"
+    ]
+  },
+  "affected": {
+    "objectives": [
+      "OBJ-READINESS"
+    ],
+    "phases": [
+      "PHASE-008"
+    ],
+    "work_packages": [
+      "WP-8G"
+    ],
+    "execution_packages": [
+      "EP-8G-001"
+    ],
+    "issues": [
+      "ISSUE-284"
+    ]
+  },
+  "required_reconciliation": [
+    "Preserve QSET-8G-001 and the absence of DISC-8G/QUAL-8G/TC-8G as historical truth.",
+    "Do not fabricate qualification, takeover certification, MATERIAL_WRITE_READY or runner-executed PASS.",
+    "Mark product changes made after this ODR as owner-directed protocol-exception execution.",
+    "Continue to preserve EP-8G-001 scope, acceptance invariants and issue #284 engineering constraints."
+  ],
+  "status": "APPLIED"
+}

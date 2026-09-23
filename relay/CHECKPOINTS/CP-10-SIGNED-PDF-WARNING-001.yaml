@@ -1,0 +1,106 @@
+{
+  "schema_version": "relay-v3-checkpoint",
+  "id": "CP-10-SIGNED-PDF-WARNING-001",
+  "ep": "EP-10-SIGNED-PDF-WARNING",
+  "material_result": {
+    "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+    "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
+    "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-SIG-01",
+      "result": "PASS",
+      "evidence": [
+        "PR #291 comment 5779620452: blank-workspace focused validation includes signatureRisk.test.ts 6/6 PASS.",
+        "Executable witnesses cover ordinary PDF, empty /Sig field, zero-content placeholder, populated signature, /Perms /DocMDP certification signature, and unparseable input => UNKNOWN.",
+        "PR #291 comment 5779758352: independent HIGH_RISK review CLEAR with no blocking structural-detection findings."
+      ]
+    },
+    {
+      "id": "AC-10-SIG-02",
+      "result": "PASS",
+      "evidence": [
+        "ToolbarFile.signedPdf.test.tsx passes 5/5 in the 21/21 focused run.",
+        "SIGNED and UNKNOWN preflight occur before beginSaveOperation, composeEditablePdf, saveAnnotations, FileAdapter.savePdfBytes, or commitWorkingCopy.",
+        "Warning copy explicitly states rewrite/invalidation risk and does not claim signature preservation."
+      ]
+    },
+    {
+      "id": "AC-10-SIG-03",
+      "result": "PASS",
+      "evidence": [
+        "Cancellation assertions prove zero Save side effects.",
+        "Save Anyway resumes the existing editable Save path.",
+        "Stale-handle Save As fallback proceeds after one confirmation without re-prompting."
+      ]
+    },
+    {
+      "id": "AC-10-SIG-04",
+      "result": "PASS",
+      "evidence": [
+        "Phase 10 interoperability audit PASS at exact product material 2790e71d7da722e96db80481d8c4e21bb2523dfa.",
+        "Docs/SAVE_SEMANTICS.md documents structural detection, fail-safe UNKNOWN behavior, and lack of signature-preserving writes.",
+        "nativeAnnotationWriter.ts and commitPipeline.ts remain unchanged; no /AP, signing, or named-viewer work was introduced."
+      ]
+    }
+  ],
+  "validation": {
+    "focused_tests": "PASS",
+    "spec_delivery": "NOT_APPLICABLE",
+    "full_guardrails": "NOT_APPLICABLE"
+  },
+  "quality": {
+    "policy": "HIGH_RISK",
+    "result": "CLEAR"
+  },
+  "known_limitations": [
+    "Signature inspection is structural rewrite-risk detection, not cryptographic signature validation.",
+    "PDF Hub still does not implement signature-preserving incremental writes or claim existing signatures remain valid after Save/Save As.",
+    "Repository-wide typecheck/build are not claimed PASS: known unrelated baseline parser/type failures remain outside this EP, and local validation used Node v24.11.1 while package engines require >=22 <23.",
+    "Production /AP appearance streams, named-viewer evidence, DA precedence, and QuadPoints precedence remain separate Phase 10 obligations."
+  ],
+  "discoveries": [
+    "Fail-open handling of UNKNOWN signature state was an integrity risk; it now pauses Save and requires explicit user confirmation.",
+    "Structural signature-risk detection can be bounded to active AcroForm signature fields and catalog certification references without scanning arbitrary orphan objects.",
+    "The existing editable Save/Save As path can be preflighted without modifying commitPipeline.ts or conflating Save with flattened export."
+  ],
+  "handoff": {
+    "what_changed": [
+      "Added bounded structural signature-risk inspection for current AcroForm signature fields and catalog certification references.",
+      "Normal Save/Save As now warns before rewrite when signature state is SIGNED or UNKNOWN.",
+      "Cancel leaves the document untouched; Save Anyway resumes the existing editable Save path.",
+      "Phase 10 audit and Save semantics documentation now encode the signed-PDF rewrite warning contract."
+    ],
+    "what_is_true_now": [
+      "Focused signed-PDF and annotation interoperability validation passes 21/21 on exact product material head 2790e71d7da722e96db80481d8c4e21bb2523dfa.",
+      "Phase 10 audit passes.",
+      "Independent HIGH_RISK review is CLEAR with no blocking findings.",
+      "nativeAnnotationWriter.ts, commitPipeline.ts, and frozen agents/relay/** were not modified by this product slice."
+    ],
+    "what_remains_uncertain": [
+      "No cryptographic validation or signature-preserving incremental-save guarantee exists.",
+      "Named external-viewer rendering/continuing-editability evidence remains unproved.",
+      "Whether production /AP streams are required by representative viewers remains an evidence-first next step.",
+      "Full repository typecheck/build health remains baseline-broken outside this EP."
+    ],
+    "do_not_break": [
+      "Do not silently treat UNKNOWN signature state as unsigned.",
+      "Do not claim signature validity is preserved after Save/Save As.",
+      "Keep normal Save editable-native and separate from Export Flattened.",
+      "Do not mutate frozen agents/relay/** V2.5 history.",
+      "Do not infer /AP or named-viewer compatibility from structural tests."
+    ],
+    "attempted_and_rejected": [
+      "Fail-open UNKNOWN handling was rejected after executor risk analysis and replaced with explicit confirmation.",
+      "Arbitrary indirect-object signature scanning was rejected to avoid orphan-object false positives.",
+      "Signature creation, cryptographic validation, and incremental-write preservation were deliberately kept out of scope."
+    ],
+    "resume_from": [
+      "PR #291 on phase10/signed-pdf-rewrite-warning.",
+      "Issue #288 for remaining Phase 10 obligations.",
+      "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml after checkpoint acceptance."
+    ],
+    "first_successor_action": "Move PR #291 ready, synchronize provider state, release execution custody, then admit a separate evidence-first /AP/viewer qualification EP."
+  }
+}

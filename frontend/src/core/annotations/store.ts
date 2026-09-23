@@ -21,6 +21,11 @@ import {
   annotationForTargetPage,
   normalizeAnnotationPageAnchors,
 } from './pageAnchor';
+import {
+  guardNativeInteropAnnotationPatch,
+  guardNativeInteropStylePatch,
+  hasNativeRichTextSemantics,
+} from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -319,20 +324,39 @@ export const useAnnotationStore =
       const nextAnnotations = state.annotations.map((annotation) => {
         if (annotation.id !== id) return annotation;
 
+        const guardedPatch = guardNativeInteropAnnotationPatch(
+          annotation,
+          data,
+        );
+        if (Object.keys(guardedPatch).length === 0) {
+          return annotation;
+        }
+
         const updated: PdfAnnotation = {
           ...annotation,
-          ...data,
+          ...guardedPatch,
           updatedAt: Date.now(),
         };
 
-        return typeof data.pageNumber === 'number' && data.pageId === undefined
+        return (
+          typeof guardedPatch.pageNumber === 'number'
+          && guardedPatch.pageId === undefined
+        )
           ? annotationForTargetPage(
               updated,
               useSessionStore.getState().pageGraph,
-              data.pageNumber,
+              guardedPatch.pageNumber,
             )
           : updated;
       });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(state, nextAnnotations);
     }),
@@ -344,20 +368,39 @@ export const useAnnotationStore =
         const patch = patchMap.get(annotation.id);
         if (!patch) return annotation;
 
+        const guardedPatch = guardNativeInteropAnnotationPatch(
+          annotation,
+          patch,
+        );
+        if (Object.keys(guardedPatch).length === 0) {
+          return annotation;
+        }
+
         const updated: PdfAnnotation = {
           ...annotation,
-          ...patch,
+          ...guardedPatch,
           updatedAt: Date.now(),
         };
 
-        return typeof patch.pageNumber === 'number' && patch.pageId === undefined
+        return (
+          typeof guardedPatch.pageNumber === 'number'
+          && guardedPatch.pageId === undefined
+        )
           ? annotationForTargetPage(
               updated,
               useSessionStore.getState().pageGraph,
-              patch.pageNumber,
+              guardedPatch.pageNumber,
             )
           : updated;
       });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(state, nextAnnotations);
     }),
@@ -448,22 +491,26 @@ export const useAnnotationStore =
           ? [state.activeAnnotationId]
           : [];
 
-      const copied = selectedAnnotations(state.annotations, ids).map((annotation) => ({
-        ...annotation,
-        data: { ...annotation.data },
-      }));
+      const copied = selectedAnnotations(state.annotations, ids)
+        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+        .map((annotation) => ({
+          ...annotation,
+          data: { ...annotation.data },
+        }));
 
       return { clipboard: copied };
     }),
 
   pasteClipboard: (targetPage) => {
-    const sourceClipboard = get().clipboard.map(
-      (annotation) => ({
-        ...annotation,
-        rect: { ...annotation.rect },
-        data: { ...annotation.data },
-      }),
-    );
+    const sourceClipboard = get().clipboard
+      .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+      .map(
+        (annotation) => ({
+          ...annotation,
+          rect: { ...annotation.rect },
+          data: { ...annotation.data },
+        }),
+      );
 
     runMutation((state) => {
       if (sourceClipboard.length === 0) return state;
@@ -496,15 +543,9 @@ export const useAnnotationStore =
                   && annotation.data.anchor !== null
                     ? {
                         x:
-                          (
-                            annotation.data.anchor
-                            as { x: number }
-                          ).x + 18,
+                          (annotation.data.anchor as { x: number }).x + 18,
                         y:
-                          (
-                            annotation.data.anchor
-                            as { y: number }
-                          ).y
+                          (annotation.data.anchor as { y: number }).y
                           + 18
                           + index * 4,
                       }
@@ -516,15 +557,9 @@ export const useAnnotationStore =
                   && annotation.data.knee !== null
                     ? {
                         x:
-                          (
-                            annotation.data.knee
-                            as { x: number }
-                          ).x + 18,
+                          (annotation.data.knee as { x: number }).x + 18,
                         y:
-                          (
-                            annotation.data.knee
-                            as { y: number }
-                          ).y
+                          (annotation.data.knee as { y: number }).y
                           + 18
                           + index * 4,
                       }
@@ -561,7 +596,9 @@ export const useAnnotationStore =
       if (ids.length === 0) return state;
 
       const now = Date.now();
-      const duplicated = selectedAnnotations(state.annotations, ids).map((annotation, index) => ({
+      const duplicated = selectedAnnotations(state.annotations, ids)
+        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
+        .map((annotation, index) => ({
         ...annotation,
         id: uuidv4(),
         rect: {
@@ -593,6 +630,8 @@ export const useAnnotationStore =
         createdAt: now,
         updatedAt: now,
       }));
+
+      if (duplicated.length === 0) return state;
 
       return annotationSnapshot(
         state,
@@ -805,80 +844,92 @@ export const useAnnotationStore =
       if (targetIds.length === 0) return state;
 
       const selectedSet = new Set(targetIds);
-      const nextAnnotations = state.annotations.map(
-        (annotation) =>
-          selectedSet.has(annotation.id)
-            ? {
+      const nextAnnotations = state.annotations.map((annotation) => {
+        if (!selectedSet.has(annotation.id)) return annotation;
+
+        const guardedStylePatch = guardNativeInteropStylePatch(
+          annotation,
+          stylePatch,
+        );
+        if (Object.keys(guardedStylePatch).length === 0) {
+          return annotation;
+        }
+
+        return {
                 ...annotation,
                 data: {
                   ...annotation.data,
-                  ...(stylePatch.fill
+                  ...(guardedStylePatch.fill
                     ? {
                         backgroundColor:
-                          stylePatch.fill,
+                          guardedStylePatch.fill,
                       }
                     : {}),
-                  ...(stylePatch.stroke
+                  ...(guardedStylePatch.stroke
                     ? {
                         borderColor:
-                          stylePatch.stroke,
+                          guardedStylePatch.stroke,
                       }
                     : {}),
-                  ...(stylePatch.strokeWidth
+                  ...(guardedStylePatch.strokeWidth
                     !== undefined
                     ? {
                         borderWidth:
-                          stylePatch.strokeWidth,
+                          guardedStylePatch.strokeWidth,
                       }
                     : {}),
-                  ...(stylePatch.textColor
+                  ...(guardedStylePatch.textColor
                     ? {
                         textColor:
-                          stylePatch.textColor,
+                          guardedStylePatch.textColor,
                       }
                     : {}),
-                  ...(stylePatch.opacity
+                  ...(guardedStylePatch.opacity
                     !== undefined
                     ? {
                         opacity:
-                          stylePatch.opacity,
+                          guardedStylePatch.opacity,
                       }
                     : {}),
-                  ...(stylePatch.fontSize
+                  ...(guardedStylePatch.fontSize
                     !== undefined
                     ? {
                         fontSize:
-                          stylePatch.fontSize,
+                          guardedStylePatch.fontSize,
                       }
                     : {}),
-                  ...(stylePatch.fontWeight
+                  ...(guardedStylePatch.fontWeight
                     ? {
                         fontWeight:
-                          stylePatch.fontWeight,
+                          guardedStylePatch.fontWeight,
                       }
                     : {}),
-                  ...(stylePatch.textAlign
+                  ...(guardedStylePatch.textAlign
                     ? {
                         textAlign:
-                          stylePatch.textAlign,
+                          guardedStylePatch.textAlign,
                       }
                     : {}),
                   style: {
                     ...(annotation.data.style
                     && typeof annotation.data.style
                       === 'object'
-                      ? (
-                          annotation.data.style
-                          as AnnotationStyle
-                        )
+                      ? (annotation.data.style as AnnotationStyle)
                       : {}),
-                    ...stylePatch,
+                    ...guardedStylePatch,
                   },
                 },
                 updatedAt: Date.now(),
-              }
-            : annotation,
-      );
+              };
+      });
+
+      if (
+        nextAnnotations.every(
+          (annotation, index) => annotation === state.annotations[index],
+        )
+      ) {
+        return state;
+      }
 
       return annotationSnapshot(
         state,

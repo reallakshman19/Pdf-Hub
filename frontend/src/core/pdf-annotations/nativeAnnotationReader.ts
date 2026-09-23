@@ -43,9 +43,19 @@ export async function readNativePdfAnnotations(
     const page = doc.getPage(pageIndex);
     const records = readPageAnnotationRecords(page, lib);
     const roots = records.filter((record) => !record.dict.get(lib.PDFName.of('IRT')));
-    const replies = records.filter((record) => Boolean(record.dict.get(lib.PDFName.of('IRT'))));
+    const related = records.filter((record) => Boolean(record.dict.get(lib.PDFName.of('IRT'))));
+    const states = related.filter((record) => isReviewStateRecord(record.dict, lib));
+    const replies = related.filter((record) => isReplyRecord(record.dict, lib));
+
+    skippedCount += related.length - states.length - replies.length;
 
     const rootByRef = new Map<string, PdfAnnotation>();
+    const rootRecordByRef = new Map<string, NativeRecord>();
+    const recordByRef = new Map(
+      records
+        .filter((record): record is NativeRecord & { refKey: string } => Boolean(record.refKey))
+        .map((record) => [record.refKey, record]),
+    );
 
     for (const record of roots) {
       const parsed = parseRootAnnotation(
@@ -64,20 +74,55 @@ export async function readNativePdfAnnotations(
       annotations.push(parsed);
       if (record.refKey) {
         rootByRef.set(record.refKey, parsed);
+        rootRecordByRef.set(record.refKey, record);
       }
     }
 
     for (const record of replies) {
-      const parentRef = record.dict.get(lib.PDFName.of('IRT'));
-      const parentKey = pdfObjectKey(parentRef, lib);
-      const parent = parentKey ? rootByRef.get(parentKey) : undefined;
+      const resolved = resolveRootForRelatedRecord(
+        record,
+        rootByRef,
+        rootRecordByRef,
+        recordByRef,
+        lib,
+        isReplyRecord,
+      );
 
-      if (!parent) {
+      if (!resolved) {
         skippedCount += 1;
         continue;
       }
 
-      const reply = parseReply(record.dict, parent.id, record.index, lib);
+      const { parent, parentRecord } = resolved;
+      promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
+
+      const immediateParentKey = pdfObjectKey(
+        record.dict.get(lib.PDFName.of('IRT')),
+        lib,
+      );
+      const immediateParentRecord = immediateParentKey
+        ? recordByRef.get(immediateParentKey)
+        : undefined;
+      const parentReplyId =
+        immediateParentKey
+        && !rootByRef.has(immediateParentKey)
+        && immediateParentRecord
+        && isReplyRecord(immediateParentRecord.dict, lib)
+          ? replyLogicalId(
+              immediateParentRecord.dict,
+              parent.id,
+              immediateParentRecord.index,
+              lib,
+            )
+          : undefined;
+
+      const reply = parseReply(
+        record.dict,
+        parent.id,
+        record.index,
+        lib,
+        parentReplyId,
+      );
       if (!reply) {
         skippedCount += 1;
         continue;
@@ -93,6 +138,44 @@ export async function readNativePdfAnnotations(
         },
       };
       parent.updatedAt = Math.max(parent.updatedAt, reply.createdAt);
+    }
+
+    const orderedStates = [...states].sort((left, right) => {
+      const timestampDelta =
+        reviewStateTimestamp(left.dict, lib) - reviewStateTimestamp(right.dict, lib);
+      return timestampDelta || left.index - right.index;
+    });
+
+    for (const record of orderedStates) {
+      const resolved = resolveRootForRelatedRecord(
+        record,
+        rootByRef,
+        rootRecordByRef,
+        recordByRef,
+        lib,
+        isReviewStateRecord,
+      );
+
+      if (!resolved) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const { parent, parentRecord } = resolved;
+      promoteStandardTextRootToComment(parent, parentRecord.dict, lib);
+
+      const review = ensureReviewMetadata(parent, lib, undefined);
+      const updatedAt = reviewStateTimestamp(record.dict, lib) || review.updatedAt;
+      parent.data = {
+        ...parent.data,
+        review: {
+          ...review,
+          status: readReviewStatus(record.dict, lib, review.status),
+          statusAuthor: readText(record.dict, 'T', lib) ?? review.statusAuthor,
+          updatedAt: Math.max(review.updatedAt, updatedAt),
+        },
+      };
+      parent.updatedAt = Math.max(parent.updatedAt, updatedAt);
     }
   }
 
@@ -136,10 +219,20 @@ function parseRootAnnotation(
 ): PdfAnnotation | null {
   const subtype = readName(dict, 'Subtype', lib);
   const customType = readText(dict, 'PDFHubType', lib);
-  const type =
+  const standardType = annotationTypeFromSubtype(dict, subtype, lib);
+  const validCustomType =
     customType && isAnnotationType(customType)
       ? customType
-      : annotationTypeFromSubtype(dict, subtype, lib);
+      : null;
+
+  // Portable standard fields are authoritative whenever the subtype has a
+  // standards-native disambiguator. Text comment-vs-sticky remains an
+  // application distinction when no reply/state topology is available, so the
+  // private type is retained only for that specific ambiguity.
+  const type =
+    subtype === 'Text' && validCustomType
+      ? validCustomType
+      : standardType ?? validCustomType;
 
   if (!type) return null;
 
@@ -148,14 +241,60 @@ function parseRootAnnotation(
 
   const rect = pdfRectToAppRect(rectValues, page.getHeight());
   const customData = readCustomData(dict, lib);
+  const native = nativeData(dict, type, rect, page.getHeight(), lib);
+
+  // Standard PDF fields are the portable source of truth after an external
+  // edit/save. PDFHubData is a compatibility cache/fallback only, so native
+  // values must be layered on top when both representations are present.
   const data: PdfAnnotation['data'] = {
-    ...nativeData(dict, type, rect, page.getHeight(), lib),
     ...customData,
+    ...native,
   };
 
   const text = readText(dict, 'Contents', lib);
-  if (text && typeof data.text !== 'string') {
+  const hasNativeRichText = dict.get(lib.PDFName.of('RC')) !== undefined;
+  if (text !== null) {
     data.text = text;
+  } else if (hasNativeRichText) {
+    // Do not fall back to stale PDFHubData text when the portable annotation
+    // carries rich native content but no flat Contents representation.
+    data.text = '';
+  }
+
+  if (hasNativeRichText) {
+    data.nativeInterop = {
+      fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+      reason: 'RICH_TEXT',
+      richText: true,
+      defaultStyle: dict.get(lib.PDFName.of('DS')) !== undefined,
+      protectedSnapshot: {
+        type,
+        text: typeof data.text === 'string' ? data.text : '',
+        ...(typeof data.content === 'string' ? { content: data.content } : {}),
+        ...(typeof data.fontSize === 'number' ? { fontSize: data.fontSize } : {}),
+        ...(
+          data.fontWeight === 'normal' || data.fontWeight === 'bold'
+            ? { fontWeight: data.fontWeight }
+            : {}
+        ),
+        ...(
+          data.fontStyle === 'normal' || data.fontStyle === 'italic'
+            ? { fontStyle: data.fontStyle }
+            : {}
+        ),
+        ...(typeof data.fontFamily === 'string' ? { fontFamily: data.fontFamily } : {}),
+        ...(typeof data.textColor === 'string' ? { textColor: data.textColor } : {}),
+        ...(
+          data.textAlign === 'left'
+          || data.textAlign === 'center'
+          || data.textAlign === 'right'
+            ? { textAlign: data.textAlign }
+            : {}
+        ),
+        ...(typeof data.lineHeight === 'number' ? { lineHeight: data.lineHeight } : {}),
+        ...(typeof data.autoSize === 'boolean' ? { autoSize: data.autoSize } : {}),
+      },
+    };
   }
 
   const author = readText(dict, 'T', lib);
@@ -187,7 +326,7 @@ function parseRootAnnotation(
     Boolean(data.review)
     || type === 'comment'
     || type === 'sticky-note'
-    || Boolean(readName(dict, 'StateModel', lib));
+    || Boolean(readTextOrName(dict, 'StateModel', lib));
 
   if (shouldHaveReview) {
     annotation.data = {
@@ -204,6 +343,7 @@ function parseReply(
   parentId: string,
   index: number,
   lib: PdfLibModule,
+  parentReplyId?: string,
 ): ReviewReply | null {
   const content = readText(dict, 'Contents', lib)?.trim();
   if (!content) return null;
@@ -213,15 +353,115 @@ function parseReply(
     ?? readPdfDate(dict, 'M', lib)
     ?? Date.now();
 
+  const hasNativeRichText = dict.get(lib.PDFName.of('RC')) !== undefined;
+
   return {
-    id:
-      readText(dict, 'PDFHubReplyId', lib)
-      ?? readText(dict, 'NM', lib)
-      ?? `${parentId}:native-reply:${index}`,
+    id: replyLogicalId(dict, parentId, index, lib),
     author: readText(dict, 'T', lib) ?? 'Unknown',
     content,
     createdAt,
+    ...(parentReplyId ? { parentReplyId } : {}),
+    ...(hasNativeRichText
+      ? {
+          nativeInterop: {
+            fidelityClass: 'NATIVE_PRESERVED_READ_ONLY' as const,
+            reason: 'RICH_TEXT' as const,
+            richText: true as const,
+            protectedContent: content,
+          },
+        }
+      : {}),
   };
+}
+
+function replyLogicalId(
+  dict: PDFDict,
+  parentId: string,
+  index: number,
+  lib: PdfLibModule,
+): string {
+  const privateId = readText(dict, 'PDFHubReplyId', lib);
+  const annotationName = readText(dict, 'NM', lib);
+
+  return (
+    privateId
+    ?? replyIdFromAnnotationName(annotationName, parentId)
+    ?? annotationName
+    ?? `${parentId}:native-reply:${index}`
+  );
+}
+
+function replyIdFromAnnotationName(
+  annotationName: string | null,
+  parentId: string,
+): string | null {
+  if (!annotationName) return null;
+  const prefix = `${parentId}:reply:`;
+  return annotationName.startsWith(prefix) && annotationName.length > prefix.length
+    ? annotationName.slice(prefix.length)
+    : null;
+}
+
+function isReviewStateRecord(dict: PDFDict, lib: PdfLibModule): boolean {
+  return (
+    readTextOrName(dict, 'StateModel', lib) === 'Review'
+    && Boolean(readTextOrName(dict, 'State', lib))
+  );
+}
+
+function isReplyRecord(dict: PDFDict, lib: PdfLibModule): boolean {
+  if (isReviewStateRecord(dict, lib)) return false;
+  const replyType = readName(dict, 'RT', lib);
+  return replyType === null || replyType === 'R';
+}
+
+function resolveRootForRelatedRecord(
+  record: NativeRecord,
+  rootByRef: Map<string, PdfAnnotation>,
+  rootRecordByRef: Map<string, NativeRecord>,
+  recordByRef: Map<string, NativeRecord>,
+  lib: PdfLibModule,
+  mayTraverse: (dict: PDFDict, lib: PdfLibModule) => boolean,
+): { parent: PdfAnnotation; parentRecord: NativeRecord } | null {
+  let current: NativeRecord | undefined = record;
+  const visited = new Set<string>();
+
+  while (current) {
+    const parentKey = pdfObjectKey(current.dict.get(lib.PDFName.of('IRT')), lib);
+    if (!parentKey) return null;
+
+    const parent = rootByRef.get(parentKey);
+    const parentRecord = rootRecordByRef.get(parentKey);
+    if (parent && parentRecord) {
+      return { parent, parentRecord };
+    }
+
+    if (visited.has(parentKey)) return null;
+    visited.add(parentKey);
+    const next = recordByRef.get(parentKey);
+    if (!next || !mayTraverse(next.dict, lib)) return null;
+    current = next;
+  }
+
+  return null;
+}
+
+function promoteStandardTextRootToComment(
+  annotation: PdfAnnotation,
+  rootDict: PDFDict,
+  lib: PdfLibModule,
+): void {
+  if (annotation.type !== 'sticky-note') return;
+  if (readText(rootDict, 'PDFHubType', lib)) return;
+  annotation.type = 'comment';
+}
+
+function reviewStateTimestamp(dict: PDFDict, lib: PdfLibModule): number {
+  return (
+    readPdfDate(dict, 'M', lib)
+    ?? readPdfDate(dict, 'CreationDate', lib)
+    ?? 0
+  );
 }
 
 function ensureReviewMetadata(
@@ -233,9 +473,9 @@ function ensureReviewMetadata(
     ? annotation.data.review
     : undefined;
 
-  const status =
-    current?.status
-    ?? (dict ? readReviewStatus(dict, lib) : 'open');
+  const status = dict
+    ? readReviewStatus(dict, lib, current?.status ?? 'open')
+    : current?.status ?? 'open';
 
   return {
     author:
@@ -244,6 +484,7 @@ function ensureReviewMetadata(
     createdAt: current?.createdAt ?? annotation.createdAt,
     updatedAt: current?.updatedAt ?? annotation.updatedAt,
     status,
+    statusAuthor: current?.statusAuthor,
     title: current?.title,
     category: current?.category,
     replies: current?.replies ?? [],
@@ -283,8 +524,73 @@ function nativeData(
   if (fill) data.backgroundColor = fill;
   if (typeof opacity === 'number') data.opacity = opacity;
 
+  const flags = readNumber(dict, 'F', lib);
+  if (typeof flags === 'number') {
+    data.locked = (Math.trunc(flags) & 128) !== 0;
+  }
+
+  const border = readAnnotationBorder(dict, lib);
+  if (border) {
+    data.borderWidth = border.width;
+    data.borderStyle = border.style;
+  }
+
+  if (type === 'textbox' || type === 'callout') {
+    const alignment = readNumber(dict, 'Q', lib);
+    if (alignment === 1) data.textAlign = 'center';
+    else if (alignment === 2) data.textAlign = 'right';
+    else if (alignment === 0) data.textAlign = 'left';
+  }
+
+  if (type === 'sticky-note' || type === 'comment') {
+    const open = readBoolean(dict, 'Open', lib);
+    if (typeof open === 'boolean') {
+      data.isCollapsed = !open;
+    }
+  }
+
+  if (type === 'line' || type === 'arrow') {
+    const endings = readLineEndings(dict, lib);
+    if (endings) {
+      data.lineStartCap = lineCapFromPdfEnding(endings[0]);
+      data.lineEndCap = lineCapFromPdfEnding(endings[1]);
+    }
+  }
+
+  if (type === 'stamp') {
+    const name = readName(dict, 'Name', lib);
+    if (name) {
+      data.stampStyle = stampStyleFromPdfName(name);
+    }
+  }
+
   if (type === 'highlight' && stroke && !fill) {
     data.backgroundColor = stroke;
+  }
+
+  if (
+    type === 'highlight'
+    || type === 'underline'
+    || type === 'strikeout'
+    || type === 'squiggly'
+  ) {
+    const quads = readNormalizedTextMarkupQuads(
+      dict,
+      rect,
+      pageHeight,
+      lib,
+    );
+    if (quads) data.textMarkupQuads = quads;
+  }
+
+  if (type === 'textbox' || type === 'callout') {
+    const defaultAppearance = readDefaultAppearance(dict, lib);
+    if (typeof defaultAppearance.fontSize === 'number') {
+      data.fontSize = defaultAppearance.fontSize;
+    }
+    if (defaultAppearance.textColor) {
+      data.textColor = defaultAppearance.textColor;
+    }
   }
 
   if (type === 'line' || type === 'arrow') {
@@ -354,6 +660,102 @@ function nativeData(
   return data;
 }
 
+function readNormalizedTextMarkupQuads(
+  dict: PDFDict,
+  rect: PdfAnnotation['rect'],
+  pageHeight: number,
+  lib: PdfLibModule,
+): number[] | null {
+  const values = readNumberArray(dict, 'QuadPoints', lib);
+  if (
+    !values
+    || values.length < 8
+    || values.length % 8 !== 0
+    || rect.width <= 0
+    || rect.height <= 0
+  ) {
+    return null;
+  }
+
+  const normalized: number[] = [];
+  for (let index = 0; index + 1 < values.length; index += 2) {
+    const pdfX = values[index];
+    const pdfY = values[index + 1];
+    const appX = pdfX;
+    const appY = pageHeight - pdfY;
+    const nx = (appX - rect.x) / rect.width;
+    const ny = (appY - rect.y) / rect.height;
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
+    normalized.push(nx, ny);
+  }
+
+  return normalized;
+}
+
+function readDefaultAppearance(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): { fontSize?: number; textColor?: string } {
+  const source = readText(dict, 'DA', lib);
+  if (!source) return {};
+
+  const tokens = source.trim().split(/\s+/).filter(Boolean);
+  let fontSize: number | undefined;
+  let textColor: string | undefined;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const operator = tokens[index];
+
+    if (operator === 'Tf' && index >= 1) {
+      const size = Number(tokens[index - 1]);
+      if (Number.isFinite(size) && size > 0) {
+        fontSize = size;
+      }
+      continue;
+    }
+
+    if (operator === 'g' && index >= 1) {
+      const gray = Number(tokens[index - 1]);
+      if (Number.isFinite(gray)) {
+        textColor = rgbToHex(gray, gray, gray);
+      }
+      continue;
+    }
+
+    if (operator === 'rg' && index >= 3) {
+      const r = Number(tokens[index - 3]);
+      const g = Number(tokens[index - 2]);
+      const b = Number(tokens[index - 1]);
+      if ([r, g, b].every((value) => Number.isFinite(value))) {
+        textColor = rgbToHex(r, g, b);
+      }
+      continue;
+    }
+
+    if (operator === 'k' && index >= 4) {
+      const c = Number(tokens[index - 4]);
+      const m = Number(tokens[index - 3]);
+      const y = Number(tokens[index - 2]);
+      const k = Number(tokens[index - 1]);
+      if ([c, m, y, k].every((value) => Number.isFinite(value))) {
+        textColor = rgbToHex(
+          1 - Math.min(1, c + k),
+          1 - Math.min(1, m + k),
+          1 - Math.min(1, y + k),
+        );
+      }
+    }
+  }
+
+  return { fontSize, textColor };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const byte = (value: number) =>
+    Math.max(0, Math.min(255, Math.round(value * 255)));
+  return `#${byte(r).toString(16).padStart(2, '0')}${byte(g).toString(16).padStart(2, '0')}${byte(b).toString(16).padStart(2, '0')}`;
+}
+
 function annotationTypeFromSubtype(
   dict: PDFDict,
   subtype: string | null,
@@ -361,7 +763,9 @@ function annotationTypeFromSubtype(
 ): PdfAnnotation['type'] | null {
   switch (subtype) {
     case 'Text':
-      return 'sticky-note';
+      return readTextOrName(dict, 'StateModel', lib) === 'Review'
+        ? 'comment'
+        : 'sticky-note';
     case 'Highlight':
       return 'highlight';
     case 'Underline':
@@ -370,12 +774,17 @@ function annotationTypeFromSubtype(
       return 'strikeout';
     case 'Squiggly':
       return 'squiggly';
-    case 'FreeText':
-      return readName(dict, 'IT', lib) === 'FreeTextCallout'
+    case 'FreeText': {
+      const callout = readNumberArray(dict, 'CL', lib);
+      return (
+        readName(dict, 'IT', lib) === 'FreeTextCallout'
+        || Boolean(callout && callout.length >= 4)
+      )
         ? 'callout'
         : 'textbox';
+    }
     case 'Square':
-      return 'shape-rect';
+      return squareAnnotationType(dict, lib);
     case 'Circle':
       return 'shape-ellipse';
     case 'Polygon':
@@ -392,29 +801,154 @@ function annotationTypeFromSubtype(
 }
 
 function hasArrowEnding(dict: PDFDict, lib: PdfLibModule): boolean {
-  const endings = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray);
-  if (!endings) return false;
+  const endings = readLineEndings(dict, lib);
+  return Boolean(endings?.some((ending) => isPdfArrowEnding(ending)));
+}
 
-  for (let index = 0; index < endings.size(); index += 1) {
-    const name = endings.lookupMaybe(index, lib.PDFName)?.decodeText();
-    if (name && name !== 'None') return true;
+function readLineEndings(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): [string, string] | null {
+  const endings = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray);
+  if (!endings || endings.size() < 2) return null;
+
+  const start = endings.lookupMaybe(0, lib.PDFName)?.decodeText();
+  const end = endings.lookupMaybe(1, lib.PDFName)?.decodeText();
+  return start && end ? [start, end] : null;
+}
+
+function isPdfArrowEnding(value: string): boolean {
+  return (
+    value === 'OpenArrow'
+    || value === 'ClosedArrow'
+    || value === 'ROpenArrow'
+    || value === 'RClosedArrow'
+  );
+}
+
+function lineCapFromPdfEnding(
+  value: string,
+): 'none' | 'arrow' | 'circle' | 'square' | undefined {
+  if (value === 'None') return 'none';
+  if (isPdfArrowEnding(value)) return 'arrow';
+  if (value === 'Circle') return 'circle';
+  if (value === 'Square') return 'square';
+  return undefined;
+}
+
+function stampStyleFromPdfName(
+  value: string,
+): 'approved' | 'rejected' | 'draft' | 'confidential' | 'custom' {
+  if (value === 'Approved') return 'approved';
+  if (value === 'Rejected') return 'rejected';
+  if (value === 'Draft') return 'draft';
+  if (value === 'Confidential') return 'confidential';
+  return 'custom';
+}
+
+function squareAnnotationType(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): 'shape-rect' | 'shape-cloud' | 'redaction' {
+  const effect = dict.lookupMaybe(lib.PDFName.of('BE'), lib.PDFDict);
+  const effectStyle = effect?.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText();
+  if (effectStyle === 'C') return 'shape-cloud';
+
+  const stroke = readColor(dict, 'C', lib);
+  const fill = readColor(dict, 'IC', lib);
+  const opacity = readNumber(dict, 'CA', lib);
+  if (
+    stroke === '#000000'
+    && fill === '#000000'
+    && (opacity === null || opacity >= 0.999)
+  ) {
+    return 'redaction';
   }
-  return false;
+
+  return 'shape-rect';
+}
+
+function readAnnotationBorder(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): {
+  width: number;
+  style: 'solid' | 'dashed' | 'dotted' | 'none' | undefined;
+} | null {
+  const borderStyle = dict.lookupMaybe(lib.PDFName.of('BS'), lib.PDFDict);
+  if (borderStyle) {
+    const width =
+      borderStyle.lookupMaybe(lib.PDFName.of('W'), lib.PDFNumber)?.asNumber()
+      ?? 1;
+    if (!Number.isFinite(width)) return null;
+    if (width <= 0) return { width: 0, style: 'none' };
+
+    const styleName =
+      borderStyle.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText()
+      ?? 'S';
+    if (styleName === 'S') return { width, style: 'solid' };
+    if (styleName === 'D') {
+      const dash = borderStyle.lookupMaybe(lib.PDFName.of('D'), lib.PDFArray);
+      const dashValues = dash ? readPdfArrayNumbers(dash, lib) : [];
+      const dotted = dashValues.length > 0
+        && dashValues.every((value) => value <= 1.5);
+      return { width, style: dotted ? 'dotted' : 'dashed' };
+    }
+
+    // Bevelled/inset/underline styles are standards-native but not currently
+    // editable in PDF Hub. Width remains usable; undefined explicitly clears
+    // any stale private borderStyle while the source BS dictionary is preserved.
+    return { width, style: undefined };
+  }
+
+  const border = dict.lookupMaybe(lib.PDFName.of('Border'), lib.PDFArray);
+  if (!border || border.size() < 3) return null;
+
+  const width = border.lookupMaybe(2, lib.PDFNumber)?.asNumber();
+  if (typeof width !== 'number' || !Number.isFinite(width)) return null;
+  if (width <= 0) return { width: 0, style: 'none' };
+
+  const dash = border.lookupMaybe(3, lib.PDFArray);
+  if (!dash || dash.size() === 0) {
+    return { width, style: 'solid' };
+  }
+
+  const dashValues = readPdfArrayNumbers(dash, lib);
+  const dotted = dashValues.length > 0
+    && dashValues.every((value) => value <= 1.5);
+  return { width, style: dotted ? 'dotted' : 'dashed' };
+}
+
+function readBoolean(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): boolean | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (!(value instanceof lib.PDFBool)) return null;
+  return value.toString() === 'true';
 }
 
 function readReviewStatus(
   dict: PDFDict,
   lib: PdfLibModule,
+  fallback: ReviewStatus = 'open',
 ): ReviewStatus {
+  // /State is the portable native review value and may have been changed by an
+  // external PDF writer while PDFHubReviewStatus remained untouched.
+  const state = readTextOrName(dict, 'State', lib);
+  if (state === 'Completed' || state === 'Accepted') return 'resolved';
+  if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
+  if (state === 'None') return 'open';
+
+  // Private metadata remains useful for older PDF Hub files or producers that
+  // omit a native review state, but it must never override a recognized /State.
   const custom = readText(dict, 'PDFHubReviewStatus', lib);
   if (custom === 'resolved' || custom === 'rejected' || custom === 'open') {
     return custom;
   }
 
-  const state = readName(dict, 'State', lib);
-  if (state === 'Completed' || state === 'Accepted') return 'resolved';
-  if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
-  return 'open';
+  return fallback;
 }
 
 function isReviewMetadata(value: unknown): value is ReviewMetadata {
@@ -463,6 +997,22 @@ function readName(
   lib: PdfLibModule,
 ): string | null {
   return dict.lookupMaybe(lib.PDFName.of(key), lib.PDFName)?.decodeText() ?? null;
+}
+
+function readTextOrName(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): string | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (
+    value instanceof lib.PDFString
+    || value instanceof lib.PDFHexString
+    || value instanceof lib.PDFName
+  ) {
+    return value.decodeText();
+  }
+  return null;
 }
 
 function readNumber(

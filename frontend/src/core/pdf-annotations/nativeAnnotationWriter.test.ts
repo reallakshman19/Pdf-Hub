@@ -92,7 +92,7 @@ describe('writeNativePdfAnnotations', () => {
     const doc = await PDFDocument.load(result.bytes);
     const annots = readAnnotations(doc);
 
-    expect(annots).toHaveLength(3);
+    expect(annots).toHaveLength(4);
 
     const byNm = new Map(
       annots.map((dict) => [readString(dict, 'NM'), dict]),
@@ -101,6 +101,15 @@ describe('writeNativePdfAnnotations', () => {
     expect(readName(byNm.get('highlight-1')!, 'Subtype')).toBe('Highlight');
     expect(readName(byNm.get('comment-1')!, 'Subtype')).toBe('Text');
     expect(readString(byNm.get('comment-1')!, 'Contents')).toBe('تحقق من هذه القيمة');
+    expect(readName(byNm.get('comment-1')!, 'StateModel')).toBeNull();
+    expect(readName(byNm.get('comment-1')!, 'State')).toBeNull();
+
+    const state = byNm.get('comment-1:state:Review');
+    expect(state).toBeTruthy();
+    expect(readName(state!, 'Subtype')).toBe('Text');
+    expect(readString(state!, 'StateModel')).toBe('Review');
+    expect(readString(state!, 'State')).toBe('None');
+    expect(state!.get(PDFName.of('IRT'))).toBeTruthy();
 
     const reply = byNm.get('comment-1:reply:reply-1');
     expect(reply).toBeTruthy();

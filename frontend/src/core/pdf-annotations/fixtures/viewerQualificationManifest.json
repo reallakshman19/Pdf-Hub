@@ -1,0 +1,191 @@
+{
+  "schema_version": "phase10-viewer-qualification-v2",
+  "phase": "PHASE-010",
+  "work_package": "WP-010",
+  "production_writer": {
+    "module": "src/core/pdf-annotations/nativeAnnotationWriter.ts",
+    "export": "writeNativePdfAnnotations"
+  },
+  "supported_annotation_types": [
+    "textbox",
+    "callout",
+    "sticky-note",
+    "highlight",
+    "underline",
+    "strikeout",
+    "squiggly",
+    "shape-rect",
+    "shape-ellipse",
+    "shape-polygon",
+    "shape-cloud",
+    "line",
+    "arrow",
+    "ink",
+    "stamp",
+    "comment",
+    "redaction"
+  ],
+  "appearance_families": {
+    "free-text": {
+      "types": [
+        "textbox",
+        "callout"
+      ],
+      "render_probe": "Text is visible with intended box/callout geometry.",
+      "edit_probe": "Viewer exposes a native FreeText annotation and permits a normal text/style edit."
+    },
+    "notes-review": {
+      "types": [
+        "sticky-note",
+        "comment"
+      ],
+      "render_probe": "Note/comment marker and contents are visible.",
+      "edit_probe": "Viewer exposes a native note/comment object and permits content/review interaction."
+    },
+    "text-markup": {
+      "types": [
+        "highlight",
+        "underline",
+        "strikeout",
+        "squiggly"
+      ],
+      "render_probe": "Markup follows the intended quadrilateral region.",
+      "edit_probe": "Viewer exposes native text-markup selection and permits a normal style/delete edit."
+    },
+    "shapes": {
+      "types": [
+        "shape-rect",
+        "shape-ellipse",
+        "shape-polygon",
+        "shape-cloud"
+      ],
+      "render_probe": "Shape geometry, stroke/fill, and cloudy border where applicable are visible.",
+      "edit_probe": "Viewer exposes a native shape annotation and permits a normal geometry/style edit."
+    },
+    "linework": {
+      "types": [
+        "line",
+        "arrow"
+      ],
+      "render_probe": "Line geometry and endpoint style are visible.",
+      "edit_probe": "Viewer exposes a native line annotation and permits a normal geometry/style edit."
+    },
+    "ink": {
+      "types": [
+        "ink"
+      ],
+      "render_probe": "Ink strokes are visible in the intended geometry.",
+      "edit_probe": "Viewer exposes a native ink annotation and permits selection/delete or supported style editing."
+    },
+    "stamp-mask": {
+      "types": [
+        "stamp",
+        "redaction"
+      ],
+      "render_probe": "Stamp or visual redaction-mask appearance is visible.",
+      "edit_probe": "Viewer exposes the managed annotation as a native selectable annotation object."
+    }
+  },
+  "baseline": {
+    "managed_annotation_name_field": "NM",
+    "require_expected_subtype": true,
+    "require_absent_ap": true,
+    "claim": "Current qualification baseline intentionally contains no production /AP streams."
+  },
+  "evidence_contract": {
+    "viewer_required_fields": [
+      "id",
+      "name",
+      "version",
+      "platform"
+    ],
+    "type_observation_required_fields": [
+      "viewer_id",
+      "annotation_type",
+      "render",
+      "native_interaction",
+      "edit_save_reopen",
+      "evidence_ref"
+    ],
+    "journey_observation_required_fields": [
+      "viewer_id",
+      "journey_id",
+      "render",
+      "native_interaction",
+      "edit_save_reopen",
+      "external_mutation",
+      "return_semantics",
+      "evidence_ref"
+    ],
+    "render_result_values": [
+      "PASS",
+      "FAIL",
+      "NOT_RUN"
+    ],
+    "capability_result_values": [
+      "PASS",
+      "FAIL",
+      "UNSUPPORTED",
+      "NOT_RUN"
+    ],
+    "qualification_rule": "Every declared viewer/type and viewer/interoperability-journey record must exist with render=PASS and durable evidence. Native interaction/edit/save/reopen may be PASS or explicitly UNSUPPORTED. FAIL or NOT_RUN never qualifies. Journey edit/save/reopen=PASS additionally requires external_mutation=PASS and return_semantics=PASS; unsupported editing requires external_mutation=UNSUPPORTED and return_semantics=UNSUPPORTED."
+  },
+  "interoperability_journeys": {
+    "review-round-trip": {
+      "file": "phase10-review-round-trip.pdf",
+      "fixture": "highlight + comment + reply + resolved review state",
+      "required_initial_graph": [
+        "highlight root",
+        "comment root",
+        "reply Text annotation linked to comment root via IRT and RT=R",
+        "review-state Text annotation linked to comment root via IRT with StateModel=Review"
+      ],
+      "render_probe": "Highlight and comment/reply/review state are visibly represented without hidden flattening.",
+      "native_interaction_probe": "Where the viewer exposes annotation interaction, highlight and comment remain native/selectable objects and reply/review state is discoverable as supported by that viewer.",
+      "edit_save_reopen_probe": "Where annotation editing is supported, edit the review work, save normally, close/reopen, and verify the edited work remains native.",
+      "return_probe": "After an external save where supported, reopen in PDF Hub and verify root/reply identity, review state, geometry/content, nested reply parentReplyId/IRT topology, and no duplication before another PDF Hub save.",
+      "required_external_mutation": "For edit-capable viewers, perform at least one detectable standards-native change: comment Contents, review State, reply Contents/author/thread membership, or highlight geometry/style represented by the production reader. Open/save without semantic mutation does not qualify.",
+      "return_topology_rule": "If a viewer adds or preserves reply-to-reply threading, the returned-file probe must retain each logical reply parent across two subsequent PDF Hub saves. Reply-attached state objects must remain attached to the rewritten reply and must not become the root review status.",
+      "return_preservation_rule": "Returned managed roots and native replies must retain externally supplied AP presence plus Subj/RC where present across two subsequent no-op PDF Hub saves. Opaque RT=R descendants remain part of the raw reply graph even when they are not representable as application replies."
+    },
+    "rich-text-preservation": {
+      "file": "phase10-rich-text-preservation.pdf",
+      "fixture": "FreeText root with flat Contents plus native RC rich text and DS default style",
+      "required_initial_graph": [
+        "FreeText root",
+        "flat Contents counterpart",
+        "native RC rich-text string",
+        "native DS default style",
+        "NATIVE_PRESERVED_READ_ONLY import classification"
+      ],
+      "render_probe": "The FreeText annotation renders as usable native text without flattening; viewer rendering must not require destroying RC/DS semantics.",
+      "native_interaction_probe": "Where the viewer exposes annotation interaction, the FreeText remains a native/selectable object and rich-text/default-style semantics remain inspectable or at minimum preserved in the saved PDF.",
+      "edit_save_reopen_probe": "Where rich FreeText editing is supported, edit the native rich text, keep flat Contents semantically consistent, save normally, close/reopen, and verify the annotation remains native. A viewer edit that strips RC or silently flattens the annotation is FAIL, not UNSUPPORTED.",
+      "return_probe": "After an external save where editing is supported, reopen in PDF Hub and verify RC/DS remain present, the annotation imports as NATIVE_PRESERVED_READ_ONLY, flat Contents matches the externally saved work, and two subsequent PDF Hub no-op saves preserve the returned rich semantics.",
+      "required_external_mutation": "For edit-capable viewers, perform a detectable standards-native rich-text change reflected in RC and the flat Contents counterpart; formatting changes may also alter DS. Open/save without semantic mutation does not qualify.",
+      "return_preservation_rule": "The returned-file probe requires non-empty external delta, preserves returned Contents/RC/DS and AP presence across two PDF Hub no-op saves, and rejects any fidelity-class downgrade from NATIVE_PRESERVED_READ_ONLY."
+    }
+  },
+  "ap_activation_contract": {
+    "policy": "EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE",
+    "baseline": "NO_PRODUCTION_AP",
+    "authorized_trigger": "render=FAIL",
+    "unauthorized_states": [
+      "render=PASS",
+      "render=NOT_RUN",
+      "native_interaction=UNSUPPORTED",
+      "edit_save_reopen=UNSUPPORTED"
+    ],
+    "required_evidence": [
+      "viewer.name",
+      "viewer.version",
+      "viewer.platform",
+      "annotation_type",
+      "appearance_family",
+      "evidence_ref",
+      "exact_product_material_sha"
+    ],
+    "scope_rule": "An AP implementation may target only the failing annotation type/family evidenced on the exact product material. Passing or untested families remain AP-disabled.",
+    "requalification_rule": "After any AP implementation, rerun every affected viewer/type/family observation and do not carry forward prior PASS evidence."
+  }
+}

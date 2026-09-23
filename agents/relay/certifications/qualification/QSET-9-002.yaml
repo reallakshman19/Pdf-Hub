@@ -1,0 +1,192 @@
+{
+  "schema_version": "relay-v2.5-question-set",
+  "id": "QSET-9-002",
+  "route": {
+    "route_key": "SERIAL:EP-9-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-9-001",
+    "ep_id": "EP-9-001",
+    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0003",
+    "work_package": "WP-009",
+    "ep_contract_digest": "sha256:a1913e59ed866e544346f927ce24048f460d6e0c8ba25bb3c88757e6d29d56d7"
+  },
+  "boundary": {
+    "trigger": "PHASE_CHANGED",
+    "from_phase": "PHASE-008",
+    "to_phase": "PHASE-009",
+    "changed_dimensions": [
+      "PRODUCTION_PATH",
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "Phase 9 remains a phase transition from performance certification to document-level mutation fidelity and catalog-preservation behavior.",
+      "The current material basis now contains a partial fidelity corpus, so the incoming candidate must distinguish existing corpus substrate from the three still-unsatisfied specialist fixture obligations before any further write.",
+      "Owner pinned engineering-pr-delivery-v2.5 to Common commit 65518fd5340599b2a0fb88db5041f6c96389ccb8; prior takeover evidence was issued on a different protocol/EP basis and cannot certify this refreshed route."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "focus": "PRODUCTION_PATH",
+      "anchors": [
+        "WP-009",
+        "INPUT-9-02"
+      ],
+      "prompt": "Trace the current Phase 9 production and verification path on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Identify the canonical command/mutation entrypoint, the mutation-session state owner, the authority for PageId/PageGraph plus immutable revision publication, and the independent save/reopen consumer. Also identify which STEP-9-01 corpus files are test/support surfaces rather than production mutation authority.",
+      "required_output_keys": [
+        "production_entrypoint",
+        "state_owner",
+        "authority_source",
+        "downstream_consumer"
+      ],
+      "evidence_required": true,
+      "deterministic_expected": {
+        "production_entrypoint": "PdfCommand dispatch/document transaction enters the canonical PdfMutationEngine; Phase 9 corpus scripts/tests are verification support and do not replace production mutation authority.",
+        "state_owner": "PdfLibMutationEngine owns the loaded pdf-lib PDFDocument during a mutation session; DocumentSession/history own application revision state around commit.",
+        "authority_source": "Stable PageId/PageGraph owns page identity/order and the document transaction publishes immutable revision/history state.",
+        "downstream_consumer": "Saved output bytes are reopened for semantic inventory and independently consumed by PDF.js render/text/PageLabels checks."
+      }
+    },
+    {
+      "id": "Q2",
+      "focus": "ENGINEERING_PROBLEM",
+      "anchors": [
+        "WP-009",
+        "INPUT-9-03",
+        "AC-9-01"
+      ],
+      "prompt": "Reconstruct the current corpus-readiness problem from repository evidence. The manifest has 12 entries: 9 generator-backed and 3 required-pending. Two unbound retained PDFs exist for CID/Arabic and encrypted coverage, while the signed fixture is absent. Explain why file presence alone cannot satisfy AC-9-01 and derive the conditions required before each pending entry may be promoted.",
+      "reconstruction_mode": "LOGIC_RECONSTRUCTION",
+      "payload": {
+        "source": "frontend/fidelity/phase9/manifest.json at material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd plus retained directory",
+        "values": {
+          "total_entries": {
+            "value": 12,
+            "units": "fixtures"
+          },
+          "generated_entries": {
+            "value": 9,
+            "units": "fixtures"
+          },
+          "required_pending_entries": {
+            "value": 3,
+            "units": "fixtures"
+          },
+          "retained_candidate_files": {
+            "value": 2,
+            "units": "PDF files"
+          },
+          "signed_fixture_present": {
+            "value": false,
+            "units": "boolean"
+          }
+        }
+      },
+      "required_output_keys": [
+        "reconstruction_steps",
+        "intermediate_result",
+        "expected_result"
+      ],
+      "evidence_required": true,
+      "deterministic_expected": {
+        "reconstruction_steps": [
+          "Read manifest availability for all 12 entries and count 9 generated plus 3 required-pending.",
+          "Observe two retained candidate PDFs exist outside manifest satisfaction: ArabicCIDTrueType.pdf and encrypted-with-images.pdf.",
+          "Require durable provenance/redistribution authority plus semantic inspection matching each fixture class before changing availability.",
+          "Observe no retained/generated signed-document fixture exists, so signed remains unsatisfied."
+        ],
+        "intermediate_result": "File presence can reduce sourcing work but cannot earn corpus coverage; complex-font/unicode and encrypted require validation/binding, while signed still requires a fixture source.",
+        "expected_result": "STEP-9-01 reaches corpus readiness only when all three pending entries have lawful provenance, exact required semantics, manifest binding and audit/test coverage; otherwise they remain required-pending."
+      }
+    },
+    {
+      "id": "Q3",
+      "focus": "BOUNDARIES_INVARIANTS",
+      "anchors": [
+        "WP-009",
+        "AC-9-01",
+        "AC-9-03",
+        "AC-9-04"
+      ],
+      "prompt": "State the effect of changing a required-pending manifest entry to retained merely because a PDF file exists, without proving provenance, redistribution authority, and fixture-declared semantic structures. Then state the protected fidelity/evidence invariant and the exact observation that falsifies safe corpus admission.",
+      "mutation": {
+        "condition": "Promote a specialist fixture from required-pending to retained based only on file presence or filename, without durable provenance/licensing and semantic structure validation.",
+        "protected_invariant": "Corpus readiness is earned only when each required fixture has durable provenance/redistribution authority and independently verified semantic structures/dispositions matching its manifest contract; unsupported or unverified files remain pending.",
+        "falsifier": "A manifest entry is counted as satisfied while its retained file lacks recorded lawful provenance, cannot be shown to contain the required CID/Unicode/encryption/signature semantics, or disagrees with declared expectations."
+      },
+      "required_output_keys": [
+        "mutation_effect",
+        "protected_invariant",
+        "falsifier"
+      ],
+      "evidence_required": true,
+      "deterministic_expected": {
+        "mutation_effect": "Prematurely promoting an unverified retained file creates false fidelity coverage and can make later structure-preservation results meaningless or legally unsafe.",
+        "protected_invariant": "Corpus readiness is earned only from durable provenance/redistribution authority plus independently verified fixture semantics/dispositions matching the manifest contract.",
+        "falsifier": "A fixture is counted as satisfied when provenance is absent, redistribution is not authorized, required CID/Unicode/encryption/signature semantics are not independently established, or observed content disagrees with the manifest."
+      }
+    },
+    {
+      "id": "Q4",
+      "focus": "VERIFICATION",
+      "anchors": [
+        "AC-9-01",
+        "TEST-9-01",
+        "BENCH-9-01",
+        "BENCH-9-04"
+      ],
+      "prompt": "Design an independent verification for completing STEP-9-01 from the current partial corpus. It must verify the two retained candidate PDFs without trusting filenames, verify the future signed fixture with non-production certificate material, rerun manifest/audit coverage, and keep Phase 8G's deferred evidence separate. Predict the expected result and state exactness/tolerance.",
+      "oracle_refs": [
+        "BENCH-9-01",
+        "BENCH-9-04"
+      ],
+      "independence_requirement": "Use retained-file provenance, low-level PDF structure inspection and fixture-declared manifest expectations; do not use availability labels or generator self-claims as the sole oracle.",
+      "required_output_keys": [
+        "independent_method",
+        "predicted_result",
+        "tolerance_or_exactness"
+      ],
+      "evidence_required": true,
+      "deterministic_expected": {
+        "independent_method": "Inspect retained PDFs independently of filenames/availability labels for required PDF structures and provenance, verify the signed fixture uses repository-owned or redistributable non-production certificate material, then run manifest validation and the Phase 9 corpus audit over the bound sources.",
+        "predicted_result": "Only retained candidates whose provenance and semantic structures match their manifest contracts become satisfied; the signed fixture remains pending until a compliant source exists; Phase 8G deferred evidence remains separate.",
+        "tolerance_or_exactness": "Fixture class/disposition/provenance checks are exact; no tolerance is allowed for missing required semantic structures or redistribution authority."
+      }
+    },
+    {
+      "id": "Q5",
+      "focus": "FIRST_SAFE_SLICE",
+      "anchors": [
+        "STEP-9-01",
+        "AC-9-01",
+        "TEST-9-01"
+      ],
+      "prompt": "Name the exact first bounded write after takeover certification on the refreshed route. It must stay inside STEP-9-01: first validate whether ArabicCIDTrueType.pdf and encrypted-with-images.pdf satisfy their declared specialist obligations and bind only the ones that pass; then create/source the signed fixture. State predicted before/after and exact verification. Do not begin STEP-9-02 or mutation-engine hardening.",
+      "step_refs": [
+        "STEP-9-01"
+      ],
+      "required_output_keys": [
+        "first_change",
+        "predicted_before",
+        "predicted_after",
+        "verification"
+      ],
+      "evidence_required": true,
+      "deterministic_expected": {
+        "first_change": "After takeover certification, independently inspect and bind ArabicCIDTrueType.pdf and encrypted-with-images.pdf only if each satisfies provenance and semantic requirements; then add/source the signed fixture within STEP-9-01.",
+        "predicted_before": "The manifest has 9 generator-backed entries and 3 required-pending entries; two unbound retained candidates exist and no signed fixture is bound.",
+        "predicted_after": "Each validated retained candidate is bound with provenance and exact expectations, and the signed obligation is either satisfied by a compliant fixture or remains explicitly required-pending; no STEP-9-02 mutation work begins.",
+        "verification": "Run the focused manifest validator and phase9 fidelity-corpus audit, plus independent low-level structure/provenance checks for each retained/signed fixture before counting coverage."
+      }
+    }
+  ],
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9-protocol-refresh-preparer"
+  }
+}

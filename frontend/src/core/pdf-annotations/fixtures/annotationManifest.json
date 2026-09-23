@@ -1,0 +1,950 @@
+{
+  "schema_version": "phase10-annotation-manifest-v1",
+  "phase": "PHASE-010",
+  "work_package": "WP-010",
+  "contract_issue": 288,
+  "supported_annotation_types": [
+    "textbox",
+    "callout",
+    "sticky-note",
+    "highlight",
+    "underline",
+    "strikeout",
+    "squiggly",
+    "shape-rect",
+    "shape-ellipse",
+    "shape-polygon",
+    "shape-cloud",
+    "line",
+    "arrow",
+    "ink",
+    "stamp",
+    "comment",
+    "redaction"
+  ],
+  "fixtures": {
+    "textbox": {
+      "type": "textbox",
+      "pdfSubtype": "FreeText",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "DA",
+        "Contents",
+        "NM",
+        "F",
+        "Border",
+        "C",
+        "IC",
+        "Q"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "FreeText",
+        "candidateTypes": [
+          "textbox",
+          "callout"
+        ],
+        "disambiguationField": "IT",
+        "rule": "If IT is not FreeTextCallout and CL is absent, annotation is a textbox"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 50,
+        "width": 160,
+        "height": 36
+      },
+      "defaults": {
+        "text": "Deterministic Textbox Content",
+        "fontSize": 14,
+        "borderColor": "#2563eb",
+        "backgroundColor": "#eff6ff"
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "callout": {
+      "type": "callout",
+      "pdfSubtype": "FreeText",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "DA",
+        "Contents",
+        "NM",
+        "F",
+        "IT",
+        "CL",
+        "Border",
+        "C",
+        "IC"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "FreeText",
+        "candidateTypes": [
+          "textbox",
+          "callout"
+        ],
+        "disambiguationField": "IT",
+        "rule": "If IT is FreeTextCallout or CL callout coordinates are present, annotation is a callout"
+      },
+      "geometry": {
+        "x": 60,
+        "y": 100,
+        "width": 180,
+        "height": 50
+      },
+      "defaults": {
+        "text": "Deterministic Callout Leader",
+        "anchor": {
+          "x": 20,
+          "y": 40
+        },
+        "knee": {
+          "x": 40,
+          "y": 70
+        },
+        "borderColor": "#475569",
+        "backgroundColor": "#ffffff"
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "sticky-note": {
+      "type": "sticky-note",
+      "pdfSubtype": "Text",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Contents",
+        "NM",
+        "F",
+        "Name",
+        "Open",
+        "C",
+        "T",
+        "M",
+        "CreationDate"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Text",
+        "candidateTypes": [
+          "comment",
+          "sticky-note"
+        ],
+        "disambiguationField": "Open",
+        "rule": "Text annotation with standard Note/Comment icon; sticky notes represent standalone canvas notes"
+      },
+      "geometry": {
+        "x": 30,
+        "y": 40,
+        "width": 32,
+        "height": 32
+      },
+      "defaults": {
+        "text": "Deterministic Sticky Note Message",
+        "author": "Reviewer Alice",
+        "backgroundColor": "#fef08a",
+        "isCollapsed": false
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "comment": {
+      "type": "comment",
+      "pdfSubtype": "Text",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Contents",
+        "NM",
+        "F",
+        "Name",
+        "Open",
+        "C",
+        "T",
+        "M",
+        "CreationDate"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Text",
+        "candidateTypes": [
+          "comment",
+          "sticky-note"
+        ],
+        "disambiguationField": "IRT topology",
+        "rule": "Root Text annotation with reply and/or Review state children linked through IRT is a comment; root-level StateModel remains a legacy-read compatibility signal"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 60,
+        "width": 32,
+        "height": 32
+      },
+      "defaults": {
+        "text": "Review comment item",
+        "author": "Lead Reviewer",
+        "backgroundColor": "#fed7aa"
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "highlight": {
+      "type": "highlight",
+      "pdfSubtype": "Highlight",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "highlight"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Highlight with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 120,
+        "width": 200,
+        "height": 18
+      },
+      "defaults": {
+        "backgroundColor": "#fde047",
+        "opacity": 0.4
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "underline": {
+      "type": "underline",
+      "pdfSubtype": "Underline",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "underline"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Underline with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 150,
+        "width": 180,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#2563eb",
+        "opacity": 1
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "strikeout": {
+      "type": "strikeout",
+      "pdfSubtype": "StrikeOut",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "strikeout"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype StrikeOut with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 180,
+        "width": 150,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#dc2626",
+        "opacity": 1
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "squiggly": {
+      "type": "squiggly",
+      "pdfSubtype": "Squiggly",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "squiggly"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Squiggly with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 210,
+        "width": 160,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#16a34a",
+        "opacity": 1
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "shape-rect": {
+      "type": "shape-rect",
+      "pdfSubtype": "Square",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "BE",
+        "rule": "Square annotation lacking BE cloud border effect and non-mask coloring is shape-rect"
+      },
+      "geometry": {
+        "x": 70,
+        "y": 240,
+        "width": 120,
+        "height": 80
+      },
+      "defaults": {
+        "borderColor": "#0284c7",
+        "backgroundColor": "#e0f2fe",
+        "borderWidth": 2,
+        "opacity": 0.9
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "shape-ellipse": {
+      "type": "shape-ellipse",
+      "pdfSubtype": "Circle",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "shape-ellipse"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Circle"
+      },
+      "geometry": {
+        "x": 80,
+        "y": 250,
+        "width": 100,
+        "height": 70
+      },
+      "defaults": {
+        "borderColor": "#7c3aed",
+        "backgroundColor": "#ede9fe",
+        "borderWidth": 2,
+        "opacity": 0.85
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "shape-polygon": {
+      "type": "shape-polygon",
+      "pdfSubtype": "Polygon",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Vertices",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "shape-polygon"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Polygon with Vertices coordinate list"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 300,
+        "width": 120,
+        "height": 90
+      },
+      "defaults": {
+        "vertices": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 120,
+            "y": 20
+          },
+          {
+            "x": 60,
+            "y": 90
+          }
+        ],
+        "borderColor": "#059669",
+        "backgroundColor": "#d1fae5",
+        "borderWidth": 2,
+        "opacity": 0.9
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "shape-cloud": {
+      "type": "shape-cloud",
+      "pdfSubtype": "Square",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "BE",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "BE",
+        "rule": "Square annotation with Border Effect BE dictionary << /S /C >> represents cloudy border"
+      },
+      "geometry": {
+        "x": 100,
+        "y": 320,
+        "width": 140,
+        "height": 80
+      },
+      "defaults": {
+        "borderColor": "#0d9488",
+        "backgroundColor": "#ccfbf1",
+        "borderWidth": 2,
+        "opacity": 0.8
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "line": {
+      "type": "line",
+      "pdfSubtype": "Line",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "L",
+        "LE",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Line",
+        "candidateTypes": [
+          "line",
+          "arrow"
+        ],
+        "disambiguationField": "LE",
+        "rule": "Line annotation without arrow ending style in LE is a plain line"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 420,
+        "width": 160,
+        "height": 60
+      },
+      "defaults": {
+        "points": [
+          0,
+          0,
+          160,
+          60
+        ],
+        "lineStartCap": "none",
+        "lineEndCap": "none",
+        "borderColor": "#334155",
+        "borderWidth": 2
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "arrow": {
+      "type": "arrow",
+      "pdfSubtype": "Line",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "L",
+        "LE",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Line",
+        "candidateTypes": [
+          "line",
+          "arrow"
+        ],
+        "disambiguationField": "LE",
+        "rule": "Line annotation with OpenArrow or ClosedArrow in LE is an arrow"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 430,
+        "width": 150,
+        "height": 50
+      },
+      "defaults": {
+        "points": [
+          0,
+          0,
+          150,
+          50
+        ],
+        "lineStartCap": "none",
+        "lineEndCap": "arrow",
+        "borderColor": "#e11d48",
+        "borderWidth": 2
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "ink": {
+      "type": "ink",
+      "pdfSubtype": "Ink",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "InkList",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "ink"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Ink with InkList strokes"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 500,
+        "width": 120,
+        "height": 60
+      },
+      "defaults": {
+        "strokes": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              40,
+              30
+            ],
+            [
+              80,
+              20
+            ],
+            [
+              120,
+              60
+            ]
+          ]
+        ],
+        "borderColor": "#4f46e5",
+        "borderWidth": 3,
+        "opacity": 0.95
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "stamp": {
+      "type": "stamp",
+      "pdfSubtype": "Stamp",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Name",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "stamp"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Stamp with Name identifier"
+      },
+      "geometry": {
+        "x": 120,
+        "y": 520,
+        "width": 140,
+        "height": 50
+      },
+      "defaults": {
+        "stampStyle": "approved",
+        "borderColor": "#15803d",
+        "opacity": 0.9
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    },
+    "redaction": {
+      "type": "redaction",
+      "pdfSubtype": "Square",
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "C/IC",
+        "rule": "Square visual mask with opaque black/solid styling; MUST NOT emit PDF Redact dictionary"
+      },
+      "geometry": {
+        "x": 60,
+        "y": 600,
+        "width": 180,
+        "height": 30
+      },
+      "defaults": {
+        "backgroundColor": "#000000",
+        "borderColor": "#000000",
+        "opacity": 1
+      },
+      "appearanceStreamPolicy": "EVIDENCE_GATED"
+    }
+  },
+  "subtype_ambiguities": {
+    "Text": {
+      "candidate_types": [
+        "comment",
+        "sticky-note"
+      ],
+      "primary_distinction": "Review reply/state IRT topology vs standalone sticky note; root-level StateModel is accepted only for legacy compatibility",
+      "oracle_rule": "If the Text root participates in review reply/state IRT topology, classify as comment; otherwise classify as sticky-note unless legacy StateModel/custom metadata proves comment semantics"
+    },
+    "Square": {
+      "candidate_types": [
+        "shape-rect",
+        "shape-cloud",
+        "redaction"
+      ],
+      "primary_distinction": "BE (Border Effect) for cloud, solid black fill/stroke mask for redaction, standard stroke/fill for shape-rect",
+      "oracle_rule": "If BE is present with /S /C -> shape-cloud; else if visual mask styling -> redaction; else shape-rect"
+    },
+    "Line": {
+      "candidate_types": [
+        "line",
+        "arrow"
+      ],
+      "primary_distinction": "LE (Line Ending) array indicating arrowheads",
+      "oracle_rule": "If LE contains OpenArrow or ClosedArrow -> arrow; else line"
+    },
+    "FreeText": {
+      "candidate_types": [
+        "textbox",
+        "callout"
+      ],
+      "primary_distinction": "IT dictionary entry (/FreeTextCallout) and CL callout line coordinates",
+      "oracle_rule": "If IT is FreeTextCallout or CL is defined -> callout; else textbox"
+    }
+  },
+  "policies": {
+    "appearance_stream_requirement": {
+      "strategy": "EVIDENCE_GATED_BY_NAMED_VIEWER_RENDER_FAILURE",
+      "baseline_ap": "ABSENT",
+      "default_requirement": "NOT_REQUIRED_WITHOUT_EVIDENCE",
+      "activation_rule": "Production /AP generation may be introduced only after durable named-viewer evidence records render=FAIL for a specific annotation type/family on the exact production material under test.",
+      "scope_rule": "Any /AP implementation must be bounded to the failing viewer/type/family evidence and requalified after the change; passing families must not acquire /AP merely because another family failed.",
+      "claim_rule": "Structural inspection alone cannot declare /AP required or viewer compatibility. Named viewer/version/platform evidence is required.",
+      "rationale": "Phase 10 qualifies standards-native dictionaries empirically before adding appearance streams, avoiding unnecessary or stale /AP generation."
+    },
+    "external_edit_precedence": {
+      "standard_fields_override_custom_data": true,
+      "reader_enforced_fields": [
+        "Contents",
+        "Rect",
+        "C",
+        "CA",
+        "IC",
+        "CL",
+        "L",
+        "Vertices",
+        "InkList",
+        "State",
+        "DA",
+        "QuadPoints",
+        "F",
+        "Border",
+        "BS",
+        "Q",
+        "Open",
+        "Name",
+        "LE"
+      ],
+      "pending_fields": [],
+      "rationale": "Recognized standard PDF state is authoritative on re-import. Fully represented fields are projected into the application model; RC and DS are preserved as explicit NATIVE_PRESERVED_READ_ONLY semantics rather than treated as editable or silently ignored.",
+      "field_mappings": {
+        "DA": "FreeText DA overrides cached fontSize/textColor. Exact source DA is reused on a no-op; supported local font-size/color edits rewrite those operators while preserving the external font resource token.",
+        "QuadPoints": "Text-markup QuadPoints override cached geometry and are projected as Rect-normalized textMarkupQuads. Exact source QuadPoints are reused on a no-op; local Rect move/resize regenerates scaled PDF-space quads.",
+        "F": "Import the standard Locked flag bit into data.locked; on rewrite toggle only that bit and preserve all other external annotation flag bits.",
+        "Border": "Import border width plus solid/dashed/dotted/none style; reuse the source Border object on a semantic no-op and regenerate only after a supported local border edit.",
+        "Q": "FreeText quadding 0/1/2 maps to left/center/right textAlign and overrides stale private data.",
+        "Open": "Text annotation Open maps inversely to data.isCollapsed for both review comments and standalone sticky notes; externally supplied Name/icon is preserved independently.",
+        "Name": "Stamp Name maps recognized standard stamp names to stampStyle and preserves unknown external names while style remains custom; Text annotation icon names are preserved on rewrite.",
+        "LE": "Line endings map supported standard endings to lineStartCap/lineEndCap; source LE is reused on no-op so unrepresented standard ending names are not normalized away.",
+        "IT": "FreeTextCallout participates in standards-native textbox/callout classification; unrecognized external intent values are preserved when the annotation remains a textbox.",
+        "BE": "Cloud border effect participates in standards-native Square classification; the source cloud BE dictionary, including intensity, is preserved on no-op.",
+        "BS": "When present, BS is authoritative over Border. Supported W/S/D semantics map to borderWidth/borderStyle; exact source BS is reused on no-op. Supported local border edits regenerate/remove BS so a stale external style dictionary cannot override the edit. Unsupported BS styles are preserved while no supported local style replacement is requested.",
+        "RC": "Native markup rich text is detected on import and classified NATIVE_PRESERVED_READ_ONLY. PDF Hub may display the flat Contents counterpart, but text/type/typography mutation is blocked and the writer fails closed on bypass instead of preserving stale RC beside changed plain text.",
+        "DS": "FreeText rich-text default style is preserved with native RC. PDF Hub does not claim to edit DS semantics; native rich-text typography remains read-only and the exact DS object is copied forward."
+      },
+      "classification_fields": [
+        "Subtype",
+        "IT",
+        "CL",
+        "BE",
+        "LE"
+      ],
+      "identity_lifecycle_fields": [
+        "NM",
+        "M",
+        "CreationDate",
+        "T"
+      ],
+      "preserved_only_fields": [
+        "RC",
+        "DS"
+      ],
+      "type_precedence_rule": "For standard-resolvable subtype ambiguities (FreeText, Square, Line), recognized standard fields override stale PDFHubType. Text comment-vs-sticky may retain valid private type only where native reply/state topology does not resolve the application distinction."
+    },
+    "save_vs_export_separation": {
+      "save_preserves_native_annotations": true,
+      "export_flattened_burns_into_page": true,
+      "hidden_flattening_prohibited": true,
+      "rationale": "Save/Save As must remain fully editable without destroying native /Annot dictionaries. Export Flattened permanently renders into page contents."
+    },
+    "signed_pdf_rewrite_policy": {
+      "warn_on_rewrite": true,
+      "prevent_false_validity_claims": true,
+      "rationale": "Full document rewrite invalidates cryptographic signatures. Users must be warned explicitly."
+    },
+    "review_state_projection": {
+      "native_model": "AUTHOR_SPECIFIC_REVIEW_STATE_ANNOTATIONS",
+      "application_model": "SINGLE_THREAD_STATUS",
+      "projection_rule": "Project the latest observable Review transition by modification/creation timestamp with annotation order as a deterministic fallback.",
+      "preservation_rule": "Preserve all native Review state transition annotations and their existing IRT topology. New PDF Hub Review state transitions refer directly to the original review annotation and are appended only when the application review status differs semantically from the latest native Review state.",
+      "limitation": "Parallel author-specific Review states are preserved in the PDF but are not yet surfaced as separate application statuses.",
+      "transition_author": {
+        "native_source": "State annotation T text string",
+        "imported_projection": "ReviewMetadata.statusAuthor",
+        "local_status_action_default": "Current User",
+        "write_rule": "New Review state transitions use statusAuthor when known; thread author is only a fallback for legacy/imported metadata lacking transition-actor provenance.",
+        "chain_rule": "New Review state transitions refer directly to the original review annotation regardless of author. Existing imported state-to-state chains are preserved as legacy topology."
+      }
+    },
+    "reply_thread_topology": {
+      "native_model": "IRT_REPLY_GRAPH",
+      "persistence_model": "FLAT_REPLY_ARRAY_WITH_PARENT_REPLY_ID",
+      "ui_projection": "FLAT_MESSAGES",
+      "preservation_rule": "Preserve direct and nested RT=R reply ancestry through ReviewReply.parentReplyId. Rewritten native replies reconstruct IRT to the logical parent reply; missing or cyclic parent IDs fail safe to the review root.",
+      "reply_state_rule": "Preserve and relink state annotations attached to replies, but never project those reply-attached states onto the root review status.",
+      "unparsed_reply_rule": "RT=R descendants that cannot be represented as ReviewReply, for example a reply with no parseable Contents, remain native and are not deleted. Their IRT is relinked when a managed root or represented parent reply is rewritten."
+    },
+    "native_dictionary_preservation": {
+      "ownership_rule": "PDF Hub rewrites only fields it semantically owns for the supported annotation model. Other standard, vendor, and extension dictionary entries are copied forward.",
+      "root_passive_examples": [
+        "Subj",
+        "RC",
+        "DS",
+        "Popup",
+        "ExData",
+        "vendor extension keys"
+      ],
+      "reply_passive_rule": "Reply fields outside PDF Hub's reply identity/content/thread ownership, including externally supplied Rect/style/extension metadata, are copied forward when the logical reply is rewritten.",
+      "appearance_rule": "An existing AP entry is preserved only when every PDF Hub-owned appearance-driving field is semantically unchanged. If a local edit changes those fields, stale AP is omitted rather than allowed to override the edited native state.",
+      "state_rule": "Native Review state annotations are preserved in place and only their IRT target is relinked when a managed root/reply reference changes.",
+      "rich_text_rule": "RC and FreeText DS are preserved as native read-only semantics rather than generic passive metadata. RC-backed roots are tagged NATIVE_PRESERVED_READ_ONLY; plain-text/type/typography edits are blocked centrally and rejected by the native writer if a caller bypasses the application guard."
+    },
+    "standard_field_coverage": {
+      "source": "Union of fixtures[*].standardPdfFields plus review-graph supplemental fields",
+      "semantic_reader_fields": [
+        "Contents",
+        "Rect",
+        "C",
+        "CA",
+        "IC",
+        "CL",
+        "L",
+        "Vertices",
+        "InkList",
+        "State",
+        "DA",
+        "QuadPoints",
+        "F",
+        "Border",
+        "BS",
+        "Q",
+        "Open",
+        "Name",
+        "LE"
+      ],
+      "classification_fields": [
+        "Subtype",
+        "IT",
+        "CL",
+        "BE",
+        "LE",
+        "StateModel",
+        "IRT",
+        "RT"
+      ],
+      "identity_lifecycle_fields": [
+        "NM",
+        "M",
+        "CreationDate",
+        "T"
+      ],
+      "preserved_only_fields": [
+        "RC",
+        "DS"
+      ],
+      "ignored_fields": [],
+      "rule": "Every declared standard field must be covered by at least one explicit category. Unclassified declared fields fail the Phase 10 audit.",
+      "supplemental_declared_fields": [
+        "State",
+        "StateModel",
+        "IRT",
+        "RT",
+        "BS",
+        "RC",
+        "DS"
+      ]
+    },
+    "rich_text_fidelity": {
+      "fidelity_class": "NATIVE_PRESERVED_READ_ONLY",
+      "rich_text_field": "RC",
+      "free_text_default_style_field": "DS",
+      "reader_rule": "Presence of native RC marks the annotation as preserved read-only rich text and captures a protected import snapshot. Contents is the flat-text display counterpart when present; stale PDFHubData text does not replace a missing native Contents.",
+      "mutation_rule": "PDF Hub blocks annotation type, plain text, and typography mutations for RC-backed annotations. Geometry, border, opacity, review-state, thread, and other independently representable native operations remain editable.",
+      "writer_rule": "The writer reuses source Contents/DA/Q companion objects for RC-backed annotations and fails with NATIVE_RICH_TEXT_EDIT_UNSUPPORTED if protected semantics differ from the import snapshot.",
+      "appearance_rule": "A no-op preserves existing RC/DS/AP. An allowed appearance-driving edit such as Rect or border mutation preserves RC/DS but drops stale AP under the normal appearance-equivalence rule.",
+      "writer_failure_code": "NATIVE_RICH_TEXT_EDIT_UNSUPPORTED",
+      "clone_rule": "Copy/duplicate and manual cross-page reassignment are blocked when a root or represented review reply depends on native RC. A new logical annotation ID has no source RC/DS object to preserve, so cloning is unsupported until native rich-text cloning is implemented.",
+      "reply_rule": "Represented review replies with RC carry their own NATIVE_PRESERVED_READ_ONLY marker and protected flat-text snapshot. No-op saves reuse source Contents and preserve RC; reply text edits or removal are blocked in the store and fail closed in the writer if bypassed; cloned threads with no source RC also fail closed."
+    }
+  },
+  "review_thread_fixture": {
+    "root": {
+      "type": "comment",
+      "nm": "phase10-review-root-1",
+      "initialContents": "Original review text",
+      "initialReviewState": "resolved"
+    },
+    "reply": {
+      "id": "phase10-review-reply-1",
+      "relationship": "IRT_OBJECT_REFERENCE",
+      "replyType": "R"
+    },
+    "repeated_save": {
+      "cycles": 2,
+      "identity_exact": [
+        "root NM",
+        "reply NM",
+        "state NM"
+      ],
+      "relationship_exact": [
+        "reply IRT",
+        "state IRT"
+      ],
+      "duplicates_allowed": false,
+      "state_history_preserved": true,
+      "noop_save_appends_state": false,
+      "semantic_state_change_appends_transition": true
+    },
+    "state": {
+      "nm": "phase10-review-root-1:state:Review",
+      "subtype": "Text",
+      "relationship": "IRT_OBJECT_REFERENCE",
+      "stateModel": "Review",
+      "initialState": "Completed",
+      "encoding": "TEXT_STRING",
+      "transition_rule": "New Review state annotations refer directly to the original review annotation through IRT. Legacy/imported state-to-state chains are accepted and preserved without destructive normalization."
+    },
+    "external_nested_reply": {
+      "relationship": "IRT_TO_REPLY",
+      "app_projection": "ReviewReply.parentReplyId",
+      "identity_rule": "Nested reply logical identity is stable across private-metadata loss and repeated PDF Hub saves.",
+      "state_on_reply_rule": "A Review state whose IRT targets a reply is preserved and relinked to that reply when replies are rewritten, but it does not update the root thread status.",
+      "opaque_descendant": "An external RT=R reply lacking Contents remains native across repeated PDF Hub saves with passive metadata and repaired IRT."
+    }
+  }
+}

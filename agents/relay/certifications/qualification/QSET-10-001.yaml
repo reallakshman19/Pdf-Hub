@@ -1,0 +1,177 @@
+{
+  "schema_version": "relay-v2.5-question-set",
+  "id": "QSET-10-001",
+  "route": {
+    "route_key": "SERIAL:EP-10-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-10-001",
+    "ep_id": "EP-10-001",
+    "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0004",
+    "work_package": "WP-010",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97"
+  },
+  "boundary": {
+    "trigger": "PHASE_CHANGED",
+    "from_phase": "PHASE-009",
+    "to_phase": "PHASE-010",
+    "changed_dimensions": [
+      "PRODUCTION_PATH",
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "Phase 10 changes the primary hardening target from general PDF structure fidelity to native annotation Save/reopen and external-viewer interoperability.",
+      "Verification changes to native annotation semantic round trips, /AP requirements, named-viewer evidence, save/export separation and signed-rewrite warning truth.",
+      "ReviewThread/native-reply continuity and stable /NM upsert behavior are protected against duplication or hidden flattening."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "focus": "PRODUCTION_PATH",
+      "anchors": [
+        "WP-010",
+        "INPUT-10-02"
+      ],
+      "prompt": "Trace normal editable Save and reopen/import for annotations. Identify the production entrypoint, the state owner for application annotations/review data, the authority for stable annotation identity/upsert, and the downstream native reader/render consumer. State exactly whether the current writer generates explicit /AP appearance streams.",
+      "required_output_keys": [
+        "production_entrypoint",
+        "state_owner",
+        "authority_source",
+        "downstream_consumer"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q2",
+      "focus": "ENGINEERING_PROBLEM",
+      "anchors": [
+        "WP-010",
+        "AC-10-01",
+        "AC-10-02"
+      ],
+      "prompt": "Reconstruct the interoperability failure without relying on implementation comments. A supported FreeText/callout annotation is saved as a native /Annot with /NM, /Rect, /Contents, /DA and callout geometry, but no /AP. It reopens in PDF Hub because the reader consumes semantic fields. Explain why an external viewer may still display it inconsistently or not at all, and predict what a correct two-save native round-trip must establish.",
+      "reconstruction_mode": "LOGIC_RECONSTRUCTION",
+      "payload": {
+        "source": "Issue #288 + current native writer/reader contract",
+        "values": {
+          "subtype": {
+            "value": "FreeText",
+            "units": "PDF annotation subtype"
+          },
+          "stable_identity": {
+            "value": "/NM present",
+            "units": "boolean contract"
+          },
+          "semantic_fields": {
+            "value": [
+              "/Rect",
+              "/Contents",
+              "/DA",
+              "/CL where callout"
+            ],
+            "units": "fields"
+          },
+          "explicit_normal_appearance": {
+            "value": false,
+            "units": "boolean"
+          },
+          "save_reopen_cycles": {
+            "value": 2,
+            "units": "cycles"
+          }
+        }
+      },
+      "required_output_keys": [
+        "reconstruction_steps",
+        "intermediate_result",
+        "expected_result"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q3",
+      "focus": "BOUNDARIES_INVARIANTS",
+      "anchors": [
+        "WP-010",
+        "AC-10-02",
+        "AC-10-04",
+        "AC-10-05"
+      ],
+      "prompt": "State the consequence if a proposed fix makes annotations look correct by flattening them during normal Save, duplicates a managed annotation/reply on repeated Save, collapses ReviewThread identity into visual annotation storage, or presents a rewritten signed PDF as signature-preserving. Name the protected invariant and the exact falsifier.",
+      "mutation": {
+        "condition": "Normal Save burns annotation visuals into page content, repeated Save duplicates /NM or /IRT families, review discussion acquires duplicate visual-state ownership, or signed rewrite is presented as preserving signature validity.",
+        "protected_invariant": "Editable Save/Save As preserve supported native annotation semantics with stable /NM identity and reply relationships; review and visual annotation identities remain distinct; signed rewrites never imply preserved cryptographic validity without proof.",
+        "falsifier": "A reopened normal Save has no editable native annotation, duplicate managed annotations/replies appear, discussion state diverges because of duplicate ownership, or UI/output claims signature validity after an unsupported rewrite."
+      },
+      "required_output_keys": [
+        "mutation_effect",
+        "protected_invariant",
+        "falsifier"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q4",
+      "focus": "VERIFICATION",
+      "anchors": [
+        "AC-10-01",
+        "AC-10-02",
+        "AC-10-03",
+        "AC-10-04",
+        "AC-10-05",
+        "TEST-10-01",
+        "TEST-10-02",
+        "TEST-10-03",
+        "TEST-10-04",
+        "TEST-10-05",
+        "BENCH-10-01",
+        "BENCH-10-02",
+        "BENCH-10-03",
+        "BENCH-10-04"
+      ],
+      "prompt": "Design an independent verification for Phase 10. It must inspect native annotation dictionaries/relationships and /AP expectations across repeated Save/reopen, keep PDF.js/PDF Hub rendering as only one consumer, retain per-viewer external evidence for compatibility claims, verify Save versus Flattened session effects, and separately verify signed-rewrite warning semantics. Predict expected results and exactness/tolerances.",
+      "oracle_refs": [
+        "BENCH-10-01",
+        "BENCH-10-02",
+        "BENCH-10-03",
+        "BENCH-10-04"
+      ],
+      "independence_requirement": "Use predeclared fixture expectations and external viewer outcomes; do not derive expected compatibility from the writer implementation or PDF Hub rendering alone.",
+      "required_output_keys": [
+        "independent_method",
+        "predicted_result",
+        "tolerance_or_exactness"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q5",
+      "focus": "FIRST_SAFE_SLICE",
+      "anchors": [
+        "STEP-10-01",
+        "AC-10-01",
+        "TEST-10-01"
+      ],
+      "prompt": "Name the first bounded implementation slice after takeover certification. State the pre-change observation, predicted post-change observation and exact verification. Do not begin by modifying appearance-stream generation; first establish deterministic interoperability fixtures and semantic /AP/identity/reply expectations.",
+      "step_refs": [
+        "STEP-10-01"
+      ],
+      "required_output_keys": [
+        "first_change",
+        "predicted_before",
+        "predicted_after",
+        "verification"
+      ],
+      "evidence_required": true
+    }
+  ],
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase10-preparer"
+  }
+}

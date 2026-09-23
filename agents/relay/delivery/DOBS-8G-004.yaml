@@ -1,0 +1,148 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-8G-004",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 285,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/285",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase8/large-document-performance",
+      "sha": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "owner_exception": {
+    "decision": "ODR-0002",
+    "path": "agents/relay/roadmap/owner-decisions/ODR-0002.yaml",
+    "classification": "OWNER_DIRECTED_PROTOCOL_EXCEPTION",
+    "qualification_satisfied": false,
+    "note": "Implementation remains owner-directed protocol-exception work. This observation does not constitute TAKEOVER_CERTIFIED or MATERIAL_WRITE_READY."
+  },
+  "material": {
+    "head_sha": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915",
+    "implementation_started": true,
+    "scope": [
+      "STEP-01 deterministic corpus, budget manifest, evaluator and certification/static-audit surface",
+      "STEP-02 active-query single-page matching, per-PageId accumulation, PageGraph invalidation and metadata-only scheduler probes",
+      "STEP-03 Node renderer/search measurement driver plus Chromium raster/navigation/heap/long-task measurement driver",
+      "STEP-04 pdf-lib mutation/save measurement driver and canonical recovery plan-resolve-execute measurement driver",
+      "deterministic substantive raster fixtures and metadata-rich fixtures covering PageLabels, native annotation, outline/bookmark, AcroForm and attachment",
+      "bounded benchmark module split with deterministic observation-fragment merger and static module-size guards"
+    ],
+    "acceptance_earned": false
+  },
+  "source_contract_validation": {
+    "state": "PERFORMED",
+    "result": "NO_STRUCTURAL_ERRORS_FOUND",
+    "notes": [
+      "Grouped source-contract checks found no missing required markers or forbidden search publication regressions.",
+      "Search production modules and benchmark/generator modules remained within checked size bounds.",
+      "This source review is not executable validation and earns no acceptance."
+    ]
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "3ffb3727b01cf535ebbf4ae47af5902fafd8c915",
+    "observed": [
+      {
+        "workflow": "OCR Workflow Certification",
+        "run_id": 35526512934,
+        "job_id": 106119508685,
+        "job": "ocr-workflow",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend Certify",
+        "run_id": 35526512996,
+        "job_id": 106119508747,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35526513056,
+        "job_id": 106119508922,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35526512982,
+        "job_id": 106119509030,
+        "job": "End-to-end journeys",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Frontend CI",
+        "run_id": 35526512982,
+        "job_id": 106119509162,
+        "job": "Release gate",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      },
+      {
+        "workflow": "Guards",
+        "run_id": 35526513217,
+        "job_id": 106119509362,
+        "job": "Anti-drift guards",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "All observed material-head jobs completed before runner assignment with runner_id 0 and zero executed steps. No executable PASS or code-level failure is inferred."
+  },
+  "review": {
+    "state": "PENDING",
+    "unresolved_threads": 0,
+    "change_requests": 0
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "correlations": [
+      {
+        "issue_node": "ISSUE-284",
+        "issue_number": 284,
+        "ep_id": "EP-8G-001",
+        "ep_path": "agents/relay/execution-packages/EP-8G-001.yaml",
+        "work_package": "WP-8G",
+        "relationship": "IMPLEMENTS"
+      }
+    ]
+  },
+  "evidence_truth": {
+    "static_source_review": "PERFORMED",
+    "executable_typecheck": "NOT_RUN",
+    "executable_tests": "NOT_RUN",
+    "generated_fixture_run": "NOT_RUN",
+    "benchmark_run": "NOT_RUN",
+    "browser_benchmark_run": "NOT_RUN",
+    "supported_envelope": "UNCLAIMED",
+    "reason": "The exact-head GitHub Actions jobs executed zero steps under #183, and no repository checkout with installed dependencies is available in the execution container."
+  }
+}

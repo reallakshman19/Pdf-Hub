@@ -7,6 +7,14 @@ export interface ReviewMessage {
   author: string;
   content: string;
   createdAt: number;
+  /** Logical parent reply when this message is nested below another reply. */
+  parentReplyId?: string;
+  nativeInterop?: {
+    fidelityClass: 'NATIVE_PRESERVED_READ_ONLY';
+    reason: 'RICH_TEXT';
+    richText: true;
+    protectedContent: string;
+  };
 }
 
 /**
@@ -41,6 +49,8 @@ export interface ReviewMetadata {
   createdAt: number;
   updatedAt: number;
   status: ReviewStatus;
+  /** Author of the latest projected review-state transition, when known. */
+  statusAuthor?: string;
   title?: string;
   category?: string;
   replies: ReviewReply[];

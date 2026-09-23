@@ -1,0 +1,100 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-9-003",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 287,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/287",
+    "lifecycle": "DRAFT",
+    "observed_head": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "3cedbbd88040828d63afbca9b91f87569e94a236"
+    },
+    "base": {
+      "ref": "phase8/large-document-performance",
+      "sha": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb"
+    }
+  },
+  "material": {
+    "frozen_product_head": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+    "relay_tail_ahead_by": 6,
+    "relay_tail_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/certifications/qualification/QSET-9-002.yaml",
+      "agents/relay/delivery/DOBS-9-002.yaml",
+      "agents/relay/execution-packages/EP-9-001.yaml",
+      "agents/relay/roadmap/PROGRESS.yaml"
+    ],
+    "acceptance_progress": 0
+  },
+  "protocol": {
+    "version": "2.5",
+    "basis_ref": "65518fd5340599b2a0fb88db5041f6c96389ccb8"
+  },
+  "qualification": {
+    "current_state": "PENDING_FRESH_CANDIDATE",
+    "question_set": {
+      "id": "QSET-9-002",
+      "path": "agents/relay/certifications/qualification/QSET-9-002.yaml",
+      "ep_contract_digest": "sha256:a1913e59ed866e544346f927ce24048f460d6e0c8ba25bb3c88757e6d29d56d7",
+      "deterministic_evaluation_ready": true
+    },
+    "current_takeover_admissions": [],
+    "historical_receipts": [
+      "DISC-9-001",
+      "QUAL-9-001",
+      "TC-9-001"
+    ],
+    "historical_disposition": "STALE_FOR_FURTHER_WRITES"
+  },
+  "provider_readback": {
+    "pr_state": "OPEN",
+    "draft": true,
+    "mergeable": "UNKNOWN_OR_FALSE_AT_READBACK",
+    "reviews": 0,
+    "unresolved_review_threads": 0,
+    "description": {
+      "marker_present": true,
+      "qset_9_002_present": true,
+      "historical_takeover_staleness_present": true,
+      "zero_acceptance_present": true
+    },
+    "issue_286_handoff_comment": {
+      "id": 5752971346,
+      "purpose": "Fresh pinned-protocol candidate instructions."
+    }
+  },
+  "checks": {
+    "material_head": {
+      "head_sha": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+      "classification": "NOT_RUN_INFRASTRUCTURE",
+      "workflow": "certify-writer-overlay-v2",
+      "run_id": 35535210788,
+      "job_id": 106142897499,
+      "runner_id": 0,
+      "steps_executed": 0
+    },
+    "relay_tail": {
+      "head_sha": "3cedbbd88040828d63afbca9b91f87569e94a236",
+      "classification": "NO_WORKFLOW_OBSERVED"
+    }
+  },
+  "description_contract": {
+    "marker": "<!-- relay-pr-correlation:v1 -->",
+    "marker_present": true,
+    "correlations": [
+      {
+        "issue_node": "ISSUE-286",
+        "issue_number": 286,
+        "ep_id": "EP-9-001",
+        "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+        "work_package": "WP-009",
+        "relationship": "IMPLEMENTS",
+        "meaning": "EP-9-001 owns the Phase 9 fidelity corpus, semantic oracle, bounded hardening and certification."
+      }
+    ]
+  },
+  "next_action": "A different incoming candidate must produce current repository-only DISC/QUAL/TC on QSET-9-002 and derive live MATERIAL_WRITE_READY before further product writes."
+}

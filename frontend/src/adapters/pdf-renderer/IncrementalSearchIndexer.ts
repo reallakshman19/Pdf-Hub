@@ -125,7 +125,7 @@ export async function indexPdfDocumentIncrementally(
     if (!pageNode) continue;
 
     const current =
-      SearchIndexer.getPageRecord(
+      SearchIndexer.getPageState(
         input.revisionId,
         pageNode.pageId,
       );
@@ -163,7 +163,7 @@ export async function indexPdfDocumentIncrementally(
       if (!pageNode) continue;
 
       const current =
-        SearchIndexer.getPageRecord(
+        SearchIndexer.getPageState(
           input.revisionId,
           pageNode.pageId,
         );
@@ -179,7 +179,7 @@ export async function indexPdfDocumentIncrementally(
         ownerToken,
       );
       const owned =
-        SearchIndexer.getPageRecord(
+        SearchIndexer.getPageState(
           input.revisionId,
           pageNode.pageId,
         );

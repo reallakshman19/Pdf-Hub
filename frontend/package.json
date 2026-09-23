@@ -133,7 +133,22 @@
     "audit:phase8-history-closure": "node scripts/phase8-history-closure-audit.mjs",
     "certify:phase8e-closure": "npm run certify:phase8e5c4 && npm run audit:phase8-history-closure && vitest run src/core/document-history/__tests__/phase8Closure.integration.test.ts --pool=forks --maxWorkers=1",
     "audit:phase8-search-index": "node scripts/phase8-search-index-audit.mjs",
-    "certify:phase8f": "npm run certify:phase8e-closure && npm run audit:phase8-search-index && vitest run src/core/search/indexer.test.ts src/core/search/store.test.ts src/adapters/pdf-renderer/IncrementalSearchIndexer.test.ts src/components/sidebar/SearchPanel.test.tsx src/components/shell/TopNav.test.tsx --pool=forks --maxWorkers=1 && npm run build"
+    "certify:phase8f": "npm run certify:phase8e-closure && npm run audit:phase8-search-index && vitest run src/core/search/indexer.test.ts src/core/search/store.test.ts src/adapters/pdf-renderer/IncrementalSearchIndexer.test.ts src/components/sidebar/SearchPanel.test.tsx src/components/shell/TopNav.test.tsx --pool=forks --maxWorkers=1 && npm run build",
+    "generate:phase8g-fixtures": "node scripts/phase8g-generate-fixtures.mjs",
+    "audit:phase8-large-document-performance": "node scripts/phase8-large-document-performance-audit.mjs",
+    "certify:phase8g": "npm run certify:phase8f && npm run audit:phase8-large-document-performance && vitest run src/core/search/incrementalResults.test.ts src/core/search/indexer.test.ts src/components/sidebar/SearchPanel.test.tsx --pool=forks --maxWorkers=1 && npm run build && npm run benchmark:phase8g && npm run certify:phase8g:evidence",
+    "benchmark:phase8g:evaluate": "node scripts/phase8g-benchmark-harness.mjs",
+    "benchmark:phase8g": "node scripts/phase8g-run-benchmarks.mjs",
+    "certify:phase8g:evidence": "node scripts/phase8g-certify-evidence.mjs",
+    "generate:phase9-fidelity-fixtures": "node scripts/phase9-generate-fidelity-fixtures.mjs",
+    "audit:phase9-fidelity-corpus": "node scripts/phase9-fidelity-corpus-audit.mjs",
+    "certify:phase9-step1": "npm run audit:phase9-fidelity-corpus && vitest run src/core/pdf-fidelity/manifestValidation.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase10-annotation-interoperability": "node scripts/phase10-annotation-interoperability-audit.mjs",
+    "audit:phase10-viewer-qualification": "node scripts/phase10-viewer-qualification-audit.mjs",
+    "validate:phase10-viewer-evidence": "node scripts/phase10-validate-viewer-evidence.mjs",
+    "test:phase10-viewer-corpus": "vitest run src/core/pdf-annotations/viewerQualificationCorpus.test.ts --pool=forks --maxWorkers=1",
+    "validate:phase10-returned-review": "node scripts/phase10-validate-returned-review.mjs",
+    "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

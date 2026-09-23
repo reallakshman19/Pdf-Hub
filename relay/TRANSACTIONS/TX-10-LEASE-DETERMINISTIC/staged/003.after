@@ -1,0 +1,66 @@
+{
+  "schema_version": "relay-v3-lease",
+  "id": "LEASE-10-INTEROP-FIX",
+  "route": "SERIAL:EP-10-INTEROP-FIX",
+  "executor": {
+    "id": "chatgpt-gpt56-sol"
+  },
+  "basis": {
+    "ep_id": "EP-10-INTEROP-FIX",
+    "ep_digest": "sha256:9557b44465f93bda23d1488c741f61458692933051563b7f22ac35f2591868c3",
+    "material_base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+    "predecessor_checkpoint": null,
+    "protocol_basis": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/engineering-pr-delivery-v3"
+  },
+  "authority": {
+    "actions": [
+      "READ",
+      "ANALYZE",
+      "MATERIAL_WRITE",
+      "TEST",
+      "DRAFT_PR_UPDATE"
+    ]
+  },
+  "admission": {
+    "method": "OWNER_OVERRIDE",
+    "result": "PASS",
+    "repository_only": false,
+    "qualification": {
+      "required": false,
+      "qset": null,
+      "evaluator": null,
+      "result": null,
+      "evidence": []
+    },
+    "owner_basis": {
+      "direct_utterance_digest": "sha256:5db824894829c313f4fb2832e7f0917f9fa5f86318d0eae261b956a03dfd39bd",
+      "session_timestamp": "2026-09-22T11:13:02Z"
+    }
+  },
+  "scope": {
+    "ep_or_task": "EP-10-INTEROP-FIX",
+    "branch": "phase10/postmerge-interoperability-fix",
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+      "frontend/src/core/pdf-annotations/fixtures/**",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "relay/**"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream implementation (STEP-10-02)",
+      "New annotation product types",
+      "Signature creation or signature-preserving rewrite architecture",
+      "Phase 11+ work",
+      "MERGE",
+      "RELEASE",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "state": "RELEASED",
+  "invalidation": {
+    "reasons": []
+  }
+}

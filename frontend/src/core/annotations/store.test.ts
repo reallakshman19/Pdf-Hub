@@ -56,6 +56,165 @@ describe('annotation store', () => {
     expect(state.selectedAnnotationIds).toEqual([]);
   });
 
+  it('keeps native rich-text semantics read-only while allowing safe geometry and border edits', () => {
+    const rich: PdfAnnotation = {
+      ...baseAnnotation('rich-1', 1, 10, 20),
+      data: {
+        text: 'Rich baseline',
+        fontSize: 12,
+        textColor: '#112233',
+        textAlign: 'left',
+        nativeInterop: {
+          fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+          reason: 'RICH_TEXT',
+          richText: true,
+          defaultStyle: true,
+          protectedSnapshot: {
+            type: 'textbox',
+            text: 'Rich baseline',
+            fontSize: 12,
+            textColor: '#112233',
+            textAlign: 'left',
+          },
+        },
+      },
+    };
+
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([rich]);
+    store.setSelection(['rich-1']);
+
+    const before = useAnnotationStore.getState().annotations[0];
+
+    store.updateAnnotation('rich-1', {
+      type: 'callout',
+      data: {
+        ...before.data,
+        text: 'Blocked plain-text edit',
+        fontSize: 24,
+        textColor: '#ff0000',
+      },
+    });
+
+    let current = useAnnotationStore.getState().annotations[0];
+    expect(current).toBe(before);
+    expect(current.type).toBe('textbox');
+    expect(current.data.text).toBe('Rich baseline');
+    expect(current.data.fontSize).toBe(12);
+    expect(current.data.textColor).toBe('#112233');
+    expect(current.updatedAt).toBe(1);
+
+    store.updateAnnotation('rich-1', {
+      rect: { x: 30, y: 40, width: 120, height: 50 },
+    });
+
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.rect).toEqual({ x: 30, y: 40, width: 120, height: 50 });
+    expect(current.data.text).toBe('Rich baseline');
+
+    store.updateStyleForSelection({
+      fontSize: 30,
+      textColor: '#ff0000',
+      stroke: '#00ff00',
+    });
+
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.fontSize).toBe(12);
+    expect(current.data.textColor).toBe('#112233');
+    expect(current.data.borderColor).toBe('#00ff00');
+
+    const beforePage = current.pageNumber;
+    store.updateAnnotation('rich-1', { pageNumber: 2 });
+    expect(useAnnotationStore.getState().annotations[0].pageNumber).toBe(beforePage);
+
+    store.copySelection();
+    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+
+    store.duplicateSelection();
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+  });
+
+  it('blocks cloning or structural reassignment when only a represented reply carries native rich text', () => {
+    const thread: PdfAnnotation = {
+      ...baseAnnotation('thread-rich-reply', 1, 10, 20),
+      type: 'comment',
+      data: {
+        text: 'Plain root remains editable',
+        review: {
+          author: 'Reviewer',
+          createdAt: 1,
+          updatedAt: 1,
+          status: 'open',
+          replies: [
+            {
+              id: 'rich-reply',
+              author: 'Reviewer Two',
+              content: 'Native rich reply',
+              createdAt: 1,
+              nativeInterop: {
+                fidelityClass: 'NATIVE_PRESERVED_READ_ONLY',
+                reason: 'RICH_TEXT',
+                richText: true,
+                protectedContent: 'Native rich reply',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([thread]);
+    store.setSelection([thread.id]);
+
+    store.updateAnnotation(thread.id, { type: 'textbox', pageNumber: 2 });
+    let current = useAnnotationStore.getState().annotations[0];
+    expect(current.type).toBe('comment');
+    expect(current.pageNumber).toBe(1);
+
+    store.updateAnnotation(thread.id, {
+      data: { ...current.data, text: 'Plain root edit is still allowed' },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.text).toBe('Plain root edit is still allowed');
+
+    const beforeReplyMutation = current;
+    store.updateAnnotation(thread.id, {
+      data: {
+        ...current.data,
+        review: {
+          ...current.data.review!,
+          replies: current.data.review!.replies.map((reply) =>
+            reply.id === 'rich-reply'
+              ? { ...reply, content: 'Blocked rich reply edit' }
+              : reply),
+        },
+      },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current).toBe(beforeReplyMutation);
+    expect(current.data.review?.replies[0].content).toBe('Native rich reply');
+
+    store.updateAnnotation(thread.id, {
+      data: {
+        ...current.data,
+        review: {
+          ...current.data.review!,
+          replies: [],
+        },
+      },
+    });
+    current = useAnnotationStore.getState().annotations[0];
+    expect(current.data.review?.replies).toHaveLength(1);
+    expect(current.data.review?.replies[0].id).toBe('rich-reply');
+
+    store.copySelection();
+    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+
+    store.duplicateSelection();
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+  });
+
   it('setSelection normalizes unknown/duplicate ids and sets active id', () => {
     const store = useAnnotationStore.getState();
     store.setAnnotations([baseAnnotation('a1', 1, 0, 0), baseAnnotation('a2', 1, 0, 0)]);

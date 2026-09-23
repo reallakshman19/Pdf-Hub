@@ -1,0 +1,151 @@
+{
+  "schema_version": "relay-v2.5-question-set",
+  "id": "QSET-8G-001",
+  "route": {
+    "route_key": "SERIAL:EP-8G-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-8G-001",
+    "ep_id": "EP-8G-001",
+    "ep_path": "agents/relay/execution-packages/EP-8G-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0002",
+    "work_package": "WP-8G",
+    "ep_contract_digest": "sha256:f4eff70fb28d5c4eaececf614bbe1a547f0ee1284d2313c5ce55b418d7b0d4ab"
+  },
+  "boundary": {
+    "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
+    "from_phase": "PHASE-008",
+    "to_phase": "PHASE-008",
+    "changed_dimensions": [
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "WP-8G changes the verification/oracle class from functional incremental-index correctness to measured large-document performance certification with explicit budgets.",
+      "The incoming work introduces a quantitative O(N) search-complexity invariant and measured range-vs-materialization boundary that were not qualification criteria for WP-8F."
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "focus": "PRODUCTION_PATH",
+      "anchors": [
+        "WP-8G",
+        "INPUT-02"
+      ],
+      "prompt": "Trace the actual large-document production paths that WP-8G must measure. Identify the entrypoint and state owner for revision/source-backed PDF.js search/rendering, the authority that supplies active revision/PageGraph identity, and the downstream mutation/save path that still consumes complete bytes. Do not conflate rendering and mutation.",
+      "required_output_keys": [
+        "production_entrypoint",
+        "state_owner",
+        "authority_source",
+        "downstream_consumer"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q2",
+      "focus": "ENGINEERING_PROBLEM",
+      "anchors": [
+        "WP-8G",
+        "INPUT-03",
+        "AC-02"
+      ],
+      "prompt": "Reconstruct the active-query page-arrival complexity problem quantitatively from the supplied 1000-page payload. Show the cumulative page scans if page k arrival rescans pages 1..k, compare that with the linear target, and state the expected improvement class without relying on implementation comments.",
+      "reconstruction_mode": "QUANTITATIVE",
+      "payload": {
+        "source": "Issue #284 mandatory complexity invariant and elementary arithmetic",
+        "values": {
+          "newly_indexed_pages": {
+            "value": 1000,
+            "units": "pages"
+          },
+          "current_rescan_model": {
+            "value": "sum(k, k=1..N)",
+            "units": "page scans"
+          },
+          "linear_target": {
+            "value": "N",
+            "units": "page matches"
+          }
+        }
+      },
+      "required_output_keys": [
+        "reconstruction_steps",
+        "intermediate_result",
+        "expected_result"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q3",
+      "focus": "BOUNDARIES_INVARIANTS",
+      "anchors": [
+        "WP-8G",
+        "AC-02"
+      ],
+      "prompt": "State what must happen if an optimization starts keying cached search results by physical page number or allows a superseded owner to publish after a revision/priority change. Name the protected identity/publication invariant and the exact observation that falsifies a safe implementation.",
+      "mutation": {
+        "condition": "Change incremental result publication so cached hits are identified by physical page number, or accept publication from an owner token that is no longer current.",
+        "protected_invariant": "Search identity remains activeRevisionId + PageId with current page number derived from PageGraph, and only the current owner may publish page text/results.",
+        "falsifier": "After same-revision reorder, a hit remains attached to the old physical page, or after cancellation/supersession stale task output appears in the active revision results."
+      },
+      "required_output_keys": [
+        "mutation_effect",
+        "protected_invariant",
+        "falsifier"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q4",
+      "focus": "VERIFICATION",
+      "anchors": [
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "TEST-02",
+        "TEST-04",
+        "BENCH-01",
+        "BENCH-02"
+      ],
+      "prompt": "Design an independent verification for the two critical 8G claims: linear active-query page-arrival matching and the distinction between range-backed viewing and full-materialization mutation/save. Predict the observed result and state exactness/tolerance. Verification must use the frozen/pre-implementation oracles rather than the changed implementation's own assertions.",
+      "oracle_refs": [
+        "BENCH-01",
+        "BENCH-02"
+      ],
+      "independence_requirement": "Use issue #284 arithmetic plus frozen DocumentSource/PdfMutationEngine contracts and instrumentation counters; do not use implementation code comments or self-reported PASS flags as the oracle.",
+      "required_output_keys": [
+        "independent_method",
+        "predicted_result",
+        "tolerance_or_exactness"
+      ],
+      "evidence_required": true
+    },
+    {
+      "id": "Q5",
+      "focus": "FIRST_SAFE_SLICE",
+      "anchors": [
+        "STEP-01",
+        "AC-01",
+        "TEST-01"
+      ],
+      "prompt": "Name the exact first bounded implementation slice after takeover certification. State the pre-change observation, the predicted post-change observation, and the exact verification. Do not start by rewriting search or the mutation engine before the deterministic corpus/harness and budget schema exist.",
+      "step_refs": [
+        "STEP-01"
+      ],
+      "required_output_keys": [
+        "first_change",
+        "predicted_before",
+        "predicted_after",
+        "verification"
+      ],
+      "evidence_required": true
+    }
+  ],
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260920-wp8f-closeout"
+  }
+}

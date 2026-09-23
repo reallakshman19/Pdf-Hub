@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
+import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
@@ -917,6 +918,11 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   }, []);
 
   const commitTextEdit = (annotation: PdfAnnotation, value: string) => {
+    if (isNativeRichTextReadOnly(annotation)) {
+      setEditingId(null);
+      return;
+    }
+
     const currentRect = draftRectsRef.current[annotation.id];
     const nextRect =
       annotation.data.autoSize !== false && isTextLike(annotation.type)
@@ -1915,7 +1921,10 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               }}
               onTransformStart={(event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => startTransform(event, annotation, mode)}
               onDoubleClick={() => {
-                if (annotation.data?.locked === true) return;
+                if (
+                  annotation.data?.locked === true
+                  || isNativeRichTextReadOnly(annotation)
+                ) return;
                 setEditingId(annotation.id);
                 setEditingValue(readText(annotation));
               }}

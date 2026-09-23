@@ -1,0 +1,124 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0005-V3-ADMISSION",
+    "state_digest": "sha256:d0bcca7e07d7926b4e7d8867da02b15ce96180eb279a73a0bf406c2cdd8b003b",
+    "material_basis": {
+      "head": "46ee82341c4dac3167379a22ee3c897d7c59c088",
+      "tree_digest": "sha256:3cdfb543ec3e93551cb39d25cd6e3e2eba252ca99afb95f6093ea2e4db747c01",
+      "relevant_paths_digest": "sha256:84729e8184ba2bb1fdab0b051e61328e9a0fc2b4a5779a440876fd0fe03191de",
+      "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+    },
+    "coordination_head": "46ee82341c4dac3167379a22ee3c897d7c59c088"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+  },
+  "programme": {
+    "accepted_progress": 4.76,
+    "completed_work": [
+      "WP-010"
+    ],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-CHECKPOINT",
+    "executor": "chatgpt-gpt56-sol"
+  },
+  "scope": {
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+      "frontend/src/core/pdf-annotations/fixtures/**",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/document/commitPipeline.ts"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream implementation (STEP-10-02)",
+      "New annotation product types",
+      "Signature creation or signature-preserving rewrite architecture",
+      "Phase 11+ work",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "material": {
+    "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+    "head": "46ee82341c4dac3167379a22ee3c897d7c59c088",
+    "relevant_paths_digest": "sha256:84729e8184ba2bb1fdab0b051e61328e9a0fc2b4a5779a440876fd0fe03191de",
+    "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+  },
+  "evidence": {
+    "latest_checkpoint": "CP-10-INTEROP-FIX-001",
+    "latest_material_validation": {
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
+    }
+  },
+  "controls": {
+    "execution_blockers": [],
+    "handover_blockers": [],
+    "delivery_blockers": [],
+    "informational": []
+  },
+  "delivery": {
+    "issue": null,
+    "pr": 290,
+    "lifecycle": "DECLARED",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": "Add the failing external-edit-return production-reader witness before changing nativeAnnotationReader.ts; then make the smallest precedence correction and close F10-01/F10-02/F10-03 only.",
+    "delivery_action": "Perform the explicitly authorized delivery transition.",
+    "stop_conditions": [
+      "Any required change expands into production /AP generation.",
+      "Any change requires rewriting native annotation identity or reply serialization rather than preserving the current /NM and /IRT model.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "A base-branch delta intersects the EP material sensitivity."
+    ]
+  },
+  "handoff": {
+    "zero_context_takeover_possible": true,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
+      "relay/WORK/EP-10-INTEROP-FIX.yaml",
+      "relay/LEASES/LEASE-10-INTEROP-CHECKPOINT.yaml",
+      "relay/CHECKPOINTS/CP-10-INTEROP-FIX-001.yaml"
+    ]
+  }
+}

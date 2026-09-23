@@ -1,0 +1,73 @@
+{
+  "schema_version": "relay-v2.5",
+  "revision": {
+    "id": "RM-0004",
+    "from_revision": "RM-0003",
+    "to_revision": "RM-0004",
+    "classification": "OWNER_INTENT_MUTATION",
+    "trigger": {
+      "type": "OWNER_DECISION",
+      "path": "agents/relay/roadmap/owner-decisions/ODR-0006.yaml"
+    }
+  },
+  "changes": {
+    "added": [],
+    "removed": [],
+    "changed": [
+      "PHASE-009",
+      "WP-009",
+      "PHASE-010",
+      "WP-010"
+    ],
+    "unaffected": [
+      "OBJ-READINESS",
+      "PHASE-004",
+      "WP-004",
+      "PHASE-005",
+      "WP-005",
+      "PHASE-006",
+      "WP-006",
+      "PHASE-007",
+      "WP-007",
+      "PHASE-008",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "PHASE-011",
+      "WP-011",
+      "PHASE-012",
+      "WP-012",
+      "PHASE-013",
+      "WP-013",
+      "PHASE-014",
+      "WP-014"
+    ]
+  },
+  "invalidated_execution_packages": [
+    "EP-9-001"
+  ],
+  "issue_graph_reconciled": true,
+  "progress_basis_change": {
+    "old_basis": "PB-0002",
+    "new_basis": "PB-0003",
+    "old_total_weight": 21,
+    "new_total_weight": 21
+  },
+  "frontier_after": [
+    "WP-010"
+  ],
+  "notes": [
+    "ODR-0003 keeps Phase 8G certification PENDING_NOT_SATISFIED and issue #284 open.",
+    "ODR-0005 keeps Phase 9 fresh takeover qualification and dependent STEP-9-01 continuation PENDING_NOT_SATISFIED and issue #286 open.",
+    "WP-009 is FUTURE/WAITING rather than COMPLETE; no acceptance or earned progress is added.",
+    "WP-010 is activated as the next serial frontier and is coordinated by issue #288."
+  ]
+}

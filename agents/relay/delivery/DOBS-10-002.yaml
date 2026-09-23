@@ -1,0 +1,75 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-002",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "d20ba211dbb31e032f45d4b2519c6a5c3f00dc18"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE",
+    "note": "Provider currently reports mergeable=false. No cause is inferred from the available readback."
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288
+  },
+  "qualification": {
+    "required": true,
+    "state": "PENDING",
+    "execution_package": "EP-10-001",
+    "question_set": "QSET-10-001",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "candidate_admitted": false
+  },
+  "material": {
+    "implementation_started": false,
+    "product_files_changed": false,
+    "evidence_tail_from_prepared_head": "6b66f4a992aa2f5ad539754c81e898999adf58b4",
+    "evidence_tail_files": [
+      "agents/relay/REPO_STATE.yaml",
+      "agents/relay/delivery/DOBS-10-001.yaml"
+    ]
+  },
+  "issue_evidence": {
+    "handoff_comment": 5755677968,
+    "baseline_comment": 5755687964,
+    "supported_type_matrix_comment": 5756059644,
+    "schema_reuse_comment": 5756071953,
+    "candidate_response_observed": false
+  },
+  "checks": {
+    "state": "OBSERVED",
+    "observed": [
+      {
+        "run_id": 35566781730,
+        "name": "certify-writer-overlay-v2",
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "review": {
+    "state": "PENDING",
+    "reviews": 0,
+    "unresolved_threads": 0
+  },
+  "evidence_truth": {
+    "phase10_product_implementation": "NOT_STARTED",
+    "phase10_acceptance_progress": 0,
+    "qualification": "PENDING",
+    "test_10_01": "NOT_RUN"
+  }
+}

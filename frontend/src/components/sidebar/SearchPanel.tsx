@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSearchStore } from '@/core/search/store';
@@ -14,6 +14,9 @@ import {
   EMPTY_SEARCH_INDEX_PROGRESS,
   type SearchOptions,
 } from '@/core/search/types';
+import {
+  useSearchResultPublisher,
+} from './useSearchResultPublisher';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
@@ -92,55 +95,17 @@ export const SearchPanel: React.FC = () => {
     setLocalQuery(query);
   }
 
-  const searchOptionsRef = React.useRef(searchOptions);
-  searchOptionsRef.current = searchOptions;
-
-  const publishSearchResults = useCallback((
-    searchQuery: string,
-    options: SearchOptions = searchOptionsRef.current,
-  ) => {
-    if (!activeRevisionId || !pageGraph) {
-      setHits([]);
-      setIndexProgress({
-        ...EMPTY_SEARCH_INDEX_PROGRESS,
-      });
-      setIsSearching(false);
-      return;
-    }
-
-    SearchIndexer.prepareRevision(
-      activeRevisionId,
-      pageGraph,
-    );
-    const progress =
-      SearchIndexer.getProgress(
-        activeRevisionId,
-        pageGraph,
-      );
-    setIndexProgress(progress);
-
-    if (!searchQuery.trim()) {
-      setHits([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setHits(
-      SearchIndexer.searchRevision(
-        activeRevisionId,
-        pageGraph,
-        searchQuery,
-        options,
-      ),
-    );
-    setIsSearching(!progress.complete);
-  }, [
+  const {
+    publishSearchResults,
+    publishIndexedPageResults,
+  } = useSearchResultPublisher({
     activeRevisionId,
     pageGraph,
+    searchOptions,
     setHits,
     setIndexProgress,
     setIsSearching,
-  ]);
+  });
 
   React.useEffect(() => {
     if (
@@ -204,11 +169,15 @@ export const SearchPanel: React.FC = () => {
           nearbyRadius: 2,
           batchSize: 2,
           signal: controller.signal,
-          onPageIndexed: () => {
-            publishSearchResults(
-              useSearchStore
-                .getState()
-                .query,
+          onPageIndexed: ({
+            pageId,
+            pageNumber,
+            progress,
+          }) => {
+            publishIndexedPageResults(
+              pageId,
+              pageNumber,
+              progress,
             );
           },
           onProgress: (
@@ -249,10 +218,20 @@ export const SearchPanel: React.FC = () => {
         ) {
           indexAbortControllerRef.current =
             null;
-          publishSearchResults(
-            useSearchStore
-              .getState()
-              .query,
+          const progress =
+            SearchIndexer.getProgress(
+              activeRevisionId,
+              pageGraph,
+            );
+          setIndexProgress(progress);
+          setIsSearching(
+            Boolean(
+              useSearchStore
+                .getState()
+                .query
+                .trim(),
+            )
+            && !progress.complete,
           );
         }
       }
@@ -275,8 +254,10 @@ export const SearchPanel: React.FC = () => {
     pageGraph,
     currentPage,
     publishSearchResults,
+    publishIndexedPageResults,
     setError,
     setIndexProgress,
+    setIsSearching,
     addToast,
   ]);
 
@@ -302,10 +283,6 @@ export const SearchPanel: React.FC = () => {
         nextHit();
       } else {
         setQuery(localQuery);
-        publishSearchResults(
-          localQuery,
-          searchOptions,
-        );
       }
     }
   };
@@ -325,10 +302,6 @@ export const SearchPanel: React.FC = () => {
       const next = { ...prev, [key]: !prev[key] };
       if (localQuery) {
         setQuery(localQuery);
-        publishSearchResults(
-          localQuery,
-          next,
-        );
       }
       return next;
     });

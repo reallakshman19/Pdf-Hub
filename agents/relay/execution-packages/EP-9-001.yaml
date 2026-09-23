@@ -1,0 +1,1331 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-9-001",
+    "branch": "phase9/pdf-fidelity-laboratory",
+    "base_ref": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "NONE",
+    "previous_join": "PR-283",
+    "previous_replan": null
+  },
+  "replan_inheritance": null,
+  "git_basis": {
+    "expected_branch": "phase9/pdf-fidelity-laboratory",
+    "material_ref": "3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+    "base_branch": "phase8/large-document-performance",
+    "base_observed_ref": "42ca85036cdd67f636a5f3dec2e4a9160ad624cb",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0003",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-009",
+    "work_package": "WP-009",
+    "generated_from_frontier": true,
+    "task_admission": {
+      "disposition": "MAPPED_EXISTING_WP",
+      "searched_paths": [
+        "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+        "ARCHITECTURE.md",
+        "Docs/PDF_MUTATION_ENGINE.md",
+        "GitHub issue #286"
+      ],
+      "basis": [
+        "RM-0003 computes WP-009 as the sole serial frontier.",
+        "Issue #286 defines the Phase 9 fidelity-laboratory work contract.",
+        "ARCHITECTURE.md already defines the permanent fidelity corpus and repeated save/reopen cycle."
+      ]
+    }
+  },
+  "outcome": {
+    "user_visible": [
+      "Supported PDF mutations preserve real document structures instead of silently dropping catalog-level content.",
+      "Unsupported encrypted, signed, malformed, font or structural cases fail or warn explicitly instead of implying fidelity."
+    ],
+    "engineering": [
+      "A permanent machine-readable fidelity corpus covers outlines, PageLabels, forms, annotations, attachments, tags, complex fonts, incremental/object-stream inputs, encryption, signatures and malformed-but-readable xrefs.",
+      "Structural mutation fidelity is verified through open → mutate → save → reopen → validate/render → mutate → save → reopen rather than page-count-only checks.",
+      "Canonical mutation behavior is hardened only where corpus evidence demonstrates bounded loss; unsupported boundaries remain explicit."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Turn known document-level fidelity gaps in the canonical PDF mutation path into reproducible corpus evidence and bounded hardening.",
+    "roadmap_position": "OBJ-READINESS / PHASE-009 / WP-009 after Owner resequence RM-0003; Phase 8G certification remains deferred, open and unsatisfied.",
+    "why_this_work_exists": "Phase 7 established the canonical PdfMutationEngine/session boundary but intentionally retained page-only rebuild behavior for reorder/delete/duplicate and did not claim preservation of outlines, forms, attachments, tagging, signatures or other catalog structures. ARCHITECTURE.md assigns those fidelity risks to the permanent Phase 9 lab.",
+    "current_architecture": "PdfLibMutationEngine opens complete Uint8Array input with pdf-lib. Some structural operations rebuild a new PDFDocument and copy pages, which can omit document-level catalog structures. PDF.js remains an independent rendering/text consumer after save/reopen. PageGraph and immutable revision publication remain authoritative for page identity/history.",
+    "prior_owner_decisions": [
+      "ODR-0003 defers exact-head Phase 8G certification as PENDING_NOT_SATISFIED.",
+      "ODR-0004 and RM-0003 resequence WP-009 as the next serial frontier without treating WP-8G as complete.",
+      "Issue #185 breadth freeze remains in force; Phase 9 is fidelity hardening, not unrelated feature expansion.",
+      "Owner directed this continuation to use engineering-pr-delivery-v2.5 exactly at Common commit 65518fd5340599b2a0fb88db5041f6c96389ccb8."
+    ],
+    "current_implementation_state": "STEP-9-01 is partially implemented on material head 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. The machine-readable corpus has 12 fixture entries: 9 are generator-backed and 3 remain required-pending (complex-font/unicode, encrypted, signed). Two retained candidate PDFs now exist for CID/Arabic and encrypted coverage but are not yet bound as satisfied manifest sources. The prior DISC/QUAL/TC chain was issued under an older protocol/EP basis and is stale under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+    "known_problems": [
+      "Three STEP-9-01 specialist obligations remain unsatisfied in the manifest: complex-font/unicode, encrypted, and signed.",
+      "Retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf exist but require provenance/semantic validation before their manifest entries may change from required-pending to retained.",
+      "A deterministic or legally redistributable signed-document fixture is still absent.",
+      "The prior DISC-9-001 / QUAL-9-001 / TC-9-001 chain does not satisfy the pinned Common 65518fd5340599b2a0fb88db5041f6c96389ccb8 validators because its protocol basis/schema/EP digest are stale.",
+      "Phase 8G certification remains PENDING_NOT_SATISFIED under ODR-0003 / issue #284."
+    ],
+    "deliberate_non_goals": [
+      "No Phase 10 annotation UX/interoperability breadth beyond preserving existing annotations.",
+      "No Phase 11 OCR internationalization work.",
+      "No Phase 12 SDK or Phase 13 existing-text editing work.",
+      "No wholesale mutation-engine replacement without corpus-backed evidence that bounded fixes are insufficient.",
+      "No reopening the deferred Phase 8G certification inside this EP."
+    ],
+    "terminology": {
+      "fidelity_oracle": "Fixture-specific declaration of structures expected to survive, transform, invalidate or cause explicit rejection.",
+      "semantic_structure_inventory": "Machine-readable inventory of reachable document/page structures compared by meaning rather than raw object numbers.",
+      "repeat_cycle": "Open, inspect, mutate, save, reopen, validate/render, mutate again, save again, reopen again.",
+      "explicit_rejection": "A supported, testable failure mode that prevents silent corruption when the engine cannot preserve the input safely."
+    }
+  },
+  "repository_discovery": [
+    {
+      "id": "DSTEP-9-01",
+      "action": "VERIFY",
+      "target": "agents/relay/REPO_STATE.yaml",
+      "question": "Does repository authority route exactly to RM-0003 / PHASE-009 / WP-009 / issue #286 with Phase 8G certification still deferred rather than complete?",
+      "expected_outputs": [
+        "roadmap revision/frontier",
+        "active issue mapping",
+        "Phase 8G deferred obligation"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile roadmap/issue custody before Phase 9 material work."
+    },
+    {
+      "id": "DSTEP-9-02",
+      "action": "VERIFY_GIT",
+      "target": "live checkout",
+      "question": "Is the active checkout phase9/pdf-fidelity-laboratory descended from the exact RM-0003 handoff commit 42ca85036cdd67f636a5f3dec2e4a9160ad624cb?",
+      "expected_outputs": [
+        "checked-out branch",
+        "current HEAD",
+        "base ancestry",
+        "drift result"
+      ],
+      "receipt_required": true,
+      "on_failure": "Withhold material writes and reconcile the Git route."
+    },
+    {
+      "id": "DSTEP-9-03",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/core/pdf-mutation/types.ts",
+        "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts",
+        "frontend/src/core/commands/",
+        "frontend/src/core/document-history/"
+      ],
+      "question": "Which canonical mutation operations rebuild documents or copy pages, and which catalog/document structures are currently outside the preserved production path?",
+      "expected_outputs": [
+        "mutation entrypoint",
+        "session state owner",
+        "rebuild/copy operations",
+        "document-level structures at risk"
+      ],
+      "receipt_required": true,
+      "on_failure": "Update EP/QSET if the mutation production path differs materially."
+    },
+    {
+      "id": "DSTEP-9-04",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/adapters/pdf-renderer/",
+        "frontend/src/core/pages/",
+        "frontend/src/core/page-labels/"
+      ],
+      "question": "What independent renderer/page-identity consumers can validate post-save structure/render/text without becoming the mutation oracle itself?",
+      "expected_outputs": [
+        "renderer validation path",
+        "PageGraph authority",
+        "PageLabels consumer",
+        "independent reopen/render boundary"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile the verification design before implementation."
+    },
+    {
+      "id": "DSTEP-9-05",
+      "action": "INSPECT",
+      "target": "ARCHITECTURE.md",
+      "question": "What exact permanent fidelity corpus and repeated structural mutation cycle are already architectural requirements?",
+      "expected_outputs": [
+        "required fixture classes",
+        "repeat-cycle steps",
+        "protected identity invariants"
+      ],
+      "receipt_required": true,
+      "on_failure": "Stop because the Phase 9 architecture contract is unavailable."
+    },
+    {
+      "id": "DSTEP-06",
+      "action": "INSPECT",
+      "target": "GitHub issue #286",
+      "question": "What preservation, invalidation, rejection and certification outcomes are authorized for Phase 9?",
+      "expected_outputs": [
+        "fixture manifest contract",
+        "mutation matrix",
+        "signature/encryption semantics",
+        "certification outputs"
+      ],
+      "receipt_required": true,
+      "on_failure": "Stop because the coordination contract is unavailable or materially changed."
+    },
+    {
+      "id": "DSTEP-07",
+      "action": "INSPECT",
+      "target": "GitHub issue #183",
+      "question": "What runner-executed evidence is available for Phase 9 validation?",
+      "expected_outputs": [
+        "runner availability evidence"
+      ],
+      "receipt_required": true,
+      "on_failure": "Record runner availability as unknown and do not fabricate PASS."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "INPUT-9-01",
+      "name": "Phase 9 fidelity contract",
+      "description": "Authorized corpus, mutation matrix and exit criteria.",
+      "authority": "Verified GitHub coordination issue",
+      "source": "GitHub issue #286",
+      "value": "Permanent corpus plus semantic inventory/diff and repeat save/reopen validation for document-level fidelity; bounded hardening only.",
+      "resolution_method": "Read provider-verified issue #286.",
+      "type": "engineering contract",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-9-01",
+        "STEP-9-02",
+        "STEP-9-03",
+        "STEP-9-04",
+        "STEP-9-05"
+      ],
+      "validation": [
+        "Issue #286 remains open and mapped to WP-009."
+      ],
+      "stale_if": [
+        "Issue #286 is superseded or materially revised."
+      ]
+    },
+    {
+      "id": "INPUT-9-02",
+      "name": "Pre-Phase9 mutation behavior",
+      "description": "Frozen production path and known fidelity limits used as the baseline.",
+      "authority": "Production code and architecture documentation",
+      "source": "PdfLibMutationEngine.ts + Docs/PDF_MUTATION_ENGINE.md + ARCHITECTURE.md at RM-0003 handoff",
+      "value": "Canonical pdf-lib sessions; page-only rebuild/copy operations; explicit pre-Phase9 non-claim for document-level fidelity.",
+      "resolution_method": "Trace DSTEP-9-03 and compare to the frozen architecture documentation.",
+      "type": "production architecture",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-9-02",
+        "STEP-9-03",
+        "STEP-9-04"
+      ],
+      "validation": [
+        "Production mutation path and known non-claims still match the handoff basis."
+      ],
+      "stale_if": [
+        "Canonical mutation engine or structural mutation path changes materially before execution."
+      ]
+    },
+    {
+      "id": "INPUT-9-03",
+      "name": "Permanent fidelity corpus classes",
+      "description": "Required fixture categories from architecture and issue #286.",
+      "authority": "ARCHITECTURE.md and issue #286",
+      "source": "ARCHITECTURE.md Testing requirements / issue #286 Permanent corpus",
+      "value": "Ordinary/scanned, mixed geometry, CropBox/MediaBox, outlines, PageLabels, AcroForms, annotations, attachments/metadata, tagged PDFs, CID/subset fonts, Arabic/CJK/RTL, object streams/incremental revisions, encrypted/signed, malformed-readable xrefs.",
+      "resolution_method": "Create deterministic/redistributable fixture manifest with fixture-specific expectations.",
+      "type": "fidelity input",
+      "units": "fixture classes",
+      "editable": true,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-9-01",
+        "STEP-9-02",
+        "STEP-9-03",
+        "STEP-9-04"
+      ],
+      "validation": [
+        "Manifest covers every required class and records source/provenance plus expected semantics."
+      ],
+      "stale_if": [
+        "Architecture or issue #286 changes required classes."
+      ]
+    },
+    {
+      "id": "INPUT-9-04",
+      "name": "Phase 8G deferred obligation",
+      "description": "Predecessor limitation that must remain visible but is not Phase 9 acceptance.",
+      "authority": "Owner decision and issue state",
+      "source": "ODR-0003 + GitHub issue #284",
+      "value": "Exact-head npm run certify:phase8g remains PENDING_NOT_SATISFIED at product head 2bd1333d158897bc9c3e91dc3fb731e9b396a1af.",
+      "resolution_method": "Read ODR-0003 and issue #284 pending section.",
+      "type": "predecessor limitation",
+      "units": "NA",
+      "editable": false,
+      "applicability": "INFORMATIONAL",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-9-05"
+      ],
+      "validation": [
+        "No Phase 9 report or checkpoint describes WP-8G as complete."
+      ],
+      "stale_if": [
+        "WP-8G certification is later resumed and reconciled."
+      ]
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "BENCH-9-01",
+      "name": "Document-structure preservation oracle",
+      "purpose": "Independently define what each fixture must preserve, transform, invalidate or reject.",
+      "source": "Issue #286 fixture manifest + pre-implementation architecture requirements",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Fixture-specific semantic structure inventory for outlines, labels, forms/widgets, annotations, attachments/name trees, metadata, structure tree, page boxes/rotation, fonts, signatures and encryption state.",
+      "expected": "After each authorized repeat-cycle mutation, required semantic structures remain reachable/equivalent or the operation produces the fixture-declared explicit invalidation/rejection.",
+      "tolerance": "Semantic equivalence; raw indirect-object numbers are not required to remain identical.",
+      "independence": "Expectations are declared in the corpus manifest before the mutation implementation being hardened.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-9-01",
+        "AC-9-02",
+        "AC-9-03",
+        "TEST-9-01",
+        "TEST-9-02",
+        "TEST-9-03"
+      ],
+      "stale_if": [
+        "Fixture expectations are changed after observing production output without independent justification."
+      ]
+    },
+    {
+      "id": "BENCH-9-02",
+      "name": "Second-save/reopen durability oracle",
+      "purpose": "Catch one-shot repairs that fail after another mutation/save cycle.",
+      "source": "ARCHITECTURE.md structural mutation test cycle",
+      "oracle_class": "FROZEN_GOLDEN",
+      "payload": "open → mutate → save → reopen → validate/render → mutate again → save → reopen",
+      "expected": "Supported fidelity guarantees remain true after the second save/reopen, not only the first output.",
+      "tolerance": null,
+      "independence": "The repeat-cycle requirement predates Phase 9 implementation.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-9-02",
+        "AC-9-03",
+        "TEST-9-02",
+        "TEST-9-03"
+      ],
+      "stale_if": [
+        "Architecture replaces the mandated repeat-cycle contract."
+      ]
+    },
+    {
+      "id": "BENCH-9-03",
+      "name": "Signature/encryption truth oracle",
+      "purpose": "Prevent unsafe claims for cryptographically protected documents.",
+      "source": "Issue #286 signed/encrypted contract",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Content-changing mutation must not claim to preserve signature validity; unsupported encryption/mutation cases must reject explicitly.",
+      "expected": "Detection/disposition is explicit and no output is presented as cryptographically valid unless independently established.",
+      "tolerance": null,
+      "independence": "The oracle is a safety/semantic contract independent of implementation output.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-9-04",
+        "TEST-9-04"
+      ],
+      "stale_if": [
+        "Product cryptographic support policy changes explicitly."
+      ]
+    },
+    {
+      "id": "BENCH-9-04",
+      "name": "Phase 9 provider acceptance oracle",
+      "purpose": "Bind lab, regressions, docs and certification to the pre-implementation work contract.",
+      "source": "GitHub issue #286",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Permanent corpus, semantic inventory/diff, repeat cycle, bounded fixes/dispositions, audit:phase9-fidelity, certify:phase9 and truthful NOT_RUN under #183.",
+      "expected": "All required outputs exist, discovered defects are fixed or durably dispositioned, and docs expose the supported/unsupported matrix.",
+      "tolerance": null,
+      "independence": "Issue #286 is provider-authored before Phase 9 product implementation.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-9-01",
+        "AC-9-02",
+        "AC-9-03",
+        "AC-9-04",
+        "AC-9-05",
+        "TEST-9-05"
+      ],
+      "stale_if": [
+        "Issue #286 is materially revised."
+      ]
+    }
+  ],
+  "scope": {
+    "allowed": [
+      {
+        "path": "frontend/src/core/pdf-mutation/",
+        "reason": "Define bounded structural fidelity contracts/inventory helpers where engine-neutral."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-mutation/",
+        "reason": "Harden pdf-lib mutation implementation only for corpus-proven fidelity defects."
+      },
+      {
+        "path": "frontend/src/core/mock/",
+        "reason": "Add deterministic fidelity fixtures where appropriate."
+      },
+      {
+        "path": "frontend/src/performance/",
+        "reason": "Reuse bounded test-support patterns only where they help the fidelity laboratory."
+      },
+      {
+        "path": "frontend/src/**/*.test.ts*",
+        "reason": "Add structural fidelity and regression tests."
+      },
+      {
+        "path": "frontend/e2e/",
+        "reason": "Use PDF.js/browser reopen/render as an independent validation consumer where needed."
+      },
+      {
+        "path": "frontend/scripts/",
+        "reason": "Add corpus, inventory/diff, audit and certification tooling."
+      },
+      {
+        "path": "frontend/package.json",
+        "reason": "Wire audit:phase9-fidelity and certify:phase9."
+      },
+      {
+        "path": "ARCHITECTURE.md",
+        "reason": "Document measured fidelity matrix and protected boundaries."
+      },
+      {
+        "path": "Docs/",
+        "reason": "Update mutation/fidelity documentation and known limitations."
+      },
+      {
+        "path": "docs/",
+        "reason": "Update lower-case documentation when the relevant current material lives there."
+      },
+      {
+        "path": "agents/relay/",
+        "reason": "Maintain Phase 9 V2.5 execution, qualification, evidence and delivery custody."
+      }
+    ],
+    "allowed_reads": [
+      {
+        "path": "frontend/src/adapters/pdf-renderer/",
+        "reason": "Independent post-save render/text validation."
+      },
+      {
+        "path": "frontend/src/core/pages/",
+        "reason": "Preserve PageGraph and PageId authority."
+      },
+      {
+        "path": "frontend/src/core/page-labels/",
+        "reason": "Validate logical labels after structural mutation."
+      },
+      {
+        "path": "frontend/src/core/document-history/",
+        "reason": "Preserve history/recovery invariants."
+      },
+      {
+        "path": "GitHub issues #183, #284, #286",
+        "reason": "Evidence, deferred predecessor and Phase 9 scope authority."
+      }
+    ],
+    "protected": [
+      {
+        "invariant": "Stable PageId and PageGraph remain the page identity/order authority; fidelity fixes must not substitute raw physical indices as durable identity.",
+        "reason": "Preserves Phase 5/8 page semantics."
+      },
+      {
+        "invariant": "Original input and committed working revisions remain immutable; mutation publishes a new revision atomically.",
+        "reason": "Preserves canonical transaction/history safety."
+      },
+      {
+        "invariant": "Existing document structures may be transformed only when the fixture/operation contract explicitly permits it; silent dropping is forbidden.",
+        "reason": "Core Phase 9 fidelity guarantee."
+      },
+      {
+        "invariant": "Signed/encrypted document state is reported truthfully; content mutation never implies preserved cryptographic validity.",
+        "reason": "Prevents false security claims."
+      },
+      {
+        "invariant": "PDF.js/render success is an independent consumer check, not sufficient proof of catalog fidelity.",
+        "reason": "Avoids weak oracle coupling."
+      },
+      {
+        "invariant": "Phase 8G remains pending/unsatisfied until its own deferred certification is executed and reconciled.",
+        "reason": "Preserves predecessor evidence truth."
+      },
+      {
+        "invariant": "Zero-step #183 workflows remain NOT_RUN.",
+        "reason": "Preserves delivery evidence truth."
+      }
+    ],
+    "prohibited": [
+      {
+        "domain": "Phase 10 annotation product/UX interoperability expansion",
+        "reason": "Phase 9 may preserve existing annotations but not expand annotation UX breadth."
+      },
+      {
+        "domain": "OCR internationalization/resumability",
+        "reason": "Phase 11 scope."
+      },
+      {
+        "domain": "Public SDK/API",
+        "reason": "Phase 12 scope."
+      },
+      {
+        "domain": "Existing-PDF text editing",
+        "reason": "Phase 13 scope."
+      },
+      {
+        "domain": "Wholesale mutation-engine replacement without corpus evidence",
+        "reason": "Bounded, evidence-driven hardening is required first."
+      },
+      {
+        "domain": "Phase 8G benchmark closure",
+        "reason": "Deferred predecessor obligation remains owned by issue #284."
+      }
+    ],
+    "owner_reserved": [
+      {
+        "decision": "Replace the canonical mutation engine or add a second production engine.",
+        "reason": "Material architecture/engineering-authority change."
+      },
+      {
+        "decision": "Define a product promise that signed content mutations preserve signature validity.",
+        "reason": "Cryptographic/security product contract."
+      },
+      {
+        "decision": "Expand Phase 9 into Phase 10+ feature breadth.",
+        "reason": "Roadmap intent mutation required."
+      },
+      {
+        "decision": "Authorize merge of the Phase 9 PR.",
+        "reason": "Requires exact-head delivery authorization."
+      }
+    ]
+  },
+  "anti_drift": {
+    "do_not": [
+      {
+        "id": "ADR-01",
+        "restriction": "Do not make fidelity tests pass by deleting the fixture's expected structure or weakening its manifest.",
+        "reason": "Corpus expectations are the independent oracle."
+      },
+      {
+        "id": "ADR-02",
+        "restriction": "Do not treat PDF.js rendering success as proof that outlines/forms/attachments/tags/signatures survived.",
+        "reason": "Rendering is only one consumer."
+      },
+      {
+        "id": "ADR-03",
+        "restriction": "Do not preserve raw object numbers instead of semantic references when pdf-lib legitimately rewrites objects.",
+        "reason": "Fidelity comparison is semantic."
+      },
+      {
+        "id": "ADR-04",
+        "restriction": "Do not rewrite the entire mutation engine before bounded fixture evidence demonstrates necessity.",
+        "reason": "Keep scope evidence-driven."
+      },
+      {
+        "id": "ADR-05",
+        "restriction": "Do not hide explicit rejection/unsupported cases behind successful save/export UI behavior.",
+        "reason": "Unsafe silent normalization is prohibited."
+      },
+      {
+        "id": "ADR-06",
+        "restriction": "Do not claim Phase 8G completion or CI PASS from deferred/zero-step evidence.",
+        "reason": "Predecessor truth remains protected."
+      }
+    ],
+    "stale_if": [
+      {
+        "id": "STALE-01",
+        "condition": "RM-0003 no longer leaves WP-009 as the sole serial frontier.",
+        "effect": "STALE",
+        "rationale": "EP no longer matches roadmap authority."
+      },
+      {
+        "id": "STALE-02",
+        "condition": "Canonical mutation/revision/PageGraph production paths change materially after the observed base.",
+        "effect": "RECONCILE",
+        "rationale": "Fidelity inventory and protected-boundary assumptions may have changed."
+      },
+      {
+        "id": "STALE-03",
+        "condition": "Issue #286 materially changes corpus, mutation matrix or cryptographic/unsupported semantics.",
+        "effect": "STALE",
+        "rationale": "Coordination contract changed."
+      },
+      {
+        "id": "STALE-04",
+        "condition": "Verification/oracle or engineering-authority boundary changes after qualification.",
+        "effect": "REQUALIFY",
+        "rationale": "Phase 9 is explicitly qualification-bound to fidelity oracles."
+      }
+    ]
+  },
+  "implementation_plan": [
+    {
+      "id": "STEP-9-01",
+      "objective": "Create the permanent fidelity corpus, provenance/expectation manifest and deterministic fixture validation.",
+      "targets": [
+        "frontend/src/core/mock/",
+        "frontend/scripts/",
+        "fidelity corpus manifest/tests"
+      ],
+      "reads": [
+        "ARCHITECTURE.md",
+        "issue #286",
+        "existing fixture generators"
+      ],
+      "writes": [
+        "fixture generators or retained fixture definitions",
+        "manifest schema",
+        "fixture validation tests"
+      ],
+      "inputs": [
+        "INPUT-9-01",
+        "INPUT-9-03"
+      ],
+      "acceptance": [
+        "AC-9-01"
+      ],
+      "tests": [
+        "TEST-9-01"
+      ],
+      "expected_state": "Every required fidelity class has a reproducible fixture with machine-readable expected structures and mutation dispositions.",
+      "stop_conditions": [
+        "Stop if a fixture cannot be legally/deterministically retained; record provenance and use a generator or durable unsupported disposition."
+      ]
+    },
+    {
+      "id": "STEP-9-02",
+      "objective": "Build semantic structure inventory/diff plus the mandatory repeated save/reopen fidelity cycle.",
+      "targets": [
+        "frontend/src/core/pdf-mutation/",
+        "frontend/scripts/",
+        "focused tests"
+      ],
+      "reads": [
+        "BENCH-9-01",
+        "BENCH-9-02",
+        "pdf-lib low-level catalog APIs",
+        "PDF.js validation path"
+      ],
+      "writes": [
+        "inventory/diff harness",
+        "repeat-cycle runner",
+        "machine-readable fidelity report schema"
+      ],
+      "inputs": [
+        "INPUT-9-01",
+        "INPUT-9-02",
+        "INPUT-9-03"
+      ],
+      "acceptance": [
+        "AC-9-02"
+      ],
+      "tests": [
+        "TEST-9-02"
+      ],
+      "expected_state": "The lab can independently detect preserved, transformed, invalidated, dropped and explicitly rejected structures after first and second save/reopen cycles.",
+      "stop_conditions": [
+        "Stop if the proposed oracle depends on production mutation output rather than fixture-declared expectations."
+      ]
+    },
+    {
+      "id": "STEP-9-03",
+      "objective": "Use corpus failures to harden bounded document/catalog preservation in canonical structural mutations.",
+      "targets": [
+        "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts",
+        "frontend/src/core/pdf-mutation/",
+        "focused regression tests"
+      ],
+      "reads": [
+        "STEP-9-02 reports",
+        "BENCH-9-01",
+        "existing mutation tests"
+      ],
+      "writes": [
+        "bounded fidelity fixes",
+        "fixture-specific regressions",
+        "explicit unsupported dispositions"
+      ],
+      "inputs": [
+        "INPUT-9-01",
+        "INPUT-9-02",
+        "INPUT-9-03"
+      ],
+      "acceptance": [
+        "AC-9-03"
+      ],
+      "tests": [
+        "TEST-9-03"
+      ],
+      "expected_state": "Authorized structural operations no longer silently drop protected document structures for supported fixture classes, and unsupported boundaries reject explicitly.",
+      "stop_conditions": [
+        "Stop and seek Owner architecture decision if a safe fix requires wholesale engine replacement or a second production mutation engine."
+      ]
+    },
+    {
+      "id": "STEP-9-04",
+      "objective": "Establish complex-font, Unicode, encrypted, signed and malformed-input fidelity/support semantics.",
+      "targets": [
+        "fidelity lab/tests",
+        "bounded mutation guards/errors",
+        "documentation"
+      ],
+      "reads": [
+        "BENCH-9-03",
+        "CID/subset font fixtures",
+        "Arabic/CJK/RTL fixtures",
+        "encrypted/signed/malformed fixtures"
+      ],
+      "writes": [
+        "explicit detection/rejection/invalidation behavior",
+        "focused regressions",
+        "support matrix"
+      ],
+      "inputs": [
+        "INPUT-9-01",
+        "INPUT-9-02",
+        "INPUT-9-03"
+      ],
+      "acceptance": [
+        "AC-9-04"
+      ],
+      "tests": [
+        "TEST-9-04"
+      ],
+      "expected_state": "Complex text and protected/malformed inputs have explicit, tested outcomes with no silent corruption or false cryptographic validity claims.",
+      "stop_conditions": [
+        "Stop if required cryptographic behavior would imply unsupported signature validation/decryption authority beyond the existing product."
+      ]
+    },
+    {
+      "id": "STEP-9-05",
+      "objective": "Wire Phase 9 anti-drift/certification, documentation, QRV/checkpoint and tracked PR delivery.",
+      "targets": [
+        "frontend/scripts/",
+        "frontend/package.json",
+        "ARCHITECTURE.md",
+        "Docs/",
+        "agents/relay",
+        "Phase 9 PR"
+      ],
+      "reads": [
+        "all Phase 9 evidence",
+        "issues #183/#284/#286",
+        "V2.5 quality/delivery contracts"
+      ],
+      "writes": [
+        "audit:phase9-fidelity",
+        "certify:phase9",
+        "support matrix docs",
+        "quality/checkpoint/delivery/progress"
+      ],
+      "inputs": [
+        "INPUT-9-01",
+        "INPUT-9-04"
+      ],
+      "acceptance": [
+        "AC-9-01",
+        "AC-9-02",
+        "AC-9-03",
+        "AC-9-04",
+        "AC-9-05"
+      ],
+      "tests": [
+        "TEST-9-05"
+      ],
+      "expected_state": "Phase 9 has a permanent reproducible lab, bounded fixes/dispositions, truthful evidence, documented supported matrix and verified Issue↔EP delivery correlation.",
+      "stop_conditions": [
+        "Do not claim fidelity or certification PASS without executed evidence; do not merge without exact-head Owner authorization."
+      ]
+    }
+  ],
+  "next_work": {
+    "phase_transition": true,
+    "steps": [
+      {
+        "order": 1,
+        "action": "A fresh independent local candidate reconstructs the current Phase 9 route under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8, answers QSET-9-003 from repository evidence, obtains current DISC/QUAL/TC and live MATERIAL_WRITE_READY, then continues only STEP-9-01 by validating/binding the retained CID/Arabic and encrypted fixtures and sourcing the signed fixture.",
+        "targets": [
+          "agents/relay/certifications",
+          "frontend/fidelity/phase9/manifest.json",
+          "frontend/fidelity/phase9/retained/",
+          "frontend/scripts/phase9-fidelity-corpus-audit.mjs",
+          "frontend/src/core/pdf-fidelity/manifestValidation.test.ts"
+        ],
+        "inputs": [
+          "INPUT-9-01",
+          "INPUT-9-02",
+          "INPUT-9-03",
+          "INPUT-9-04"
+        ],
+        "tests": [
+          "TEST-9-01"
+        ],
+        "benchmarks": [
+          "BENCH-9-01",
+          "BENCH-9-04"
+        ],
+        "acceptance": [
+          "AC-9-01"
+        ],
+        "expected_result": "The pinned-protocol candidate is takeover-certified on the exact current EP/material basis; STEP-9-01 then reduces the manifest's three required-pending specialist obligations without claiming coverage from unvalidated binaries.",
+        "stop_if": [
+          "QSET-9-003 / current DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "Retained fixture provenance or semantic structure does not establish the required class.",
+          "Any fixture source lacks legal redistribution/ownership evidence.",
+          "The proposed work expands into mutation-engine hardening before AC-9-01 corpus readiness."
+        ],
+        "execution_requirement": {
+          "id": "EXECREQ-9-QUAL-STEP1",
+          "type": "EXTERNAL_ENVIRONMENT",
+          "actor": "FRESH_INDEPENDENT_LOCAL_CANDIDATE",
+          "environment": {
+            "kind": "LOCAL_AGENT_WITH_REPOSITORY_CHECKOUT",
+            "description": "An independent agent/session with a local Pdf-Hub checkout, access to Common at pinned commit 65518fd5340599b2a0fb88db5041f6c96389ccb8, and the ability to run the pinned V2.5 validators plus frontend corpus validation commands."
+          },
+          "command": null,
+          "instruction": "Reconstruct EP-9-001/QSET-9-003 from repository state only; create and validate fresh DISC/QUAL/TC under the pinned Common basis; derive live MATERIAL_WRITE_READY; only if WRITE, complete the bounded STEP-9-01 retained-fixture/signed-fixture slice and run TEST-9-01 evidence. Post all evidence back to issue #286.",
+          "working_directory": "<local-checkout>/Pdf-Hub",
+          "required_basis": [
+            "repository reallaksh19/Pdf-Hub",
+            "branch phase9/pdf-fidelity-laboratory",
+            "roadmap RM-0003 / WP-009",
+            "issue #286 / draft PR #287",
+            "frozen product/material basis 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd",
+            "Common engineering-pr-delivery-v2.5 pinned to 65518fd5340599b2a0fb88db5041f6c96389ccb8",
+            "current EP-9-001 and QSET-9-003 as read from the repository at execution time",
+            "Phase 8G issue #284 remains PENDING_NOT_SATISFIED"
+          ],
+          "unavailable_here_reason": "This session prepared the Phase 9 qualification set and cannot validly act as the independent incoming candidate/evaluator; the current tool environment also has no separate-agent spawn semantics or runnable local repository checkout.",
+          "expected_evidence": [
+            "TEST-9-01"
+          ],
+          "blocks": [
+            "candidate-specific TAKEOVER_CERTIFIED for the refreshed Phase 9 route",
+            "candidate-specific MATERIAL_WRITE_READY",
+            "further STEP-9-01 product/test-support writes"
+          ],
+          "success_condition": "A non-preparer candidate posts repository-only DISC/QUAL/TC accepted by the pinned validators, derives MATERIAL_WRITE_READY on the live route, completes only the authorized STEP-9-01 fixture-binding/signed-fixture slice, and posts TEST-9-01 plus corpus-audit evidence to issue #286.",
+          "clears": [
+            "fresh pinned-protocol takeover admission for EP-9-001",
+            "authorization for the qualified candidate to perform the bounded STEP-9-01 material slice",
+            "the current external-execution wait for TEST-9-01 evidence"
+          ],
+          "delegation": {
+            "mode": "LOCAL_AGENT",
+            "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase9/pdf-fidelity-laboratory. Work from a local checkout root. Governing protocol: reallaksh19/Common@65518fd5340599b2a0fb88db5041f6c96389ccb8/skills/engineering-pr-delivery-v2.5. Current roadmap route: RM-0003 / WP-009 / issue #286 / draft PR #287. Frozen product/material basis: 3a0afbcf94c8e3af505b5a254b9e1633cdf798fd. Read agents/relay/REPO_STATE.yaml, EP-9-001.yaml and QSET-9-003.yaml from the repository; do not rely on predecessor chat. Use a candidate identity different from chatgpt-gpt56-sol-20260921-phase9-delegation-refresh-preparer. Create a fresh DISC-9-* covering every receipt-required DSTEP with conversation_context_used:false and the pinned protocol/profile/predecessor/material/EP digests. Answer Q1-Q5 exactly from QSET-9-003 and create a fresh QUAL-9-* using evaluated_by.type DETERMINISTIC_VALIDATOR and evaluated_by.identity validate_qualification_receipt.py; self_evaluation.allowed:false; all five evaluations must PASS. Create a fresh TC-9-* using validate_takeover_certification.py and the exact DISC/QUAL digest; all takeover checks must PASS. Update REPO_STATE.takeover_admissions only after pinned validators accept the chain. Run material_write_ready.py with your candidate id and do not touch product files unless it returns WRITE. If WRITE, stay strictly inside STEP-9-01: independently verify the retained ArabicCIDTrueType.pdf and encrypted-with-images.pdf provenance plus actual required semantics; bind only those that pass; source/generate the signed fixture using repository-owned or legally redistributable non-production certificate material; run the manifest validator, npm run audit:phase9-fidelity-corpus, and the focused TEST-9-01/certify:phase9-step1 path. Do not begin STEP-9-02, do not modify PdfLibMutationEngine, do not close Phase 8G, do not use production credentials, and do not weaken fixture expectations. Post back to issue #286: candidate id; DISC/QUAL/TC ids/paths/digests; validator outputs; material_write_ready result; exact head; files changed; provenance evidence; TEST-9-01/audit commands and results; remaining pending fixtures; any stop condition.",
+            "publication": {
+              "target": "CURRENT_WORK_ISSUE",
+              "method": "COMMENT",
+              "local_result_update": "SAME_LOCATION",
+              "readback_required": true
+            },
+            "response_check": {
+              "timer_required": true,
+              "timer_title": "Phase 9 local takeover check",
+              "after_minutes": 60,
+              "selection_reason": "The delegated work includes local setup, pinned validator execution, candidate takeover, fixture provenance/semantic checks and focused corpus validation, so it is a multi-step local verification rather than a short command.",
+              "on_due": "Read issue #286 for the delegated local-agent response, validate DISC/QUAL/TC and TEST-9-01 evidence against the current route/pinned Common basis, then reconcile REPO_STATE/progress before any further material work.",
+              "on_no_response": "Report WAITING truthfully and schedule another check only if the external qualification remains useful; do not infer takeover or material-write readiness."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "qualification_boundary": {
+    "required": true,
+    "trigger": "PHASE_CHANGED",
+    "from_phase": "PHASE-008",
+    "to_phase": "PHASE-009",
+    "changed_dimensions": [
+      "PRODUCTION_PATH",
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE",
+      "PROTECTED_INVARIANT"
+    ],
+    "basis": [
+      "Phase 9 moves from performance certification to document-level mutation fidelity and may alter catalog-preservation behavior.",
+      "The verification oracle changes from timing/count budgets to semantic structure preservation/invalidation/rejection across repeated save/reopen cycles.",
+      "Signed/encrypted/malformed and complex-font inputs introduce new protected safety/fidelity invariants."
+    ],
+    "question_policy": "DEFAULT",
+    "question_policy_basis": [
+      "Owner requested proceeding to the next roadmap work but did not suppress Phase 9 qualification questions."
+    ],
+    "not_applicable_reason": null,
+    "question_set": {
+      "id": "QSET-9-003",
+      "path": "agents/relay/certifications/qualification/QSET-9-003.yaml"
+    }
+  },
+  "quality": {
+    "applicable": [
+      {
+        "blueprint": "software-design",
+        "reason": "Phase 9 may change canonical mutation structure-preservation boundaries.",
+        "review_focus": [
+          "catalog/reference ownership",
+          "mutation-session boundaries",
+          "dependency direction",
+          "explicit unsupported semantics"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Low-level pdf-lib catalog manipulation and fixture tooling require bounded, readable implementation.",
+        "review_focus": [
+          "reference integrity",
+          "failure semantics",
+          "resource/lifecycle handling",
+          "module bounds"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Fidelity claims require independent fixture manifests and repeat save/reopen regressions.",
+        "review_focus": [
+          "oracle independence",
+          "fixture provenance",
+          "repeat-cycle coverage",
+          "false-positive prevention"
+        ]
+      },
+      {
+        "blueprint": "code-review",
+        "reason": "Document-level preservation defects can silently corrupt customer PDFs.",
+        "review_focus": [
+          "silent structure loss",
+          "unsupported normalization",
+          "signature/encryption truth",
+          "second-cycle regressions"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Some structural mutations may migrate away from page-only rebuild behavior.",
+        "review_focus": [
+          "old/new output semantics",
+          "rollback/rejection behavior",
+          "revision/PageGraph continuity"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "WP-009 is coordinated by issue #286 and stacked after the RM-0003 handoff.",
+        "review_focus": [
+          "issue↔EP correlation",
+          "stacked branch basis",
+          "exact evidence state",
+          "merge authorization"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "ui-ux",
+        "reason": "No intentional UI redesign is authorized; only explicit warnings/errors needed by fidelity semantics may be touched if required."
+      },
+      {
+        "blueprint": "accessibility",
+        "reason": "No intended accessibility interaction contract change in the fidelity laboratory."
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Phase 9 measures fidelity, not performance budgets; performance regression evidence may be observed but is not the primary oracle."
+      },
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "Fidelity comparisons are structural/semantic rather than domain engineering calculations."
+      }
+    ],
+    "review_contract": {
+      "required": true,
+      "required_before_checkpoint": true,
+      "receipt_namespace": "QRV-",
+      "required_outputs": [
+        "procedure_results",
+        "findings",
+        "owner_report",
+        "successor_handover"
+      ]
+    },
+    "findings_policy": "Quality findings remain quality state unless they map to acceptance, authority, protected-invariant, repository-state or safety hard-stop conditions.",
+    "ordinary_findings_are_hard_stops": false
+  },
+  "acceptance": [
+    {
+      "id": "AC-9-01",
+      "description": "Permanent fidelity corpus and machine-readable fixture expectation/provenance manifest cover every required Phase 9 class.",
+      "weight": 20,
+      "verification": [
+        "TEST-9-01",
+        "BENCH-9-01",
+        "BENCH-9-04"
+      ]
+    },
+    {
+      "id": "AC-9-02",
+      "description": "Semantic structure inventory/diff and repeated save/reopen cycle independently detect preservation, transformation, invalidation, loss and explicit rejection.",
+      "weight": 25,
+      "verification": [
+        "TEST-9-02",
+        "BENCH-9-01",
+        "BENCH-9-02"
+      ]
+    },
+    {
+      "id": "AC-9-03",
+      "description": "Corpus-proven structural mutation defects are fixed or explicitly rejected/dispositioned without weakening PageGraph/revision/history invariants.",
+      "weight": 25,
+      "verification": [
+        "TEST-9-03",
+        "BENCH-9-01",
+        "BENCH-9-02"
+      ]
+    },
+    {
+      "id": "AC-9-04",
+      "description": "CID/subset/Arabic/CJK/RTL, encrypted, signed and malformed-readable fixtures have explicit tested outcomes with no silent corruption or false cryptographic validity claims.",
+      "weight": 15,
+      "verification": [
+        "TEST-9-04",
+        "BENCH-9-03"
+      ]
+    },
+    {
+      "id": "AC-9-05",
+      "description": "audit:phase9-fidelity and certify:phase9 consume the lab evidence, docs expose the supported/unsupported fidelity matrix, and #183 remains NOT_RUN unless steps execute.",
+      "weight": 15,
+      "verification": [
+        "TEST-9-05",
+        "BENCH-9-04"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-9-01",
+      "class": "MUST_PASS",
+      "method": "Fixture/manifest tests prove every required fidelity class is reproducible and has machine-readable expected structure/disposition metadata.",
+      "proves": [
+        "AC-9-01"
+      ]
+    },
+    {
+      "id": "TEST-9-02",
+      "class": "MUST_PASS",
+      "method": "Inventory/diff tests run the mandatory open→mutate→save→reopen→validate/render→mutate→save→reopen cycle and compare semantic structures against fixture oracles.",
+      "proves": [
+        "AC-9-02"
+      ]
+    },
+    {
+      "id": "TEST-9-03",
+      "class": "MUST_PASS",
+      "method": "Focused mutation regressions prove each corpus-discovered supported structural preservation defect fixed in Phase 9 remains fixed after first and second save/reopen.",
+      "proves": [
+        "AC-9-03"
+      ]
+    },
+    {
+      "id": "TEST-9-04",
+      "class": "MUST_PASS",
+      "method": "Complex-font/Unicode, encrypted, signed and malformed-readable cases verify explicit supported, invalidated or rejected behavior with independent reopen/render checks where applicable.",
+      "proves": [
+        "AC-9-04"
+      ]
+    },
+    {
+      "id": "TEST-9-05",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head certify:phase9 including inherited architecture certification, Phase 9 audit, fidelity corpus/regressions and build; if #183 prevents runner allocation, record NOT_RUN rather than PASS.",
+      "proves": [
+        "AC-9-01",
+        "AC-9-02",
+        "AC-9-03",
+        "AC-9-04",
+        "AC-9-05"
+      ]
+    }
+  ],
+  "failure_and_stop_conditions": {
+    "hard_stop_categories": [
+      "OWNER_DECISION_REQUIRED",
+      "ESSENTIAL_INPUT_MISSING",
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "SUPERSEDED_EP",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "report_contract": {
+    "status_publication": {
+      "default_after_minutes": 25,
+      "owner_override": null
+    },
+    "sections": [
+      "Executive state",
+      "Overall / phase / EP progress",
+      "Work completed",
+      "Files changed",
+      "Acceptance matrix",
+      "Tests and evidence",
+      "Quality findings",
+      "Known limitations",
+      "Owner decisions required",
+      "GitHub issue changes",
+      "Roadmap changes",
+      "Exact next actions",
+      "Successor EP"
+    ],
+    "payloads": [
+      {
+        "id": "RPT-STATE",
+        "section": "Executive state",
+        "sources": [
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "relay_state",
+          "current_position",
+          "execution_state",
+          "material_authority",
+          "stop"
+        ]
+      },
+      {
+        "id": "RPT-PROGRESS",
+        "section": "Overall / phase / EP progress",
+        "sources": [
+          "PROGRESS",
+          "OVERALL_ROADMAP",
+          "EP"
+        ],
+        "required_fields": [
+          "progress_basis",
+          "overall",
+          "phase",
+          "work_package",
+          "step",
+          "acceptance"
+        ]
+      },
+      {
+        "id": "RPT-WORK",
+        "section": "Work completed",
+        "sources": [
+          "EP",
+          "CP"
+        ],
+        "required_fields": [
+          "completed_steps",
+          "implementation_result"
+        ]
+      },
+      {
+        "id": "RPT-FILES",
+        "section": "Files changed",
+        "sources": [
+          "CP"
+        ],
+        "required_fields": [
+          "files_changed"
+        ]
+      },
+      {
+        "id": "RPT-AC",
+        "section": "Acceptance matrix",
+        "sources": [
+          "EP",
+          "PROGRESS",
+          "CP"
+        ],
+        "required_fields": [
+          "criterion",
+          "status",
+          "percent",
+          "basis"
+        ]
+      },
+      {
+        "id": "RPT-EVIDENCE",
+        "section": "Tests and evidence",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "validation_id",
+          "obligation_class",
+          "status",
+          "basis_ref",
+          "not_run_reason"
+        ]
+      },
+      {
+        "id": "RPT-QUALITY",
+        "section": "Quality findings",
+        "sources": [
+          "EP",
+          "QRV",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "quality_review",
+          "procedures",
+          "findings",
+          "disposition",
+          "execution_effect"
+        ]
+      },
+      {
+        "id": "RPT-LIMITS",
+        "section": "Known limitations",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "limitations",
+          "evidence_gaps",
+          "deferred_items"
+        ]
+      },
+      {
+        "id": "RPT-OWNER",
+        "section": "Owner decisions required",
+        "sources": [
+          "ODR",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "decision_required",
+          "pending_items",
+          "authority_effect"
+        ]
+      },
+      {
+        "id": "RPT-ISSUES",
+        "section": "GitHub issue changes",
+        "sources": [
+          "ISSUE_GRAPH",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "operations",
+          "relationships",
+          "projection_state"
+        ]
+      },
+      {
+        "id": "RPT-ROADMAP",
+        "section": "Roadmap changes",
+        "sources": [
+          "OVERALL_ROADMAP",
+          "ROADMAP_REVISION",
+          "PROGRESS"
+        ],
+        "required_fields": [
+          "revision",
+          "topology_or_status_change",
+          "frontier_after",
+          "progress_basis_effect"
+        ]
+      },
+      {
+        "id": "RPT-NEXT",
+        "section": "Exact next actions",
+        "sources": [
+          "EP"
+        ],
+        "required_fields": [
+          "ordered_actions",
+          "targets",
+          "inputs",
+          "tests",
+          "benchmarks",
+          "acceptance",
+          "expected_result",
+          "stop_conditions"
+        ]
+      },
+      {
+        "id": "RPT-SUCCESSOR",
+        "section": "Successor EP",
+        "sources": [
+          "CP",
+          "OVERALL_ROADMAP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "successor_mode",
+          "next_frontier",
+          "ep_or_terminal_disposition"
+        ]
+      }
+    ]
+  },
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "duties": [
+      "reconcile current roadmap node",
+      "create checkpoint",
+      "update progress",
+      "update issue projection when applicable",
+      "compute next executable frontier",
+      "create successor EP when work continues",
+      "validate successor EP",
+      "run cold-start check",
+      "update REPO_STATE"
+    ],
+    "required_outputs": [
+      "checkpoint",
+      "progress_reconciliation",
+      "issue_projection_disposition",
+      "next_frontier",
+      "successor_ep_or_terminal_disposition"
+    ]
+  }
+}

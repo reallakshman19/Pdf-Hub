@@ -1,0 +1,147 @@
+{
+  "schema_version": "relay-v3-ep",
+  "id": "EP-10-SIGNED-PDF-WARNING",
+  "work_package": "WP-010",
+  "outcome": {
+    "statement": "Warn before normal Save/Save As rewrites a structurally signed PDF, using a bounded detector that does not confuse empty signature fields with applied signatures and never claims signature preservation."
+  },
+  "basis": {
+    "predecessor_checkpoint": "CP-10-INTEROP-FIX-001",
+    "material_base": "cf0a21e506e10b38defd6c85291a9c3b6645d973",
+    "protocol_basis": "Common@c87cf87b313801e42ecd0fcc7d36af0d90c5f400/engineering-pr-delivery-v3",
+    "semantic_dependencies": [
+      {
+        "path": "frontend/src/components/toolbar/ToolbarFile.tsx",
+        "reason": "Normal Save and Save As fallback flow must preflight before composition/write."
+      },
+      {
+        "path": "frontend/src/core/pdf/lazyPdfLib.ts",
+        "reason": "Current supported parser boundary for low-level PDF signature inspection."
+      },
+      {
+        "path": "frontend/src/core/pdf-signatures/**",
+        "reason": "Bounded structural signature-risk detector and fixtures."
+      },
+      {
+        "path": "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.tsx",
+        "reason": "Explicit user-facing rewrite-risk warning and cancel/continue decision."
+      },
+      {
+        "path": "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx",
+        "reason": "Save-path no-side-effect cancellation and continue regression."
+      },
+      {
+        "path": "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+        "reason": "Phase 10 static contract must retain explicit signature-warning requirements."
+      },
+      {
+        "path": "Docs/SAVE_SEMANTICS.md",
+        "reason": "Verified Save semantics must document signed-PDF rewrite risk truthfully."
+      }
+    ]
+  },
+  "scope": {
+    "write": [
+      "frontend/src/core/pdf-signatures/**",
+      "frontend/src/components/toolbar/ToolbarFile.tsx",
+      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.tsx",
+      "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.test.tsx",
+      "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "Docs/SAVE_SEMANTICS.md",
+      "relay/**"
+    ],
+    "read": [
+      "frontend/src/core/pdf/lazyPdfLib.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/adapters/file/FileAdapter.ts",
+      "frontend/src/core/session/**",
+      "frontend/src/components/ui/**",
+      "frontend/src/core/pdf-annotations/**"
+    ],
+    "protect": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/document/commitPipeline.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts"
+    ],
+    "prohibit": [
+      "Signature creation or cryptographic validation",
+      "Signature-preserving incremental-write architecture",
+      "Claiming an existing signature remains valid after PDF Hub Save/Save As",
+      "Production /AP appearance-stream implementation",
+      "Named external-viewer compatibility claims",
+      "New annotation types",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-SIG-01",
+      "statement": "The detector identifies populated PDF signature dictionaries on the supported pdf-lib surface while an empty /Sig form field without a populated /V signature is not reported as signed.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/src/core/pdf-signatures/signatureRisk.test.ts"
+        },
+        {
+          "oracle": "ByteRange + non-empty signature Contents structural evidence"
+        }
+      ]
+    },
+    {
+      "id": "AC-10-SIG-02",
+      "statement": "Normal Save inspects the current working PDF before composeEditablePdf or file write; a detected signed PDF presents an explicit warning that saving may invalidate existing signatures.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx"
+        },
+        {
+          "oracle": "preflight occurs before buildEditablePdf/FileAdapter.savePdfBytes"
+        }
+      ]
+    },
+    {
+      "id": "AC-10-SIG-03",
+      "statement": "Cancelling the signed-PDF warning produces no save side effects; continuing executes the existing editable Save path, including Save As fallback semantics, without claiming preservation.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/src/components/toolbar/ToolbarFile.signedPdf.test.tsx"
+        },
+        {
+          "test": "frontend/src/components/toolbar/SignedPdfRewriteWarningDialog.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "AC-10-SIG-04",
+      "statement": "Phase 10 audit/docs explicitly describe signed-PDF rewrite warning behavior and preserve Save versus Export separation without adding signing, /AP, or viewer claims.",
+      "evidence_requirements": [
+        {
+          "test": "frontend/scripts/phase10-annotation-interoperability-audit.mjs"
+        },
+        {
+          "doc": "Docs/SAVE_SEMANTICS.md"
+        }
+      ]
+    }
+  ],
+  "quality_policy": {
+    "level": "HIGH_RISK",
+    "independent_review": "REQUIRED"
+  },
+  "admission_policy": {
+    "qualification": "NOT_REQUIRED",
+    "question_policy": "NONE"
+  },
+  "next": {
+    "first_action": "Add failing structural signature-risk tests and Save cancellation/continue witnesses before changing production code.",
+    "stop_conditions": [
+      "Any required change expands into signature creation or signature-preserving incremental writes.",
+      "The detector cannot distinguish populated signatures from empty /Sig fields on the supported parser surface.",
+      "Save/Save As semantics would need to be merged with Export Flattened.",
+      "The frozen agents/relay/** V2.5 tree changes.",
+      "The stacked base branch moves across a material-sensitive path."
+    ]
+  }
+}

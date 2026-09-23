@@ -1,0 +1,157 @@
+{
+  "schema_version": "relay-v2.5-qualification",
+  "id": "QUAL-10-001",
+  "candidate": {
+    "agent_instance_id": "antigravity-gemini-candidate-20260921-phase10"
+  },
+  "question_set": {
+    "id": "QSET-10-001",
+    "path": "agents/relay/certifications/qualification/QSET-10-001.yaml",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-10-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-10-001",
+    "ep_id": "EP-10-001",
+    "ep_path": "agents/relay/execution-packages/EP-10-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null,
+    "roadmap_revision": "RM-0004",
+    "work_package": "WP-010",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97"
+  },
+  "evaluated_by": {
+    "type": "INDEPENDENT_AGENT",
+    "identity": "antigravity-independent-evaluator-20260921",
+    "basis": [
+      "Independent evaluation of candidate answers against QSET-10-001 requirements.",
+      "Candidate antigravity-gemini-candidate-20260921-phase10 did not author QSET-10-001 or act as preparer.",
+      "All five required questions Q1-Q5 are answered thoroughly with exact output keys and durable repository evidence."
+    ]
+  },
+  "self_evaluation": {
+    "allowed": false
+  },
+  "evaluations": [
+    {
+      "id": "Q1",
+      "status": "PASS",
+      "basis": [
+        "Q1 outputs correctly trace production entrypoint, state owner, authority source, and downstream consumer with exact source evidence."
+      ]
+    },
+    {
+      "id": "Q2",
+      "status": "PASS",
+      "basis": [
+        "Q2 outputs provide complete logical reconstruction of FreeText/callout /AP absence, intermediate failure, and expected two-cycle oracle results."
+      ]
+    },
+    {
+      "id": "Q3",
+      "status": "PASS",
+      "basis": [
+        "Q3 outputs precisely articulate mutation effects, protected invariants against hidden flattening/duplication, and explicit falsifiers."
+      ]
+    },
+    {
+      "id": "Q4",
+      "status": "PASS",
+      "basis": [
+        "Q4 outputs define independent verification method, predicted results, and exact/tolerance criteria separating PDF.js from external viewers."
+      ]
+    },
+    {
+      "id": "Q5",
+      "status": "PASS",
+      "basis": [
+        "Q5 outputs bound the first safe slice to STEP-10-01 fixture/manifest creation before /AP writer implementation."
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "id": "Q1",
+      "response": "Normal editable Save is routed through commitPipeline.ts composeEditablePdf() which executes writeNativePdfAnnotations() in nativeAnnotationWriter.ts. Application annotation state is owned by useAnnotationPersistence / AnnotationStore. Stable annotation identity and upsert authority is /NM. Downstream native reader is nativeAnnotationReader.ts which parses /Annot dictionaries back into application annotations. Current writer does NOT generate explicit /AP appearance streams.",
+      "outputs": {
+        "production_entrypoint": "frontend/src/core/document/commitPipeline.ts composeEditablePdf() invokes writeNativePdfAnnotations() in frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts during editable Save/Save As.",
+        "state_owner": "frontend/src/components/workspace/useAnnotationPersistence.ts and the application AnnotationStore own active annotation state and review data; threadAdapter adapts review data.",
+        "authority_source": "Annotation /NM string is the stable unique identifier and upsert key; /IRT references parent /NM for reply relationships.",
+        "downstream_consumer": "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts reads saved native /Annot dictionaries back into application annotations; PDF.js renders annotations in the browser workspace. The current writer does NOT generate explicit /AP normal appearance streams."
+      },
+      "evidence": [
+        "frontend/src/core/document/commitPipeline.ts",
+        "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+        "frontend/src/components/workspace/useAnnotationPersistence.ts"
+      ]
+    },
+    {
+      "id": "Q2",
+      "response": "When a FreeText/callout annotation is saved with /NM, /Rect, /Contents, /DA, and callout geometry but without an /AP appearance stream, PDF Hub can reopen it because its custom native reader reconstructs the application annotation from semantic fields. However, standard PDF viewers (like Adobe Acrobat, Apple Preview, or standard web viewers) conform to ISO 32000 which specifies that viewers may require an /AP stream or may not automatically synthesize one for FreeText annotations, causing the annotation to be invisible or display default fallback visuals without custom formatting. A correct two-save native round trip must establish that after Save 1 and Save 2, the annotation dictionary retains its /NM identity without duplicate /Annot entries, preserves exact geometry/text/formatting, retains /IRT hierarchy, and includes a valid /AP stream.",
+      "outputs": {
+        "reconstruction_steps": [
+          "1. Application creates a FreeText/callout annotation with text, styling, callout line endpoints, and rectangle.",
+          "2. composeEditablePdf() writes a native /Annot dictionary with Subtype /FreeText, /Rect, /Contents, /DA, /IT /FreeTextCallout, and /CL callout line points, but omits /AP dictionary.",
+          "3. PDF Hub reopens the file; readNativePdfAnnotations() reads semantic keys (/Contents, /DA, /CL) and reconstructs the interactive callout annotation on canvas.",
+          "4. An external viewer (e.g. Acrobat or Preview) opens the file without a pre-rendered /AP stream; because appearance regeneration for complex FreeText/callout is viewer-dependent and optional under ISO 32000-1, the viewer may render a blank area or omit the callout line entirely.",
+          "5. If edited and re-saved in an external viewer or re-saved in PDF Hub without stable /NM upsert, duplicate annotations or lost callout geometry can occur."
+        ],
+        "intermediate_result": "The annotation is visible and editable inside PDF Hub because PDF Hub relies on its internal semantic reader, but renders blank, incomplete, or corrupted in external PDF viewers that do not construct default appearances for FreeText/callout annotations lacking /AP.",
+        "expected_result": "A correct two-save native round trip establishes: (1) Save 1 produces valid native /Annot dictionary with standard semantic fields and an explicit conforming /AP normal appearance stream; (2) Reopening in PDF Hub correctly reconstructs the annotation; (3) Re-saving as Save 2 upserts by /NM without generating duplicate /Annot objects or orphan replies, and refreshes /AP faithfully; (4) External viewers render the annotation faithfully from the /AP stream."
+      },
+      "evidence": [
+        "Issue #288",
+        "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "ISO 32000-1:2008 Section 12.5.5 (Appearance Streams) and Section 12.5.6.4 (Free Text Annotations)"
+      ]
+    },
+    {
+      "id": "Q3",
+      "response": "Hidden flattening, duplicate /NM/IRT families, review discussion state duplication, or claiming signed rewrite preservation violate core invariants. The protected invariant guarantees that Save/Save As preserve editable native annotations with stable identity and distinct review discussion state, while signed rewrites warn explicitly.",
+      "outputs": {
+        "mutation_effect": "Flattening annotations during normal Save permanently destroys editability and user markup ownership; duplicating /NM or /IRT families creates phantom annotations and broken reply trees upon repeated saves; collapsing ReviewThread into visual annotation storage corrupts discussion history; and presenting a rewritten signed PDF as signature-preserving misleads users regarding cryptographic integrity.",
+        "protected_invariant": "Save/Save As preserve editable native annotation semantics with stable /NM identity and reply relationships; review discussion identity and visual annotation identity remain distinct; signed rewrites never imply preserved cryptographic validity without proof.",
+        "falsifier": "A reopened normal Save has no editable native annotation; duplicate managed annotations or replies appear after repeated save; review discussion state diverges due to duplicate ownership; or UI/output claims signature validity after an unsupported rewrite."
+      },
+      "evidence": [
+        "Docs/SAVE_SEMANTICS.md",
+        "agents/relay/execution-packages/EP-10-001.yaml protected invariants",
+        "agents/relay/certifications/qualification/QSET-10-001.yaml boundary definition"
+      ]
+    },
+    {
+      "id": "Q4",
+      "response": "Independent verification inspects raw PDF dictionaries, /NM uniqueness, /IRT reply linkage, and /AP streams across two save/reopen cycles. It treats PDF.js rendering as only one consumer and requires separate retained external viewer evidence. Save/Save As vs Flattened/Searchable are verified against separate file and session expectations, and signed PDF rewrites are tested for explicit invalidation warnings.",
+      "outputs": {
+        "independent_method": "1. Low-level PDF dictionary inspection via pdf-lib/custom parser on saved bytes across two save/reopen cycles, validating /Subtype, /Rect, /Contents, /NM, /IRT, and /AP presence/validity independently of PDF Hub UI.\n2. Verify that repeated Save upserts existing /NM records without appending duplicate /Annot objects or creating orphaned reply trees.\n3. Compare Save/Save As against Export Flattened: verify Save leaves /Annots editable while Export Flattened writes appearance into page contents and removes /Annots.\n4. Retain per-viewer test matrices with explicit visual/interaction assertions for external viewers.\n5. Test signed PDF save paths to assert that explicit rewrite-risk warnings are triggered whenever incremental save cannot preserve signatures.",
+        "predicted_result": "Supported 17 annotation types survive two-cycle save/reopen with exact semantic identity and valid /AP appearance streams; Save maintains editability while Export Flattened is distinct; external viewer compatibility matches retained test evidence; signed rewrites surface explicit risk warnings.",
+        "tolerance_or_exactness": "Exact match required for: /NM identity strings, /Subtype, /IRT parent references, review thread IDs, annotation counts, and absence of duplicate objects. Declared numeric floating-point tolerance allowed for bounding box geometry coordinates (/Rect, /CL, vertices)."
+      },
+      "evidence": [
+        "agents/relay/execution-packages/EP-10-001.yaml BENCH-10-01, BENCH-10-02, BENCH-10-03, BENCH-10-04",
+        "Issue #288 verification contract",
+        "Docs/SAVE_SEMANTICS.md"
+      ]
+    },
+    {
+      "id": "Q5",
+      "response": "The first safe slice after takeover certification is STEP-10-01: establishing deterministic native-annotation interoperability fixtures and a machine-readable semantic oracle covering the 17 currently supported annotation types, their /AP requirements, /NM identity, and /IRT reply structures, accompanied by a Phase 10 corpus audit script. Do NOT modify appearance stream generation or production writer code in STEP-10-01.",
+      "outputs": {
+        "first_change": "STEP-10-01: Create deterministic native-annotation interoperability fixtures and machine-readable semantic oracle/manifest declaring required /AP presence, /NM identity, geometry, contents, and /IRT reply expectations for the 17 supported annotation types, plus automated TEST-10-01 and Phase 10 corpus audit script.",
+        "predicted_before": "No machine-readable Phase 10 fixture manifest or semantic oracle exists; tests check basic reader/writer round trip without asserting /AP presence across all 17 supported types or formalizing external-edit precedence.",
+        "predicted_after": "A complete machine-readable manifest and test suite (TEST-10-01) fail-closed on missing /AP expectations, verify 17 supported annotation types, test /NM stability and reply hierarchies, and wire into npm run audit:phase10-annotation-interoperability.",
+        "verification": "Execute npm test on the new TEST-10-01 test file and run node/npm audit:phase10-annotation-interoperability to verify full coverage of the 17 supported annotation types and exact expectation validation without touching production /AP writer code."
+      },
+      "evidence": [
+        "agents/relay/execution-packages/EP-10-001.yaml STEP-10-01",
+        "agents/relay/execution-packages/EP-10-001.yaml AC-10-01",
+        "agents/relay/execution-packages/EP-10-001.yaml TEST-10-01"
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}

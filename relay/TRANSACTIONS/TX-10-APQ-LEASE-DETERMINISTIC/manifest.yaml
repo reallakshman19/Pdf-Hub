@@ -1,0 +1,58 @@
+{
+  "schema_version": "relay-v3-transaction",
+  "id": "TX-10-APQ-LEASE-DETERMINISTIC",
+  "command": "ACTIVATE_LEASE",
+  "actor": "chatgpt-gpt56-sol",
+  "status": "COMMITTED",
+  "created_at": "2026-09-22T17:22:00Z",
+  "updated_at": "2026-09-22T17:22:00Z",
+  "operations": [
+    {
+      "path": "relay/EVENTS.jsonl",
+      "before_exists": true,
+      "before_digest": "sha256:5d6310539e24a074574bf0213de1a6f6adfa5e08d2508acc22ffc47e47ea7ffe",
+      "after_digest": "sha256:08da47d36bbcadaf6a1a036337b3af88dbf79e616c79f0a51456b8748370f41e",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/staged/000.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/backups/000.before"
+    },
+    {
+      "path": "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:2c9e06622807c0092bb3cd53bf6f6371e19f06b2188036a04b79babd6f884714",
+      "after_digest": "sha256:1ba1194b57b898d27bda9edc00b0390f4b7980ce81ed11b7985ab5b08ffe68a3",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/staged/001.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/backups/001.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:e2b0560056f369917c19fb3f7994c0e71a5274966fceb1bfa89ae5ea041340b0",
+      "after_digest": "sha256:883d082daf625fad0bd1bff69ef18175ef96acee15335a9f8119f03fec3a4974",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/staged/002.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/backups/002.before"
+    },
+    {
+      "path": "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
+      "before_exists": false,
+      "before_digest": null,
+      "after_digest": "sha256:a0f2ea481da86b090c218dfb151b3703feb450f6b0f46ece870de719208d2c52",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/staged/003.after",
+      "backup_path": null
+    },
+    {
+      "path": "relay/STATE.yaml",
+      "before_exists": true,
+      "before_digest": "sha256:b36f29ac608952e8caf76eb5f2b68ac8e87aa580a3135fe2d41ebc1b09e54a56",
+      "after_digest": "sha256:39d4a9616924ce23a2377a152fdfdeb3424ba1eb44249a479d6be65613f7b564",
+      "staged_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/staged/004.after",
+      "backup_path": "relay/TRANSACTIONS/TX-10-APQ-LEASE-DETERMINISTIC/backups/004.before"
+    }
+  ],
+  "applied": [
+    "relay/EVENTS.jsonl",
+    "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+    "relay/LEASES/LEASE-10-AP-QUALIFICATION.yaml",
+    "relay/LEASES/LEASE-10-APQ-CHECKPOINT.yaml",
+    "relay/STATE.yaml"
+  ]
+}

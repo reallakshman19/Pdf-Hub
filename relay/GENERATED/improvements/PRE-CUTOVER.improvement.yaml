@@ -1,0 +1,41 @@
+{
+  "schema_version": "relay-v3-improvement-view",
+  "authority": "DERIVED_READ_MODEL",
+  "source_protocol": "V2_5",
+  "task": null,
+  "checkpoint": null,
+  "from": {
+    "predecessor_checkpoint": null,
+    "material_basis": null
+  },
+  "to": {
+    "accepted_checkpoint": null,
+    "material_basis": null
+  },
+  "improvement": {
+    "capability_added": [],
+    "capability_strengthened": [],
+    "evidence_added": [],
+    "understanding_improved": [],
+    "downstream_unlocked": [],
+    "controls_resolved": [],
+    "controls_created": []
+  },
+  "roadmap_effect": {
+    "concept_change": "NO_CONCEPT_CHANGE",
+    "execution_disposition": "OTHER",
+    "roadmap_revision": "RM-0004"
+  },
+  "not_improved": [
+    "No accepted capability improvement is inferred from this checkpoint."
+  ],
+  "still_not_proved": [],
+  "new_questions": [],
+  "reconstruction_sources": [
+    "agents/relay/REPO_STATE.yaml",
+    "agents/relay/checkpoints/",
+    "agents/relay/execution-packages/",
+    "agents/relay/roadmap/PROGRESS.yaml",
+    "agents/relay/roadmap/ROADMAP_EVENTS.yaml"
+  ]
+}

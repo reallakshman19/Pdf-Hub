@@ -1,0 +1,107 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-004",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "bb59943e6a9b2c8de912b5c6a190b9d7b513f5df"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288
+  },
+  "qualification": {
+    "required": true,
+    "state": "PASS",
+    "candidate": "antigravity-gemini-candidate-20260921-phase10",
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "discovery_receipt": {
+      "id": "DISC-10-001",
+      "digest": "sha256:d1599827818a25639f752cf9f0852ea4b185542e2207fb01fde488ce52b531d8"
+    },
+    "qualification_receipt": {
+      "id": "QUAL-10-001",
+      "digest": "sha256:d458c86f39b8b67db9bb7db3108c8f138d7839405704b688107c374572f8950e"
+    },
+    "takeover_certification": {
+      "id": "TC-10-001",
+      "digest": "sha256:c644581cd1af66ae1911051d3793ec43c83e1e11f3720874b45c6768ca8cf2a3"
+    },
+    "candidate_admitted": true,
+    "requalification_required_from_relay_tail": false,
+    "basis": "The seven-commit delta after candidate head 8987020c... changes only REPO_STATE, DOBS-10-003 and PROGRESS; EP-10-001/QSET-10-001 and product files are unchanged. Live material-write readiness must still be rerun by the admitted candidate before corrective writes."
+  },
+  "step_10_01": {
+    "state": "IMPLEMENTED_REVIEW_FINDINGS_OPEN",
+    "acceptance": "IN_PROGRESS_ZERO_EARNED",
+    "findings": [
+      "F10-01",
+      "F10-02",
+      "F10-03"
+    ],
+    "correction_contract_comment": 5757052699,
+    "current_head_supersession_comment": 5757406858,
+    "correction_response_observed": false
+  },
+  "later_steps": {
+    "step_10_02": {
+      "state": "GATED_DESIGN_ONLY",
+      "comment": 5757213291
+    },
+    "step_10_03": {
+      "state": "GATED_DESIGN_ONLY",
+      "comment": 5757336879
+    },
+    "step_10_04": {
+      "state": "GATED_DESIGN_ONLY",
+      "comment": 5757365859
+    }
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "bb59943e6a9b2c8de912b5c6a190b9d7b513f5df",
+    "observed": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35576460597,
+        "job_id": 106259305027,
+        "job": "certify",
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "Exact-head workflow completed before runner assignment with zero executed steps; no PASS or code-level failure is inferred."
+  },
+  "review": {
+    "state": "PENDING",
+    "reviews": 0,
+    "unresolved_threads": 0
+  },
+  "evidence_truth": {
+    "phase10_qualification": "PASS",
+    "ac_10_01_percent": 0,
+    "correction_pending": true,
+    "step_10_02_started": false,
+    "step_10_03_started": false,
+    "step_10_04_started": false,
+    "phase8g_deferred": "PENDING_NOT_SATISFIED",
+    "phase9_deferred": "PENDING_NOT_SATISFIED"
+  }
+}
