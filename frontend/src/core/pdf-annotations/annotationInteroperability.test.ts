@@ -21,7 +21,7 @@ async function createEmptyPdf(): Promise<Uint8Array> {
 }
 
 describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Oracle', () => {
-  it('defines deterministic fixtures for all 17 supported annotation types with explicit /AP expectations', () => {
+  it('defines deterministic fixtures for all 17 supported annotation types with evidence-gated /AP policy', () => {
     expect(PHASE10_SUPPORTED_TYPES).toHaveLength(17);
     expect(ANNOTATION_TYPES).toEqual(PHASE10_SUPPORTED_TYPES);
 
@@ -33,7 +33,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       expect(meta.type).toBe(type);
       expect(meta.pdfSubtype).toBeTruthy();
       expect(meta.standardPdfFields.length).toBeGreaterThan(0);
-      expect(meta.appearanceStreamRequired).toBe(true);
+      expect(meta.appearanceStreamPolicy).toBe('EVIDENCE_GATED');
 
       const sample = createDeterministicAnnotation(type);
       expect(sample.id).toBe(`phase10-fixture-${type}-1`);
