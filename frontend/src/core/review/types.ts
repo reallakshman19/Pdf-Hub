@@ -41,6 +41,8 @@ export interface ReviewMetadata {
   createdAt: number;
   updatedAt: number;
   status: ReviewStatus;
+  /** Author of the latest projected review-state transition, when known. */
+  statusAuthor?: string;
   title?: string;
   category?: string;
   replies: ReviewReply[];
