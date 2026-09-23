@@ -6,6 +6,7 @@ import { getOcrProfile } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { createOcrCorrection } from '../ocrCorrections';
 import { createOcrRegion } from '../ocrRegionModel';
+import type { OcrResumeTokenV1 } from '../ocrResumeState';
 import {
   createOcrWriterInsertionCandidate,
   createOcrWriterInsertionQueue,
@@ -104,6 +105,7 @@ describe('ocrProjectCodec', () => {
           element: makeWriterElement('doc-ocr-zip'),
         }),
       ]),
+      resumeToken: makeResumeToken('doc-ocr-zip'),
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
     });
@@ -136,6 +138,27 @@ describe('ocrProjectCodec', () => {
     expect(imported?.corrections).toHaveLength(1);
     expect(imported?.regions).toHaveLength(1);
     expect(imported?.writerInsertionQueue.candidates).toHaveLength(1);
+    expect(imported?.manifest.resumeToken).toMatchObject({
+      schema: 'pdf-hub-ocr-resume',
+      documentFingerprint: 'doc-ocr-zip',
+      languages: ['eng', 'hin'],
+    });
+  });
+
+  it('rejects resume state bound to another document', () => {
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-a',
+      resumeToken: makeResumeToken('doc-b'),
+    });
+
+    const validation = validateOcrProjectPayload(payload);
+
+    expect(validation.valid).toBe(false);
+    expect(
+      validation.diagnostics.some(
+        (item) => item.code === 'MISMATCHED_DOCUMENT_FINGERPRINT',
+      ),
+    ).toBe(true);
   });
 
   it('returns null when ZIP has no OCR manifest', async () => {
@@ -181,6 +204,28 @@ async function createMockOcrResult(documentFingerprint = 'doc-ocr-project') {
       },
     ],
   });
+}
+
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'tesseract-js',
+    profileId: 'clean-scan',
+    languages: ['eng', 'hin'],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'completed',
+      },
+    ],
+  };
 }
 
 function makeCorrection(documentFingerprint = 'doc-ocr-project') {
