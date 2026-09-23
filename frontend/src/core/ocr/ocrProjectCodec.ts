@@ -314,6 +314,22 @@ export function validateOcrProjectPayload(
             message: `OCR resume state references completed page(s) missing from persisted OCR result: ${missingCompletedPages.join(', ')}.`,
           });
         }
+
+        const failedCompletedPages = payload.result.pages
+          .filter(
+            (page) =>
+              completedPageIndexes.includes(page.pageIndex)
+              && page.status === 'failed',
+          )
+          .map((page) => page.pageIndex);
+
+        if (failedCompletedPages.length > 0) {
+          diagnostics.push({
+            level: 'error',
+            code: 'INVALID_OCR_RESUME_TOKEN',
+            message: `OCR resume state marks failed persisted page(s) as completed: ${failedCompletedPages.join(', ')}.`,
+          });
+        }
       }
     }
   }
