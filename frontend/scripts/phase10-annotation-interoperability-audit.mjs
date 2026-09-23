@@ -114,7 +114,7 @@ if (!reviewFixture
 
 const reviewProjection = manifest.policies?.review_state_projection;
 if (!reviewProjection
-  || reviewProjection.native_model !== 'AUTHOR_SPECIFIC_CHAINED_STATE_TRANSITIONS'
+  || reviewProjection.native_model !== 'AUTHOR_SPECIFIC_REVIEW_STATE_ANNOTATIONS'
   || reviewProjection.application_model !== 'SINGLE_THREAD_STATUS'
   || !reviewProjection.preservation_rule?.includes('Preserve all native Review state transition annotations')) {
   errors.push('Manifest must declare native review-state chain preservation and application projection boundary');
@@ -127,6 +127,24 @@ if (!transitionAuthor
   || transitionAuthor.local_status_action_default !== 'Current User'
   || !transitionAuthor.chain_rule?.includes('original review annotation')) {
   errors.push('Manifest must declare Review state transition author provenance and direct-root IRT emission');
+}
+
+
+const replyTopology = manifest.policies?.reply_thread_topology;
+if (!replyTopology
+  || replyTopology.native_model !== 'IRT_REPLY_GRAPH'
+  || replyTopology.persistence_model !== 'FLAT_REPLY_ARRAY_WITH_PARENT_REPLY_ID'
+  || replyTopology.ui_projection !== 'FLAT_MESSAGES'
+  || !replyTopology.preservation_rule?.includes('ReviewReply.parentReplyId')
+  || !replyTopology.reply_state_rule?.includes('never project')) {
+  errors.push('Manifest must declare nested reply topology preservation and reply-state isolation');
+}
+
+if (!reviewFixture.external_nested_reply
+  || reviewFixture.external_nested_reply.relationship !== 'IRT_TO_REPLY'
+  || reviewFixture.external_nested_reply.app_projection !== 'ReviewReply.parentReplyId'
+  || !reviewFixture.external_nested_reply.state_on_reply_rule?.includes('does not update the root thread status')) {
+  errors.push('Manifest must declare the external nested-reply interoperability fixture');
 }
 
 if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
@@ -196,7 +214,7 @@ console.log('\n[PASS] All 17 annotation types covered.');
 console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
 console.log('[PASS] Appearance stream (/AP) expectations declared.');
 console.log('[PASS] External-edit precedence surface and pending fields are explicit.');
-console.log('[PASS] Deterministic root/reply/state relationships, actor provenance, and chained Review-state preservation verified.');
+console.log('[PASS] Root/reply/state relationships, nested reply topology, actor provenance, and Review-state preservation verified.');
 console.log('[PASS] Save/Export separation and signed rewrite policies verified.');
 console.log('[PASS] Signed-PDF structural detector and Save warning surface verified.');
 console.log('=== Phase 10 Audit PASSED ===');
