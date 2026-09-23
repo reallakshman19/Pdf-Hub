@@ -107,8 +107,8 @@ describe('writeNativePdfAnnotations', () => {
     const state = byNm.get('comment-1:state:Review');
     expect(state).toBeTruthy();
     expect(readName(state!, 'Subtype')).toBe('Text');
-    expect(readName(state!, 'StateModel')).toBe('Review');
-    expect(readName(state!, 'State')).toBe('None');
+    expect(readString(state!, 'StateModel')).toBe('Review');
+    expect(readString(state!, 'State')).toBe('None');
     expect(state!.get(PDFName.of('IRT'))).toBeTruthy();
 
     const reply = byNm.get('comment-1:reply:reply-1');
