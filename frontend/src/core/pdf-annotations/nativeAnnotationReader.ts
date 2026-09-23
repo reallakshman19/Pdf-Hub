@@ -350,12 +350,24 @@ function parseReply(
     ?? readPdfDate(dict, 'M', lib)
     ?? Date.now();
 
+  const hasNativeRichText = dict.get(lib.PDFName.of('RC')) !== undefined;
+
   return {
     id: replyLogicalId(dict, parentId, index, lib),
     author: readText(dict, 'T', lib) ?? 'Unknown',
     content,
     createdAt,
     ...(parentReplyId ? { parentReplyId } : {}),
+    ...(hasNativeRichText
+      ? {
+          nativeInterop: {
+            fidelityClass: 'NATIVE_PRESERVED_READ_ONLY' as const,
+            reason: 'RICH_TEXT' as const,
+            richText: true as const,
+            protectedContent: content,
+          },
+        }
+      : {}),
   };
 }
 
