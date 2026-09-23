@@ -1,4 +1,5 @@
 import { OCR_PROFILES, type OcrProfileId } from './ocrProfiles';
+import { OCR_EXECUTION_PRESETS } from './ocrExecutionPolicy';
 import type {
   OcrBatchSchedulerSnapshot,
   OcrBatchTask,
@@ -17,6 +18,16 @@ export interface OcrResumeExecutionConfig {
   forceOcr: boolean;
   rasterScale: number;
   maxCanvasPixels: number;
+  /**
+   * Optional for compatibility with pre-hardening Phase 11 fixtures.
+   * New checkpoints always persist this value.
+   */
+  maxPagesPerJob?: number;
+  /**
+   * Optional for compatibility with pre-hardening Phase 11 fixtures.
+   * New checkpoints always persist this value.
+   */
+  allowLargeJobs?: boolean;
 }
 
 export interface OcrResumeTokenV1 {
@@ -209,12 +220,22 @@ export function ocrResumeExecutionConfigMatches(
 
   return normalizedLeft.forceOcr === normalizedRight.forceOcr
     && normalizedLeft.rasterScale === normalizedRight.rasterScale
-    && normalizedLeft.maxCanvasPixels === normalizedRight.maxCanvasPixels;
+    && normalizedLeft.maxCanvasPixels === normalizedRight.maxCanvasPixels
+    && normalizedLeft.maxPagesPerJob === normalizedRight.maxPagesPerJob
+    && normalizedLeft.allowLargeJobs === normalizedRight.allowLargeJobs;
 }
 
-function normalizeExecutionConfig(
+export function normalizeOcrResumeExecutionConfig(
   config: OcrResumeExecutionConfig,
-): OcrResumeExecutionConfig {
+): Required<OcrResumeExecutionConfig> {
+  const defaultPolicy = OCR_EXECUTION_PRESETS.balanced;
+  const maxPagesPerJob =
+    config?.maxPagesPerJob
+    ?? defaultPolicy.maxPagesPerJob;
+  const allowLargeJobs =
+    config?.allowLargeJobs
+    ?? defaultPolicy.allowLargeJobs;
+
   if (
     !config
     || typeof config.forceOcr !== 'boolean'
@@ -222,6 +243,9 @@ function normalizeExecutionConfig(
     || config.rasterScale <= 0
     || !Number.isFinite(config.maxCanvasPixels)
     || config.maxCanvasPixels <= 0
+    || !Number.isInteger(maxPagesPerJob)
+    || maxPagesPerJob <= 0
+    || typeof allowLargeJobs !== 'boolean'
   ) {
     throw new OcrResumeStateError(
       'OCR_RESUME_TOKEN_INVALID',
@@ -233,7 +257,15 @@ function normalizeExecutionConfig(
     forceOcr: config.forceOcr,
     rasterScale: config.rasterScale,
     maxCanvasPixels: config.maxCanvasPixels,
+    maxPagesPerJob,
+    allowLargeJobs,
   };
+}
+
+function normalizeExecutionConfig(
+  config: OcrResumeExecutionConfig,
+): Required<OcrResumeExecutionConfig> {
+  return normalizeOcrResumeExecutionConfig(config);
 }
 
 function isOcrBatchTaskStatus(
