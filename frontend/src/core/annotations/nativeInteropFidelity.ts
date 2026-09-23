@@ -44,11 +44,7 @@ export function guardNativeInteropAnnotationPatch(
   const guarded: Partial<PdfAnnotation> = { ...patch };
 
   if (patch.type !== undefined) {
-    if (patch.type !== annotation.type) {
-      Reflect.deleteProperty(guarded, 'type');
-    } else {
-      Reflect.deleteProperty(guarded, 'type');
-    }
+    Reflect.deleteProperty(guarded, 'type');
   }
 
   if (patch.data) {
@@ -114,16 +110,14 @@ function guardRichTextDataPatch(
   return guarded;
 }
 
-function restoreOwnValue<
-  TObject extends object,
-  TKey extends keyof TObject,
->(
-  target: TObject,
-  source: TObject,
-  key: TKey,
+function restoreOwnValue(
+  target: object,
+  source: object,
+  key: PropertyKey,
 ): void {
+  const sourceRecord = source as Record<PropertyKey, unknown>;
   if (Object.prototype.hasOwnProperty.call(source, key)) {
-    target[key] = source[key];
+    Reflect.set(target, key, sourceRecord[key]);
   } else {
     Reflect.deleteProperty(target, key);
   }
