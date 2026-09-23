@@ -458,6 +458,46 @@ function nativeData(
   if (fill) data.backgroundColor = fill;
   if (typeof opacity === 'number') data.opacity = opacity;
 
+  const flags = readNumber(dict, 'F', lib);
+  if (typeof flags === 'number') {
+    data.locked = (Math.trunc(flags) & 128) !== 0;
+  }
+
+  const border = readAnnotationBorder(dict, lib);
+  if (border) {
+    data.borderWidth = border.width;
+    data.borderStyle = border.style;
+  }
+
+  if (type === 'textbox' || type === 'callout') {
+    const alignment = readNumber(dict, 'Q', lib);
+    if (alignment === 1) data.textAlign = 'center';
+    else if (alignment === 2) data.textAlign = 'right';
+    else if (alignment === 0) data.textAlign = 'left';
+  }
+
+  if (type === 'sticky-note') {
+    const open = readBoolean(dict, 'Open', lib);
+    if (typeof open === 'boolean') {
+      data.isCollapsed = !open;
+    }
+  }
+
+  if (type === 'line' || type === 'arrow') {
+    const endings = readLineEndings(dict, lib);
+    if (endings) {
+      data.lineStartCap = lineCapFromPdfEnding(endings[0]);
+      data.lineEndCap = lineCapFromPdfEnding(endings[1]);
+    }
+  }
+
+  if (type === 'stamp') {
+    const name = readName(dict, 'Name', lib);
+    if (name) {
+      data.stampStyle = stampStyleFromPdfName(name);
+    }
+  }
+
   if (type === 'highlight' && stroke && !fill) {
     data.backgroundColor = stroke;
   }
@@ -668,12 +708,17 @@ function annotationTypeFromSubtype(
       return 'strikeout';
     case 'Squiggly':
       return 'squiggly';
-    case 'FreeText':
-      return readName(dict, 'IT', lib) === 'FreeTextCallout'
+    case 'FreeText': {
+      const callout = readNumberArray(dict, 'CL', lib);
+      return (
+        readName(dict, 'IT', lib) === 'FreeTextCallout'
+        || Boolean(callout && callout.length >= 4)
+      )
         ? 'callout'
         : 'textbox';
+    }
     case 'Square':
-      return 'shape-rect';
+      return squareAnnotationType(dict, lib);
     case 'Circle':
       return 'shape-ellipse';
     case 'Polygon':
@@ -690,14 +735,103 @@ function annotationTypeFromSubtype(
 }
 
 function hasArrowEnding(dict: PDFDict, lib: PdfLibModule): boolean {
-  const endings = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray);
-  if (!endings) return false;
+  const endings = readLineEndings(dict, lib);
+  return Boolean(endings?.some((ending) => isPdfArrowEnding(ending)));
+}
 
-  for (let index = 0; index < endings.size(); index += 1) {
-    const name = endings.lookupMaybe(index, lib.PDFName)?.decodeText();
-    if (name && name !== 'None') return true;
+function readLineEndings(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): [string, string] | null {
+  const endings = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray);
+  if (!endings || endings.size() < 2) return null;
+
+  const start = endings.lookupMaybe(0, lib.PDFName)?.decodeText();
+  const end = endings.lookupMaybe(1, lib.PDFName)?.decodeText();
+  return start && end ? [start, end] : null;
+}
+
+function isPdfArrowEnding(value: string): boolean {
+  return (
+    value === 'OpenArrow'
+    || value === 'ClosedArrow'
+    || value === 'ROpenArrow'
+    || value === 'RClosedArrow'
+  );
+}
+
+function lineCapFromPdfEnding(
+  value: string,
+): 'none' | 'arrow' | 'circle' | 'square' | undefined {
+  if (value === 'None') return 'none';
+  if (isPdfArrowEnding(value)) return 'arrow';
+  if (value === 'Circle') return 'circle';
+  if (value === 'Square') return 'square';
+  return undefined;
+}
+
+function stampStyleFromPdfName(
+  value: string,
+): 'approved' | 'rejected' | 'draft' | 'confidential' | 'custom' {
+  if (value === 'Approved') return 'approved';
+  if (value === 'Rejected') return 'rejected';
+  if (value === 'Draft') return 'draft';
+  if (value === 'Confidential') return 'confidential';
+  return 'custom';
+}
+
+function squareAnnotationType(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): 'shape-rect' | 'shape-cloud' | 'redaction' {
+  const effect = dict.lookupMaybe(lib.PDFName.of('BE'), lib.PDFDict);
+  const effectStyle = effect?.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText();
+  if (effectStyle === 'C') return 'shape-cloud';
+
+  const stroke = readColor(dict, 'C', lib);
+  const fill = readColor(dict, 'IC', lib);
+  const opacity = readNumber(dict, 'CA', lib);
+  if (
+    stroke === '#000000'
+    && fill === '#000000'
+    && (opacity === null || opacity >= 0.999)
+  ) {
+    return 'redaction';
   }
-  return false;
+
+  return 'shape-rect';
+}
+
+function readAnnotationBorder(
+  dict: PDFDict,
+  lib: PdfLibModule,
+): { width: number; style: 'solid' | 'dashed' | 'dotted' | 'none' } | null {
+  const border = dict.lookupMaybe(lib.PDFName.of('Border'), lib.PDFArray);
+  if (!border || border.size() < 3) return null;
+
+  const width = border.lookupMaybe(2, lib.PDFNumber)?.asNumber();
+  if (typeof width !== 'number' || !Number.isFinite(width)) return null;
+  if (width <= 0) return { width: 0, style: 'none' };
+
+  const dash = border.lookupMaybe(3, lib.PDFArray);
+  if (!dash || dash.size() === 0) {
+    return { width, style: 'solid' };
+  }
+
+  const dashValues = readPdfArrayNumbers(dash, lib);
+  const dotted = dashValues.length > 0
+    && dashValues.every((value) => value <= 1.5);
+  return { width, style: dotted ? 'dotted' : 'dashed' };
+}
+
+function readBoolean(
+  dict: PDFDict,
+  key: string,
+  lib: PdfLibModule,
+): boolean | null {
+  const value = dict.lookup(lib.PDFName.of(key));
+  if (!(value instanceof lib.PDFBool)) return null;
+  return value.toString() === 'true';
 }
 
 function readReviewStatus(
