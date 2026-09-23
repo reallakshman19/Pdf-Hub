@@ -26,6 +26,7 @@ export const mockOcrEngine: OcrEngine = {
         width: page.width,
         height: page.height,
         detectTables: input.profile.detectTables,
+        languageHints: input.profile.languageHints,
       }),
     );
 
@@ -61,6 +62,7 @@ function createMockPageResult(input: {
   width: number;
   height: number;
   detectTables: boolean;
+  languageHints: string[];
 }): OcrPageResult {
   const headingWords = createWords({
     pageIndex: input.pageIndex,
@@ -234,7 +236,7 @@ function createMockPageResult(input: {
     status: 'success',
     pageType: input.detectTables ? 'tableHeavy' : 'scanned',
     orientationDeg: 0,
-    languageHints: ['eng'],
+    languageHints: [...input.languageHints],
     width: input.width,
     height: input.height,
     words,
