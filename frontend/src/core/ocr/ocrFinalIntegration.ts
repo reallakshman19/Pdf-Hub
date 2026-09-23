@@ -14,11 +14,13 @@ import {
   type OcrPipelineBatchPlan,
 } from './ocrPipelineBatchPlanner';
 import {
+  createPlaceholderOcrPageInputs,
   runOcrPipeline,
   type OcrPipelineCapabilities,
   type OcrPipelineMode,
 } from './ocrPipelineMode';
 import {
+  createOcrBatchTasksFromPages,
   runOcrBatchScheduler,
   type OcrBatchSchedulerSnapshot,
   type OcrBatchTask,
@@ -125,13 +127,68 @@ export async function runFinalOcrIntegrationJob(
     message: `${executionPlan.allowedPageIndexes.length} page(s) accepted by OCR execution policy.`,
   });
 
+  const batchSize =
+    input.batchSize
+    ?? Math.max(1, Math.min(5, input.policy.maxPagesPerJob));
+
+  let deferredResumePageIndexes: number[] = [];
+
+  if (input.resumeToken) {
+    try {
+      const semanticTasks = createOcrBatchTasksFromPages({
+        pages: createPlaceholderOcrPageInputs(
+          executionPlan.allowedPageIndexes,
+        ),
+        batchSize,
+        idPrefix: 'ocr-resume-plan',
+      });
+
+      const semanticResumeTasks = resumeOcrBatchTasks({
+        token: input.resumeToken,
+        documentFingerprint: input.documentFingerprint,
+        engineId: input.engineId,
+        profileId: input.requestedProfileId,
+        executionConfig: {
+          forceOcr: input.forceOcr ?? false,
+          rasterScale: input.policy.rasterScale,
+          maxCanvasPixels: input.policy.maxCanvasPixels,
+        },
+        tasks: semanticTasks,
+      });
+
+      assertPersistedResultsCoverCompletedTasks(
+        semanticResumeTasks,
+        input.existingResult ?? null,
+        {
+          documentFingerprint: input.documentFingerprint,
+          engineId: input.engineId,
+          profileId: input.requestedProfileId,
+        },
+      );
+
+      deferredResumePageIndexes = semanticResumeTasks
+        .filter((task) => task.status === 'completed')
+        .flatMap((task) => task.pageIndexes);
+    } catch (error) {
+      emitDiagnostic({
+        level: 'error',
+        code: 'OCR_FINAL_RESUME_INVALID',
+        message: error instanceof Error
+          ? error.message
+          : 'OCR resume state is invalid.',
+      });
+      throw error;
+    }
+  }
+
   const batchPlan = await createOcrPipelineBatchPlan({
     mode: input.mode,
     capabilities: input.capabilities,
     pdfBytes: input.pdfBytes,
     explicitPages: input.explicitPages,
     pageIndexes: executionPlan.allowedPageIndexes,
-    batchSize: input.batchSize ?? Math.max(1, Math.min(5, input.policy.maxPagesPerJob)),
+    deferredPageIndexes: deferredResumePageIndexes,
+    batchSize,
     rasterScale: input.policy.rasterScale,
     maxCanvasPixels: input.policy.maxCanvasPixels,
     rasterWorkerClient: input.rasterWorkerClient,
@@ -176,15 +233,6 @@ export async function runFinalOcrIntegrationJob(
         },
         tasks: batchPlan.batchTasks,
       });
-      assertPersistedResultsCoverCompletedTasks(
-        executableTasks,
-        input.existingResult ?? null,
-        {
-          documentFingerprint: input.documentFingerprint,
-          engineId: input.engineId,
-          profileId: input.requestedProfileId,
-        },
-      );
       emitDiagnostic({
         level: 'info',
         code: 'OCR_FINAL_RESUME_APPLIED',
