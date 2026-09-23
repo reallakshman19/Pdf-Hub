@@ -12,6 +12,8 @@ import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
+import type { OcrResumeTokenV1 } from '@/core/ocr/ocrResumeState';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -122,6 +124,20 @@ async function overlayFile(): Promise<File> {
   });
 }
 
+async function ocrResumeOverlayFile(): Promise<File> {
+  return projectFile({
+    originalPdfBytes: await onePagePdfBytes(),
+    documentFingerprint: 'doc-1',
+    elements: [element('writer-1')],
+    assets: [asset()],
+    ocrProject: createOcrProjectPayload({
+      documentFingerprint: 'doc-1',
+      resumeToken: makeResumeToken('doc-1'),
+    }),
+    updatedAt: '2026-01-02T00:00:00.000Z',
+  });
+}
+
 async function blankProjectFile(): Promise<File> {
   const documentMeta = createBlankWriterDocumentMeta({
     documentFingerprint: 'blank-doc-1',
@@ -187,6 +203,33 @@ function stateSnapshot() {
   };
 }
 
+function makeResumeToken(
+  documentFingerprint: string,
+): OcrResumeTokenV1 {
+  return {
+    schema: 'pdf-hub-ocr-resume',
+    schemaVersion: 1,
+    documentFingerprint,
+    engineId: 'mock',
+    profileId: 'clean-scan',
+    executionConfig: {
+      forceOcr: false,
+      rasterScale: 2,
+      maxCanvasPixels: 16_000_000,
+    },
+    createdAt: '2026-09-23T00:00:00.000Z',
+    tasks: [
+      {
+        id: 'ocr-batch-1',
+        index: 0,
+        pageIndexes: [0],
+        status: 'failed',
+        errorMessage: 'Interrupted OCR batch.',
+      },
+    ],
+  };
+}
+
 describe('atomic standalone Writer project import', () => {
   beforeEach(() => {
     vi.mocked(buildPageGraphFromPdfBytes).mockImplementation(
@@ -204,7 +247,6 @@ describe('atomic standalone Writer project import', () => {
 
   it('stages without mutation and commits matching overlay session and Writer state', async () => {
     seedExistingState();
-    const beforeOcr = useOcrStore.getState();
     const activeOperation = operation();
     const staged = await stageStandaloneWriterProject(await overlayFile(), activeOperation);
 
@@ -229,12 +271,41 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
     expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+    expect(useOcrStore.getState().result).toBeNull();
+  });
+
+  it('commits OCR-bearing Writer project with pending resume checkpoint restored', async () => {
+    seedExistingState();
+    const activeOperation = operation();
+    const staged = await stageStandaloneWriterProject(
+      await ocrResumeOverlayFile(),
+      activeOperation,
+    );
+
+    await commitStagedWriterProjectImport(staged, activeOperation);
+
+    const ocr = useOcrStore.getState();
+    expect(ocr.documentFingerprint).toBe('doc-1');
+    expect(ocr.engineId).toBe('mock');
+    expect(ocr.profileId).toBe('clean-scan');
+    expect(ocr.resumeToken).toMatchObject({
+      schema: 'pdf-hub-ocr-resume',
+      documentFingerprint: 'doc-1',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+    });
+    expect(ocr.resumeToken?.tasks).toEqual([
+      expect.objectContaining({
+        pageIndexes: [0],
+        status: 'failed',
+      }),
+    ]);
   });
 
   it('commits a blank Writer project by clearing the previous PDF atomically', async () => {
     seedExistingState();
-    const beforeOcr = useOcrStore.getState();
     const activeOperation = operation();
     const staged = await stageStandaloneWriterProject(await blankProjectFile(), activeOperation);
 
@@ -248,7 +319,9 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().documentMeta?.mode).toBe('blankDocument');
     expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(2);
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+    expect(useOcrStore.getState().result).toBeNull();
   });
 
   it('rolls back session, Writer, and editor state after an injected commit failure', async () => {
