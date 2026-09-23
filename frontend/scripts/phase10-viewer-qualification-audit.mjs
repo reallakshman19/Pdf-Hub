@@ -139,8 +139,8 @@ for (const type of canonicalTypes) {
     errors.push(`appearance family mapping missing ${type}`);
   }
 
-  if (annotationManifest.fixtures?.[type]?.appearanceStreamRequired !== true) {
-    errors.push(`source annotation manifest must retain appearanceStreamRequired=true for ${type}`);
+  if (annotationManifest.fixtures?.[type]?.appearanceStreamPolicy !== 'EVIDENCE_GATED') {
+    errors.push(`source annotation manifest must retain appearanceStreamPolicy=EVIDENCE_GATED for ${type}`);
   }
 }
 
