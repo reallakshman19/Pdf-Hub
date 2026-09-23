@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { WRITER_PROJECT_MEMBER_PROFILE_V1 } from '../../admission/zip/writerProjectMemberProfile';
 import type { WriterElementV2 } from '../../writer-v2/types';
-import { getOcrProfile } from '../ocrProfiles';
+import { getOcrProfileWithLanguages } from '../ocrProfiles';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { createOcrCorrection } from '../ocrCorrections';
 import { createOcrRegion } from '../ocrRegionModel';
@@ -194,7 +194,10 @@ describe('ocrProjectCodec', () => {
 async function createMockOcrResult(documentFingerprint = 'doc-ocr-project') {
   return mockOcrEngine.recognize({
     documentFingerprint,
-    profile: getOcrProfile('clean-scan'),
+    profile: getOcrProfileWithLanguages(
+      'clean-scan',
+      ['eng', 'hin'],
+    ),
     pages: [
       {
         pageIndex: 0,
@@ -213,7 +216,7 @@ function makeResumeToken(
     schema: 'pdf-hub-ocr-resume',
     schemaVersion: 1,
     documentFingerprint,
-    engineId: 'tesseract-js',
+    engineId: 'mock',
     profileId: 'clean-scan',
     languages: ['eng', 'hin'],
     createdAt: '2026-01-01T00:00:00.000Z',
