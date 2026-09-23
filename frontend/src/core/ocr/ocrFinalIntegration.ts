@@ -406,6 +406,20 @@ function assertPersistedResultsCoverCompletedTasks(
       `OCR resume state references completed page(s) without persisted OCR results: ${missing.join(', ')}.`,
     );
   }
+
+  const failedCompletedPages = existingResult.pages
+    .filter(
+      (page) =>
+        completedPageIndexes.has(page.pageIndex)
+        && page.status === 'failed',
+    )
+    .map((page) => page.pageIndex);
+
+  if (failedCompletedPages.length > 0) {
+    throw new Error(
+      `OCR resume state marks failed persisted page(s) as completed: ${failedCompletedPages.join(', ')}.`,
+    );
+  }
 }
 
 export function mergeOcrDocumentResults(input: {
