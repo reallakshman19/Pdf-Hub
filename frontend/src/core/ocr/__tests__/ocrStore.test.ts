@@ -93,6 +93,63 @@ describe('ocrStore', () => {
     expect(useOcrStore.getState().resumeToken).toBeNull();
   });
 
+  it('rejects incompatible or malformed checkpoints at every store entry path', () => {
+    const valid = makeResumeToken('doc-checkpoint-boundary');
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-checkpoint-boundary',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      forceOcr: false,
+      resumeToken: {
+        ...valid,
+        engineId: 'other-engine',
+      },
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-checkpoint-boundary',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      forceOcr: false,
+      resumeToken: valid,
+    });
+    expect(useOcrStore.getState().resumeToken).not.toBeNull();
+
+    useOcrStore.getState().setOcrResumeToken({
+      ...valid,
+      documentFingerprint: 'another-document',
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    useOcrStore.getState().setOcrResumeToken({
+      ...valid,
+      profileId: 'table-heavy',
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    useOcrStore.getState().setOcrResumeToken({
+      ...valid,
+      executionConfig: {
+        ...valid.executionConfig,
+        forceOcr: true,
+      },
+    });
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+
+    useOcrStore.getState().setOcrResumeToken({
+      ...valid,
+      tasks: [
+        {
+          ...valid.tasks[0],
+          status: 'not-a-real-status',
+        },
+      ],
+    } as unknown as OcrResumeTokenV1);
+    expect(useOcrStore.getState().resumeToken).toBeNull();
+  });
+
   it('clears resume state when a replacement OCR result uses another configuration', async () => {
     useOcrStore.getState().hydrateOcrSession({
       documentFingerprint: 'doc-store',
