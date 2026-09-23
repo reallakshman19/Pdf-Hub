@@ -224,6 +224,60 @@ describe('ocrFinalIntegration', () => {
     ).rejects.toThrow('no persisted OCR result');
   });
 
+  it('marks semantic failed OCR pages as retryable batch failures', async () => {
+    const failedWorkerClient: Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> = {
+      async recognizePages(payload) {
+        return {
+          documentFingerprint: payload.documentFingerprint,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          engineId: payload.engineId,
+          profileId: payload.profileId,
+          pages: payload.pages.map((page) => ({
+            ...makePage(page.pageIndex, payload.languageHints ?? ['eng']),
+            status: 'failed' as const,
+            diagnostics: [
+              {
+                level: 'error' as const,
+                code: 'OCR_ENGINE_FAILED',
+                pageIndex: page.pageIndex,
+                message: 'Synthetic semantic OCR failure.',
+              },
+            ],
+          })),
+          diagnostics: [],
+        };
+      },
+      dispose() {
+        return undefined;
+      },
+    };
+
+    const result = await runFinalOcrIntegrationJob({
+      id: 'final-job-semantic-failure',
+      documentFingerprint: 'doc-final-semantic-failure',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      languageHints: ['eng'],
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0]),
+      requestedPageIndexes: [0],
+      totalPages: 1,
+      policy: createOcrExecutionPolicy(),
+      batchSize: 1,
+      workerClient: failedWorkerClient,
+    });
+
+    expect(result.batchSnapshot.status).toBe('failed');
+    expect(result.batchSnapshot.failedCount).toBe(1);
+    expect(result.batchSnapshot.tasks[0].status).toBe('failed');
+    expect(result.result.pages).toEqual([]);
+  });
+
   it('runs final integration job with worker raster and worker OCR', async () => {
     const rasterClient = {
       async rasterizePages(payload) {
