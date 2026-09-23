@@ -31,6 +31,8 @@ function WorkflowProbe(props: UseOcrRunWorkflowInput) {
       <div data-testid="workflow-can-clear">{String(workflow.canClear)}</div>
       <div data-testid="workflow-can-cancel">{String(workflow.canCancel)}</div>
       <div data-testid="workflow-has-pending-resume">{String(workflow.hasPendingResume)}</div>
+      <div data-testid="workflow-raster-scale">{workflow.executionPolicy.rasterScale}</div>
+      <div data-testid="workflow-max-canvas">{workflow.executionPolicy.maxCanvasPixels}</div>
       <div data-testid="workflow-error">{workflow.errorMessage ?? ''}</div>
       <button type="button" onClick={() => void workflow.runSelectedOcr()}>
         Run model OCR
@@ -176,6 +178,35 @@ describe('useOcrRunWorkflow', () => {
     expect(screen.getByTestId('workflow-requested-pages').textContent).toBe('0,1');
     expect(screen.getByTestId('workflow-state').textContent).toBe('ready');
     expect(screen.getByTestId('workflow-can-run').textContent).toBe('true');
+    expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('true');
+  });
+
+  it('restores custom raster execution settings from a checkpoint', () => {
+    const token: OcrResumeTokenV1 = {
+      ...makeResumeToken('workflow-custom-policy'),
+      executionConfig: {
+        forceOcr: false,
+        rasterScale: 3,
+        maxCanvasPixels: 24_000_000,
+      },
+    };
+
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'workflow-custom-policy',
+      resumeToken: token,
+    });
+
+    render(
+      <WorkflowProbe
+        documentFingerprint="workflow-custom-policy"
+        selectedPageIndexes={[0, 1]}
+        pageCount={2}
+        pages={[pageInput(0), pageInput(1)]}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-raster-scale').textContent).toBe('3');
+    expect(screen.getByTestId('workflow-max-canvas').textContent).toBe('24000000');
     expect(screen.getByTestId('workflow-has-pending-resume').textContent).toBe('true');
   });
 
