@@ -207,6 +207,9 @@ export function useOcrRunWorkflow({
 
   const applicableResumeToken =
     store.resumeToken
+    && store.resumeToken.documentFingerprint === effectiveDocumentFingerprint
+    && store.resumeToken.engineId === store.engineId
+    && store.resumeToken.profileId === store.profileId
     && resumeTokenMatchesBatchPlan(
       store.resumeToken.tasks,
       currentExecutionPlan.allowedPageIndexes,
