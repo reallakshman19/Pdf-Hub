@@ -1,3 +1,4 @@
+import { OCR_PROFILES, type OcrProfileId } from './ocrProfiles';
 import type {
   OcrBatchSchedulerSnapshot,
   OcrBatchTask,
@@ -23,7 +24,7 @@ export interface OcrResumeTokenV1 {
   schemaVersion: 1;
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   executionConfig: OcrResumeExecutionConfig;
   createdAt: string;
   tasks: OcrResumeTaskState[];
@@ -51,7 +52,7 @@ export class OcrResumeStateError extends Error {
 export function createOcrResumeToken<TInput>(input: {
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   executionConfig: OcrResumeExecutionConfig;
   snapshot: OcrBatchSchedulerSnapshot<TInput>;
   now?: string;
@@ -82,7 +83,7 @@ export function resumeOcrBatchTasks<TInput>(input: {
   token: OcrResumeTokenV1;
   documentFingerprint: string;
   engineId: string;
-  profileId: string;
+  profileId: OcrProfileId;
   executionConfig: OcrResumeExecutionConfig;
   tasks: OcrBatchTask<TInput>[];
   retryFailed?: boolean;
@@ -173,6 +174,12 @@ export function validateOcrResumeToken(
   assertNonEmpty(token.documentFingerprint, 'documentFingerprint');
   assertNonEmpty(token.engineId, 'engineId');
   assertNonEmpty(token.profileId, 'profileId');
+  if (!Object.prototype.hasOwnProperty.call(OCR_PROFILES, token.profileId)) {
+    throw new OcrResumeStateError(
+      'OCR_RESUME_TOKEN_INVALID',
+      `OCR resume token contains unknown profileId: ${String(token.profileId)}.`,
+    );
+  }
   normalizeExecutionConfig(token.executionConfig);
 
   for (const [index, task] of token.tasks.entries()) {
