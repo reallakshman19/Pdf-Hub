@@ -70,8 +70,15 @@ export function guardNativeInteropAnnotationPatch(
     Reflect.deleteProperty(guarded, 'pageId');
   }
 
-  if (patch.data && isNativeRichTextReadOnly(annotation)) {
-    const nextData = guardRichTextDataPatch(annotation.data, patch.data);
+  if (patch.data) {
+    const rootGuarded = isNativeRichTextReadOnly(annotation)
+      ? guardRichTextDataPatch(annotation.data, patch.data)
+      : { ...annotation.data, ...patch.data };
+    const nextData = guardRichReplyDataPatch(
+      annotation.data,
+      rootGuarded,
+    );
+
     if (shallowObjectEquivalent(annotation.data, nextData)) {
       Reflect.deleteProperty(guarded, 'data');
     } else {
@@ -93,6 +100,57 @@ export function guardNativeInteropStylePatch(
     Reflect.deleteProperty(guarded, key);
   }
   return guarded;
+}
+
+function guardRichReplyDataPatch(
+  current: AnnotationData,
+  incoming: AnnotationData,
+): AnnotationData {
+  const currentReview = current.review;
+  const incomingReview = incoming.review;
+  if (!currentReview || !incomingReview) return incoming;
+
+  const richById = new Map(
+    currentReview.replies
+      .filter(
+        (reply) =>
+          reply.nativeInterop?.fidelityClass === 'NATIVE_PRESERVED_READ_ONLY'
+          && reply.nativeInterop.reason === 'RICH_TEXT'
+          && reply.nativeInterop.richText === true,
+      )
+      .map((reply) => [reply.id, reply]),
+  );
+  if (richById.size === 0) return incoming;
+
+  const seen = new Set<string>();
+  const replies = incomingReview.replies.map((reply) => {
+    const protectedReply = richById.get(reply.id);
+    if (!protectedReply) return reply;
+    seen.add(reply.id);
+    return {
+      ...reply,
+      content: protectedReply.content,
+      nativeInterop: protectedReply.nativeInterop,
+    };
+  });
+
+  for (const protectedReply of richById.values()) {
+    if (!seen.has(protectedReply.id)) {
+      replies.push(protectedReply);
+    }
+  }
+
+  const review = {
+    ...incomingReview,
+    replies,
+  };
+
+  return {
+    ...incoming,
+    review: jsonEquivalent(currentReview, review)
+      ? currentReview
+      : review,
+  };
 }
 
 function guardRichTextDataPatch(
@@ -144,6 +202,13 @@ function restoreOwnValue(
   } else {
     Reflect.deleteProperty(target, key);
   }
+}
+
+function jsonEquivalent(
+  left: unknown,
+  right: unknown,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function shallowObjectEquivalent(
