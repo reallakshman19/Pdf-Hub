@@ -17,6 +17,7 @@ import {
   mergeOcrDocumentResults,
   runFinalOcrIntegrationJob,
 } from '../ocrFinalIntegration';
+import { createOcrResumeToken } from '../ocrResumeState';
 
 describe('ocrFinalIntegration', () => {
   it('merges OCR document results by page index', () => {
@@ -93,6 +94,134 @@ describe('ocrFinalIntegration', () => {
     expect(diagnostics).toContain('OCR_FINAL_EXECUTION_PLAN_READY');
     expect(diagnostics).toContain('OCR_FINAL_RESULT_MERGED');
     expect(batchStatuses.length).toBeGreaterThan(0);
+  });
+
+  it('resumes completed batches without invoking OCR again', async () => {
+    let recognitionCalls = 0;
+    const workerClient = makeWorkerClient(() => {
+      recognitionCalls += 1;
+    });
+
+    const first = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-first',
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      languageHints: ['eng', 'hin'],
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0, 1]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy: createOcrExecutionPolicy({
+        maxPagesPerJob: 5,
+      }),
+      batchSize: 1,
+      workerClient,
+    });
+
+    expect(recognitionCalls).toBe(2);
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      languages: ['eng', 'hin'],
+      snapshot: first.batchSnapshot,
+      now: '2026-09-23T00:00:00.000Z',
+    });
+
+    recognitionCalls = 0;
+
+    const resumed = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-second',
+      documentFingerprint: 'doc-final-resume',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      languageHints: ['eng', 'hin'],
+      resumeToken: token,
+      existingResult: first.result,
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0, 1]),
+      requestedPageIndexes: [0, 1],
+      totalPages: 2,
+      policy: createOcrExecutionPolicy({
+        maxPagesPerJob: 5,
+      }),
+      batchSize: 1,
+      workerClient,
+    });
+
+    expect(recognitionCalls).toBe(0);
+    expect(resumed.result.pages.map((page) => page.pageIndex)).toEqual([0, 1]);
+    expect(
+      resumed.diagnostics.some(
+        (diagnostic) => diagnostic.code === 'OCR_FINAL_RESUME_APPLIED',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects completed resume state when persisted OCR pages are missing', async () => {
+    const first = await runFinalOcrIntegrationJob({
+      id: 'final-job-resume-source',
+      documentFingerprint: 'doc-final-resume-missing',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      languageHints: [...languageHints],
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs([0]),
+      requestedPageIndexes: [0],
+      totalPages: 1,
+      policy: createOcrExecutionPolicy(),
+      batchSize: 1,
+      workerClient: makeWorkerClient(),
+    });
+
+    const token = createOcrResumeToken({
+      documentFingerprint: 'doc-final-resume-missing',
+      engineId: 'mock',
+      profileId: 'clean-scan',
+      languages: ['eng'],
+      snapshot: first.batchSnapshot,
+    });
+
+    await expect(
+      runFinalOcrIntegrationJob({
+        id: 'final-job-resume-invalid',
+        documentFingerprint: 'doc-final-resume-missing',
+        engineId: 'mock',
+        requestedProfileId: 'clean-scan',
+        languageHints: ['eng'],
+        resumeToken: token,
+        existingResult: null,
+        mode: 'worker-ocr',
+        capabilities: {
+          workerSupported: true,
+          ocrWorkerSupported: true,
+          rasterWorkerSupported: true,
+        },
+        explicitPages: createPlaceholderOcrPageInputs([0]),
+        requestedPageIndexes: [0],
+        totalPages: 1,
+        policy: createOcrExecutionPolicy(),
+        batchSize: 1,
+        workerClient: makeWorkerClient(),
+      }),
+    ).rejects.toThrow('no persisted OCR result');
   });
 
   it('runs final integration job with worker raster and worker OCR', async () => {
@@ -180,9 +309,12 @@ describe('ocrFinalIntegration', () => {
   });
 });
 
-function makeWorkerClient(): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> {
+function makeWorkerClient(
+  onRecognize?: () => void,
+): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'> {
   return {
     async recognizePages(payload, options) {
+      onRecognize?.();
       options?.onProgress?.({
         status: 'running',
         completedPages: 0,
@@ -193,6 +325,7 @@ function makeWorkerClient(): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'>
       return makeResult(
         payload.documentFingerprint,
         payload.pages.map((page) => page.pageIndex),
+        payload.languageHints ?? ['eng'],
       );
     },
     dispose() {
@@ -204,18 +337,24 @@ function makeWorkerClient(): Pick<OcrWorkerClient, 'recognizePages' | 'dispose'>
 function makeResult(
   documentFingerprint: string,
   pageIndexes: number[],
+  languageHints: string[] = ['eng'],
  ): OcrDocumentResult {
   return {
     documentFingerprint,
     createdAt: '2026-01-01T00:00:00.000Z',
     engineId: 'mock',
     profileId: 'clean-scan',
-    pages: pageIndexes.map((pageIndex) => makePage(pageIndex)),
+    pages: pageIndexes.map(
+      (pageIndex) => makePage(pageIndex, languageHints),
+    ),
     diagnostics: [],
   };
 }
 
-function makePage(pageIndex: number) {
+function makePage(
+  pageIndex: number,
+  languageHints: string[] = ['eng'],
+) {
   return {
     pageIndex,
     pageNumber: pageIndex + 1,
