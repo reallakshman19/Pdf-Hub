@@ -71,13 +71,13 @@ const ROOT_OWNED_KEYS = new Set([
   'Type', 'Subtype', 'Rect', 'P', 'NM', 'M', 'CreationDate', 'T', 'F',
   'Contents', 'PDFHubVersion', 'PDFHubType', 'PDFHubData', 'PDFHubReviewStatus',
   'State', 'StateModel', 'IRT', 'RT',
-  'Name', 'Open', 'C', 'CA', 'IC', 'Border', 'DA', 'Q', 'IT', 'CL', 'BE',
+  'Name', 'Open', 'C', 'CA', 'IC', 'Border', 'BS', 'DA', 'Q', 'IT', 'CL', 'BE',
   'Vertices', 'L', 'LE', 'InkList', 'QuadPoints',
 ]);
 
 const ROOT_APPEARANCE_KEYS = [
   'Subtype', 'Rect', 'Contents', 'F', 'Name', 'Open', 'C', 'CA', 'IC',
-  'Border', 'DA', 'Q', 'IT', 'CL', 'BE', 'Vertices', 'L', 'LE',
+  'Border', 'BS', 'DA', 'Q', 'IT', 'CL', 'BE', 'Vertices', 'L', 'LE',
   'InkList', 'QuadPoints',
 ] as const;
 
@@ -931,7 +931,8 @@ function addSubtypeFields(
       target.Q = textAlignment(annotation.data.textAlign);
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -954,7 +955,8 @@ function addSubtypeFields(
     case 'redaction':
       target.C = colorArray(annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : stroke);
       target.IC = colorArray(annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : fill);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -969,7 +971,8 @@ function addSubtypeFields(
     case 'shape-ellipse':
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -982,7 +985,8 @@ function addSubtypeFields(
       target.Vertices = polygonVertices(annotation, geometry);
       target.C = colorArray(stroke);
       target.IC = colorArray(fill);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -1000,7 +1004,8 @@ function addSubtypeFields(
         lib,
       );
       target.C = colorArray(stroke);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -1012,7 +1017,8 @@ function addSubtypeFields(
     case 'ink':
       target.InkList = inkLists(annotation, geometry);
       target.C = colorArray(stroke);
-      target.Border = annotationBorderValue(
+      applyAnnotationBorderFields(
+        target,
         annotation,
         borderWidth,
         sourceDict,
@@ -1575,6 +1581,30 @@ function textAnnotationNameValue(
   return sourceDict?.get(lib.PDFName.of('Name')) ?? 'Comment';
 }
 
+function applyAnnotationBorderFields(
+  target: Record<string, unknown>,
+  annotation: PdfAnnotation,
+  fallbackWidth: number,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): void {
+  target.Border = annotationBorderValue(
+    annotation,
+    fallbackWidth,
+    sourceDict,
+    lib,
+  );
+  const borderStyle = annotationBorderStyleValue(
+    annotation,
+    fallbackWidth,
+    sourceDict,
+    lib,
+  );
+  if (borderStyle) {
+    target.BS = borderStyle;
+  }
+}
+
 function annotationBorderValue(
   annotation: PdfAnnotation,
   fallbackWidth: number,
@@ -1593,9 +1623,18 @@ function annotationBorderValue(
       : 'solid';
 
   const sourceObject = sourceDict?.get(lib.PDFName.of('Border'));
+  const sourceBs = sourceDict?.get(lib.PDFName.of('BS'));
   const sourceBorder = sourceDict
-    ? readBorderSemantics(sourceDict, lib)
+    ? readBorderSemantics(sourceDict, lib, false)
     : null;
+
+  if (
+    sourceBs
+    && sourceObject
+    && desiredStyle !== 'none'
+  ) {
+    return sourceObject;
+  }
 
   if (
     sourceObject
@@ -1624,7 +1663,40 @@ function annotationBorderValue(
 function readBorderSemantics(
   dict: PDFDict,
   lib: PdfLibModule,
-): { width: number; style: 'solid' | 'dashed' | 'dotted' | 'none' } | null {
+  preferBs = true,
+): {
+  width: number;
+  style: 'solid' | 'dashed' | 'dotted' | 'none' | undefined;
+  rawStyle?: string;
+} | null {
+  if (preferBs) {
+    const bs = dict.lookupMaybe(lib.PDFName.of('BS'), lib.PDFDict);
+    if (bs) {
+      const width =
+        bs.lookupMaybe(lib.PDFName.of('W'), lib.PDFNumber)?.asNumber()
+        ?? 1;
+      if (!Number.isFinite(width)) return null;
+      if (width <= 0) return { width: 0, style: 'none', rawStyle: 'S' };
+
+      const rawStyle =
+        bs.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText()
+        ?? 'S';
+      if (rawStyle === 'S') return { width, style: 'solid', rawStyle };
+      if (rawStyle === 'D') {
+        const dash = bs.lookupMaybe(lib.PDFName.of('D'), lib.PDFArray);
+        const values = dash ? readPdfArrayValues(dash, lib) : [];
+        const dotted = values.length > 0
+          && values.every((value) => value <= 1.5);
+        return {
+          width,
+          style: dotted ? 'dotted' : 'dashed',
+          rawStyle,
+        };
+      }
+      return { width, style: undefined, rawStyle };
+    }
+  }
+
   const border = dict.lookupMaybe(lib.PDFName.of('Border'), lib.PDFArray);
   if (!border || border.size() < 3) return null;
 
@@ -1641,6 +1713,61 @@ function readBorderSemantics(
   const dotted = values.length > 0
     && values.every((value) => value <= 1.5);
   return { width, style: dotted ? 'dotted' : 'dashed' };
+}
+
+function annotationBorderStyleValue(
+  annotation: PdfAnnotation,
+  fallbackWidth: number,
+  sourceDict: PDFDict | null,
+  lib: PdfLibModule,
+): unknown | null {
+  const sourceObject = sourceDict?.get(lib.PDFName.of('BS'));
+  const sourceSemantics = sourceDict
+    ? readBorderSemantics(sourceDict, lib, true)
+    : null;
+
+  const explicitStyle = annotation.data.borderStyle;
+  const desiredWidth =
+    explicitStyle === 'none'
+      ? 0
+      : fallbackWidth;
+
+  if (sourceObject && sourceSemantics) {
+    const styleMatches =
+      sourceSemantics.style === undefined
+        ? explicitStyle === undefined
+        : sourceSemantics.style === (explicitStyle ?? 'solid');
+
+    if (
+      styleMatches
+      && nearlyEqual(sourceSemantics.width, desiredWidth)
+    ) {
+      return sourceObject;
+    }
+
+    if (sourceSemantics.style === undefined && explicitStyle === undefined) {
+      const rawStyle = sourceSemantics.rawStyle ?? 'S';
+      const sourceBs = sourceDict?.lookupMaybe(lib.PDFName.of('BS'), lib.PDFDict);
+      const sourceDash = sourceBs?.get(lib.PDFName.of('D'));
+      return {
+        W: desiredWidth,
+        S: rawStyle,
+        ...(sourceDash ? { D: sourceDash } : {}),
+      };
+    }
+  }
+
+  if (!sourceObject) return null;
+  if (desiredWidth <= 0 || explicitStyle === 'none') return null;
+
+  if (explicitStyle === 'dashed') {
+    return { W: desiredWidth, S: 'D', D: [3, 2] };
+  }
+  if (explicitStyle === 'dotted') {
+    return { W: desiredWidth, S: 'D', D: [1, 1] };
+  }
+
+  return { W: desiredWidth, S: 'S' };
 }
 
 function cloudBorderEffectValue(
