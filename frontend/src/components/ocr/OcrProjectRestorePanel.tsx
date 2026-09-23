@@ -72,7 +72,7 @@ export const OcrProjectRestorePanel: React.FC<OcrProjectRestorePanelProps> = ({
             Restore OCR Project
           </h4>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Restore OCR result, corrections, regions, and queued Writer candidates.
+            Restore OCR result, corrections, regions, queued Writer candidates, and resumable OCR state.
           </p>
         </div>
       </div>
@@ -97,6 +97,14 @@ export const OcrProjectRestorePanel: React.FC<OcrProjectRestorePanelProps> = ({
         <SummaryTile
           label="Writer queue"
           value={summary.writerInsertionCandidates}
+        />
+        <SummaryTile
+          label="OCR resume"
+          value={
+            summary.hasResumeCheckpoint
+              ? `${summary.pendingResumeBatches} pending`
+              : 'None'
+          }
         />
         <SummaryTile
           label="Document"
