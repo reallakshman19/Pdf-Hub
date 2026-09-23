@@ -92,11 +92,13 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     forceOcr: state.forceOcr,
     jobs: state.jobs,
     profileId: state.profileId,
+    languageHints: state.languageHints,
     lowConfidenceWords: state.lowConfidenceWords,
     regions: state.regions,
     setForceOcr: state.setForceOcr,
     setOcrEngineId: state.setOcrEngineId,
     setOcrProfileId: state.setOcrProfileId,
+    setOcrLanguageHints: state.setOcrLanguageHints,
   })));
   const [pageScope, setPageScope] = React.useState<OcrPageScope>(
     selectedPageIndexes.length > 0 ? 'selected' : 'all',
@@ -166,9 +168,12 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
       profiles={profiles}
       engineId={store.engineId}
       profileId={store.profileId}
+      languageHints={store.languageHints}
       forceOcr={store.forceOcr}
+      disabled={runWorkflow.isRunning}
       onEngineChange={(engineId) => store.setOcrEngineId(engineId || 'mock')}
       onProfileChange={(profileId) => store.setOcrProfileId(profileId)}
+      onLanguageHintsChange={(languageHints) => store.setOcrLanguageHints(languageHints)}
       onForceOcrChange={(forceOcr) => store.setForceOcr(forceOcr)}
     />
   );
