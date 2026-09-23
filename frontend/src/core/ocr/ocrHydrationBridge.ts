@@ -70,6 +70,8 @@ export interface OcrHydrationSummary {
   regions: number;
   writerInsertionCandidates: number;
   searchableWords: number;
+  hasResumeCheckpoint: boolean;
+  pendingResumeBatches: number;
 }
 
 export function hydrateOcrStoreFromProjectPayload(
@@ -252,6 +254,8 @@ export function summarizeOcrProjectPayload(
       regions: 0,
       writerInsertionCandidates: 0,
       searchableWords: 0,
+      hasResumeCheckpoint: false,
+      pendingResumeBatches: 0,
     };
   }
 
@@ -266,6 +270,11 @@ export function summarizeOcrProjectPayload(
       (sum, page) => sum + (page.words?.length ?? 0),
       0,
     ) ?? 0,
+    hasResumeCheckpoint: Boolean(payload.manifest.resumeToken),
+    pendingResumeBatches:
+      payload.manifest.resumeToken?.tasks.filter(
+        (task) => task.status !== 'completed',
+      ).length ?? 0,
   };
 }
 
