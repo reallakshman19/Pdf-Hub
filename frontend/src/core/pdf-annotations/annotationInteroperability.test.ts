@@ -875,14 +875,12 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(rawQuads3[10]).toBeCloseTo(400);
 
     const read3 = await readNativePdfAnnotations(save3.bytes);
-    expect(read3.annotations[0].data.textMarkupQuads).toEqual(
-      expect.arrayContaining([
-        expect.closeTo(0),
-        expect.closeTo(0),
-        expect.closeTo(0.45),
-        expect.closeTo(0),
-      ]),
-    );
+    const quads3 = read3.annotations[0].data.textMarkupQuads;
+    expect(quads3).toHaveLength(16);
+    expect(quads3?.[0]).toBeCloseTo(0);
+    expect(quads3?.[1]).toBeCloseTo(0);
+    expect(quads3?.[2]).toBeCloseTo(0.45);
+    expect(quads3?.[3]).toBeCloseTo(0);
   });
 
   it('enforces external-edit precedence: standard fields override stale custom data', () => {
