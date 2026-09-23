@@ -152,6 +152,8 @@ export async function runFinalOcrIntegrationJob(
           forceOcr: input.forceOcr ?? false,
           rasterScale: input.policy.rasterScale,
           maxCanvasPixels: input.policy.maxCanvasPixels,
+          maxPagesPerJob: input.policy.maxPagesPerJob,
+          allowLargeJobs: input.policy.allowLargeJobs,
         },
         tasks: semanticTasks,
       });
@@ -230,6 +232,8 @@ export async function runFinalOcrIntegrationJob(
           forceOcr: input.forceOcr ?? false,
           rasterScale: input.policy.rasterScale,
           maxCanvasPixels: input.policy.maxCanvasPixels,
+          maxPagesPerJob: input.policy.maxPagesPerJob,
+          allowLargeJobs: input.policy.allowLargeJobs,
         },
         tasks: batchPlan.batchTasks,
       });
