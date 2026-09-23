@@ -44,6 +44,9 @@ requireTokens('src/core/ocr/ocrResumeState.ts', [
   'OCR_RESUME_EXECUTION_CONFIG_MISMATCH',
   'OCR_RESUME_TASK_PLAN_MISMATCH',
   'isOcrBatchTaskStatus',
+  'taskIds',
+  'ownedPageIndexes',
+  'task.pageIndexes.length === 0',
   'ocrResumeExecutionConfigMatches',
 ]);
 
@@ -141,7 +144,7 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log('=== Phase 11 OCR Resume Audit ===');
-  console.log('[PASS] Checkpoints bind document, engine, profile, raster/page-limit execution settings, and exact batch topology.');
+  console.log('[PASS] Checkpoints bind document, engine, profile, raster/page-limit execution settings, and exact unambiguous batch topology.');
   console.log('[PASS] Scheduler preserves terminal batches and retry snapshots preserve full topology.');
   console.log('[PASS] Project manifest persistence is fail-closed for completed-page evidence.');
   console.log('[PASS] Hydration restores compatible checkpoints and discards document-rebound state.');
