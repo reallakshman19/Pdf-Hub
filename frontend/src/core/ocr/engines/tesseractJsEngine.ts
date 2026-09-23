@@ -12,6 +12,10 @@ import {
   validateOcrDocumentResult,
 } from '../types';
 import {
+  normalizeOcrLanguageSet,
+  ocrLanguageSetToEngineSpec,
+} from '../ocrLanguageSet';
+import {
   isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
@@ -217,7 +221,7 @@ export function tesseractDataToOcrPageResult(input: {
       : 'partial',
     pageType: input.page.region ? 'mixed' : 'scanned',
     orientationDeg: 0,
-    languageHints: [input.language],
+    languageHints: normalizeOcrLanguageSet(input.language),
     width: input.page.width,
     height: input.page.height,
     words,
@@ -231,15 +235,7 @@ export function tesseractDataToOcrPageResult(input: {
 export function resolveTesseractLanguage(
   languageHints: string[],
 ): string {
-  const normalized = languageHints
-    .map((language) => language.trim())
-    .filter(Boolean);
-
-  if (normalized.length === 0) {
-    return 'eng';
-  }
-
-  return normalized.join('+');
+  return ocrLanguageSetToEngineSpec(languageHints);
 }
 
 export async function createDefaultTesseractImageSource(
