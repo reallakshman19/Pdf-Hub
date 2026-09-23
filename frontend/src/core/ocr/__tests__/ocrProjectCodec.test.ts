@@ -214,6 +214,32 @@ describe('ocrProjectCodec', () => {
     ).toBe(true);
   });
 
+  it('rejects completed checkpoints backed by failed persisted OCR pages', async () => {
+    const result = await createMockOcrResult('doc-resume-failed-page');
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-resume-failed-page',
+      result: {
+        ...result,
+        pages: result.pages.map((page) => ({
+          ...page,
+          status: 'failed' as const,
+        })),
+      },
+      resumeToken: makeResumeToken('doc-resume-failed-page'),
+    });
+
+    const validation = validateOcrProjectPayload(payload);
+
+    expect(validation.valid).toBe(false);
+    expect(
+      validation.diagnostics.some(
+        (item) =>
+          item.code === 'INVALID_OCR_RESUME_TOKEN'
+          && item.message.includes('failed persisted page'),
+      ),
+    ).toBe(true);
+  });
+
   it('returns null when ZIP has no OCR manifest', async () => {
     const zip = new JSZip();
 
