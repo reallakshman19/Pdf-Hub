@@ -393,3 +393,57 @@ This producer does **not** prove generic `reconstructed-candidate` spans. Those 
 It also does not traverse Form XObjects or interpret arbitrary paths/images/transparency.
 
 A later overlay executor, if introduced, must revalidate the evidence against the active revision before mutation.
+
+
+## Minimal Inspector UI
+
+Phase 13 now exposes the bounded existing-text core through an Inspector **PDF text** tab.
+
+The tab is intentionally page-scoped and proof-driven:
+- it inspects PDF.js text spans only on the current physical page;
+- spans are rebuilt with the active document revision and stable PageId;
+- the user selects one span and enters replacement text;
+- **Check edit** reruns exact current simple-`Tj` provenance and consumes the native-fit / visual-clearance analysis;
+- no capability is inferred from character count, visual appearance, or stale inspection state.
+
+The UI reports exactly three capability classes:
+
+```text
+native replacement available
+fallback evidence proved
+editing unavailable
+```
+
+### Native replacement
+
+When the canonical analysis proves a fitting native edit, the UI enables **Replace existing text**.
+
+That button creates the normal `REPLACE_EXISTING_TEXT` command and routes it through `CommandBus`. It does not call the pdf-lib writer, mutation session, or DocumentTransaction directly.
+
+A successful command updates the normal session/history revision, which causes the page text inspection to refresh against the new document key.
+
+A failed or stale command is surfaced as an error and is not reported as successful.
+
+### Fallback-proved state
+
+When native fit overflows but #323 proves visual clearance, the Inspector displays:
+
+> Replacement is too wide; fallback evidence is proved
+
+This state is informational only. There is deliberately no mask/redraw button and no reconstructed overlay command.
+
+### Unavailable state
+
+The UI reports editing unavailable when any required proof is absent, including:
+- unsupported or generic reconstructed source;
+- missing working bytes, revision identity or PageGraph;
+- failed exact provenance rematch;
+- invalid replacement encoding;
+- native overflow without proved clearance;
+- stale or failed analysis.
+
+### Current UI limitation
+
+Text spans are selected from the Inspector list in this slice. Direct click-on-page text selection remains future UX work.
+
+The existing annotation Inspector behavior is unchanged for Properties, Style, Metadata and Review tabs.
