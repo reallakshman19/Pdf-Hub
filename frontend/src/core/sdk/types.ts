@@ -18,8 +18,11 @@ export const PDF_HUB_SDK_SUPPORTED_COMMAND_TYPES = [
   'EXTRACT_PAGES',
   'SPLIT_PAGES',
   'DELETE_PAGES',
+  'INSERT_PAGES',
   'INSERT_BLANK_PAGE',
+  'REPLACE_PAGE',
   'DUPLICATE_PAGES',
+  'MERGE_PDF',
   'SET_PAGE_LABELS',
   'APPLY_HEADER_FOOTER_TEMPLATE',
   'DRAW_TEXT_ON_PAGES',
@@ -37,14 +40,22 @@ export type PdfHubSdkCommandDraft = Extract<
   { type: PdfHubSdkSupportedCommandType }
 >;
 
+export type PdfHubSdkDonorCommandTarget =
+  Extract<
+    PdfHubSdkSupportedCommandType,
+    'INSERT_PAGES' | 'REPLACE_PAGE' | 'MERGE_PDF'
+  >;
+
 export type PdfHubSdkErrorCode =
   | 'NO_ACTIVE_DOCUMENT'
-  | 'UNSUPPORTED_COMMAND';
+  | 'UNSUPPORTED_COMMAND'
+  | 'DONOR_ADMISSION_REJECTED'
+  | 'DONOR_ADMISSION_INVALID';
 
 export interface PdfHubSdkCapabilities {
   apiVersion: PdfHubSdkApiVersion;
   sessionBound: true;
-  donorAdmission: false;
+  donorAdmission: true;
   legacyHeadlessCompatibility: true;
   commandTypes: readonly PdfHubSdkSupportedCommandType[];
 }
@@ -85,11 +96,42 @@ export type PdfHubSdkSessionListener = (
   snapshot: PdfHubSdkSessionSnapshot,
 ) => void;
 
+export interface PdfHubSdkDonorInput {
+  fileName: string;
+  bytes: Uint8Array;
+}
+
+export interface PdfHubSdkDonorAdmissionRequest {
+  commandTarget: PdfHubSdkDonorCommandTarget;
+  donors: readonly PdfHubSdkDonorInput[];
+  abortSignal?: AbortSignal;
+}
+
+export interface PdfHubSdkDonorResource {
+  resourceId: string;
+  fileName: string;
+  sourceBytes: number;
+  pageCount: number;
+}
+
+export interface PdfHubSdkDonorAdmission {
+  admissionId: string;
+  commandTarget: PdfHubSdkDonorCommandTarget;
+  documentKey: string;
+  donors: PdfHubSdkDonorResource[];
+}
+
 export interface PdfHubSdk {
   readonly apiVersion: PdfHubSdkApiVersion;
   getCapabilities(): PdfHubSdkCapabilities;
   inspectSession(): PdfHubSdkSessionSnapshot;
   getWorkingPdfBytes(): Uint8Array | null;
+  admitDonors(
+    request: PdfHubSdkDonorAdmissionRequest,
+  ): Promise<PdfHubSdkDonorAdmission>;
+  releaseDonorAdmission(
+    admissionId: string,
+  ): boolean;
   executeCommand(
     draft: PdfHubSdkCommandDraft,
     options?: PdfHubSdkExecuteOptions,

@@ -6,6 +6,7 @@ import {
   it,
   vi,
 } from 'vitest';
+import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { commandBus } from '@/core/commands/bus';
 import { useSessionStore } from '@/core/session/store';
 import {
@@ -41,6 +42,14 @@ function openTestDocument() {
   return bytes;
 }
 
+function donorPdfBytes(
+  label = 'donor',
+): Uint8Array {
+  return new TextEncoder().encode(
+    `%PDF-1.7\n${label}`,
+  );
+}
+
 describe('PDFHubSDK', () => {
   beforeEach(() => {
     useSessionStore
@@ -55,7 +64,7 @@ describe('PDFHubSDK', () => {
       .clearDocument();
   });
 
-  it('exposes versioned capabilities without internal command types', () => {
+  it('exposes versioned capabilities including donor commands without internal command types', () => {
     const sdk = createPdfHubSdk();
     const capabilities =
       sdk.getCapabilities();
@@ -69,13 +78,19 @@ describe('PDFHubSDK', () => {
     ).toContain('SET_PAGE_LABELS');
     expect(
       capabilities.commandTypes,
-    ).not.toContain('MERGE_PDF');
+    ).toContain('INSERT_PAGES');
+    expect(
+      capabilities.commandTypes,
+    ).toContain('REPLACE_PAGE');
+    expect(
+      capabilities.commandTypes,
+    ).toContain('MERGE_PDF');
     expect(
       capabilities.commandTypes,
     ).not.toContain('APPLY_WORKING_COPY');
     expect(
       capabilities.donorAdmission,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('returns cloned session identity and defensive working bytes', () => {
@@ -173,7 +188,7 @@ describe('PDFHubSDK', () => {
       });
   });
 
-  it('rejects unsupported commands at the public boundary', async () => {
+  it('rejects internal compatibility commands at the public boundary', async () => {
     openTestDocument();
     const execute = vi.spyOn(
       commandBus,
@@ -184,9 +199,10 @@ describe('PDFHubSDK', () => {
     await expect(
       sdk.executeCommand(
         {
-          type: 'MERGE_PDF',
+          type: 'APPLY_WORKING_COPY',
           payload: {
-            donorResourceIds: ['donor'],
+            binaryResourceId:
+              'working-copy',
           },
         } as never,
       ),
@@ -228,6 +244,206 @@ describe('PDFHubSDK', () => {
     ).rejects.toBeInstanceOf(
       PdfHubSdkError,
     );
+  });
+
+  it('admits donors behind opaque resource IDs and routes them through CommandBus', async () => {
+    openTestDocument();
+    vi.spyOn(
+      PdfEditAdapter,
+      'countPages',
+    ).mockResolvedValue(2);
+
+    const execute = vi
+      .spyOn(commandBus, 'execute')
+      .mockResolvedValue({
+        success: true,
+        commandId: 'insert-command',
+        commandType: 'INSERT_PAGES',
+        source: 'api',
+        mutated: true,
+        message: 'inserted',
+      });
+
+    const sdk = createPdfHubSdk();
+    const admission =
+      await sdk.admitDonors({
+        commandTarget:
+          'INSERT_PAGES',
+        donors: [
+          {
+            fileName: 'donor.pdf',
+            bytes:
+              donorPdfBytes(),
+          },
+        ],
+      });
+
+    expect(admission.documentKey)
+      .toBe('sdk-doc');
+    expect(admission.donors)
+      .toHaveLength(1);
+    expect(admission.donors[0])
+      .toMatchObject({
+        fileName: 'donor.pdf',
+        pageCount: 2,
+      });
+    expect(admission.donors[0])
+      .not.toHaveProperty('bytes');
+    expect(admission.donors[0])
+      .not.toHaveProperty('handle');
+
+    const resourceId =
+      admission.donors[0].resourceId;
+
+    await sdk.executeCommand({
+      type: 'INSERT_PAGES',
+      payload: {
+        atIndex: 1,
+        donorResourceId:
+          resourceId,
+      },
+    });
+
+    const input =
+      execute.mock.calls[0][0];
+    expect(input.command.type)
+      .toBe('INSERT_PAGES');
+    expect(
+      input.resources?.donors?.[
+        resourceId
+      ],
+    ).toMatchObject({
+      fileName: 'donor.pdf',
+      pageCount: 2,
+      commandTarget:
+        'INSERT_PAGES',
+      ownerDocumentKey:
+        'sdk-doc',
+    });
+
+    await expect(
+      sdk.executeCommand({
+        type: 'INSERT_PAGES',
+        payload: {
+          atIndex: 1,
+          donorResourceId:
+            resourceId,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'DONOR_ADMISSION_INVALID',
+    });
+  });
+
+  it('binds donor admissions to their command target and complete resource order', async () => {
+    openTestDocument();
+    vi.spyOn(
+      PdfEditAdapter,
+      'countPages',
+    )
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1);
+
+    const execute = vi.spyOn(
+      commandBus,
+      'execute',
+    );
+    const sdk = createPdfHubSdk();
+    const admission =
+      await sdk.admitDonors({
+        commandTarget: 'MERGE_PDF',
+        donors: [
+          {
+            fileName: 'first.pdf',
+            bytes:
+              donorPdfBytes('first'),
+          },
+          {
+            fileName: 'second.pdf',
+            bytes:
+              donorPdfBytes('second'),
+          },
+        ],
+      });
+
+    const ids =
+      admission.donors.map(
+        (donor) =>
+          donor.resourceId,
+      );
+
+    await expect(
+      sdk.executeCommand({
+        type: 'MERGE_PDF',
+        payload: {
+          donorResourceIds:
+            [...ids].reverse(),
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'DONOR_ADMISSION_INVALID',
+    });
+
+    expect(execute)
+      .not.toHaveBeenCalled();
+
+    const released =
+      sdk.releaseDonorAdmission(
+        admission.admissionId,
+      );
+    expect(released).toBe(true);
+    expect(
+      sdk.releaseDonorAdmission(
+        admission.admissionId,
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects donor resources after the active document changes', async () => {
+    openTestDocument();
+    vi.spyOn(
+      PdfEditAdapter,
+      'countPages',
+    ).mockResolvedValue(1);
+
+    const sdk = createPdfHubSdk();
+    const admission =
+      await sdk.admitDonors({
+        commandTarget:
+          'REPLACE_PAGE',
+        donors: [
+          {
+            fileName: 'donor.pdf',
+            bytes:
+              donorPdfBytes(),
+          },
+        ],
+      });
+
+    useSessionStore
+      .getState()
+      .openDocument({
+        documentKey: 'other-doc',
+        fileName: 'other.pdf',
+        bytes:
+          new Uint8Array([5, 6]),
+        pageCount: 1,
+      });
+
+    await expect(
+      sdk.executeCommand({
+        type: 'REPLACE_PAGE',
+        payload: {
+          atIndex: 0,
+          donorResourceId:
+            admission.donors[0]
+              .resourceId,
+          donorPageIndex: 0,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'DONOR_ADMISSION_INVALID',
+    });
   });
 
   it('subscribes with snapshots and detaches without exposing Zustand', () => {

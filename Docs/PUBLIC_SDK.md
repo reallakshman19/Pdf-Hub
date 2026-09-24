@@ -1,6 +1,6 @@
 # PDF Hub Public SDK
 
-Status: **Phase 12 — first production slice**
+Status: **Phase 12 — production SDK surface under active development**
 
 PDF Hub exposes a typed browser SDK over the active canonical document session:
 
@@ -15,14 +15,14 @@ The SDK is intentionally different from the older `window.PDFHubHeadless` compat
 
 ## API version
 
-The first SDK contract reports:
+The current SDK contract reports:
 
 ```ts
 PDFHubSDK.apiVersion === '1'
 PDFHubSDK.getCapabilities()
 ```
 
-Capability discovery is the runtime source of truth for command types exposed by that SDK version.
+Capability discovery is the runtime source of truth for command types and donor admission support exposed by that SDK version.
 
 ## Inspect the active session
 
@@ -73,13 +73,13 @@ The SDK:
 2. materializes the existing canonical `PdfCommandDraft`;
 3. assigns source `api`;
 4. enters through `commandBus.execute()`;
-5. therefore retains the document-operation queue, validation, transaction, PageGraph, history and session semantics of in-product mutations.
+5. retains the document-operation queue, validation, transaction, PageGraph, history and session semantics of in-product mutations.
 
 There is no SDK-specific mutation dispatcher or parallel command schema.
 
 ## Supported command surface in API version 1
 
-The first slice exposes:
+The current surface exposes:
 
 - `ROTATE_PAGES`
 - `REORDER_PAGES`
@@ -87,8 +87,11 @@ The first slice exposes:
 - `EXTRACT_PAGES`
 - `SPLIT_PAGES`
 - `DELETE_PAGES`
+- `INSERT_PAGES`
 - `INSERT_BLANK_PAGE`
+- `REPLACE_PAGE`
 - `DUPLICATE_PAGES`
+- `MERGE_PDF`
 - `SET_PAGE_LABELS`
 - `APPLY_HEADER_FOOTER_TEMPLATE`
 - `DRAW_TEXT_ON_PAGES`
@@ -96,17 +99,7 @@ The first slice exposes:
 
 Use `getCapabilities().commandTypes` instead of hard-coding availability.
 
-## Explicitly unsupported in the first slice
-
-The SDK does not expose:
-
-- `INSERT_PAGES`
-- `REPLACE_PAGE`
-- `MERGE_PDF`
-
-Those operations require donor admission capabilities that do not yet have a safe public SDK contract.
-
-The SDK also does not expose internal/state-only compatibility commands:
+The SDK still does not expose internal/state-only compatibility commands:
 
 - `ANNOTATION_CHANGE`
 - `WRITER_CHANGE`
@@ -114,11 +107,84 @@ The SDK also does not expose internal/state-only compatibility commands:
 
 Passing an unsupported command through an untyped caller fails with `PdfHubSdkError` code `UNSUPPORTED_COMMAND`.
 
+## Donor admission
+
+Donor-backed structural commands use the shared PDF Hub donor-admission boundary. Raw donor bytes are never embedded inside the canonical command.
+
+First admit donors for exactly one command target:
+
+```ts
+const admission = await PDFHubSDK.admitDonors({
+  commandTarget: 'MERGE_PDF',
+  donors: [
+    {
+      fileName: 'appendix-a.pdf',
+      bytes: appendixABytes,
+    },
+    {
+      fileName: 'appendix-b.pdf',
+      bytes: appendixBBytes,
+    },
+  ],
+})
+
+admission.admissionId
+admission.donors[0].resourceId
+```
+
+The public admission result contains only opaque resource IDs and metadata:
+
+- file name;
+- source byte count;
+- page count.
+
+It does **not** expose the internal `AdmittedDonorPdf` capability object, donor handles, or resolved donor bytes.
+
+Admission reuses the existing donor policy, PDF signature check, parse/page-count validation, cancellation behavior and document-context binding.
+
+### Execute with admitted resources
+
+```ts
+await PDFHubSDK.executeCommand({
+  type: 'MERGE_PDF',
+  payload: {
+    donorResourceIds:
+      admission.donors.map(
+        (donor) => donor.resourceId,
+      ),
+  },
+})
+```
+
+The SDK resolves opaque IDs back to private admitted capabilities and passes them to CommandBus through `CommandResources.donors`.
+
+A donor command must use:
+
+- the same active document;
+- the same command target used for admission;
+- one admission only;
+- the complete admitted resource set;
+- the original admission order.
+
+`INSERT_PAGES` and `REPLACE_PAGE` require exactly one admitted donor. `MERGE_PDF` accepts one or more.
+
+A donor execution attempt is single-use. The SDK releases its public resource IDs after the command attempt whether the command succeeds or fails. Reusing those IDs fails with `DONOR_ADMISSION_INVALID`.
+
+### Abandon an admission
+
+```ts
+PDFHubSDK.releaseDonorAdmission(
+  admission.admissionId,
+)
+```
+
+This revokes an admitted set that will not be dispatched. The method returns `true` when an active admission was released and `false` when the ID was already absent.
+
 ## No active document
 
-Command execution requires an active PDF session.
+Command execution and donor admission require an active PDF session.
 
-If none exists, execution rejects with:
+If none exists, they reject with:
 
 ```ts
 PdfHubSdkError {
@@ -141,7 +207,7 @@ await PDFHubSDK.executeCommand(draft, {
 
 Binary resources remain out of band and are defensively copied at the SDK boundary.
 
-Donor PDFs are intentionally not accepted by this first slice.
+Donor admission also accepts `abortSignal` on `admitDonors(...)`.
 
 ## Session subscription
 
@@ -164,4 +230,4 @@ Consumers receive SDK snapshots, not the Zustand store or its mutation methods.
 
 New browser integrations should prefer `PDFHubSDK` when they operate on the active PDF Hub editing session.
 
-A later Phase 12 slice may add donor admission, package/module distribution and broader event contracts. Those additions must extend this canonical command/session path rather than introduce a second execution system.
+A later Phase 12 slice may add package/module distribution, richer events, stronger runtime schema validation and long-lived integration ergonomics. Those additions must extend this canonical command/session path rather than introduce a second execution system.
