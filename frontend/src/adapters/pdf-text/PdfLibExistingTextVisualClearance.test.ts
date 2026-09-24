@@ -18,6 +18,9 @@ import {
   matchExistingTextSpanToContentStream,
 } from '@/core/existing-text/provenanceMatcher';
 import {
+  assessExistingTextEditPolicy,
+} from '@/core/existing-text/fitPolicy';
+import {
   readExistingTextPageContentStreams,
 } from './PdfLibExistingTextContentStreams';
 import {
@@ -218,6 +221,96 @@ describe('PdfLibExistingTextVisualClearance', () => {
     });
     expect(input.bytes)
       .toEqual(before);
+  });
+
+  it('feeds proved clearance directly into the future-overlay eligibility policy', async () => {
+    const input =
+      await fixture();
+    const result =
+      await analyzeExistingTextVisualClearance({
+        pdfBytes: input.bytes,
+        currentRevisionId:
+          REVISION,
+        span: input.span,
+        intent: input.intent,
+        provenance:
+          input.provenance,
+      });
+    if (result.status !== 'proved') {
+      throw new Error(
+        'Expected visual clearance proof',
+      );
+    }
+
+    expect(
+      assessExistingTextEditPolicy({
+        span: input.span,
+        intent: input.intent,
+        nativeFit:
+          result.nativeFit,
+        fallbackEvidence:
+          result.evidence,
+      }),
+    ).toMatchObject({
+      mode:
+        'future-reconstructed-overlay-candidate',
+    });
+  });
+
+  it('does not claim generic reconstructed candidates without exact source-paint provenance', async () => {
+    const input =
+      await fixture();
+    const reconstructedSpan =
+      buildExistingTextSpan(
+        {
+          revisionId: REVISION,
+          pageId: PAGE_ID,
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            72,
+            700,
+          ],
+          width:
+            input.span
+              .advanceWidthPt,
+          height: 12,
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+    const reconstructedIntent =
+      createExistingTextEditIntent(
+        reconstructedSpan,
+        'World',
+      );
+
+    const result =
+      await analyzeExistingTextVisualClearance({
+        pdfBytes: input.bytes,
+        currentRevisionId:
+          REVISION,
+        span:
+          reconstructedSpan,
+        intent:
+          reconstructedIntent,
+        provenance:
+          input.provenance,
+      });
+
+    expect(result).toMatchObject({
+      status: 'unproved',
+      reasons: [
+        'SPAN_NOT_NATIVE_REPLACEMENT_CANDIDATE',
+      ],
+    });
   });
 
   it('does not produce evidence without an explicit solid background paint', async () => {
