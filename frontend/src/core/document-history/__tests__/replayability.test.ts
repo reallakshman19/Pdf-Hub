@@ -184,6 +184,25 @@ describe('history replayability policy', () => {
     }
   });
 
+  it('keeps existing-text replacement self-contained across journal JSON serialization', () => {
+    const draft =
+      existingTextDraft();
+    const roundTripped =
+      JSON.parse(
+        JSON.stringify(draft),
+      ) as PdfCommandDraft;
+
+    expect(roundTripped)
+      .toEqual(draft);
+    expect(
+      classifyHistoryReplayability(
+        command(roundTripped),
+      ).disposition,
+    ).toBe(
+      'SELF_CONTAINED_REPLAY',
+    );
+  });
+
   it('reports the split artifact side-effect barrier', () => {
     expect(
       classifyHistoryReplayability(command({
