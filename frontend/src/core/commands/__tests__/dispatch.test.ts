@@ -15,6 +15,13 @@ import type { WriterElementV2 } from '../../writer-v2/types';
 import { useOcrStore } from '../../ocr/ocrStore';
 import type { OcrDocumentResult } from '../../ocr/types';
 import {
+  buildExistingTextSpan,
+  createExistingTextEditIntent,
+} from '../../existing-text/model';
+import {
+  ExistingTextReplacementError,
+} from '../../existing-text/replacementError';
+import {
   commandBus,
   resetCommandBusForTests,
 } from '../bus';
@@ -75,6 +82,7 @@ const mutationEngineMocks = vi.hoisted(() => ({
   drawText: vi.fn(),
   drawVisualMasks: vi.fn(),
   applyHeaderFooter: vi.fn(),
+  replaceExistingText: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -202,6 +210,69 @@ function writerElement(id: string, pageIndex: number): WriterElementV2 {
   };
 }
 
+function existingTextDraft(
+  pageId =
+    'test-doc::stable::1',
+  replacementText = 'World',
+): PdfCommandDraft {
+  const span =
+    buildExistingTextSpan(
+      {
+        revisionId: 'test-doc',
+        pageId,
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [
+          12, 0, 0, 12, 72, 700,
+        ],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+  const intent =
+    createExistingTextEditIntent(
+      span,
+      replacementText,
+    );
+  return {
+    type:
+      'REPLACE_EXISTING_TEXT',
+    payload: {
+      schemaVersion: 1,
+      span,
+      intent,
+      provenance: {
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        operatorIndex: 4,
+        operator: 'Tj',
+        operatorRange: {
+          start: 18,
+          end: 20,
+        },
+        operandRange: {
+          start: 10,
+          end: 17,
+        },
+        decodedText: 'Hello',
+        encoding:
+          'ascii-literal',
+        fontResourceName: 'F1',
+        fontSizePt: 12,
+        textMatrix: [
+          1, 0, 0, 1, 72, 700,
+        ],
+      },
+    },
+  };
+}
+
 function ocrDocument(
   pageIndex: number,
   documentFingerprint = 'test-doc',
@@ -277,6 +348,8 @@ describe('canonical command dispatch', () => {
       drawText: mutationEngineMocks.drawText,
       drawVisualMasks: mutationEngineMocks.drawVisualMasks,
       applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
+      replaceExistingText:
+        mutationEngineMocks.replaceExistingText,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -350,6 +423,154 @@ describe('canonical command dispatch', () => {
       pageIndex: 0,
     });
     expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('routes existing-text replacement through the mutation session and canonical history', async () => {
+    mutationEngineMocks
+      .replaceExistingText
+      .mockResolvedValue({
+        pageIndex: 0,
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        originalText: 'Hello',
+        replacementText: 'World',
+        encoding:
+          'ascii-literal',
+        fontResourceName: 'F1',
+        baseFont: 'Helvetica',
+        proof: {
+          originalOperandRange: {
+            start: 10,
+            end: 17,
+          },
+          replacementOperandRange: {
+            start: 10,
+            end: 17,
+          },
+          originalDecodedLength: 32,
+          rewrittenDecodedLength: 32,
+          prefixBytesPreserved: true,
+          suffixBytesPreserved: true,
+          contentTopology:
+            'single-indirect',
+          targetStreamIndirect: true,
+        },
+      });
+
+    const draft =
+      existingTextDraft();
+    const result =
+      await execute(draft);
+
+    expect(result).toMatchObject({
+      success: true,
+      mutated: true,
+      commandType:
+        'REPLACE_EXISTING_TEXT',
+    });
+    expect(
+      mutationEngineMocks
+        .replaceExistingText,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentRevisionId:
+          'test-doc',
+        span:
+          draft.payload.span,
+        intent:
+          draft.payload.intent,
+        provenance:
+          draft.payload
+            .provenance,
+      }),
+    );
+    expect(mutationEngineMocks.commit)
+      .toHaveBeenCalledTimes(1);
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack.at(-1)
+        ?.command.type,
+    ).toBe(
+      'REPLACE_EXISTING_TEXT',
+    );
+    expect(
+      useSessionStore
+        .getState()
+        .documentKey,
+    ).toBe('mock-hash-3');
+    expect(
+      useSessionStore
+        .getState()
+        .pageGraph
+        ?.pages[0],
+    ).toMatchObject({
+      pageId:
+        'test-doc::stable::1',
+      documentKey:
+        'mock-hash-3',
+    });
+  });
+
+  it('rejects existing-text PageId drift before mutation-session write', async () => {
+    const result =
+      await execute(
+        existingTextDraft(
+          'other-stable-page',
+        ),
+      );
+
+    expect(result).toMatchObject({
+      success: false,
+      mutated: false,
+      error: {
+        code:
+          'VALIDATION_FAILED',
+      },
+    });
+    expect(
+      mutationEngineMocks
+        .replaceExistingText,
+    ).not.toHaveBeenCalled();
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack,
+    ).toHaveLength(0);
+  });
+
+  it('maps bounded existing-text writer failures to validation failure without commit', async () => {
+    mutationEngineMocks
+      .replaceExistingText
+      .mockRejectedValue(
+        new ExistingTextReplacementError(
+          'PROVENANCE_DRIFT',
+          'provenance changed',
+        ),
+      );
+
+    const result =
+      await execute(
+        existingTextDraft(),
+      );
+
+    expect(result).toMatchObject({
+      success: false,
+      mutated: false,
+      error: {
+        code:
+          'VALIDATION_FAILED',
+        message:
+          'provenance changed',
+      },
+    });
+    expect(mutationEngineMocks.commit)
+      .not.toHaveBeenCalled();
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack,
+    ).toHaveLength(0);
   });
 
   it('returns artifact and does not mutate for EXTRACT_PAGES', async () => {
