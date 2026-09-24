@@ -303,16 +303,16 @@
         {
           "id": "PHASE-012",
           "title": "Public typed SDK/API",
-          "state": "ACTIVE",
+          "state": "COMPLETE",
           "definition": "DETAILED",
           "weight": 10,
           "work_packages": [
             {
               "id": "WP-012",
               "title": "Public SDK over canonical command/session model",
-              "state": "ACTIVE",
+              "state": "COMPLETE",
               "definition": "DETAILED",
-              "execution_status": "ACTIVE",
+              "execution_status": "TERMINAL",
               "weight": 100,
               "depends_on": [
                 "WP-011"
@@ -324,21 +324,21 @@
         {
           "id": "PHASE-013",
           "title": "Bounded existing-PDF-text editing",
-          "state": "PLANNED",
+          "state": "ACTIVE",
           "definition": "DETAILED",
           "weight": 10,
           "work_packages": [
             {
               "id": "WP-013",
               "title": "Safe native/reconstructed existing text editing",
-              "state": "PLANNED",
+              "state": "ACTIVE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "ACTIVE",
               "weight": 100,
               "depends_on": [
                 "WP-012"
               ],
-              "issue": null
+              "issue": 312
             }
           ]
         },
