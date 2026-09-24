@@ -1,10 +1,8 @@
 import {
   PDFArray,
-  PDFDict,
   PDFDocument,
   PDFName,
   StandardFonts,
-  rgb,
 } from 'pdf-lib';
 import {
   describe,
@@ -39,7 +37,7 @@ async function fixture(
 ) {
   const document =
     await PDFDocument.create();
-  const font =
+  const metricFont =
     await document.embedFont(
       StandardFonts.Helvetica,
     );
@@ -49,48 +47,39 @@ async function fixture(
       792,
     ]);
 
-  if (options.background !== false) {
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: 612,
-      height: 792,
-      color: rgb(1, 1, 1),
-      borderWidth: 0,
+  const fontDictionary =
+    document.context.obj({
+      Type: 'Font',
+      Subtype: 'Type1',
+      BaseFont: 'Helvetica',
+      Encoding:
+        'WinAnsiEncoding',
     });
-  }
-
-  page.drawText(
-    'Hello',
-    {
-      x: 72,
-      y: 700,
-      size: 12,
-      font,
-      color: rgb(0, 0, 0),
-    },
+  const fontRef =
+    document.context.register(
+      fontDictionary,
+    );
+  page.node.set(
+    PDFName.of('Resources'),
+    document.context.obj({
+      Font: {
+        F1: fontRef,
+      },
+    }),
   );
 
-  const fonts =
-    page.node.Resources()
-      ?.lookupMaybe(
-        PDFName.of('Font'),
-        PDFDict,
-      );
-  for (
-    const key
-    of fonts?.keys() ?? []
-  ) {
-    fonts?.lookupMaybe(
-      key,
-      PDFDict,
-    )?.set(
-      PDFName.of('Encoding'),
-      PDFName.of(
-        'WinAnsiEncoding',
+  const background =
+    options.background === false
+      ? ''
+      : '1 1 1 rg 0 0 612 792 re f ';
+  const contentSource =
+    `${background}0 0 0 rg BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET`;
+  const contentRef =
+    document.context.register(
+      document.context.flateStream(
+        contentSource,
       ),
     );
-  }
 
   if (options.extraContentStream) {
     const extraRef =
@@ -99,25 +88,18 @@ async function fixture(
           'q Q',
         ),
       );
-    const contents =
-      page.node.get(
-        PDFName.of('Contents'),
-      );
-    if (contents instanceof PDFArray) {
-      contents.push(extraRef);
-    } else if (contents) {
-      page.node.set(
-        PDFName.of('Contents'),
-        document.context.obj([
-          contents,
-          extraRef,
-        ]),
-      );
-    } else {
-      throw new Error(
-        'Expected generated page contents',
-      );
-    }
+    page.node.set(
+      PDFName.of('Contents'),
+      document.context.obj([
+        contentRef,
+        extraRef,
+      ]),
+    );
+  } else {
+    page.node.set(
+      PDFName.of('Contents'),
+      contentRef,
+    );
   }
 
   const bytes =
@@ -143,7 +125,7 @@ async function fixture(
           700,
         ],
         width:
-          font.widthOfTextAtSize(
+          metricFont.widthOfTextAtSize(
             'Hello',
             12,
           ),
