@@ -405,6 +405,85 @@ describe('PdfRendererAdapter document lifecycle', () => {
     expect(items[0]?.height).toBeGreaterThan(12);
   });
 
+  it('preserves scale-independent PDF.js source text metadata for existing-text inspection', async () => {
+    const page = {
+      pageNumber: 3,
+      getTextContent:
+        vi.fn().mockResolvedValue({
+          items: [
+            {
+              str: 'Editable',
+              transform: [
+                12,
+                0,
+                0,
+                12,
+                72,
+                700,
+              ],
+              width: 48,
+              height: 12,
+              fontName:
+                'g_d0_f1',
+              dir: 'ltr',
+              hasEOL: true,
+            },
+            {
+              str: 'Malformed',
+              transform: [
+                'bad',
+                0,
+                0,
+                12,
+                72,
+                680,
+              ],
+              width: undefined,
+              height: undefined,
+            },
+          ],
+        }),
+    } as unknown as PDFPageProxy;
+
+    const items =
+      await PdfRendererAdapter
+        .getPageExistingTextSourceItems(
+          page,
+        );
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual({
+      sourceIndex: 0,
+      text: 'Editable',
+      transform: [
+        12,
+        0,
+        0,
+        12,
+        72,
+        700,
+      ],
+      width: 48,
+      height: 12,
+      fontName: 'g_d0_f1',
+      direction: 'ltr',
+      hasEol: true,
+    });
+    expect(items[1])
+      .toMatchObject({
+        sourceIndex: 1,
+        text: 'Malformed',
+        width: Number.NaN,
+        height: Number.NaN,
+        hasEol: false,
+      });
+    expect(
+      Number.isNaN(
+        items[1]?.transform[0],
+      ),
+    ).toBe(true);
+  });
+
   it('flattens loaded-document outline destinations without reacquiring the PDF', async () => {
     const destinationRef = {
       num: 10,

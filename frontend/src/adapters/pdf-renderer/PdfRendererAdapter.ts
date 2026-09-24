@@ -20,6 +20,7 @@ import type {
   PdfDocumentLease,
   PdfDocumentSourceCacheDiagnostics,
 } from './PdfDocumentLeaseCache';
+import type { ExistingTextSourceItem } from '@/core/existing-text/types';
 import type { RenderToken } from './types';
 
 export type {
@@ -90,6 +91,69 @@ function isTransformItem(
     'transform' in value &&
     Array.isArray((value as { transform: unknown }).transform)
   );
+}
+
+function toExistingTextSourceItem(
+  value: unknown,
+  sourceIndex: number,
+): ExistingTextSourceItem | null {
+  if (
+    typeof value !== 'object'
+    || value === null
+  ) {
+    return null;
+  }
+
+  const record =
+    value as Record<string, unknown>;
+  if (
+    typeof record.str !== 'string'
+    || !Array.isArray(
+      record.transform,
+    )
+    || record.transform.length < 6
+  ) {
+    return null;
+  }
+
+  const transform =
+    record.transform
+      .slice(0, 6)
+      .map((entry) =>
+        typeof entry === 'number'
+          ? entry
+          : Number.NaN,
+      ) as unknown as ExistingTextSourceItem['transform'];
+
+  return {
+    sourceIndex,
+    text: record.str,
+    transform,
+    width:
+      typeof record.width === 'number'
+        ? record.width
+        : Number.NaN,
+    height:
+      typeof record.height === 'number'
+        ? record.height
+        : Number.NaN,
+    ...(typeof record.fontName
+      === 'string'
+      ? {
+          fontName:
+            record.fontName,
+        }
+      : {}),
+    ...(typeof record.dir
+      === 'string'
+      ? {
+          direction:
+            record.dir,
+        }
+      : {}),
+    hasEol:
+      record.hasEOL === true,
+  };
 }
 
 function isTransportDestroyedError(err: unknown): boolean {
@@ -237,6 +301,58 @@ export class PdfRendererAdapter {
         pageNumber: page.pageNumber,
         error: String(err),
       });
+      return [];
+    }
+  }
+
+  static async getPageExistingTextSourceItems(
+    page: PDFPageProxy,
+    signal?: AbortSignal,
+  ): Promise<ExistingTextSourceItem[]> {
+    try {
+      throwIfAborted(
+        signal,
+        `inspect text source on PDF page ${page.pageNumber}`,
+      );
+      const textContent =
+        await raceWithAbort(
+          page.getTextContent(),
+          signal,
+          `inspect text source on PDF page ${page.pageNumber}`,
+        );
+      throwIfAborted(
+        signal,
+        `normalize text source on PDF page ${page.pageNumber}`,
+      );
+
+      return textContent.items
+        .map((item, sourceIndex) =>
+          toExistingTextSourceItem(
+            item,
+            sourceIndex,
+          ),
+        )
+        .filter(
+          (
+            item,
+          ): item is ExistingTextSourceItem =>
+            item !== null,
+        );
+    } catch (err) {
+      if (
+        isOperationCancelledError(err)
+      ) {
+        throw err;
+      }
+      error(
+        'pdf-renderer',
+        'Failed to inspect PDF text source',
+        {
+          pageNumber:
+            page.pageNumber,
+          error: String(err),
+        },
+      );
       return [];
     }
   }
