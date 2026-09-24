@@ -158,6 +158,33 @@ describe('existing-text edit policy', () => {
     });
   });
 
+  it('rejects a native fit diagnostic bound to a different replacement', () => {
+    const span = nativeSpan();
+    const intent =
+      createExistingTextEditIntent(
+        span,
+        'Hi',
+      );
+    const spoofed = {
+      ...fittingDiagnostic(),
+      replacementText:
+        'Different',
+    };
+
+    expect(
+      assessExistingTextEditPolicy({
+        span,
+        intent,
+        nativeFit: spoofed,
+      }),
+    ).toMatchObject({
+      mode: 'blocked',
+      reasons: [
+        'NATIVE_FIT_IDENTITY_MISMATCH',
+      ],
+    });
+  });
+
   it('blocks native overflow when fallback evidence is absent', () => {
     const span = nativeSpan();
     const intent =
