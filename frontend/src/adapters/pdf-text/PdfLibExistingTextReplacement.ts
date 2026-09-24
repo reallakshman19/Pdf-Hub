@@ -30,6 +30,9 @@ import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import {
   readExistingTextPageContentStreamsFromDocument,
 } from './PdfLibExistingTextContentStreams';
+import {
+  measureExistingTextNativeFit,
+} from './PdfLibExistingTextFit';
 
 type PdfLibNs =
   Awaited<
@@ -233,6 +236,43 @@ export async function applySimpleExistingTextReplacementToDocument(
       input.intent
         .replacementText,
     );
+  const fit =
+    await measureExistingTextNativeFit(
+      {
+        baseFont,
+        sourceText:
+          input.intent.expectedText,
+        replacementText:
+          input.intent.replacementText,
+        observedAdvancePt:
+          input.span.advanceWidthPt,
+        fontSizePt:
+          input.provenance.fontSizePt,
+        signal: input.signal,
+      },
+      lib,
+    );
+
+  if (fit.status === 'unmeasurable') {
+    throw new ExistingTextReplacementError(
+      'NATIVE_FIT_UNMEASURABLE',
+      'The native replacement fit cannot be proven for the current text span.',
+      [
+        `fit-reason=${fit.reason}`,
+      ],
+    );
+  }
+  if (fit.status === 'overflows') {
+    throw new ExistingTextReplacementError(
+      'NATIVE_REPLACEMENT_OVERFLOW',
+      'The replacement text exceeds the original observed text advance and cannot be safely replaced natively.',
+      [
+        `observed-advance-pt=${fit.observedAdvancePt}`,
+        `projected-replacement-advance-pt=${fit.projectedReplacementAdvancePt}`,
+        `tolerance-pt=${fit.tolerancePt}`,
+      ],
+    );
+  }
   const rewrittenDecoded =
     replaceByteRange(
       originalDecoded,
@@ -324,6 +364,7 @@ export async function applySimpleExistingTextReplacementToDocument(
       targetStreamIndirect:
         located.targetRef
         !== null,
+      fit,
     },
   };
 }
