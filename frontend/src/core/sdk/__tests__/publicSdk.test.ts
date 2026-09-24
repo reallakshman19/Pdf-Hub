@@ -648,6 +648,62 @@ describe('PDFHubSDK', () => {
     unsubscribe();
   });
 
+  it('emits a terminal command event when CommandBus throws', async () => {
+    openTestDocument();
+    const sdk = createPdfHubSdk();
+    const listener = vi.fn();
+    const unsubscribe =
+      sdk.subscribeEvents(
+        listener,
+        {
+          emitCurrentSession: false,
+        },
+      );
+
+    vi.spyOn(commandBus, 'execute')
+      .mockRejectedValue(
+        new Error('queue failure'),
+      );
+
+    await expect(
+      sdk.executeCommand(
+        {
+          type: 'ROTATE_PAGES',
+          payload: {
+            pageIndices: [0],
+            angle: 90,
+          },
+        },
+        {
+          commandId:
+            'throwing-command',
+        },
+      ),
+    ).rejects.toThrow(
+      'queue failure',
+    );
+
+    expect(
+      listener.mock.calls
+        .map(([event]) => event)
+        .find(
+          (event) =>
+            event.type
+            === 'command-finished',
+        ),
+    ).toMatchObject({
+      commandId:
+        'throwing-command',
+      success: false,
+      mutated: false,
+      exception: true,
+      failureMessage:
+        'queue failure',
+    });
+
+    unsubscribe();
+  });
+
   it('emits donor admission and release metadata without donor capabilities', async () => {
     openTestDocument();
     vi.spyOn(

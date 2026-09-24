@@ -151,6 +151,8 @@ export type PdfHubSdkEvent =
       success: boolean;
       mutated: boolean;
       errorCode?: CommandErrorCode;
+      exception?: true;
+      failureMessage?: string;
       session: PdfHubSdkSessionSnapshot;
     }
   | {

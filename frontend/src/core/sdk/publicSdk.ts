@@ -444,6 +444,24 @@ export function createPdfHubSdk(): PdfHubSdk {
           result,
           session: sessionSnapshot,
         };
+      } catch (error) {
+        emitEvent({
+          type: 'command-finished',
+          commandId: command.id,
+          commandType: draft.type,
+          documentKey: ownerDocumentKey,
+          success: false,
+          mutated: false,
+          exception: true,
+          failureMessage:
+            error instanceof Error
+              ? error.message
+              : String(error),
+          session: snapshotFromSession(
+            useSessionStore.getState(),
+          ),
+        });
+        throw error;
       } finally {
         for (
           const admissionId

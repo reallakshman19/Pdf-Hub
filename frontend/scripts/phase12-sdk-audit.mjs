@@ -144,6 +144,8 @@ requireTokens('focused tests', tests, [
   'rejects donor resources after the active document changes',
   'rejects malformed runtime command values before CommandBus execution',
   'emits typed session and command lifecycle events and detaches cleanly',
+  'emits a terminal command event when CommandBus throws',
+  'isolates event-listener exceptions from SDK and session execution',
 ]);
 
 requireTokens('documentation', docs, [
