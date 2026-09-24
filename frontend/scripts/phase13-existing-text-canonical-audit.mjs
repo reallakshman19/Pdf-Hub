@@ -151,6 +151,7 @@ requireTokens(
     'createExistingTextSpanId',
     'native-replacement-candidate',
     'must match command.documentKey',
+    'must match the value derived from payload.span.transform',
     'printable ASCII U+0020..U+007E only',
     'payload.provenance.operator must be Tj',
     'payload.provenance.decodedText must match payload.intent.expectedText',
@@ -224,6 +225,7 @@ requireTokens(
     'replaces bounded existing text inside the active parse and commits once',
     "REPLACE_EXISTING_TEXT: 'SELF_CONTAINED_REPLAY'",
     'routes bounded existing-text replacement through CommandBus with API source',
+    'rejects spoofed existing-text derived geometry before CommandBus execution',
     'rejects malformed existing-text replacement before CommandBus execution',
   ],
 );
