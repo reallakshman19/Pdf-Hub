@@ -251,6 +251,38 @@ describe('PDFHubSDK', () => {
       .not.toHaveBeenCalled();
   });
 
+  it('rejects malformed execute options before CommandBus execution', async () => {
+    openTestDocument();
+    const execute = vi.spyOn(
+      commandBus,
+      'execute',
+    );
+    const sdk = createPdfHubSdk();
+
+    await expect(
+      sdk.executeCommand(
+        {
+          type: 'ROTATE_PAGES',
+          payload: {
+            pageIndices: [0],
+            angle: 90,
+          },
+        },
+        {
+          binaryResources: {
+            invalid:
+              [1, 2, 3],
+          },
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+
+    expect(execute)
+      .not.toHaveBeenCalled();
+  });
+
   it('rejects malformed runtime donor input before shared admission', async () => {
     openTestDocument();
     const countPages = vi.spyOn(

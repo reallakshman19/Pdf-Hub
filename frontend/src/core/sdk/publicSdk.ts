@@ -330,6 +330,9 @@ export function createPdfHubSdk(): PdfHubSdk {
       assertSdkCommandDraftInput(
         draft,
       );
+      assertExecuteOptionsInput(
+        options,
+      );
       const session = requireActiveSession();
       const ownerDocumentKey =
         session.documentKey;
@@ -645,6 +648,81 @@ function assertCanonicalCommandValid(
   }
 }
 
+function assertExecuteOptionsInput(
+  value: unknown,
+): asserts value is PdfHubSdkExecuteOptions {
+  if (!isRecord(value)) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'executeCommand options must be an object.',
+    );
+  }
+
+  for (const field of [
+    'commandId',
+    'groupId',
+    'createdAt',
+  ] as const) {
+    const fieldValue = value[field];
+    if (
+      fieldValue !== undefined
+      && typeof fieldValue !== 'string'
+    ) {
+      throw new PdfHubSdkError(
+        'INVALID_ARGUMENT',
+        `executeCommand options.${field} must be a string when provided.`,
+      );
+    }
+  }
+
+  if (
+    value.abortSignal !== undefined
+    && !isAbortSignalLike(
+      value.abortSignal,
+    )
+  ) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'executeCommand options.abortSignal must be an AbortSignal when provided.',
+    );
+  }
+
+  if (
+    value.binaryResources
+    !== undefined
+  ) {
+    if (
+      !isRecord(
+        value.binaryResources,
+      )
+    ) {
+      throw new PdfHubSdkError(
+        'INVALID_ARGUMENT',
+        'executeCommand options.binaryResources must be a record of Uint8Array values.',
+      );
+    }
+
+    for (
+      const [resourceId, bytes]
+      of Object.entries(
+        value.binaryResources,
+      )
+    ) {
+      if (
+        resourceId.trim()
+          .length === 0
+        || !(bytes
+          instanceof Uint8Array)
+      ) {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          'executeCommand binary resources require non-empty IDs and Uint8Array values.',
+        );
+      }
+    }
+  }
+}
+
 function assertDonorAdmissionRequestInput(
   value: unknown,
 ): asserts value is PdfHubSdkDonorAdmissionRequest {
@@ -673,6 +751,18 @@ function assertDonorAdmissionRequestInput(
     throw new PdfHubSdkError(
       'INVALID_ARGUMENT',
       'Donor admission requires a donors array.',
+    );
+  }
+
+  if (
+    value.abortSignal !== undefined
+    && !isAbortSignalLike(
+      value.abortSignal,
+    )
+  ) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'Donor admission abortSignal must be an AbortSignal when provided.',
     );
   }
 
@@ -1022,6 +1112,22 @@ function cloneBinaryResources(
         bytes.slice(),
       ],
     ),
+  );
+}
+
+function isAbortSignalLike(
+  value: unknown,
+): value is AbortSignal {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.aborted
+      === 'boolean'
+    && typeof value.addEventListener
+      === 'function'
+    && typeof value.removeEventListener
+      === 'function'
   );
 }
 

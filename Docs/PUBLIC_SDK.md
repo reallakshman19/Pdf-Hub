@@ -55,7 +55,9 @@ PdfHubSdkError {
 
 Unsupported but well-formed command types still fail with `UNSUPPORTED_COMMAND`.
 
-Donor admission requests also validate the target, donor list, file names and `Uint8Array` byte inputs before reading or parsing donor PDFs.
+Donor admission requests also validate the target, donor list, file names, `Uint8Array` byte inputs and optional cancellation signal before reading or parsing donor PDFs.
+
+`executeCommand` options are runtime-checked as well: command/group IDs and timestamps must be strings when supplied, binary-resource IDs must be non-empty, binary resources must be `Uint8Array` values, and cancellation must be AbortSignal-compatible.
 
 ## Inspect the active session
 
@@ -269,6 +271,8 @@ const unsubscribe = PDFHubSDK.subscribeEvents((event) => {
 ```
 
 The event stream exposes SDK snapshots and metadata only. It does not expose Zustand, the internal document event bus, donor capabilities, resolved donor bytes, or command output byte arrays.
+
+Every started SDK command produces a terminal `command-finished` event. If execution throws instead of returning a canonical `CommandResult`, the terminal event uses `success: false`, `mutated: false`, `exception: true`, and a failure message before the original exception is rethrown.
 
 The current session is emitted immediately as a `session-changed` event unless `{ emitCurrentSession: false }` is supplied. Listener exceptions are isolated from SDK command/admission execution.
 
