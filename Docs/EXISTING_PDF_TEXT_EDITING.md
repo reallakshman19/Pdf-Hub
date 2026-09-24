@@ -204,6 +204,8 @@ When the target is indirect, pdf-lib `context.assign()` preserves the same strea
 
 If a page `/Contents` array ref or target stream ref is shared by multiple pages/content entries, replacement is rejected rather than changing more than one page.
 
+In other words, a **shared content stream** is not an admitted native-replacement target in this subset.
+
 ### Save/reopen semantics
 
 Focused fidelity tests generate a PDF with a Standard-14 Helvetica text operator, map its provenance, replace `Hello` with `World`, save the PDF, reopen its content streams and require the replacement operator to expose `World` and no longer expose `Hello`.
