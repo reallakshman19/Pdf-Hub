@@ -8,7 +8,7 @@ import type {
   ExistingTextTransform,
 } from './types';
 
-type TokenKind =
+export type ExistingTextContentTokenKind =
   | 'number'
   | 'name'
   | 'literal-string'
@@ -16,8 +16,8 @@ type TokenKind =
   | 'word'
   | 'structural';
 
-interface Token {
-  kind: TokenKind;
+export interface ExistingTextContentToken {
+  kind: ExistingTextContentTokenKind;
   rawStart: number;
   rawEnd: number;
   raw: string;
@@ -49,11 +49,11 @@ export function scanExistingTextContentStream(
     ExistingTextDecodedContentStream,
 ): ExistingTextContentScanResult {
   const source =
-    bytesToLatin1(
+    existingTextBytesToLatin1(
       stream.decodedBytes,
     );
   const lexed =
-    lexContentStream(source);
+    lexExistingTextContentStream(source);
 
   if (!lexed.complete) {
     return {
@@ -67,7 +67,7 @@ export function scanExistingTextContentStream(
   const candidates:
     ExistingTextSimpleTextOperator[] = [];
   const diagnostics: string[] = [];
-  const operands: Token[] = [];
+  const operands: ExistingTextContentToken[] = [];
   const graphicsStack:
     GraphicsState[] = [];
   let graphics: GraphicsState = {
@@ -273,9 +273,9 @@ export function scanExistingTextContentStream(
 function buildSimpleTextCandidate(
   stream:
     ExistingTextDecodedContentStream,
-  operatorToken: Token,
+  operatorToken: ExistingTextContentToken,
   operatorIndex: number,
-  operand: Token | undefined,
+  operand: ExistingTextContentToken | undefined,
   graphics: GraphicsState,
   text: TextState,
 ): ExistingTextSimpleTextOperator | null {
@@ -358,7 +358,7 @@ function initialTextState():
 }
 
 function readNumericMatrix(
-  operands: readonly Token[],
+  operands: readonly ExistingTextContentToken[],
 ): ExistingTextTransform | null {
   if (operands.length < 6) {
     return null;
@@ -425,14 +425,14 @@ function nearlyEqual(
   ) <= SIMPLE_MATRIX_TOLERANCE;
 }
 
-function lexContentStream(
+export function lexExistingTextContentStream(
   source: string,
 ): {
   complete: boolean;
-  tokens: Token[];
+  tokens: ExistingTextContentToken[];
   diagnostics: string[];
 } {
-  const tokens: Token[] = [];
+  const tokens: ExistingTextContentToken[] = [];
   const diagnostics: string[] = [];
   let cursor = 0;
 
@@ -580,7 +580,7 @@ function readLiteralString(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   const bytes: number[] = [];
@@ -732,7 +732,7 @@ function readHexString(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   let cursor = start + 1;
@@ -817,7 +817,7 @@ function readName(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } {
   let cursor = start + 1;
@@ -856,7 +856,7 @@ function readBareToken(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   let cursor = start;
@@ -978,7 +978,7 @@ function isDelimiter(
   );
 }
 
-function bytesToLatin1(
+export function existingTextBytesToLatin1(
   bytes: Uint8Array,
 ): string {
   let output = '';

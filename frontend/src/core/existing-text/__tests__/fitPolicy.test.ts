@@ -70,6 +70,8 @@ function fittingDiagnostic():
     schemaVersion: 1,
     status: 'fits',
     baseFont: 'Helvetica',
+    sourceText: 'Hello',
+    replacementText: 'Hi',
     observedAdvancePt: 30,
     fontSizePt: 12,
     tolerancePt: 0.25,
@@ -90,6 +92,8 @@ function overflowDiagnostic():
     schemaVersion: 1,
     status: 'overflows',
     baseFont: 'Helvetica',
+    sourceText: 'Hello',
+    replacementText: 'World',
     observedAdvancePt: 30,
     fontSizePt: 12,
     tolerancePt: 0.25,
@@ -151,6 +155,33 @@ describe('existing-text edit policy', () => {
     ).toMatchObject({
       mode:
         'native-replacement',
+    });
+  });
+
+  it('rejects a native fit diagnostic bound to a different replacement', () => {
+    const span = nativeSpan();
+    const intent =
+      createExistingTextEditIntent(
+        span,
+        'Hi',
+      );
+    const spoofed = {
+      ...fittingDiagnostic(),
+      replacementText:
+        'Different',
+    };
+
+    expect(
+      assessExistingTextEditPolicy({
+        span,
+        intent,
+        nativeFit: spoofed,
+      }),
+    ).toMatchObject({
+      mode: 'blocked',
+      reasons: [
+        'NATIVE_FIT_IDENTITY_MISMATCH',
+      ],
     });
   });
 

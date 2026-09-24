@@ -337,3 +337,59 @@ Therefore this policy is an eligibility contract, not mutation authority.
 ### Still not exposed in UI
 
 No Phase 13 component in this slice exposes native replacement or reconstructed fallback to end users. Layout-fit diagnostics and policy are production-core inputs for the next analyzer/UI slice.
+
+
+## Read-only visual-clearance evidence producer
+
+Phase 13 now includes a deliberately narrow producer for the reconstructed-overlay evidence contract.
+
+This producer is **read-only**. It does not draw masks, add text, write history, publish revisions, or expose a UI action.
+
+### Admitted proof subset
+
+The first producer only analyzes a span that is still a `native-replacement-candidate` with exact simple-`Tj` provenance and whose recomputed Standard-14 fit result is `overflows`.
+
+The page must have exactly one decoded content stream.
+
+The admitted paint program is intentionally tiny:
+- one explicit solid DeviceRGB or DeviceGray rectangle fill;
+- that rectangle is painted before the target text;
+- the exact target `Tj` is the only text-show paint;
+- relevant `cm` transforms are identity;
+- no other path paint, image/Form XObject, shading, clipping, transparency/ext-gstate, inline image, or extra text show is present.
+
+Any operator outside the admitted proof grammar fails closed.
+
+### Clearance geometry
+
+For the horizontal simple-text subset, the analyzer derives a conservative vertical envelope around the text baseline.
+
+The horizontal source bounds use the PDF.js-observed source advance. Replacement bounds use the recomputed projected Standard-14 replacement advance from the fit diagnostic.
+
+The clearance rectangle is the union-width envelope anchored at the same text origin.
+
+The explicit background rectangle must contain this full clearance rectangle. The producer does not infer adjacent whitespace merely because it is visually empty.
+
+### Evidence meaning
+
+When proof succeeds, the emitted `ExistingTextReconstructedOverlayEvidence` is bound to the same:
+- source revision;
+- PageId;
+- span ID.
+
+It records:
+- `sourceCoverage: 'proved'`;
+- the conservative clearance rectangle;
+- the proved solid background color;
+- `foreignPaintIntersections: 0`;
+- the proposed replacement bounds.
+
+The zero foreign-paint count is justified by the entire admitted paint program, not by raster sampling.
+
+### Important limitation
+
+This producer does **not** prove generic `reconstructed-candidate` spans. Those spans lack the exact source-paint provenance required by this first analyzer and remain blocked.
+
+It also does not traverse Form XObjects or interpret arbitrary paths/images/transparency.
+
+A later overlay executor, if introduced, must revalidate the evidence against the active revision before mutation.

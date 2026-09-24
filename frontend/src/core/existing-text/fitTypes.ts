@@ -16,6 +16,8 @@ export interface ExistingTextFitRect {
 interface ExistingTextNativeFitBase {
   schemaVersion: 1;
   baseFont: string;
+  sourceText: string;
+  replacementText: string;
   observedAdvancePt: number;
   fontSizePt: number;
   tolerancePt: number;
@@ -70,6 +72,7 @@ export type ExistingTextEditPolicyBlockReason =
   | 'STALE_EDIT_INTENT'
   | 'UNSUPPORTED_SPAN'
   | 'NATIVE_FIT_MISSING'
+  | 'NATIVE_FIT_IDENTITY_MISMATCH'
   | 'NATIVE_FIT_UNMEASURABLE'
   | 'NATIVE_REPLACEMENT_OVERFLOW'
   | 'FALLBACK_EVIDENCE_MISSING'
