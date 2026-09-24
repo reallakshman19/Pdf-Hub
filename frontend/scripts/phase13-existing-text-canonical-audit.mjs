@@ -224,6 +224,7 @@ requireTokens(
     'maps bounded existing-text writer failures to validation failure without commit',
     'replaces bounded existing text inside the active parse and commits once',
     "REPLACE_EXISTING_TEXT: 'SELF_CONTAINED_REPLAY'",
+    'keeps existing-text replacement self-contained across journal JSON serialization',
     'routes bounded existing-text replacement through CommandBus with API source',
     'rejects spoofed existing-text derived geometry before CommandBus execution',
     'rejects malformed existing-text replacement before CommandBus execution',
