@@ -8,13 +8,14 @@ import {
   isNativeRichTextReadOnly,
 } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
-import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Minus, X } from 'lucide-react';
+import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
 import type { ReviewStatus } from '@/core/review/types';
 import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { ExistingTextInspectorTab } from './ExistingTextInspectorTab';
 
 
 export const InspectorPanel: React.FC = () => {
@@ -94,6 +95,7 @@ export const InspectorPanel: React.FC = () => {
 
   const tabs = [
     { id: 'properties', icon: Settings, label: 'Properties' },
+    { id: 'text', icon: FileText, label: 'PDF text' },
     { id: 'style', icon: Palette, label: 'Style' },
     { id: 'history', icon: Info, label: 'Metadata' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
@@ -119,7 +121,13 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200 dark:border-slate-800">
-        {selection.length > 1 ? `${selection.length} annotations selected` : activeAnnotation ? '1 annotation selected' : 'No selection'}
+        {inspectorTab === 'text'
+          ? 'Current page PDF text'
+          : selection.length > 1
+            ? `${selection.length} annotations selected`
+            : activeAnnotation
+              ? '1 annotation selected'
+              : 'No selection'}
       </div>
 
       <div className="flex items-center p-2 border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -149,7 +157,7 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto relative">
-        {!activeAnnotation && (
+        {!activeAnnotation && inspectorTab !== 'text' && (
           <div className="h-full flex items-center justify-center p-6">
             <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 text-center">
               <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
@@ -181,6 +189,10 @@ export const InspectorPanel: React.FC = () => {
 
         {activeAnnotation && inspectorTab === 'history' && (
           <MetadataTab annotation={activeAnnotation} />
+        )}
+
+        {inspectorTab === 'text' && (
+          <ExistingTextInspectorTab />
         )}
 
         {inspectorTab === 'review' && (
