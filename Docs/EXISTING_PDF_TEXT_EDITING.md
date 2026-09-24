@@ -163,3 +163,57 @@ A source operator matches only when text, font size and origin agree within the 
 Zero candidates returns `NO_SIMPLE_TEXT_OPERATOR_MATCH`. Multiple candidates returns `AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH`.
 
 This provenance is evidence for a later mutation investigation. It is not a write capability and still does not create a `REPLACE_EXISTING_TEXT` command.
+
+
+## Bounded native replacement
+
+The third Phase 13 slice introduces the first **actual content-stream write path**, but only for the exact simple provenance subset described above.
+
+This is not general PDF text editing.
+
+### Required stale/provenance checks
+
+`replaceSimpleExistingTextTj()` requires the current revision ID, inspected span, revision-bound edit intent and matched provenance record together.
+
+Before loading/writing the PDF it requires the current revision to equal the intent source revision and revalidates the intent against the span.
+
+After loading the current bytes it locates the same content stream and rescans the decoded bytes. The exact stream ref/index, operator ordinal, operand/operator byte ranges, source text, representation, font resource, font size and text matrix must still match the provenance record. Drift fails closed.
+
+### Font/encoding subset
+
+Native replacement is currently limited to Type1 Latin **Standard-14** resources from the Helvetica, Times and Courier families with an explicit `WinAnsiEncoding`.
+
+Symbol, ZapfDingbats, custom BaseFonts, Type0/CID/Type3 fonts and non-WinAnsi encodings are rejected.
+
+Replacement text is further restricted to printable ASCII U+0020..U+007E, which is byte-compatible with the admitted WinAnsi subset.
+
+### Operand preservation
+
+The source representation family is preserved:
+
+- an ASCII literal `Tj` remains a literal string, with `\\`, `(` and `)` escaped;
+- an ASCII hex `Tj` remains an uppercase two-digit hex string.
+
+Only the decoded operand byte range is replaced. The decoded bytes before and after the operand are required to remain byte-identical and are reported in the replacement proof.
+
+### Stream/topology preservation
+
+The target stream is rebuilt as FlateDecode after replacement. Passive original stream dictionary entries are copied, while stale compression/length entries such as `Length`, `Filter`, `DecodeParms` and `DL` are regenerated or omitted.
+
+When the target is indirect, pdf-lib `context.assign()` preserves the same stream reference. Direct array entries are replaced in the existing array. Single-vs-array and direct-vs-indirect `/Contents` topology is therefore preserved for the admitted subset.
+
+If a page `/Contents` array ref or target stream ref is shared by multiple pages/content entries, replacement is rejected rather than changing more than one page.
+
+### Save/reopen semantics
+
+Focused fidelity tests generate a PDF with a Standard-14 Helvetica text operator, map its provenance, replace `Hello` with `World`, save the PDF, reopen its content streams and require the replacement operator to expose `World` and no longer expose `Hello`.
+
+The tests also cover stale intents, provenance drift, non-ASCII replacement, Symbol fonts, non-WinAnsi encoding, passive stream dictionary preservation and shared stream rejection.
+
+### Layout limitation
+
+This operation **does not reflow** neighboring PDF content and does not guarantee that the replacement has the same rendered width. Longer text can overlap adjacent content.
+
+Fit policy, width diagnostics, reconstructed fallback and UI disclosure remain later Phase 13 work.
+
+A canonical `REPLACE_EXISTING_TEXT` command is still intentionally absent until this bounded writer has executable fidelity evidence and is integrated through the normal transaction/history path.
