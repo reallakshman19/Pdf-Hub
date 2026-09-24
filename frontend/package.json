@@ -154,7 +154,11 @@
     "validate:phase10-viewer-evidence": "node scripts/phase10-validate-viewer-evidence.mjs",
     "test:phase10-viewer-corpus": "vitest run src/core/pdf-annotations/viewerQualificationCorpus.test.ts --pool=forks --maxWorkers=1",
     "validate:phase10-returned-review": "node scripts/phase10-validate-returned-review.mjs",
-    "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs"
+    "validate:phase10-returned-rich-text": "node scripts/phase10-validate-returned-rich-text.mjs",
+    "test:phase12-sdk-client": "vitest run src/sdk-client/__tests__/pdf-hub-sdk-client.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase12-sdk-client": "node scripts/phase12-sdk-client-audit.mjs",
+    "build:sdk-client": "vite build --config vite.sdk-client.config.ts && tsc -p tsconfig.sdk-client.json",
+    "certify:phase12-sdk-client": "pnpm run audit:phase12-sdk-client && pnpm run test:phase12-sdk-client && pnpm run build:sdk-client"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
