@@ -400,6 +400,16 @@ export const ExistingTextInspectorTab: React.FC = () => {
             result.message,
         });
         setCapability(null);
+      } catch (error) {
+        addToast({
+          type: 'error',
+          title:
+            'Text replacement failed',
+          message:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        });
       } finally {
         setReplacing(false);
       }
