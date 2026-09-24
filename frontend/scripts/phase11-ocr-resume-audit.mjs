@@ -72,7 +72,9 @@ requireTokens('src/core/ocr/ocrProjectCodec.ts', [
 requireTokens('src/core/ocr/ocrHydrationBridge.ts', [
   'OCR_RESUME_STATE_RESTORED',
   'OCR_RESUME_STATE_DISCARDED',
-  'resumeToken: input.resumeToken ?? store.resumeToken',
+  'input.resumeToken !== undefined',
+  '? input.resumeToken',
+  ': store.resumeToken',
   'engineId: resumeToken?.engineId',
   'profileId: resumeToken?.profileId',
 ]);

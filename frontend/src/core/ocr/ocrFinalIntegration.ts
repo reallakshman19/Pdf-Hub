@@ -278,6 +278,7 @@ export async function runFinalOcrIntegrationJob(
         maxCanvasPixels: input.policy.maxCanvasPixels,
         workerClient: input.workerClient,
         rasterWorkerClient: input.rasterWorkerClient,
+        capabilities: input.capabilities,
         signal,
         onProgress: input.onProgress,
       });

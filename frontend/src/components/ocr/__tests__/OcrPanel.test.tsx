@@ -181,7 +181,7 @@ describe('OcrPanel primary workflow', () => {
     expect(settings.open).toBe(true);
     expect(screen.getByTestId('ocr-engine-select')).toBeTruthy();
     expect(screen.getByTestId('ocr-pipeline-mode-panel')).toBeTruthy();
-    expect(screen.getByTestId('ocr-execution-settings')).toBeTruthy();
+    expect(screen.getByTestId('ocr-execution-settings-panel')).toBeTruthy();
 
     fireEvent.change(screen.getByTestId('ocr-engine-select'), {
       target: { value: 'tesseract-js' },
