@@ -31,6 +31,7 @@ import {
 import type {
   ExistingTextSimpleTextOperator,
 } from '@/core/existing-text/provenanceTypes';
+import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import {
   readExistingTextPageContentStreams,
 } from './PdfLibExistingTextContentStreams';
@@ -221,6 +222,41 @@ describe('simple existing-text native replacement', () => {
           === 'Hello',
       ),
     ).toBe(false);
+
+    const lease =
+      await PdfRendererAdapter
+        .acquireDocument(
+          result.pdfBytes,
+        );
+    try {
+      const page =
+        await lease.doc.getPage(1);
+      try {
+        const items =
+          await PdfRendererAdapter
+            .getPageExistingTextSourceItems(
+              page,
+            );
+        expect(
+          items.some(
+            (item) =>
+              item.text
+              === 'World',
+          ),
+        ).toBe(true);
+        expect(
+          items.some(
+            (item) =>
+              item.text
+              === 'Hello',
+          ),
+        ).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
   });
 
   it('preserves literal representation and escapes parentheses/backslashes', () => {

@@ -137,11 +137,12 @@ requireTokens(
   tests,
   [
     'survives save/reopen',
+    'getPageExistingTextSourceItems',
     'escapes parentheses/backslashes',
     'preserves hex representation family',
     'rejects stale revision intent',
     'rejects non-ASCII replacement text',
-    'rejects an exact current operator that is not the span\\'s unique page-wide match',
+    "rejects an exact current operator that is not the span's unique page-wide match",
     'rejects provenance drift',
     'rejects Symbol font resources',
     'rejects non-WinAnsi font encoding',
