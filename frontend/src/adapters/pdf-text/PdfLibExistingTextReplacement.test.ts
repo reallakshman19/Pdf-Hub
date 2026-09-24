@@ -378,7 +378,7 @@ describe('simple existing-text native replacement', () => {
     });
   });
 
-  it('rejects an exact current operator that is not the span\'s unique page-wide match', async () => {
+  it("rejects an exact current operator that is not the span's unique page-wide match", async () => {
     const document =
       await PDFDocument.create();
     const font =
