@@ -149,8 +149,9 @@ export function connectPdfHubSdk<
   assertConnectOptions(options);
 
   const candidate =
-    options.host
-    ?? discoverGlobalHost();
+    options.host === undefined
+      ? discoverGlobalHost()
+      : options.host;
 
   if (candidate === undefined) {
     throw new PdfHubSdkClientError(

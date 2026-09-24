@@ -110,6 +110,7 @@ requireTokens(
     "PDF_HUB_SDK_CLIENT_VERSION",
     "Object.freeze(['1'] as const)",
     'connectPdfHubSdk',
+    'options.host === undefined',
     'negotiatePdfHubSdkApiVersion',
     'HOST_UNAVAILABLE',
     'INVALID_HOST',
@@ -167,6 +168,7 @@ requireTokens(
   tests,
   [
     'connects to an explicitly injected v1 host',
+    'does not fall back to the global host when an explicit host is invalid',
     'discovers the installed global host',
     'requires host and capability API versions to agree',
     'rejects unsupported host API versions',

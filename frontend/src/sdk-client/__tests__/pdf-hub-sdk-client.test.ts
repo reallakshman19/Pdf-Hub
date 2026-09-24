@@ -57,6 +57,17 @@ function clearGlobalHost(): void {
   ).PDFHubSDK;
 }
 
+function captureError(
+  action: () => unknown,
+): unknown {
+  try {
+    action();
+    return undefined;
+  } catch (error) {
+    return error;
+  }
+}
+
 describe('PDF Hub SDK host client', () => {
   afterEach(() => {
     clearGlobalHost();
@@ -127,13 +138,28 @@ describe('PDF Hub SDK host client', () => {
   });
 
   it('fails with HOST_UNAVAILABLE when no host exists', () => {
-    expect(() =>
-      connectPdfHubSdk(),
-    ).toThrow(
-      expect.objectContaining({
-        code: 'HOST_UNAVAILABLE',
-      }),
-    );
+    expect(
+      captureError(
+        () => connectPdfHubSdk(),
+      ),
+    ).toMatchObject({
+      code: 'HOST_UNAVAILABLE',
+    });
+  });
+
+  it('does not fall back to the global host when an explicit host is invalid', () => {
+    setGlobalHost(createHost());
+
+    expect(
+      captureError(
+        () =>
+          connectPdfHubSdk({
+            host: null as never,
+          }),
+      ),
+    ).toMatchObject({
+      code: 'INVALID_HOST',
+    });
   });
 
   it('rejects malformed hosts before version negotiation', () => {
@@ -168,46 +194,49 @@ describe('PDF Hub SDK host client', () => {
     const host =
       createHost('1', '2');
 
-    expect(() =>
-      connectPdfHubSdk({
-        host,
-      }),
-    ).toThrow(
-      expect.objectContaining({
-        code: 'INVALID_HOST',
-      }),
-    );
+    expect(
+      captureError(
+        () =>
+          connectPdfHubSdk({
+            host,
+          }),
+      ),
+    ).toMatchObject({
+      code: 'INVALID_HOST',
+    });
   });
 
   it('rejects unsupported host API versions', () => {
     const host = createHost('2');
 
-    expect(() =>
-      connectPdfHubSdk({
-        host,
-      }),
-    ).toThrow(
-      expect.objectContaining({
-        code: 'VERSION_MISMATCH',
-      }),
-    );
+    expect(
+      captureError(
+        () =>
+          connectPdfHubSdk({
+            host,
+          }),
+      ),
+    ).toMatchObject({
+      code: 'VERSION_MISMATCH',
+    });
   });
 
   it('respects caller accepted API versions', () => {
     const host = createHost();
 
-    expect(() =>
-      connectPdfHubSdk({
-        host,
-        acceptedApiVersions: [
-          '2',
-        ],
-      }),
-    ).toThrow(
-      expect.objectContaining({
-        code: 'VERSION_MISMATCH',
-      }),
-    );
+    expect(
+      captureError(
+        () =>
+          connectPdfHubSdk({
+            host,
+            acceptedApiVersions: [
+              '2',
+            ],
+          }),
+      ),
+    ).toMatchObject({
+      code: 'VERSION_MISMATCH',
+    });
 
     expect(
       negotiatePdfHubSdkApiVersion(
