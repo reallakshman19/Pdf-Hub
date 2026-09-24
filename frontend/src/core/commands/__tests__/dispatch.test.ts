@@ -454,6 +454,24 @@ describe('canonical command dispatch', () => {
           contentTopology:
             'single-indirect',
           targetStreamIndirect: true,
+          fit: {
+            schemaVersion: 1,
+            status: 'fits',
+            baseFont:
+              'Helvetica',
+            sourceText: 'Hello',
+            replacementText:
+              'World',
+            observedAdvancePt: 30,
+            fontSizePt: 12,
+            tolerancePt: 0.25,
+            measuredSourceWidthPt: 27,
+            measuredReplacementWidthPt: 27,
+            observedToMetricScale:
+              30 / 27,
+            projectedReplacementAdvancePt: 30,
+            overflowPt: 0,
+          },
         },
       });
 
