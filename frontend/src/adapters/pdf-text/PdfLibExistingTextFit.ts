@@ -39,6 +39,9 @@ export async function measureExistingTextNativeFit(
       reason:
         'INVALID_OBSERVED_ADVANCE',
       baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
       observedAdvancePt:
         input.observedAdvancePt,
       fontSizePt:
@@ -58,6 +61,9 @@ export async function measureExistingTextNativeFit(
       status: 'unmeasurable',
       reason: 'INVALID_FONT_SIZE',
       baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
       observedAdvancePt:
         input.observedAdvancePt,
       fontSizePt:
@@ -117,6 +123,9 @@ export async function measureExistingTextNativeFit(
       status: 'unmeasurable',
       reason: 'NON_FINITE_METRIC',
       baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
       observedAdvancePt:
         input.observedAdvancePt,
       fontSizePt:
@@ -131,6 +140,9 @@ export async function measureExistingTextNativeFit(
       status: 'unmeasurable',
       reason: 'SOURCE_METRIC_ZERO',
       baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
       observedAdvancePt:
         input.observedAdvancePt,
       fontSizePt:
@@ -162,6 +174,9 @@ export async function measureExistingTextNativeFit(
     schemaVersion: 1,
     status,
     baseFont: input.baseFont,
+    sourceText: input.sourceText,
+    replacementText:
+      input.replacementText,
     observedAdvancePt:
       input.observedAdvancePt,
     fontSizePt:
