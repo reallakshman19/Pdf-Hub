@@ -321,6 +321,31 @@ describe('PDFHubSDK', () => {
     });
   });
 
+  it('rejects spoofed existing-text derived geometry before CommandBus execution', async () => {
+    openTestDocument();
+    const execute =
+      vi.spyOn(
+        commandBus,
+        'execute',
+      );
+    const sdk =
+      createPdfHubSdk();
+    const draft =
+      sdkExistingTextDraft();
+    draft.payload.span.originPt.x =
+      999;
+
+    await expect(
+      sdk.executeCommand(
+        draft,
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+    expect(execute)
+      .not.toHaveBeenCalled();
+  });
+
   it('rejects malformed existing-text replacement before CommandBus execution', async () => {
     openTestDocument();
     const execute =
