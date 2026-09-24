@@ -50,6 +50,7 @@ export type PdfHubSdkErrorCode =
   | 'NO_ACTIVE_DOCUMENT'
   | 'UNSUPPORTED_COMMAND'
   | 'DONOR_ADMISSION_REJECTED'
+  | 'DONOR_ADMISSION_CANCELLED'
   | 'DONOR_ADMISSION_INVALID';
 
 export interface PdfHubSdkCapabilities {

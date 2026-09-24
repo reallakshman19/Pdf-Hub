@@ -163,7 +163,9 @@ export function createPdfHubSdk(): PdfHubSdk {
 
       if (result.outcome !== 'ACCEPTED') {
         throw new PdfHubSdkError(
-          'DONOR_ADMISSION_REJECTED',
+          result.outcome === 'CANCELLED'
+            ? 'DONOR_ADMISSION_CANCELLED'
+            : 'DONOR_ADMISSION_REJECTED',
           firstDonorAdmissionErrorMessage(
             result,
           )
