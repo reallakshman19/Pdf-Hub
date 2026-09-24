@@ -16,6 +16,7 @@ import {
   type PdfCommandDraft,
 } from '@/core/commands/types';
 import { validateCommand } from '@/core/commands/validators';
+import { error as logError } from '@/core/logger/service';
 import { useSessionStore } from '@/core/session/store';
 import type {
   PageGraph,
@@ -110,9 +111,15 @@ export function createPdfHubSdk(): PdfHubSdk {
     try {
       listener(event);
     } catch (error) {
-      console.error(
+      logError(
+        'system',
         'PDFHubSDK event listener failed',
-        error,
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        },
       );
     }
   };
@@ -124,9 +131,15 @@ export function createPdfHubSdk(): PdfHubSdk {
     try {
       listener(snapshot);
     } catch (error) {
-      console.error(
+      logError(
+        'system',
         'PDFHubSDK session listener failed',
-        error,
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        },
       );
     }
   };

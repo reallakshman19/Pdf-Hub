@@ -88,6 +88,12 @@ forbidTokens('sdk dispatcher boundary', sdk, [
   'dispatchPdfCommand(',
 ]);
 
+forbidTokens('sdk lint boundary', sdk, [
+  'console.log(',
+  'console.warn(',
+  'console.error(',
+]);
+
 requireTokens('sdk donor boundary', sdk, [
   'admitDonorPdfFiles(',
   "'COMMAND_CALLER'",
@@ -96,6 +102,7 @@ requireTokens('sdk donor boundary', sdk, [
   'DONOR_ADMISSION_INVALID',
   'DONOR_ADMISSION_CANCELLED',
   'record.unsubscribeSession?.()',
+  "from '@/core/logger/service'",
 ]);
 
 requireTokens('browser global', browserGlobal, [

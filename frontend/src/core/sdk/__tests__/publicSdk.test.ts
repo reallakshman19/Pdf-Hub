@@ -628,10 +628,6 @@ describe('PDFHubSDK', () => {
 
   it('isolates event-listener exceptions from SDK and session execution', async () => {
     const sdk = createPdfHubSdk();
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
-
     const unsubscribe =
       sdk.subscribeEvents(
         () => {
@@ -675,8 +671,6 @@ describe('PDFHubSDK', () => {
       },
     });
 
-    expect(consoleError)
-      .toHaveBeenCalled();
     unsubscribe();
   });
 
@@ -827,8 +821,6 @@ describe('PDFHubSDK', () => {
     expect(() =>
       openTestDocument(),
     ).not.toThrow();
-    expect(consoleError)
-      .toHaveBeenCalled();
     unsubscribe();
 
     expect(() =>
