@@ -13,7 +13,7 @@ export type SidebarTab =
   | 'ocr'
   | 'redaction';
 
-export type InspectorTab = 'properties' | 'style' | 'history' | 'review';
+export type InspectorTab = 'properties' | 'text' | 'style' | 'history' | 'review';
 export type RibbonTab = 'file' | 'organize' | 'annotate' | 'macro' | 'view';
 
 export interface EditorState {
