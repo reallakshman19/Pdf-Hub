@@ -61,6 +61,7 @@ requireTokens('types', types, [
   "'INSERT_PAGES'",
   "'REPLACE_PAGE'",
   "'MERGE_PDF'",
+  "'REPLACE_EXISTING_TEXT'",
   'PdfHubSdkDonorAdmissionRequest',
   'releaseDonorAdmission',
   'subscribeEvents',
@@ -147,6 +148,8 @@ requireTokens('public exports', index, [
 
 requireTokens('focused tests', tests, [
   'routes supported commands through CommandBus with API source',
+  'routes bounded existing-text replacement through CommandBus with API source',
+  'rejects malformed existing-text replacement before CommandBus execution',
   'admits donors behind opaque resource IDs and routes them through CommandBus',
   'rejects donor resources after the active document changes',
   'rejects malformed runtime command values before CommandBus execution',
