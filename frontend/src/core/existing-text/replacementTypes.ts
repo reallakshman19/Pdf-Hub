@@ -3,6 +3,9 @@ import type {
   ExistingTextSpan,
 } from './types';
 import type {
+  ExistingTextNativeFitDiagnostic,
+} from './fitTypes';
+import type {
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
 } from './provenanceTypes';
@@ -14,6 +17,8 @@ export type ExistingTextReplacementErrorCode =
   | 'UNSUPPORTED_REPLACEMENT_TEXT'
   | 'UNSUPPORTED_FONT_RESOURCE'
   | 'UNSUPPORTED_FONT_ENCODING'
+  | 'NATIVE_FIT_UNMEASURABLE'
+  | 'NATIVE_REPLACEMENT_OVERFLOW'
   | 'CONTENT_STREAM_NOT_FOUND'
   | 'SHARED_CONTENT_STREAM_REF'
   | 'SHARED_CONTENT_CONTAINER_REF';
@@ -51,6 +56,9 @@ export interface ExistingTextSimpleReplacementProof {
     | 'array-direct'
     | 'array-indirect';
   targetStreamIndirect: boolean;
+  fit:
+    ExistingTextNativeFitDiagnostic
+    & { status: 'fits' };
 }
 
 export interface ExistingTextSimpleReplacementResult {
