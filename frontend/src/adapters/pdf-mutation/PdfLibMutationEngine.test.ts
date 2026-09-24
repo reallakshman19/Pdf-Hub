@@ -66,6 +66,7 @@ async function createSimpleExistingTextPdf(): Promise<Uint8Array> {
 
 async function existingTextMutationFixture(
   bytes: Uint8Array,
+  replacementText = 'Hi',
 ) {
   const revisionId =
     'sha256:existing-text-test';
@@ -93,7 +94,7 @@ async function existingTextMutationFixture(
   const intent =
     createExistingTextEditIntent(
       span,
-      'World',
+      replacementText,
     );
   const content =
     await readExistingTextPageContentStreams(
@@ -570,7 +571,7 @@ describe('PdfLibMutationEngine', () => {
         },
         {
           sourceIndex: 0,
-          text: 'World',
+          text: 'Hi',
           transform: [
             12, 0, 0, 12, 72, 700,
           ],
@@ -585,6 +586,53 @@ describe('PdfLibMutationEngine', () => {
     expect(
       matchExistingTextSpanToContentStream({
         span: afterSpan,
+        content: reopened,
+      }).status,
+    ).toBe('matched');
+  });
+
+  it('rejects native overflow before mutating the active session document', async () => {
+    const bytes =
+      await createSimpleExistingTextPdf();
+    const fixture =
+      await existingTextMutationFixture(
+        bytes,
+        'World',
+      );
+
+    const engine =
+      new PdfLibMutationEngine();
+    const session =
+      await engine.open({
+        bytes,
+      });
+
+    await expect(
+      session.replaceExistingText({
+        currentRevisionId:
+          fixture.revisionId,
+        span: fixture.span,
+        intent: fixture.intent,
+        provenance:
+          fixture.provenance,
+      }),
+    ).rejects.toMatchObject({
+      code:
+        'NATIVE_REPLACEMENT_OVERFLOW',
+    });
+
+    const committed =
+      await session.commit();
+    session.dispose();
+
+    const reopened =
+      await readExistingTextPageContentStreams(
+        committed.bytes,
+        0,
+      );
+    expect(
+      matchExistingTextSpanToContentStream({
+        span: fixture.span,
         content: reopened,
       }).status,
     ).toBe('matched');

@@ -168,14 +168,14 @@ describe('simple existing-text native replacement', () => {
       await replace(
         source,
         'Hello',
-        'World',
+        'Hi',
       );
 
     expect(result)
       .toMatchObject({
         originalText: 'Hello',
         replacementText:
-          'World',
+          'Hi',
         encoding: 'ascii-hex',
         baseFont: 'Helvetica',
         proof: {
@@ -183,6 +183,11 @@ describe('simple existing-text native replacement', () => {
             true,
           suffixBytesPreserved:
             true,
+          fit: {
+            status: 'fits',
+            baseFont:
+              'Helvetica',
+          },
         },
       });
 
@@ -212,7 +217,7 @@ describe('simple existing-text native replacement', () => {
       candidates.some(
         (candidate) =>
           candidate.decodedText
-          === 'World',
+          === 'Hi',
       ),
     ).toBe(true);
     expect(
@@ -241,7 +246,7 @@ describe('simple existing-text native replacement', () => {
           items.some(
             (item) =>
               item.text
-              === 'World',
+              === 'Hi',
           ),
         ).toBe(true);
         expect(
@@ -258,6 +263,25 @@ describe('simple existing-text native replacement', () => {
       await lease.release();
     }
   });
+
+  it('rejects native replacement that exceeds the original observed advance', async () => {
+    const source =
+      await generatedPdf(
+        'Hello',
+      );
+
+    await expect(
+      replace(
+        source,
+        'Hello',
+        'World',
+      ),
+    ).rejects.toMatchObject({
+      code:
+        'NATIVE_REPLACEMENT_OVERFLOW',
+    });
+  });
+
 
   it('preserves literal representation and escapes parentheses/backslashes', () => {
     const encoded =
@@ -638,7 +662,7 @@ describe('simple existing-text native replacement', () => {
       await replace(
         withPassiveEntry,
         'Hello',
-        'World',
+        'Hi',
       );
 
     const reopened =

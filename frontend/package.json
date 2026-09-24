@@ -171,7 +171,10 @@
     "certify:phase13-existing-text-replacement": "pnpm run audit:phase13-existing-text-replacement && pnpm run test:phase13-existing-text-replacement",
     "test:phase13-existing-text-canonical": "vitest run src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts src/core/commands/__tests__/dispatch.test.ts src/core/document-history/__tests__/replayability.test.ts src/core/sdk/__tests__/publicSdk.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-canonical": "node scripts/phase13-existing-text-canonical-audit.mjs",
-    "certify:phase13-existing-text-canonical": "pnpm run audit:phase13-existing-text-canonical && pnpm run test:phase13-existing-text-canonical"
+    "certify:phase13-existing-text-canonical": "pnpm run audit:phase13-existing-text-canonical && pnpm run test:phase13-existing-text-canonical",
+    "test:phase13-existing-text-fit-policy": "vitest run src/adapters/pdf-text/PdfLibExistingTextFit.test.ts src/core/existing-text/__tests__/fitPolicy.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-fit-policy": "node scripts/phase13-existing-text-fit-policy-audit.mjs",
+    "certify:phase13-existing-text-fit-policy": "pnpm run audit:phase13-existing-text-fit-policy && pnpm run test:phase13-existing-text-fit-policy"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

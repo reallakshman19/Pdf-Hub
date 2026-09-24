@@ -259,3 +259,81 @@ Public SDK API version 1 advertises `REPLACE_EXISTING_TEXT` as a supported canon
 ### Still not exposed in UI
 
 This slice adds no end-user editing UI and still makes no automatic reflow or width-fit guarantee. Those presentation/policy concerns remain downstream Phase 13 work.
+
+
+## Native layout-fit gate
+
+Native simple-`Tj` replacement is now layout-gated in addition to being provenance/font/encoding-gated.
+
+The source span's PDF.js `advanceWidthPt` is the authoritative observed occupied advance. The admitted Standard-14 BaseFont is measured with pdf-lib font metrics in a separate temporary measurement document; the active mutation document is not modified by measurement.
+
+For source metric width `S`, replacement metric width `R`, and observed source advance `A`:
+
+```text
+observedToMetricScale = A / S
+projectedReplacementAdvance = R * observedToMetricScale
+```
+
+This preserves the accepted source text-matrix scale while avoiding a character-count heuristic.
+
+Native replacement is admitted only when:
+
+```text
+projectedReplacementAdvance
+  <= observed source advance + 0.25 pt numeric tolerance
+```
+
+The tolerance is only for metric/rounding noise. It is not permission to consume adjacent whitespace.
+
+If the metric is unmeasurable, native replacement fails closed with `NATIVE_FIT_UNMEASURABLE`. If the projected replacement is wider, it fails with `NATIVE_REPLACEMENT_OVERFLOW`.
+
+The fit diagnostic is retained in the replacement proof, including:
+- observed advance;
+- measured source/replacement Standard-14 widths;
+- observed-to-metric scale;
+- projected replacement advance;
+- tolerance;
+- overflow.
+
+A failed fit check occurs before the decoded operand byte range is rewritten.
+
+## Reconstructed-overlay policy contract
+
+A `reconstructed-candidate` is still not executable editing authority.
+
+Phase 13 defines a pure policy result with three outcomes:
+
+```text
+native-replacement
+future-reconstructed-overlay-candidate
+blocked
+```
+
+The second outcome is intentionally named **future**: this phase does not add a visual-mask/redraw command, Writer fallback, or UI action.
+
+A future overlay candidate requires versioned evidence bound to the same:
+- source revision;
+- PageId;
+- span ID.
+
+The evidence must state that:
+- source coverage is proved;
+- the clearance region has a known solid background color;
+- there are zero foreign-paint intersections;
+- proposed replacement bounds are finite, positive, and fully contained by the proved clearance region.
+
+Missing, stale, incomplete, intersecting, or geometrically insufficient evidence remains blocked.
+
+Native overflow may be reclassified only as a **future reconstructed-overlay candidate** when that same complete evidence exists. The canonical `REPLACE_EXISTING_TEXT` command itself remains native-only and never silently falls back.
+
+### Evidence producer boundary
+
+This slice does not implement the producer that proves source coverage, background, foreign paint, or replacement render bounds.
+
+A later analyzer must produce those facts from page rendering/content evidence. A later executor must revalidate them at the active revision before any mask/redraw mutation exists.
+
+Therefore this policy is an eligibility contract, not mutation authority.
+
+### Still not exposed in UI
+
+No Phase 13 component in this slice exposes native replacement or reconstructed fallback to end users. Layout-fit diagnostics and policy are production-core inputs for the next analyzer/UI slice.
