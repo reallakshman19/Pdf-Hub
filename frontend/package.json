@@ -177,7 +177,10 @@
     "certify:phase13-existing-text-fit-policy": "pnpm run audit:phase13-existing-text-fit-policy && pnpm run test:phase13-existing-text-fit-policy",
     "test:phase13-existing-text-visual-clearance": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/visualClearanceScanner.test.ts src/core/existing-text/__tests__/fitPolicy.test.ts src/adapters/pdf-text/PdfLibExistingTextFit.test.ts src/adapters/pdf-text/PdfLibExistingTextVisualClearance.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-visual-clearance": "node scripts/phase13-existing-text-visual-clearance-audit.mjs",
-    "certify:phase13-existing-text-visual-clearance": "pnpm run audit:phase13-existing-text-visual-clearance && pnpm run test:phase13-existing-text-visual-clearance"
+    "certify:phase13-existing-text-visual-clearance": "pnpm run audit:phase13-existing-text-visual-clearance && pnpm run test:phase13-existing-text-visual-clearance",
+    "test:phase13-existing-text-inspector-ui": "vitest run src/adapters/pdf-text/PdfLibExistingTextUiEvaluation.test.ts src/components/inspector/ExistingTextInspectorTab.test.tsx src/components/inspector/InspectorPanel.existingText.test.tsx --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-inspector-ui": "node scripts/phase13-existing-text-inspector-ui-audit.mjs",
+    "certify:phase13-existing-text-inspector-ui": "pnpm run audit:phase13-existing-text-inspector-ui && pnpm run test:phase13-existing-text-inspector-ui"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
