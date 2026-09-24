@@ -2,6 +2,9 @@ import {
   createExistingTextEditIntent,
 } from '@/core/existing-text/model';
 import {
+  assertPrintableAsciiReplacement,
+} from '@/core/existing-text/replacementOperand';
+import {
   matchExistingTextSpanToContentStream,
 } from '@/core/existing-text/provenanceMatcher';
 import type {
@@ -78,6 +81,9 @@ export async function evaluateExistingTextUiCapability(
   let intent:
     ExistingTextEditIntent;
   try {
+    assertPrintableAsciiReplacement(
+      input.replacementText,
+    );
     intent =
       createExistingTextEditIntent(
         input.span,
