@@ -93,7 +93,7 @@ async function existingTextMutationFixture(
   const intent =
     createExistingTextEditIntent(
       span,
-      'World',
+      'Hi',
     );
   const content =
     await readExistingTextPageContentStreams(
@@ -570,7 +570,7 @@ describe('PdfLibMutationEngine', () => {
         },
         {
           sourceIndex: 0,
-          text: 'World',
+          text: 'Hi',
           transform: [
             12, 0, 0, 12, 72, 700,
           ],
