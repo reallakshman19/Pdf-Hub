@@ -430,6 +430,12 @@ describe('PDFHubSDK', () => {
         pageCount: 1,
       });
 
+    expect(
+      sdk.releaseDonorAdmission(
+        admission.admissionId,
+      ),
+    ).toBe(false);
+
     await expect(
       sdk.executeCommand({
         type: 'REPLACE_PAGE',

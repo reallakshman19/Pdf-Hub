@@ -55,6 +55,7 @@ interface SdkDonorAdmissionRecord {
   documentKey: string;
   admittedSet: AdmittedDonorSet;
   resources: SdkDonorResourceRecord[];
+  unsubscribeSession?: () => void;
 }
 
 interface ResolvedSdkDonorResources {
@@ -88,10 +89,11 @@ export function createPdfHubSdk(): PdfHubSdk {
       donorAdmissions.get(admissionId);
     if (!record) return false;
 
+    donorAdmissions.delete(admissionId);
+    record.unsubscribeSession?.();
     revokeAdmittedDonorSet(
       record.admittedSet,
     );
-    donorAdmissions.delete(admissionId);
     for (const resource of record.resources) {
       donorResources.delete(
         resource.resourceId,
@@ -198,6 +200,19 @@ export function createPdfHubSdk(): PdfHubSdk {
         admissionId,
         record,
       );
+      record.unsubscribeSession =
+        useSessionStore.subscribe(
+          (state) => {
+            if (
+              state.documentKey
+              !== ownerDocumentKey
+            ) {
+              releaseAdmission(
+                admissionId,
+              );
+            }
+          },
+        );
       for (const resource of resources) {
         donorResources.set(
           resource.resourceId,
