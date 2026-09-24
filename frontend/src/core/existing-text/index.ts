@@ -38,3 +38,19 @@ export type {
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
 } from './provenanceTypes';
+
+export {
+  ExistingTextReplacementError,
+} from './replacementError';
+
+export {
+  assertPrintableAsciiReplacement,
+  encodeSimpleExistingTextReplacementOperand,
+} from './replacementOperand';
+
+export type {
+  ExistingTextReplacementErrorCode,
+  ExistingTextSimpleReplacementInput,
+  ExistingTextSimpleReplacementProof,
+  ExistingTextSimpleReplacementResult,
+} from './replacementTypes';

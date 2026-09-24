@@ -165,7 +165,10 @@
     "certify:phase13-existing-text": "pnpm run audit:phase13-existing-text && pnpm run test:phase13-existing-text",
     "test:phase13-existing-text-provenance": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextContentStreams.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-provenance": "node scripts/phase13-existing-text-provenance-audit.mjs",
-    "certify:phase13-existing-text-provenance": "pnpm run audit:phase13-existing-text-provenance && pnpm run test:phase13-existing-text-provenance"
+    "certify:phase13-existing-text-provenance": "pnpm run audit:phase13-existing-text-provenance && pnpm run test:phase13-existing-text-provenance",
+    "test:phase13-existing-text-replacement": "vitest run src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-replacement": "node scripts/phase13-existing-text-replacement-audit.mjs",
+    "certify:phase13-existing-text-replacement": "pnpm run audit:phase13-existing-text-replacement && pnpm run test:phase13-existing-text-replacement"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
