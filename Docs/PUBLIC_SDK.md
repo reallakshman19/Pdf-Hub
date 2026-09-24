@@ -297,10 +297,13 @@ The same-runtime `frontend/sdk` entry is intended for code that executes inside 
 
 Phase 12 therefore also defines a separate **host client** build. Its only job is to find or receive an already-installed `PDFHubSDK`, validate the host contract, negotiate API compatibility, and return that host.
 
-Build:
+Build and certify the distribution contract:
 
 ```bash
 pnpm run build:sdk-client
+pnpm run audit:phase12-sdk-client:artifact
+# or the combined focused gate:
+pnpm run certify:phase12-sdk-client
 ```
 
 The build contract emits into `frontend/dist-sdk-client`:

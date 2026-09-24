@@ -158,7 +158,8 @@
     "test:phase12-sdk-client": "vitest run src/sdk-client/__tests__/pdf-hub-sdk-client.test.ts --pool=forks --maxWorkers=1",
     "audit:phase12-sdk-client": "node scripts/phase12-sdk-client-audit.mjs",
     "build:sdk-client": "vite build --config vite.sdk-client.config.ts && tsc -p tsconfig.sdk-client.json",
-    "certify:phase12-sdk-client": "pnpm run audit:phase12-sdk-client && pnpm run test:phase12-sdk-client && pnpm run build:sdk-client"
+    "certify:phase12-sdk-client": "pnpm run audit:phase12-sdk-client && pnpm run test:phase12-sdk-client && pnpm run build:sdk-client && pnpm run audit:phase12-sdk-client:artifact",
+    "audit:phase12-sdk-client:artifact": "node scripts/phase12-sdk-client-artifact-audit.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
