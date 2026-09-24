@@ -93,7 +93,9 @@ requireTokens(
   [
     'validateExistingTextEditIntentAgainstSpan',
     'currentRevisionId',
+    'matchExistingTextSpanToContentStream',
     'assertProvenanceStillMatches',
+    'SPAN_NOT_NATIVE_REPLACEMENT_CANDIDATE',
     'SHARED_CONTENT_STREAM_REF',
     'SHARED_CONTENT_CONTAINER_REF',
     'WinAnsiEncoding',
@@ -139,6 +141,7 @@ requireTokens(
     'preserves hex representation family',
     'rejects stale revision intent',
     'rejects non-ASCII replacement text',
+    'rejects an exact current operator that is not the span\\'s unique page-wide match',
     'rejects provenance drift',
     'rejects Symbol font resources',
     'rejects non-WinAnsi font encoding',

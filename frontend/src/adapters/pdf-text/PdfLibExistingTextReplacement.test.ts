@@ -8,10 +8,12 @@ import {
   PDFDict,
   PDFDocument,
   PDFName,
-  PDFObject,
   PDFRawStream,
   PDFRef,
   StandardFonts,
+} from 'pdf-lib';
+import type {
+  PDFObject,
 } from 'pdf-lib';
 import {
   buildExistingTextSpan,
@@ -41,9 +43,7 @@ const REVISION =
 
 async function generatedPdf(
   text: string,
-  fontName:
-    | StandardFonts.Helvetica
-    | StandardFonts.Symbol
+  fontName: string
     = StandardFonts.Helvetica,
 ): Promise<Uint8Array> {
   const document =
@@ -339,6 +339,89 @@ describe('simple existing-text native replacement', () => {
     ).rejects.toMatchObject({
       code:
         'UNSUPPORTED_REPLACEMENT_TEXT',
+    });
+  });
+
+  it('rejects an exact current operator that is not the span\'s unique page-wide match', async () => {
+    const document =
+      await PDFDocument.create();
+    const font =
+      await document.embedFont(
+        StandardFonts.Helvetica,
+      );
+    const page =
+      document.addPage([
+        612,
+        792,
+      ]);
+    page.drawText(
+      'Hello',
+      {
+        x: 72,
+        y: 700,
+        size: 12,
+        font,
+      },
+    );
+    page.drawText(
+      'Hello',
+      {
+        x: 72,
+        y: 650,
+        size: 12,
+        font,
+      },
+    );
+    const source =
+      new Uint8Array(
+        await document.save(),
+      );
+    const content =
+      await readExistingTextPageContentStreams(
+        source,
+        0,
+      );
+    const candidates =
+      content.streams.flatMap(
+        (stream) =>
+          scanExistingTextContentStream(
+            stream,
+          ).candidates,
+      );
+    const wrong =
+      candidates.find(
+        (candidate) =>
+          candidate.decodedText
+            === 'Hello'
+          && candidate.textMatrix[5]
+            === 650,
+      );
+    if (!wrong) {
+      throw new Error(
+        'Expected second Hello candidate',
+      );
+    }
+
+    const span =
+      spanFor('Hello');
+    const intent =
+      createExistingTextEditIntent(
+        span,
+        'World',
+      );
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: source,
+        currentRevisionId:
+          REVISION,
+        span,
+        intent,
+        provenance: wrong,
+      }),
+    ).rejects.toMatchObject({
+      code:
+        'PROVENANCE_DRIFT',
     });
   });
 

@@ -9,6 +9,9 @@ import {
   validateExistingTextEditIntentAgainstSpan,
 } from '@/core/existing-text/model';
 import {
+  matchExistingTextSpanToContentStream,
+} from '@/core/existing-text/provenanceMatcher';
+import {
   encodeSimpleExistingTextReplacementOperand,
 } from '@/core/existing-text/replacementOperand';
 import {
@@ -22,6 +25,9 @@ import type {
   ExistingTextSimpleTextOperator,
 } from '@/core/existing-text/provenanceTypes';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import {
+  readExistingTextPageContentStreams,
+} from './PdfLibExistingTextContentStreams';
 
 type PdfLibNs =
   Awaited<
@@ -91,6 +97,35 @@ export async function replaceSimpleExistingTextTj(
     input.signal,
     'load PDF for simple existing-text replacement',
   );
+  const currentContent =
+    await readExistingTextPageContentStreams(
+      input.pdfBytes,
+      input.span.pageIndex,
+      input.signal,
+    );
+  const currentMatch =
+    matchExistingTextSpanToContentStream({
+      span: input.span,
+      content: currentContent,
+    });
+  if (
+    currentMatch.status
+      !== 'matched'
+    || !sameProvenance(
+      currentMatch.provenance,
+      input.provenance,
+    )
+  ) {
+    throw provenanceDrift(
+      currentMatch.status === 'unmapped'
+        ? `The current page no longer uniquely maps the inspected span: ${currentMatch.reason}.`
+        : 'The current page provenance no longer matches the supplied operator.',
+      currentMatch.status === 'unmapped'
+        ? currentMatch.diagnostics
+        : undefined,
+    );
+  }
+
   const lib = await pdfLib();
   const document =
     await raceWithAbort(
@@ -282,6 +317,16 @@ function validateWriteBoundary(
     throw new ExistingTextReplacementError(
       'STALE_EXISTING_TEXT_INTENT',
       'The active revision no longer matches the existing-text edit intent.',
+    );
+  }
+
+  if (
+    input.span.editability
+    !== 'native-replacement-candidate'
+  ) {
+    throw new ExistingTextReplacementError(
+      'SPAN_NOT_NATIVE_REPLACEMENT_CANDIDATE',
+      'Only native-replacement-candidate spans can enter the simple native writer.',
     );
   }
 
