@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist-sdk-client",
+    "rootDir": "./src/sdk-client",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.sdk-client.tsbuildinfo"
+  },
+  "include": [
+    "src/sdk-client/pdf-hub-sdk-client.ts"
+  ]
+}

@@ -291,6 +291,103 @@ The current snapshot is emitted immediately unless `{ emitCurrent: false }` is s
 
 Consumers receive SDK snapshots, not the Zustand store or its mutation methods.
 
+## Distributable host client
+
+The same-runtime `frontend/sdk` entry is intended for code that executes inside the PDF Hub application runtime. It must not be bundled into an unrelated page as a standalone editor SDK because that would risk creating a second session/store runtime.
+
+Phase 12 therefore also defines a separate **host client** build. Its only job is to find or receive an already-installed `PDFHubSDK`, validate the host contract, negotiate API compatibility, and return that host.
+
+Build and certify the distribution contract:
+
+```bash
+pnpm run build:sdk-client
+pnpm run audit:phase12-sdk-client:artifact
+# or the combined focused gate:
+pnpm run certify:phase12-sdk-client
+```
+
+The build contract emits into `frontend/dist-sdk-client`:
+
+- `pdf-hub-sdk-client.js` — ESM client;
+- `pdf-hub-sdk-client.global.js` — browser IIFE exposed as `PDFHubSDKClient`;
+- `pdf-hub-sdk-client.d.ts` — standalone TypeScript declarations;
+- source/declaration maps where enabled.
+
+The IIFE namespace is deliberately `PDFHubSDKClient`; it never replaces the host `PDFHubSDK`.
+
+### ESM consumption
+
+Load the PDF Hub host first, then connect:
+
+```ts
+import {
+  connectPdfHubSdk,
+} from './pdf-hub-sdk-client.js'
+
+const connection = connectPdfHubSdk({
+  acceptedApiVersions: ['1'],
+})
+
+connection.apiVersion
+connection.sdk
+```
+
+An explicit host may be injected instead of using global discovery:
+
+```ts
+const connection = connectPdfHubSdk({
+  host: iframeWindow.PDFHubSDK,
+  acceptedApiVersions: ['1'],
+})
+```
+
+Explicit injection is useful for iframe/sandbox integration where the relevant host is not the caller's own global object.
+
+### Browser IIFE consumption
+
+The load order is **host-first**:
+
+```html
+<script src="pdf-hub-host.js"></script>
+<script src="pdf-hub-sdk-client.global.js"></script>
+<script>
+  const connection =
+    PDFHubSDKClient.connectPdfHubSdk({
+      acceptedApiVersions: ['1'],
+    })
+</script>
+```
+
+The client has no imports from React, Zustand, CommandBus, PDF engines, donor capability internals, or other application-runtime modules.
+
+### API-version compatibility policy
+
+The client publishes an immutable list:
+
+```ts
+PDF_HUB_SDK_CLIENT_SUPPORTED_API_VERSIONS
+// readonly ['1']
+```
+
+Connection requires all of the following:
+
+1. the host exists and exposes the required SDK methods;
+2. `host.apiVersion` is a non-empty string;
+3. `host.getCapabilities().apiVersion` exactly matches `host.apiVersion`;
+4. the host version is supported by this client;
+5. the host version appears in the caller's `acceptedApiVersions` when supplied.
+
+There is no implicit major-version coercion or "closest" match. API v1 currently negotiates by exact string equality.
+
+Failures are typed as:
+
+- `HOST_UNAVAILABLE` — no injected/global host;
+- `INVALID_HOST` — malformed host or inconsistent capabilities;
+- `VERSION_MISMATCH` — unsupported or caller-rejected API version;
+- `INVALID_ARGUMENT` — malformed client options.
+
+The distributable client does not implement PDF operations itself. After connection, all PDF work remains owned by the installed host `PDFHubSDK` and therefore by the canonical CommandBus/session architecture.
+
 ## Compatibility boundary
 
 `window.PDFHubHeadless` remains available for existing integrations. Phase 12 does not reinterpret legacy macro recipes as canonical SDK commands.
