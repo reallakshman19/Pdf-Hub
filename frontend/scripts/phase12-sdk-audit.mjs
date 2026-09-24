@@ -146,6 +146,8 @@ requireTokens('focused tests', tests, [
   'emits typed session and command lifecycle events and detaches cleanly',
   'emits a terminal command event when CommandBus throws',
   'isolates event-listener exceptions from SDK and session execution',
+  'isolates session-listener exceptions and validates subscription options',
+  'rejects malformed execute options before CommandBus execution',
 ]);
 
 requireTokens('documentation', docs, [

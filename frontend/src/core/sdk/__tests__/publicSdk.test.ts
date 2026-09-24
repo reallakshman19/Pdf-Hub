@@ -809,6 +809,40 @@ describe('PDFHubSDK', () => {
     unsubscribe();
   });
 
+  it('isolates session-listener exceptions and validates subscription options', () => {
+    const sdk = createPdfHubSdk();
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const unsubscribe =
+      sdk.subscribeSession(
+        () => {
+          throw new Error(
+            'session listener failure',
+          );
+        },
+      );
+
+    expect(() =>
+      openTestDocument(),
+    ).not.toThrow();
+    expect(consoleError)
+      .toHaveBeenCalled();
+    unsubscribe();
+
+    expect(() =>
+      sdk.subscribeEvents(
+        vi.fn(),
+        null as never,
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'INVALID_ARGUMENT',
+      }),
+    );
+  });
+
   it('subscribes with snapshots and detaches without exposing Zustand', () => {
     const sdk = createPdfHubSdk();
     const listener = vi.fn();

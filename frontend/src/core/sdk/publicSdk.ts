@@ -117,6 +117,20 @@ export function createPdfHubSdk(): PdfHubSdk {
     }
   };
 
+  const notifySessionListener = (
+    listener: PdfHubSdkSessionListener,
+    snapshot: PdfHubSdkSessionSnapshot,
+  ): void => {
+    try {
+      listener(snapshot);
+    } catch (error) {
+      console.error(
+        'PDFHubSDK session listener failed',
+        error,
+      );
+    }
+  };
+
   const emitEvent = (
     event: PdfHubSdkEvent,
   ): void => {
@@ -483,8 +497,16 @@ export function createPdfHubSdk(): PdfHubSdk {
       listener: PdfHubSdkSessionListener,
       options: PdfHubSdkSubscribeOptions = {},
     ): () => void {
+      assertSubscriptionInput(
+        listener,
+        options,
+        'subscribeSession',
+        'emitCurrent',
+      );
+
       if (options.emitCurrent !== false) {
-        listener(
+        notifySessionListener(
+          listener,
           snapshotFromSession(
             useSessionStore.getState(),
           ),
@@ -493,7 +515,10 @@ export function createPdfHubSdk(): PdfHubSdk {
 
       return useSessionStore.subscribe(
         (state) => {
-          listener(snapshotFromSession(state));
+          notifySessionListener(
+            listener,
+            snapshotFromSession(state),
+          );
         },
       );
     },
@@ -502,12 +527,12 @@ export function createPdfHubSdk(): PdfHubSdk {
       listener: PdfHubSdkEventListener,
       options: PdfHubSdkEventSubscribeOptions = {},
     ): () => void {
-      if (typeof listener !== 'function') {
-        throw new PdfHubSdkError(
-          'INVALID_ARGUMENT',
-          'subscribeEvents requires a listener function.',
-        );
-      }
+      assertSubscriptionInput(
+        listener,
+        options,
+        'subscribeEvents',
+        'emitCurrentSession',
+      );
 
       eventListeners.add(listener);
 
@@ -644,6 +669,40 @@ function assertCanonicalCommandValid(
       error instanceof Error
         ? `Malformed command payload: ${error.message}`
         : 'Malformed command payload.',
+    );
+  }
+}
+
+function assertSubscriptionInput(
+  listener: unknown,
+  options: unknown,
+  method:
+    | 'subscribeSession'
+    | 'subscribeEvents',
+  optionField:
+    | 'emitCurrent'
+    | 'emitCurrentSession',
+): void {
+  if (typeof listener !== 'function') {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      `${method} requires a listener function.`,
+    );
+  }
+  if (!isRecord(options)) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      `${method} options must be an object.`,
+    );
+  }
+  const value = options[optionField];
+  if (
+    value !== undefined
+    && typeof value !== 'boolean'
+  ) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      `${method} options.${optionField} must be boolean when provided.`,
     );
   }
 }
