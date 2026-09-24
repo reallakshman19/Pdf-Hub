@@ -1,3 +1,14 @@
+import type {
+  ExistingTextEditIntent,
+  ExistingTextSpan,
+} from '@/core/existing-text/types';
+import type {
+  ExistingTextSimpleTextOperator,
+} from '@/core/existing-text/provenanceTypes';
+import type {
+  ExistingTextSimpleReplacementMutationResult,
+} from '@/core/existing-text/replacementTypes';
+
 export interface PdfMutationPageMetrics {
   width: number;
   height: number;
@@ -157,6 +168,16 @@ export interface PdfMutationSession {
     pages: readonly PdfMutationHeaderFooterPage[],
     binaryResources: Readonly<Record<string, Uint8Array>>,
   ): Promise<PdfMutationHeaderFooterResult>;
+
+  replaceExistingText(
+    input: {
+      currentRevisionId: string;
+      span: ExistingTextSpan;
+      intent: ExistingTextEditIntent;
+      provenance:
+        ExistingTextSimpleTextOperator;
+    },
+  ): Promise<ExistingTextSimpleReplacementMutationResult>;
 
   commit(): Promise<PdfMutationCommitResult>;
 

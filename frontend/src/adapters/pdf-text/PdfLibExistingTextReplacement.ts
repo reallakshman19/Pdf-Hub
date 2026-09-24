@@ -19,6 +19,8 @@ import {
 } from '@/core/existing-text/replacementError';
 import type {
   ExistingTextSimpleReplacementInput,
+  ExistingTextSimpleReplacementMutationInput,
+  ExistingTextSimpleReplacementMutationResult,
   ExistingTextSimpleReplacementResult,
 } from '@/core/existing-text/replacementTypes';
 import type {
@@ -26,7 +28,7 @@ import type {
 } from '@/core/existing-text/provenanceTypes';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import {
-  readExistingTextPageContentStreams,
+  readExistingTextPageContentStreamsFromDocument,
 } from './PdfLibExistingTextContentStreams';
 
 type PdfLibNs =
@@ -97,10 +99,59 @@ export async function replaceSimpleExistingTextTj(
     input.signal,
     'load PDF for simple existing-text replacement',
   );
+  const lib = await pdfLib();
+  const document =
+    await raceWithAbort(
+      lib.PDFDocument.load(
+        input.pdfBytes,
+        {
+          throwOnInvalidObject:
+            false,
+          updateMetadata: false,
+        },
+      ),
+      input.signal,
+      'load PDF for simple existing-text replacement',
+    );
+
+  const mutation =
+    await applySimpleExistingTextReplacementToDocument(
+      document,
+      lib,
+      input,
+    );
+
+  throwIfAborted(
+    input.signal,
+    'save simple existing-text replacement',
+  );
+  const saved =
+    await raceWithAbort(
+      document.save(),
+      input.signal,
+      'save simple existing-text replacement',
+    );
+
+  return {
+    ...mutation,
+    pdfBytes:
+      new Uint8Array(saved),
+  };
+}
+
+export async function applySimpleExistingTextReplacementToDocument(
+  document: PDFDocumentT,
+  lib: PdfLibNs,
+  input:
+    ExistingTextSimpleReplacementMutationInput,
+): Promise<ExistingTextSimpleReplacementMutationResult> {
+  validateWriteBoundary(input);
+
   const currentContent =
-    await readExistingTextPageContentStreams(
-      input.pdfBytes,
+    readExistingTextPageContentStreamsFromDocument(
+      document,
       input.span.pageIndex,
+      lib,
       input.signal,
     );
   const currentMatch =
@@ -125,21 +176,6 @@ export async function replaceSimpleExistingTextTj(
         : undefined,
     );
   }
-
-  const lib = await pdfLib();
-  const document =
-    await raceWithAbort(
-      lib.PDFDocument.load(
-        input.pdfBytes,
-        {
-          throwOnInvalidObject:
-            false,
-          updateMetadata: false,
-        },
-      ),
-      input.signal,
-      'load PDF for simple existing-text replacement',
-    );
 
   const pageIndex =
     input.span.pageIndex;
@@ -222,17 +258,6 @@ export async function replaceSimpleExistingTextTj(
     lib,
   );
 
-  throwIfAborted(
-    input.signal,
-    'save simple existing-text replacement',
-  );
-  const saved =
-    await raceWithAbort(
-      document.save(),
-      input.signal,
-      'save simple existing-text replacement',
-    );
-
   const replacementStart =
     input.provenance
       .operandRange.start;
@@ -241,8 +266,6 @@ export async function replaceSimpleExistingTextTj(
     + replacementOperand.length;
 
   return {
-    pdfBytes:
-      new Uint8Array(saved),
     pageIndex,
     streamIndex:
       input.provenance
@@ -307,7 +330,7 @@ export async function replaceSimpleExistingTextTj(
 
 function validateWriteBoundary(
   input:
-    ExistingTextSimpleReplacementInput,
+    ExistingTextSimpleReplacementMutationInput,
 ): void {
   if (
     input.currentRevisionId

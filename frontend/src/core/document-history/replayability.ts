@@ -200,6 +200,7 @@ export function classifyHistoryReplayability(
     case 'DUPLICATE_PAGES':
     case 'SET_PAGE_LABELS':
     case 'DRAW_REDACTION_BOX':
+    case 'REPLACE_EXISTING_TEXT':
       return SELF_CONTAINED;
 
     case 'DRAW_TEXT_ON_PAGES':
@@ -274,6 +275,7 @@ export const HISTORY_REPLAY_POLICY_COMMAND_TYPES: ReadonlySet<PdfCommandType> =
     'APPLY_HEADER_FOOTER_TEMPLATE',
     'DRAW_TEXT_ON_PAGES',
     'DRAW_REDACTION_BOX',
+    'REPLACE_EXISTING_TEXT',
     'ANNOTATION_CHANGE',
     'WRITER_CHANGE',
     'APPLY_WORKING_COPY',

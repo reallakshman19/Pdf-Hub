@@ -6,10 +6,118 @@ import {
   PDFDocument,
   PDFName,
   PDFNumber,
+  StandardFonts,
   degrees,
 } from 'pdf-lib';
 
+import {
+  buildExistingTextSpan,
+  createExistingTextEditIntent,
+} from '@/core/existing-text/model';
+import {
+  matchExistingTextSpanToContentStream,
+} from '@/core/existing-text/provenanceMatcher';
+import {
+  readExistingTextPageContentStreams,
+} from '@/adapters/pdf-text/PdfLibExistingTextContentStreams';
 import { PdfLibMutationEngine } from './PdfLibMutationEngine';
+
+async function createSimpleExistingTextPdf(): Promise<Uint8Array> {
+  const doc =
+    await PDFDocument.create();
+  const font =
+    await doc.embedFont(
+      StandardFonts.Helvetica,
+    );
+  const page =
+    doc.addPage([612, 792]);
+  page.drawText('Hello', {
+    x: 72,
+    y: 700,
+    size: 12,
+    font,
+  });
+
+  const fonts =
+    page.node.Resources()
+      ?.lookupMaybe(
+        PDFName.of('Font'),
+        PDFDict,
+      );
+  for (
+    const key
+    of fonts?.keys() ?? []
+  ) {
+    fonts?.lookupMaybe(
+      key,
+      PDFDict,
+    )?.set(
+      PDFName.of('Encoding'),
+      PDFName.of(
+        'WinAnsiEncoding',
+      ),
+    );
+  }
+
+  return new Uint8Array(
+    await doc.save(),
+  );
+}
+
+async function existingTextMutationFixture(
+  bytes: Uint8Array,
+) {
+  const revisionId =
+    'sha256:existing-text-test';
+  const span =
+    buildExistingTextSpan(
+      {
+        revisionId,
+        pageId: 'stable-page',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [
+          12, 0, 0, 12, 72, 700,
+        ],
+        width: 30,
+        height: 12,
+        fontName:
+          'pdfjs-font-identity',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+  const intent =
+    createExistingTextEditIntent(
+      span,
+      'World',
+    );
+  const content =
+    await readExistingTextPageContentStreams(
+      bytes,
+      0,
+    );
+  const matched =
+    matchExistingTextSpanToContentStream({
+      span,
+      content,
+    });
+  if (matched.status !== 'matched') {
+    throw new Error(
+      `Expected existing-text provenance, got ${matched.reason}`,
+    );
+  }
+  return {
+    revisionId,
+    span,
+    intent,
+    provenance:
+      matched.provenance,
+  };
+}
 
 async function createPdf(): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -406,6 +514,81 @@ describe('PdfLibMutationEngine', () => {
     }
   });
 
+
+  it('replaces bounded existing text inside the active parse and commits once', async () => {
+    const bytes =
+      await createSimpleExistingTextPdf();
+    const fixture =
+      await existingTextMutationFixture(
+        bytes,
+      );
+    const loadSpy =
+      vi.spyOn(
+        PDFDocument,
+        'load',
+      );
+
+    const engine =
+      new PdfLibMutationEngine();
+    const session =
+      await engine.open({
+        bytes,
+      });
+
+    await session.replaceExistingText({
+      currentRevisionId:
+        fixture.revisionId,
+      span: fixture.span,
+      intent: fixture.intent,
+      provenance:
+        fixture.provenance,
+    });
+    const committed =
+      await session.commit();
+
+    expect(loadSpy)
+      .toHaveBeenCalledTimes(1);
+    expect(committed.pageCount)
+      .toBe(1);
+
+    loadSpy.mockRestore();
+    session.dispose();
+
+    const reopened =
+      await readExistingTextPageContentStreams(
+        committed.bytes,
+        0,
+      );
+    const afterSpan =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:after',
+          pageId:
+            'stable-page',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'World',
+          transform: [
+            12, 0, 0, 12, 72, 700,
+          ],
+          width: 30,
+          height: 12,
+          fontName:
+            'pdfjs-font-identity',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+    expect(
+      matchExistingTextSpanToContentStream({
+        span: afterSpan,
+        content: reopened,
+      }).status,
+    ).toBe('matched');
+  });
 
   it('applies a resolved professional header/footer plan without reparsing the active revision', async () => {
     const bytes = await createPdf();

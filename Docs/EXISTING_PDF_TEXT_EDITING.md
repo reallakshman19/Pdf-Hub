@@ -219,3 +219,43 @@ This operation **does not reflow** neighboring PDF content and does not guarante
 Fit policy, width diagnostics, reconstructed fallback and UI disclosure remain later Phase 13 work.
 
 A canonical `REPLACE_EXISTING_TEXT` command is still intentionally absent until this bounded writer has executable fidelity evidence and is integrated through the normal transaction/history path.
+
+
+## Canonical command and history integration
+
+The fourth Phase 13 slice promotes the bounded writer into the canonical mutation architecture with `REPLACE_EXISTING_TEXT` schema version 1.
+
+The command payload is self-contained and records the inspected span, revision-bound edit intent, and exact simple-`Tj` provenance. The command `documentKey`, span revision, and intent source revision must agree.
+
+Execution follows the normal product path:
+
+```text
+CommandBus
+  -> dispatchPdfCommand
+  -> PdfMutationSession.replaceExistingText(...)
+  -> PdfMutationSession.commit()
+  -> commitDocumentMutation()
+  -> immutable revision + history/journal
+```
+
+The dispatcher does not call the standalone writer directly.
+
+Before mutation, the active PageGraph must still contain the span's stable PageId at the recorded physical page index. The mutation session then applies the same unique page-wide provenance rematch, exact operator rescan, Standard-14/WinAnsi admission, shared-stream rejection, and byte-range replacement rules defined above.
+
+The page count and PageGraph topology are preserved. `DocumentTransaction` rekeys the unchanged stable PageIds to the new document revision. OCR state anchored to the edited PageId is invalidated because its recognized text may no longer match the PDF content.
+
+### History and recovery
+
+`REPLACE_EXISTING_TEXT` is classified as `SELF_CONTAINED_REPLAY`.
+
+This is safe for the bounded command because durable recovery first installs the exact before-revision recorded by the journal. Canonical dispatch then reruns the command against those exact bytes, and recovery still verifies the resulting revision against the authoritative stored after-revision.
+
+The command does not depend on an external binary resource, donor, locale, filename, or current-time context.
+
+### Public SDK
+
+Public SDK API version 1 advertises `REPLACE_EXISTING_TEXT` as a supported canonical command. SDK callers provide the same typed command payload and execution still routes through CommandBus. No content-stream writer, pdf-lib document, or mutation session is exposed to the SDK.
+
+### Still not exposed in UI
+
+This slice adds no end-user editing UI and still makes no automatic reflow or width-fit guarantee. Those presentation/policy concerns remain downstream Phase 13 work.

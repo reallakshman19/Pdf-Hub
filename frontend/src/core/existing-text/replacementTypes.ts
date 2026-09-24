@@ -18,14 +18,18 @@ export type ExistingTextReplacementErrorCode =
   | 'SHARED_CONTENT_STREAM_REF'
   | 'SHARED_CONTENT_CONTAINER_REF';
 
-export interface ExistingTextSimpleReplacementInput {
-  pdfBytes: Uint8Array;
+export interface ExistingTextSimpleReplacementMutationInput {
   currentRevisionId: string;
   span: ExistingTextSpan;
   intent: ExistingTextEditIntent;
   provenance:
     ExistingTextSimpleTextOperator;
   signal?: AbortSignal;
+}
+
+export interface ExistingTextSimpleReplacementInput
+  extends ExistingTextSimpleReplacementMutationInput {
+  pdfBytes: Uint8Array;
 }
 
 export interface ExistingTextSimpleReplacementProof {
@@ -63,3 +67,9 @@ export interface ExistingTextSimpleReplacementResult {
   proof:
     ExistingTextSimpleReplacementProof;
 }
+
+export type ExistingTextSimpleReplacementMutationResult =
+  Omit<
+    ExistingTextSimpleReplacementResult,
+    'pdfBytes'
+  >;
