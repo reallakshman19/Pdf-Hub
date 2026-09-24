@@ -98,15 +98,12 @@ const provenance = {
   ],
 };
 
-function fit(
-  status:
-    | 'fits'
-    | 'overflows',
-  replacementText: string,
+function fittingFit(
+  replacementText = 'Hi',
 ) {
   return {
     schemaVersion: 1 as const,
-    status,
+    status: 'fits' as const,
     baseFont: 'Helvetica',
     sourceText: 'Hello',
     replacementText,
@@ -115,19 +112,36 @@ function fit(
     tolerancePt: 0.25,
     measuredSourceWidthPt: 27,
     measuredReplacementWidthPt:
-      status === 'fits'
-        ? 12
-        : 36,
+      12,
     observedToMetricScale:
       30 / 27,
     projectedReplacementAdvancePt:
-      status === 'fits'
-        ? 12 * 30 / 27
-        : 40,
-    overflowPt:
-      status === 'fits'
-        ? 0
-        : 10,
+      12 * 30 / 27,
+    overflowPt: 0,
+  };
+}
+
+function overflowFit(
+  replacementText = 'World',
+) {
+  return {
+    schemaVersion: 1 as const,
+    status:
+      'overflows' as const,
+    baseFont: 'Helvetica',
+    sourceText: 'Hello',
+    replacementText,
+    observedAdvancePt: 30,
+    fontSizePt: 12,
+    tolerancePt: 0.25,
+    measuredSourceWidthPt: 27,
+    measuredReplacementWidthPt:
+      36,
+    observedToMetricScale:
+      30 / 27,
+    projectedReplacementAdvancePt:
+      40,
+    overflowPt: 10,
   };
 }
 
@@ -161,7 +175,7 @@ describe('PdfLibExistingTextUiEvaluation', () => {
       ],
       diagnostics: [],
       nativeFit:
-        fit('fits', 'Hi'),
+        fittingFit('Hi'),
     });
 
     const result =
@@ -189,10 +203,7 @@ describe('PdfLibExistingTextUiEvaluation', () => {
     ).mockResolvedValue({
       status: 'proved',
       nativeFit:
-        fit(
-          'overflows',
-          'World',
-        ),
+        overflowFit('World'),
       evidence: {
         schemaVersion: 1,
         sourceRevisionId:
