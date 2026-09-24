@@ -257,6 +257,8 @@ requireTokens(
   adapterTests,
   [
     'proves revision-bound visual clearance for a simple native overflow without mutating input bytes',
+    'feeds proved clearance directly into the future-overlay eligibility policy',
+    'does not claim generic reconstructed candidates without exact source-paint provenance',
     'does not produce evidence without an explicit solid background paint',
     'rejects pages with more than one decoded content stream',
     'rejects stale revision identity before PDF analysis',
