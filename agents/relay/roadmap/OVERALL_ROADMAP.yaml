@@ -303,21 +303,21 @@
         {
           "id": "PHASE-012",
           "title": "Public typed SDK/API",
-          "state": "PLANNED",
+          "state": "ACTIVE",
           "definition": "DETAILED",
           "weight": 10,
           "work_packages": [
             {
               "id": "WP-012",
               "title": "Public SDK over canonical command/session model",
-              "state": "PLANNED",
+              "state": "ACTIVE",
               "definition": "DETAILED",
-              "execution_status": "WAITING",
+              "execution_status": "ACTIVE",
               "weight": 100,
               "depends_on": [
                 "WP-011"
               ],
-              "issue": null
+              "issue": 308
             }
           ]
         },

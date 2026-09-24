@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "exports": {
+    "./sdk": "./src/sdk.ts"
+  },
   "packageManager": "pnpm@10.23.0",
   "engines": {
     "node": ">=22 <23",
@@ -17,6 +20,9 @@
     "test": "vitest run",
     "test:ci": "vitest run --pool=forks --maxWorkers=1",
     "test:watch": "vitest",
+    "test:phase12-sdk": "vitest run src/core/sdk/__tests__/publicSdk.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase12-sdk": "node scripts/phase12-sdk-audit.mjs",
+    "certify:phase12-sdk": "pnpm run audit:phase12-sdk && pnpm run test:phase12-sdk",
     "coverage": "vitest run --coverage",
     "audit:no-mojibake": "node scripts/no-mojibake-audit.mjs",
     "audit:phase8": "node scripts/phase8-static-audit.mjs",
