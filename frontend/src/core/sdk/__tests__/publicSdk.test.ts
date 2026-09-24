@@ -594,6 +594,60 @@ describe('PDFHubSDK', () => {
       );
   });
 
+  it('isolates event-listener exceptions from SDK and session execution', async () => {
+    const sdk = createPdfHubSdk();
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const unsubscribe =
+      sdk.subscribeEvents(
+        () => {
+          throw new Error(
+            'consumer listener failure',
+          );
+        },
+      );
+
+    expect(() =>
+      openTestDocument(),
+    ).not.toThrow();
+
+    vi.spyOn(commandBus, 'execute')
+      .mockResolvedValue({
+        success: true,
+        commandId: 'isolated-command',
+        commandType: 'ROTATE_PAGES',
+        source: 'api',
+        mutated: false,
+        message: 'noop',
+      });
+
+    await expect(
+      sdk.executeCommand(
+        {
+          type: 'ROTATE_PAGES',
+          payload: {
+            pageIndices: [0],
+            angle: 90,
+          },
+        },
+        {
+          commandId:
+            'isolated-command',
+        },
+      ),
+    ).resolves.toMatchObject({
+      result: {
+        success: true,
+      },
+    });
+
+    expect(consoleError)
+      .toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it('emits donor admission and release metadata without donor capabilities', async () => {
     openTestDocument();
     vi.spyOn(

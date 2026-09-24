@@ -103,20 +103,30 @@ export function createPdfHubSdk(): PdfHubSdk {
   const eventListeners =
     new Set<PdfHubSdkEventListener>();
 
+  const notifyEventListener = (
+    listener: PdfHubSdkEventListener,
+    event: PdfHubSdkEvent,
+  ): void => {
+    try {
+      listener(event);
+    } catch (error) {
+      console.error(
+        'PDFHubSDK event listener failed',
+        error,
+      );
+    }
+  };
+
   const emitEvent = (
     event: PdfHubSdkEvent,
   ): void => {
     for (const listener of [
       ...eventListeners,
     ]) {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error(
-          'PDFHubSDK event listener failed',
-          error,
-        );
-      }
+      notifyEventListener(
+        listener,
+        event,
+      );
     }
   };
 
@@ -484,12 +494,17 @@ export function createPdfHubSdk(): PdfHubSdk {
         options.emitCurrentSession
         !== false
       ) {
-        listener({
-          type: 'session-changed',
-          session: snapshotFromSession(
-            useSessionStore.getState(),
-          ),
-        });
+        notifyEventListener(
+          listener,
+          {
+            type: 'session-changed',
+            session:
+              snapshotFromSession(
+                useSessionStore
+                  .getState(),
+              ),
+          },
+        );
       }
 
       const unsubscribeSession =
@@ -498,14 +513,17 @@ export function createPdfHubSdk(): PdfHubSdk {
             if (
               eventListeners.has(listener)
             ) {
-              listener({
-                type:
-                  'session-changed',
-                session:
-                  snapshotFromSession(
-                    state,
-                  ),
-              });
+              notifyEventListener(
+                listener,
+                {
+                  type:
+                    'session-changed',
+                  session:
+                    snapshotFromSession(
+                      state,
+                    ),
+                },
+              );
             }
           },
         );
