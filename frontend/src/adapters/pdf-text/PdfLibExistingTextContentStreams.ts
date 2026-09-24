@@ -52,13 +52,14 @@ export async function readExistingTextPageContentStreams(
 
   const page =
     document.getPage(pageIndex);
-  const entries =
-    page.node
-      .normalizedEntries();
-  const contents =
-    entries.Contents;
+  const rawContents =
+    page.node.get(
+      lib.PDFName.of(
+        'Contents',
+      ),
+    );
 
-  if (!contents) {
+  if (!rawContents) {
     return {
       pageIndex,
       complete: true,
@@ -66,6 +67,21 @@ export async function readExistingTextPageContentStreams(
       diagnostics: [],
     };
   }
+
+  const resolvedContents =
+    rawContents
+      instanceof lib.PDFRef
+      ? document.context.lookup(
+          rawContents,
+        )
+      : rawContents;
+
+  const entries =
+    resolvedContents
+      instanceof lib.PDFArray
+      ? resolvedContents
+          .asArray()
+      : [rawContents];
 
   const streams:
     ExistingTextDecodedContentStream[] = [];
@@ -75,7 +91,7 @@ export async function readExistingTextPageContentStreams(
   for (
     let streamIndex = 0;
     streamIndex
-      < contents.size();
+      < entries.length;
     streamIndex += 1
   ) {
     throwIfAborted(
@@ -84,19 +100,29 @@ export async function readExistingTextPageContentStreams(
     );
 
     const entry =
-      contents.get(
-        streamIndex,
-      );
+      entries[streamIndex];
     const streamRef =
       entry instanceof lib.PDFRef
         ? entry.toString()
-        : null;
+        : (
+            entries.length === 1
+            && rawContents
+              instanceof lib.PDFRef
+              ? rawContents.toString()
+              : null
+          );
     const resolved =
       entry instanceof lib.PDFRef
         ? document.context.lookup(
             entry,
           )
-        : entry;
+        : (
+            entries.length === 1
+            && rawContents
+              instanceof lib.PDFRef
+              ? resolvedContents
+              : entry
+          );
 
     if (
       !(resolved
@@ -122,7 +148,7 @@ export async function readExistingTextPageContentStreams(
         streamIndex,
         streamRef,
         decodedBytes:
-          new Uint8Array(
+          Uint8Array.from(
             decoded,
           ),
       });
@@ -143,7 +169,7 @@ export async function readExistingTextPageContentStreams(
     complete:
       diagnostics.length === 0
       && streams.length
-        === contents.size(),
+        === entries.length,
     streams,
     diagnostics,
   };

@@ -103,8 +103,9 @@ requireTokens(
   'decoded stream reader',
   reader,
   [
-    'normalizedEntries()',
-    'entries.Contents',
+    "page.node.get(",
+    "PDFName.of(",
+    "'Contents'",
     'decodePDFRawStream',
     'NON_RAW_CONTENT_STREAM',
     'CONTENT_STREAM_DECODE_FAILED',
@@ -118,6 +119,7 @@ forbidTokens(
   [
     '.save(',
     '.set(',
+    'normalizedEntries(',
     'addContentStream',
     'drawText(',
   ],

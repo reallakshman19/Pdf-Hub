@@ -108,7 +108,7 @@ This is intentionally much narrower than general PDF text editing.
 
 ### Complete content-stream requirement
 
-`readExistingTextPageContentStreams()` uses pdf-lib to enumerate the normalized page `/Contents` array and decode each `PDFRawStream`.
+`readExistingTextPageContentStreams()` reads the page's raw `/Contents` object directly and decodes each `PDFRawStream`. It deliberately does **not** call pdf-lib `normalizedEntries()`, because normalization can mutate the transient page structure and inject wrapper content streams.
 
 A page is considered complete only when every content entry is a decodable raw stream. If any entry is direct/unsupported or cannot be decoded, provenance matching fails closed with `INCOMPLETE_CONTENT_STREAM_SET`.
 
