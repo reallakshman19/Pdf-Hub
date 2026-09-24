@@ -140,16 +140,13 @@ export function validateReplaceExistingTextCommandPayload(
   }
 
   if (
-    span.fontName !== undefined
-    && (
-      typeof span.fontName
-        !== 'string'
-      || span.fontName.trim()
-        .length === 0
-    )
+    typeof span.fontName
+      !== 'string'
+    || span.fontName.trim()
+      .length === 0
   ) {
     errors.push(
-      'payload.span.fontName must be a non-empty string when provided.',
+      'payload.span.fontName must be a non-empty string for a native replacement candidate.',
     );
   }
   if (
@@ -167,6 +164,87 @@ export function validateReplaceExistingTextCommandPayload(
   ) {
     errors.push(
       'payload.span.hasEol must be boolean.',
+    );
+  }
+
+  if (
+    Array.isArray(span.transform)
+    && span.transform.length === 6
+    && span.transform.every(
+      (entry) =>
+        typeof entry === 'number'
+        && Number.isFinite(entry),
+    )
+    && isRecord(span.originPt)
+  ) {
+    const [
+      a,
+      b,
+      c,
+      d,
+      x,
+      y,
+    ] = span.transform as number[];
+    const expectedHorizontalScale =
+      Math.hypot(a, b);
+    const expectedFontSize =
+      Math.hypot(c, d);
+    const expectedRotation =
+      normalizeSignedDegrees(
+        Math.atan2(b, a)
+        * 180
+        / Math.PI,
+      );
+    const expectedSkew =
+      expectedHorizontalScale > 0
+      && expectedFontSize > 0
+        ? Math.abs(
+            (
+              a * c
+              + b * d
+            )
+            / (
+              expectedHorizontalScale
+              * expectedFontSize
+            ),
+          )
+        : Number.NaN;
+
+    requireDerivedNumber(
+      span.originPt.x,
+      x,
+      'payload.span.originPt.x',
+      errors,
+    );
+    requireDerivedNumber(
+      span.originPt.y,
+      y,
+      'payload.span.originPt.y',
+      errors,
+    );
+    requireDerivedNumber(
+      span.horizontalScalePt,
+      expectedHorizontalScale,
+      'payload.span.horizontalScalePt',
+      errors,
+    );
+    requireDerivedNumber(
+      span.fontSizePt,
+      expectedFontSize,
+      'payload.span.fontSizePt',
+      errors,
+    );
+    requireDerivedNumber(
+      span.rotationDegrees,
+      expectedRotation,
+      'payload.span.rotationDegrees',
+      errors,
+    );
+    requireDerivedNumber(
+      span.skewCosine,
+      expectedSkew,
+      'payload.span.skewCosine',
+      errors,
     );
   }
 
@@ -560,6 +638,41 @@ function requireFiniteTuple6(
       `${field} must contain exactly six finite numbers.`,
     );
   }
+}
+
+function requireDerivedNumber(
+  actual: unknown,
+  expected: number,
+  field: string,
+  errors: string[],
+): void {
+  if (
+    typeof actual !== 'number'
+    || !Number.isFinite(actual)
+    || !Number.isFinite(expected)
+    || Math.abs(
+      actual - expected,
+    ) > 1e-9
+  ) {
+    errors.push(
+      `${field} must match the value derived from payload.span.transform.`,
+    );
+  }
+}
+
+function normalizeSignedDegrees(
+  value: number,
+): number {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+  const normalized =
+    ((value + 180) % 360 + 360)
+    % 360
+    - 180;
+  return normalized === -180
+    ? 180
+    : normalized;
 }
 
 function validateRange(
