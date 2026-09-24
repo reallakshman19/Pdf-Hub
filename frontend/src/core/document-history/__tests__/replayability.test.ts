@@ -7,6 +7,10 @@ import {
 } from '@/core/commands/types';
 import type { HeaderFooterTemplate } from '@/core/header-footer/types';
 import {
+  buildExistingTextSpan,
+  createExistingTextEditIntent,
+} from '@/core/existing-text/model';
+import {
   classifyHistoryReplayability,
   HISTORY_REPLAY_POLICY_COMMAND_TYPES,
   type HistoryReplayDisposition,
@@ -22,6 +26,66 @@ function command(draft: PdfCommandDraft) {
       createdAt: '2026-09-19T00:00:00.000Z',
     },
   );
+}
+
+function existingTextDraft():
+  PdfCommandDraft {
+  const span =
+    buildExistingTextSpan(
+      {
+        revisionId: 'doc',
+        pageId: 'stable-page',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [
+          12, 0, 0, 12, 72, 700,
+        ],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+  return {
+    type:
+      'REPLACE_EXISTING_TEXT',
+    payload: {
+      schemaVersion: 1,
+      span,
+      intent:
+        createExistingTextEditIntent(
+          span,
+          'World',
+        ),
+      provenance: {
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        operatorIndex: 4,
+        operator: 'Tj',
+        operatorRange: {
+          start: 18,
+          end: 20,
+        },
+        operandRange: {
+          start: 10,
+          end: 17,
+        },
+        decodedText: 'Hello',
+        encoding:
+          'ascii-literal',
+        fontResourceName: 'F1',
+        fontSizePt: 12,
+        textMatrix: [
+          1, 0, 0, 1, 72, 700,
+        ],
+      },
+    },
+  };
 }
 
 function textTemplate(
@@ -74,6 +138,7 @@ const expectedDispositions = {
   APPLY_HEADER_FOOTER_TEMPLATE: 'SELF_CONTAINED_REPLAY',
   DRAW_TEXT_ON_PAGES: 'SELF_CONTAINED_REPLAY',
   DRAW_REDACTION_BOX: 'SELF_CONTAINED_REPLAY',
+  REPLACE_EXISTING_TEXT: 'SELF_CONTAINED_REPLAY',
   ANNOTATION_CHANGE: 'CHECKPOINT_REQUIRED',
   WRITER_CHANGE: 'CHECKPOINT_REQUIRED',
   APPLY_WORKING_COPY: 'CHECKPOINT_REQUIRED',
@@ -105,6 +170,7 @@ describe('history replayability policy', () => {
       { type: 'APPLY_HEADER_FOOTER_TEMPLATE', payload: { template: textTemplate('{{pageLabel}}') } },
       { type: 'DRAW_TEXT_ON_PAGES', payload: { pageIndices: [0], options: { text: 'Page {page}', x: 10, y: 10, fontSize: 12, pageNumberToken: true } } },
       { type: 'DRAW_REDACTION_BOX', payload: { pageIndices: [0], options: { x: 10, y: 10, width: 20, height: 20 } } },
+      existingTextDraft(),
       { type: 'ANNOTATION_CHANGE', payload: { action: 'add', annotationIds: ['a'] } },
       { type: 'WRITER_CHANGE', payload: { action: 'move', elementIds: ['w'] } },
       { type: 'APPLY_WORKING_COPY', payload: { binaryResourceId: 'working-copy' } },
