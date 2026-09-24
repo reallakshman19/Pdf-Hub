@@ -341,6 +341,28 @@ describe('atomic standalone Writer project import', () => {
     expect(stateSnapshot()).toEqual(before);
   });
 
+  it('rolls back OCR state when commit fails after OCR hydration', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const activeOperation = operation();
+    const staged = await stageStandaloneWriterProject(
+      await ocrResumeOverlayFile(),
+      activeOperation,
+    );
+
+    vi.spyOn(useEditorStore.getState(), 'setActiveMode').mockImplementationOnce(() => {
+      expect(useOcrStore.getState().documentFingerprint).toBe('doc-1');
+      expect(useOcrStore.getState().resumeToken).not.toBeNull();
+      throw new Error('injected post-OCR commit failure');
+    });
+
+    await expect(
+      commitStagedWriterProjectImport(staged, activeOperation),
+    ).rejects.toThrow('injected post-OCR commit failure');
+
+    expect(stateSnapshot()).toEqual(before);
+  });
+
   it('rejects fabricated, revoked, consumed, stale, and equivalent-operation capabilities before mutation', async () => {
     seedExistingState();
     const before = stateSnapshot();
