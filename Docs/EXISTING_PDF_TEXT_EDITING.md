@@ -98,3 +98,68 @@ This first slice does **not** add:
 - an editor UI that claims reconstructed/unsupported text is natively editable.
 
 The next Phase 13 slice should investigate the smallest content-stream subset where provenance can be proven and save/reopen fidelity can be tested. Only then should a canonical mutation command be added.
+
+
+## Content-stream provenance
+
+The second Phase 13 slice remains **read-only**. It attempts to map an inspected `native-replacement-candidate` span to one specific decoded page content-stream operator.
+
+This is intentionally much narrower than general PDF text editing.
+
+### Complete content-stream requirement
+
+`readExistingTextPageContentStreams()` uses pdf-lib to enumerate the normalized page `/Contents` array and decode each `PDFRawStream`.
+
+A page is considered complete only when every content entry is a decodable raw stream. If any entry is direct/unsupported or cannot be decoded, provenance matching fails closed with `INCOMPLETE_CONTENT_STREAM_SET`.
+
+The reader never saves the document, adds a content stream, writes a dictionary, or draws content.
+
+### Simple operator subset
+
+`scanExistingTextContentStream()` recognizes only a simple provenance subset built around:
+
+- `BT` / `ET`;
+- `Tf` for a known positive font size and resource name;
+- an explicit simple `Tm`;
+- a simple `Tj` text-show operator;
+- ASCII-safe literal strings such as `(Hello)`;
+- ASCII-safe hex strings such as `<48656C6C6F>`.
+
+The scanner records:
+
+- content stream index/reference;
+- operator ordinal;
+- exact operand byte range;
+- exact `Tj` operator byte range;
+- decoded ASCII text;
+- font resource name;
+- font size;
+- text matrix.
+
+### Fail-closed exclusions
+
+The current provenance subset does not treat the following as native matches:
+
+- `TJ` arrays;
+- quote text-show operators;
+- text positioned through `Td`, `TD` or `T*`;
+- horizontal scaling, text rise or character/word spacing state;
+- non-identity `cm` graphics transforms affecting the candidate;
+- non-ASCII or font-encoded text bytes;
+- malformed streams;
+- Form XObject content;
+- ambiguous duplicate operators.
+
+After a `Tj`, a fresh explicit `Tm` is required before another candidate because this scanner deliberately does not calculate glyph advance.
+
+### PDF.js span agreement
+
+`matchExistingTextSpanToContentStream()` only considers spans already classified as `native-replacement-candidate`.
+
+The span must also fit the stricter simple horizontal provenance subset: PDF.js horizontal/vertical text scales must agree with the observed font size, rotation/skew must be absent, and direction must be LTR/unspecified.
+
+A source operator matches only when text, font size and origin agree within the declared tolerance. **Exactly one** candidate across the complete page stream set is required.
+
+Zero candidates returns `NO_SIMPLE_TEXT_OPERATOR_MATCH`. Multiple candidates returns `AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH`.
+
+This provenance is evidence for a later mutation investigation. It is not a write capability and still does not create a `REPLACE_EXISTING_TEXT` command.

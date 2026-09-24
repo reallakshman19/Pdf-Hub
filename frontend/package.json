@@ -162,7 +162,10 @@
     "audit:phase12-sdk-client:artifact": "node scripts/phase12-sdk-client-artifact-audit.mjs",
     "test:phase13-existing-text": "vitest run src/core/existing-text/__tests__/model.test.ts src/adapters/pdf-renderer/PdfRendererAdapter.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text": "node scripts/phase13-existing-text-audit.mjs",
-    "certify:phase13-existing-text": "pnpm run audit:phase13-existing-text && pnpm run test:phase13-existing-text"
+    "certify:phase13-existing-text": "pnpm run audit:phase13-existing-text && pnpm run test:phase13-existing-text",
+    "test:phase13-existing-text-provenance": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextContentStreams.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-provenance": "node scripts/phase13-existing-text-provenance-audit.mjs",
+    "certify:phase13-existing-text-provenance": "pnpm run audit:phase13-existing-text-provenance && pnpm run test:phase13-existing-text-provenance"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
