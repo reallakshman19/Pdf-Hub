@@ -1,4 +1,7 @@
 import {
+  validateReplaceExistingTextCommandPayload,
+} from '@/core/existing-text/commandValidation';
+import {
   defaultRiskForCommand,
   isPdfCommandSerializable,
   type PdfCommand,
@@ -222,6 +225,15 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       ) {
         errors.push('Visual-mask width and height must be positive.');
       }
+      break;
+
+    case 'REPLACE_EXISTING_TEXT':
+      errors.push(
+        ...validateReplaceExistingTextCommandPayload(
+          command.payload,
+          command.documentKey,
+        ),
+      );
       break;
 
     case 'ANNOTATION_CHANGE':

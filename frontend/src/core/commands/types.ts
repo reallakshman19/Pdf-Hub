@@ -1,6 +1,13 @@
 import type { AdmittedDonorPdf } from '@/core/admission/donorPdf';
 import type { PageLabelRange } from '@/core/pages/types';
 import type { HeaderFooterTemplate } from '@/core/header-footer/types';
+import type {
+  ExistingTextEditIntent,
+  ExistingTextSpan,
+} from '@/core/existing-text/types';
+import type {
+  ExistingTextSimpleTextOperator,
+} from '@/core/existing-text/provenanceTypes';
 
 export type PdfCommandSource =
   | 'toolbar'
@@ -117,6 +124,17 @@ export type DrawRedactionBoxCommand = PdfCommandBase<
   'DRAW_REDACTION_BOX',
   { pageIndices: number[]; options: RedactionBoxCommandOptions }
 >;
+export interface ReplaceExistingTextCommandPayload {
+  schemaVersion: 1;
+  span: ExistingTextSpan;
+  intent: ExistingTextEditIntent;
+  provenance:
+    ExistingTextSimpleTextOperator;
+}
+export type ReplaceExistingTextCommand = PdfCommandBase<
+  'REPLACE_EXISTING_TEXT',
+  ReplaceExistingTextCommandPayload
+>;
 export type AnnotationChangeCommand = PdfCommandBase<
   'ANNOTATION_CHANGE',
   { action: string; annotationIds: string[] }
@@ -153,6 +171,7 @@ export type PdfCommand =
   | ApplyHeaderFooterTemplateCommand
   | DrawTextOnPagesCommand
   | DrawRedactionBoxCommand
+  | ReplaceExistingTextCommand
   | AnnotationChangeCommand
   | WriterChangeCommand
   | ApplyWorkingCopyCommand;
@@ -264,6 +283,7 @@ const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
   'REPLACE_PAGE',
   'REORDER_PAGES',
   'REORDER_PAGES_BY_ORDER',
+  'REPLACE_EXISTING_TEXT',
 ]);
 
 export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {

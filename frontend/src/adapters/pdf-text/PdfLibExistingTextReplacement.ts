@@ -91,7 +91,7 @@ const STALE_STREAM_DICT_KEYS =
 
 export async function replaceSimpleExistingTextTj(
   input:
-    ExistingTextSimpleReplacementMutationInput,
+    ExistingTextSimpleReplacementInput,
 ): Promise<ExistingTextSimpleReplacementResult> {
   validateWriteBoundary(input);
 
@@ -330,7 +330,7 @@ export async function applySimpleExistingTextReplacementToDocument(
 
 function validateWriteBoundary(
   input:
-    ExistingTextSimpleReplacementInput,
+    ExistingTextSimpleReplacementMutationInput,
 ): void {
   if (
     input.currentRevisionId
