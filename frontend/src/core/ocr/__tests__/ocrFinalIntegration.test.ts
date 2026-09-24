@@ -133,6 +133,8 @@ describe('ocrFinalIntegration', () => {
         forceOcr: false,
         rasterScale: 2,
         maxCanvasPixels: 16_000_000,
+        maxPagesPerJob: 5,
+        allowLargeJobs: false,
       },
       snapshot: first.batchSnapshot,
       now: '2026-09-23T00:00:00.000Z',
@@ -227,6 +229,8 @@ describe('ocrFinalIntegration', () => {
         forceOcr: false,
         rasterScale: policy.rasterScale,
         maxCanvasPixels: policy.maxCanvasPixels,
+        maxPagesPerJob: policy.maxPagesPerJob,
+        allowLargeJobs: policy.allowLargeJobs,
       },
       snapshot: first.batchSnapshot,
     });

@@ -403,7 +403,7 @@ function assertPrimaryOcrFlowReady() {
 
   assertContains(
     'src/components/ocr/workflow/OcrPageScopeControl.tsx',
-    ["'current' | 'selected' | 'all'", 'ocr-page-scope', 'No pages selected'],
+    ["'current' | 'selected' | 'resume' | 'all'", 'ocr-page-scope', 'No pages selected'],
     'OCR_PAGE_SCOPE_READY',
   );
 

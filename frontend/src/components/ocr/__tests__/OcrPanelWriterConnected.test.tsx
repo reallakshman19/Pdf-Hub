@@ -353,7 +353,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(screen.getByText('session.pdf')).toBeTruthy();
+    expect(within(screen.getByTestId('ocr-header-summary')).getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
     expect(within(unifiedSummary).getByText('4')).toBeTruthy();
     expect(within(unifiedSummary).getByText('2 selected')).toBeTruthy();
@@ -374,7 +374,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(screen.getByText('session.pdf')).toBeTruthy();
+    expect(within(screen.getByTestId('ocr-header-summary')).getByText('session.pdf')).toBeTruthy();
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
   });
 
