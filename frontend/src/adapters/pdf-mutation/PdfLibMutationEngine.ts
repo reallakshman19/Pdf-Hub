@@ -5,6 +5,9 @@ import {
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { applyPdfLibPageLabels } from './pdfLibPageLabels';
 import { applyPdfLibHeaderFooterPlan } from './pdfLibHeaderFooter';
+import {
+  applySimpleExistingTextReplacementToDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextReplacement';
 import type {
   PdfMutationCommitResult,
   PdfMutationEngine,
@@ -430,6 +433,26 @@ class PdfLibMutationSession implements PdfMutationSession {
       pages,
       binaryResources,
       this.signal,
+    );
+  }
+
+  async replaceExistingText(
+    input: Parameters<
+      PdfMutationSession['replaceExistingText']
+    >[0],
+  ): ReturnType<
+    PdfMutationSession['replaceExistingText']
+  > {
+    this.assertOpen(
+      'replace existing PDF text',
+    );
+    return applySimpleExistingTextReplacementToDocument(
+      this.document,
+      this.lib,
+      {
+        ...input,
+        signal: this.signal,
+      },
     );
   }
 

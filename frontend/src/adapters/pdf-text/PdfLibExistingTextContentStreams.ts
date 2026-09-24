@@ -9,19 +9,19 @@ import type {
   ExistingTextDecodedContentStream,
 } from '@/core/existing-text/provenanceTypes';
 
+type PdfLibNs =
+  Awaited<
+    ReturnType<typeof pdfLib>
+  >;
+type PDFDocumentT =
+  import('pdf-lib').PDFDocument;
+
 export async function readExistingTextPageContentStreams(
   bytes: Uint8Array,
   pageIndex: number,
   signal?: AbortSignal,
 ): Promise<ExistingTextContentStreamReadResult> {
-  if (
-    !Number.isInteger(pageIndex)
-    || pageIndex < 0
-  ) {
-    throw new Error(
-      'Existing-text content-stream pageIndex must be a non-negative integer.',
-    );
-  }
+  assertPageIndex(pageIndex);
 
   throwIfAborted(
     signal,
@@ -35,11 +35,28 @@ export async function readExistingTextPageContentStreams(
         {
           throwOnInvalidObject:
             false,
+          updateMetadata: false,
         },
       ),
       signal,
       'load PDF for existing-text provenance',
     );
+
+  return readExistingTextPageContentStreamsFromDocument(
+    document,
+    pageIndex,
+    lib,
+    signal,
+  );
+}
+
+export function readExistingTextPageContentStreamsFromDocument(
+  document: PDFDocumentT,
+  pageIndex: number,
+  lib: PdfLibNs,
+  signal?: AbortSignal,
+): ExistingTextContentStreamReadResult {
+  assertPageIndex(pageIndex);
 
   if (
     pageIndex
@@ -173,4 +190,17 @@ export async function readExistingTextPageContentStreams(
     streams,
     diagnostics,
   };
+}
+
+function assertPageIndex(
+  pageIndex: number,
+): void {
+  if (
+    !Number.isInteger(pageIndex)
+    || pageIndex < 0
+  ) {
+    throw new Error(
+      'Existing-text content-stream pageIndex must be a non-negative integer.',
+    );
+  }
 }
