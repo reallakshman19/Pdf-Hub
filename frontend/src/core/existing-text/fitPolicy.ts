@@ -64,6 +64,26 @@ export function assessExistingTextEditPolicy(
   if (
     input.span.editability
       === 'native-replacement-candidate'
+    && input.nativeFit
+    && !fitMatchesIntent(
+      input.nativeFit,
+      input.span,
+      input.intent,
+    )
+  ) {
+    return {
+      mode: 'blocked',
+      reasons: [
+        'NATIVE_FIT_IDENTITY_MISMATCH',
+      ],
+      nativeFit:
+        input.nativeFit,
+    };
+  }
+
+  if (
+    input.span.editability
+      === 'native-replacement-candidate'
     && input.nativeFit?.status
       === 'fits'
   ) {
@@ -157,6 +177,29 @@ export function assessExistingTextEditPolicy(
         }
       : {}),
   };
+}
+
+function fitMatchesIntent(
+  fit:
+    import('./fitTypes').ExistingTextNativeFitDiagnostic,
+  span: ExistingTextSpan,
+  intent: ExistingTextEditIntent,
+): boolean {
+  const epsilon = 1e-9;
+  return (
+    fit.sourceText
+      === intent.expectedText
+    && fit.replacementText
+      === intent.replacementText
+    && Math.abs(
+      fit.observedAdvancePt
+      - span.advanceWidthPt,
+    ) <= epsilon
+    && Math.abs(
+      fit.fontSizePt
+      - span.fontSizePt,
+    ) <= epsilon
+  );
 }
 
 function validateFallbackEvidence(
