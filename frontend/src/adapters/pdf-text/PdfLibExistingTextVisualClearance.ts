@@ -1,4 +1,5 @@
 import {
+  isOperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
@@ -333,6 +334,11 @@ export async function analyzeExistingTextVisualClearance(
       },
     };
   } catch (error) {
+    if (
+      isOperationCancelledError(error)
+    ) {
+      throw error;
+    }
     return unproved(
       'PDF_ANALYSIS_FAILED',
       [
