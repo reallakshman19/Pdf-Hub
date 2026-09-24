@@ -49,23 +49,6 @@ export function scanExistingTextVisualClearancePaint(
     );
   }
 
-  const exactCandidates =
-    provenanceScan.candidates.filter(
-      (candidate) =>
-        sameProvenance(
-          candidate,
-          input.provenance,
-        ),
-    );
-  if (exactCandidates.length !== 1) {
-    return unproved(
-      'TARGET_PROVENANCE_MISMATCH',
-      [
-        `Expected exactly one exact target provenance match, found ${exactCandidates.length}.`,
-      ],
-    );
-  }
-
   if (
     !validRect(
       input.clearanceRectPt,
@@ -411,6 +394,23 @@ export function scanExistingTextVisualClearancePaint(
     }
 
     operands.length = 0;
+  }
+
+  const exactCandidates =
+    provenanceScan.candidates.filter(
+      (candidate) =>
+        sameProvenance(
+          candidate,
+          input.provenance,
+        ),
+    );
+  if (exactCandidates.length !== 1) {
+    return unproved(
+      'TARGET_PROVENANCE_MISMATCH',
+      [
+        `Expected exactly one exact target provenance match, found ${exactCandidates.length}.`,
+      ],
+    );
   }
 
   if (graphicsStack.length !== 0) {
