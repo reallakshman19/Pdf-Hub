@@ -17,6 +17,9 @@ import {
   isOperationCancelledError,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
+import {
+  ExistingTextReplacementError,
+} from '@/core/existing-text/replacementError';
 import { useSessionStore } from '@/core/session/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
@@ -169,6 +172,8 @@ function commandLabel(command: PdfCommand): string {
       return command.payload.template.name?.trim() || 'Apply header/footer template';
     case 'DRAW_TEXT_ON_PAGES':
       return 'Draw text on pages';
+    case 'REPLACE_EXISTING_TEXT':
+      return 'Replace existing PDF text';
     case 'DRAW_REDACTION_BOX':
       return 'Draw visual mask';
     case 'APPLY_WORKING_COPY':
@@ -613,6 +618,7 @@ function usesPersistentMutationSession(
     || type === 'SPLIT_PAGES'
     || type === 'SET_PAGE_LABELS'
     || type === 'DRAW_TEXT_ON_PAGES'
+    || type === 'REPLACE_EXISTING_TEXT'
     || type === 'DRAW_REDACTION_BOX'
     || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
@@ -1525,6 +1531,85 @@ export async function dispatchPdfCommand(
         );
       }
 
+      case 'REPLACE_EXISTING_TEXT': {
+        const {
+          span,
+          intent,
+          provenance,
+        } = command.payload;
+        const pageGraph =
+          await resolveStructuralPageGraph(
+            context,
+            input,
+            pageCount,
+          );
+        const page =
+          pageGraph.pages[
+            span.pageIndex
+          ];
+        if (
+          !page
+          || page.pageId
+            !== span.pageId
+        ) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'Existing-text span PageId no longer matches its physical page index.',
+          );
+        }
+
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession
+          .replaceExistingText({
+            currentRevisionId:
+              context.documentKey,
+            span,
+            intent,
+            provenance,
+          });
+        const committed =
+          await mutationSession.commit();
+        if (
+          committed.pageCount
+          !== pageCount
+        ) {
+          throw new Error(
+            `Existing-text mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result =
+          await applyCommittedSessionMutation(
+            input,
+            context.workingBytes,
+            pageCount,
+            committed,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            pageGraph,
+            {
+              ocrPagePolicy: {
+                invalidatePageIds: [
+                  span.pageId,
+                ],
+              },
+            },
+          );
+        return commandSuccess(
+          command,
+          true,
+          'Existing PDF text replaced',
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
       case 'DRAW_REDACTION_BOX': {
         const { options } = command.payload;
         const pageIndices = sanitizePageIndices(
@@ -1639,6 +1724,17 @@ export async function dispatchPdfCommand(
     }
     if (isDonorAdmissionBoundaryError(error)) {
       return commandError(command, 'ADMISSION_REJECTED', message);
+    }
+    if (
+      error instanceof
+        ExistingTextReplacementError
+    ) {
+      return commandError(
+        command,
+        'VALIDATION_FAILED',
+        message,
+        error.details?.join('; '),
+      );
     }
     const details = isDocumentMutationTransactionError(error)
       ? `transaction-stage=${error.stage}`

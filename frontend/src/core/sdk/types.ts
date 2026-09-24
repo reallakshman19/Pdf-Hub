@@ -28,6 +28,7 @@ export const PDF_HUB_SDK_SUPPORTED_COMMAND_TYPES = [
   'APPLY_HEADER_FOOTER_TEMPLATE',
   'DRAW_TEXT_ON_PAGES',
   'DRAW_REDACTION_BOX',
+  'REPLACE_EXISTING_TEXT',
 ] as const satisfies readonly PdfCommandType[];
 
 export type PdfHubSdkApiVersion =
