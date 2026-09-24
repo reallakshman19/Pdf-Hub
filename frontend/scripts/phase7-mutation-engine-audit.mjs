@@ -47,6 +47,7 @@ requireContains(contract, contractPath, [
   'drawText',
   'drawVisualMasks',
   'applyHeaderFooter',
+  'replaceExistingText',
   'commit()',
   'dispose()',
 ]);
@@ -77,6 +78,8 @@ requireContains(adapter, adapterPath, [
   'drawText',
   'drawVisualMasks',
   'applyHeaderFooter',
+  'replaceExistingText',
+  'applySimpleExistingTextReplacementToDocument',
   'applyPdfLibHeaderFooterPlan',
   'applyPdfLibPageLabels',
   'loadDonor',
@@ -140,6 +143,7 @@ const persistentSessionCommandTypes = [
   'SET_PAGE_LABELS',
   'DRAW_TEXT_ON_PAGES',
   'DRAW_REDACTION_BOX',
+  'REPLACE_EXISTING_TEXT',
   'APPLY_HEADER_FOOTER_TEMPLATE',
 ];
 
@@ -158,6 +162,7 @@ requireContains(dispatch, dispatchPath, [
   'mutationSession.setPageLabels',
   'mutationSession.drawText',
   'mutationSession.drawVisualMasks',
+  'mutationSession.replaceExistingText',
   'mutationSession.applyHeaderFooter',
   'commitStructuralMutationSession',
   'applyCommittedSessionMutation',
@@ -212,6 +217,8 @@ for (const commandType of persistentSessionCommandTypes) {
     SET_PAGE_LABELS: 'mutationSession.setPageLabels',
     DRAW_TEXT_ON_PAGES: 'mutationSession.drawText',
     DRAW_REDACTION_BOX: 'mutationSession.drawVisualMasks',
+    REPLACE_EXISTING_TEXT:
+      'mutationSession.replaceExistingText',
     APPLY_HEADER_FOOTER_TEMPLATE:
       'mutationSession.applyHeaderFooter',
   }[commandType];
@@ -220,6 +227,7 @@ for (const commandType of persistentSessionCommandTypes) {
     'SET_PAGE_LABELS',
     'DRAW_TEXT_ON_PAGES',
     'DRAW_REDACTION_BOX',
+    'REPLACE_EXISTING_TEXT',
     'APPLY_HEADER_FOOTER_TEMPLATE',
   ]).has(commandType)
     ? 'mutationSession.commit'
@@ -413,6 +421,7 @@ requireContains(engineTest, engineTestPath, [
   'session.drawText',
   'session.drawVisualMasks',
   'session.applyHeaderFooter',
+  'session.replaceExistingText',
   'session.commit',
   'loadSpy).toHaveBeenCalledTimes(4)',
 ]);
