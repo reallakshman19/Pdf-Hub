@@ -1,5 +1,6 @@
 import type {
   ExistingTextFitRect,
+  ExistingTextNativeFitDiagnostic,
   ExistingTextReconstructedOverlayEvidence,
 } from './fitTypes';
 
@@ -8,6 +9,8 @@ export type ExistingTextVisualClearanceUnprovedReason =
   | 'STALE_EDIT_INTENT'
   | 'NATIVE_OVERFLOW_FIT_REQUIRED'
   | 'FIT_IDENTITY_MISMATCH'
+  | 'FONT_RESOURCE_UNSUPPORTED'
+  | 'PDF_ANALYSIS_FAILED'
   | 'INCOMPLETE_CONTENT_STREAM_SET'
   | 'MULTIPLE_CONTENT_STREAMS'
   | 'TARGET_PROVENANCE_MISMATCH'
@@ -49,6 +52,9 @@ export type ExistingTextVisualClearanceAnalysisResult =
       status: 'proved';
       evidence:
         ExistingTextReconstructedOverlayEvidence;
+      nativeFit:
+        ExistingTextNativeFitDiagnostic
+        & { status: 'overflows' };
       proof:
         ExistingTextVisualClearanceProof;
     }
@@ -57,6 +63,8 @@ export type ExistingTextVisualClearanceAnalysisResult =
       reasons:
         ExistingTextVisualClearanceUnprovedReason[];
       diagnostics: string[];
+      nativeFit?:
+        ExistingTextNativeFitDiagnostic;
     };
 
 export type ExistingTextPaintProgramScanResult =
