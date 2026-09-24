@@ -16,6 +16,8 @@ export interface ExistingTextFitRect {
 interface ExistingTextNativeFitBase {
   schemaVersion: 1;
   baseFont: string;
+  sourceText: string;
+  replacementText: string;
   observedAdvancePt: number;
   fontSizePt: number;
   tolerancePt: number;
