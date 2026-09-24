@@ -23,16 +23,14 @@ export function assessExistingTextEditPolicy(
       ExistingTextReconstructedOverlayEvidence;
   },
 ): ExistingTextEditPolicyResult {
-  const intentValidation =
-    validateExistingTextEditIntentAgainstSpan(
-      input.intent,
-      input.span,
-    );
-  if (!intentValidation.ok) {
+  if (
+    input.span.editability
+    === 'unsupported'
+  ) {
     return {
       mode: 'blocked',
       reasons: [
-        'STALE_EDIT_INTENT',
+        'UNSUPPORTED_SPAN',
       ],
       ...(input.nativeFit
         ? {
@@ -43,14 +41,16 @@ export function assessExistingTextEditPolicy(
     };
   }
 
-  if (
-    input.span.editability
-    === 'unsupported'
-  ) {
+  const intentValidation =
+    validateExistingTextEditIntentAgainstSpan(
+      input.intent,
+      input.span,
+    );
+  if (!intentValidation.ok) {
     return {
       mode: 'blocked',
       reasons: [
-        'UNSUPPORTED_SPAN',
+        'STALE_EDIT_INTENT',
       ],
       ...(input.nativeFit
         ? {
