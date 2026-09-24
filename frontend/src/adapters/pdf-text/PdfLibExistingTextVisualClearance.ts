@@ -17,6 +17,7 @@ import type {
 } from '@/core/existing-text/types';
 import type {
   ExistingTextFitRect,
+  ExistingTextNativeFitDiagnostic,
 } from '@/core/existing-text/fitTypes';
 import type {
   ExistingTextVisualClearanceAnalysisResult,
@@ -466,10 +467,7 @@ function unproved(
     ExistingTextVisualClearanceUnprovedReason,
   diagnostics: string[],
   nativeFit?:
-    ExistingTextVisualClearanceAnalysisResult extends
-      { status: 'unproved'; nativeFit?: infer T }
-      ? T
-      : never,
+    ExistingTextNativeFitDiagnostic,
 ): ExistingTextVisualClearanceAnalysisResult {
   return {
     status: 'unproved',
