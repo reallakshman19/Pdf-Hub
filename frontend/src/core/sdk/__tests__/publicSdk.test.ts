@@ -10,6 +10,13 @@ import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { commandBus } from '@/core/commands/bus';
 import { useSessionStore } from '@/core/session/store';
 import {
+  buildExistingTextSpan,
+  createExistingTextEditIntent,
+} from '@/core/existing-text/model';
+import type {
+  PdfHubSdkCommandDraft,
+} from '../types';
+import {
   createPdfHubSdk,
   PdfHubSdkError,
 } from '../publicSdk';
@@ -44,6 +51,67 @@ function openTestDocument() {
   });
 
   return bytes;
+}
+
+function sdkExistingTextDraft(
+  replacementText = 'World',
+): PdfHubSdkCommandDraft {
+  const span =
+    buildExistingTextSpan(
+      {
+        revisionId: 'sdk-doc',
+        pageId: 'sdk-page-1',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [
+          12, 0, 0, 12, 72, 700,
+        ],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+  return {
+    type:
+      'REPLACE_EXISTING_TEXT',
+    payload: {
+      schemaVersion: 1,
+      span,
+      intent:
+        createExistingTextEditIntent(
+          span,
+          replacementText,
+        ),
+      provenance: {
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        operatorIndex: 4,
+        operator: 'Tj',
+        operatorRange: {
+          start: 18,
+          end: 20,
+        },
+        operandRange: {
+          start: 10,
+          end: 17,
+        },
+        decodedText: 'Hello',
+        encoding:
+          'ascii-literal',
+        fontResourceName: 'F1',
+        fontSizePt: 12,
+        textMatrix: [
+          1, 0, 0, 1, 72, 700,
+        ],
+      },
+    },
+  };
 }
 
 function donorPdfBytes(
@@ -89,6 +157,11 @@ describe('PDFHubSDK', () => {
     expect(
       capabilities.commandTypes,
     ).toContain('MERGE_PDF');
+    expect(
+      capabilities.commandTypes,
+    ).toContain(
+      'REPLACE_EXISTING_TEXT',
+    );
     expect(
       capabilities.commandTypes,
     ).not.toContain('APPLY_WORKING_COPY');
@@ -197,6 +270,78 @@ describe('PDFHubSDK', () => {
         fileName: 'sdk.pdf',
         documentKey: 'sdk-doc',
       });
+  });
+
+  it('routes bounded existing-text replacement through CommandBus with API source', async () => {
+    openTestDocument();
+    const execute =
+      vi.spyOn(
+        commandBus,
+        'execute',
+      )
+      .mockResolvedValue({
+        success: true,
+        commandId:
+          'sdk-text-command',
+        commandType:
+          'REPLACE_EXISTING_TEXT',
+        source: 'api',
+        mutated: true,
+        message: 'replaced',
+      });
+
+    const sdk =
+      createPdfHubSdk();
+    const draft =
+      sdkExistingTextDraft();
+    const execution =
+      await sdk.executeCommand(
+        draft,
+        {
+          commandId:
+            'sdk-text-command',
+        },
+      );
+
+    expect(execution.result)
+      .toMatchObject({
+        success: true,
+        commandType:
+          'REPLACE_EXISTING_TEXT',
+      });
+    expect(
+      execute.mock.calls[0]?.[0]
+        ?.command,
+    ).toMatchObject({
+      id: 'sdk-text-command',
+      type:
+        'REPLACE_EXISTING_TEXT',
+      source: 'api',
+      documentKey: 'sdk-doc',
+    });
+  });
+
+  it('rejects malformed existing-text replacement before CommandBus execution', async () => {
+    openTestDocument();
+    const execute =
+      vi.spyOn(
+        commandBus,
+        'execute',
+      );
+    const sdk =
+      createPdfHubSdk();
+
+    await expect(
+      sdk.executeCommand(
+        sdkExistingTextDraft(
+          'Ω',
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+    expect(execute)
+      .not.toHaveBeenCalled();
   });
 
   it('rejects internal compatibility commands at the public boundary', async () => {
