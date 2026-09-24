@@ -160,9 +160,29 @@ function isSpanInsideSimpleSubset(
       ?.toLowerCase();
 
   return (
-    (
+    span.reasons.length === 0
+    && Boolean(
+      span.fontName?.trim(),
+    )
+    && (
       direction === undefined
       || direction === 'ltr'
+    )
+    && nearlyEqual(
+      span.originPt.x,
+      span.transform[4],
+    )
+    && nearlyEqual(
+      span.originPt.y,
+      span.transform[5],
+    )
+    && nearlyEqual(
+      span.horizontalScalePt,
+      Math.hypot(a, b),
+    )
+    && nearlyEqual(
+      span.fontSizePt,
+      Math.hypot(c, d),
     )
     && nearlyEqual(
       b,
