@@ -805,9 +805,6 @@ describe('PDFHubSDK', () => {
 
   it('isolates session-listener exceptions and validates subscription options', () => {
     const sdk = createPdfHubSdk();
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
 
     const unsubscribe =
       sdk.subscribeSession(
@@ -823,16 +820,20 @@ describe('PDFHubSDK', () => {
     ).not.toThrow();
     unsubscribe();
 
-    expect(() =>
+    let thrown: unknown;
+    try {
       sdk.subscribeEvents(
         vi.fn(),
         null as never,
-      ),
-    ).toThrow(
-      expect.objectContaining({
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown)
+      .toMatchObject({
         code: 'INVALID_ARGUMENT',
-      }),
-    );
+      });
   });
 
   it('subscribes with snapshots and detaches without exposing Zustand', () => {
