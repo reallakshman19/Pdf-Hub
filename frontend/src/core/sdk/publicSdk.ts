@@ -12,8 +12,10 @@ import {
 import { commandBus } from '@/core/commands/bus';
 import {
   materializePdfCommand,
+  type PdfCommand,
   type PdfCommandDraft,
 } from '@/core/commands/types';
+import { validateCommand } from '@/core/commands/validators';
 import { useSessionStore } from '@/core/session/store';
 import type {
   PageGraph,
@@ -28,9 +30,14 @@ import {
   type PdfHubSdkCommandExecution,
   type PdfHubSdkDonorAdmission,
   type PdfHubSdkDonorAdmissionRequest,
+  type PdfHubSdkDonorCommandTarget,
   type PdfHubSdkDonorInput,
+  type PdfHubSdkDonorReleaseReason,
   type PdfHubSdkDonorResource,
   type PdfHubSdkErrorCode,
+  type PdfHubSdkEvent,
+  type PdfHubSdkEventListener,
+  type PdfHubSdkEventSubscribeOptions,
   type PdfHubSdkExecuteOptions,
   type PdfHubSdkSessionListener,
   type PdfHubSdkSessionSnapshot,
@@ -40,6 +47,13 @@ import {
 const supportedCommandTypes = new Set<string>(
   PDF_HUB_SDK_SUPPORTED_COMMAND_TYPES,
 );
+
+const donorCommandTargets =
+  new Set<PdfHubSdkDonorCommandTarget>([
+    'INSERT_PAGES',
+    'REPLACE_PAGE',
+    'MERGE_PDF',
+  ]);
 
 interface SdkDonorResourceRecord {
   resourceId: string;
@@ -65,14 +79,19 @@ interface ResolvedSdkDonorResources {
 
 export class PdfHubSdkError extends Error {
   readonly code: PdfHubSdkErrorCode;
+  readonly details?: readonly string[];
 
   constructor(
     code: PdfHubSdkErrorCode,
     message: string,
+    details?: readonly string[],
   ) {
     super(message);
     this.name = 'PdfHubSdkError';
     this.code = code;
+    this.details = details
+      ? [...details]
+      : undefined;
   }
 }
 
@@ -81,9 +100,29 @@ export function createPdfHubSdk(): PdfHubSdk {
     new Map<string, SdkDonorAdmissionRecord>();
   const donorResources =
     new Map<string, SdkDonorResourceRecord>();
+  const eventListeners =
+    new Set<PdfHubSdkEventListener>();
+
+  const emitEvent = (
+    event: PdfHubSdkEvent,
+  ): void => {
+    for (const listener of [
+      ...eventListeners,
+    ]) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error(
+          'PDFHubSDK event listener failed',
+          error,
+        );
+      }
+    }
+  };
 
   const releaseAdmission = (
     admissionId: string,
+    reason: PdfHubSdkDonorReleaseReason,
   ): boolean => {
     const record =
       donorAdmissions.get(admissionId);
@@ -99,6 +138,17 @@ export function createPdfHubSdk(): PdfHubSdk {
         resource.resourceId,
       );
     }
+
+    emitEvent({
+      type: 'donor-released',
+      admissionId,
+      commandTarget:
+        record.commandTarget,
+      documentKey:
+        record.documentKey,
+      reason,
+    });
+
     return true;
   };
 
@@ -110,6 +160,9 @@ export function createPdfHubSdk(): PdfHubSdk {
         apiVersion: PDF_HUB_SDK_API_VERSION,
         sessionBound: true,
         donorAdmission: true,
+        runtimeValidation: true,
+        events: true,
+        moduleEntry: true,
         legacyHeadlessCompatibility: true,
         commandTypes: [
           ...PDF_HUB_SDK_SUPPORTED_COMMAND_TYPES,
@@ -132,6 +185,9 @@ export function createPdfHubSdk(): PdfHubSdk {
     async admitDonors(
       request: PdfHubSdkDonorAdmissionRequest,
     ): Promise<PdfHubSdkDonorAdmission> {
+      assertDonorAdmissionRequestInput(
+        request,
+      );
       const session = requireActiveSession();
 
       assertDonorInputCardinality(
@@ -211,6 +267,7 @@ export function createPdfHubSdk(): PdfHubSdk {
             ) {
               releaseAdmission(
                 admissionId,
+                'document-changed',
               );
             }
           },
@@ -222,33 +279,37 @@ export function createPdfHubSdk(): PdfHubSdk {
         );
       }
 
-      return {
-        admissionId,
-        commandTarget:
-          request.commandTarget,
-        documentKey: ownerDocumentKey,
-        donors: resources.map(
-          (resource, index) => {
-            const donor =
-              result.value.donors[index];
-            return {
-              resourceId:
-                resource.resourceId,
-              fileName: donor.fileName,
-              sourceBytes:
-                donor.sourceBytes,
-              pageCount: donor.pageCount,
-            } satisfies PdfHubSdkDonorResource;
-          },
-        ),
-      };
+      const publicAdmission =
+        toPublicDonorAdmission(
+          record,
+        );
+
+      emitEvent({
+        type: 'donor-admitted',
+        admission:
+          cloneDonorAdmission(
+            publicAdmission,
+          ),
+      });
+
+      return publicAdmission;
     },
 
     releaseDonorAdmission(
       admissionId: string,
     ): boolean {
+      if (
+        typeof admissionId !== 'string'
+        || admissionId.trim().length === 0
+      ) {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          'releaseDonorAdmission requires a non-empty admission ID.',
+        );
+      }
       return releaseAdmission(
         admissionId,
+        'explicit',
       );
     },
 
@@ -256,20 +317,12 @@ export function createPdfHubSdk(): PdfHubSdk {
       draft: PdfHubSdkCommandDraft,
       options: PdfHubSdkExecuteOptions = {},
     ): Promise<PdfHubSdkCommandExecution> {
-      assertSupportedCommand(draft);
-
+      assertSdkCommandDraftInput(
+        draft,
+      );
       const session = requireActiveSession();
       const ownerDocumentKey =
         session.documentKey;
-
-      const donorResolution =
-        resolveSdkDonorResources(
-          draft,
-          ownerDocumentKey,
-          options.abortSignal,
-          donorAdmissions,
-          donorResources,
-        );
 
       const command = materializePdfCommand(
         draft,
@@ -288,10 +341,30 @@ export function createPdfHubSdk(): PdfHubSdk {
         },
       );
 
+      assertCanonicalCommandValid(
+        command,
+      );
+
+      const donorResolution =
+        resolveSdkDonorResources(
+          draft,
+          ownerDocumentKey,
+          options.abortSignal,
+          donorAdmissions,
+          donorResources,
+        );
+
       const binaries =
         cloneBinaryResources(
           options.binaryResources,
         );
+
+      emitEvent({
+        type: 'command-started',
+        commandId: command.id,
+        commandType: draft.type,
+        documentKey: ownerDocumentKey,
+      });
 
       try {
         const result =
@@ -336,11 +409,30 @@ export function createPdfHubSdk(): PdfHubSdk {
             signal: options.abortSignal,
           });
 
+        const sessionSnapshot =
+          snapshotFromSession(
+            useSessionStore.getState(),
+          );
+
+        emitEvent({
+          type: 'command-finished',
+          commandId: result.commandId,
+          commandType: draft.type,
+          documentKey: ownerDocumentKey,
+          success: result.success,
+          mutated: result.mutated,
+          ...(result.error
+            ? {
+                errorCode:
+                  result.error.code,
+              }
+            : {}),
+          session: sessionSnapshot,
+        });
+
         return {
           result,
-          session: snapshotFromSession(
-            useSessionStore.getState(),
-          ),
+          session: sessionSnapshot,
         };
       } finally {
         for (
@@ -348,7 +440,10 @@ export function createPdfHubSdk(): PdfHubSdk {
           of donorResolution?.admissionIds
             ?? []
         ) {
-          releaseAdmission(admissionId);
+          releaseAdmission(
+            admissionId,
+            'command-attempt',
+          );
         }
       }
     },
@@ -370,6 +465,55 @@ export function createPdfHubSdk(): PdfHubSdk {
           listener(snapshotFromSession(state));
         },
       );
+    },
+
+    subscribeEvents(
+      listener: PdfHubSdkEventListener,
+      options: PdfHubSdkEventSubscribeOptions = {},
+    ): () => void {
+      if (typeof listener !== 'function') {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          'subscribeEvents requires a listener function.',
+        );
+      }
+
+      eventListeners.add(listener);
+
+      if (
+        options.emitCurrentSession
+        !== false
+      ) {
+        listener({
+          type: 'session-changed',
+          session: snapshotFromSession(
+            useSessionStore.getState(),
+          ),
+        });
+      }
+
+      const unsubscribeSession =
+        useSessionStore.subscribe(
+          (state) => {
+            if (
+              eventListeners.has(listener)
+            ) {
+              listener({
+                type:
+                  'session-changed',
+                session:
+                  snapshotFromSession(
+                    state,
+                  ),
+              });
+            }
+          },
+        );
+
+      return () => {
+        eventListeners.delete(listener);
+        unsubscribeSession();
+      };
     },
   });
 }
@@ -407,15 +551,125 @@ function requireActiveSession(): {
   };
 }
 
-function assertSupportedCommand(
-  draft: PdfCommandDraft,
-): asserts draft is PdfHubSdkCommandDraft {
-  if (!supportedCommandTypes.has(draft.type)) {
+function assertSdkCommandDraftInput(
+  value: unknown,
+): asserts value is PdfHubSdkCommandDraft {
+  if (!isRecord(value)) {
     throw new PdfHubSdkError(
-      'UNSUPPORTED_COMMAND',
-      `PDFHubSDK does not expose command type ${draft.type} in API version ${PDF_HUB_SDK_API_VERSION}.`,
+      'INVALID_ARGUMENT',
+      'executeCommand requires a command object.',
     );
   }
+
+  if (typeof value.type !== 'string') {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'Command type must be a string.',
+    );
+  }
+
+  if (!supportedCommandTypes.has(value.type)) {
+    throw new PdfHubSdkError(
+      'UNSUPPORTED_COMMAND',
+      `PDFHubSDK does not expose command type ${value.type} in API version ${PDF_HUB_SDK_API_VERSION}.`,
+    );
+  }
+
+  if (!isRecord(value.payload)) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'Command payload must be an object.',
+    );
+  }
+}
+
+function assertCanonicalCommandValid(
+  command: PdfCommand,
+): void {
+  try {
+    const validation =
+      validateCommand(command);
+    if (!validation.ok) {
+      throw new PdfHubSdkError(
+        'INVALID_ARGUMENT',
+        validation.errors.join(' '),
+        validation.errors,
+      );
+    }
+  } catch (error) {
+    if (error instanceof PdfHubSdkError) {
+      throw error;
+    }
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      error instanceof Error
+        ? `Malformed command payload: ${error.message}`
+        : 'Malformed command payload.',
+    );
+  }
+}
+
+function assertDonorAdmissionRequestInput(
+  value: unknown,
+): asserts value is PdfHubSdkDonorAdmissionRequest {
+  if (!isRecord(value)) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'admitDonors requires a request object.',
+    );
+  }
+
+  if (
+    typeof value.commandTarget
+      !== 'string'
+    || !donorCommandTargets.has(
+      value.commandTarget
+        as PdfHubSdkDonorCommandTarget,
+    )
+  ) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'Donor commandTarget must be INSERT_PAGES, REPLACE_PAGE, or MERGE_PDF.',
+    );
+  }
+
+  if (!Array.isArray(value.donors)) {
+    throw new PdfHubSdkError(
+      'INVALID_ARGUMENT',
+      'Donor admission requires a donors array.',
+    );
+  }
+
+  value.donors.forEach(
+    (donor, index) => {
+      if (!isRecord(donor)) {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          `Donor ${index} must be an object.`,
+        );
+      }
+      if (
+        typeof donor.fileName
+          !== 'string'
+        || donor.fileName.trim()
+          .length === 0
+      ) {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          `Donor ${index} requires a non-empty fileName.`,
+        );
+      }
+      if (
+        !(donor.bytes
+          instanceof Uint8Array)
+      ) {
+        throw new PdfHubSdkError(
+          'INVALID_ARGUMENT',
+          `Donor ${index}.bytes must be a Uint8Array.`,
+        );
+      }
+    },
+  );
 }
 
 function assertDonorInputCardinality(
@@ -630,6 +884,43 @@ function donorResourceIdsForDraft(
   }
 }
 
+function toPublicDonorAdmission(
+  record: SdkDonorAdmissionRecord,
+): PdfHubSdkDonorAdmission {
+  return {
+    admissionId: record.admissionId,
+    commandTarget:
+      record.commandTarget,
+    documentKey: record.documentKey,
+    donors: record.resources.map(
+      (resource, index) => {
+        const donor =
+          record.admittedSet
+            .donors[index];
+        return {
+          resourceId:
+            resource.resourceId,
+          fileName: donor.fileName,
+          sourceBytes:
+            donor.sourceBytes,
+          pageCount: donor.pageCount,
+        } satisfies PdfHubSdkDonorResource;
+      },
+    ),
+  };
+}
+
+function cloneDonorAdmission(
+  admission: PdfHubSdkDonorAdmission,
+): PdfHubSdkDonorAdmission {
+  return {
+    ...admission,
+    donors: admission.donors.map(
+      (donor) => ({ ...donor }),
+    ),
+  };
+}
+
 function snapshotFromSession(
   session: ReturnType<
     typeof useSessionStore.getState
@@ -695,6 +986,16 @@ function cloneBinaryResources(
         bytes.slice(),
       ],
     ),
+  );
+}
+
+function isRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value),
   );
 }
 

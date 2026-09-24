@@ -1,4 +1,5 @@
 import type {
+  CommandErrorCode,
   CommandResult,
   PdfCommandDraft,
   PdfCommandType,
@@ -48,6 +49,7 @@ export type PdfHubSdkDonorCommandTarget =
 
 export type PdfHubSdkErrorCode =
   | 'NO_ACTIVE_DOCUMENT'
+  | 'INVALID_ARGUMENT'
   | 'UNSUPPORTED_COMMAND'
   | 'DONOR_ADMISSION_REJECTED'
   | 'DONOR_ADMISSION_CANCELLED'
@@ -57,6 +59,9 @@ export interface PdfHubSdkCapabilities {
   apiVersion: PdfHubSdkApiVersion;
   sessionBound: true;
   donorAdmission: true;
+  runtimeValidation: true;
+  events: true;
+  moduleEntry: true;
   legacyHeadlessCompatibility: true;
   commandTypes: readonly PdfHubSdkSupportedCommandType[];
 }
@@ -122,6 +127,52 @@ export interface PdfHubSdkDonorAdmission {
   donors: PdfHubSdkDonorResource[];
 }
 
+export type PdfHubSdkDonorReleaseReason =
+  | 'explicit'
+  | 'document-changed'
+  | 'command-attempt';
+
+export type PdfHubSdkEvent =
+  | {
+      type: 'session-changed';
+      session: PdfHubSdkSessionSnapshot;
+    }
+  | {
+      type: 'command-started';
+      commandId: string;
+      commandType: PdfHubSdkSupportedCommandType;
+      documentKey: string;
+    }
+  | {
+      type: 'command-finished';
+      commandId: string;
+      commandType: PdfHubSdkSupportedCommandType;
+      documentKey: string;
+      success: boolean;
+      mutated: boolean;
+      errorCode?: CommandErrorCode;
+      session: PdfHubSdkSessionSnapshot;
+    }
+  | {
+      type: 'donor-admitted';
+      admission: PdfHubSdkDonorAdmission;
+    }
+  | {
+      type: 'donor-released';
+      admissionId: string;
+      commandTarget: PdfHubSdkDonorCommandTarget;
+      documentKey: string;
+      reason: PdfHubSdkDonorReleaseReason;
+    };
+
+export type PdfHubSdkEventListener = (
+  event: PdfHubSdkEvent,
+) => void;
+
+export interface PdfHubSdkEventSubscribeOptions {
+  emitCurrentSession?: boolean;
+}
+
 export interface PdfHubSdk {
   readonly apiVersion: PdfHubSdkApiVersion;
   getCapabilities(): PdfHubSdkCapabilities;
@@ -140,5 +191,9 @@ export interface PdfHubSdk {
   subscribeSession(
     listener: PdfHubSdkSessionListener,
     options?: PdfHubSdkSubscribeOptions,
+  ): () => void;
+  subscribeEvents(
+    listener: PdfHubSdkEventListener,
+    options?: PdfHubSdkEventSubscribeOptions,
   ): () => void;
 }

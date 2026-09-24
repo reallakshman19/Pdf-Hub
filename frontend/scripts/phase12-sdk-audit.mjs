@@ -50,6 +50,8 @@ const index = requireFile('src/core/sdk/index.ts');
 const tests = requireFile('src/core/sdk/__tests__/publicSdk.test.ts');
 const main = requireFile('src/main.tsx');
 const headless = requireFile('src/core/macro/headlessApi.ts');
+const moduleEntry = requireFile('src/sdk.ts');
+const packageJson = requireFile('package.json');
 const docs = requireFile('../Docs/PUBLIC_SDK.md');
 
 requireTokens('types', types, [
@@ -61,6 +63,8 @@ requireTokens('types', types, [
   "'MERGE_PDF'",
   'PdfHubSdkDonorAdmissionRequest',
   'releaseDonorAdmission',
+  'subscribeEvents',
+  "'INVALID_ARGUMENT'",
 ]);
 
 forbidTokens('public sdk types', types, [
@@ -72,7 +76,9 @@ forbidTokens('public sdk types', types, [
 
 requireTokens('sdk canonical routing', sdk, [
   "from '@/core/commands/bus'",
+  "from '@/core/commands/validators'",
   'materializePdfCommand(',
+  'validateCommand(command)',
   "'api'",
   'commandBus.execute({',
 ]);
@@ -95,6 +101,19 @@ requireTokens('sdk donor boundary', sdk, [
 requireTokens('browser global', browserGlobal, [
   'PDFHubSDK',
   'createPdfHubSdk()',
+]);
+
+requireTokens('module entry', moduleEntry, [
+  "export * from './core/sdk';",
+]);
+forbidTokens('module entry side effects', moduleEntry, [
+  'browserGlobal',
+  'PDFHubSDK =',
+  'window.',
+]);
+requireTokens('private package sdk export', packageJson, [
+  '"private": true',
+  '"./sdk": "./src/sdk.ts"',
 ]);
 
 requireTokens('startup', main, [
@@ -123,9 +142,14 @@ requireTokens('focused tests', tests, [
   'routes supported commands through CommandBus with API source',
   'admits donors behind opaque resource IDs and routes them through CommandBus',
   'rejects donor resources after the active document changes',
+  'rejects malformed runtime command values before CommandBus execution',
+  'emits typed session and command lifecycle events and detaches cleanly',
 ]);
 
 requireTokens('documentation', docs, [
+  '## Module consumption',
+  '## Runtime validation',
+  '## SDK events',
   '## Donor admission',
   'CommandResources.donors',
   'single-use',

@@ -22,7 +22,40 @@ PDFHubSDK.apiVersion === '1'
 PDFHubSDK.getCapabilities()
 ```
 
-Capability discovery is the runtime source of truth for command types and donor admission support exposed by that SDK version.
+Capability discovery is the runtime source of truth for command types, donor admission, runtime validation, module-entry support and typed SDK events exposed by that SDK version.
+
+## Module consumption
+
+The frontend workspace now exposes a side-effect-free source module entry:
+
+```ts
+import {
+  createPdfHubSdk,
+  PDF_HUB_SDK_API_VERSION,
+  type PdfHubSdk,
+} from 'frontend/sdk'
+```
+
+The private workspace package maps `./sdk` to `src/sdk.ts`. Importing this entry does **not** install `window.PDFHubSDK`; browser-global installation remains isolated to application startup through `core/sdk/browserGlobal`.
+
+This is a source/workspace module contract, not an npm/public-registry publication claim. The frontend package remains `private`.
+
+## Runtime validation
+
+TypeScript callers get `PdfHubSdkCommandDraft` types derived from the canonical `PdfCommandDraft` union. Untyped JavaScript callers are also guarded at runtime.
+
+The SDK performs only safe top-level shape checks itself, then materializes the canonical command and delegates payload validation to the existing `validateCommand()` authority. Malformed command inputs fail with:
+
+```ts
+PdfHubSdkError {
+  code: 'INVALID_ARGUMENT'
+  details?: string[]
+}
+```
+
+Unsupported but well-formed command types still fail with `UNSUPPORTED_COMMAND`.
+
+Donor admission requests also validate the target, donor list, file names and `Uint8Array` byte inputs before reading or parsing donor PDFs.
 
 ## Inspect the active session
 
@@ -209,6 +242,36 @@ Binary resources remain out of band and are defensively copied at the SDK bounda
 
 Donor admission also accepts `abortSignal` on `admitDonors(...)`.
 
+## SDK events
+
+For integrations that need lifecycle observation beyond session snapshots:
+
+```ts
+const unsubscribe = PDFHubSDK.subscribeEvents((event) => {
+  switch (event.type) {
+    case 'session-changed':
+      console.log(event.session.documentKey)
+      break
+    case 'command-started':
+      console.log(event.commandId, event.commandType)
+      break
+    case 'command-finished':
+      console.log(event.success, event.mutated)
+      break
+    case 'donor-admitted':
+      console.log(event.admission.admissionId)
+      break
+    case 'donor-released':
+      console.log(event.reason)
+      break
+  }
+})
+```
+
+The event stream exposes SDK snapshots and metadata only. It does not expose Zustand, the internal document event bus, donor capabilities, resolved donor bytes, or command output byte arrays.
+
+The current session is emitted immediately as a `session-changed` event unless `{ emitCurrentSession: false }` is supplied. Listener exceptions are isolated from SDK command/admission execution.
+
 ## Session subscription
 
 ```ts
@@ -230,4 +293,4 @@ Consumers receive SDK snapshots, not the Zustand store or its mutation methods.
 
 New browser integrations should prefer `PDFHubSDK` when they operate on the active PDF Hub editing session.
 
-A later Phase 12 slice may add package/module distribution, richer events, stronger runtime schema validation and long-lived integration ergonomics. Those additions must extend this canonical command/session path rather than introduce a second execution system.
+A later Phase 12 slice may add emitted library artifacts/public package publication, version negotiation beyond API v1, richer integration helpers and long-lived compatibility policy. Those additions must extend this canonical command/session path rather than introduce a second execution system.

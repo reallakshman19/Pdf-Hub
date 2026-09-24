@@ -13,6 +13,10 @@ import {
   createPdfHubSdk,
   PdfHubSdkError,
 } from '../publicSdk';
+import {
+  createPdfHubSdk as createPdfHubSdkFromModule,
+  PDF_HUB_SDK_API_VERSION,
+} from '../../../sdk';
 
 function openTestDocument() {
   const bytes = new Uint8Array(
@@ -91,6 +95,13 @@ describe('PDFHubSDK', () => {
     expect(
       capabilities.donorAdmission,
     ).toBe(true);
+  });
+
+  it('exports the SDK through the side-effect-free module entry', () => {
+    expect(createPdfHubSdkFromModule)
+      .toBe(createPdfHubSdk);
+    expect(PDF_HUB_SDK_API_VERSION)
+      .toBe('1');
   });
 
   it('returns cloned session identity and defensive working bytes', () => {
@@ -212,6 +223,60 @@ describe('PDFHubSDK', () => {
     });
 
     expect(execute)
+      .not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed runtime command values before CommandBus execution', async () => {
+    openTestDocument();
+    const execute = vi.spyOn(
+      commandBus,
+      'execute',
+    );
+    const sdk = createPdfHubSdk();
+
+    await expect(
+      sdk.executeCommand(
+        {
+          type: 'INSERT_BLANK_PAGE',
+          payload: {
+            atIndex: 0,
+          },
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+
+    expect(execute)
+      .not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed runtime donor input before shared admission', async () => {
+    openTestDocument();
+    const countPages = vi.spyOn(
+      PdfEditAdapter,
+      'countPages',
+    );
+    const sdk = createPdfHubSdk();
+
+    await expect(
+      sdk.admitDonors(
+        {
+          commandTarget:
+            'INSERT_PAGES',
+          donors: [
+            {
+              fileName: 'donor.pdf',
+              bytes: [1, 2, 3],
+            },
+          ],
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+
+    expect(countPages)
       .not.toHaveBeenCalled();
   });
 
@@ -450,6 +515,156 @@ describe('PDFHubSDK', () => {
     ).rejects.toMatchObject({
       code: 'DONOR_ADMISSION_INVALID',
     });
+  });
+
+  it('emits typed session and command lifecycle events and detaches cleanly', async () => {
+    const sdk = createPdfHubSdk();
+    const listener = vi.fn();
+    const unsubscribe =
+      sdk.subscribeEvents(listener);
+
+    expect(listener.mock.calls[0][0])
+      .toMatchObject({
+        type: 'session-changed',
+        session: {
+          documentKey: null,
+        },
+      });
+
+    openTestDocument();
+    vi.spyOn(commandBus, 'execute')
+      .mockResolvedValue({
+        success: true,
+        commandId: 'event-command',
+        commandType: 'ROTATE_PAGES',
+        source: 'api',
+        mutated: true,
+        message: 'rotated',
+      });
+
+    await sdk.executeCommand(
+      {
+        type: 'ROTATE_PAGES',
+        payload: {
+          pageIndices: [0],
+          angle: 90,
+        },
+      },
+      {
+        commandId: 'event-command',
+      },
+    );
+
+    expect(
+      listener.mock.calls
+        .map(([event]) => event.type),
+    ).toEqual(
+      expect.arrayContaining([
+        'session-changed',
+        'command-started',
+        'command-finished',
+      ]),
+    );
+
+    expect(
+      listener.mock.calls
+        .map(([event]) => event)
+        .find(
+          (event) =>
+            event.type
+            === 'command-finished',
+        ),
+    ).toMatchObject({
+      commandId: 'event-command',
+      commandType: 'ROTATE_PAGES',
+      success: true,
+      mutated: true,
+    });
+
+    const callCount =
+      listener.mock.calls.length;
+    unsubscribe();
+    useSessionStore
+      .getState()
+      .setDirty(true);
+
+    expect(listener)
+      .toHaveBeenCalledTimes(
+        callCount,
+      );
+  });
+
+  it('emits donor admission and release metadata without donor capabilities', async () => {
+    openTestDocument();
+    vi.spyOn(
+      PdfEditAdapter,
+      'countPages',
+    ).mockResolvedValue(1);
+
+    const sdk = createPdfHubSdk();
+    const listener = vi.fn();
+    const unsubscribe =
+      sdk.subscribeEvents(
+        listener,
+        {
+          emitCurrentSession: false,
+        },
+      );
+
+    const admission =
+      await sdk.admitDonors({
+        commandTarget:
+          'INSERT_PAGES',
+        donors: [
+          {
+            fileName: 'donor.pdf',
+            bytes:
+              donorPdfBytes(),
+          },
+        ],
+      });
+
+    sdk.releaseDonorAdmission(
+      admission.admissionId,
+    );
+
+    const donorAdmitted =
+      listener.mock.calls
+        .map(([event]) => event)
+        .find(
+          (event) =>
+            event.type
+            === 'donor-admitted',
+        );
+    expect(donorAdmitted)
+      .toMatchObject({
+        type: 'donor-admitted',
+        admission: {
+          admissionId:
+            admission.admissionId,
+        },
+      });
+    expect(
+      donorAdmitted.admission
+        .donors[0],
+    ).not.toHaveProperty('bytes');
+
+    expect(
+      listener.mock.calls
+        .map(([event]) => event)
+        .find(
+          (event) =>
+            event.type
+            === 'donor-released',
+        ),
+    ).toMatchObject({
+      type: 'donor-released',
+      admissionId:
+        admission.admissionId,
+      reason: 'explicit',
+    });
+
+    unsubscribe();
   });
 
   it('subscribes with snapshots and detaches without exposing Zustand', () => {
