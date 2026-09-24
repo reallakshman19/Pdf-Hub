@@ -54,3 +54,8 @@ export type {
   ExistingTextSimpleReplacementProof,
   ExistingTextSimpleReplacementResult,
 } from './replacementTypes';
+
+export * from './fitPolicy';
+export * from './fitTypes';
+export * from './visualClearanceScanner';
+export * from './visualClearanceTypes';
