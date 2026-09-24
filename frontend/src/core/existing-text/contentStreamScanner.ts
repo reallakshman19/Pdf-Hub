@@ -273,7 +273,7 @@ export function scanExistingTextContentStream(
 function buildSimpleTextCandidate(
   stream:
     ExistingTextDecodedContentStream,
-  operatorToken: Token,
+  operatorToken: ExistingTextContentToken,
   operatorIndex: number,
   operand: ExistingTextContentToken | undefined,
   graphics: GraphicsState,
@@ -580,7 +580,7 @@ function readLiteralString(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   const bytes: number[] = [];
@@ -732,7 +732,7 @@ function readHexString(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   let cursor = start + 1;
@@ -817,7 +817,7 @@ function readName(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } {
   let cursor = start + 1;
@@ -856,7 +856,7 @@ function readBareToken(
   source: string,
   start: number,
 ): {
-  token: Token;
+  token: ExistingTextContentToken;
   next: number;
 } | null {
   let cursor = start;
