@@ -129,6 +129,8 @@ export const DocumentWorkspace: React.FC = () => {
     existingTextSelection,
     setExistingTextSelection,
     setInspectorTab,
+    rightPanelWidth,
+    setRightPanelWidth,
     setMobileSheetOpen,
   } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
@@ -138,6 +140,10 @@ export const DocumentWorkspace: React.FC = () => {
       state.setExistingTextSelection,
     setInspectorTab:
       state.setInspectorTab,
+    rightPanelWidth:
+      state.rightPanelWidth,
+    setRightPanelWidth:
+      state.setRightPanelWidth,
     setMobileSheetOpen:
       state.setMobileSheetOpen,
   })));
@@ -641,6 +647,10 @@ export const DocumentWorkspace: React.FC = () => {
             setPage(pageNumber);
             if (isMobile) {
               setMobileSheetOpen(true);
+            } else if (
+              rightPanelWidth <= 0.1
+            ) {
+              setRightPanelWidth(18);
             }
           }}
           onCreateAnnotation={(annotation) => {
