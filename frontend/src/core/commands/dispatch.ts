@@ -1645,8 +1645,7 @@ export async function dispatchPdfCommand(
           requirePersistentMutationSession(
             commandMutationSession,
           );
-        await mutationSession
-          .reconstructExistingText({
+        await mutationSession.reconstructExistingText({
             currentRevisionId:
               context.documentKey,
             span,
