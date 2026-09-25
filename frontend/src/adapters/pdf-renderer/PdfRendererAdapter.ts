@@ -46,6 +46,7 @@ export interface ThumbnailRenderResource {
 
 export interface TextLayerItem {
   id: string;
+  sourceIndex: number;
   text: string;
   x: number;
   y: number;
@@ -287,6 +288,7 @@ export class PdfRendererAdapter {
 
         return [{
           id: `page-${page.pageNumber}-text-${index}`,
+          sourceIndex: index,
           text: item.str,
           x: tx[4],
           y: tx[5] - emHeight,
