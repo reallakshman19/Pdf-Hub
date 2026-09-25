@@ -160,21 +160,26 @@ forbidTokens(
 );
 
 requireTokens(
-  'fallback is informational only',
+  'fallback reconstruction stays separately gated',
   textTab,
   [
     'Replacement is too wide; fallback evidence is proved',
-    'Reconstructed overlay execution is not',
+    "'RECONSTRUCT_EXISTING_TEXT'",
+    'existing-text-reconstruct-btn',
+    "capability?.status",
+    "'fallback-proved'",
+    'does not rewrite',
   ],
 );
 forbidTokens(
-  'no reconstructed overlay action',
+  'Inspector still does not mutate directly',
   textTab,
   [
     'RECONSTRUCTED_OVERLAY',
     'MASK_AND_REDRAW_EXISTING_TEXT',
     'applyReconstructedExistingText',
     'drawVisualMasks',
+    'reconstructExistingText(',
   ],
 );
 
@@ -195,7 +200,7 @@ requireTokens(
   [
     'inspects the active page using the stable PageId and shows source classification',
     'enables canonical native replacement only after capability proof',
-    'shows proved fallback as informational and exposes no fallback mutation action',
+    'exposes proved fallback through the distinct reconstructed command without cached evidence',
     'surfaces canonical command failure without claiming success',
     'opens PDF text without requiring annotation selection',
   ],
@@ -209,7 +214,7 @@ requireTokens(
     'native replacement available',
     'fallback evidence proved',
     'editing unavailable',
-    'informational only',
+    'Apply reconstructed replacement',
     'Direct on-page selection',
     'revision + PageId + PDF.js source index',
   ],
