@@ -180,7 +180,10 @@
     "certify:phase13-existing-text-visual-clearance": "pnpm run audit:phase13-existing-text-visual-clearance && pnpm run test:phase13-existing-text-visual-clearance",
     "test:phase13-existing-text-inspector-ui": "vitest run src/adapters/pdf-text/PdfLibExistingTextUiEvaluation.test.ts src/components/inspector/ExistingTextInspectorTab.test.tsx src/components/inspector/InspectorPanel.existingText.test.tsx --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-inspector-ui": "node scripts/phase13-existing-text-inspector-ui-audit.mjs",
-    "certify:phase13-existing-text-inspector-ui": "pnpm run audit:phase13-existing-text-inspector-ui && pnpm run test:phase13-existing-text-inspector-ui"
+    "certify:phase13-existing-text-inspector-ui": "pnpm run audit:phase13-existing-text-inspector-ui && pnpm run test:phase13-existing-text-inspector-ui",
+    "test:phase13-existing-text-page-selection": "vitest run src/adapters/pdf-renderer/PdfRendererAdapter.test.ts src/components/inspector/ExistingTextInspectorTab.test.tsx src/components/shell/MobileShell.test.tsx --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-page-selection": "node scripts/phase13-existing-text-page-selection-audit.mjs",
+    "certify:phase13-existing-text-page-selection": "pnpm run audit:phase13-existing-text-page-selection && pnpm run test:phase13-existing-text-page-selection"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
