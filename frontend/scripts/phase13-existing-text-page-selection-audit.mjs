@@ -186,6 +186,7 @@ requireTokens(
     'existingTextSelection !== null',
     'hasInspectorContent',
     'renders MobileSheet with Inspector Content for direct existing-PDF text selection',
+    'keeps the Inspector sheet open when annotation selection clears but direct PDF text remains selected',
   ],
 );
 
