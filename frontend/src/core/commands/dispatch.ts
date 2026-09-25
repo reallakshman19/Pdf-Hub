@@ -180,6 +180,10 @@ function commandLabel(command: PdfCommand): string {
       return 'Draw visual mask';
     case 'APPLY_WORKING_COPY':
       return command.payload.reason ?? command.payload.macro?.recipeName ?? 'Apply working copy';
+    case 'ANNOTATION_CHANGE':
+      return `Annotation change: ${command.payload.action}`;
+    case 'WRITER_CHANGE':
+      return `Writer change: ${command.payload.action}`;
   }
 }
 
@@ -1566,8 +1570,7 @@ export async function dispatchPdfCommand(
           requirePersistentMutationSession(
             commandMutationSession,
           );
-        await mutationSession
-          .replaceExistingText({
+        await mutationSession.replaceExistingText({
             currentRevisionId:
               context.documentKey,
             span,
@@ -1798,6 +1801,12 @@ export async function dispatchPdfCommand(
         );
       }
     }
+
+    return commandError(
+      command,
+      'VALIDATION_FAILED',
+      `Unsupported command type: ${(command as { type: string }).type}`,
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
     if (isOperationCancelledError(error)) {
