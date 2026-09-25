@@ -284,7 +284,13 @@ function reconstructedExistingTextDraft(
   pageId =
     'test-doc::stable::1',
   replacementText = 'World',
-): PdfCommandDraft {
+): Extract<
+  PdfCommandDraft,
+  {
+    type:
+      'RECONSTRUCT_EXISTING_TEXT';
+  }
+> {
   const native =
     existingTextDraft(
       pageId,
@@ -709,6 +715,47 @@ describe('canonical command dispatch', () => {
         ?.command.type,
     ).toBe(
       'RECONSTRUCT_EXISTING_TEXT',
+    );
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        2,
+        2,
+        2,
+      ]),
+    );
+
+    await expect(
+      applyUndo(),
+    ).resolves.toBe(true);
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        1,
+        1,
+        1,
+      ]),
+    );
+
+    await expect(
+      applyRedo(),
+    ).resolves.toBe(true);
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        2,
+        2,
+        2,
+      ]),
     );
   });
 
