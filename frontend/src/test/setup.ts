@@ -31,6 +31,28 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
   } as unknown as typeof DOMMatrix;
 }
 
+// Polyfill Promise.try for Node 22 (required for pdfjs-dist@5.6.205)
+if (typeof (Promise as unknown as { try?: unknown }).try !== 'function') {
+  (Promise as unknown as { try: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => Promise<unknown> }).try = function (fn, ...args) {
+    return new Promise((resolve) => resolve(fn(...args)));
+  };
+}
+
+// Polyfill Uint8Array.prototype.toHex and toBase64 for Node 22 (required for pdfjs-dist@5.6.205)
+if (typeof (Uint8Array.prototype as unknown as { toHex?: unknown }).toHex !== 'function') {
+  (Uint8Array.prototype as unknown as { toHex: (this: Uint8Array) => string }).toHex = function (this: Uint8Array) {
+    return Array.from(this)
+      .map((b: number) => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+}
+
+if (typeof (Uint8Array.prototype as unknown as { toBase64?: unknown }).toBase64 !== 'function') {
+  (Uint8Array.prototype as unknown as { toBase64: (this: Uint8Array) => string }).toBase64 = function (this: Uint8Array) {
+    return Buffer.from(this).toString('base64');
+  };
+}
+
 // Polyfill localStorage/sessionStorage for jsdom in environments where globalThis.localStorage is restricted
 if (typeof window !== 'undefined') {
   const mockStorage = () => {

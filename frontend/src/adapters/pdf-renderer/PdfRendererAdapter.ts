@@ -171,6 +171,16 @@ function canvasToBlob(
 
 export class PdfRendererAdapter {
   private static workerConfigured = false;
+
+  static configureWorker(options: {
+    workerSrc: string;
+    cMapUrl?: string;
+    standardFontDataUrl?: string;
+  }): void {
+    if (PdfRendererAdapter.workerConfigured) return;
+    GlobalWorkerOptions.workerSrc = options.workerSrc;
+    PdfRendererAdapter.workerConfigured = true;
+  }
   static acquireDocument(
     buffer: Uint8Array | ArrayBuffer,
   ): Promise<PdfDocumentLease> {

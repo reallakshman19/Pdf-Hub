@@ -100,11 +100,7 @@ export async function acquireRevisionStoreExclusiveLease(
       input.storeId,
     );
   const lockManager =
-    (
-      globalThis.navigator
-        as NavigatorWithLocks
-        | undefined
-    )?.locks;
+    (globalThis.navigator as NavigatorWithLocks | undefined)?.locks;
 
   if (!lockManager?.request) {
     if (input.requireCrossContext) {
@@ -137,11 +133,7 @@ export async function acquireRevisionStoreGcBlockerLease(
   storeId: string,
 ): Promise<RevisionStoreExclusiveLease> {
   const lockManager =
-    (
-      globalThis.navigator
-        as NavigatorWithLocks
-        | undefined
-    )?.locks;
+    (globalThis.navigator as NavigatorWithLocks | undefined)?.locks;
 
   if (!lockManager?.request) {
     return noOpLease(storeId);
@@ -174,11 +166,7 @@ export async function acquireRevisionStoreGcClearanceLease(
   storeId: string,
 ): Promise<RevisionStoreExclusiveLease> {
   const lockManager =
-    (
-      globalThis.navigator
-        as NavigatorWithLocks
-        | undefined
-    )?.locks;
+    (globalThis.navigator as NavigatorWithLocks | undefined)?.locks;
   if (!lockManager?.request) {
     throw new RevisionStoreLockUnavailableError(
       storeId,

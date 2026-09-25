@@ -773,8 +773,7 @@ export const WriterV2Inspector: React.FC = () => {
               onChange={(event) => {
                 void patchCallout({
                   leaderStyle:
-                    event.currentTarget.value
-                    as 'none' | 'line' | 'arrow',
+                    event.currentTarget.value as 'none' | 'line' | 'arrow',
                 }).catch(() => undefined);
               }}
               style={{
@@ -1008,8 +1007,7 @@ export const WriterV2Inspector: React.FC = () => {
                   onChange={(event) => {
                     void updateActiveWriterReviewMetadata({
                       status:
-                        event.currentTarget.value
-                        as WriterReviewStatus,
+                        event.currentTarget.value as WriterReviewStatus,
                     });
                   }}
                   style={selectStyle}
@@ -1028,8 +1026,7 @@ export const WriterV2Inspector: React.FC = () => {
                   onChange={(event) => {
                     void updateActiveWriterReviewMetadata({
                       priority:
-                        event.currentTarget.value
-                        as WriterReviewPriority,
+                        event.currentTarget.value as WriterReviewPriority,
                     });
                   }}
                   style={selectStyle}
@@ -1048,8 +1045,7 @@ export const WriterV2Inspector: React.FC = () => {
                   onChange={(event) => {
                     void updateActiveWriterReviewMetadata({
                       category:
-                        event.currentTarget.value
-                        as WriterReviewCategory,
+                        event.currentTarget.value as WriterReviewCategory,
                     });
                   }}
                   style={selectStyle}

@@ -89,10 +89,7 @@ export function isPdfHubSdkApiVersionSupported(
 ): version is PdfHubSdkClientSupportedApiVersion {
   return (
     typeof version === 'string'
-    && (
-      PDF_HUB_SDK_CLIENT_SUPPORTED_API_VERSIONS
-        as readonly string[]
-    ).includes(version)
+    && (PDF_HUB_SDK_CLIENT_SUPPORTED_API_VERSIONS as readonly string[]).includes(version)
   );
 }
 
@@ -255,8 +252,7 @@ function readCapabilities(
   let raw: unknown;
   try {
     raw = (
-      host.getCapabilities
-      as () => unknown
+      host.getCapabilities as () => unknown
     ).call(host);
   } catch (error) {
     throw new PdfHubSdkClientError(
