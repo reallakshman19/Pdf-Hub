@@ -37,6 +37,8 @@ describe('MobileShell', () => {
     useEditorStore.setState({
       mobileDrawerOpen: false,
       mobileSheetOpen: false,
+      inspectorTab: 'properties',
+      existingTextSelection: null,
     });
     useAnnotationStore.setState({
       selectedAnnotationIds: [],
@@ -118,6 +120,29 @@ describe('MobileShell', () => {
     useAnnotationStore.setState({ selectedAnnotationIds: ['annotation-1'] });
     render(<MobileShell {...defaultProps} />);
     expect(screen.getByText('Inspector Content')).toBeInTheDocument();
+  });
+
+  it('renders MobileSheet with Inspector Content for direct existing-PDF text selection', () => {
+    useEditorStore.setState({
+      mobileSheetOpen: true,
+      inspectorTab: 'text',
+      existingTextSelection: {
+        revisionId: 'doc-1',
+        pageId: 'page-1',
+        sourceIndex: 0,
+      },
+    });
+    useAnnotationStore.setState({
+      selectedAnnotationIds: [],
+    });
+
+    render(
+      <MobileShell {...defaultProps} />,
+    );
+
+    expect(
+      screen.getByText('Inspector Content'),
+    ).toBeInTheDocument();
   });
 
   it('renders MobileSheet with More Actions if mobileSheetOpen is true and no annotation is selected', () => {
