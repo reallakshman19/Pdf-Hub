@@ -86,6 +86,7 @@ describe('existing-text provenance matcher', () => {
         status: 'matched',
         spanId: span.id,
         provenance: {
+          operator: 'Tj',
           decodedText: 'Hello',
           fontSizePt: 12,
           textMatrix: [
@@ -97,6 +98,54 @@ describe('existing-text provenance matcher', () => {
             700,
           ],
         },
+      });
+  });
+
+  it('maps a native candidate to one exact single-string TJ array operator', () => {
+    const result =
+      matchExistingTextSpanToContentStream({
+        span,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm [(Hello)] TJ ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'matched',
+        spanId: span.id,
+        provenance: {
+          operator: 'TJ',
+          decodedText: 'Hello',
+          fontSizePt: 12,
+          textMatrix: [
+            1,
+            0,
+            0,
+            1,
+            72,
+            700,
+          ],
+        },
+      });
+  });
+
+  it('detects ambiguity between Tj and TJ candidates matching the same span', () => {
+    const result =
+      matchExistingTextSpanToContentStream({
+        span,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET',
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm [(Hello)] TJ ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'unmapped',
+        reason:
+          'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
+        candidateCount: 2,
       });
   });
 

@@ -37,6 +37,9 @@ export type {
   ExistingTextProvenanceUnmappedReason,
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
+  ExistingTextTjOperator,
+  ExistingTextSingleStringTjArrayOperator,
+  ExistingTextNativeTextOperator,
 } from './provenanceTypes';
 
 export {

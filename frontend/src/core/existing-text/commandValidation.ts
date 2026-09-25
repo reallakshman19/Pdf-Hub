@@ -436,9 +436,12 @@ export function validateReplaceExistingTextCommandPayload(
     'payload.provenance.operatorIndex',
     errors,
   );
-  if (provenance.operator !== 'Tj') {
+  if (
+    provenance.operator !== 'Tj'
+    && provenance.operator !== 'TJ'
+  ) {
     errors.push(
-      'payload.provenance.operator must be Tj.',
+      'payload.provenance.operator must be Tj or TJ.',
     );
   }
 
@@ -453,7 +456,66 @@ export function validateReplaceExistingTextCommandPayload(
     errors,
   );
 
-  if (
+  if (provenance.operator === 'TJ') {
+    validateRange(
+      provenance.arrayRange,
+      'payload.provenance.arrayRange',
+      errors,
+    );
+
+    if (
+      isRecord(
+        provenance.arrayRange,
+      )
+      && isRecord(
+        provenance.operandRange,
+      )
+      && Number.isInteger(
+        provenance.arrayRange.start,
+      )
+      && Number.isInteger(
+        provenance.operandRange.start,
+      )
+      && Number.isInteger(
+        provenance.operandRange.end,
+      )
+      && Number.isInteger(
+        provenance.arrayRange.end,
+      )
+    ) {
+      if (
+        (provenance.arrayRange.start as number)
+        > (provenance.operandRange.start as number)
+        || (provenance.operandRange.end as number)
+        > (provenance.arrayRange.end as number)
+      ) {
+        errors.push(
+          'payload.provenance operand must be enclosed within the TJ arrayRange.',
+        );
+      }
+    }
+
+    if (
+      isRecord(
+        provenance.arrayRange,
+      )
+      && isRecord(
+        provenance.operatorRange,
+      )
+      && Number.isInteger(
+        provenance.arrayRange.end,
+      )
+      && Number.isInteger(
+        provenance.operatorRange.start,
+      )
+      && (provenance.arrayRange.end as number)
+      > (provenance.operatorRange.start as number)
+    ) {
+      errors.push(
+        'payload.provenance array must end before the TJ operator begins.',
+      );
+    }
+  } else if (
     isRecord(
       provenance.operatorRange,
     )

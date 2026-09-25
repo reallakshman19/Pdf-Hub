@@ -34,11 +34,10 @@ export type ExistingTextSimpleStringEncoding =
   | 'ascii-literal'
   | 'ascii-hex';
 
-export interface ExistingTextSimpleTextOperator {
+export interface ExistingTextSimpleTextOperatorBase {
   streamIndex: number;
   streamRef: string | null;
   operatorIndex: number;
-  operator: 'Tj';
   operatorRange: {
     start: number;
     end: number;
@@ -55,6 +54,27 @@ export interface ExistingTextSimpleTextOperator {
   textMatrix:
     ExistingTextTransform;
 }
+
+export interface ExistingTextTjOperator
+  extends ExistingTextSimpleTextOperatorBase {
+  operator: 'Tj';
+}
+
+export interface ExistingTextSingleStringTjArrayOperator
+  extends ExistingTextSimpleTextOperatorBase {
+  operator: 'TJ';
+  arrayRange: {
+    start: number;
+    end: number;
+  };
+}
+
+export type ExistingTextSimpleTextOperator =
+  | ExistingTextTjOperator
+  | ExistingTextSingleStringTjArrayOperator;
+
+export type ExistingTextNativeTextOperator =
+  ExistingTextSimpleTextOperator;
 
 export interface ExistingTextContentScanResult {
   complete: boolean;

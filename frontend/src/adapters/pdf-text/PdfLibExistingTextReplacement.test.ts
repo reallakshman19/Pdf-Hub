@@ -4,6 +4,7 @@ import {
   it,
 } from 'vitest';
 import {
+  decodePDFRawStream,
   PDFArray,
   PDFDict,
   PDFDocument,
@@ -788,7 +789,227 @@ describe('simple existing-text native replacement', () => {
         'SHARED_CONTENT_STREAM_REF',
     });
   });
+
+  it('replaces a single-string literal TJ array, preserving array syntax and surviving save/reopen', async () => {
+    const source =
+      await generatedTjArrayPdf(
+        'Hello',
+        'literal',
+      );
+    const originalProvenance =
+      await provenanceFor(
+        source,
+        'Hello',
+      );
+    expect(originalProvenance.operator).toBe('TJ');
+
+    const result =
+      await replace(
+        source,
+        'Hello',
+        'Hi',
+      );
+
+    expect(result)
+      .toMatchObject({
+        originalText: 'Hello',
+        replacementText: 'Hi',
+        encoding: 'ascii-literal',
+        baseFont: 'Helvetica',
+        proof: {
+          prefixBytesPreserved: true,
+          suffixBytesPreserved: true,
+          fit: {
+            status: 'fits',
+            baseFont: 'Helvetica',
+          },
+        },
+      });
+
+    const reopened =
+      await readExistingTextPageContentStreams(
+        result.pdfBytes,
+        0,
+      );
+    expect(
+      reopened.streams[result.streamIndex]?.streamRef,
+    ).toBe(originalProvenance.streamRef);
+
+    const candidates =
+      reopened.streams.flatMap(
+        (stream) =>
+          scanExistingTextContentStream(stream).candidates,
+      );
+    expect(
+      candidates.some(
+        (candidate) =>
+          candidate.operator === 'TJ'
+          && candidate.decodedText === 'Hi',
+      ),
+    ).toBe(true);
+    expect(
+      candidates.some(
+        (candidate) => candidate.decodedText === 'Hello',
+      ),
+    ).toBe(false);
+
+    const reopenedDoc =
+      await PDFDocument.load(
+        result.pdfBytes,
+        { updateMetadata: false },
+      );
+    const streamText = Array.from(
+      decodePDFRawStream(
+        firstPageRawStream(reopenedDoc),
+      ).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('[(Hi)] TJ');
+
+    const lease =
+      await PdfRendererAdapter.acquireDocument(
+        result.pdfBytes,
+      );
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items =
+          await PdfRendererAdapter.getPageExistingTextSourceItems(
+            page,
+          );
+        expect(
+          items.some((item) => item.text === 'Hi'),
+        ).toBe(true);
+        expect(
+          items.some((item) => item.text === 'Hello'),
+        ).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('replaces a single-string ASCII hex TJ array, preserving hex encoding family', async () => {
+    const source =
+      await generatedTjArrayPdf(
+        'Hello',
+        'hex',
+      );
+    const originalProvenance =
+      await provenanceFor(
+        source,
+        'Hello',
+      );
+    expect(originalProvenance.operator).toBe('TJ');
+    expect(originalProvenance.encoding).toBe('ascii-hex');
+
+    const result =
+      await replace(
+        source,
+        'Hello',
+        'Hi',
+      );
+
+    expect(result)
+      .toMatchObject({
+        originalText: 'Hello',
+        replacementText: 'Hi',
+        encoding: 'ascii-hex',
+        baseFont: 'Helvetica',
+      });
+
+    const reopenedDoc =
+      await PDFDocument.load(
+        result.pdfBytes,
+        { updateMetadata: false },
+      );
+    const streamText = Array.from(
+      decodePDFRawStream(
+        firstPageRawStream(reopenedDoc),
+      ).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('[<4869>] TJ');
+  });
+
+  it('rejects provenance drift if TJ arrayRange does not match', async () => {
+    const source =
+      await generatedTjArrayPdf(
+        'Hello',
+        'literal',
+      );
+    const originalProvenance =
+      await provenanceFor(
+        source,
+        'Hello',
+      );
+    expect(originalProvenance.operator).toBe('TJ');
+
+    if (originalProvenance.operator === 'TJ') {
+      const tamperedProvenance = {
+        ...originalProvenance,
+        arrayRange: {
+          start: originalProvenance.arrayRange.start + 1,
+          end: originalProvenance.arrayRange.end,
+        },
+      };
+
+      const span = spanFor('Hello');
+      const intent = createExistingTextEditIntent(
+        span,
+        'Hi',
+      );
+
+      await expect(
+        replaceSimpleExistingTextTj({
+          pdfBytes: source,
+          currentRevisionId: REVISION,
+          span,
+          intent,
+          provenance: tamperedProvenance,
+        }),
+      ).rejects.toMatchObject({
+        code: 'PROVENANCE_DRIFT',
+      });
+    }
+  });
 });
+
+async function generatedTjArrayPdf(
+  text: string,
+  mode: 'literal' | 'hex' = 'literal',
+  fontName: string = StandardFonts.Helvetica,
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const token =
+    mode === 'literal'
+      ? `(${text})`
+      : `<${Array.from(text, (character) =>
+          character.charCodeAt(0).toString(16).padStart(2, '0'),
+        ).join('').toUpperCase()}>`;
+  const modifiedSource = source.replace(
+    /<[0-9a-fA-F]+>\s*Tj/,
+    `[${token}] TJ`,
+  );
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
 
 function resolveFontDict(
   document: PDFDocument,
