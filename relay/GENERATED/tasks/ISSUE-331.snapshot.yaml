@@ -1,0 +1,385 @@
+{
+  "schema_version": "relay-v3.1-task-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "source_protocol": "V3_1",
+  "protocol_basis": {
+    "protocol": "V3.1",
+    "common_repository": "reallaksh19/Common",
+    "common_sha": "85bd46ac286003612598c1d8f0fa5d684728c228",
+    "two_pass_revision": "TPG-2P-2026-09-25-R1",
+    "resolved_at": "2026-09-25T05:13:11Z"
+  },
+  "identity": {
+    "work_package": "STEP-13-09",
+    "ep": null,
+    "issue": 331,
+    "delivery_vehicle": 332
+  },
+  "purpose": {
+    "programme_outcome": "Enable useful existing-PDF text editing while keeping native replacement, reconstructed replacement, and unsupported text semantically distinct and evidence-bound.",
+    "current_goal": "Deliver the bounded reconstructed replacement executor for the already-proved strict visual-clearance fallback class.",
+    "task_outcome": "A fallback-proved existing-text edit executes through a distinct canonical command that revalidates proof on the active mutation-session document immediately before mask/redraw.",
+    "why_this_task_exists": "Phase 13 can prove a narrow visual-clearance fallback, but production previously had no reconstructed mutation executor."
+  },
+  "lineage": {
+    "predecessor_checkpoint": null,
+    "upstream_dependencies": [
+      "Merged Phase 13 foundation #313/#315/#317/#319/#321/#323/#325",
+      "Merged direct on-page selection #328 / e9026571745792182bbb689449c4f1e7e771bcd0"
+    ],
+    "roadmap_admission": {
+      "disposition": "MAPPED_EXISTING_WP",
+      "revision": "PHASE-013",
+      "basis": [
+        "Parent programme #312 assigns STEP-13-09 to child #331."
+      ]
+    }
+  },
+  "parent_issue": {
+    "repository": "reallaksh19/Pdf-Hub",
+    "number": 331,
+    "title": "Phase 13.2: bounded reconstructed existing-text replacement",
+    "state": "OPEN",
+    "url": "https://github.com/reallaksh19/Pdf-Hub/issues/331",
+    "baseline": null,
+    "current": {
+      "body_basis": "Provider issue #331 acceptance AC-13.2-01..10.",
+      "material_head": "d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00"
+    },
+    "updates": [],
+    "disposition": "NO_CHANGE",
+    "relationships": [],
+    "handover_ledger": {
+      "repository": "reallaksh19/Pdf-Hub",
+      "issue_number": 327,
+      "url": "https://github.com/reallaksh19/Pdf-Hub/issues/327"
+    }
+  },
+  "programme_parent": {
+    "repository": "reallaksh19/Pdf-Hub",
+    "number": 312,
+    "title": "Phase 13: bounded existing-PDF text editing",
+    "url": "https://github.com/reallaksh19/Pdf-Hub/issues/312"
+  },
+  "planning": {
+    "state": "PRESENT",
+    "provider_ref": "github:reallaksh19/Pdf-Hub#331/comment-5826970252",
+    "revision": 1,
+    "digest": null,
+    "observed_at": "2026-09-25T04:54:22Z",
+    "responsibility_basis_ref": "github:reallaksh19/Pdf-Hub#331",
+    "responsibility_basis_digest": null,
+    "expected_next_observable": {
+      "statement": "Obtain executable focused certification on the current product material while PR #332 remains draft; fix any product-level failures before readiness.",
+      "evidence": [
+        "PR #332 contains the planned material.",
+        "Exact product-head GitHub jobs terminated before runner steps under #183."
+      ]
+    }
+  },
+  "task_publications": [
+    {
+      "type": "IMPLEMENTATION_PLAN",
+      "ref": "github:reallaksh19/Pdf-Hub#331/comment-5826970252",
+      "observed_at": "2026-09-25T04:54:22Z",
+      "summary": "Rev 1 plans a distinct reconstructed command with same-session execution-time proof and no cached UI evidence as write authority.",
+      "exact_head": null
+    },
+    {
+      "type": "TASK_EVIDENCE",
+      "ref": "github:reallaksh19/Pdf-Hub#331/comment-5827174351",
+      "observed_at": "2026-09-25T05:13:11Z",
+      "summary": "Material/static review passes; executable certification is NOT_RUN because hosted jobs never received a runner and no local executable surface is available.",
+      "exact_head": "d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00"
+    }
+  ],
+  "parent_issue_progress": {
+    "checklist": [
+      {
+        "id": "AC-13.2-01",
+        "statement": "Separate canonical reconstructed command",
+        "state": "COMPLETE",
+        "evidence": [
+          "RECONSTRUCT_EXISTING_TEXT exists separately from native replacement."
+        ]
+      },
+      {
+        "id": "AC-13.2-02",
+        "statement": "Revision/PageId/source identity fails closed",
+        "state": "COMPLETE",
+        "evidence": [
+          "Command validation and dispatch PageId checks are material; focused regression is authored."
+        ]
+      },
+      {
+        "id": "AC-13.2-03",
+        "statement": "Execution revalidates proof immediately before write",
+        "state": "COMPLETE",
+        "evidence": [
+          "Same-session analyzer operates on the mutation session's exact PDFDocument."
+        ]
+      },
+      {
+        "id": "AC-13.2-04",
+        "statement": "Only proved fallback class is admitted",
+        "state": "COMPLETE",
+        "evidence": [
+          "Reconstruction requires fresh strict clearance proof with native overflow."
+        ]
+      },
+      {
+        "id": "AC-13.2-05",
+        "statement": "Proved mask/redraw uses canonical mutation/history path",
+        "state": "COMPLETE",
+        "evidence": [
+          "Persistent mutation session -> commitDocumentMutation path is material."
+        ]
+      },
+      {
+        "id": "AC-13.2-06",
+        "statement": "Reconstructed output is never labeled native",
+        "state": "COMPLETE",
+        "evidence": [
+          "Inspector and documentation explicitly call the path reconstructed visual replacement."
+        ]
+      },
+      {
+        "id": "AC-13.2-07",
+        "statement": "Undo/redo and save/reopen preserve reconstructed result",
+        "state": "PARTIAL",
+        "evidence": [
+          "Undo/redo and PDF.js reopen regressions are authored but not executable in the current environment."
+        ]
+      },
+      {
+        "id": "AC-13.2-08",
+        "statement": "Native path remains unchanged and preferred",
+        "state": "COMPLETE",
+        "evidence": [
+          "Native command/writer is not widened; Inspector exposes reconstruction only for fallback-proved."
+        ]
+      },
+      {
+        "id": "AC-13.2-09",
+        "statement": "Focused failure/success/history/save-reopen fixtures exist",
+        "state": "PARTIAL",
+        "evidence": [
+          "Focused suite is authored; execution is NOT_RUN."
+        ]
+      },
+      {
+        "id": "AC-13.2-10",
+        "statement": "Validation truth is exact",
+        "state": "COMPLETE",
+        "evidence": [
+          "Provider zero-step failures are reported as NOT_RUN / INFRASTRUCTURE, not PASS or code FAIL."
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 8,
+      "partial": 2,
+      "pending": 0,
+      "blocked": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 10
+    }
+  },
+  "current_task_progress": {
+    "checklist": [
+      {
+        "id": "IMPLEMENT",
+        "statement": "Approved material plan implemented",
+        "state": "COMPLETE",
+        "evidence": [
+          "PR #332 product head d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00"
+        ]
+      },
+      {
+        "id": "STATIC",
+        "statement": "Source/static safety review",
+        "state": "COMPLETE",
+        "evidence": [
+          "Core and compatibility token-contract reviews PASS."
+        ]
+      },
+      {
+        "id": "EXECUTE",
+        "statement": "Focused executable certification",
+        "state": "PENDING",
+        "evidence": [
+          "NOT_RUN / ENVIRONMENT and NOT_RUN / INFRASTRUCTURE."
+        ]
+      },
+      {
+        "id": "DELIVER",
+        "statement": "Review-ready/TASK_RESULT disposition",
+        "state": "PENDING",
+        "evidence": [
+          "PR #332 remains draft."
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 2,
+      "partial": 0,
+      "pending": 2,
+      "blocked": 0,
+      "total": 4
+    }
+  },
+  "offloads": [],
+  "pending_items": [
+    "Execution-capable run of pnpm run certify:phase13-existing-text-reconstructed-replacement on the current product material."
+  ],
+  "known_issues": [
+    "#183: GitHub Actions jobs terminate before runner assignment with steps:null and no logs."
+  ],
+  "improvement_vs_original_issue": {
+    "baseline_digest": null,
+    "items": [
+      {
+        "id": "IP-01",
+        "scope_relation": "IN_SCOPE",
+        "result": "Same-document proof/write implemented; target text color proof was narrowly strengthened rather than guessed."
+      }
+    ]
+  },
+  "scope": {
+    "write": [
+      "frontend/src/core/commands/**",
+      "frontend/src/core/existing-text/**",
+      "frontend/src/core/pdf-mutation/**",
+      "frontend/src/adapters/pdf-text/**",
+      "frontend/src/adapters/pdf-mutation/**",
+      "frontend/src/components/inspector/**",
+      "frontend/src/core/document-history/**",
+      "frontend/scripts/**",
+      "frontend/package.json",
+      "Docs/EXISTING_PDF_TEXT_EDITING.md",
+      "relay/GENERATED/tasks/ISSUE-331.snapshot.*"
+    ],
+    "read": [
+      "Merged Phase 13 provenance, fit, clearance, native writer, transaction/history and Inspector paths."
+    ],
+    "protected": [
+      "Native REPLACE_EXISTING_TEXT semantics",
+      "revision + stable PageId identity",
+      "CommandBus/DocumentTransaction/history authority",
+      "normal browser text-selection and annotation workflows"
+    ],
+    "prohibited": [
+      "native operator/font/encoding expansion",
+      "OCR mutation",
+      "paragraph/region reflow",
+      "cached Inspector evidence as mutation authority",
+      "public SDK expansion in this slice"
+    ]
+  },
+  "inputs": [],
+  "benchmarks": [],
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "lease_or_custody": null,
+    "executor": "issue-331 primary agent",
+    "route": "ISSUE:#331",
+    "branch": "phase13/reconstructed-existing-text-replacement"
+  },
+  "material": {
+    "base": "4ad5b88288d7997472b98d35028a2db36785d00b",
+    "current_head": "d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00"
+  },
+  "acceptance": [
+    {
+      "id": "TA-331-MATERIAL",
+      "state": "PASS",
+      "statement": "Bounded material implementation matches the approved reconstructed-replacement responsibility.",
+      "evidence": [
+        "PR #332 product head d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00"
+      ]
+    },
+    {
+      "id": "TA-331-STATIC",
+      "state": "PASS",
+      "statement": "Static/source safety and compatibility review passes.",
+      "evidence": [
+        "Core safety and audit-contract review completed."
+      ]
+    },
+    {
+      "id": "TA-331-EXEC",
+      "state": "NOT_RUN",
+      "statement": "Focused executable certification passes on current material.",
+      "evidence": [
+        "Local execution unavailable; GitHub jobs terminated before runner steps."
+      ]
+    },
+    {
+      "id": "TA-331-DELIVERY",
+      "state": "PENDING",
+      "statement": "PR reaches review-ready/TASK_RESULT disposition.",
+      "evidence": [
+        "PR #332 remains draft pending executable evidence."
+      ]
+    }
+  ],
+  "controls": {
+    "material_write": [],
+    "checkpoint": [],
+    "handover": [],
+    "pr_ready": [],
+    "merge": [],
+    "release": []
+  },
+  "knowledge_state": {
+    "known_true": [
+      "The reconstructed command is separate from native replacement.",
+      "Fresh proof is recomputed on the mutation session's exact parsed document before drawing.",
+      "Command payload does not carry cached clearance or fit evidence.",
+      "The reconstructed path is visual and does not rewrite the original text-show operator.",
+      "Executable certification has not run."
+    ],
+    "known_false": [
+      "Current GitHub workflow failure proves a product-code failure.",
+      "Reconstructed replacement is native source-text editing.",
+      "Cached fallback evidence from Inspector is sufficient write authority."
+    ],
+    "unknown": [
+      "Whether executable TypeScript/Vitest certification will expose additional product defects."
+    ],
+    "assumptions": []
+  },
+  "negative_knowledge": [
+    "Do not convert hosted zero-step failures into PASS or code FAIL.",
+    "Do not widen native operator/font/encoding scope in #331.",
+    "Do not claim underlying source text is removed by reconstructed mask/redraw."
+  ],
+  "next": {
+    "immediate_action": "Run pnpm run certify:phase13-existing-text-reconstructed-replacement on an execution-capable surface against the product material head; fix any product failures before review-ready disposition.",
+    "next_value_frontier": "Executable proof for STEP-13-09 without weakening the reconstructed/native distinction.",
+    "stop_conditions": [
+      "Keep PR #332 draft without executable PASS unless the Owner explicitly authorizes an infrastructure exception.",
+      "Do not merge based on static/source review alone.",
+      "Do not expand into STEP-13-10 operator coverage."
+    ]
+  },
+  "reconstruction_sources": [
+    "https://github.com/reallaksh19/Pdf-Hub/issues/312",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/331",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/331#issuecomment-5826970252",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/331#issuecomment-5827174351",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/327",
+    "https://github.com/reallaksh19/Pdf-Hub/pull/332"
+  ],
+  "delivery": {
+    "pr": 332,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/332",
+    "lifecycle": "DRAFT",
+    "base": "4ad5b88288d7997472b98d35028a2db36785d00b",
+    "head": "d709a5c26ac689bde7b11eec7d31c5ca4f5f9f00",
+    "mergeability": "MERGEABLE"
+  },
+  "delivery_stack": []
+}
