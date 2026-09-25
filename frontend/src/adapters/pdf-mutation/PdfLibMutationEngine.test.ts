@@ -774,6 +774,39 @@ describe('PdfLibMutationEngine', () => {
     }
   });
 
+  it('rejects non-ASCII reconstructed text at the mutation-session boundary', async () => {
+    const bytes =
+      await createReconstructableExistingTextPdf();
+    const fixture =
+      await existingTextMutationFixture(
+        bytes,
+        'café',
+      );
+
+    const engine =
+      new PdfLibMutationEngine();
+    const session =
+      await engine.open({
+        bytes,
+      });
+
+    await expect(
+      session.reconstructExistingText({
+        currentRevisionId:
+          fixture.revisionId,
+        span: fixture.span,
+        intent: fixture.intent,
+        provenance:
+          fixture.provenance,
+      }),
+    ).rejects.toMatchObject({
+      code:
+        'UNSUPPORTED_REPLACEMENT_TEXT',
+    });
+
+    session.dispose();
+  });
+
   it('fails closed when current-session paint changes invalidate reconstructed clearance', async () => {
     const bytes =
       await createReconstructableExistingTextPdf();
