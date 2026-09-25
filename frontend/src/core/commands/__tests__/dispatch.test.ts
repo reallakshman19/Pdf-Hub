@@ -783,6 +783,45 @@ describe('canonical command dispatch', () => {
       .not.toHaveBeenCalled();
   });
 
+  it('maps reconstructed proof loss to validation failure without commit', async () => {
+    mutationEngineMocks
+      .reconstructExistingText
+      .mockRejectedValue(
+        new ExistingTextReplacementError(
+          'RECONSTRUCTED_VISUAL_CLEARANCE_UNPROVED',
+          'clearance changed',
+        ),
+      );
+
+    const result =
+      await execute(
+        reconstructedExistingTextDraft(),
+      );
+
+    expect(result).toMatchObject({
+      success: false,
+      mutated: false,
+      error: {
+        code:
+          'VALIDATION_FAILED',
+        message:
+          'clearance changed',
+      },
+    });
+    expect(
+      mutationEngineMocks
+        .reconstructExistingText,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      mutationEngineMocks.commit,
+    ).not.toHaveBeenCalled();
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack,
+    ).toHaveLength(0);
+  });
+
   it('rejects existing-text PageId drift before mutation-session write', async () => {
     const result =
       await execute(
