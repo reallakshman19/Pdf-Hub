@@ -3,6 +3,7 @@ import type {
   ActiveTool,
   ActiveMode,
   EditorState,
+  ExistingPdfTextSelection,
   InspectorTab,
   SidebarTab,
 } from './types';
@@ -19,6 +20,7 @@ export interface EditorActions {
   setMacroBuilderSource: (source: string | null) => void;
   setMobileDrawerOpen: (open: boolean) => void;
   setMobileSheetOpen: (open: boolean) => void;
+  setExistingTextSelection: (selection: ExistingPdfTextSelection | null) => void;
 }
 
 export const useEditorStore = create<EditorState & EditorActions>((set) => ({
@@ -32,6 +34,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   macroBuilderSource: null,
   mobileDrawerOpen: false,
   mobileSheetOpen: false,
+  existingTextSelection: null,
   setActiveTool: (activeTool) => set({
     activeTool: normalizeActiveTool(activeTool),
   }),
@@ -44,4 +47,5 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   setMacroBuilderSource: (macroBuilderSource) => set({ macroBuilderSource }),
   setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
   setMobileSheetOpen: (mobileSheetOpen) => set({ mobileSheetOpen }),
+  setExistingTextSelection: (existingTextSelection) => set({ existingTextSelection }),
 }));

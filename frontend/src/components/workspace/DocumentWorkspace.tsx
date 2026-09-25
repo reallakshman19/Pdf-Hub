@@ -108,6 +108,7 @@ export const DocumentWorkspace: React.FC = () => {
     revisionStoreId,
     originalRevisionId,
     activeRevisionId,
+    pageGraph,
     viewState,
     setPage,
     setZoom,
@@ -117,13 +118,31 @@ export const DocumentWorkspace: React.FC = () => {
     revisionStoreId: state.revisionStoreId,
     originalRevisionId: state.originalRevisionId,
     activeRevisionId: state.activeRevisionId,
+    pageGraph: state.pageGraph,
     viewState: state.viewState,
     setPage: state.setPage,
     setZoom: state.setZoom,
   })));
 
-  const { activeTool } = useEditorStore(useShallow((state) => ({
+  const {
+    activeTool,
+    existingTextSelection,
+    setExistingTextSelection,
+    setInspectorTab,
+    setRightPanelWidth,
+    setMobileSheetOpen,
+  } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
+    existingTextSelection:
+      state.existingTextSelection,
+    setExistingTextSelection:
+      state.setExistingTextSelection,
+    setInspectorTab:
+      state.setInspectorTab,
+    setRightPanelWidth:
+      state.setRightPanelWidth,
+    setMobileSheetOpen:
+      state.setMobileSheetOpen,
   })));
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
@@ -279,6 +298,30 @@ export const DocumentWorkspace: React.FC = () => {
     originalRevisionId,
     activeRevisionId,
     setSharedPdfDoc,
+  ]);
+
+  React.useEffect(() => {
+    if (!existingTextSelection) return;
+
+    const selectionIsCurrent =
+      existingTextSelection.revisionId
+        === documentKey
+      && Boolean(
+        pageGraph?.pages.some(
+          (page) =>
+            page.pageId
+            === existingTextSelection.pageId,
+        ),
+      );
+
+    if (!selectionIsCurrent) {
+      setExistingTextSelection(null);
+    }
+  }, [
+    documentKey,
+    existingTextSelection,
+    pageGraph,
+    setExistingTextSelection,
   ]);
 
   // Reset drawing state when tool changes
@@ -497,6 +540,48 @@ export const DocumentWorkspace: React.FC = () => {
 
   const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
 
+  const selectExistingText =
+    React.useCallback(
+      (
+        pageNumber: number,
+        pageId: string,
+        sourceIndex: number,
+      ) => {
+        if (!documentKey) {
+          return;
+        }
+
+        setExistingTextSelection({
+          revisionId:
+            documentKey,
+          pageId,
+          sourceIndex,
+        });
+        setInspectorTab('text');
+        setPage(pageNumber);
+
+        if (isMobile) {
+          setMobileSheetOpen(true);
+        } else if (
+          useEditorStore
+            .getState()
+            .rightPanelWidth
+          <= 0.1
+        ) {
+          setRightPanelWidth(18);
+        }
+      },
+      [
+        documentKey,
+        isMobile,
+        setExistingTextSelection,
+        setInspectorTab,
+        setMobileSheetOpen,
+        setPage,
+        setRightPanelWidth,
+      ],
+    );
+
   if (!workingBytes && !activeRevisionId) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4">
@@ -551,6 +636,20 @@ export const DocumentWorkspace: React.FC = () => {
 
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
+    const pageNode =
+      pageGraph?.pages[index]
+      ?? null;
+    const selectedExistingTextSourceIndex =
+      existingTextSelection
+      && documentKey
+      && pageNode
+      && existingTextSelection.revisionId
+        === documentKey
+      && existingTextSelection.pageId
+        === pageNode.pageId
+        ? existingTextSelection.sourceIndex
+        : null;
+
     return (
       <div key={pageNumber} style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>
         <PageSurfaceMemo
@@ -565,6 +664,16 @@ export const DocumentWorkspace: React.FC = () => {
           setDrawingLineStart={setDrawingLineStart}
           setDrawingLineCurrent={setDrawingLineCurrent}
           onActivate={() => setPage(pageNumber)}
+          existingTextPageId={
+            pageNode?.pageId
+            ?? null
+          }
+          selectedExistingTextSourceIndex={
+            selectedExistingTextSourceIndex
+          }
+          onSelectExistingText={
+            selectExistingText
+          }
           onCreateAnnotation={(annotation) => {
             addAnnotation(annotation);
             setSelection([annotation.id]);
@@ -741,7 +850,14 @@ interface PageSurfaceProps {
   activeTool: string;
   pageAnnotations: PdfAnnotation[];
   selectedAnnotationIds: string[];
+  existingTextPageId: string | null;
+  selectedExistingTextSourceIndex: number | null;
   onActivate: () => void;
+  onSelectExistingText: (
+    pageNumber: number,
+    pageId: string,
+    sourceIndex: number,
+  ) => void;
   onCreateAnnotation: (annotation: PdfAnnotation) => void;
   onCreateManyAnnotations: (annotations: PdfAnnotation[]) => void;
   onSetSingleSelection: (id: string) => void;
@@ -763,7 +879,10 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   activeTool,
   pageAnnotations,
   selectedAnnotationIds,
+  existingTextPageId,
+  selectedExistingTextSourceIndex,
   onActivate,
+  onSelectExistingText,
   onCreateAnnotation,
   onCreateManyAnnotations,
   onSetSingleSelection,
@@ -1713,6 +1832,77 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           <span
             key={item.id}
             data-text-item="true"
+            data-existing-text-source-index={
+              item.sourceIndex
+            }
+            data-existing-text-selected={
+              selectedExistingTextSourceIndex
+                === item.sourceIndex
+                ? 'true'
+                : 'false'
+            }
+            onDoubleClick={(event) => {
+              if (!isSelectTool) return;
+              const sourceIndex =
+                item.sourceIndex;
+              if (
+                !existingTextPageId
+                || typeof sourceIndex !== 'number'
+                || !Number.isInteger(
+                  sourceIndex,
+                )
+                || sourceIndex < 0
+              ) {
+                return;
+              }
+              event.preventDefault();
+              event.stopPropagation();
+              clearTextSelectionDraft();
+              onSelectExistingText(
+                pageNumber,
+                existingTextPageId,
+                sourceIndex,
+              );
+            }}
+            onPointerUp={(event) => {
+              if (
+                !isSelectTool
+                || event.pointerType !== 'touch'
+              ) {
+                return;
+              }
+
+              const sourceIndex =
+                item.sourceIndex;
+              if (
+                !existingTextPageId
+                || typeof sourceIndex !== 'number'
+                || !Number.isInteger(
+                  sourceIndex,
+                )
+                || sourceIndex < 0
+              ) {
+                return;
+              }
+
+              const browserSelection =
+                window.getSelection()
+                  ?.toString()
+                  .trim()
+                ?? '';
+              if (browserSelection) {
+                return;
+              }
+
+              event.preventDefault();
+              event.stopPropagation();
+              clearTextSelectionDraft();
+              onSelectExistingText(
+                pageNumber,
+                existingTextPageId,
+                sourceIndex,
+              );
+            }}
             style={{
               position: 'absolute',
               left: item.x,
@@ -1724,6 +1914,16 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               fontFamily: 'sans-serif',
               whiteSpace: 'pre',
               color: 'transparent',
+              backgroundColor:
+                selectedExistingTextSourceIndex
+                  === item.sourceIndex
+                  ? 'rgba(59, 130, 246, 0.18)'
+                  : undefined,
+              boxShadow:
+                selectedExistingTextSourceIndex
+                  === item.sourceIndex
+                  ? 'inset 0 0 0 1px rgba(37, 99, 235, 0.55)'
+                  : undefined,
               userSelect: 'text',
               WebkitUserSelect: 'text',
             }}
@@ -1988,6 +2188,9 @@ const PageSurfaceMemo = React.memo(
     prev.activeTool === next.activeTool &&
     prev.pageAnnotations === next.pageAnnotations &&
     prev.selectedAnnotationIds === next.selectedAnnotationIds &&
+    prev.existingTextPageId === next.existingTextPageId &&
+    prev.selectedExistingTextSourceIndex === next.selectedExistingTextSourceIndex &&
+    prev.onSelectExistingText === next.onSelectExistingText &&
     prev.drawingLineStart === next.drawingLineStart &&
     prev.drawingLineCurrent === next.drawingLineCurrent,
 );

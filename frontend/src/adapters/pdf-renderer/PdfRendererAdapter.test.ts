@@ -396,6 +396,7 @@ describe('PdfRendererAdapter document lifecycle', () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       id: 'page-2-text-0',
+      sourceIndex: 0,
       text: 'Hello',
       x: 24,
       y: 24,
@@ -403,6 +404,47 @@ describe('PdfRendererAdapter document lifecycle', () => {
       fontSize: 12,
     });
     expect(items[0]?.height).toBeGreaterThan(12);
+  });
+
+  it('preserves PDF.js source index gaps when non-text items are skipped from the rendered text layer', async () => {
+    vi.mocked(pdfjsLib.Util.transform).mockReturnValue([
+      1,
+      0,
+      0,
+      12,
+      24,
+      36,
+    ]);
+
+    const page = {
+      pageNumber: 2,
+      getViewport: vi.fn().mockReturnValue({
+        transform: [1, 0, 0, -1, 0, 100],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({
+        items: [
+          { type: 'beginMarkedContent' },
+          {
+            str: 'Second source item',
+            transform: [1, 0, 0, 12, 24, 36],
+            width: 10,
+          },
+        ],
+      }),
+    } as unknown as PDFPageProxy;
+
+    const items =
+      await PdfRendererAdapter.getPageTextItems(
+        page,
+        1,
+      );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: 'page-2-text-1',
+      sourceIndex: 1,
+      text: 'Second source item',
+    });
   });
 
   it('preserves scale-independent PDF.js source text metadata for existing-text inspection', async () => {

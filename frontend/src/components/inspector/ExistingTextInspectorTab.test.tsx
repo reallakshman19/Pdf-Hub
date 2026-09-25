@@ -24,6 +24,7 @@ import {
 import {
   createExistingTextEditIntent,
 } from '@/core/existing-text/model';
+import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import { ExistingTextInspectorTab } from './ExistingTextInspectorTab';
@@ -180,6 +181,10 @@ describe('ExistingTextInspectorTab', () => {
     useToastStore.setState({
       toasts: [],
     });
+    useEditorStore.setState({
+      existingTextSelection:
+        null,
+    });
 
     vi.mocked(
       PdfRendererAdapter
@@ -209,6 +214,24 @@ describe('ExistingTextInspectorTab', () => {
         direction: 'ltr',
         hasEol: false,
       },
+      {
+        sourceIndex: 1,
+        text: 'Second',
+        transform: [
+          12,
+          0,
+          0,
+          12,
+          120,
+          680,
+        ],
+        width: 36,
+        height: 12,
+        fontName:
+          'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
     ]);
   });
 
@@ -232,6 +255,79 @@ describe('ExistingTextInspectorTab', () => {
         'PageId page-1',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('honors a matching direct on-page selection and publishes Inspector changes back to editor state', async () => {
+    useEditorStore.setState({
+      existingTextSelection: {
+        revisionId: 'doc-1',
+        pageId: 'page-1',
+        sourceIndex: 1,
+      },
+    });
+
+    render(
+      <ExistingTextInspectorTab />,
+    );
+
+    const select =
+      await screen.findByTestId(
+        'existing-text-span-select',
+      );
+
+    await waitFor(() =>
+      expect(select).toHaveValue(
+        'existing-text:doc-1:page-1:1',
+      ),
+    );
+    expect(
+      screen.getByText('Second'),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      select,
+      {
+        target: {
+          value:
+            'existing-text:doc-1:page-1:0',
+        },
+      },
+    );
+
+    expect(
+      useEditorStore
+        .getState()
+        .existingTextSelection,
+    ).toEqual({
+      revisionId: 'doc-1',
+      pageId: 'page-1',
+      sourceIndex: 0,
+    });
+  });
+
+  it('ignores stale direct selection from another revision or PageId', async () => {
+    useEditorStore.setState({
+      existingTextSelection: {
+        revisionId: 'stale-doc',
+        pageId: 'other-page',
+        sourceIndex: 1,
+      },
+    });
+
+    render(
+      <ExistingTextInspectorTab />,
+    );
+
+    const select =
+      await screen.findByTestId(
+        'existing-text-span-select',
+      );
+
+    await waitFor(() =>
+      expect(select).toHaveValue(
+        'existing-text:doc-1:page-1:0',
+      ),
+    );
   });
 
   it('enables canonical native replacement only after capability proof', async () => {

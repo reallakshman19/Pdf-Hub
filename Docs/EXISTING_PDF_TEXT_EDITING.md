@@ -402,7 +402,9 @@ Phase 13 now exposes the bounded existing-text core through an Inspector **PDF t
 The tab is intentionally page-scoped and proof-driven:
 - it inspects PDF.js text spans only on the current physical page;
 - spans are rebuilt with the active document revision and stable PageId;
-- the user selects one span and enters replacement text;
+- the user can double-click an inspectable rendered text item on desktop, tap it on touch devices when no browser text range is active, or select a span from the Inspector;
+- page selection and Inspector selection synchronize through revision + PageId + PDF.js source index;
+- the user enters replacement text;
 - **Check edit** reruns exact current simple-`Tj` provenance and consumes the native-fit / visual-clearance analysis;
 - no capability is inferred from character count, visual appearance, or stale inspection state.
 
@@ -442,8 +444,22 @@ The UI reports editing unavailable when any required proof is absent, including:
 - native overflow without proved clearance;
 - stale or failed analysis.
 
-### Current UI limitation
+### Direct on-page selection
 
-Text spans are selected from the Inspector list in this slice. Direct click-on-page text selection remains future UX work.
+Phase 13.1 adds a page-first entry point without widening edit authority.
+
+The production rendered text layer retains the original PDF.js source-item index even when non-text PDF.js entries are skipped. A direct text activation publishes only:
+
+- current revision identity;
+- stable PageId;
+- PDF.js source index.
+
+The Inspector then resolves that identity against its freshly rebuilt canonical spans. A stale revision/PageId selection is ignored rather than rebound to unrelated text.
+
+The same selection identity is mirrored back when the user changes the Inspector span dropdown, so the page can mark the exact source item. On mobile, an active PDF-text selection opens the existing Inspector sheet rather than the generic More Actions sheet.
+
+Direct page interaction does **not** call provenance analysis, the pdf-lib writer, mutation session, or CommandBus. Native replacement remains available only after the existing **Check edit** capability proof.
+
+Ordinary browser text selection and the existing text-mark annotation workflows remain available. Desktop targeting uses deliberate double-click activation. Touch targeting uses a single text-item tap only when no browser text range is active, so long-press/range selection remains available instead of every touch becoming an edit.
 
 The existing annotation Inspector behavior is unchanged for Properties, Style, Metadata and Review tabs.

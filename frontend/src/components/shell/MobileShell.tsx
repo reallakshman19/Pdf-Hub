@@ -40,30 +40,52 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     setMobileDrawerOpen,
     mobileSheetOpen,
     setMobileSheetOpen,
+    inspectorTab,
+    existingTextSelection,
   } = useEditorStore(useShallow((state) => ({
     mobileDrawerOpen: state.mobileDrawerOpen,
     setMobileDrawerOpen: state.setMobileDrawerOpen,
     mobileSheetOpen: state.mobileSheetOpen,
     setMobileSheetOpen: state.setMobileSheetOpen,
+    inspectorTab: state.inspectorTab,
+    existingTextSelection:
+      state.existingTextSelection,
   })));
 
   const selectedAnnotationIds = useAnnotationStore((state) => state.selectedAnnotationIds);
   const prevSelectedCountRef = useRef(0);
 
-  // Automatically open bottom sheet when an annotation is selected
+  const hasSelection = selectedAnnotationIds.length > 0;
+  const hasExistingTextSelection =
+    inspectorTab === 'text'
+    && existingTextSelection !== null;
+
+  // Automatically open the bottom sheet for a newly selected annotation.
+  // When annotation selection is cleared, preserve the sheet if a direct
+  // existing-PDF text target is still active.
   useEffect(() => {
     const count = selectedAnnotationIds.length;
     if (count > 0 && prevSelectedCountRef.current === 0) {
       setMobileSheetOpen(true);
-      // Automatically close drawer if it is open
       setMobileDrawerOpen(false);
-    } else if (count === 0 && prevSelectedCountRef.current > 0) {
+    } else if (
+      count === 0
+      && prevSelectedCountRef.current > 0
+      && !hasExistingTextSelection
+    ) {
       setMobileSheetOpen(false);
     }
     prevSelectedCountRef.current = count;
-  }, [selectedAnnotationIds, setMobileSheetOpen, setMobileDrawerOpen]);
+  }, [
+    hasExistingTextSelection,
+    selectedAnnotationIds,
+    setMobileSheetOpen,
+    setMobileDrawerOpen,
+  ]);
 
-  const hasSelection = selectedAnnotationIds.length > 0;
+  const hasInspectorContent =
+    hasSelection
+    || hasExistingTextSelection;
 
   return (
     <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -106,9 +128,9 @@ export const MobileShell: React.FC<MobileShellProps> = ({
       <MobileSheet
         isOpen={mobileSheetOpen}
         onClose={() => setMobileSheetOpen(false)}
-        title={hasSelection ? 'Inspector' : 'More Actions'}
+        title={hasInspectorContent ? 'Inspector' : 'More Actions'}
       >
-        {hasSelection ? (
+        {hasInspectorContent ? (
           <ErrorBoundary zone="Inspector" resetKey={boundaryResetKey}>
             {inspector}
           </ErrorBoundary>
