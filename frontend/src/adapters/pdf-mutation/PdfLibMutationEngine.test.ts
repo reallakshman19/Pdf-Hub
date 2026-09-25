@@ -64,6 +64,49 @@ async function createSimpleExistingTextPdf(): Promise<Uint8Array> {
   );
 }
 
+async function createReconstructableExistingTextPdf(): Promise<Uint8Array> {
+  const document =
+    await PDFDocument.create();
+  const page =
+    document.addPage([
+      612,
+      792,
+    ]);
+  const fontDictionary =
+    document.context.obj({
+      Type: 'Font',
+      Subtype: 'Type1',
+      BaseFont: 'Helvetica',
+      Encoding:
+        'WinAnsiEncoding',
+    });
+  const fontRef =
+    document.context.register(
+      fontDictionary,
+    );
+  page.node.set(
+    PDFName.of('Resources'),
+    document.context.obj({
+      Font: {
+        F1: fontRef,
+      },
+    }),
+  );
+  const contentRef =
+    document.context.register(
+      document.context.flateStream(
+        '1 1 1 rg 0 0 612 792 re f 0 0 0 rg BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET',
+      ),
+    );
+  page.node.set(
+    PDFName.of('Contents'),
+    contentRef,
+  );
+  return new Uint8Array(
+    await document.save(),
+  );
+}
+
 async function existingTextMutationFixture(
   bytes: Uint8Array,
   replacementText = 'Hi',
@@ -636,6 +679,145 @@ describe('PdfLibMutationEngine', () => {
         content: reopened,
       }).status,
     ).toBe('matched');
+  });
+
+  it('reconstructs overflow text from same-document proof without reparsing the active revision', async () => {
+    const bytes =
+      await createReconstructableExistingTextPdf();
+    const fixture =
+      await existingTextMutationFixture(
+        bytes,
+        'World',
+      );
+    const loadSpy =
+      vi.spyOn(
+        PDFDocument,
+        'load',
+      );
+
+    const engine =
+      new PdfLibMutationEngine();
+    const session =
+      await engine.open({
+        bytes,
+      });
+
+    const reconstructed =
+      await session.reconstructExistingText({
+        currentRevisionId:
+          fixture.revisionId,
+        span: fixture.span,
+        intent: fixture.intent,
+        provenance:
+          fixture.provenance,
+      });
+
+    expect(reconstructed)
+      .toMatchObject({
+        pageIndex: 0,
+        originalText: 'Hello',
+        replacementText:
+          'World',
+        baseFont:
+          'Helvetica',
+        nativeFit: {
+          status:
+            'overflows',
+        },
+        proof: {
+          backgroundColorHex:
+            '#ffffff',
+          targetTextColorHex:
+            '#000000',
+          foreignPaintIntersections:
+            0,
+        },
+      });
+
+    const committed =
+      await session.commit();
+
+    expect(loadSpy)
+      .toHaveBeenCalledTimes(1);
+    loadSpy.mockRestore();
+    session.dispose();
+
+    const pdf =
+      await getDocument({
+        data:
+          committed.bytes.slice(),
+      }).promise;
+    try {
+      const page =
+        await pdf.getPage(1);
+      const content =
+        await page.getTextContent();
+      const text =
+        content.items
+          .flatMap((item) =>
+            'str' in item
+            && typeof item.str
+              === 'string'
+              ? [item.str]
+              : [],
+          )
+          .join(' ');
+      // Reconstructed replacement is intentionally visual: source text remains
+      // extractable while the replacement is appended above the proved mask.
+      expect(text)
+        .toContain('Hello');
+      expect(text)
+        .toContain('World');
+      page.cleanup();
+    } finally {
+      await pdf.destroy();
+    }
+  });
+
+  it('fails closed when current-session paint changes invalidate reconstructed clearance', async () => {
+    const bytes =
+      await createReconstructableExistingTextPdf();
+    const fixture =
+      await existingTextMutationFixture(
+        bytes,
+        'World',
+      );
+
+    const engine =
+      new PdfLibMutationEngine();
+    const session =
+      await engine.open({
+        bytes,
+      });
+
+    await session.drawText([
+      {
+        pageIndex: 0,
+        text: 'FOREIGN',
+        xPt: 10,
+        yPt: 10,
+        fontSizePt: 8,
+        color: '#000000',
+        opacity: 1,
+        align: 'left',
+      },
+    ]);
+
+    await expect(
+      session.reconstructExistingText({
+        currentRevisionId:
+          fixture.revisionId,
+        span: fixture.span,
+        intent: fixture.intent,
+        provenance:
+          fixture.provenance,
+      }),
+    ).rejects.toMatchObject({
+      code:
+        'RECONSTRUCTED_VISUAL_CLEARANCE_UNPROVED',
+    });
+
+    session.dispose();
   });
 
   it('applies a resolved professional header/footer plan without reparsing the active revision', async () => {
