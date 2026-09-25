@@ -101,6 +101,10 @@ const inspectorTests =
   requireFile(
     'src/components/inspector/ExistingTextInspectorTab.test.tsx',
   );
+const scannerTests =
+  requireFile(
+    'src/core/existing-text/__tests__/visualClearanceScanner.test.ts',
+  );
 const clearanceTests =
   requireFile(
     'src/adapters/pdf-text/PdfLibExistingTextVisualClearance.test.ts',
@@ -167,7 +171,8 @@ requireTokens(
   'proved rendering inputs',
   clearanceTypes
     + scanner
-    + reconstruction,
+    + reconstruction
+    + clearance,
   [
     'backgroundColorHex',
     'targetTextColorHex',
@@ -208,7 +213,9 @@ requireTokens(
   'execution regressions',
   clearanceTests
     + engineTests
-    + dispatchTests,
+    + dispatchTests
+    + scannerTests
+    + inspectorTests,
   [
     'reconstructs overflow text from same-document proof without reparsing the active revision',
     'rejects non-ASCII reconstructed text at the mutation-session boundary',

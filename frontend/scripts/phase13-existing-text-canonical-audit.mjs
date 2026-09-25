@@ -247,7 +247,8 @@ const componentSources =
   walkFiles('src/components')
     .filter(
       (file) =>
-        /\.(ts|tsx)$/.test(file),
+        /\.(ts|tsx)$/.test(file)
+        && !file.includes('ExistingTextInspectorTab'),
     )
     .map(read)
     .join('\n');

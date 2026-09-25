@@ -376,8 +376,8 @@ requireContains(transaction, transactionPath, [
   'input.revisionMetadata',
   'sessionSnapshot.pageCount',
   'PdfEditAdapter.countPages(input.beforeBytes)',
-  'PdfEditAdapter.countPages(input.afterBytes)',
-  'FileAdapter.hashBytes(input.afterBytes)',
+  'PdfEditAdapter.countPages(effectiveAfterBytes)',
+  'FileAdapter.hashBytes(effectiveAfterBytes)',
 ]);
 forbidContains(transaction, transactionPath, [
   'revisionMetadata: any',

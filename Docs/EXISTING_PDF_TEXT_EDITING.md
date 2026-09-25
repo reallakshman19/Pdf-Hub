@@ -394,7 +394,7 @@ This producer does **not** prove generic `reconstructed-candidate` spans. Those 
 
 It also does not traverse Form XObjects or interpret arbitrary paths/images/transparency.
 
-The reconstructed executor revalidates the complete proof against the exact `PDFDocument` owned by the active mutation session immediately before mutation. Cached Inspector evidence is never write authority.
+The reconstructed executor must revalidate the evidence against the active revision before mutation, revalidating the complete proof against the exact `PDFDocument` owned by the active mutation session immediately before mutation. Cached Inspector evidence is never write authority.
 
 
 ## Minimal Inspector UI
