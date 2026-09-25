@@ -588,6 +588,122 @@ describe('ExistingTextInspectorTab', () => {
     );
   });
 
+  it('invalidates checked fallback capability when replacement text changes', async () => {
+    vi.mocked(
+      evaluateExistingTextUiCapability,
+    ).mockImplementation(
+      async (input) => ({
+        status:
+          'fallback-proved',
+        intent:
+          createExistingTextEditIntent(
+            input.span,
+            input.replacementText,
+          ),
+        provenance,
+        nativeFit: {
+          schemaVersion: 1,
+          status:
+            'overflows',
+          baseFont:
+            'Helvetica',
+          sourceText: 'Hello',
+          replacementText:
+            input.replacementText,
+          observedAdvancePt:
+            30,
+          fontSizePt: 12,
+          tolerancePt: 0.25,
+          measuredSourceWidthPt:
+            27,
+          measuredReplacementWidthPt:
+            36,
+          observedToMetricScale:
+            30 / 27,
+          projectedReplacementAdvancePt:
+            40,
+          overflowPt: 10,
+        },
+        evidence: {
+          schemaVersion: 1,
+          sourceRevisionId:
+            'doc-1',
+          pageId: 'page-1',
+          spanId:
+            input.span.id,
+          sourceCoverage:
+            'proved',
+          clearanceRectPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+          background: {
+            kind: 'solid',
+            colorHex:
+              '#ffffff',
+          },
+          foreignPaintIntersections:
+            0,
+          replacementBoundsPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+        },
+      }),
+    );
+
+    render(
+      <ExistingTextInspectorTab />,
+    );
+
+    const input =
+      await screen.findByTestId(
+        'existing-text-replacement-input',
+      );
+    fireEvent.change(
+      input,
+      {
+        target: {
+          value: 'World',
+        },
+      },
+    );
+    fireEvent.click(
+      screen.getByTestId(
+        'existing-text-check-btn',
+      ),
+    );
+
+    expect(
+      await screen.findByTestId(
+        'existing-text-reconstruct-btn',
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      input,
+      {
+        target: {
+          value:
+            'World again',
+        },
+      },
+    );
+
+    expect(
+      screen.queryByTestId(
+        'existing-text-reconstruct-btn',
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      commandBus.execute,
+    ).not.toHaveBeenCalled();
+  });
+
   it('surfaces canonical command failure without claiming success', async () => {
     vi.mocked(
       evaluateExistingTextUiCapability,
