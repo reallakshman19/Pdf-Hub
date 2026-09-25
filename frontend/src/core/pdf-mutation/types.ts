@@ -8,6 +8,9 @@ import type {
 import type {
   ExistingTextSimpleReplacementMutationResult,
 } from '@/core/existing-text/replacementTypes';
+import type {
+  ExistingTextReconstructedReplacementMutationResult,
+} from '@/core/existing-text/reconstructedTypes';
 
 export interface PdfMutationPageMetrics {
   width: number;
@@ -178,6 +181,16 @@ export interface PdfMutationSession {
         ExistingTextSimpleTextOperator;
     },
   ): Promise<ExistingTextSimpleReplacementMutationResult>;
+
+  reconstructExistingText(
+    input: {
+      currentRevisionId: string;
+      span: ExistingTextSpan;
+      intent: ExistingTextEditIntent;
+      provenance:
+        ExistingTextSimpleTextOperator;
+    },
+  ): Promise<ExistingTextReconstructedReplacementMutationResult>;
 
   commit(): Promise<PdfMutationCommitResult>;
 
