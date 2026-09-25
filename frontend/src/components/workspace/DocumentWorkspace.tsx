@@ -108,6 +108,7 @@ export const DocumentWorkspace: React.FC = () => {
     revisionStoreId,
     originalRevisionId,
     activeRevisionId,
+    pageGraph,
     viewState,
     setPage,
     setZoom,
@@ -117,13 +118,28 @@ export const DocumentWorkspace: React.FC = () => {
     revisionStoreId: state.revisionStoreId,
     originalRevisionId: state.originalRevisionId,
     activeRevisionId: state.activeRevisionId,
+    pageGraph: state.pageGraph,
     viewState: state.viewState,
     setPage: state.setPage,
     setZoom: state.setZoom,
   })));
 
-  const { activeTool } = useEditorStore(useShallow((state) => ({
+  const {
+    activeTool,
+    existingTextSelection,
+    setExistingTextSelection,
+    setInspectorTab,
+    setMobileSheetOpen,
+  } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
+    existingTextSelection:
+      state.existingTextSelection,
+    setExistingTextSelection:
+      state.setExistingTextSelection,
+    setInspectorTab:
+      state.setInspectorTab,
+    setMobileSheetOpen:
+      state.setMobileSheetOpen,
   })));
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
@@ -279,6 +295,30 @@ export const DocumentWorkspace: React.FC = () => {
     originalRevisionId,
     activeRevisionId,
     setSharedPdfDoc,
+  ]);
+
+  React.useEffect(() => {
+    if (!existingTextSelection) return;
+
+    const selectionIsCurrent =
+      existingTextSelection.revisionId
+        === documentKey
+      && Boolean(
+        pageGraph?.pages.some(
+          (page) =>
+            page.pageId
+            === existingTextSelection.pageId,
+        ),
+      );
+
+    if (!selectionIsCurrent) {
+      setExistingTextSelection(null);
+    }
+  }, [
+    documentKey,
+    existingTextSelection,
+    pageGraph,
+    setExistingTextSelection,
   ]);
 
   // Reset drawing state when tool changes
@@ -551,6 +591,20 @@ export const DocumentWorkspace: React.FC = () => {
 
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
+    const pageNode =
+      pageGraph?.pages[index]
+      ?? null;
+    const selectedExistingTextSourceIndex =
+      existingTextSelection
+      && documentKey
+      && pageNode
+      && existingTextSelection.revisionId
+        === documentKey
+      && existingTextSelection.pageId
+        === pageNode.pageId
+        ? existingTextSelection.sourceIndex
+        : null;
+
     return (
       <div key={pageNumber} style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>
         <PageSurfaceMemo
@@ -565,6 +619,30 @@ export const DocumentWorkspace: React.FC = () => {
           setDrawingLineStart={setDrawingLineStart}
           setDrawingLineCurrent={setDrawingLineCurrent}
           onActivate={() => setPage(pageNumber)}
+          selectedExistingTextSourceIndex={
+            selectedExistingTextSourceIndex
+          }
+          onSelectExistingText={(sourceIndex) => {
+            if (
+              !documentKey
+              || !pageNode
+            ) {
+              return;
+            }
+
+            setExistingTextSelection({
+              revisionId:
+                documentKey,
+              pageId:
+                pageNode.pageId,
+              sourceIndex,
+            });
+            setInspectorTab('text');
+            setPage(pageNumber);
+            if (isMobile) {
+              setMobileSheetOpen(true);
+            }
+          }}
           onCreateAnnotation={(annotation) => {
             addAnnotation(annotation);
             setSelection([annotation.id]);
@@ -741,7 +819,9 @@ interface PageSurfaceProps {
   activeTool: string;
   pageAnnotations: PdfAnnotation[];
   selectedAnnotationIds: string[];
+  selectedExistingTextSourceIndex: number | null;
   onActivate: () => void;
+  onSelectExistingText: (sourceIndex: number) => void;
   onCreateAnnotation: (annotation: PdfAnnotation) => void;
   onCreateManyAnnotations: (annotations: PdfAnnotation[]) => void;
   onSetSingleSelection: (id: string) => void;
@@ -763,7 +843,9 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   activeTool,
   pageAnnotations,
   selectedAnnotationIds,
+  selectedExistingTextSourceIndex,
   onActivate,
+  onSelectExistingText,
   onCreateAnnotation,
   onCreateManyAnnotations,
   onSetSingleSelection,
@@ -1713,6 +1795,24 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           <span
             key={item.id}
             data-text-item="true"
+            data-existing-text-source-index={
+              item.sourceIndex
+            }
+            data-existing-text-selected={
+              selectedExistingTextSourceIndex
+                === item.sourceIndex
+                ? 'true'
+                : 'false'
+            }
+            onDoubleClick={(event) => {
+              if (!isSelectTool) return;
+              event.preventDefault();
+              event.stopPropagation();
+              clearTextSelectionDraft();
+              onSelectExistingText(
+                item.sourceIndex,
+              );
+            }}
             style={{
               position: 'absolute',
               left: item.x,
@@ -1724,6 +1824,16 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               fontFamily: 'sans-serif',
               whiteSpace: 'pre',
               color: 'transparent',
+              backgroundColor:
+                selectedExistingTextSourceIndex
+                  === item.sourceIndex
+                  ? 'rgba(59, 130, 246, 0.18)'
+                  : undefined,
+              boxShadow:
+                selectedExistingTextSourceIndex
+                  === item.sourceIndex
+                  ? 'inset 0 0 0 1px rgba(37, 99, 235, 0.55)'
+                  : undefined,
               userSelect: 'text',
               WebkitUserSelect: 'text',
             }}
