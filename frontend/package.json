@@ -192,7 +192,10 @@
     "certify:phase13-existing-text-native-tj-array": "pnpm run audit:phase13-existing-text-native-tj-array && pnpm run test:phase13-existing-text-native-tj-array",
     "test:phase13-existing-text-native-td-positioning": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/core/commands/__tests__/dispatch.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-native-td-positioning": "node scripts/phase13-existing-text-native-td-positioning-audit.mjs",
-    "certify:phase13-existing-text-native-td-positioning": "pnpm run audit:phase13-existing-text-native-td-positioning && pnpm run test:phase13-existing-text-native-td-positioning"
+    "certify:phase13-existing-text-native-td-positioning": "pnpm run audit:phase13-existing-text-native-td-positioning && pnpm run test:phase13-existing-text-native-td-positioning",
+    "test:phase13-existing-text-native-td-leading": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/core/commands/__tests__/dispatch.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-native-td-leading": "node scripts/phase13-existing-text-native-td-leading-audit.mjs",
+    "certify:phase13-existing-text-native-td-leading": "pnpm run audit:phase13-existing-text-native-td-leading && pnpm run test:phase13-existing-text-native-td-leading"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
