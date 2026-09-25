@@ -464,6 +464,80 @@ export const ExistingTextInspectorTab: React.FC = () => {
       }
     };
 
+  const reconstructFallback =
+    async () => {
+      if (
+        !workingBytes
+        || !documentKey
+        || !selectedSpan
+        || capability?.status
+          !== 'fallback-proved'
+      ) {
+        return;
+      }
+
+      setReplacing(true);
+      try {
+        const result =
+          await commandBus.execute({
+            workingBytes,
+            command:
+              materializePdfCommand(
+                {
+                  type:
+                    'RECONSTRUCT_EXISTING_TEXT',
+                  payload: {
+                    schemaVersion: 1,
+                    span:
+                      selectedSpan,
+                    intent:
+                      capability.intent,
+                    provenance:
+                      capability
+                        .provenance,
+                  },
+                },
+                'toolbar',
+                documentKey,
+              ),
+          });
+
+        if (!result.success) {
+          addToast({
+            type: 'error',
+            title:
+              'Reconstructed replacement failed',
+            message:
+              result.error
+                ?.message
+              ?? result.message,
+          });
+          return;
+        }
+
+        addToast({
+          type: 'success',
+          title:
+            'Reconstructed text applied',
+          message:
+            result.message,
+        });
+        setCapability(null);
+      } catch (error) {
+        addToast({
+          type: 'error',
+          title:
+            'Reconstructed replacement failed',
+          message:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        });
+      } finally {
+        setReplacing(false);
+      }
+    };
+
   const canInspect =
     Boolean(
       workingBytes
@@ -705,11 +779,25 @@ export const ExistingTextInspectorTab: React.FC = () => {
               </div>
               <div className="mt-1 text-[11px] opacity-90">
                 A solid background and foreign-paint-free clearance region were
-                proved for this revision. Reconstructed overlay execution is not
-                available yet, so no mutation action is exposed.
+                proved for this revision. Applying this action masks the proved
+                source appearance and redraws the replacement; it does not rewrite
+                the original text operator.
               </div>
             </div>
           </div>
+          <Button
+            data-testid="existing-text-reconstruct-btn"
+            size="sm"
+            className="mt-3 w-full"
+            disabled={replacing}
+            onClick={() =>
+              void reconstructFallback()
+            }
+          >
+            {replacing
+              ? 'Applying…'
+              : 'Apply reconstructed replacement'}
+          </Button>
         </StatusCard>
       )}
 
