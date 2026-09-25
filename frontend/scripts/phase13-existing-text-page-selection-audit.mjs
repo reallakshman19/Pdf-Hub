@@ -106,7 +106,7 @@ requireTokens(
   'rendered source identity',
   renderer + rendererTests,
   [
-    'sourceIndex: number',
+    'sourceIndex?: number',
     'sourceIndex: index',
     'preserves PDF.js source index gaps when non-text items are skipped',
   ],
