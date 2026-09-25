@@ -169,6 +169,8 @@ requireTokens(
     "fillColorHex: '#000000'",
     'resolveExistingTextStandard14BaseFont',
     'clearanceRectPt',
+    'measuredReplacementWidthPt',
+    'Math.max(',
   ],
 );
 
@@ -202,6 +204,7 @@ requireTokens(
   [
     'reconstructs overflow text from same-document proof without reparsing the active revision',
     'fails closed when current-session paint changes invalidate reconstructed clearance',
+    'keeps the proved clearance at least as wide as the natural redraw when observed metrics scale below one',
     'routes reconstructed existing text through its distinct canonical command',
     'rejects reconstructed existing-text PageId drift before mutation-session write',
     'toHaveBeenCalledTimes(1)',
