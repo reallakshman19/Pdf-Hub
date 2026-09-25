@@ -129,7 +129,6 @@ export const DocumentWorkspace: React.FC = () => {
     existingTextSelection,
     setExistingTextSelection,
     setInspectorTab,
-    rightPanelWidth,
     setRightPanelWidth,
     setMobileSheetOpen,
   } = useEditorStore(useShallow((state) => ({
@@ -140,8 +139,6 @@ export const DocumentWorkspace: React.FC = () => {
       state.setExistingTextSelection,
     setInspectorTab:
       state.setInspectorTab,
-    rightPanelWidth:
-      state.rightPanelWidth,
     setRightPanelWidth:
       state.setRightPanelWidth,
     setMobileSheetOpen:
@@ -595,6 +592,48 @@ export const DocumentWorkspace: React.FC = () => {
 
   if (!pdfDoc) return null;
 
+  const selectExistingText =
+    React.useCallback(
+      (
+        pageNumber: number,
+        pageId: string,
+        sourceIndex: number,
+      ) => {
+        if (!documentKey) {
+          return;
+        }
+
+        setExistingTextSelection({
+          revisionId:
+            documentKey,
+          pageId,
+          sourceIndex,
+        });
+        setInspectorTab('text');
+        setPage(pageNumber);
+
+        if (isMobile) {
+          setMobileSheetOpen(true);
+        } else if (
+          useEditorStore
+            .getState()
+            .rightPanelWidth
+          <= 0.1
+        ) {
+          setRightPanelWidth(18);
+        }
+      },
+      [
+        documentKey,
+        isMobile,
+        setExistingTextSelection,
+        setInspectorTab,
+        setMobileSheetOpen,
+        setPage,
+        setRightPanelWidth,
+      ],
+    );
+
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
     const pageNode =
@@ -625,34 +664,16 @@ export const DocumentWorkspace: React.FC = () => {
           setDrawingLineStart={setDrawingLineStart}
           setDrawingLineCurrent={setDrawingLineCurrent}
           onActivate={() => setPage(pageNumber)}
+          existingTextPageId={
+            pageNode?.pageId
+            ?? null
+          }
           selectedExistingTextSourceIndex={
             selectedExistingTextSourceIndex
           }
-          onSelectExistingText={(sourceIndex) => {
-            if (
-              !documentKey
-              || !pageNode
-            ) {
-              return;
-            }
-
-            setExistingTextSelection({
-              revisionId:
-                documentKey,
-              pageId:
-                pageNode.pageId,
-              sourceIndex,
-            });
-            setInspectorTab('text');
-            setPage(pageNumber);
-            if (isMobile) {
-              setMobileSheetOpen(true);
-            } else if (
-              rightPanelWidth <= 0.1
-            ) {
-              setRightPanelWidth(18);
-            }
-          }}
+          onSelectExistingText={
+            selectExistingText
+          }
           onCreateAnnotation={(annotation) => {
             addAnnotation(annotation);
             setSelection([annotation.id]);
@@ -829,9 +850,14 @@ interface PageSurfaceProps {
   activeTool: string;
   pageAnnotations: PdfAnnotation[];
   selectedAnnotationIds: string[];
+  existingTextPageId: string | null;
   selectedExistingTextSourceIndex: number | null;
   onActivate: () => void;
-  onSelectExistingText: (sourceIndex: number) => void;
+  onSelectExistingText: (
+    pageNumber: number,
+    pageId: string,
+    sourceIndex: number,
+  ) => void;
   onCreateAnnotation: (annotation: PdfAnnotation) => void;
   onCreateManyAnnotations: (annotations: PdfAnnotation[]) => void;
   onSetSingleSelection: (id: string) => void;
@@ -853,6 +879,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   activeTool,
   pageAnnotations,
   selectedAnnotationIds,
+  existingTextPageId,
   selectedExistingTextSourceIndex,
   onActivate,
   onSelectExistingText,
@@ -1819,7 +1846,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               const sourceIndex =
                 item.sourceIndex;
               if (
-                typeof sourceIndex !== 'number'
+                !existingTextPageId
+                || typeof sourceIndex !== 'number'
                 || !Number.isInteger(
                   sourceIndex,
                 )
@@ -1831,6 +1859,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               event.stopPropagation();
               clearTextSelectionDraft();
               onSelectExistingText(
+                pageNumber,
+                existingTextPageId,
                 sourceIndex,
               );
             }}
@@ -2119,6 +2149,9 @@ const PageSurfaceMemo = React.memo(
     prev.activeTool === next.activeTool &&
     prev.pageAnnotations === next.pageAnnotations &&
     prev.selectedAnnotationIds === next.selectedAnnotationIds &&
+    prev.existingTextPageId === next.existingTextPageId &&
+    prev.selectedExistingTextSourceIndex === next.selectedExistingTextSourceIndex &&
+    prev.onSelectExistingText === next.onSelectExistingText &&
     prev.drawingLineStart === next.drawingLineStart &&
     prev.drawingLineCurrent === next.drawingLineCurrent,
 );
