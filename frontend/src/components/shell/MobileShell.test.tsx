@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MobileShell } from './MobileShell';
 import { useEditorStore } from '@/core/editor/store';
@@ -140,6 +140,40 @@ describe('MobileShell', () => {
       <MobileShell {...defaultProps} />,
     );
 
+    expect(
+      screen.getByText('Inspector Content'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the Inspector sheet open when annotation selection clears but direct PDF text remains selected', () => {
+    useEditorStore.setState({
+      mobileSheetOpen: true,
+      inspectorTab: 'text',
+      existingTextSelection: {
+        revisionId: 'doc-1',
+        pageId: 'page-1',
+        sourceIndex: 0,
+      },
+    });
+    useAnnotationStore.setState({
+      selectedAnnotationIds: ['annotation-1'],
+    });
+
+    render(
+      <MobileShell {...defaultProps} />,
+    );
+
+    act(() => {
+      useAnnotationStore.setState({
+        selectedAnnotationIds: [],
+      });
+    });
+
+    expect(
+      useEditorStore
+        .getState()
+        .mobileSheetOpen,
+    ).toBe(true);
     expect(
       screen.getByText('Inspector Content'),
     ).toBeInTheDocument();
