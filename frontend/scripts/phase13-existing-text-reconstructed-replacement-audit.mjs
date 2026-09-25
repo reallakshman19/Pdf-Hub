@@ -215,6 +215,8 @@ requireTokens(
     'keeps the proved clearance at least as wide as the natural redraw when observed metrics scale below one',
     'routes reconstructed existing text through its distinct canonical command',
     'rejects reconstructed existing-text PageId drift before mutation-session write',
+    'maps reconstructed proof loss to validation failure without commit',
+    'invalidates checked fallback capability when replacement text changes',
     'toHaveBeenCalledTimes(1)',
   ],
 );
