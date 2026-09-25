@@ -84,7 +84,8 @@ export function assessExistingTextEditPolicy(
   if (
     input.span.editability
       === 'native-replacement-candidate'
-    && input.nativeFit?.status
+    && input.nativeFit
+    && input.nativeFit.status
       === 'fits'
   ) {
     return {

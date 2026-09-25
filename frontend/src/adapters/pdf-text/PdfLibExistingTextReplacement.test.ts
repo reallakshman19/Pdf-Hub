@@ -534,8 +534,38 @@ describe('simple existing-text native replacement', () => {
     const source =
       await generatedPdf(
         'A',
-        StandardFonts.Symbol,
       );
+    const provenance =
+      await provenanceFor(
+        source,
+        'A',
+      );
+    const document =
+      await PDFDocument.load(
+        source,
+        {
+          updateMetadata: false,
+        },
+      );
+    const font =
+      resolveFontDict(
+        document,
+        provenance
+          .fontResourceName,
+      );
+    font.set(
+      PDFName.of(
+        'BaseFont',
+      ),
+      PDFName.of(
+        'Symbol',
+      ),
+    );
+    const altered =
+      new Uint8Array(
+        await document.save(),
+      );
+
     const span =
       spanFor('A');
     const intent =
@@ -543,20 +573,21 @@ describe('simple existing-text native replacement', () => {
         span,
         'B',
       );
-    const provenance =
+    const alteredProvenance =
       await provenanceFor(
-        source,
+        altered,
         'A',
       );
 
     await expect(
       replaceSimpleExistingTextTj({
-        pdfBytes: source,
+        pdfBytes: altered,
         currentRevisionId:
           REVISION,
         span,
         intent,
-        provenance,
+        provenance:
+          alteredProvenance,
       }),
     ).rejects.toMatchObject({
       code:

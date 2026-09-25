@@ -27,9 +27,18 @@ export type ExistingTextNativeFitDiagnostic =
   | (
       ExistingTextNativeFitBase
       & {
-        status:
-          | 'fits'
-          | 'overflows';
+        status: 'fits';
+        measuredSourceWidthPt: number;
+        measuredReplacementWidthPt: number;
+        observedToMetricScale: number;
+        projectedReplacementAdvancePt: number;
+        overflowPt: number;
+      }
+    )
+  | (
+      ExistingTextNativeFitBase
+      & {
+        status: 'overflows';
         measuredSourceWidthPt: number;
         measuredReplacementWidthPt: number;
         observedToMetricScale: number;
