@@ -1806,11 +1806,22 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             }
             onDoubleClick={(event) => {
               if (!isSelectTool) return;
+              const sourceIndex =
+                item.sourceIndex;
+              if (
+                typeof sourceIndex !== 'number'
+                || !Number.isInteger(
+                  sourceIndex,
+                )
+                || sourceIndex < 0
+              ) {
+                return;
+              }
               event.preventDefault();
               event.stopPropagation();
               clearTextSelectionDraft();
               onSelectExistingText(
-                item.sourceIndex,
+                sourceIndex,
               );
             }}
             style={{
