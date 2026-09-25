@@ -772,6 +772,19 @@ function sameProvenance(
   expected:
     ExistingTextSimpleTextOperator,
 ): boolean {
+  if (current.operator !== expected.operator) {
+    return false;
+  }
+
+  if (current.operator === 'TJ' && expected.operator === 'TJ') {
+    if (
+      current.arrayRange.start !== expected.arrayRange.start
+      || current.arrayRange.end !== expected.arrayRange.end
+    ) {
+      return false;
+    }
+  }
+
   return (
     current.streamIndex
       === expected.streamIndex
@@ -779,8 +792,6 @@ function sameProvenance(
       === expected.streamRef
     && current.operatorIndex
       === expected.operatorIndex
-    && current.operator
-      === expected.operator
     && current.operatorRange.start
       === expected.operatorRange.start
     && current.operatorRange.end

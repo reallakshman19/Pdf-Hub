@@ -281,6 +281,79 @@ function existingTextDraft(
   };
 }
 
+function existingTextTjArrayDraft(
+  pageId =
+    'test-doc::stable::1',
+  replacementText = 'World',
+): Extract<
+  PdfCommandDraft,
+  {
+    type:
+      'REPLACE_EXISTING_TEXT';
+  }
+> {
+  const span =
+    buildExistingTextSpan(
+      {
+        revisionId: 'test-doc',
+        pageId,
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [
+          12, 0, 0, 12, 72, 700,
+        ],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+  const intent =
+    createExistingTextEditIntent(
+      span,
+      replacementText,
+    );
+  return {
+    type:
+      'REPLACE_EXISTING_TEXT',
+    payload: {
+      schemaVersion: 1,
+      span,
+      intent,
+      provenance: {
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        operatorIndex: 4,
+        operator: 'TJ',
+        operatorRange: {
+          start: 20,
+          end: 22,
+        },
+        arrayRange: {
+          start: 9,
+          end: 18,
+        },
+        operandRange: {
+          start: 10,
+          end: 17,
+        },
+        decodedText: 'Hello',
+        encoding:
+          'ascii-literal',
+        fontResourceName: 'F1',
+        fontSizePt: 12,
+        textMatrix: [
+          1, 0, 0, 1, 72, 700,
+        ],
+      },
+    },
+  };
+}
+
 function reconstructedExistingTextDraft(
   pageId =
     'test-doc::stable::1',
@@ -569,6 +642,80 @@ describe('canonical command dispatch', () => {
       documentKey:
         'mock-hash-3',
     });
+  });
+
+  it('dispatches REPLACE_EXISTING_TEXT for single-string TJ arrays', async () => {
+    mutationEngineMocks
+      .replaceExistingText
+      .mockResolvedValue({
+        pageIndex: 0,
+        streamIndex: 0,
+        streamRef: '7 0 R',
+        originalText: 'Hello',
+        replacementText:
+          'World',
+        encoding:
+          'ascii-literal',
+        baseFont:
+          'Helvetica',
+        proof: {
+          contentTopology:
+            'array-indirect',
+          prefixBytesPreserved:
+            true,
+          suffixBytesPreserved:
+            true,
+          fit: {
+            schemaVersion: 1,
+            status: 'fits',
+            baseFont:
+              'Helvetica',
+            sourceText: 'Hello',
+            replacementText:
+              'World',
+            observedAdvancePt: 30,
+            fontSizePt: 12,
+            tolerancePt: 0.25,
+            measuredSourceWidthPt: 27,
+            measuredReplacementWidthPt: 27,
+            observedToMetricScale:
+              30 / 27,
+            projectedReplacementAdvancePt: 30,
+            overflowPt: 0,
+          },
+        },
+      });
+
+    const draft =
+      existingTextTjArrayDraft();
+    const result =
+      await execute(draft);
+
+    expect(result).toMatchObject({
+      success: true,
+      mutated: true,
+      commandType:
+        'REPLACE_EXISTING_TEXT',
+    });
+    expect(
+      mutationEngineMocks
+        .replaceExistingText,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provenance:
+          expect.objectContaining({
+            operator: 'TJ',
+          }),
+      }),
+    );
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack.at(-1)
+        ?.command.type,
+    ).toBe(
+      'REPLACE_EXISTING_TEXT',
+    );
   });
 
   it('routes reconstructed existing text through its distinct canonical command', async () => {
