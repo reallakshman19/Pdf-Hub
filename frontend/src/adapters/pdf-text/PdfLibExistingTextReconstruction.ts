@@ -5,6 +5,9 @@ import {
 import {
   ExistingTextReplacementError,
 } from '@/core/existing-text/replacementError';
+import {
+  assertPrintableAsciiReplacement,
+} from '@/core/existing-text/replacementOperand';
 import type {
   ExistingTextReconstructedReplacementMutationInput,
   ExistingTextReconstructedReplacementMutationResult,
@@ -30,6 +33,9 @@ export async function applyReconstructedExistingTextReplacementToDocument(
   throwIfAborted(
     input.signal,
     'revalidate reconstructed existing-text replacement',
+  );
+  assertPrintableAsciiReplacement(
+    input.intent.replacementText,
   );
 
   const clearance =
