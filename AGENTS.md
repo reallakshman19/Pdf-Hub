@@ -1,12 +1,53 @@
-# PDF Hub V2.5 relay override — authoritative current execution entrypoint
+# PDF Hub — authoritative live Engineering Relay V3.1 entrypoint
 
-For current engineering delivery, start at `agents/relay/REPO_STATE.yaml` and follow the
-pinned `engineering-pr-delivery-v2.5` protocol referenced there. The relay roadmap,
-active execution package, root `ARCHITECTURE.md`, and current GitHub roadmap issues
-supersede historical server/PyMuPDF/FastAPI assumptions in the older sections below.
+For current engineering delivery, **do not start from the historical V2.5 relay tree**.
 
-Material product writes require the live V2.5 route/candidate write gate. Conversation,
-branch existence, and old task-state prose are not material write authority.
+At every new agent/session start, task resume after session loss/handover, and before these semantic boundaries:
+
+- `IMPLEMENTATION_PLAN`;
+- material `PLAN_UPDATE`;
+- `TASK_RESULT`;
+- PR-ready / merge;
+- handover / takeover / coordinator dispatch based on prior state;
+
+run:
+
+```bash
+python scripts/relay-v31-live.py refresh
+```
+
+The command always resolves current `reallaksh19/Common@main`.
+
+If it exits with `REFRESH_REQUIRED`:
+
+1. read the exact live V3.1 `SKILL.md` path printed by the command;
+2. read the exact live Two-Pass schema path printed by the command;
+3. acknowledge that exact SHA:
+
+```bash
+python scripts/relay-v31-live.py acknowledge --sha <printed-common-sha>
+```
+
+4. rerun `refresh` and continue only after `LIVE_V31_ACKNOWLEDGED`.
+
+If the Common SHA changed, revalidate the **pending action/plan assumption only**. Do not restart completed engineering work or discard valid material evidence merely because recorder guidance evolved.
+
+Every new durable `IMPLEMENTATION_PLAN` must include:
+
+```text
+PROTOCOL BASIS
+V3.1
+Common@<resolved current-main SHA>
+<Two-Pass revision>
+```
+
+Every current issue-local Task Snapshot for an owned PR must carry the same `protocol_basis`. PR CI compares that snapshot basis to the live Common checkout.
+
+The current live coordination protocol is V3.1. `agents/relay/**` V2.5 artifacts remain historical/reconstruction evidence only and must not override this entrypoint.
+
+Relay/V3.1 recording never grants product-write, merge, release, or external-provider authority. Those still come from the Owner/task/provider permissions.
+
+The architectural/product invariants in the older sections below remain applicable unless superseded by current repository truth. Any older protocol-selection, phase-handoff, task-card, V2/V2.5 execution, or relay-authority instruction below is historical when it conflicts with this live V3.1 entrypoint.
 
 ---
 

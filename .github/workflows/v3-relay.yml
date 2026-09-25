@@ -17,11 +17,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout pinned Engineering Relay V3.1
+      - name: Checkout live Engineering Relay V3.1
         uses: actions/checkout@v4
         with:
           repository: reallaksh19/Common
-          ref: 37d8f93e7eec53ec45221fb5ea61d9ac70bb05dc
+          ref: main
+          fetch-depth: 1
           path: _common_v31
 
       - name: Set up Python
@@ -32,9 +33,23 @@ jobs:
       - name: Install relay validator dependencies
         run: python -m pip install --disable-pip-version-check PyYAML jsonschema
 
+      - name: Resolve exact live V3.1 basis
+        id: v31_basis
+        shell: bash
+        run: |
+          python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/live_protocol_basis.py --json | tee /tmp/v31-basis.json
+          COMMON_SHA="$(git -C _common_v31 rev-parse HEAD)"
+          echo "common_sha=$COMMON_SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Engineering Relay V3.1 live basis"
+            echo
+            echo "- Common/main resolved SHA: `$COMMON_SHA`"
+            echo "- Basis JSON: `$(cat /tmp/v31-basis.json)`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate V3.1 recorder foundation
         run: python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/validate_foundation.py .
 
-      - name: Validate current PR task binding
+      - name: Validate current PR task binding and live protocol basis
         if: ${{ github.event_name == 'pull_request' }}
-        run: python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/validate_task_binding.py --root . --event "$GITHUB_EVENT_PATH"
+        run: python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/validate_task_binding.py --root . --event "$GITHUB_EVENT_PATH" --require-current-protocol-basis
