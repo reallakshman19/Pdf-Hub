@@ -29,7 +29,13 @@ function command(draft: PdfCommandDraft) {
 }
 
 function existingTextDraft():
-  PdfCommandDraft {
+  Extract<
+    PdfCommandDraft,
+    {
+      type:
+        'REPLACE_EXISTING_TEXT';
+    }
+  > {
   const span =
     buildExistingTextSpan(
       {
