@@ -540,6 +540,48 @@ export const DocumentWorkspace: React.FC = () => {
 
   const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
 
+  const selectExistingText =
+    React.useCallback(
+      (
+        pageNumber: number,
+        pageId: string,
+        sourceIndex: number,
+      ) => {
+        if (!documentKey) {
+          return;
+        }
+
+        setExistingTextSelection({
+          revisionId:
+            documentKey,
+          pageId,
+          sourceIndex,
+        });
+        setInspectorTab('text');
+        setPage(pageNumber);
+
+        if (isMobile) {
+          setMobileSheetOpen(true);
+        } else if (
+          useEditorStore
+            .getState()
+            .rightPanelWidth
+          <= 0.1
+        ) {
+          setRightPanelWidth(18);
+        }
+      },
+      [
+        documentKey,
+        isMobile,
+        setExistingTextSelection,
+        setInspectorTab,
+        setMobileSheetOpen,
+        setPage,
+        setRightPanelWidth,
+      ],
+    );
+
   if (!workingBytes && !activeRevisionId) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4">
@@ -591,48 +633,6 @@ export const DocumentWorkspace: React.FC = () => {
   }
 
   if (!pdfDoc) return null;
-
-  const selectExistingText =
-    React.useCallback(
-      (
-        pageNumber: number,
-        pageId: string,
-        sourceIndex: number,
-      ) => {
-        if (!documentKey) {
-          return;
-        }
-
-        setExistingTextSelection({
-          revisionId:
-            documentKey,
-          pageId,
-          sourceIndex,
-        });
-        setInspectorTab('text');
-        setPage(pageNumber);
-
-        if (isMobile) {
-          setMobileSheetOpen(true);
-        } else if (
-          useEditorStore
-            .getState()
-            .rightPanelWidth
-          <= 0.1
-        ) {
-          setRightPanelWidth(18);
-        }
-      },
-      [
-        documentKey,
-        isMobile,
-        setExistingTextSelection,
-        setInspectorTab,
-        setMobileSheetOpen,
-        setPage,
-        setRightPanelWidth,
-      ],
-    );
 
   const renderPage = (index: number) => {
     const pageNumber = index + 1;
