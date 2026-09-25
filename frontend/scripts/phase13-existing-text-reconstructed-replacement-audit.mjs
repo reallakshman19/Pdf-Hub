@@ -101,6 +101,10 @@ const inspectorTests =
   requireFile(
     'src/components/inspector/ExistingTextInspectorTab.test.tsx',
   );
+const clearanceTests =
+  requireFile(
+    'src/adapters/pdf-text/PdfLibExistingTextVisualClearance.test.ts',
+  );
 const engineTests =
   requireFile(
     'src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts',
@@ -201,7 +205,9 @@ requireTokens(
 
 requireTokens(
   'execution regressions',
-  engineTests + dispatchTests,
+  clearanceTests
+    + engineTests
+    + dispatchTests,
   [
     'reconstructs overflow text from same-document proof without reparsing the active revision',
     'rejects non-ASCII reconstructed text at the mutation-session boundary',
