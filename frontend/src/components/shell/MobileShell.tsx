@@ -40,11 +40,16 @@ export const MobileShell: React.FC<MobileShellProps> = ({
     setMobileDrawerOpen,
     mobileSheetOpen,
     setMobileSheetOpen,
+    inspectorTab,
+    existingTextSelection,
   } = useEditorStore(useShallow((state) => ({
     mobileDrawerOpen: state.mobileDrawerOpen,
     setMobileDrawerOpen: state.setMobileDrawerOpen,
     mobileSheetOpen: state.mobileSheetOpen,
     setMobileSheetOpen: state.setMobileSheetOpen,
+    inspectorTab: state.inspectorTab,
+    existingTextSelection:
+      state.existingTextSelection,
   })));
 
   const selectedAnnotationIds = useAnnotationStore((state) => state.selectedAnnotationIds);
@@ -64,6 +69,12 @@ export const MobileShell: React.FC<MobileShellProps> = ({
   }, [selectedAnnotationIds, setMobileSheetOpen, setMobileDrawerOpen]);
 
   const hasSelection = selectedAnnotationIds.length > 0;
+  const hasInspectorContent =
+    hasSelection
+    || (
+      inspectorTab === 'text'
+      && existingTextSelection !== null
+    );
 
   return (
     <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -106,9 +117,9 @@ export const MobileShell: React.FC<MobileShellProps> = ({
       <MobileSheet
         isOpen={mobileSheetOpen}
         onClose={() => setMobileSheetOpen(false)}
-        title={hasSelection ? 'Inspector' : 'More Actions'}
+        title={hasInspectorContent ? 'Inspector' : 'More Actions'}
       >
-        {hasSelection ? (
+        {hasInspectorContent ? (
           <ErrorBoundary zone="Inspector" resetKey={boundaryResetKey}>
             {inspector}
           </ErrorBoundary>
