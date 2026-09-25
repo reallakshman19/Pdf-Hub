@@ -210,7 +210,8 @@ requireTokens(
     'fallback evidence proved',
     'editing unavailable',
     'informational only',
-    'Direct click-on-page text selection remains future UX work',
+    'Direct on-page selection',
+    'revision + PageId + PDF.js source index',
   ],
 );
 
