@@ -191,12 +191,20 @@ requireTokens(
 );
 
 forbidTokens(
-  'no widened mutation authority',
-  commandTypes,
+  'no page-layer mutation authority',
+  workspace,
   [
     "'RECONSTRUCT_EXISTING_TEXT'",
     "'MASK_AND_REDRAW_EXISTING_TEXT'",
     "'EDIT_EXISTING_TEXT_REGION'",
+  ],
+);
+
+requireTokens(
+  'later reconstructed command remains outside page interaction',
+  commandTypes,
+  [
+    "'RECONSTRUCT_EXISTING_TEXT'",
   ],
 );
 

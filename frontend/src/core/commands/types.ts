@@ -135,6 +135,12 @@ export type ReplaceExistingTextCommand = PdfCommandBase<
   'REPLACE_EXISTING_TEXT',
   ReplaceExistingTextCommandPayload
 >;
+export type ReconstructExistingTextCommandPayload =
+  ReplaceExistingTextCommandPayload;
+export type ReconstructExistingTextCommand = PdfCommandBase<
+  'RECONSTRUCT_EXISTING_TEXT',
+  ReconstructExistingTextCommandPayload
+>;
 export type AnnotationChangeCommand = PdfCommandBase<
   'ANNOTATION_CHANGE',
   { action: string; annotationIds: string[] }
@@ -172,6 +178,7 @@ export type PdfCommand =
   | DrawTextOnPagesCommand
   | DrawRedactionBoxCommand
   | ReplaceExistingTextCommand
+  | ReconstructExistingTextCommand
   | AnnotationChangeCommand
   | WriterChangeCommand
   | ApplyWorkingCopyCommand;
@@ -284,6 +291,7 @@ const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
   'REORDER_PAGES',
   'REORDER_PAGES_BY_ORDER',
   'REPLACE_EXISTING_TEXT',
+  'RECONSTRUCT_EXISTING_TEXT',
 ]);
 
 export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {

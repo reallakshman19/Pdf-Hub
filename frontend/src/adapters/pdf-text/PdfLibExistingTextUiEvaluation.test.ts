@@ -250,6 +250,8 @@ describe('PdfLibExistingTextUiEvaluation', () => {
         },
         backgroundColorHex:
           '#ffffff',
+        targetTextColorHex:
+          '#000000',
         sourceBoundsPt: {
           x: 72,
           y: 697,

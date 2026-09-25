@@ -50,6 +50,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 }));
 
 const pdfMocks = vi.hoisted(() => ({
+  rotatePages: vi.fn(),
   movePage: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
@@ -83,6 +84,7 @@ const mutationEngineMocks = vi.hoisted(() => ({
   drawVisualMasks: vi.fn(),
   applyHeaderFooter: vi.fn(),
   replaceExistingText: vi.fn(),
+  reconstructExistingText: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -214,7 +216,13 @@ function existingTextDraft(
   pageId =
     'test-doc::stable::1',
   replacementText = 'World',
-): PdfCommandDraft {
+): Extract<
+  PdfCommandDraft,
+  {
+    type:
+      'REPLACE_EXISTING_TEXT';
+  }
+> {
   const span =
     buildExistingTextSpan(
       {
@@ -273,6 +281,37 @@ function existingTextDraft(
   };
 }
 
+function reconstructedExistingTextDraft(
+  pageId =
+    'test-doc::stable::1',
+  replacementText = 'World',
+): Extract<
+  PdfCommandDraft,
+  {
+    type:
+      'RECONSTRUCT_EXISTING_TEXT';
+  }
+> {
+  const native =
+    existingTextDraft(
+      pageId,
+      replacementText,
+    );
+  if (
+    native.type
+    !== 'REPLACE_EXISTING_TEXT'
+  ) {
+    throw new Error(
+      'Expected existing-text draft',
+    );
+  }
+  return {
+    ...native,
+    type:
+      'RECONSTRUCT_EXISTING_TEXT',
+  };
+}
+
 function ocrDocument(
   pageIndex: number,
   documentFingerprint = 'test-doc',
@@ -323,7 +362,7 @@ describe('canonical command dispatch', () => {
     pdfMocks.countPages.mockResolvedValue(3);
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
     mutationEngineMocks.getPageMetrics.mockImplementation(
-      (pageIndex: number) => ({
+      (_pageIndex: number) => ({
         width: 612,
         height: 792,
         rotation: 0,
@@ -350,6 +389,8 @@ describe('canonical command dispatch', () => {
       applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
       replaceExistingText:
         mutationEngineMocks.replaceExistingText,
+      reconstructExistingText:
+        mutationEngineMocks.reconstructExistingText,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
@@ -395,7 +436,7 @@ describe('canonical command dispatch', () => {
   });
 
   it('does not mutate any store when annotation persistence fails', async () => {
-    useAnnotationStore.getState().setAnnotations([TEST_ANNOTATION]);
+    useAnnotationStore.getState().setAnnotations([{ ...TEST_ANNOTATION, pageId: 'test-doc::stable::1' }]);
     useOcrStore.getState().hydrateOcrSession({
       documentFingerprint: 'test-doc',
       result: ocrDocument(0),
@@ -416,7 +457,7 @@ describe('canonical command dispatch', () => {
     expect(result.error?.details).toBe('transaction-stage=persistence');
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
     expect(useSessionStore.getState().documentKey).toBe('test-doc');
-    expect(useAnnotationStore.getState().annotations).toEqual([TEST_ANNOTATION]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...TEST_ANNOTATION, pageId: 'test-doc::stable::1' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('test-doc');
     expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
       pageId: 'test-doc::stable::1',
@@ -530,6 +571,258 @@ describe('canonical command dispatch', () => {
     });
   });
 
+  it('routes reconstructed existing text through its distinct canonical command', async () => {
+    mutationEngineMocks
+      .reconstructExistingText
+      .mockResolvedValue({
+        pageIndex: 0,
+        originalText: 'Hello',
+        replacementText:
+          'World',
+        fontResourceName:
+          'F1',
+        baseFont:
+          'Helvetica',
+        nativeFit: {
+          schemaVersion: 1,
+          status:
+            'overflows',
+          baseFont:
+            'Helvetica',
+          sourceText: 'Hello',
+          replacementText:
+            'World',
+          observedAdvancePt: 30,
+          fontSizePt: 12,
+          tolerancePt: 0.25,
+          measuredSourceWidthPt:
+            27,
+          measuredReplacementWidthPt:
+            36,
+          observedToMetricScale:
+            30 / 27,
+          projectedReplacementAdvancePt:
+            40,
+          overflowPt: 10,
+        },
+        evidence: {
+          schemaVersion: 1,
+          sourceRevisionId:
+            'test-doc',
+          pageId:
+            'test-doc::stable::1',
+          spanId:
+            'existing-text:test-doc:test-doc::stable::1:0',
+          sourceCoverage:
+            'proved',
+          clearanceRectPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+          background: {
+            kind: 'solid',
+            colorHex:
+              '#ffffff',
+          },
+          foreignPaintIntersections:
+            0,
+          replacementBoundsPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+        },
+        proof: {
+          schemaVersion: 1,
+          proofMode:
+            'single-stream-solid-background-target-text-only',
+          streamIndex: 0,
+          streamRef:
+            '7 0 R',
+          targetOperatorIndex:
+            4,
+          operatorCount: 6,
+          backgroundPaintOperatorIndex:
+            2,
+          backgroundRectPt: {
+            x: 0,
+            y: 0,
+            width: 612,
+            height: 792,
+          },
+          backgroundColorHex:
+            '#ffffff',
+          targetTextColorHex:
+            '#000000',
+          sourceBoundsPt: {
+            x: 72,
+            y: 697,
+            width: 30,
+            height: 15,
+          },
+          replacementBoundsPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+          clearanceRectPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+          foreignPaintIntersections:
+            0,
+        },
+      });
+
+    const draft =
+      reconstructedExistingTextDraft();
+    const result =
+      await execute(draft);
+
+    expect(result).toMatchObject({
+      success: true,
+      mutated: true,
+      commandType:
+        'RECONSTRUCT_EXISTING_TEXT',
+    });
+    expect(
+      mutationEngineMocks
+        .reconstructExistingText,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentRevisionId:
+          'test-doc',
+        span:
+          draft.payload.span,
+        intent:
+          draft.payload.intent,
+        provenance:
+          draft.payload
+            .provenance,
+      }),
+    );
+    expect(mutationEngineMocks.commit)
+      .toHaveBeenCalledTimes(1);
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack.at(-1)
+        ?.command.type,
+    ).toBe(
+      'RECONSTRUCT_EXISTING_TEXT',
+    );
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        2,
+        2,
+        2,
+      ]),
+    );
+
+    await expect(
+      applyUndo(),
+    ).resolves.toBe(true);
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        1,
+        1,
+        1,
+      ]),
+    );
+
+    await expect(
+      applyRedo(),
+    ).resolves.toBe(true);
+    expect(
+      useSessionStore
+        .getState()
+        .workingBytes,
+    ).toEqual(
+      new Uint8Array([
+        2,
+        2,
+        2,
+      ]),
+    );
+  });
+
+  it('rejects reconstructed existing-text PageId drift before mutation-session write', async () => {
+    const result =
+      await execute(
+        reconstructedExistingTextDraft(
+          'other-stable-page',
+        ),
+      );
+
+    expect(result).toMatchObject({
+      success: false,
+      mutated: false,
+      error: {
+        code:
+          'VALIDATION_FAILED',
+      },
+    });
+    expect(
+      mutationEngineMocks
+        .reconstructExistingText,
+    ).not.toHaveBeenCalled();
+    expect(mutationEngineMocks.commit)
+      .not.toHaveBeenCalled();
+  });
+
+  it('maps reconstructed proof loss to validation failure without commit', async () => {
+    mutationEngineMocks
+      .reconstructExistingText
+      .mockRejectedValue(
+        new ExistingTextReplacementError(
+          'RECONSTRUCTED_VISUAL_CLEARANCE_UNPROVED',
+          'clearance changed',
+        ),
+      );
+
+    const result =
+      await execute(
+        reconstructedExistingTextDraft(),
+      );
+
+    expect(result).toMatchObject({
+      success: false,
+      mutated: false,
+      error: {
+        code:
+          'VALIDATION_FAILED',
+        message:
+          'clearance changed',
+      },
+    });
+    expect(
+      mutationEngineMocks
+        .reconstructExistingText,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      mutationEngineMocks.commit,
+    ).not.toHaveBeenCalled();
+    expect(
+      useHistoryStore
+        .getState()
+        .undoStack,
+    ).toHaveLength(0);
+  });
+
   it('rejects existing-text PageId drift before mutation-session write', async () => {
     const result =
       await execute(
@@ -614,6 +907,10 @@ describe('canonical command dispatch', () => {
   it('splits pages and returns extracted artifact', async () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([4, 4, 4]),
+      pageCount: 2,
+    });
     const result = await execute({
       type: 'SPLIT_PAGES',
       payload: { pageIndices: [0] },

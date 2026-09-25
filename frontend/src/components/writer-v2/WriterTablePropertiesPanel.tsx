@@ -1035,9 +1035,7 @@ export const WriterTablePropertiesPanel: React.FC<
               value={currentStyle.borders?.top?.style ?? 'single'}
               onChange={(event) => {
                 void setBorder({
-                  style:
-                    event.currentTarget.value
-                    as WriterTableBorderStyle,
+                  style: event.currentTarget.value as WriterTableBorderStyle,
                 }).catch(() => undefined);
               }}
             >

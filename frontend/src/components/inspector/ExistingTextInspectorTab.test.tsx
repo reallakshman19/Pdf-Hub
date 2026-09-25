@@ -281,7 +281,7 @@ describe('ExistingTextInspectorTab', () => {
       ),
     );
     expect(
-      screen.getByText('Second'),
+      screen.getAllByText('Second')[0],
     ).toBeInTheDocument();
 
     fireEvent.change(
@@ -360,6 +360,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {
@@ -413,7 +416,7 @@ describe('ExistingTextInspectorTab', () => {
     );
   });
 
-  it('shows proved fallback as informational and exposes no fallback mutation action', async () => {
+  it('exposes proved fallback through the distinct reconstructed command without cached evidence', async () => {
     vi.mocked(
       evaluateExistingTextUiCapability,
     ).mockImplementation(
@@ -490,6 +493,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {
@@ -512,6 +518,194 @@ describe('ExistingTextInspectorTab', () => {
     expect(
       screen.queryByTestId(
         'existing-text-replace-btn',
+      ),
+    ).not.toBeInTheDocument();
+
+    vi.mocked(
+      commandBus.execute,
+    ).mockResolvedValue({
+      success: true,
+      commandId: 'cmd-reconstruct',
+      commandType:
+        'RECONSTRUCT_EXISTING_TEXT',
+      source: 'toolbar',
+      mutated: true,
+      message:
+        'Existing PDF text reconstructed visually',
+    });
+
+    fireEvent.click(
+      screen.getByTestId(
+        'existing-text-reconstruct-btn',
+      ),
+    );
+
+    await waitFor(() =>
+      expect(
+        commandBus.execute,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workingBytes:
+            expect.any(
+              Uint8Array,
+            ),
+          command:
+            expect.objectContaining({
+              type:
+                'RECONSTRUCT_EXISTING_TEXT',
+              source:
+                'toolbar',
+              documentKey:
+                'doc-1',
+              payload:
+                expect.objectContaining({
+                  schemaVersion: 1,
+                  span:
+                    expect.any(
+                      Object,
+                    ),
+                  intent:
+                    expect.any(
+                      Object,
+                    ),
+                  provenance:
+                    expect.any(
+                      Object,
+                    ),
+                }),
+            }),
+        }),
+      ),
+    );
+
+    const call =
+      vi.mocked(
+        commandBus.execute,
+      ).mock.calls.at(-1)?.[0];
+    expect(
+      call?.command.payload,
+    ).not.toHaveProperty(
+      'evidence',
+    );
+    expect(
+      call?.command.payload,
+    ).not.toHaveProperty(
+      'nativeFit',
+    );
+  });
+
+  it('invalidates checked fallback capability when replacement text changes', async () => {
+    vi.mocked(
+      evaluateExistingTextUiCapability,
+    ).mockImplementation(
+      async (input) => ({
+        status:
+          'fallback-proved',
+        intent:
+          createExistingTextEditIntent(
+            input.span,
+            input.replacementText,
+          ),
+        provenance,
+        nativeFit: {
+          schemaVersion: 1,
+          status:
+            'overflows',
+          baseFont:
+            'Helvetica',
+          sourceText: 'Hello',
+          replacementText:
+            input.replacementText,
+          observedAdvancePt:
+            30,
+          fontSizePt: 12,
+          tolerancePt: 0.25,
+          measuredSourceWidthPt:
+            27,
+          measuredReplacementWidthPt:
+            36,
+          observedToMetricScale:
+            30 / 27,
+          projectedReplacementAdvancePt:
+            40,
+          overflowPt: 10,
+        },
+        evidence: {
+          schemaVersion: 1,
+          sourceRevisionId:
+            'doc-1',
+          pageId: 'page-1',
+          spanId:
+            input.span.id,
+          sourceCoverage:
+            'proved',
+          clearanceRectPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+          background: {
+            kind: 'solid',
+            colorHex:
+              '#ffffff',
+          },
+          foreignPaintIntersections:
+            0,
+          replacementBoundsPt: {
+            x: 72,
+            y: 697,
+            width: 40,
+            height: 15,
+          },
+        },
+      }),
+    );
+
+    render(
+      <ExistingTextInspectorTab />,
+    );
+
+    const input =
+      await screen.findByTestId(
+        'existing-text-replacement-input',
+      );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
+    fireEvent.change(
+      input,
+      {
+        target: {
+          value: 'World',
+        },
+      },
+    );
+    fireEvent.click(
+      screen.getByTestId(
+        'existing-text-check-btn',
+      ),
+    );
+
+    expect(
+      await screen.findByTestId(
+        'existing-text-reconstruct-btn',
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      input,
+      {
+        target: {
+          value:
+            'World again',
+        },
+      },
+    );
+
+    expect(
+      screen.queryByTestId(
+        'existing-text-reconstruct-btn',
       ),
     ).not.toBeInTheDocument();
     expect(
@@ -553,6 +747,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {

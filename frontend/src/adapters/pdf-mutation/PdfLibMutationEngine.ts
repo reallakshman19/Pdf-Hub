@@ -8,6 +8,9 @@ import { applyPdfLibHeaderFooterPlan } from './pdfLibHeaderFooter';
 import {
   applySimpleExistingTextReplacementToDocument,
 } from '@/adapters/pdf-text/PdfLibExistingTextReplacement';
+import {
+  applyReconstructedExistingTextReplacementToDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextReconstruction';
 import type {
   PdfMutationCommitResult,
   PdfMutationEngine,
@@ -28,12 +31,19 @@ type SessionState = 'open' | 'committed' | 'disposed';
 
 class PdfLibMutationSession implements PdfMutationSession {
   private state: SessionState = 'open';
+  private document: PdfLibDocument;
+  private readonly lib: PdfLibNamespace;
+  private readonly signal?: AbortSignal;
 
   constructor(
-    private document: PdfLibDocument,
-    private readonly lib: PdfLibNamespace,
-    private readonly signal?: AbortSignal,
-  ) {}
+    document: PdfLibDocument,
+    lib: PdfLibNamespace,
+    signal?: AbortSignal,
+  ) {
+    this.document = document;
+    this.lib = lib;
+    this.signal = signal;
+  }
 
   get pageCount(): number {
     this.assertOpen('read page count');
@@ -447,6 +457,26 @@ class PdfLibMutationSession implements PdfMutationSession {
       'replace existing PDF text',
     );
     return applySimpleExistingTextReplacementToDocument(
+      this.document,
+      this.lib,
+      {
+        ...input,
+        signal: this.signal,
+      },
+    );
+  }
+
+  async reconstructExistingText(
+    input: Parameters<
+      PdfMutationSession['reconstructExistingText']
+    >[0],
+  ): ReturnType<
+    PdfMutationSession['reconstructExistingText']
+  > {
+    this.assertOpen(
+      'reconstruct existing PDF text',
+    );
+    return applyReconstructedExistingTextReplacementToDocument(
       this.document,
       this.lib,
       {

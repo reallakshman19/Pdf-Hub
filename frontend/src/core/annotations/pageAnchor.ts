@@ -28,7 +28,7 @@ export function normalizeAnnotationPageAnchors(
   annotations: readonly PdfAnnotation[],
   graph: PageGraph<PageNode> | null,
 ): PdfAnnotation[] {
-  if (!graph) return annotations.map(cloneAnnotation);
+  if (!graph) return annotations.map((annotation) => cloneAnnotation(annotation));
 
   return annotations.map((annotation) => {
     const pageNumber = pageNumberForAnnotationPageId(graph, annotation.pageId);

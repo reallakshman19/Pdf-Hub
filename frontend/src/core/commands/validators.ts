@@ -1,4 +1,5 @@
 import {
+  validateReconstructExistingTextCommandPayload,
   validateReplaceExistingTextCommandPayload,
 } from '@/core/existing-text/commandValidation';
 import {
@@ -230,6 +231,15 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
     case 'REPLACE_EXISTING_TEXT':
       errors.push(
         ...validateReplaceExistingTextCommandPayload(
+          command.payload,
+          command.documentKey,
+        ),
+      );
+      break;
+
+    case 'RECONSTRUCT_EXISTING_TEXT':
+      errors.push(
+        ...validateReconstructExistingTextCommandPayload(
           command.payload,
           command.documentKey,
         ),

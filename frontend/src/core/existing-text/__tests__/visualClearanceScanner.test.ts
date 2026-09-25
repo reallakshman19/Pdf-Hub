@@ -77,12 +77,35 @@ describe('existing-text visual clearance paint scanner', () => {
       status: 'proved',
       backgroundColorHex:
         '#ffffff',
+      targetTextColorHex:
+        '#000000',
       backgroundRectPt: {
         x: 0,
         y: 0,
         width: 612,
         height: 792,
       },
+    });
+  });
+
+  it('proves an explicit target DeviceRGB text color independently from the background', () => {
+    const source =
+      'q 1 1 1 rg 0 0 612 792 re f Q q 0.2 0.4 0.6 rg BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET Q';
+    const result =
+      scanExistingTextVisualClearancePaint({
+        stream: stream(source),
+        provenance:
+          provenance(source),
+        clearanceRectPt:
+          CLEARANCE,
+      });
+
+    expect(result).toMatchObject({
+      status: 'proved',
+      backgroundColorHex:
+        '#ffffff',
+      targetTextColorHex:
+        '#336699',
     });
   });
 
@@ -102,6 +125,28 @@ describe('existing-text visual clearance paint scanner', () => {
       status: 'proved',
       backgroundColorHex:
         '#808080',
+      targetTextColorHex:
+        '#000000',
+    });
+  });
+
+  it('does not widen fallback proof to an implicit default-color background', () => {
+    const source =
+      'q 0 0 612 792 re f Q q BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET Q';
+    const result =
+      scanExistingTextVisualClearancePaint({
+        stream: stream(source),
+        provenance:
+          provenance(source),
+        clearanceRectPt:
+          CLEARANCE,
+      });
+
+    expect(result).toMatchObject({
+      status: 'unproved',
+      reasons: [
+        'FOREIGN_PAINT_OPERATOR',
+      ],
     });
   });
 

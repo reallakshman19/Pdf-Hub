@@ -41,16 +41,71 @@ import {
   resolveExistingTextStandard14BaseFont,
 } from './PdfLibExistingTextFont';
 
+type PdfLibDocument =
+  import('pdf-lib').PDFDocument;
+type PdfLibNamespace =
+  Awaited<ReturnType<typeof pdfLib>>;
+
+interface ExistingTextVisualClearanceInput {
+  currentRevisionId: string;
+  span: ExistingTextSpan;
+  intent: ExistingTextEditIntent;
+  provenance:
+    ExistingTextSimpleTextOperator;
+  signal?: AbortSignal;
+}
+
 export async function analyzeExistingTextVisualClearance(
-  input: {
+  input: ExistingTextVisualClearanceInput & {
     pdfBytes: Uint8Array;
-    currentRevisionId: string;
-    span: ExistingTextSpan;
-    intent: ExistingTextEditIntent;
-    provenance:
-      ExistingTextSimpleTextOperator;
-    signal?: AbortSignal;
   },
+): Promise<ExistingTextVisualClearanceAnalysisResult> {
+  try {
+    throwIfAborted(
+      input.signal,
+      'load PDF for existing-text visual clearance',
+    );
+    const lib = await pdfLib();
+    const document =
+      await raceWithAbort(
+        lib.PDFDocument.load(
+          input.pdfBytes,
+          {
+            throwOnInvalidObject:
+              false,
+            updateMetadata: false,
+          },
+        ),
+        input.signal,
+        'load PDF for existing-text visual clearance',
+      );
+
+    return analyzeExistingTextVisualClearanceInDocument(
+      document,
+      lib,
+      input,
+    );
+  } catch (error) {
+    if (
+      isOperationCancelledError(error)
+    ) {
+      throw error;
+    }
+    return unproved(
+      'PDF_ANALYSIS_FAILED',
+      [
+        error instanceof Error
+          ? error.message
+          : String(error),
+      ],
+    );
+  }
+}
+
+export async function analyzeExistingTextVisualClearanceInDocument(
+  document: PdfLibDocument,
+  lib: PdfLibNamespace,
+  input: ExistingTextVisualClearanceInput,
 ): Promise<ExistingTextVisualClearanceAnalysisResult> {
   if (
     input.span.editability
@@ -93,22 +148,8 @@ export async function analyzeExistingTextVisualClearance(
   try {
     throwIfAborted(
       input.signal,
-      'load PDF for existing-text visual clearance',
+      'analyze existing-text visual clearance',
     );
-    const lib = await pdfLib();
-    const document =
-      await raceWithAbort(
-        lib.PDFDocument.load(
-          input.pdfBytes,
-          {
-            throwOnInvalidObject:
-              false,
-            updateMetadata: false,
-          },
-        ),
-        input.signal,
-        'load PDF for existing-text visual clearance',
-      );
 
     const content =
       readExistingTextPageContentStreamsFromDocument(
@@ -242,11 +283,22 @@ export async function analyzeExistingTextVisualClearance(
       );
     }
 
+    // The reconstructed writer draws the resolved Standard-14 font at its
+    // natural metric width. PDF.js observed advance can differ slightly from
+    // pdf-lib metrics even though the admitted source subset rejects Tz/Tc/Tw.
+    // Prove clearance for the larger width so the actual redraw can never
+    // extend beyond the independently cleared envelope.
+    const reconstructedAdvancePt =
+      Math.max(
+        nativeFit
+          .projectedReplacementAdvancePt,
+        nativeFit
+          .measuredReplacementWidthPt,
+      );
     const geometry =
       buildClearanceGeometry(
         input.span,
-        nativeFit
-          .projectedReplacementAdvancePt,
+        reconstructedAdvancePt,
         input.provenance
           .fontSizePt,
       );
@@ -323,6 +375,8 @@ export async function analyzeExistingTextVisualClearance(
           scan.backgroundRectPt,
         backgroundColorHex:
           scan.backgroundColorHex,
+        targetTextColorHex:
+          scan.targetTextColorHex,
         sourceBoundsPt:
           geometry.sourceBoundsPt,
         replacementBoundsPt:

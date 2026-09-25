@@ -280,7 +280,6 @@ forbidTokens(
   [
     'RECONSTRUCTED_OVERLAY',
     'MASK_AND_REDRAW_EXISTING_TEXT',
-    'applyReconstructedExistingText',
   ],
 );
 

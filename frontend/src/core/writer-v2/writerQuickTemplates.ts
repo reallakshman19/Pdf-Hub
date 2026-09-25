@@ -4,7 +4,6 @@ import type {
   WriterReviewPriority,
   WriterReviewStatus,
 } from './types';
-import { useWriterV2Store } from './writerV2Store';
 import { ensureRichTextEditing } from './ensureRichTextEditing';
 import {
   updateWriterReviewMetadataById,

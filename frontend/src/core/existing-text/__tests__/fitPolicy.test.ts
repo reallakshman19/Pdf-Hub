@@ -7,18 +7,18 @@ import {
 import {
   buildExistingTextSpan,
   createExistingTextEditIntent,
-} from './model';
+} from '../model';
 import {
   assessExistingTextEditPolicy,
-} from './fitPolicy';
+} from '../fitPolicy';
 import type {
   ExistingTextNativeFitDiagnostic,
   ExistingTextReconstructedOverlayEvidence,
-} from './fitTypes';
+} from '../fitTypes';
 import type {
   ExistingTextEditIntent,
   ExistingTextSpan,
-} from './types';
+} from '../types';
 
 const CONTEXT = {
   revisionId: 'sha256:fit-policy',

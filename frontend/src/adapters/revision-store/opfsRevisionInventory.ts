@@ -18,8 +18,7 @@ export async function clearCommittedOpfsRevisionFiles(
 ): Promise<void> {
   try {
     const directory =
-      input.directory
-        as DirectoryWithEntries;
+      input.directory as DirectoryWithEntries;
     for await (
       const [name] of
         directory.entries()
@@ -54,8 +53,7 @@ export async function listCommittedOpfsRevisionIds(
   const ids: string[] = [];
   try {
     const directory =
-      input.directory
-        as DirectoryWithEntries;
+      input.directory as DirectoryWithEntries;
     for await (
       const [name] of
         directory.entries()

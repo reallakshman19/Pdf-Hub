@@ -29,7 +29,13 @@ function command(draft: PdfCommandDraft) {
 }
 
 function existingTextDraft():
-  PdfCommandDraft {
+  Extract<
+    PdfCommandDraft,
+    {
+      type:
+        'REPLACE_EXISTING_TEXT';
+    }
+  > {
   const span =
     buildExistingTextSpan(
       {
@@ -139,6 +145,7 @@ const expectedDispositions = {
   DRAW_TEXT_ON_PAGES: 'SELF_CONTAINED_REPLAY',
   DRAW_REDACTION_BOX: 'SELF_CONTAINED_REPLAY',
   REPLACE_EXISTING_TEXT: 'SELF_CONTAINED_REPLAY',
+  RECONSTRUCT_EXISTING_TEXT: 'SELF_CONTAINED_REPLAY',
   ANNOTATION_CHANGE: 'CHECKPOINT_REQUIRED',
   WRITER_CHANGE: 'CHECKPOINT_REQUIRED',
   APPLY_WORKING_COPY: 'CHECKPOINT_REQUIRED',
@@ -171,6 +178,10 @@ describe('history replayability policy', () => {
       { type: 'DRAW_TEXT_ON_PAGES', payload: { pageIndices: [0], options: { text: 'Page {page}', x: 10, y: 10, fontSize: 12, pageNumberToken: true } } },
       { type: 'DRAW_REDACTION_BOX', payload: { pageIndices: [0], options: { x: 10, y: 10, width: 20, height: 20 } } },
       existingTextDraft(),
+      {
+        ...existingTextDraft(),
+        type: 'RECONSTRUCT_EXISTING_TEXT',
+      },
       { type: 'ANNOTATION_CHANGE', payload: { action: 'add', annotationIds: ['a'] } },
       { type: 'WRITER_CHANGE', payload: { action: 'move', elementIds: ['w'] } },
       { type: 'APPLY_WORKING_COPY', payload: { binaryResourceId: 'working-copy' } },

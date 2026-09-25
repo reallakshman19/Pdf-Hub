@@ -13,11 +13,17 @@ import { commandBus } from '@/core/commands/bus';
 import {
   materializePdfCommand,
   type PdfCommand,
-  type PdfCommandDraft,
 } from '@/core/commands/types';
 import { validateCommand } from '@/core/commands/validators';
 import { error as logError } from '@/core/logger/service';
 import { useSessionStore } from '@/core/session/store';
+
+function isUint8Array(value: unknown): value is Uint8Array {
+  return (
+    value instanceof Uint8Array
+    || Object.prototype.toString.call(value) === '[object Uint8Array]'
+  );
+}
 import type {
   PageGraph,
   PageNode,
@@ -783,8 +789,7 @@ function assertExecuteOptionsInput(
       if (
         resourceId.trim()
           .length === 0
-        || !(bytes
-          instanceof Uint8Array)
+        || !isUint8Array(bytes)
       ) {
         throw new PdfHubSdkError(
           'INVALID_ARGUMENT',
@@ -809,8 +814,7 @@ function assertDonorAdmissionRequestInput(
     typeof value.commandTarget
       !== 'string'
     || !donorCommandTargets.has(
-      value.commandTarget
-        as PdfHubSdkDonorCommandTarget,
+      value.commandTarget as PdfHubSdkDonorCommandTarget,
     )
   ) {
     throw new PdfHubSdkError(
@@ -857,10 +861,7 @@ function assertDonorAdmissionRequestInput(
           `Donor ${index} requires a non-empty fileName.`,
         );
       }
-      if (
-        !(donor.bytes
-          instanceof Uint8Array)
-      ) {
+      if (!isUint8Array(donor.bytes)) {
         throw new PdfHubSdkError(
           'INVALID_ARGUMENT',
           `Donor ${index}.bytes must be a Uint8Array.`,

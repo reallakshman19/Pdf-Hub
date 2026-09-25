@@ -24,7 +24,7 @@ export function normalizeWriterPageAnchors(
   elements: readonly WriterElementV2[],
   graph: PageGraph<PageNode> | null,
 ): WriterElementV2[] {
-  if (!graph) return elements.map(cloneElement);
+  if (!graph) return elements.map((element) => cloneElement(element));
 
   return elements.map((element) => {
     const pageIndex = pageIndexForWriterPageId(graph, element.pageId);

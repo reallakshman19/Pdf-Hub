@@ -152,7 +152,8 @@ export async function evaluateExistingTextUiCapability(
   }
 
   if (
-    clearance.nativeFit?.status
+    clearance.nativeFit
+    && clearance.nativeFit.status
       === 'fits'
   ) {
     return {

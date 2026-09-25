@@ -129,7 +129,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
                 }),
               },
             });
-          }
+          }}
         >
           <Hash className="w-3.5 h-3.5" />
         </Button>
@@ -164,7 +164,7 @@ export const ThumbnailActionStrip: React.FC<ThumbnailActionStripProps> = ({
                 }),
               },
             });
-          }
+          }}
         >
           <Heading className="w-3.5 h-3.5" />
         </Button>

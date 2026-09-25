@@ -17,7 +17,8 @@ import type {
 } from './visualClearanceTypes';
 
 interface PaintGraphicsState {
-  fillColorHex: string | null;
+  fillColorHex: string;
+  fillColorExplicit: boolean;
 }
 
 interface BackgroundPaint {
@@ -81,7 +82,12 @@ export function scanExistingTextVisualClearancePaint(
     PaintGraphicsState[] = [];
   let graphics:
     PaintGraphicsState = {
-      fillColorHex: null,
+      // PDF graphics state defaults nonstroking DeviceGray to 0 (black).
+      // That default is sufficient to prove target text color, but the
+      // existing fallback class still requires an explicit color operator
+      // before admitting a background fill.
+      fillColorHex: '#000000',
+      fillColorExplicit: false,
     };
   let background:
     BackgroundPaint | null = null;
@@ -89,6 +95,8 @@ export function scanExistingTextVisualClearancePaint(
     ExistingTextFitRect | null = null;
   let operatorIndex = 0;
   let targetSeen = 0;
+  let targetTextColorHex:
+    string | null = null;
 
   for (const token of lexed.tokens) {
     if (token.kind !== 'word') {
@@ -165,6 +173,7 @@ export function scanExistingTextVisualClearancePaint(
         graphics = {
           ...graphics,
           fillColorHex: color,
+          fillColorExplicit: true,
         };
         break;
       }
@@ -192,6 +201,7 @@ export function scanExistingTextVisualClearancePaint(
         graphics = {
           ...graphics,
           fillColorHex: color,
+          fillColorExplicit: true,
         };
         break;
       }
@@ -246,7 +256,7 @@ export function scanExistingTextVisualClearancePaint(
       case 'f*': {
         if (
           !pendingRect
-          || !graphics.fillColorHex
+          || !graphics.fillColorExplicit
         ) {
           return unproved(
             'FOREIGN_PAINT_OPERATOR',
@@ -293,6 +303,8 @@ export function scanExistingTextVisualClearancePaint(
           );
         }
         targetSeen += 1;
+        targetTextColorHex =
+          graphics.fillColorHex;
         break;
       }
 
@@ -429,6 +441,15 @@ export function scanExistingTextVisualClearancePaint(
       ],
     );
   }
+  if (!targetTextColorHex) {
+    return unproved(
+      'BACKGROUND_COLOR_UNSUPPORTED',
+      [
+        'The effective target text fill color could not be proved.',
+      ],
+    );
+  }
+
   if (!background) {
     return unproved(
       'BACKGROUND_MISSING',
@@ -475,6 +496,7 @@ export function scanExistingTextVisualClearancePaint(
     },
     backgroundColorHex:
       background.colorHex,
+    targetTextColorHex,
   };
 }
 

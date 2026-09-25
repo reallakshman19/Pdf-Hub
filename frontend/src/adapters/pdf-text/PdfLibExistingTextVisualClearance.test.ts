@@ -215,12 +215,64 @@ describe('PdfLibExistingTextVisualClearance', () => {
       proof: {
         proofMode:
           'single-stream-solid-background-target-text-only',
+        backgroundColorHex:
+          '#ffffff',
+        targetTextColorHex:
+          '#000000',
         foreignPaintIntersections:
           0,
       },
     });
     expect(input.bytes)
       .toEqual(before);
+  });
+
+  it('keeps the proved clearance at least as wide as the natural redraw when observed metrics scale below one', async () => {
+    const input =
+      await fixture();
+    const narrowerObservedSpan = {
+      ...input.span,
+      advanceWidthPt:
+        input.span
+          .advanceWidthPt
+        * 0.8,
+    };
+    const intent =
+      createExistingTextEditIntent(
+        narrowerObservedSpan,
+        'World',
+      );
+
+    const result =
+      await analyzeExistingTextVisualClearance({
+        pdfBytes: input.bytes,
+        currentRevisionId:
+          REVISION,
+        span:
+          narrowerObservedSpan,
+        intent,
+        provenance:
+          input.provenance,
+      });
+
+    if (result.status !== 'proved') {
+      throw new Error(
+        'Expected conservative visual clearance proof',
+      );
+    }
+
+    expect(
+      result.nativeFit
+        .observedToMetricScale,
+    ).toBeLessThan(1);
+    expect(
+      result.proof
+        .replacementBoundsPt
+        .width,
+    ).toBeGreaterThanOrEqual(
+      result.nativeFit
+        .measuredReplacementWidthPt,
+    );
   });
 
   it('feeds proved clearance directly into the future-overlay eligibility policy', async () => {

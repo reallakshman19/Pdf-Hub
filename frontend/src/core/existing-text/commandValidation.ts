@@ -5,6 +5,16 @@ import {
 type UnknownRecord =
   Record<string, unknown>;
 
+export function validateReconstructExistingTextCommandPayload(
+  value: unknown,
+  documentKey: string,
+): string[] {
+  return validateReplaceExistingTextCommandPayload(
+    value,
+    documentKey,
+  );
+}
+
 export function validateReplaceExistingTextCommandPayload(
   value: unknown,
   documentKey: string,
@@ -285,12 +295,9 @@ export function validateReplaceExistingTextCommandPayload(
           revisionId:
             span.revisionId,
           pageId: span.pageId,
-          pageIndex:
-            span.pageIndex
-            as number,
+          pageIndex: span.pageIndex as number,
         },
-        span.sourceIndex
-          as number,
+        span.sourceIndex as number,
       );
     if (span.id !== expectedSpanId) {
       errors.push(
@@ -459,13 +466,8 @@ export function validateReplaceExistingTextCommandPayload(
     && Number.isInteger(
       provenance.operatorRange.start,
     )
-    && (
-      provenance.operandRange.end
-      as number
-    ) > (
-      provenance.operatorRange.start
-      as number
-    )
+    && (provenance.operandRange.end as number) >
+      (provenance.operatorRange.start as number)
   ) {
     errors.push(
       'payload.provenance operand must end before the Tj operator begins.',

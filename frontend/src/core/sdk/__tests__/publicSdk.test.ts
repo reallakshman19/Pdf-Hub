@@ -55,7 +55,7 @@ function openTestDocument() {
 
 function sdkExistingTextDraft(
   replacementText = 'World',
-): PdfHubSdkCommandDraft {
+): Extract<PdfHubSdkCommandDraft, { type: 'REPLACE_EXISTING_TEXT' }> {
   const span =
     buildExistingTextSpan(
       {

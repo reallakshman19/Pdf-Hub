@@ -704,9 +704,7 @@ function readLiteralString(
               !== null
               ? {
                   decodedText,
-                  encoding:
-                    'ascii-literal'
-                    as const,
+                  encoding: 'ascii-literal' as const,
                 }
               : {}),
           },
@@ -803,9 +801,7 @@ function readHexString(
       ...(decodedText !== null
         ? {
             decodedText,
-            encoding:
-              'ascii-hex'
-              as const,
+            encoding: 'ascii-hex' as const,
           }
         : {}),
     },
