@@ -215,7 +215,13 @@ function existingTextDraft(
   pageId =
     'test-doc::stable::1',
   replacementText = 'World',
-): PdfCommandDraft {
+): Extract<
+  PdfCommandDraft,
+  {
+    type:
+      'REPLACE_EXISTING_TEXT';
+  }
+> {
   const span =
     buildExistingTextSpan(
       {
