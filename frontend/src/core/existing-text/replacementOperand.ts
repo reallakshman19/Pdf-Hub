@@ -44,7 +44,7 @@ export function assertPrintableAsciiReplacement(
   ) {
     throw new ExistingTextReplacementError(
       'UNSUPPORTED_REPLACEMENT_TEXT',
-      'Simple native replacement currently supports printable ASCII U+0020..U+007E only.',
+      'Bounded existing-text replacement currently supports printable ASCII U+0020..U+007E only.',
     );
   }
 }
