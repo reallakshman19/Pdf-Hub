@@ -1,0 +1,906 @@
+{
+  "schema_version": "relay-v3.1-task-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "source_protocol": "V3_1",
+  "identity": {
+    "work_package": "STEP-13-08",
+    "ep": null,
+    "issue": 326,
+    "delivery_vehicle": 328
+  },
+  "purpose": {
+    "programme_outcome": "Enable useful existing-PDF text editing while keeping native replacement, reconstructed replacement, and unsupported text semantically distinct and evidence-bound.",
+    "current_goal": "Deliver STEP-13-08 direct on-page selection into the existing Inspector PDF-text workflow without widening mutation authority.",
+    "task_outcome": "A page-selected PDF text item synchronizes by revisionId + stable PageId + PDF.js sourceIndex with the canonical Inspector span and page highlight.",
+    "why_this_task_exists": "The existing Phase 13 Inspector can evaluate and replace bounded text safely, but the user must currently choose the span from the Inspector rather than selecting the existing text directly on-page."
+  },
+  "lineage": {
+    "predecessor_checkpoint": null,
+    "upstream_dependencies": [
+      "Merged Phase 13 stack #313/#315/#317/#319/#321/#323/#325"
+    ],
+    "roadmap_admission": {
+      "disposition": "MAPPED_EXISTING_WP",
+      "revision": "PHASE-013",
+      "basis": [
+        "Parent programme #312 assigns STEP-13-08 to child #326."
+      ]
+    }
+  },
+  "parent_issue": {
+    "repository": "reallaksh19/Pdf-Hub",
+    "number": 326,
+    "title": "Phase 13.1: direct on-page existing-text selection",
+    "state": "OPEN",
+    "url": "https://github.com/reallaksh19/Pdf-Hub/issues/326",
+    "baseline": null,
+    "current": {
+      "body_basis": "Provider issue #326 acceptance AC-13.1-01..08."
+    },
+    "updates": [],
+    "disposition": "NO_CHANGE",
+    "relationships": [],
+    "handover_ledger": {
+      "repository": "reallaksh19/Pdf-Hub",
+      "issue_number": 327,
+      "url": "https://github.com/reallaksh19/Pdf-Hub/issues/327"
+    }
+  },
+  "programme_parent": {
+    "repository": "reallaksh19/Pdf-Hub",
+    "number": 312,
+    "title": "Phase 13: bounded existing-PDF text editing",
+    "url": "https://github.com/reallaksh19/Pdf-Hub/issues/312"
+  },
+  "planning": {
+    "state": "PRESENT",
+    "provider_ref": "github:reallaksh19/Pdf-Hub#326/comment-5825802966",
+    "revision": 1,
+    "digest": null,
+    "observed_at": "2026-09-25T02:42:14Z",
+    "responsibility_basis_ref": "github:reallaksh19/Pdf-Hub#326",
+    "responsibility_basis_digest": null,
+    "expected_next_observable": {
+      "statement": "An execution-capable surface runs the focused certification on the current exact PR head; any product failures are fixed before review-ready/merge consideration.",
+      "evidence": [
+        "PR #328 is draft; prior exact-head GitHub jobs terminated without executing steps."
+      ]
+    }
+  },
+  "task_publications": [
+    {
+      "type": "IMPLEMENTATION_PLAN",
+      "ref": "github:reallaksh19/Pdf-Hub#326/comment-5825802966",
+      "observed_at": "2026-09-25T02:42:14Z",
+      "summary": "Rev 1 plans revision/PageId/sourceIndex page↔Inspector synchronization without changing mutation authority.",
+      "exact_head": null
+    },
+    {
+      "type": "TASK_EVIDENCE",
+      "ref": "github:reallaksh19/Pdf-Hub#326/comment-5825868594",
+      "observed_at": "2026-09-25T02:49:57Z",
+      "summary": "Bounded material candidate exists; executable certification remains NOT_RUN because provider jobs did not execute.",
+      "exact_head": "ff4ed98a9f0776cb5f32de452dbcdcbcb7abacac"
+    }
+  ],
+  "programme_progress": {
+    "criteria": [
+      {
+        "id": "AC-13-P01",
+        "statement": "User can select supported PDF text directly on-page and Inspector targets exact revision/PageId/source item.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 material candidate exists; executable proof not yet run."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Run exact-head focused/UI certification."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P02",
+        "statement": "Native replacement never bypasses provenance/encoding/fit validation.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Source/diff review shows page selection routes through existing Inspector capability path and does not add a mutation command."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Retain executable regression proof."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P03",
+        "statement": "Reconstructed replacement, when added, uses a separate command and revalidates evidence at execution.",
+        "state": "PENDING",
+        "reason_class": "SIBLING_WORKSTREAM",
+        "evidence": [
+          "STEP-13-09 is future sibling work; #326 intentionally does not implement it."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Deliver separately under STEP-13-09."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P04",
+        "statement": "Stale page/text identity cannot silently apply after another document mutation.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 carries revisionId + PageId + sourceIndex matching and stale-selection rejection logic."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute the focused stale-selection tests."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P05",
+        "statement": "Every widened native operator/font subset has deterministic fixtures and save/reopen proof.",
+        "state": "PENDING",
+        "reason_class": "SIBLING_WORKSTREAM",
+        "evidence": [
+          "No operator/font widening is owned by #326."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Future STEP-13-10/11 work."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P06",
+        "statement": "Unsupported text remains explicit; reconstructed output is never labeled native.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "#326 does not widen mutation authority and keeps Inspector capability evaluation authoritative."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Retain executable regression proof."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P07",
+        "statement": "Normal viewer/search/text-selection/annotation behavior remains compatible.",
+        "state": "NOT_RUN",
+        "reason_class": "INFRASTRUCTURE",
+        "evidence": [
+          "Compatibility tests/audits are authored, but exact-head jobs did not execute."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Run exact-head frontend/focused certification."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13-P08",
+        "statement": "Executable validation truth is reported exactly; NOT_RUN is not converted into PASS.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Issue #326 / PR #328 explicitly report NOT_RUN / INFRASTRUCTURE rather than PASS/FAIL."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      }
+    ],
+    "summary": {
+      "pass": 1,
+      "partial": 4,
+      "fail": 0,
+      "not_run": 1,
+      "pending": 2,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 8
+    },
+    "coverage": {
+      "satisfied": 1,
+      "applicable_total": 8,
+      "percent": 12.5,
+      "basis": "UNWEIGHTED_CRITERIA"
+    }
+  },
+  "work_issue_progress": {
+    "criteria": [
+      {
+        "id": "AC-13.1-01",
+        "statement": "Rendered PDF text item exposes PDF.js source index to the page interaction layer.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 implementation and adapter tests exist."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute focused certification."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-02",
+        "statement": "Direct page selection is bound to revision ID + stable PageId + source index.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 material path carries the three-part identity."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute focused certification."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-03",
+        "statement": "Direct selection opens/selects Inspector PDF-text surface and resolves exact canonical span.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 implements page→Inspector synchronization."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute focused UI tests."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-04",
+        "statement": "Inspector span selection updates page highlight using the same identity.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 implements Inspector→page synchronization."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute focused UI tests."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-05",
+        "statement": "Stale selection from another revision/PageId does not select a current span.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Stale rejection logic/tests exist in the candidate."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute exact-head test."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-06",
+        "statement": "Normal browser text selection and annotation text-mark workflows remain available.",
+        "state": "NOT_RUN",
+        "reason_class": "INFRASTRUCTURE",
+        "evidence": [
+          "Compatibility intent/tests exist but provider jobs did not execute."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Run exact-head UI/guardrail checks."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-07",
+        "statement": "No new mutation command, widened native-edit subset, or reconstructed mutation is introduced.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Source/diff review: page interaction publishes selection state only; existing REPLACE_EXISTING_TEXT authority remains unchanged."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "AC-13.1-08",
+        "statement": "Focused tests/audit document the identity and UI boundary.",
+        "state": "PARTIAL",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Focused test/audit surfaces and certify command exist."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Execute the certification successfully."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      }
+    ],
+    "summary": {
+      "pass": 1,
+      "partial": 6,
+      "fail": 0,
+      "not_run": 1,
+      "pending": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 8
+    },
+    "coverage": {
+      "satisfied": 1,
+      "applicable_total": 8,
+      "percent": 12.5,
+      "basis": "UNWEIGHTED_CRITERIA"
+    }
+  },
+  "plan_progress": {
+    "criteria": [
+      {
+        "id": "STEP-326-01",
+        "statement": "Expose PDF.js sourceIndex on rendered text items.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-02",
+        "statement": "Add revisionId/PageId/sourceIndex selection state contract.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-03",
+        "statement": "Publish direct page selection and route Inspector/mobile UI.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-04",
+        "statement": "Highlight only the matching revision/PageId/sourceIndex.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-05",
+        "statement": "Resolve direct selection against freshly inspected canonical spans and reject stale identity.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-06",
+        "statement": "Mirror Inspector dropdown selection back to the page.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Material implementation exists in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "STEP-326-07",
+        "statement": "Add focused tests/audit/certification command.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Focused tests/audit/certify script exist in PR #328."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      }
+    ],
+    "summary": {
+      "pass": 7,
+      "partial": 0,
+      "fail": 0,
+      "not_run": 0,
+      "pending": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 7
+    },
+    "coverage": {
+      "satisfied": 7,
+      "applicable_total": 7,
+      "percent": 100,
+      "basis": "UNWEIGHTED_CRITERIA"
+    }
+  },
+  "task_acceptance_progress": {
+    "criteria": [
+      {
+        "id": "TA-326-MATERIAL",
+        "statement": "Bounded material implementation matches the approved responsibility without mutation-scope expansion.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Source/diff reconciliation supports the intended bounded architecture."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "TA-326-EXEC",
+        "statement": "Focused certification passes on current exact material head.",
+        "state": "NOT_RUN",
+        "reason_class": "INFRASTRUCTURE",
+        "evidence": [
+          "Current GitHub jobs terminate before runner steps; no executable PASS/FAIL exists."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Run pnpm run certify:phase13-existing-text-page-selection on an execution-capable surface."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "TA-326-DELIVERY",
+        "statement": "PR #328 reaches review-ready/merge disposition with truthful exact-head evidence.",
+        "state": "PENDING",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "PR #328 remains draft."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Obtain executable evidence, fix any failures, then publish TASK_RESULT/readiness disposition."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      }
+    ],
+    "summary": {
+      "pass": 1,
+      "partial": 0,
+      "fail": 0,
+      "not_run": 1,
+      "pending": 1,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 3
+    },
+    "coverage": {
+      "satisfied": 1,
+      "applicable_total": 3,
+      "percent": 33.3,
+      "basis": "UNWEIGHTED_CRITERIA"
+    }
+  },
+  "verification": {
+    "state": "NOT_RUN",
+    "observations": [
+      {
+        "id": "V-326-SOURCE",
+        "statement": "Source/diff architecture reconciliation supports the bounded page↔Inspector design.",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "Issue TASK_EVIDENCE reports source/diff reconciliation PASS."
+        ],
+        "trace_refs": [],
+        "remaining": [],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "V-326-LOCAL",
+        "statement": "Focused local certification executes successfully.",
+        "state": "NOT_RUN",
+        "reason_class": "INFRASTRUCTURE",
+        "evidence": [
+          "Agent environment could not materialize/execute the repository."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Run on execution-capable environment."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      },
+      {
+        "id": "V-326-GITHUB",
+        "statement": "Exact-head GitHub workflows execute product tests.",
+        "state": "NOT_RUN",
+        "reason_class": "INFRASTRUCTURE",
+        "evidence": [
+          "Current provider jobs terminate with no runner steps/logs."
+        ],
+        "trace_refs": [],
+        "remaining": [
+          "Retry when runner infrastructure executes jobs."
+        ],
+        "owner": null,
+        "weight": null,
+        "parent_mappings": []
+      }
+    ],
+    "failure_origins": {
+      "INFRASTRUCTURE": 2
+    }
+  },
+  "delivery": {
+    "pr": 328,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/328",
+    "lifecycle": "DRAFT",
+    "base": "f474413f2fb81b9cbe6aec38be0e832eeadbcbb3",
+    "head": "7576903086c623c5c7e38d7c3d7017d3cbb2c47c",
+    "mergeability": "MERGEABLE"
+  },
+  "delivery_stack": [],
+  "completion": {
+    "overall_state": "PARTIAL",
+    "headline": "#326 PARTIAL — implementation plan is materially executed; executable verification is NOT_RUN and PR #328 remains draft.",
+    "implementation": "COMPLETE",
+    "verification": "NOT_RUN",
+    "delivery": "DRAFT",
+    "work_issue_acceptance": "PARTIAL",
+    "programme_contribution": "PARTIAL",
+    "provider_issue": "OPEN",
+    "what_done": [
+      "All seven planned implementation slices are material in PR #328.",
+      "Page↔Inspector selection uses revisionId + stable PageId + PDF.js sourceIndex.",
+      "Mutation authority remains on the existing REPLACE_EXISTING_TEXT path.",
+      "Focused tests/audits and certification command are authored."
+    ],
+    "what_remains": [
+      "Run focused certification on the current exact material head.",
+      "Run/observe the relevant UI/guardrail workflows on an execution-capable runner.",
+      "Fix any product-code failures if they appear.",
+      "Publish TASK_RESULT and review-ready/merge disposition only after executable evidence exists."
+    ],
+    "dependencies": [
+      "Execution-capable local or GitHub runner infrastructure."
+    ],
+    "owner_decisions": []
+  },
+  "parent_issue_progress": {
+    "checklist": [
+      {
+        "id": "AC-13.1-01",
+        "statement": "source index exposed",
+        "state": "PARTIAL",
+        "evidence": [
+          "PR #328 material exists; execution NOT_RUN"
+        ]
+      },
+      {
+        "id": "AC-13.1-02",
+        "statement": "revision/PageId/sourceIndex binding",
+        "state": "PARTIAL",
+        "evidence": [
+          "PR #328 material exists; execution NOT_RUN"
+        ]
+      },
+      {
+        "id": "AC-13.1-03",
+        "statement": "page→Inspector exact canonical span",
+        "state": "PARTIAL",
+        "evidence": [
+          "PR #328 material exists; execution NOT_RUN"
+        ]
+      },
+      {
+        "id": "AC-13.1-04",
+        "statement": "Inspector→page highlight synchronization",
+        "state": "PARTIAL",
+        "evidence": [
+          "PR #328 material exists; execution NOT_RUN"
+        ]
+      },
+      {
+        "id": "AC-13.1-05",
+        "statement": "stale identity rejection",
+        "state": "PARTIAL",
+        "evidence": [
+          "PR #328 material exists; execution NOT_RUN"
+        ]
+      },
+      {
+        "id": "AC-13.1-06",
+        "statement": "normal selection/annotation compatibility",
+        "state": "PENDING",
+        "evidence": [
+          "Executable compatibility evidence unavailable"
+        ]
+      },
+      {
+        "id": "AC-13.1-07",
+        "statement": "mutation authority unchanged",
+        "state": "COMPLETE",
+        "evidence": [
+          "Source/diff reconciliation"
+        ]
+      },
+      {
+        "id": "AC-13.1-08",
+        "statement": "focused tests/audit",
+        "state": "PARTIAL",
+        "evidence": [
+          "Authored; execution NOT_RUN"
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 1,
+      "partial": 6,
+      "pending": 1,
+      "blocked": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 8
+    }
+  },
+  "current_task_progress": {
+    "checklist": [
+      {
+        "id": "PLAN",
+        "statement": "Implementation plan slices materialized",
+        "state": "COMPLETE",
+        "evidence": [
+          "7/7 STEP-* slices material"
+        ]
+      },
+      {
+        "id": "VERIFY",
+        "statement": "Exact-head executable certification",
+        "state": "PENDING",
+        "evidence": [
+          "NOT_RUN / INFRASTRUCTURE"
+        ]
+      },
+      {
+        "id": "DELIVER",
+        "statement": "TASK_RESULT + review-ready/merge disposition",
+        "state": "PENDING",
+        "evidence": [
+          "PR #328 draft"
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 1,
+      "partial": 0,
+      "pending": 2,
+      "blocked": 0,
+      "total": 3
+    }
+  },
+  "offloads": [],
+  "pending_items": [
+    "Execution-capable exact-head focused certification."
+  ],
+  "known_issues": [
+    "GitHub Actions currently terminate before runner steps; this is infrastructure NOT_RUN, not a product FAIL."
+  ],
+  "improvement_vs_original_issue": {
+    "baseline_digest": null,
+    "items": []
+  },
+  "scope": {
+    "write": [
+      "frontend/src/adapters/pdf-renderer/**",
+      "frontend/src/core/editor/**",
+      "frontend/src/components/workspace/**",
+      "frontend/src/components/inspector/**",
+      "frontend/src/components/shell/**",
+      "frontend/scripts/**",
+      "frontend/package.json",
+      "Docs/EXISTING_PDF_TEXT_EDITING.md"
+    ],
+    "read": [
+      "Merged Phase 13 existing-text inspection/replacement paths"
+    ],
+    "protected": [
+      "REPLACE_EXISTING_TEXT mutation authority",
+      "revision + stable PageId identity",
+      "Inspector capability evaluation",
+      "normal browser/text-mark selection flows"
+    ],
+    "prohibited": [
+      "reconstructed mask/redraw execution",
+      "operator/font/encoding expansion",
+      "paragraph reflow",
+      "OCR mutation",
+      "arbitrary PDF text editability claims"
+    ]
+  },
+  "inputs": [],
+  "benchmarks": [],
+  "benchmark_debt": {
+    "required_missing": [
+      "Exact-head focused certification"
+    ],
+    "stale": [],
+    "optional": []
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "lease_or_custody": null,
+    "executor": "issue-326 primary agent",
+    "route": "ISSUE:#326",
+    "branch": "phase13/direct-existing-text-selection"
+  },
+  "material": {
+    "base": "f474413f2fb81b9cbe6aec38be0e832eeadbcbb3",
+    "current_head": "7576903086c623c5c7e38d7c3d7017d3cbb2c47c"
+  },
+  "acceptance": [
+    {
+      "id": "TA-326-MATERIAL",
+      "state": "PASS",
+      "statement": "Bounded material implementation exists without mutation-scope expansion.",
+      "evidence": [
+        "PR #328"
+      ]
+    },
+    {
+      "id": "TA-326-EXEC",
+      "state": "NOT_RUN",
+      "statement": "Focused certification passes on current exact head.",
+      "evidence": [
+        "Runner infrastructure has not executed it."
+      ]
+    },
+    {
+      "id": "TA-326-DELIVERY",
+      "state": "PENDING",
+      "statement": "TASK_RESULT/review-ready delivery disposition.",
+      "evidence": [
+        "PR #328 remains draft."
+      ]
+    }
+  ],
+  "controls": {
+    "material_write": [],
+    "checkpoint": [],
+    "handover": [],
+    "pr_ready": [],
+    "merge": [],
+    "release": []
+  },
+  "knowledge_state": {
+    "known_true": [
+      "PR #328 contains the planned page↔Inspector selection architecture.",
+      "Mutation authority is intentionally unchanged.",
+      "Focused tests/audit/certification command are authored.",
+      "Executable certification has not run."
+    ],
+    "known_false": [
+      "Current provider workflow failures prove a product-code failure.",
+      "STEP-13-08 is complete merely because implementation code exists."
+    ],
+    "unknown": [
+      "Whether exact-head focused/UI execution will expose product regressions."
+    ],
+    "assumptions": []
+  },
+  "negative_knowledge": [
+    "Do not interpret NOT_RUN infrastructure as PASS or FAIL.",
+    "Do not widen native text mutation/operator/font scope inside #326."
+  ],
+  "preserve": {
+    "accepted_do_not_reopen": [
+      "Merged Phase 13 provenance/native-fit/history foundation from #313/#315/#317/#319/#321/#323/#325."
+    ]
+  },
+  "history": {
+    "recent_events": []
+  },
+  "next": {
+    "immediate_action": "Run pnpm run certify:phase13-existing-text-page-selection on an execution-capable surface against the current exact material head; fix any product failures before readiness.",
+    "next_value_frontier": "Executable proof and truthful TASK_RESULT for STEP-13-08.",
+    "stop_conditions": [
+      "Do not merge based on source review alone.",
+      "Do not convert infrastructure NOT_RUN into PASS/FAIL.",
+      "Do not expand mutation authority in this issue."
+    ]
+  },
+  "reconstruction_sources": [
+    "https://github.com/reallaksh19/Pdf-Hub/issues/312",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/326",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/326#issuecomment-5825802966",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/326#issuecomment-5825868594",
+    "https://github.com/reallaksh19/Pdf-Hub/issues/327",
+    "https://github.com/reallaksh19/Pdf-Hub/pull/328"
+  ]
+}
