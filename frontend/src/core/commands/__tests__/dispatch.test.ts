@@ -83,6 +83,7 @@ const mutationEngineMocks = vi.hoisted(() => ({
   drawVisualMasks: vi.fn(),
   applyHeaderFooter: vi.fn(),
   replaceExistingText: vi.fn(),
+  reconstructExistingText: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -273,6 +274,31 @@ function existingTextDraft(
   };
 }
 
+function reconstructedExistingTextDraft(
+  pageId =
+    'test-doc::stable::1',
+  replacementText = 'World',
+): PdfCommandDraft {
+  const native =
+    existingTextDraft(
+      pageId,
+      replacementText,
+    );
+  if (
+    native.type
+    !== 'REPLACE_EXISTING_TEXT'
+  ) {
+    throw new Error(
+      'Expected existing-text draft',
+    );
+  }
+  return {
+    ...native,
+    type:
+      'RECONSTRUCT_EXISTING_TEXT',
+  };
+}
+
 function ocrDocument(
   pageIndex: number,
   documentFingerprint = 'test-doc',
@@ -350,6 +376,8 @@ describe('canonical command dispatch', () => {
       applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
       replaceExistingText:
         mutationEngineMocks.replaceExistingText,
+      reconstructExistingText:
+        mutationEngineMocks.reconstructExistingText,
       commit: mutationEngineMocks.commit,
       dispose: mutationEngineMocks.dispose,
     }));
