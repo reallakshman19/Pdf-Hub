@@ -174,6 +174,8 @@ function commandLabel(command: PdfCommand): string {
       return 'Draw text on pages';
     case 'REPLACE_EXISTING_TEXT':
       return 'Replace existing PDF text';
+    case 'RECONSTRUCT_EXISTING_TEXT':
+      return 'Reconstruct existing PDF text';
     case 'DRAW_REDACTION_BOX':
       return 'Draw visual mask';
     case 'APPLY_WORKING_COPY':
@@ -1605,6 +1607,85 @@ export async function dispatchPdfCommand(
           command,
           true,
           'Existing PDF text replaced',
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'RECONSTRUCT_EXISTING_TEXT': {
+        const {
+          span,
+          intent,
+          provenance,
+        } = command.payload;
+        const pageGraph =
+          await resolveStructuralPageGraph(
+            context,
+            input,
+            pageCount,
+          );
+        const page =
+          pageGraph.pages[
+            span.pageIndex
+          ];
+        if (
+          !page
+          || page.pageId
+            !== span.pageId
+        ) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'Reconstructed existing-text span PageId no longer matches its physical page index.',
+          );
+        }
+
+        const mutationSession =
+          requirePersistentMutationSession(
+            commandMutationSession,
+          );
+        await mutationSession
+          .reconstructExistingText({
+            currentRevisionId:
+              context.documentKey,
+            span,
+            intent,
+            provenance,
+          });
+        const committed =
+          await mutationSession.commit();
+        if (
+          committed.pageCount
+          !== pageCount
+        ) {
+          throw new Error(
+            `Reconstructed existing-text mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result =
+          await applyCommittedSessionMutation(
+            input,
+            context.workingBytes,
+            pageCount,
+            committed,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            pageGraph,
+            {
+              ocrPagePolicy: {
+                invalidatePageIds: [
+                  span.pageId,
+                ],
+              },
+            },
+          );
+        return commandSuccess(
+          command,
+          true,
+          'Existing PDF text reconstructed visually',
           result.nextBytes,
           result.nextPageCount,
         );
