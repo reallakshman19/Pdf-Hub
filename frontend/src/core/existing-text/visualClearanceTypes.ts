@@ -38,6 +38,7 @@ export interface ExistingTextVisualClearanceProof {
   backgroundRectPt:
     ExistingTextFitRect;
   backgroundColorHex: string;
+  targetTextColorHex: string;
   sourceBoundsPt:
     ExistingTextFitRect;
   replacementBoundsPt:
@@ -76,6 +77,7 @@ export type ExistingTextPaintProgramScanResult =
       backgroundRectPt:
         ExistingTextFitRect;
       backgroundColorHex: string;
+      targetTextColorHex: string;
     }
   | {
       status: 'unproved';
