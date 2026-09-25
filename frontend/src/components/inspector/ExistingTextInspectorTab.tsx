@@ -32,6 +32,7 @@ import {
 import type {
   ExistingTextSpan,
 } from '@/core/existing-text/types';
+import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 
@@ -77,6 +78,17 @@ export const ExistingTextInspectorTab: React.FC = () => {
       (state) =>
         state.addToast,
     );
+  const {
+    existingTextSelection,
+    setExistingTextSelection,
+  } = useEditorStore(
+    useShallow((state) => ({
+      existingTextSelection:
+        state.existingTextSelection,
+      setExistingTextSelection:
+        state.setExistingTextSelection,
+    })),
+  );
 
   const [inspection, setInspection] =
     React.useState<InspectionState>({
@@ -251,6 +263,43 @@ export const ExistingTextInspectorTab: React.FC = () => {
     pageNode?.pageId,
     pageIndex,
     viewState.currentPage,
+  ]);
+
+  React.useEffect(() => {
+    if (
+      !existingTextSelection
+      || !documentKey
+      || !pageNode
+      || existingTextSelection.revisionId
+        !== documentKey
+      || existingTextSelection.pageId
+        !== pageNode.pageId
+    ) {
+      return;
+    }
+
+    const directSelection =
+      inspection.spans.find(
+        (span) =>
+          span.sourceIndex
+          === existingTextSelection.sourceIndex,
+      );
+
+    if (
+      directSelection
+      && directSelection.id
+        !== selectedSpanId
+    ) {
+      setSelectedSpanId(
+        directSelection.id,
+      );
+    }
+  }, [
+    documentKey,
+    existingTextSelection,
+    inspection.spans,
+    pageNode,
+    selectedSpanId,
   ]);
 
   const selectedSpan =
@@ -485,12 +534,33 @@ export const ExistingTextInspectorTab: React.FC = () => {
                 selectedSpanId
                 ?? ''
               }
-              onChange={(event) =>
-                setSelectedSpanId(
+              onChange={(event) => {
+                const nextId =
                   event.target.value
-                  || null,
-                )
-              }
+                  || null;
+                setSelectedSpanId(
+                  nextId,
+                );
+
+                const nextSpan =
+                  inspection.spans.find(
+                    (span) =>
+                      span.id
+                      === nextId,
+                  ) ?? null;
+                setExistingTextSelection(
+                  nextSpan
+                    ? {
+                        revisionId:
+                          nextSpan.revisionId,
+                        pageId:
+                          nextSpan.pageId,
+                        sourceIndex:
+                          nextSpan.sourceIndex,
+                      }
+                    : null,
+                );
+              }}
             >
               {inspection.spans.map(
                 (span) => (
