@@ -413,7 +413,7 @@ describe('ExistingTextInspectorTab', () => {
     );
   });
 
-  it('shows proved fallback as informational and exposes no fallback mutation action', async () => {
+  it('exposes proved fallback through the distinct reconstructed command without cached evidence', async () => {
     vi.mocked(
       evaluateExistingTextUiCapability,
     ).mockImplementation(
@@ -514,9 +514,78 @@ describe('ExistingTextInspectorTab', () => {
         'existing-text-replace-btn',
       ),
     ).not.toBeInTheDocument();
-    expect(
+
+    vi.mocked(
       commandBus.execute,
-    ).not.toHaveBeenCalled();
+    ).mockResolvedValue({
+      success: true,
+      commandId: 'cmd-reconstruct',
+      commandType:
+        'RECONSTRUCT_EXISTING_TEXT',
+      source: 'toolbar',
+      mutated: true,
+      message:
+        'Existing PDF text reconstructed visually',
+    });
+
+    fireEvent.click(
+      screen.getByTestId(
+        'existing-text-reconstruct-btn',
+      ),
+    );
+
+    await waitFor(() =>
+      expect(
+        commandBus.execute,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workingBytes:
+            expect.any(
+              Uint8Array,
+            ),
+          command:
+            expect.objectContaining({
+              type:
+                'RECONSTRUCT_EXISTING_TEXT',
+              source:
+                'toolbar',
+              documentKey:
+                'doc-1',
+              payload:
+                expect.objectContaining({
+                  schemaVersion: 1,
+                  span:
+                    expect.any(
+                      Object,
+                    ),
+                  intent:
+                    expect.any(
+                      Object,
+                    ),
+                  provenance:
+                    expect.any(
+                      Object,
+                    ),
+                }),
+            }),
+        }),
+      ),
+    );
+
+    const call =
+      vi.mocked(
+        commandBus.execute,
+      ).mock.calls.at(-1)?.[0];
+    expect(
+      call?.command.payload,
+    ).not.toHaveProperty(
+      'evidence',
+    );
+    expect(
+      call?.command.payload,
+    ).not.toHaveProperty(
+      'nativeFit',
+    );
   });
 
   it('surfaces canonical command failure without claiming success', async () => {
