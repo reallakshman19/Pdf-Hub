@@ -56,6 +56,7 @@ requireContains(policy, policyPath, [
   "case 'EXTRACT_PAGES'",
   "case 'SPLIT_PAGES'",
   "case 'REPLACE_EXISTING_TEXT'",
+  "case 'RECONSTRUCT_EXISTING_TEXT'",
 ]);
 
 const testPath =
@@ -91,6 +92,7 @@ const commandTypeNames = [
   'DRAW_TEXT_ON_PAGES',
   'DRAW_REDACTION_BOX',
   'REPLACE_EXISTING_TEXT',
+  'RECONSTRUCT_EXISTING_TEXT',
   'ANNOTATION_CHANGE',
   'WRITER_CHANGE',
   'APPLY_WORKING_COPY',
