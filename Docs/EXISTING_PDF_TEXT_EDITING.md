@@ -402,7 +402,7 @@ Phase 13 now exposes the bounded existing-text core through an Inspector **PDF t
 The tab is intentionally page-scoped and proof-driven:
 - it inspects PDF.js text spans only on the current physical page;
 - spans are rebuilt with the active document revision and stable PageId;
-- the user can double-click an inspectable rendered text item on the page or select a span from the Inspector;
+- the user can double-click an inspectable rendered text item on desktop, tap it on touch devices when no browser text range is active, or select a span from the Inspector;
 - page selection and Inspector selection synchronize through revision + PageId + PDF.js source index;
 - the user enters replacement text;
 - **Check edit** reruns exact current simple-`Tj` provenance and consumes the native-fit / visual-clearance analysis;
@@ -460,6 +460,6 @@ The same selection identity is mirrored back when the user changes the Inspector
 
 Direct page interaction does **not** call provenance analysis, the pdf-lib writer, mutation session, or CommandBus. Native replacement remains available only after the existing **Check edit** capability proof.
 
-Ordinary browser text selection and the existing text-mark annotation workflows remain available; direct edit targeting uses deliberate text-item activation rather than converting every click into an edit.
+Ordinary browser text selection and the existing text-mark annotation workflows remain available. Desktop targeting uses deliberate double-click activation. Touch targeting uses a single text-item tap only when no browser text range is active, so long-press/range selection remains available instead of every touch becoming an edit.
 
 The existing annotation Inspector behavior is unchanged for Properties, Style, Metadata and Review tabs.
