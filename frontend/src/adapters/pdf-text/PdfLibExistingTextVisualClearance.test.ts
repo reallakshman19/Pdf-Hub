@@ -215,6 +215,10 @@ describe('PdfLibExistingTextVisualClearance', () => {
       proof: {
         proofMode:
           'single-stream-solid-background-target-text-only',
+        backgroundColorHex:
+          '#ffffff',
+        targetTextColorHex:
+          '#000000',
         foreignPaintIntersections:
           0,
       },
