@@ -47,7 +47,7 @@ The current live coordination protocol is V3.1. `agents/relay/**` V2.5 artifacts
 
 Relay/V3.1 recording never grants product-write, merge, release, or external-provider authority. Those still come from the Owner/task/provider permissions.
 
-The architectural/product invariants in the older sections below remain applicable unless superseded by current repository truth.
+The architectural/product invariants in the older sections below remain applicable unless superseded by current repository truth. Any older protocol-selection, phase-handoff, task-card, V2/V2.5 execution, or relay-authority instruction below is historical when it conflicts with this live V3.1 entrypoint.
 
 ---
 
