@@ -283,11 +283,22 @@ export async function analyzeExistingTextVisualClearanceInDocument(
       );
     }
 
+    // The reconstructed writer draws the resolved Standard-14 font at its
+    // natural metric width. PDF.js observed advance can differ slightly from
+    // pdf-lib metrics even though the admitted source subset rejects Tz/Tc/Tw.
+    // Prove clearance for the larger width so the actual redraw can never
+    // extend beyond the independently cleared envelope.
+    const reconstructedAdvancePt =
+      Math.max(
+        nativeFit
+          .projectedReplacementAdvancePt,
+        nativeFit
+          .measuredReplacementWidthPt,
+      );
     const geometry =
       buildClearanceGeometry(
         input.span,
-        nativeFit
-          .projectedReplacementAdvancePt,
+        reconstructedAdvancePt,
         input.provenance
           .fontSizePt,
       );
