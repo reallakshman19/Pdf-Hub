@@ -438,7 +438,7 @@ The Inspector may then expose **Apply reconstructed replacement**. That action c
 
 At execution, `PdfMutationSession.reconstructExistingText(...)` reruns current provenance, font, fit and visual-clearance proof on the mutation session's exact parsed document. Only a fresh proved result may draw.
 
-The writer masks only the proved clearance rectangle with the proved background color, then draws replacement text at the admitted source origin using the resolved source Standard-14 font, proved font size and proved target text color.
+The writer masks only the proved clearance rectangle with the proved background color, then draws replacement text at the admitted source origin using the resolved source Standard-14 font, proved font size and proved target text color. Because PDF.js observed advance can differ slightly from Standard-14 metric width, clearance is conservatively proved for the larger of the projected replacement advance and the natural redraw width.
 
 This is explicitly a **reconstructed visual replacement**, not native source-text replacement. It does not rewrite the original text-show operator; the original text can therefore remain present in extraction/search semantics underneath the visual mask. Native `REPLACE_EXISTING_TEXT` remains preferred whenever native fit succeeds.
 
