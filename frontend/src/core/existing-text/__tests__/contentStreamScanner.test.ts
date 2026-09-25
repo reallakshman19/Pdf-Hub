@@ -223,10 +223,10 @@ describe('existing-text content stream scanner', () => {
     }
   });
 
-  it('rejects placement affected by non-identity cm, TD, or horizontal scaling, and invalidates after TJ', () => {
+  it('rejects placement affected by non-identity cm, T*, or horizontal scaling, and invalidates after TJ', () => {
     const samples = [
       '2 0 0 2 0 0 cm BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET',
-      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 5 0 TD (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm T* (Hello) Tj ET',
       'BT /F1 12 Tf 80 Tz 1 0 0 1 72 700 Tm (Hello) Tj ET',
       'BT /F1 12 Tf 1 0 0 1 72 700 Tm [(Hello) -20 (lo)] TJ ET',
     ];
@@ -343,9 +343,99 @@ describe('existing-text content stream scanner', () => {
     }
   });
 
+  it('captures a Tj candidate positioned by relative TD', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD (Hello) Tj ET';
+    const result =
+      scanExistingTextContentStream(
+        stream(source),
+      );
+
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      operator: 'Tj',
+      decodedText: 'Hello',
+      fontSizePt: 12,
+      fontResourceName: 'F1',
+      textMatrix: [1, 0, 0, 1, 82, 680],
+    });
+  });
+
+  it('captures a single-string TJ candidate positioned by relative TD', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD [(Hello)] TJ ET';
+    const result =
+      scanExistingTextContentStream(
+        stream(source),
+      );
+
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      operator: 'TJ',
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 82, 680],
+    });
+  });
+
+  it('preserves the text-line matrix across text-show operators allowing subsequent TD positioning', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm (First) Tj 0 -20 TD (Second) Tj ET';
+    const result =
+      scanExistingTextContentStream(
+        stream(source),
+      );
+
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates[0]).toMatchObject({
+      decodedText: 'First',
+      textMatrix: [1, 0, 0, 1, 72, 700],
+    });
+    expect(result.candidates[1]).toMatchObject({
+      decodedText: 'Second',
+      textMatrix: [1, 0, 0, 1, 72, 680],
+    });
+  });
+
+  it('handles TD followed by Td cumulative positioning', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD 5 -10 Td (Hello) Tj ET';
+    const result =
+      scanExistingTextContentStream(
+        stream(source),
+      );
+
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      operator: 'Tj',
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 87, 670],
+    });
+  });
+
+  it('rejects malformed or unanchored TD positioning', () => {
+    const malformed = [
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 TD (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 4 TD (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm (foo) -20 TD (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 NaN TD (Hello) Tj ET',
+      'BT /F1 12 Tf 10 -20 TD (Hello) Tj ET',
+    ];
+
+    for (const sample of malformed) {
+      const result =
+        scanExistingTextContentStream(
+          stream(sample),
+        );
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
   it('rejects sibling operators and unsupported text-show operators without recovering placement', () => {
     const invalidSiblings = [
-      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD (Hello) Tj ET',
       'BT /F1 12 Tf 1 0 0 1 72 700 Tm T* (Hello) Tj ET',
       'BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) \' ET',
       'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 20 (Hello) " ET',

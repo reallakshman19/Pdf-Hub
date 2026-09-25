@@ -42,6 +42,7 @@ interface TextState {
     ExistingTextTransform | null;
   textLineMatrix:
     ExistingTextTransform | null;
+  textLeadingPt: number | null;
   placementSafe: boolean;
   styleSafe: boolean;
 }
@@ -234,12 +235,23 @@ export function scanExistingTextContentStream(
           applySimpleTd(
             operands,
             text,
+            false,
           );
         }
         break;
       }
 
-      case 'TD':
+      case 'TD': {
+        if (text.inTextObject) {
+          applySimpleTd(
+            operands,
+            text,
+            true,
+          );
+        }
+        break;
+      }
+
       case 'T*':
       case "'":
       case '"':
@@ -247,6 +259,8 @@ export function scanExistingTextContentStream(
           text.placementSafe =
             false;
           text.textLineMatrix =
+            null;
+          text.textLeadingPt =
             null;
         }
         break;
@@ -488,6 +502,7 @@ function initialTextState():
     fontSizePt: null,
     textMatrix: null,
     textLineMatrix: null,
+    textLeadingPt: null,
     placementSafe: true,
     styleSafe: true,
   };
@@ -496,6 +511,7 @@ function initialTextState():
 function applySimpleTd(
   operands: readonly ExistingTextContentToken[],
   text: TextState,
+  setLeading = false,
 ): void {
   if (
     operands.length !== 2
@@ -505,6 +521,7 @@ function applySimpleTd(
     text.placementSafe = false;
     text.textLineMatrix = null;
     text.textMatrix = null;
+    text.textLeadingPt = null;
     return;
   }
 
@@ -522,6 +539,7 @@ function applySimpleTd(
     text.placementSafe = false;
     text.textLineMatrix = null;
     text.textMatrix = null;
+    text.textLeadingPt = null;
     return;
   }
 
@@ -538,12 +556,17 @@ function applySimpleTd(
     text.placementSafe = false;
     text.textLineMatrix = null;
     text.textMatrix = null;
+    text.textLeadingPt = null;
     return;
   }
 
   text.textLineMatrix = newLineMatrix;
   text.textMatrix = newLineMatrix;
   text.placementSafe = true;
+
+  if (setLeading) {
+    text.textLeadingPt = -tyToken.numberValue;
+  }
 }
 
 function readNumericMatrix(
