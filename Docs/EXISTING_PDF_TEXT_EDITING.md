@@ -384,6 +384,8 @@ It records:
 - `foreignPaintIntersections: 0`;
 - the proposed replacement bounds.
 
+The stricter execution proof also records the effective target text fill color. The admitted graphics-state default is black, and explicit DeviceGray / DeviceRGB fill changes are tracked through `q` / `Q`; reconstruction never guesses a text color.
+
 The zero foreign-paint count is justified by the entire admitted paint program, not by raster sampling.
 
 ### Important limitation
@@ -392,7 +394,7 @@ This producer does **not** prove generic `reconstructed-candidate` spans. Those 
 
 It also does not traverse Form XObjects or interpret arbitrary paths/images/transparency.
 
-A later overlay executor, if introduced, must revalidate the evidence against the active revision before mutation.
+The reconstructed executor revalidates the complete proof against the exact `PDFDocument` owned by the active mutation session immediately before mutation. Cached Inspector evidence is never write authority.
 
 
 ## Minimal Inspector UI
@@ -426,13 +428,19 @@ A successful command updates the normal session/history revision, which causes t
 
 A failed or stale command is surfaced as an error and is not reported as successful.
 
-### Fallback-proved state
+### Fallback-proved reconstructed replacement
 
-When native fit overflows but #323 proves visual clearance, the Inspector displays:
+When native fit overflows but the strict visual-clearance analyzer proves the admitted fallback class, the Inspector displays:
 
 > Replacement is too wide; fallback evidence is proved
 
-This state is informational only. There is deliberately no mask/redraw button and no reconstructed overlay command.
+The Inspector may then expose **Apply reconstructed replacement**. That action creates the distinct canonical `RECONSTRUCT_EXISTING_TEXT` command. Its payload contains the revision-bound span, edit intent and expected provenance only; it does not carry cached clearance evidence or native-fit evidence.
+
+At execution, `PdfMutationSession.reconstructExistingText(...)` reruns current provenance, font, fit and visual-clearance proof on the mutation session's exact parsed document. Only a fresh proved result may draw.
+
+The writer masks only the proved clearance rectangle with the proved background color, then draws replacement text at the admitted source origin using the resolved source Standard-14 font, proved font size and proved target text color.
+
+This is explicitly a **reconstructed visual replacement**, not native source-text replacement. It does not rewrite the original text-show operator; the original text can therefore remain present in extraction/search semantics underneath the visual mask. Native `REPLACE_EXISTING_TEXT` remains preferred whenever native fit succeeds.
 
 ### Unavailable state
 
@@ -458,7 +466,7 @@ The Inspector then resolves that identity against its freshly rebuilt canonical 
 
 The same selection identity is mirrored back when the user changes the Inspector span dropdown, so the page can mark the exact source item. On mobile, an active PDF-text selection opens the existing Inspector sheet rather than the generic More Actions sheet.
 
-Direct page interaction does **not** call provenance analysis, the pdf-lib writer, mutation session, or CommandBus. Native replacement remains available only after the existing **Check edit** capability proof.
+Direct page interaction does **not** call provenance analysis, the pdf-lib writer, mutation session, or CommandBus. Native or reconstructed replacement remains available only after the existing **Check edit** capability proof; the reconstructed command then revalidates its proof again at execution.
 
 Ordinary browser text selection and the existing text-mark annotation workflows remain available. Desktop targeting uses deliberate double-click activation. Touch targeting uses a single text-item tap only when no browser text range is active, so long-press/range selection remains available instead of every touch becoming an edit.
 
