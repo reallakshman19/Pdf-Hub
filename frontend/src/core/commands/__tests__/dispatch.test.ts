@@ -50,6 +50,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 }));
 
 const pdfMocks = vi.hoisted(() => ({
+  rotatePages: vi.fn(),
   movePage: vi.fn(),
   extractPages: vi.fn(),
   removePages: vi.fn(),
@@ -361,7 +362,7 @@ describe('canonical command dispatch', () => {
     pdfMocks.countPages.mockResolvedValue(3);
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
     mutationEngineMocks.getPageMetrics.mockImplementation(
-      (pageIndex: number) => ({
+      (_pageIndex: number) => ({
         width: 612,
         height: 792,
         rotation: 0,
@@ -435,7 +436,7 @@ describe('canonical command dispatch', () => {
   });
 
   it('does not mutate any store when annotation persistence fails', async () => {
-    useAnnotationStore.getState().setAnnotations([TEST_ANNOTATION]);
+    useAnnotationStore.getState().setAnnotations([{ ...TEST_ANNOTATION, pageId: 'test-doc::stable::1' }]);
     useOcrStore.getState().hydrateOcrSession({
       documentFingerprint: 'test-doc',
       result: ocrDocument(0),
@@ -456,7 +457,7 @@ describe('canonical command dispatch', () => {
     expect(result.error?.details).toBe('transaction-stage=persistence');
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
     expect(useSessionStore.getState().documentKey).toBe('test-doc');
-    expect(useAnnotationStore.getState().annotations).toEqual([TEST_ANNOTATION]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...TEST_ANNOTATION, pageId: 'test-doc::stable::1' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('test-doc');
     expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
       pageId: 'test-doc::stable::1',
@@ -906,6 +907,10 @@ describe('canonical command dispatch', () => {
   it('splits pages and returns extracted artifact', async () => {
     pdfMocks.extractPages.mockResolvedValue(new Uint8Array([7, 7, 7]));
     pdfMocks.removePages.mockResolvedValue(new Uint8Array([4, 4, 4]));
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([4, 4, 4]),
+      pageCount: 2,
+    });
     const result = await execute({
       type: 'SPLIT_PAGES',
       payload: { pageIndices: [0] },

@@ -281,7 +281,7 @@ describe('ExistingTextInspectorTab', () => {
       ),
     );
     expect(
-      screen.getByText('Second'),
+      screen.getAllByText('Second')[0],
     ).toBeInTheDocument();
 
     fireEvent.change(
@@ -360,6 +360,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {
@@ -490,6 +493,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {
@@ -664,6 +670,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {
@@ -738,6 +747,9 @@ describe('ExistingTextInspectorTab', () => {
       await screen.findByTestId(
         'existing-text-replacement-input',
       );
+    await waitFor(() =>
+      expect(input).toHaveValue('Hello'),
+    );
     fireEvent.change(
       input,
       {

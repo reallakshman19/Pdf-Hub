@@ -419,8 +419,7 @@ export const ExistingTextInspectorTab: React.FC = () => {
                     intent:
                       capability.intent,
                     provenance:
-                      capability
-                        .provenance,
+                      capability.provenance,
                   },
                 },
                 'toolbar',
@@ -493,8 +492,7 @@ export const ExistingTextInspectorTab: React.FC = () => {
                     intent:
                       capability.intent,
                     provenance:
-                      capability
-                        .provenance,
+                      capability.provenance,
                   },
                 },
                 'toolbar',
