@@ -40,6 +40,8 @@ interface TextState {
   fontSizePt: number | null;
   textMatrix:
     ExistingTextTransform | null;
+  textLineMatrix:
+    ExistingTextTransform | null;
   placementSafe: boolean;
   styleSafe: boolean;
 }
@@ -175,13 +177,21 @@ export function scanExistingTextContentStream(
           readNumericMatrix(
             operands,
           );
-        if (matrix) {
+        if (
+          matrix
+          && isSimpleTextMatrix(matrix)
+        ) {
           text.textMatrix =
+            matrix;
+          text.textLineMatrix =
             matrix;
           text.placementSafe =
             true;
         } else {
-          text.textMatrix = null;
+          text.textMatrix =
+            matrix ?? null;
+          text.textLineMatrix =
+            null;
           text.placementSafe =
             false;
         }
@@ -219,7 +229,16 @@ export function scanExistingTextContentStream(
         break;
       }
 
-      case 'Td':
+      case 'Td': {
+        if (text.inTextObject) {
+          applySimpleTd(
+            operands,
+            text,
+          );
+        }
+        break;
+      }
+
       case 'TD':
       case 'T*':
       case "'":
@@ -227,6 +246,8 @@ export function scanExistingTextContentStream(
         if (text.inTextObject) {
           text.placementSafe =
             false;
+          text.textLineMatrix =
+            null;
         }
         break;
 
@@ -466,9 +487,63 @@ function initialTextState():
     fontResourceName: null,
     fontSizePt: null,
     textMatrix: null,
+    textLineMatrix: null,
     placementSafe: true,
     styleSafe: true,
   };
+}
+
+function applySimpleTd(
+  operands: readonly ExistingTextContentToken[],
+  text: TextState,
+): void {
+  if (
+    operands.length !== 2
+    || !text.textLineMatrix
+    || !isSimpleTextMatrix(text.textLineMatrix)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return;
+  }
+
+  const txToken = operands[0];
+  const tyToken = operands[1];
+
+  if (
+    txToken.kind !== 'number'
+    || tyToken.kind !== 'number'
+    || txToken.numberValue === undefined
+    || tyToken.numberValue === undefined
+    || !Number.isFinite(txToken.numberValue)
+    || !Number.isFinite(tyToken.numberValue)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return;
+  }
+
+  const newLineMatrix: ExistingTextTransform = [
+    1,
+    0,
+    0,
+    1,
+    text.textLineMatrix[4] + txToken.numberValue,
+    text.textLineMatrix[5] + tyToken.numberValue,
+  ];
+
+  if (!isSimpleTextMatrix(newLineMatrix)) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return;
+  }
+
+  text.textLineMatrix = newLineMatrix;
+  text.textMatrix = newLineMatrix;
+  text.placementSafe = true;
 }
 
 function readNumericMatrix(
