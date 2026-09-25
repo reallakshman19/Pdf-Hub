@@ -140,9 +140,13 @@ requireTokens(
     'pageNode.pageId',
     'sourceIndex',
     "setInspectorTab('text')",
-    'rightPanelWidth <= 0.1',
+    '.rightPanelWidth',
+    '<= 0.1',
     'setRightPanelWidth(18)',
     'setMobileSheetOpen(true)',
+    'prev.existingTextPageId === next.existingTextPageId',
+    'prev.selectedExistingTextSourceIndex === next.selectedExistingTextSourceIndex',
+    'prev.onSelectExistingText === next.onSelectExistingText',
   ],
 );
 
