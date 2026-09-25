@@ -140,6 +140,8 @@ requireTokens(
     'pageNode.pageId',
     'sourceIndex',
     "setInspectorTab('text')",
+    'rightPanelWidth <= 0.1',
+    'setRightPanelWidth(18)',
     'setMobileSheetOpen(true)',
   ],
 );
