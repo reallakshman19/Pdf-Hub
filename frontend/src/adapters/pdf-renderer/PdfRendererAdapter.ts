@@ -46,7 +46,7 @@ export interface ThumbnailRenderResource {
 
 export interface TextLayerItem {
   id: string;
-  sourceIndex: number;
+  sourceIndex?: number;
   text: string;
   x: number;
   y: number;
