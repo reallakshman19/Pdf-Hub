@@ -552,4 +552,291 @@ describe('existing-text provenance matcher', () => {
         candidateCount: 2,
       });
   });
+
+  it('maps a native candidate positioned by Tm followed by TD to Tj', () => {
+    const spanTd =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:revision-a',
+          pageId: 'page-a',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            82,
+            680,
+          ],
+          width: 30,
+          height: 12,
+          fontName: 'g_d0_f1',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+
+    const result =
+      matchExistingTextSpanToContentStream({
+        span: spanTd,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD (Hello) Tj ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'matched',
+        spanId: spanTd.id,
+        provenance: {
+          operator: 'Tj',
+          decodedText: 'Hello',
+          fontSizePt: 12,
+          textMatrix: [
+            1,
+            0,
+            0,
+            1,
+            82,
+            680,
+          ],
+        },
+      });
+  });
+
+  it('maps a native candidate positioned by Tm followed by TD to single-string TJ', () => {
+    const spanTd =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:revision-a',
+          pageId: 'page-a',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            82,
+            680,
+          ],
+          width: 30,
+          height: 12,
+          fontName: 'g_d0_f1',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+
+    const result =
+      matchExistingTextSpanToContentStream({
+        span: spanTd,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD [(Hello)] TJ ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'matched',
+        spanId: spanTd.id,
+        provenance: {
+          operator: 'TJ',
+          decodedText: 'Hello',
+          fontSizePt: 12,
+          textMatrix: [
+            1,
+            0,
+            0,
+            1,
+            82,
+            680,
+          ],
+        },
+      });
+  });
+
+  it('maps text positioned by TD following a previous text show', () => {
+    const spanTd =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:revision-a',
+          pageId: 'page-a',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 1,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            82,
+            680,
+          ],
+          width: 30,
+          height: 12,
+          fontName: 'g_d0_f1',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+
+    const result =
+      matchExistingTextSpanToContentStream({
+        span: spanTd,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm (Prefix) Tj 10 -20 TD (Hello) Tj ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'matched',
+        spanId: spanTd.id,
+        provenance: {
+          operator: 'Tj',
+          decodedText: 'Hello',
+          fontSizePt: 12,
+          textMatrix: [
+            1,
+            0,
+            0,
+            1,
+            82,
+            680,
+          ],
+        },
+      });
+  });
+
+  it('maps text positioned by TD followed by Td cumulative translations', () => {
+    const spanTd =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:revision-a',
+          pageId: 'page-a',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            87,
+            670,
+          ],
+          width: 30,
+          height: 12,
+          fontName: 'g_d0_f1',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+
+    const result =
+      matchExistingTextSpanToContentStream({
+        span: spanTd,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD 5 -10 Td (Hello) Tj ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'matched',
+        spanId: spanTd.id,
+        provenance: {
+          operator: 'Tj',
+          decodedText: 'Hello',
+          fontSizePt: 12,
+          textMatrix: [
+            1,
+            0,
+            0,
+            1,
+            87,
+            670,
+          ],
+        },
+      });
+  });
+
+  it('rejects match when final origin after TD does not agree with span origin', () => {
+    const result =
+      matchExistingTextSpanToContentStream({
+        span,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD (Hello) Tj ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'unmapped',
+        reason:
+          'NO_SIMPLE_TEXT_OPERATOR_MATCH',
+      });
+  });
+
+  it('detects ambiguity when multiple TD candidates match the same span', () => {
+    const spanTd =
+      buildExistingTextSpan(
+        {
+          revisionId:
+            'sha256:revision-a',
+          pageId: 'page-a',
+          pageIndex: 0,
+        },
+        {
+          sourceIndex: 0,
+          text: 'Hello',
+          transform: [
+            12,
+            0,
+            0,
+            12,
+            82,
+            680,
+          ],
+          width: 30,
+          height: 12,
+          fontName: 'g_d0_f1',
+          direction: 'ltr',
+          hasEol: false,
+        },
+      );
+
+    const result =
+      matchExistingTextSpanToContentStream({
+        span: spanTd,
+        content: content([
+          'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 -20 TD (Hello) Tj ET',
+          'BT /F1 12 Tf 1 0 0 1 80 690 Tm 2 -10 TD (Hello) Tj ET',
+        ]),
+      });
+
+    expect(result)
+      .toMatchObject({
+        status: 'unmapped',
+        reason:
+          'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
+        candidateCount: 2,
+      });
+  });
 });
