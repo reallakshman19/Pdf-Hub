@@ -621,6 +621,7 @@ function usesPersistentMutationSession(
     || type === 'SET_PAGE_LABELS'
     || type === 'DRAW_TEXT_ON_PAGES'
     || type === 'REPLACE_EXISTING_TEXT'
+    || type === 'RECONSTRUCT_EXISTING_TEXT'
     || type === 'DRAW_REDACTION_BOX'
     || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
