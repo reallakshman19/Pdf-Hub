@@ -1864,6 +1864,45 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
                 sourceIndex,
               );
             }}
+            onPointerUp={(event) => {
+              if (
+                !isSelectTool
+                || event.pointerType !== 'touch'
+              ) {
+                return;
+              }
+
+              const sourceIndex =
+                item.sourceIndex;
+              if (
+                !existingTextPageId
+                || typeof sourceIndex !== 'number'
+                || !Number.isInteger(
+                  sourceIndex,
+                )
+                || sourceIndex < 0
+              ) {
+                return;
+              }
+
+              const browserSelection =
+                window.getSelection()
+                  ?.toString()
+                  .trim()
+                ?? '';
+              if (browserSelection) {
+                return;
+              }
+
+              event.preventDefault();
+              event.stopPropagation();
+              clearTextSelectionDraft();
+              onSelectExistingText(
+                pageNumber,
+                existingTextPageId,
+                sourceIndex,
+              );
+            }}
             style={{
               position: 'absolute',
               left: item.x,
