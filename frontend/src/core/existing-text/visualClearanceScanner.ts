@@ -18,6 +18,7 @@ import type {
 
 interface PaintGraphicsState {
   fillColorHex: string;
+  fillColorExplicit: boolean;
 }
 
 interface BackgroundPaint {
@@ -82,7 +83,11 @@ export function scanExistingTextVisualClearancePaint(
   let graphics:
     PaintGraphicsState = {
       // PDF graphics state defaults nonstroking DeviceGray to 0 (black).
+      // That default is sufficient to prove target text color, but the
+      // existing fallback class still requires an explicit color operator
+      // before admitting a background fill.
       fillColorHex: '#000000',
+      fillColorExplicit: false,
     };
   let background:
     BackgroundPaint | null = null;
@@ -168,6 +173,7 @@ export function scanExistingTextVisualClearancePaint(
         graphics = {
           ...graphics,
           fillColorHex: color,
+          fillColorExplicit: true,
         };
         break;
       }
@@ -195,6 +201,7 @@ export function scanExistingTextVisualClearancePaint(
         graphics = {
           ...graphics,
           fillColorHex: color,
+          fillColorExplicit: true,
         };
         break;
       }
@@ -249,7 +256,7 @@ export function scanExistingTextVisualClearancePaint(
       case 'f*': {
         if (
           !pendingRect
-          || !graphics.fillColorHex
+          || !graphics.fillColorExplicit
         ) {
           return unproved(
             'FOREIGN_PAINT_OPERATOR',
