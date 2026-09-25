@@ -5,6 +5,16 @@ import {
 type UnknownRecord =
   Record<string, unknown>;
 
+export function validateReconstructExistingTextCommandPayload(
+  value: unknown,
+  documentKey: string,
+): string[] {
+  return validateReplaceExistingTextCommandPayload(
+    value,
+    documentKey,
+  );
+}
+
 export function validateReplaceExistingTextCommandPayload(
   value: unknown,
   documentKey: string,
