@@ -186,7 +186,10 @@
     "certify:phase13-existing-text-page-selection": "pnpm run audit:phase13-existing-text-page-selection && pnpm run test:phase13-existing-text-page-selection",
     "test:phase13-existing-text-reconstructed-replacement": "vitest run src/core/existing-text/__tests__/visualClearanceScanner.test.ts src/adapters/pdf-text/PdfLibExistingTextVisualClearance.test.ts src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts src/core/commands/__tests__/dispatch.test.ts src/core/document-history/__tests__/replayability.test.ts src/components/inspector/ExistingTextInspectorTab.test.tsx --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-reconstructed-replacement": "node scripts/phase13-existing-text-reconstructed-replacement-audit.mjs",
-    "certify:phase13-existing-text-reconstructed-replacement": "pnpm run audit:phase13-existing-text-reconstructed-replacement && pnpm run test:phase13-existing-text-reconstructed-replacement"
+    "certify:phase13-existing-text-reconstructed-replacement": "pnpm run audit:phase13-existing-text-reconstructed-replacement && pnpm run test:phase13-existing-text-reconstructed-replacement",
+    "test:phase13-existing-text-native-tj-array": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/core/commands/__tests__/dispatch.test.ts src/core/document-history/__tests__/replayability.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-native-tj-array": "node scripts/phase13-existing-text-native-tj-array-audit.mjs",
+    "certify:phase13-existing-text-native-tj-array": "pnpm run audit:phase13-existing-text-native-tj-array && pnpm run test:phase13-existing-text-native-tj-array"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",
