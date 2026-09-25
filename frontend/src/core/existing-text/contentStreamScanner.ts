@@ -3,6 +3,8 @@ import type {
   ExistingTextDecodedContentStream,
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
+  ExistingTextSingleStringTjArrayOperator,
+  ExistingTextTjOperator,
 } from './provenanceTypes';
 import type {
   ExistingTextTransform,
@@ -222,12 +224,33 @@ export function scanExistingTextContentStream(
       case 'T*':
       case "'":
       case '"':
-      case 'TJ':
         if (text.inTextObject) {
           text.placementSafe =
             false;
         }
         break;
+
+      case 'TJ': {
+        if (text.inTextObject) {
+          const candidate =
+            buildSingleStringTjCandidate(
+              stream,
+              token,
+              operatorIndex,
+              operands,
+              graphics,
+              text,
+            );
+          if (candidate) {
+            candidates.push(
+              candidate,
+            );
+          }
+          text.placementSafe =
+            false;
+        }
+        break;
+      }
 
       case 'Tz':
       case 'Ts':
@@ -335,6 +358,97 @@ function buildSimpleTextCandidate(
       operand.decodedText,
     encoding:
       operand.encoding,
+    fontResourceName:
+      text.fontResourceName,
+    fontSizePt:
+      text.fontSizePt,
+    textMatrix: [
+      ...text.textMatrix,
+    ],
+  };
+}
+
+function buildSingleStringTjCandidate(
+  stream:
+    ExistingTextDecodedContentStream,
+  operatorToken: ExistingTextContentToken,
+  operatorIndex: number,
+  operands: readonly ExistingTextContentToken[],
+  graphics: GraphicsState,
+  text: TextState,
+): ExistingTextSingleStringTjArrayOperator | null {
+  if (
+    !graphics.transformSafe
+    || !text.placementSafe
+    || !text.styleSafe
+    || !text.fontResourceName
+    || !text.fontSizePt
+    || !text.textMatrix
+    || operands.length !== 3
+  ) {
+    return null;
+  }
+
+  const openBracket = operands[0];
+  const stringOperand = operands[1];
+  const closeBracket = operands[2];
+
+  if (
+    openBracket.kind !== 'structural'
+    || openBracket.raw !== '['
+    || closeBracket.kind !== 'structural'
+    || closeBracket.raw !== ']'
+  ) {
+    return null;
+  }
+
+  if (
+    stringOperand.kind !== 'literal-string'
+    && stringOperand.kind !== 'hex-string'
+  ) {
+    return null;
+  }
+
+  if (
+    stringOperand.decodedText === undefined
+    || !stringOperand.encoding
+  ) {
+    return null;
+  }
+
+  if (
+    !isSimpleTextMatrix(
+      text.textMatrix,
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    streamIndex:
+      stream.streamIndex,
+    streamRef: stream.streamRef,
+    operatorIndex,
+    operator: 'TJ',
+    operatorRange: {
+      start:
+        operatorToken.rawStart,
+      end: operatorToken.rawEnd,
+    },
+    arrayRange: {
+      start:
+        openBracket.rawStart,
+      end: closeBracket.rawEnd,
+    },
+    operandRange: {
+      start:
+        stringOperand.rawStart,
+      end: stringOperand.rawEnd,
+    },
+    decodedText:
+      stringOperand.decodedText,
+    encoding:
+      stringOperand.encoding,
     fontResourceName:
       text.fontResourceName,
     fontSizePt:
