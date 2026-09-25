@@ -146,6 +146,7 @@ requireTokens(
     'analyzeExistingTextVisualClearanceInDocument',
     'this.document',
     'RECONSTRUCTED_VISUAL_CLEARANCE_UNPROVED',
+    'assertPrintableAsciiReplacement',
   ],
 );
 
@@ -203,6 +204,7 @@ requireTokens(
   engineTests + dispatchTests,
   [
     'reconstructs overflow text from same-document proof without reparsing the active revision',
+    'rejects non-ASCII reconstructed text at the mutation-session boundary',
     'fails closed when current-session paint changes invalidate reconstructed clearance',
     'keeps the proved clearance at least as wide as the natural redraw when observed metrics scale below one',
     'routes reconstructed existing text through its distinct canonical command',
