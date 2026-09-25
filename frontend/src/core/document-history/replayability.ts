@@ -201,6 +201,7 @@ export function classifyHistoryReplayability(
     case 'SET_PAGE_LABELS':
     case 'DRAW_REDACTION_BOX':
     case 'REPLACE_EXISTING_TEXT':
+    case 'RECONSTRUCT_EXISTING_TEXT':
       return SELF_CONTAINED;
 
     case 'DRAW_TEXT_ON_PAGES':
