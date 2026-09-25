@@ -1,0 +1,40 @@
+name: V3.1 Relay
+
+on:
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  v31-relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Pdf-Hub
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout pinned Engineering Relay V3.1
+        uses: actions/checkout@v4
+        with:
+          repository: reallaksh19/Common
+          ref: 37d8f93e7eec53ec45221fb5ea61d9ac70bb05dc
+          path: _common_v31
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install relay validator dependencies
+        run: python -m pip install --disable-pip-version-check PyYAML jsonschema
+
+      - name: Validate V3.1 recorder foundation
+        run: python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/validate_foundation.py .
+
+      - name: Validate current PR task binding
+        if: ${{ github.event_name == 'pull_request' }}
+        run: python _common_v31/skills/engineering-pr-delivery-v3.1/scripts/validate_task_binding.py --root . --event "$GITHUB_EVENT_PATH"
