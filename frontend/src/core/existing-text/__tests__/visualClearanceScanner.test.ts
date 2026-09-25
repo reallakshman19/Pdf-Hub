@@ -130,6 +130,26 @@ describe('existing-text visual clearance paint scanner', () => {
     });
   });
 
+  it('does not widen fallback proof to an implicit default-color background', () => {
+    const source =
+      'q 0 0 612 792 re f Q q BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET Q';
+    const result =
+      scanExistingTextVisualClearancePaint({
+        stream: stream(source),
+        provenance:
+          provenance(source),
+        clearanceRectPt:
+          CLEARANCE,
+      });
+
+    expect(result).toMatchObject({
+      status: 'unproved',
+      reasons: [
+        'FOREIGN_PAINT_OPERATOR',
+      ],
+    });
+  });
+
   it('rejects extra path paint', () => {
     const source =
       'q 1 1 1 rg 0 0 612 792 re f Q 10 10 20 20 re S q BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET Q';
