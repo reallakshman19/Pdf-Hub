@@ -469,6 +469,156 @@ describe('existing-text content stream scanner', () => {
     ]);
   });
 
+  it('handles explicit TL and T* leading advance for Tj and bounded TJ', () => {
+    const sourceTj =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* (Hello) Tj ET';
+    const resultTj = scanExistingTextContentStream(stream(sourceTj));
+    expect(resultTj.complete).toBe(true);
+    expect(resultTj.candidates).toHaveLength(1);
+    expect(resultTj.candidates[0]).toMatchObject({
+      operator: 'Tj',
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+
+    const sourceTjArray =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* [(Hello)] TJ ET';
+    const resultTjArray = scanExistingTextContentStream(stream(sourceTjArray));
+    expect(resultTjArray.complete).toBe(true);
+    expect(resultTjArray.candidates).toHaveLength(1);
+    expect(resultTjArray.candidates[0]).toMatchObject({
+      operator: 'TJ',
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+  });
+
+  it('handles TL before Tm positioning', () => {
+    const source =
+      'BT 14 TL /F1 12 Tf 1 0 0 1 72 700 Tm T* (Hello) Tj ET';
+    const result = scanExistingTextContentStream(stream(source));
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      operator: 'Tj',
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+  });
+
+  it('consumes leading established by TD across subsequent T*', () => {
+    const sourceTj =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0 -14 TD (First) Tj T* (Second) Tj ET';
+    const resultTj = scanExistingTextContentStream(stream(sourceTj));
+    expect(resultTj.complete).toBe(true);
+    expect(resultTj.candidates).toHaveLength(2);
+    expect(resultTj.candidates[0]).toMatchObject({
+      decodedText: 'First',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+    expect(resultTj.candidates[1]).toMatchObject({
+      decodedText: 'Second',
+      textMatrix: [1, 0, 0, 1, 72, 672],
+    });
+
+    const sourceTJ =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0 -14 TD [(First)] TJ T* (Second) Tj ET';
+    const resultTJ = scanExistingTextContentStream(stream(sourceTJ));
+    expect(resultTJ.complete).toBe(true);
+    expect(resultTJ.candidates).toHaveLength(2);
+    expect(resultTJ.candidates[0]).toMatchObject({
+      decodedText: 'First',
+      operator: 'TJ',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+    expect(resultTJ.candidates[1]).toMatchObject({
+      decodedText: 'Second',
+      operator: 'Tj',
+      textMatrix: [1, 0, 0, 1, 72, 672],
+    });
+  });
+
+  it('respects leading override where TL overrides previous TD', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0 -14 TD 20 TL T* (Hello) Tj ET';
+    const result = scanExistingTextContentStream(stream(source));
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 72, 666],
+    });
+  });
+
+  it('preserves leading across intermediate Td movements', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL 10 -5 Td T* (Hello) Tj ET';
+    const result = scanExistingTextContentStream(stream(source));
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      decodedText: 'Hello',
+      textMatrix: [1, 0, 0, 1, 82, 681],
+    });
+  });
+
+  it('handles repeated T* advances across multiple text shows', () => {
+    const source =
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* (First) Tj T* (Second) Tj ET';
+    const result = scanExistingTextContentStream(stream(source));
+    expect(result.complete).toBe(true);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates[0]).toMatchObject({
+      decodedText: 'First',
+      textMatrix: [1, 0, 0, 1, 72, 686],
+    });
+    expect(result.candidates[1]).toMatchObject({
+      decodedText: 'Second',
+      textMatrix: [1, 0, 0, 1, 72, 672],
+    });
+  });
+
+  it('rejects malformed TL assignments fail-closed', () => {
+    const malformed = [
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm TL T* (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 10 20 TL T* (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm (foo) TL T* (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm NaN TL T* (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm Infinity TL T* (Hello) Tj ET',
+    ];
+
+    for (const sample of malformed) {
+      const result = scanExistingTextContentStream(stream(sample));
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('rejects invalid T* consumption fail-closed', () => {
+    const invalid = [
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm T* (Hello) Tj ET',
+      'BT /F1 12 Tf 14 TL T* (Hello) Tj ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL 10 T* (Hello) Tj ET',
+      'BT /F1 12 Tf 2 0 0 2 72 700 Tm 14 TL T* (Hello) Tj ET',
+    ];
+
+    for (const sample of invalid) {
+      const result = scanExistingTextContentStream(stream(sample));
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
+  it('keeps quote operators strictly unsupported even when leading is defined', () => {
+    const quotes = [
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL (Hello) \' ET',
+      'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL 10 20 (Hello) " ET',
+    ];
+
+    for (const sample of quotes) {
+      const result = scanExistingTextContentStream(stream(sample));
+      expect(result.candidates).toEqual([]);
+    }
+  });
+
   it('fails closed on malformed content syntax', () => {
     const result =
       scanExistingTextContentStream(
