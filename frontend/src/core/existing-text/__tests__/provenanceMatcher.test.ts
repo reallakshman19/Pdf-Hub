@@ -839,4 +839,146 @@ describe('existing-text provenance matcher', () => {
         candidateCount: 2,
       });
   });
+
+  it('maps a candidate positioned by explicit TL and T* to Tj and bounded TJ', () => {
+    const spanTStar = buildExistingTextSpan(
+      {
+        revisionId: 'sha256:revision-a',
+        pageId: 'page-a',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [12, 0, 0, 12, 72, 686],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const resultTj = matchExistingTextSpanToContentStream({
+      span: spanTStar,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* (Hello) Tj ET',
+      ]),
+    });
+
+    expect(resultTj).toMatchObject({
+      status: 'matched',
+      spanId: spanTStar.id,
+      provenance: {
+        operator: 'Tj',
+        decodedText: 'Hello',
+        fontSizePt: 12,
+        textMatrix: [1, 0, 0, 1, 72, 686],
+      },
+    });
+
+    const resultTJ = matchExistingTextSpanToContentStream({
+      span: spanTStar,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* [(Hello)] TJ ET',
+      ]),
+    });
+
+    expect(resultTJ).toMatchObject({
+      status: 'matched',
+      spanId: spanTStar.id,
+      provenance: {
+        operator: 'TJ',
+        decodedText: 'Hello',
+        fontSizePt: 12,
+        textMatrix: [1, 0, 0, 1, 72, 686],
+      },
+    });
+  });
+
+  it('maps a candidate positioned by T* consuming TD-established leading', () => {
+    const spanSecond = buildExistingTextSpan(
+      {
+        revisionId: 'sha256:revision-a',
+        pageId: 'page-a',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Second',
+        transform: [12, 0, 0, 12, 72, 672],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const result = matchExistingTextSpanToContentStream({
+      span: spanSecond,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0 -14 TD (First) Tj T* (Second) Tj ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'matched',
+      spanId: spanSecond.id,
+      provenance: {
+        operator: 'Tj',
+        decodedText: 'Second',
+        fontSizePt: 12,
+        textMatrix: [1, 0, 0, 1, 72, 672],
+      },
+    });
+  });
+
+  it('rejects match when final origin after T* does not agree with span origin', () => {
+    const result = matchExistingTextSpanToContentStream({
+      span,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* (Hello) Tj ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'unmapped',
+      reason: 'NO_SIMPLE_TEXT_OPERATOR_MATCH',
+    });
+  });
+
+  it('detects ambiguity when multiple T* candidates match the same span', () => {
+    const spanTStar = buildExistingTextSpan(
+      {
+        revisionId: 'sha256:revision-a',
+        pageId: 'page-a',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [12, 0, 0, 12, 72, 686],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const result = matchExistingTextSpanToContentStream({
+      span: spanTStar,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL T* (Hello) Tj ET',
+        'BT /F1 12 Tf 1 0 0 1 72 706 Tm 20 TL T* (Hello) Tj ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'unmapped',
+      reason: 'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
+      candidateCount: 2,
+    });
+  });
 });
