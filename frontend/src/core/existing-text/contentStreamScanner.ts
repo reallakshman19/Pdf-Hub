@@ -6,7 +6,6 @@ import type {
   ExistingTextSimpleTextOperator,
   ExistingTextSingleQuoteOperator,
   ExistingTextSingleStringTjArrayOperator,
-  ExistingTextTjOperator,
 } from './provenanceTypes';
 import type {
   ExistingTextTransform,
@@ -132,6 +131,7 @@ export function scanExistingTextContentStream(
           )
         ) {
           graphics = {
+            ...graphics,
             transformSafe: false,
           };
         }

@@ -372,6 +372,8 @@ describe('simple existing-text native replacement', () => {
             72,
             700,
           ],
+          charSpacingPt: 0,
+          wordSpacingPt: 0,
         },
       }),
     ).rejects.toMatchObject({
