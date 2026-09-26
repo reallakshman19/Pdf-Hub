@@ -90,15 +90,16 @@ else {
     $Config = [pscustomobject]@{}
 }
 
-if ($null -eq $Config.PSObject.Properties['sidecars']) {
-    $Config | Add-Member -MemberType NoteProperty -Name 'sidecars' -Value ([pscustomobject]@{})
+if ($null -eq $Config.PSObject.Properties['sidecars'] -or $null -eq $Config.sidecars) {
+    Ensure-ObjectProperty -Object $Config -Name 'sidecars' -Value ([pscustomobject]@{})
 }
 
-if ($null -eq $Config.sidecars.PSObject.Properties[$SidecarId]) {
-    $Config.sidecars | Add-Member -MemberType NoteProperty -Name $SidecarId -Value ([pscustomobject]@{ enabled = (-not $Disable.IsPresent) })
+$SidecarProperty = $Config.sidecars.PSObject.Properties[$SidecarId]
+if ($null -eq $SidecarProperty -or $null -eq $SidecarProperty.Value) {
+    Ensure-ObjectProperty -Object $Config.sidecars -Name $SidecarId -Value ([pscustomobject]@{ enabled = (-not $Disable.IsPresent) })
 }
 else {
-    $Entry = $Config.sidecars.PSObject.Properties[$SidecarId].Value
+    $Entry = $SidecarProperty.Value
     Ensure-ObjectProperty -Object $Entry -Name 'enabled' -Value (-not $Disable.IsPresent)
 }
 
