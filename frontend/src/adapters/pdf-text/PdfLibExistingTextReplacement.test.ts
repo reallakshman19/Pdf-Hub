@@ -75,6 +75,8 @@ async function generatedPdf(
 
 function spanFor(
   text: string,
+  x = 72,
+  y = 700,
 ) {
   return buildExistingTextSpan(
     {
@@ -91,8 +93,8 @@ function spanFor(
         0,
         0,
         12,
-        72,
-        700,
+        x,
+        y,
       ],
       width: 30,
       height: 12,
@@ -107,6 +109,8 @@ function spanFor(
 async function provenanceFor(
   pdfBytes: Uint8Array,
   text: string,
+  x = 72,
+  y = 700,
 ): Promise<ExistingTextSimpleTextOperator> {
   const content =
     await readExistingTextPageContentStreams(
@@ -115,7 +119,7 @@ async function provenanceFor(
     );
   const result =
     matchExistingTextSpanToContentStream({
-      span: spanFor(text),
+      span: spanFor(text, x, y),
       content,
     });
   if (result.status !== 'matched') {
@@ -130,9 +134,11 @@ async function replace(
   pdfBytes: Uint8Array,
   sourceText: string,
   replacementText: string,
+  x = 72,
+  y = 700,
 ) {
   const span =
-    spanFor(sourceText);
+    spanFor(sourceText, x, y);
   const intent =
     createExistingTextEditIntent(
       span,
@@ -142,6 +148,8 @@ async function replace(
     await provenanceFor(
       pdfBytes,
       sourceText,
+      x,
+      y,
     );
 
   return replaceSimpleExistingTextTj({
@@ -1294,7 +1302,339 @@ describe('simple existing-text native replacement', () => {
       code: 'PROVENANCE_DRIFT',
     });
   });
+
+  it('replaces text positioned by explicit TL and T* and survives save/reopen with operands intact and PDF.js extraction', async () => {
+    const source = await generatedTlTStarPdf(
+      'Hello',
+      'Tj',
+      'hex',
+      StandardFonts.Helvetica,
+      'TL',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe('Tj');
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const result = await replace(
+      source,
+      'Hello',
+      'Hi',
+      72,
+      686,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello',
+      replacementText: 'Hi',
+      encoding: 'ascii-hex',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+        fit: {
+          status: 'fits',
+          baseFont: 'Helvetica',
+        },
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('1 0 0 1 72 700 Tm 14 TL T*');
+    expect(streamText).toContain('<4869> Tj');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('replaces single-string TJ positioned by explicit TL and T* and survives save/reopen', async () => {
+    const source = await generatedTlTStarPdf(
+      'Hello',
+      'TJ',
+      'literal',
+      StandardFonts.Helvetica,
+      'TL',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe('TJ');
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const result = await replace(
+      source,
+      'Hello',
+      'Hi',
+      72,
+      686,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello',
+      replacementText: 'Hi',
+      encoding: 'ascii-literal',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('1 0 0 1 72 700 Tm 14 TL T*');
+    expect(streamText).toContain('[(Hi)] TJ');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('replaces text positioned by T* consuming TD-established leading and survives save/reopen', async () => {
+    const source = await generatedTlTStarPdf(
+      'Hello',
+      'Tj',
+      'hex',
+      StandardFonts.Helvetica,
+      'TD',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      672,
+    );
+    expect(originalProvenance.operator).toBe('Tj');
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 672]);
+
+    const result = await replace(
+      source,
+      'Hello',
+      'Hi',
+      72,
+      672,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello',
+      replacementText: 'Hi',
+      encoding: 'ascii-hex',
+      baseFont: 'Helvetica',
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('1 0 0 1 72 700 Tm 0 -14 TD T*');
+    expect(streamText).toContain('<4869> Tj');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('rejects provenance drift if TL leading value in content stream is altered before mutation', async () => {
+    const source = await generatedTlTStarPdf(
+      'Hello',
+      'Tj',
+      'hex',
+      StandardFonts.Helvetica,
+      'TL',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe('Tj');
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace('14 TL', '20 TL');
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello', 72, 686);
+    const intent = createExistingTextEditIntent(span, 'Hi');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
+
+  it('rejects provenance drift if T* is removed from content stream before mutation', async () => {
+    const source = await generatedTlTStarPdf(
+      'Hello',
+      'Tj',
+      'hex',
+      StandardFonts.Helvetica,
+      'TL',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe('Tj');
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace('14 TL T*', '14 TL');
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello', 72, 686);
+    const intent = createExistingTextEditIntent(span, 'Hi');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
 });
+
+async function generatedTlTStarPdf(
+  text: string,
+  operator: 'Tj' | 'TJ' = 'Tj',
+  mode: 'literal' | 'hex' = 'hex',
+  fontName: string = StandardFonts.Helvetica,
+  leadingSeq: 'TL' | 'TD' = 'TL',
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const token =
+    mode === 'literal'
+      ? `(${text})`
+      : `<${Array.from(text, (character) =>
+          character.charCodeAt(0).toString(16).padStart(2, '0'),
+        ).join('').toUpperCase()}>`;
+
+  const positioning =
+    leadingSeq === 'TL'
+      ? '1 0 0 1 72 700 Tm 14 TL T*'
+      : '1 0 0 1 72 700 Tm 0 -14 TD T*';
+
+  let modifiedSource = source.replace(
+    /1 0 0 1 72 700 Tm/,
+    positioning,
+  );
+
+  if (operator === 'TJ') {
+    modifiedSource = modifiedSource.replace(
+      /<[0-9a-fA-F]+>\s*Tj/,
+      `[${token}] TJ`,
+    );
+  } else {
+    modifiedSource = modifiedSource.replace(
+      /<[0-9a-fA-F]+>\s*Tj/,
+      `${token} Tj`,
+    );
+  }
+
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
 
 async function generatedTdPdf(
   text: string,
