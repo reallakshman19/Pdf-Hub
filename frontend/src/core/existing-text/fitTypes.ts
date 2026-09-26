@@ -20,6 +20,8 @@ interface ExistingTextNativeFitBase {
   replacementText: string;
   observedAdvancePt: number;
   fontSizePt: number;
+  charSpacingPt?: number;
+  wordSpacingPt?: number;
   tolerancePt: number;
 }
 

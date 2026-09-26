@@ -20,12 +20,45 @@ export async function measureExistingTextNativeFit(
     replacementText: string;
     observedAdvancePt: number;
     fontSizePt: number;
+    charSpacingPt?: number;
+    wordSpacingPt?: number;
     signal?: AbortSignal;
   },
   lib?: PdfLibNs,
 ): Promise<ExistingTextNativeFitDiagnostic> {
   const tolerancePt =
     EXISTING_TEXT_NATIVE_FIT_TOLERANCE_PT;
+
+  const charSpacingPt =
+    input.charSpacingPt !== undefined
+      ? input.charSpacingPt
+      : 0;
+  const wordSpacingPt =
+    input.wordSpacingPt !== undefined
+      ? input.wordSpacingPt
+      : 0;
+
+  if (
+    !Number.isFinite(charSpacingPt)
+    || !Number.isFinite(wordSpacingPt)
+  ) {
+    return {
+      schemaVersion: 1,
+      status: 'unmeasurable',
+      reason: 'NON_FINITE_METRIC',
+      baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
+      observedAdvancePt:
+        input.observedAdvancePt,
+      fontSizePt:
+        input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
+      tolerancePt,
+    };
+  }
 
   if (
     !Number.isFinite(
@@ -46,6 +79,8 @@ export async function measureExistingTextNativeFit(
         input.observedAdvancePt,
       fontSizePt:
         input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
       tolerancePt,
     };
   }
@@ -68,6 +103,8 @@ export async function measureExistingTextNativeFit(
         input.observedAdvancePt,
       fontSizePt:
         input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
       tolerancePt,
     };
   }
@@ -99,16 +136,52 @@ export async function measureExistingTextNativeFit(
       'load Standard-14 fit metrics',
     );
 
-  const measuredSourceWidthPt =
+  const baseSourceWidthPt =
     font.widthOfTextAtSize(
       input.sourceText,
       input.fontSizePt,
     );
-  const measuredReplacementWidthPt =
+  const baseReplacementWidthPt =
     font.widthOfTextAtSize(
       input.replacementText,
       input.fontSizePt,
     );
+
+  if (
+    !Number.isFinite(
+      baseSourceWidthPt,
+    )
+    || !Number.isFinite(
+      baseReplacementWidthPt,
+    )
+  ) {
+    return {
+      schemaVersion: 1,
+      status: 'unmeasurable',
+      reason: 'NON_FINITE_METRIC',
+      baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
+      observedAdvancePt:
+        input.observedAdvancePt,
+      fontSizePt:
+        input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
+      tolerancePt,
+    };
+  }
+
+  const measuredSourceWidthPt =
+    baseSourceWidthPt
+    + (input.sourceText.length * charSpacingPt)
+    + (countAsciiSpaces(input.sourceText) * wordSpacingPt);
+
+  const measuredReplacementWidthPt =
+    baseReplacementWidthPt
+    + (input.replacementText.length * charSpacingPt)
+    + (countAsciiSpaces(input.replacementText) * wordSpacingPt);
 
   if (
     !Number.isFinite(
@@ -130,6 +203,8 @@ export async function measureExistingTextNativeFit(
         input.observedAdvancePt,
       fontSizePt:
         input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
       tolerancePt,
     };
   }
@@ -147,6 +222,8 @@ export async function measureExistingTextNativeFit(
         input.observedAdvancePt,
       fontSizePt:
         input.fontSizePt,
+      charSpacingPt,
+      wordSpacingPt,
       tolerancePt,
     };
   }
@@ -181,6 +258,8 @@ export async function measureExistingTextNativeFit(
       input.observedAdvancePt,
     fontSizePt:
       input.fontSizePt,
+    charSpacingPt,
+    wordSpacingPt,
     tolerancePt,
     measuredSourceWidthPt,
     measuredReplacementWidthPt,
@@ -188,6 +267,18 @@ export async function measureExistingTextNativeFit(
     projectedReplacementAdvancePt,
     overflowPt,
   };
+}
+
+function countAsciiSpaces(
+  text: string,
+): number {
+  let count = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 32) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 function standardFontForBaseFont(

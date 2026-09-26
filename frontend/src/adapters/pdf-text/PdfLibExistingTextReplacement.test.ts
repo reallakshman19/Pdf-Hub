@@ -77,6 +77,7 @@ function spanFor(
   text: string,
   x = 72,
   y = 700,
+  width = 60,
 ) {
   return buildExistingTextSpan(
     {
@@ -96,7 +97,7 @@ function spanFor(
         x,
         y,
       ],
-      width: 30,
+      width,
       height: 12,
       fontName:
         'pdfjs-font-identity',
@@ -136,9 +137,10 @@ async function replace(
   replacementText: string,
   x = 72,
   y = 700,
+  width = 60,
 ) {
   const span =
-    spanFor(sourceText, x, y);
+    spanFor(sourceText, x, y, width);
   const intent =
     createExistingTextEditIntent(
       span,
@@ -1579,6 +1581,541 @@ describe('simple existing-text native replacement', () => {
       code: 'PROVENANCE_DRIFT',
     });
   });
+
+  it('replaces text positioned with explicit Tc and Tw and survives save/reopen with operands intact and PDF.js extraction', async () => {
+    const source = await generatedSpacedPdf(
+      'Hello World',
+      'Tj',
+      0.2,
+      1.5,
+      'hex',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      700,
+    );
+    expect(originalProvenance.operator).toBe('Tj');
+    expect(originalProvenance.charSpacingPt).toBeCloseTo(0.2);
+    expect(originalProvenance.wordSpacingPt).toBeCloseTo(1.5);
+
+    const result = await replace(
+      source,
+      'Hello World',
+      'Hi All',
+      72,
+      700,
+      120,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello World',
+      replacementText: 'Hi All',
+      encoding: 'ascii-hex',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+        fit: {
+          status: 'fits',
+          baseFont: 'Helvetica',
+        },
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('0.2 Tc 1.5 Tw');
+    expect(streamText).toContain('<486920416C6C> Tj');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi All')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello World')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+
+    const rescan = await provenanceFor(result.pdfBytes, 'Hi All', 72, 700);
+    expect(rescan.charSpacingPt).toBeCloseTo(0.2);
+    expect(rescan.wordSpacingPt).toBeCloseTo(1.5);
+  });
+
+  it('replaces single-string TJ positioned with explicit Tc and Tw and survives save/reopen', async () => {
+    const source = await generatedSpacedPdf(
+      'Hello World',
+      'TJ',
+      0.2,
+      1.5,
+      'literal',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      700,
+    );
+    expect(originalProvenance.operator).toBe('TJ');
+    expect(originalProvenance.charSpacingPt).toBeCloseTo(0.2);
+    expect(originalProvenance.wordSpacingPt).toBeCloseTo(1.5);
+
+    const result = await replace(
+      source,
+      'Hello World',
+      'Hi All',
+      72,
+      700,
+      120,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello World',
+      replacementText: 'Hi All',
+      encoding: 'ascii-literal',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toContain('0.2 Tc 1.5 Tw');
+    expect(streamText).toContain('[(Hi All)] TJ');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi All')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello World')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('replaces text using single-quote operator "\'" and survives save/reopen with operands intact and PDF.js extraction', async () => {
+    const source = await generatedSingleQuotePdf(
+      'Hello',
+      'literal',
+      StandardFonts.Helvetica,
+      14,
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe("'");
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const result = await replace(
+      source,
+      'Hello',
+      'Hi',
+      72,
+      686,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello',
+      replacementText: 'Hi',
+      encoding: 'ascii-literal',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toMatch(/14\s+TL[\s\S]*\(Hi\)\s+'/);
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+
+    const rescan = await provenanceFor(result.pdfBytes, 'Hi', 72, 686);
+    expect(rescan.operator).toBe("'");
+  });
+
+  it('replaces text using double-quote operator \'"\' and survives save/reopen with spacing operands intact and PDF.js extraction', async () => {
+    const source = await generatedDoubleQuotePdf(
+      'Hello World',
+      1.5,
+      0.2,
+      'literal',
+      StandardFonts.Helvetica,
+      14,
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      686,
+    );
+    expect(originalProvenance.operator).toBe('"');
+    expect(originalProvenance.wordSpacingPt).toBeCloseTo(1.5);
+    expect(originalProvenance.charSpacingPt).toBeCloseTo(0.2);
+    expect(originalProvenance.textMatrix).toEqual([1, 0, 0, 1, 72, 686]);
+
+    const result = await replace(
+      source,
+      'Hello World',
+      'Hi All',
+      72,
+      686,
+      120,
+    );
+
+    expect(result).toMatchObject({
+      originalText: 'Hello World',
+      replacementText: 'Hi All',
+      encoding: 'ascii-literal',
+      baseFont: 'Helvetica',
+      proof: {
+        prefixBytesPreserved: true,
+        suffixBytesPreserved: true,
+      },
+    });
+
+    const reopenedDoc = await PDFDocument.load(result.pdfBytes, {
+      updateMetadata: false,
+    });
+    const streamText = Array.from(
+      decodePDFRawStream(firstPageRawStream(reopenedDoc)).decode(),
+      (byte) => String.fromCharCode(byte),
+    ).join('');
+    expect(streamText).toMatch(/1\.5\s+0\.2\s+\(Hi All\)\s+"/);
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi All')).toBe(true);
+        expect(items.some((item) => item.text === 'Hello World')).toBe(false);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+
+    const rescan = await provenanceFor(result.pdfBytes, 'Hi All', 72, 686);
+    expect(rescan.operator).toBe('"');
+    expect(rescan.wordSpacingPt).toBeCloseTo(1.5);
+    expect(rescan.charSpacingPt).toBeCloseTo(0.2);
+  });
+
+  it('supports Tc and Tw set outside BT and preserved across text objects', async () => {
+    const source = await generatedSpacedPdf(
+      'Hello',
+      'Tj',
+      0.2,
+      1.5,
+      'hex',
+      StandardFonts.Helvetica,
+      true,
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      700,
+    );
+    expect(originalProvenance.charSpacingPt).toBeCloseTo(0.2);
+    expect(originalProvenance.wordSpacingPt).toBeCloseTo(1.5);
+
+    const result = await replace(
+      source,
+      'Hello',
+      'Hi',
+      72,
+      700,
+    );
+    expect(result.replacementText).toBe('Hi');
+
+    const lease = await PdfRendererAdapter.acquireDocument(result.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'Hi')).toBe(true);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('tracks Tc and Tw across q/Q graphics state stack', async () => {
+    const source = await generatedQStackSpacedPdf('Inner', 'Outer');
+    const innerProvenance = await provenanceFor(source, 'Inner', 72, 700);
+    expect(innerProvenance.charSpacingPt).toBeCloseTo(0.2);
+    expect(innerProvenance.wordSpacingPt).toBeCloseTo(1.5);
+
+    const outerProvenance = await provenanceFor(source, 'Outer', 72, 650);
+    expect(outerProvenance.charSpacingPt).toBeCloseTo(0);
+    expect(outerProvenance.wordSpacingPt).toBeCloseTo(0);
+
+    const innerResult = await replace(
+      source,
+      'Inner',
+      'In',
+      72,
+      700,
+      120,
+    );
+    expect(innerResult.replacementText).toBe('In');
+
+    const outerResult = await replace(
+      innerResult.pdfBytes,
+      'Outer',
+      'Out',
+      72,
+      650,
+      120,
+    );
+    expect(outerResult.replacementText).toBe('Out');
+
+    const lease = await PdfRendererAdapter.acquireDocument(outerResult.pdfBytes);
+    try {
+      const page = await lease.doc.getPage(1);
+      try {
+        const items = await PdfRendererAdapter.getPageExistingTextSourceItems(page);
+        expect(items.some((item) => item.text === 'In')).toBe(true);
+        expect(items.some((item) => item.text === 'Out')).toBe(true);
+      } finally {
+        page.cleanup();
+      }
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it('rejects provenance drift if Tc in content stream is altered before mutation', async () => {
+    const source = await generatedSpacedPdf(
+      'Hello World',
+      'Tj',
+      1.5,
+      2.5,
+      'hex',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      700,
+    );
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace('1.5 Tc', '3.0 Tc');
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello World', 72, 700, 120);
+    const intent = createExistingTextEditIntent(span, 'Hi All');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
+
+  it('rejects provenance drift if Tw in content stream is altered before mutation', async () => {
+    const source = await generatedSpacedPdf(
+      'Hello World',
+      'Tj',
+      1.5,
+      2.5,
+      'hex',
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      700,
+    );
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace('2.5 Tw', '5.0 Tw');
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello World', 72, 700, 120);
+    const intent = createExistingTextEditIntent(span, 'Hi All');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
+
+  it('rejects provenance drift if single-quote operator "\'" is altered before mutation', async () => {
+    const source = await generatedSingleQuotePdf(
+      'Hello',
+      'literal',
+      StandardFonts.Helvetica,
+      14,
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello',
+      72,
+      686,
+    );
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace("(Hello) '", "(Hello) Tj");
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello', 72, 686);
+    const intent = createExistingTextEditIntent(span, 'Hi');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
+
+  it('rejects provenance drift if double-quote operator parameters are altered before mutation', async () => {
+    const source = await generatedDoubleQuotePdf(
+      'Hello World',
+      2.5,
+      1.5,
+      'literal',
+      StandardFonts.Helvetica,
+      14,
+    );
+    const originalProvenance = await provenanceFor(
+      source,
+      'Hello World',
+      72,
+      686,
+    );
+
+    const doc = await PDFDocument.load(source, { updateMetadata: false });
+    const originalStream = firstPageRawStream(doc);
+    const decodedBytes = decodePDFRawStream(originalStream).decode();
+    const sourceText = Array.from(decodedBytes, (byte) =>
+      String.fromCharCode(byte),
+    ).join('');
+    const tamperedSourceText = sourceText.replace(
+      '2.5 1.5 (Hello World) "',
+      '3.5 1.5 (Hello World) "',
+    );
+    const newStream = doc.context.flateStream(tamperedSourceText);
+    doc.getPage(0).node.set(
+      PDFName.of('Contents'),
+      doc.context.register(newStream),
+    );
+    const tamperedPdfBytes = new Uint8Array(await doc.save());
+
+    const span = spanFor('Hello World', 72, 686, 120);
+    const intent = createExistingTextEditIntent(span, 'Hi All');
+
+    await expect(
+      replaceSimpleExistingTextTj({
+        pdfBytes: tamperedPdfBytes,
+        currentRevisionId: REVISION,
+        span,
+        intent,
+        provenance: originalProvenance,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVENANCE_DRIFT',
+    });
+  });
 });
 
 async function generatedTlTStarPdf(
@@ -1896,3 +2433,190 @@ function ensureFirstContentStreamRef(
     'Expected raw page content stream',
   );
 }
+
+async function generatedSpacedPdf(
+  text: string,
+  operator: 'Tj' | 'TJ' = 'Tj',
+  charSpacing = 1.5,
+  wordSpacing = 2.5,
+  mode: 'literal' | 'hex' = 'hex',
+  fontName: string = StandardFonts.Helvetica,
+  outsideBt = false,
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const token =
+    mode === 'literal'
+      ? `(${text})`
+      : `<${Array.from(text, (character) =>
+          character.charCodeAt(0).toString(16).padStart(2, '0'),
+        ).join('').toUpperCase()}>`;
+
+  let modifiedSource: string;
+  if (outsideBt) {
+    modifiedSource = source.replace(
+      /BT/,
+      `${charSpacing} Tc ${wordSpacing} Tw BT`,
+    );
+  } else {
+    modifiedSource = source.replace(
+      /1 0 0 1 72 700 Tm/,
+      `1 0 0 1 72 700 Tm ${charSpacing} Tc ${wordSpacing} Tw`,
+    );
+  }
+
+  if (operator === 'TJ') {
+    modifiedSource = modifiedSource.replace(
+      /<[0-9a-fA-F]+>\s*Tj/,
+      `[${token}] TJ`,
+    );
+  } else {
+    modifiedSource = modifiedSource.replace(
+      /<[0-9a-fA-F]+>\s*Tj/,
+      `${token} Tj`,
+    );
+  }
+
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
+
+async function generatedSingleQuotePdf(
+  text: string,
+  mode: 'literal' | 'hex' = 'hex',
+  fontName: string = StandardFonts.Helvetica,
+  leading = 14,
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const token =
+    mode === 'literal'
+      ? `(${text})`
+      : `<${Array.from(text, (character) =>
+          character.charCodeAt(0).toString(16).padStart(2, '0'),
+        ).join('').toUpperCase()}>`;
+
+  let modifiedSource = source.replace(
+    /1 0 0 1 72 700 Tm/,
+    `1 0 0 1 72 700 Tm ${leading} TL`,
+  );
+  modifiedSource = modifiedSource.replace(
+    /<[0-9a-fA-F]+>\s*Tj/,
+    `${token} '`,
+  );
+
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
+
+async function generatedDoubleQuotePdf(
+  text: string,
+  wordSpacing = 2.5,
+  charSpacing = 1.5,
+  mode: 'literal' | 'hex' = 'hex',
+  fontName: string = StandardFonts.Helvetica,
+  leading = 14,
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const token =
+    mode === 'literal'
+      ? `(${text})`
+      : `<${Array.from(text, (character) =>
+          character.charCodeAt(0).toString(16).padStart(2, '0'),
+        ).join('').toUpperCase()}>`;
+
+  let modifiedSource = source.replace(
+    /1 0 0 1 72 700 Tm/,
+    `1 0 0 1 72 700 Tm ${leading} TL`,
+  );
+  modifiedSource = modifiedSource.replace(
+    /<[0-9a-fA-F]+>\s*Tj/,
+    `${wordSpacing} ${charSpacing} ${token} "`,
+  );
+
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
+
+async function generatedQStackSpacedPdf(
+  innerText: string,
+  outerText: string,
+  fontName: string = StandardFonts.Helvetica,
+): Promise<Uint8Array> {
+  const basePdf = await generatedPdf('Hello', fontName);
+  const document = await PDFDocument.load(basePdf, {
+    updateMetadata: false,
+  });
+  const page = document.getPage(0);
+  const originalStream = firstPageRawStream(document);
+  const decodedBytes = decodePDFRawStream(originalStream).decode();
+  const source = Array.from(decodedBytes, (byte) =>
+    String.fromCharCode(byte),
+  ).join('');
+
+  const fontMatch = source.match(/\/([^\s]+)\s+12\s+Tf/);
+  const fontNameInStream = fontMatch ? fontMatch[1] : 'Helvetica';
+
+  const innerHex = `<${Array.from(innerText, (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase()}>`;
+  const outerHex = `<${Array.from(outerText, (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase()}>`;
+
+  const streamContent = `BT
+/${fontNameInStream} 12 Tf
+q
+0.2 Tc 1.5 Tw
+1 0 0 1 72 700 Tm
+${innerHex} Tj
+Q
+1 0 0 1 72 650 Tm
+${outerHex} Tj
+ET`;
+
+  const modifiedSource = source.replace(/BT[\s\S]*?ET/, streamContent);
+  const newStream = document.context.flateStream(modifiedSource);
+  page.node.set(
+    PDFName.of('Contents'),
+    document.context.register(newStream),
+  );
+  return new Uint8Array(await document.save());
+}
+

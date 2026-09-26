@@ -439,9 +439,12 @@ export function validateReplaceExistingTextCommandPayload(
   if (
     provenance.operator !== 'Tj'
     && provenance.operator !== 'TJ'
+    && provenance.operator !== "'"
+    && provenance.operator !== '"'
   ) {
     errors.push(
-      'payload.provenance.operator must be Tj or TJ.',
+      // 'payload.provenance.operator must be Tj or TJ.'
+      "payload.provenance.operator must be Tj, TJ, ', or \".",
     );
   }
 
@@ -532,7 +535,7 @@ export function validateReplaceExistingTextCommandPayload(
       (provenance.operatorRange.start as number)
   ) {
     errors.push(
-      'payload.provenance operand must end before the Tj operator begins.',
+      `payload.provenance operand must end before the ${String(provenance.operator)} operator begins.`,
     );
   }
 
@@ -559,6 +562,16 @@ export function validateReplaceExistingTextCommandPayload(
   requirePositiveFiniteNumber(
     provenance.fontSizePt,
     'payload.provenance.fontSizePt',
+    errors,
+  );
+  requireFiniteNumber(
+    provenance.charSpacingPt,
+    'payload.provenance.charSpacingPt',
+    errors,
+  );
+  requireFiniteNumber(
+    provenance.wordSpacingPt,
+    'payload.provenance.wordSpacingPt',
     errors,
   );
   requireFiniteTuple6(
