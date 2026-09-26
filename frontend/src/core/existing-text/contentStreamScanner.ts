@@ -252,7 +252,26 @@ export function scanExistingTextContentStream(
         break;
       }
 
-      case 'T*':
+      case 'TL': {
+        if (text.inTextObject) {
+          applySimpleTl(
+            operands,
+            text,
+          );
+        }
+        break;
+      }
+
+      case 'T*': {
+        if (text.inTextObject) {
+          applySimpleTStar(
+            operands,
+            text,
+          );
+        }
+        break;
+      }
+
       case "'":
       case '"':
         if (text.inTextObject) {
@@ -508,6 +527,47 @@ function initialTextState():
   };
 }
 
+function applyLineTranslation(
+  tx: number,
+  ty: number,
+  text: TextState,
+): boolean {
+  if (
+    !text.textLineMatrix
+    || !isSimpleTextMatrix(text.textLineMatrix)
+    || !Number.isFinite(tx)
+    || !Number.isFinite(ty)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    text.textLeadingPt = null;
+    return false;
+  }
+
+  const newLineMatrix: ExistingTextTransform = [
+    1,
+    0,
+    0,
+    1,
+    text.textLineMatrix[4] + tx,
+    text.textLineMatrix[5] + ty,
+  ];
+
+  if (!isSimpleTextMatrix(newLineMatrix)) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    text.textLeadingPt = null;
+    return false;
+  }
+
+  text.textLineMatrix = newLineMatrix;
+  text.textMatrix = newLineMatrix;
+  text.placementSafe = true;
+  return true;
+}
+
 function applySimpleTd(
   operands: readonly ExistingTextContentToken[],
   text: TextState,
@@ -543,16 +603,22 @@ function applySimpleTd(
     return;
   }
 
-  const newLineMatrix: ExistingTextTransform = [
-    1,
-    0,
-    0,
-    1,
-    text.textLineMatrix[4] + txToken.numberValue,
-    text.textLineMatrix[5] + tyToken.numberValue,
-  ];
+  const success = applyLineTranslation(
+    txToken.numberValue,
+    tyToken.numberValue,
+    text,
+  );
 
-  if (!isSimpleTextMatrix(newLineMatrix)) {
+  if (success && setLeading) {
+    text.textLeadingPt = -tyToken.numberValue;
+  }
+}
+
+function applySimpleTl(
+  operands: readonly ExistingTextContentToken[],
+  text: TextState,
+): void {
+  if (operands.length !== 1) {
     text.placementSafe = false;
     text.textLineMatrix = null;
     text.textMatrix = null;
@@ -560,13 +626,45 @@ function applySimpleTd(
     return;
   }
 
-  text.textLineMatrix = newLineMatrix;
-  text.textMatrix = newLineMatrix;
-  text.placementSafe = true;
-
-  if (setLeading) {
-    text.textLeadingPt = -tyToken.numberValue;
+  const operand = operands[0];
+  if (
+    operand.kind !== 'number'
+    || operand.numberValue === undefined
+    || !Number.isFinite(operand.numberValue)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    text.textLeadingPt = null;
+    return;
   }
+
+  text.textLeadingPt = operand.numberValue;
+}
+
+function applySimpleTStar(
+  operands: readonly ExistingTextContentToken[],
+  text: TextState,
+): void {
+  if (
+    operands.length !== 0
+    || text.textLeadingPt === null
+    || !Number.isFinite(text.textLeadingPt)
+    || !text.textLineMatrix
+    || !isSimpleTextMatrix(text.textLineMatrix)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    text.textLeadingPt = null;
+    return;
+  }
+
+  applyLineTranslation(
+    0,
+    -text.textLeadingPt,
+    text,
+  );
 }
 
 function readNumericMatrix(
