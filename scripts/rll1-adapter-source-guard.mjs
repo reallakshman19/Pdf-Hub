@@ -72,7 +72,11 @@ includesAll('installer', installer, [
   "'*/10 * * * *'",
   'RLL_SMOKE',
   "'1'",
+  'PATH = $ValidatedPath',
+  'PYTHONUTF8',
+  'PYTHONIOENCODING',
   '.gemini\\config',
+  '.gemini\\antigravity\\sidecar_data',
   'sidecar.json',
 ]);
 
