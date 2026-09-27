@@ -69,6 +69,14 @@ $null = Require-Command 'python'
 $null = Require-Command 'agy'
 $PowerShell = Require-Command 'powershell.exe'
 
+# The sidecar does not run inside this installation shell. Persist the
+# already-validated tool discovery environment so scheduled wakes can resolve
+# git/gh/python/agy without requiring an interactive PATH bootstrap.
+$ValidatedPath = $env:PATH
+if ([string]::IsNullOrWhiteSpace($ValidatedPath)) {
+    throw 'PATH is empty after prerequisite validation.'
+}
+
 & $Gh auth status *> $null
 if ($LASTEXITCODE -ne 0) {
     throw 'GitHub CLI authentication is unavailable. Run gh auth login.'
@@ -79,6 +87,8 @@ $SidecarsRoot = Join-Path $ConfigRoot 'sidecars'
 $SidecarRoot = Join-Path $SidecarsRoot $SidecarId
 $SidecarPath = Join-Path $SidecarRoot 'sidecar.json'
 $ConfigPath = Join-Path $ConfigRoot 'config.json'
+$SidecarRuntimeRoot = Join-Path $HOME ".gemini\antigravity\sidecar_data\$SidecarId"
+$SidecarLogRoot = Join-Path $SidecarRuntimeRoot 'logs'
 
 New-Item -ItemType Directory -Force -Path $SidecarRoot | Out-Null
 
@@ -142,6 +152,9 @@ $Sidecar = [ordered]@{
     env = [ordered]@{
         COMMON_REPO_ROOT = $CommonRoot
         RLL_SMOKE = $SmokeValue
+        PATH = $ValidatedPath
+        PYTHONUTF8 = '1'
+        PYTHONIOENCODING = 'utf-8'
     }
 }
 
@@ -156,3 +169,4 @@ else {
     Write-Host 'RLL_SMOKE=1: non-destructive transport smoke is enabled; Common will not invoke Antigravity.'
 }
 Write-Host "Global Antigravity config enabled '$SidecarId' in $ConfigPath"
+Write-Host "Sidecar runtime logs: $SidecarLogRoot"
