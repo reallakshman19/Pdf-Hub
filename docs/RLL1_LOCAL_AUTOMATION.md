@@ -61,9 +61,13 @@ The installer:
 - writes `~/.gemini/config/sidecars/pdf-hub-rll1/sidecar.json`;
 - enables that sidecar in `~/.gemini/config/config.json`;
 - schedules the wrapper every ten minutes by default;
-- sets `RLL_SMOKE=1`.
+- sets `RLL_SMOKE=1`;
+- persists the installer process's already-validated `PATH` into the sidecar environment so scheduled wakes can resolve `git`, `gh`, `python`, and `agy`;
+- sets `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` for deterministic Windows launcher output.
 
 Antigravity sidecars use the `schedule` builtin. The sidecar runs the wrapper command; it does not duplicate RLL logic.
+
+The installer must be run from a shell where all required commands already resolve. It copies that verified tool-discovery PATH into the sidecar configuration; no credentials or tokens are added.
 
 ## Smoke mode
 
@@ -93,6 +97,22 @@ After smoke validation:
 This rewrites the sidecar environment with `RLL_SMOKE=0`.
 
 The next eligible wake may invoke one Common-governed `agy -p` engineering session.
+
+## Scheduled wake diagnostics
+
+If an eligible `rll-ready` issue remains unclaimed for more than one or two scheduler periods, inspect the Antigravity sidecar runtime logs before manually invoking the worker:
+
+```powershell
+Get-ChildItem "$HOME\.gemini\antigravity\sidecar_data\pdf-hub-rll1\logs" |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 5
+```
+
+The installer prints this log directory after each install/update.
+
+A common Windows failure mode is that commands resolve in an interactive shell only because that shell prepended tool directories to `PATH`. The scheduled sidecar runs outside that one-off shell. Reinstalling the sidecar from the verified shell persists that PATH into `sidecar.json`, eliminating the need for per-wake PATH bootstrapping.
+
+Do not store `GH_TOKEN`, `GITHUB_TOKEN`, OAuth tokens, PATs, or other secrets in the sidecar environment.
 
 ## Disable
 
