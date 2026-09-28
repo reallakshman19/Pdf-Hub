@@ -70,6 +70,8 @@ includesAll('wrapper', wrapper, [
   "'-u', 'GH_TOKEN'",
   "'-u', 'GITHUB_TOKEN'",
   'sudo -n -u',
+  'Dedicated Codex identity unexpectedly has GitHub provider authentication',
+  'Scheduled CODEX_LOCAL_V1 BRANCH_RESUME requires WSL2',
   basis,
 ]);
 
@@ -81,7 +83,6 @@ includesAll('installer', installer, [
   'LogonType Interactive',
   'RunLevel Limited',
   'WSL2',
-  'codex-local',
   "CodexUser = 'rll-codex'",
   "CodexHome = '/home/rll-codex/.codex-rll'",
   'Copy-Item -Path $SourceWrapperPath -Destination $InstalledWrapperPath -Force',
