@@ -14,12 +14,6 @@ const files = {
   docs: 'docs/RLL1_CODEX_LOCAL_AUTOMATION.md',
 };
 
-const retiredFiles = [
-  'scripts/rll1-antigravity-worker.ps1',
-  'scripts/install-rll1-antigravity-sidecar.ps1',
-  'docs/RLL1_LOCAL_AUTOMATION.md',
-];
-
 let checks = 0;
 const failures = [];
 
@@ -47,6 +41,8 @@ const conformance = read(files.conformance);
 const docs = read(files.docs);
 read(files.guard);
 
+const basis = '22d365839e64c19c7ba606e2cf4edc6b9cc2999f';
+
 includesAll('rule', rule, [
   'AGENTS.md',
   'RLL_EXECUTION_V1',
@@ -54,21 +50,27 @@ includesAll('rule', rule, [
   'EXACT_HEAD_EVIDENCE',
   'RELAY_DIRECTIVE_V1',
   'CODEX_LOCAL_V1',
-  'pdfhub-rll-local',
-  'e551cb50941b160b50cc21ea76888f2b962ca248',
+  'codex-local',
+  'WSL2',
+  'allowed_paths',
+  'launcher-owned commit/push',
+  'GH_TOKEN',
+  basis,
 ]);
 
 includesAll('wrapper', wrapper, [
-  'rll_worker.py',
-  'reallaksh19/Pdf-Hub',
-  'pdfhub-rll-local',
-  '--authorized-login',
+  'wsl.exe',
+  'codex-local',
   '--executor',
   'codex',
-  '--effort',
+  '--codex-user',
+  '--codex-home',
+  '--authorized-login',
   '--smoke',
-  'login status',
-  'e551cb50941b160b50cc21ea76888f2b962ca248',
+  "'-u', 'GH_TOKEN'",
+  "'-u', 'GITHUB_TOKEN'",
+  'sudo -n -u',
+  basis,
 ]);
 
 includesAll('installer', installer, [
@@ -76,37 +78,58 @@ includesAll('installer', installer, [
   'Register-ScheduledTask',
   'New-ScheduledTaskSettingsSet',
   'MultipleInstances IgnoreNew',
-  'pdfhub-rll-local',
-  'codex-conformance.json',
-  'EnableExecution',
-  'smoke = (-not $EnableExecution.IsPresent)',
   'LogonType Interactive',
   'RunLevel Limited',
+  'WSL2',
+  'codex-local',
+  "CodexUser = 'rll-codex'",
+  "CodexHome = '/home/rll-codex/.codex-rll'",
+  'Copy-Item -Path $SourceWrapperPath -Destination $InstalledWrapperPath -Force',
+  'bin\\rll1-codex-worker.ps1',
+  'RLL_WORKER_STATE_V1',
+  'REVIEW_READY|CANCELLED',
+  'GH_TOKEN',
+  'gh auth login --web',
+  basis,
 ]);
 
 includesAll('conformance', conformance, [
-  'login status',
+  'WSL2',
+  'codex-local',
+  "CodexUser = 'rll-codex'",
+  "CodexHome = '/home/rll-codex/.codex-rll'",
+  'provider GitHub authentication',
+  'Dedicated Codex identity unexpectedly has GitHub provider authentication',
   "'--sandbox', 'read-only'",
   "'--sandbox', 'workspace-write'",
+  "'--json'",
   "'--output-schema'",
   "'--output-last-message'",
-  'PDF_HUB_RLL_CODEX_CONFORMANCE_V1',
+  'approvals_reviewer="user"',
+  'web_search="disabled"',
+  'sandbox_workspace_write.network_access=false',
+  'PDF_HUB_RLL_CODEX_CONFORMANCE_V2',
   'RLL_CODEX_WRITE_OK',
+  'Wait-Job -Job $Job -Timeout $TimeoutSeconds',
+  basis,
 ]);
 
 includesAll('docs', docs, [
   'Windows Task Scheduler',
-  'CODEX_LOCAL_V1',
-  'rll1-codex-conformance.ps1',
-  'rll1-codex-worker.ps1',
-  'RLL_EXECUTION_V1',
-  'pdfhub-rll-local',
-  'e551cb50941b160b50cc21ea76888f2b962ca248',
+  'WSL2/Linux',
+  'codex-local',
+  'rll-codex',
+  '/home/rll-codex/.codex-rll',
+  'allowed_paths',
+  'launcher-owned commit/push',
+  'branch-independent',
+  'GH_TOKEN',
+  'exact-head Codex smoke',
+  'overlap smoke',
+  'fresh disposable WSL2/Linux branch-write smoke',
+  'contentStreamScanner.ts',
+  basis,
 ]);
-
-for (const retired of retiredFiles) {
-  check(!fs.existsSync(path.join(root, retired)), 'retired adapter file still exists: ' + retired);
-}
 
 for (const forbiddenPath of [
   'scripts/rll_worker.py',
@@ -120,6 +143,8 @@ for (const forbiddenPath of [
 
 const adapterText = [rule, wrapper, installer, conformance, docs].join('\n').toLowerCase();
 for (const forbidden of [
+  'pdfhub-rll-local',
+  'e551cb50941b160b50cc21ea76888f2b962ca248',
   'antigravity',
   'agy ',
   'sidecar',
@@ -132,11 +157,13 @@ for (const forbidden of [
   '--full-auto',
   'mcp__github__',
   'github-mcp-server',
+  'native-windows codex conformance',
+  'native-windows workspace-write',
   'gh_token =',
   'github_token =',
   'oauth_token',
 ]) {
-  check(!adapterText.includes(forbidden), 'forbidden adapter authority/dependency found: ' + forbidden);
+  check(!adapterText.includes(forbidden), 'forbidden stale/authority/dependency token found: ' + forbidden);
 }
 
 if (failures.length) {
