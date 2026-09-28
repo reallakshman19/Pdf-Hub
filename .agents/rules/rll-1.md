@@ -7,6 +7,7 @@ This repository is a thin consumer of Engineering Relay V3.1 RLL-1 in Common.
 - Root AGENTS.md governs PDF Hub engineering.
 - Engineering Relay V3.1 governs authority, evidence, review and merge boundaries.
 - RLL-1 is execution transport only.
+- Read and obey the authorized RLL_EXECUTION_V1 envelope on the governed child.
 - The canonical generic worker is Common: skills/engineering-pr-delivery-v3.1/scripts/rll_worker.py.
 - Required Common Codex-RLL basis: e551cb50941b160b50cc21ea76888f2b962ca248.
 - The local RLL worker identity is pdfhub-rll-local.
