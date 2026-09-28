@@ -85,7 +85,7 @@ includesAll('installer', installer, [
   "CodexUser = 'rll-codex'",
   "CodexHome = '/home/rll-codex/.codex-rll'",
   'Copy-Item -Path $SourceWrapperPath -Destination $InstalledWrapperPath -Force',
-  'bin\\rll1-codex-worker.ps1',
+  "Join-Path $BinRoot 'rll1-codex-worker.ps1'",
   'RLL_WORKER_STATE_V1',
   'REVIEW_READY|CANCELLED',
   'GH_TOKEN',
