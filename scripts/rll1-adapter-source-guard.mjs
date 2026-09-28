@@ -67,7 +67,7 @@ includesAll('wrapper', wrapper, [
   'codex',
   '--effort',
   '--smoke',
-  'codex login status',
+  'login status',
   'e551cb50941b160b50cc21ea76888f2b962ca248',
 ]);
 
@@ -85,7 +85,7 @@ includesAll('installer', installer, [
 ]);
 
 includesAll('conformance', conformance, [
-  'codex login status',
+  'login status',
   "'--sandbox', 'read-only'",
   "'--sandbox', 'workspace-write'",
   "'--output-schema'",
