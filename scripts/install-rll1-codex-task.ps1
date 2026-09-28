@@ -44,6 +44,18 @@ function Resolve-CommonRoot {
 
 Import-Module ScheduledTasks -ErrorAction Stop
 
+if ($Disable.IsPresent) {
+    $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($null -ne $ExistingTask) {
+        Disable-ScheduledTask -TaskName $TaskName | Out-Null
+        Write-Host "Disabled Windows scheduled task '$TaskName'."
+    }
+    else {
+        Write-Host "Scheduled task '$TaskName' is not installed."
+    }
+    exit 0
+}
+
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $CommonRoot = Resolve-CommonRoot -Configured $CommonRepoRoot -RepoRoot $RepoRoot
 $WrapperPath = Join-Path $RepoRoot 'scripts\rll1-codex-worker.ps1'
@@ -81,18 +93,6 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     $LocalHead = (& $Git -C $CommonRoot rev-parse HEAD).Trim()
     throw "Local Common checkout lacks required CODEX_LOCAL_V1 basis $RequiredCommonBasis. current=$LocalHead"
-}
-
-if ($Disable.IsPresent) {
-    $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    if ($null -ne $ExistingTask) {
-        Disable-ScheduledTask -TaskName $TaskName | Out-Null
-        Write-Host "Disabled Windows scheduled task '$TaskName'."
-    }
-    else {
-        Write-Host "Scheduled task '$TaskName' is not installed."
-    }
-    exit 0
 }
 
 $CodexVersion = (& $Codex --version 2>&1 | Out-String).Trim()
