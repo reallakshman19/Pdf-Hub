@@ -76,6 +76,11 @@ foreach ($Pair in @(
 $LogRoot = Split-Path $LogPath -Parent
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 
+$Kernel = (& $Wsl -d $Distro -- uname -r | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $Kernel -notmatch '(?i)(WSL2|microsoft-standard)') {
+    throw "Scheduled CODEX_LOCAL_V1 BRANCH_RESUME requires WSL2. distro=$Distro kernel=$Kernel"
+}
+
 & $Wsl -d $Distro -- git -C $RepoRoot rev-parse --git-dir *> $null
 if ($LASTEXITCODE -ne 0) {
     throw "PDF Hub WSL root is not a Git repository: $RepoRoot"
@@ -94,6 +99,11 @@ if ($LASTEXITCODE -ne 0) {
 & $Wsl -d $Distro -- sudo -n -u $CodexUser env "CODEX_HOME=$CodexHome" "HOME=/home/$CodexUser" codex login status *> $null
 if ($LASTEXITCODE -ne 0) {
     throw "Codex authentication is unavailable for dedicated WSL user $CodexUser."
+}
+
+& $Wsl -d $Distro -- sudo -n -u $CodexUser env "HOME=/home/$CodexUser" gh auth status *> $null
+if ($LASTEXITCODE -eq 0) {
+    throw 'Dedicated Codex identity unexpectedly has GitHub provider authentication.'
 }
 
 & $Wsl -d $Distro -- git -C $CommonRoot fetch origin main --quiet
