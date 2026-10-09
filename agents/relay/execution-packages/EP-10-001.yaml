@@ -1,0 +1,1318 @@
+{
+  "schema_version": "relay-v2.5",
+  "identity": {
+    "ep_id": "EP-10-001",
+    "branch": "phase10/native-annotation-interoperability",
+    "base_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "execution_state": "ACTIVE",
+    "previous_checkpoint": "NONE",
+    "previous_join": null,
+    "previous_replan": "RM-0004"
+  },
+  "replan_inheritance": {
+    "from_replan": "RM-0004",
+    "unresolved_acceptance": [
+      "WP-009 / Phase 9 remains FUTURE/WAITING with 0% acceptance under ODR-0005; no Phase 9 acceptance is inherited into WP-010.",
+      "WP-8G executable certification remains PENDING_NOT_SATISFIED under ODR-0003; Phase 10 does not convert that obligation into PASS."
+    ],
+    "evidence": [
+      "ODR-0006 and RM-0004 resequenced WP-010 as the active serial frontier while explicitly retaining Phase 8G and Phase 9 pending obligations.",
+      "Issue #288 is the Phase 10 coordination contract; issues #284 and #286 remain open for their deferred obligations."
+    ]
+  },
+  "git_basis": {
+    "expected_branch": "phase10/native-annotation-interoperability",
+    "material_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "base_branch": "phase9/pdf-fidelity-laboratory",
+    "base_observed_ref": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+    "drift_policy": "RECHECK_BEFORE_WRITE",
+    "drift_receipt": null
+  },
+  "roadmap_source": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0004",
+    "objective": "OBJ-READINESS",
+    "phase": "PHASE-010",
+    "work_package": "WP-010",
+    "generated_from_frontier": true,
+    "task_admission": {
+      "disposition": "MAPPED_EXISTING_WP",
+      "searched_paths": [
+        "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+        "Docs/SAVE_SEMANTICS.md",
+        "docs/concepts/dynamic-obstacle-aware-adobe-compatible-annotation.md",
+        "GitHub issue #288"
+      ],
+      "basis": [
+        "RM-0004 computes WP-010 as the sole serial frontier.",
+        "Issue #288 defines the Phase 10 interoperability work contract.",
+        "SAVE_SEMANTICS requires editable native Save/Save As distinct from flattened export and warns on signed rewrites.",
+        "The annotation concept requires explicit appearance streams and external-viewer verification."
+      ]
+    }
+  },
+  "outcome": {
+    "user_visible": [
+      "Supported native annotations remain visible, selectable, editable and non-duplicated across Save/reopen and verified external viewers.",
+      "Save, Save As, Export Flattened and Export Searchable PDF remain distinct outcomes, with signed-PDF rewrite risk surfaced explicitly."
+    ],
+    "engineering": [
+      "Native annotation writer emits required /AP appearance streams and reader/writer round trips preserve semantic identity, geometry, replies and review mapping.",
+      "Permanent interoperability fixtures verify PDF Hub plus externally evidenced viewers without overclaiming unsupported compatibility.",
+      "ReviewThread remains a domain/review concept rather than becoming duplicate visual annotation storage."
+    ]
+  },
+  "context_capsule": {
+    "product_goal": "Harden already-existing native editable annotation support for real viewer interoperability and repeated round trips.",
+    "roadmap_position": "OBJ-READINESS / PHASE-010 / WP-010 under RM-0004. Phase 8G and Phase 9 remain Owner-deferred and unsatisfied.",
+    "why_this_work_exists": "The current native writer emits standard /Annot dictionaries and reply relationships, but it does not generate explicit /AP appearance streams. The reader imports standard fields best-effort, and ReviewThread remains a transitional adapter over annotation.review persistence. Target save semantics already require editable native Save/Save As and separate flattened export.",
+    "current_architecture": "composeEditablePdf() writes Writer content then calls writeNativePdfAnnotations(); composeCommittedPdf() remains the explicit flattening path. writeNativePdfAnnotations() upserts PDF Hub annotation families by /NM and writes replies with /IRT. readNativePdfAnnotations() rebuilds application annotations/review replies from native dictionaries. PDF.js/browser reopening is available as one consumer but is not sufficient external interoperability proof.",
+    "prior_owner_decisions": [
+      "ODR-0003 defers Phase 8G executable certification.",
+      "ODR-0005 defers Phase 9 takeover qualification and dependent STEP-9-01 continuation.",
+      "ODR-0006 / RM-0004 resequence WP-010 as the next serial frontier without satisfying Phase 9."
+    ],
+    "current_implementation_state": "STEP-10-01 fixture/oracle material is present on the branch but remains unaccepted. Relay review findings F10-01/F10-02/F10-03 are open. No STEP-10-02 production /AP implementation has started.",
+    "known_problems": [
+      "nativeAnnotationWriter.ts writes subtype-specific dictionaries but no explicit /AP appearance stream.",
+      "Viewer behavior may therefore depend on whether an external viewer regenerates annotation appearances.",
+      "ReviewThread is still derived from annotation.review persistence rather than fully separated durable discussion state.",
+      "Signed-PDF rewrite warning/detection is not established in the native Save contract.",
+      "Compatibility must be claimed per-viewer from evidence, not inferred from PDF.js rendering.",
+      "Pinned V2.5 quality routing requires all ten built-in procedures to be partitioned exactly once. The prior EP-10-001 omitted ui-ux, accessibility and migration. This revision repairs the router and requires fresh qualification because the EP contract digest changes."
+    ],
+    "deliberate_non_goals": [
+      "No new annotation-type product breadth beyond already-authorized/common types.",
+      "No Phase 11 OCR work, Phase 12 SDK work, or Phase 13 existing-text editing.",
+      "No signing creation or promise of signature-preserving incremental save.",
+      "No wholesale annotation-model rewrite without fixture-backed evidence.",
+      "No reopening Phase 8G or Phase 9 deferred obligations inside this EP."
+    ],
+    "terminology": {
+      "appearance_stream": "The annotation /AP dictionary/normal appearance used by viewers that do not regenerate appearances.",
+      "native_round_trip": "Save/reopen cycle in which the annotation remains a native PDF annotation with expected semantic identity and editability.",
+      "external_interoperability": "Behavior proven in a named external viewer by retained evidence; not implied by PDF syntax alone.",
+      "hidden_flattening": "Any Save/Save As behavior that burns annotation visuals into page content while presenting the result as still editable."
+    }
+  },
+  "repository_discovery": [
+    {
+      "id": "DSTEP-10-01",
+      "action": "VERIFY",
+      "target": "agents/relay/REPO_STATE.yaml",
+      "question": "Does repository authority route exactly to RM-0004 / PHASE-010 / WP-010 / issue #288 while Phase 8G and Phase 9 obligations remain pending?",
+      "expected_outputs": [
+        "roadmap revision/frontier",
+        "issue mapping",
+        "pending predecessor obligations"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile authority before Phase 10 material work."
+    },
+    {
+      "id": "DSTEP-10-02",
+      "action": "VERIFY_GIT",
+      "target": "live checkout",
+      "question": "Is the active checkout phase10/native-annotation-interoperability descended from exact RM-0004 handoff 78e55b0ed9816bce6ed2126d589c7ec7f19b93da?",
+      "expected_outputs": [
+        "branch",
+        "HEAD",
+        "base ancestry",
+        "drift classification"
+      ],
+      "receipt_required": true,
+      "on_failure": "Withhold candidate material writes and reconcile Git routing."
+    },
+    {
+      "id": "DSTEP-10-03",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/core/document/commitPipeline.ts",
+        "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+        "frontend/src/components/workspace/useAnnotationPersistence.ts"
+      ],
+      "question": "Trace normal editable Save through native writer and reopen/import. Identify the state owner, annotation identity authority, current reply mapping and the exact absence/presence of /AP handling.",
+      "expected_outputs": [
+        "save entrypoint",
+        "native writer/reader",
+        "identity/upsert rule",
+        "reply relationship rule",
+        "appearance-stream behavior"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile EP/QSET if the production path differs materially."
+    },
+    {
+      "id": "DSTEP-10-04",
+      "action": "TRACE",
+      "targets": [
+        "frontend/src/core/review/threadAdapter.ts",
+        "frontend/src/core/review/types.ts",
+        "frontend/src/core/annotations/types.ts"
+      ],
+      "question": "How are ReviewThread, annotation.review and native PDF replies currently related, and which concept owns visual markup versus discussion state?",
+      "expected_outputs": [
+        "review domain contract",
+        "persistence backing",
+        "annotation anchor relationship",
+        "duplication risk"
+      ],
+      "receipt_required": true,
+      "on_failure": "Reconcile review-separation scope before implementation."
+    },
+    {
+      "id": "DSTEP-10-05",
+      "action": "INSPECT",
+      "targets": [
+        "Docs/SAVE_SEMANTICS.md",
+        "docs/concepts/dynamic-obstacle-aware-adobe-compatible-annotation.md",
+        "GitHub issue #288"
+      ],
+      "question": "What exact Save/Save As/Flattened/Searchable, appearance-stream, external-viewer and signed-PDF semantics are authoritative?",
+      "expected_outputs": [
+        "save matrix",
+        "/AP requirement",
+        "viewer evidence rule",
+        "signature warning rule"
+      ],
+      "receipt_required": true,
+      "on_failure": "Stop because the Phase 10 product contract is unavailable."
+    },
+    {
+      "id": "DSTEP-10-06",
+      "action": "INSPECT",
+      "target": "GitHub issue #183",
+      "question": "What runner-executed evidence is available for Phase 10 certification?",
+      "expected_outputs": [
+        "runner availability evidence"
+      ],
+      "receipt_required": true,
+      "on_failure": "Record unknown/NOT_RUN; do not fabricate PASS."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "INPUT-10-01",
+      "name": "Phase 10 interoperability contract",
+      "description": "Authorized annotation/save/viewer scope.",
+      "authority": "Verified GitHub coordination issue",
+      "source": "GitHub issue #288",
+      "value": "Native annotation appearance/interoperability hardening, explicit save semantics, viewer-specific evidence and signed-PDF warning behavior.",
+      "resolution_method": "Read provider-verified issue #288.",
+      "type": "engineering contract",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-10-01",
+        "STEP-10-02",
+        "STEP-10-03",
+        "STEP-10-04",
+        "STEP-10-05"
+      ],
+      "validation": [
+        "Issue #288 remains open and mapped to WP-010."
+      ],
+      "stale_if": [
+        "Issue #288 is superseded or materially revised."
+      ]
+    },
+    {
+      "id": "INPUT-10-02",
+      "name": "Current native annotation production path",
+      "description": "Existing writer/reader/save behavior that Phase 10 hardens.",
+      "authority": "Production code",
+      "source": "commitPipeline.ts + nativeAnnotationWriter.ts + nativeAnnotationReader.ts",
+      "value": "composeEditablePdf() serializes application annotations as native /Annot objects; writer upserts by /NM and replies by /IRT; explicit /AP generation is absent.",
+      "resolution_method": "Trace DSTEP-10-03.",
+      "type": "production architecture",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-10-01",
+        "STEP-10-02",
+        "STEP-10-03"
+      ],
+      "validation": [
+        "Trace still matches live code."
+      ],
+      "stale_if": [
+        "Native writer/reader/save path changes materially before execution."
+      ]
+    },
+    {
+      "id": "INPUT-10-03",
+      "name": "Save semantics contract",
+      "description": "Authoritative distinction among editable save and exports.",
+      "authority": "Repository product documentation",
+      "source": "Docs/SAVE_SEMANTICS.md",
+      "value": "Save/Save As preserve editable native annotations; Export Flattened is a separate copy; Searchable PDF is separate; signed rewrites require clear warning absent proven preservation.",
+      "resolution_method": "Read DSTEP-10-05.",
+      "type": "product contract",
+      "units": "NA",
+      "editable": false,
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-10-03",
+        "STEP-10-04",
+        "STEP-10-05"
+      ],
+      "validation": [
+        "No code/docs contradict the target semantics without an explicit migration note."
+      ],
+      "stale_if": [
+        "Owner changes save/signature policy."
+      ]
+    },
+    {
+      "id": "INPUT-10-04",
+      "name": "Deferred predecessor obligations",
+      "description": "Open Phase 8G/9 limitations carried into Phase 10.",
+      "authority": "Owner decisions and issue state",
+      "source": "ODR-0003 + ODR-0005 + issues #284/#286",
+      "value": "Phase 8G certification and Phase 9 takeover/STEP-9-01 remain PENDING_NOT_SATISFIED.",
+      "resolution_method": "Read repository owner decisions/issues.",
+      "type": "predecessor limitation",
+      "units": "NA",
+      "editable": false,
+      "applicability": "INFORMATIONAL",
+      "resolution": "READY",
+      "consumers": [
+        "STEP-10-05"
+      ],
+      "validation": [
+        "Phase 10 does not report those predecessors as complete."
+      ],
+      "stale_if": [
+        "Those obligations are separately resumed/reconciled."
+      ]
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "BENCH-10-01",
+      "name": "Native annotation semantic round-trip oracle",
+      "purpose": "Define what must survive Save/reopen independent of UI rendering.",
+      "source": "Issue #288 + SAVE_SEMANTICS",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Fixture declarations for annotation subtype, /NM identity, geometry, contents/style, reply /IRT mapping, review status and required /AP behavior.",
+      "expected": "After repeated Save/reopen, supported annotations remain native, non-duplicated and semantically equivalent; required appearance streams remain valid.",
+      "tolerance": "Geometry may use declared numeric tolerance; semantic identifiers/content/reply relationships are exact.",
+      "independence": "Expected semantics are declared before implementation changes.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-10-01",
+        "AC-10-02",
+        "TEST-10-01",
+        "TEST-10-02"
+      ],
+      "stale_if": [
+        "Fixture expectations are weakened after observing output without independent justification."
+      ]
+    },
+    {
+      "id": "BENCH-10-02",
+      "name": "Viewer interoperability oracle",
+      "purpose": "Prevent unsupported viewer compatibility claims.",
+      "source": "Issue #288 viewer matrix",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "Named-viewer evidence for visibility, selectability, editability where expected, geometry/content and external-save/reopen behavior.",
+      "expected": "Only viewers with retained passing evidence are listed as supported; unsupported/unavailable viewers remain unclaimed.",
+      "tolerance": null,
+      "independence": "Viewer result comes from the external viewer rather than PDF Hub's own renderer.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-10-03",
+        "TEST-10-03"
+      ],
+      "stale_if": [
+        "Supported viewer list or product claim changes."
+      ]
+    },
+    {
+      "id": "BENCH-10-03",
+      "name": "Save/export separation oracle",
+      "purpose": "Prevent hidden flattening or active-state loss.",
+      "source": "Docs/SAVE_SEMANTICS.md",
+      "oracle_class": "FROZEN_GOLDEN",
+      "payload": "Save and Save As preserve native editability; Export Flattened burns visuals into separate output and leaves active editable state intact; Searchable PDF remains a distinct export.",
+      "expected": "Each command produces only its declared file/session effect.",
+      "tolerance": null,
+      "independence": "Product save semantics predate Phase 10 implementation.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-10-04",
+        "TEST-10-04"
+      ],
+      "stale_if": [
+        "Owner changes the save/export product contract."
+      ]
+    },
+    {
+      "id": "BENCH-10-04",
+      "name": "Signed rewrite truth oracle",
+      "purpose": "Prevent false signature-preservation claims.",
+      "source": "SAVE_SEMANTICS + issue #288",
+      "oracle_class": "REFERENCE_DATA",
+      "payload": "When current Save/Save As would rewrite signed content and no signature-preserving incremental path is proven, surface explicit invalidation-risk warning.",
+      "expected": "No signed rewrite is presented as preserving signature validity by default.",
+      "tolerance": null,
+      "independence": "Security/product contract independent of annotation writer output.",
+      "applicability": "CURRENT_EP_REQUIRED",
+      "resolution": "READY",
+      "verifies": [
+        "AC-10-05",
+        "TEST-10-05"
+      ],
+      "stale_if": [
+        "A separately proven signature-preserving save architecture is authorized."
+      ]
+    }
+  ],
+  "scope": {
+    "allowed": [
+      {
+        "path": "frontend/src/core/pdf-annotations/",
+        "reason": "Native reader/writer/AP and round-trip contracts."
+      },
+      {
+        "path": "frontend/src/core/review/",
+        "reason": "Bounded ReviewThread/native-reply separation where fixture evidence requires it."
+      },
+      {
+        "path": "frontend/src/core/document/",
+        "reason": "Save/export semantic routing and warnings."
+      },
+      {
+        "path": "frontend/src/components/",
+        "reason": "Only bounded signed-save warning or explicit save/export UX required by the contract."
+      },
+      {
+        "path": "frontend/e2e/",
+        "reason": "PDF Hub/browser round-trip and retained external-viewer evidence harnesses."
+      },
+      {
+        "path": "frontend/scripts/",
+        "reason": "Phase 10 audit/certification and fixture validation."
+      },
+      {
+        "path": "frontend/package.json",
+        "reason": "Wire audit:phase10-annotation-interoperability and certify:phase10."
+      },
+      {
+        "path": "Docs/SAVE_SEMANTICS.md",
+        "reason": "Authoritative verified save/interoperability matrix."
+      },
+      {
+        "path": "ARCHITECTURE.md",
+        "reason": "Document final annotation/review/interoperability boundaries."
+      },
+      {
+        "path": "agents/relay/",
+        "reason": "V2.5 execution/evidence/delivery custody."
+      }
+    ],
+    "allowed_reads": [
+      {
+        "path": "frontend/src/core/annotations/",
+        "reason": "Application annotation identity/data contract."
+      },
+      {
+        "path": "frontend/src/adapters/pdf-renderer/",
+        "reason": "Independent PDF.js reopen/render consumer."
+      },
+      {
+        "path": "GitHub issues #183, #284, #286, #288",
+        "reason": "Infrastructure, predecessor and Phase 10 authority."
+      }
+    ],
+    "protected": [
+      {
+        "invariant": "Save/Save As preserve editable native annotation semantics; explicit flattened export remains separate.",
+        "reason": "Core product contract."
+      },
+      {
+        "invariant": "Annotation visual identity and ReviewThread/discussion identity remain distinct concepts.",
+        "reason": "Avoid duplicate state ownership."
+      },
+      {
+        "invariant": "Repeated saves upsert managed annotations rather than duplicate them.",
+        "reason": "Current /NM identity contract."
+      },
+      {
+        "invariant": "PageId/PageGraph and immutable revision/history authority remain unchanged.",
+        "reason": "Protect established document architecture."
+      },
+      {
+        "invariant": "Viewer compatibility is claimed only from named retained evidence.",
+        "reason": "Avoid unsupported interoperability claims."
+      },
+      {
+        "invariant": "Signed rewrites do not imply preserved cryptographic validity.",
+        "reason": "Security truth."
+      },
+      {
+        "invariant": "Phase 8G and Phase 9 remain pending/unsatisfied until separately reconciled.",
+        "reason": "Predecessor evidence truth."
+      }
+    ],
+    "prohibited": [
+      {
+        "domain": "New annotation product types/features",
+        "reason": "Phase 10 hardens interoperability, not breadth."
+      },
+      {
+        "domain": "OCR internationalization",
+        "reason": "Phase 11 scope."
+      },
+      {
+        "domain": "Public SDK",
+        "reason": "Phase 12 scope."
+      },
+      {
+        "domain": "Existing-text editing",
+        "reason": "Phase 13 scope."
+      },
+      {
+        "domain": "Signing creation or signature validation system",
+        "reason": "Only warning/detection semantics are authorized."
+      },
+      {
+        "domain": "Wholesale review/annotation-model rewrite",
+        "reason": "Use bounded fixture-backed fixes."
+      }
+    ],
+    "owner_reserved": [
+      {
+        "decision": "Promise signature-preserving Save/Save As.",
+        "reason": "Requires separate cryptographic architecture/evidence."
+      },
+      {
+        "decision": "Expand supported viewer claims without evidence.",
+        "reason": "Product support promise."
+      },
+      {
+        "decision": "Add new annotation-type breadth.",
+        "reason": "Roadmap intent change."
+      },
+      {
+        "decision": "Authorize merge of Phase 10 PR.",
+        "reason": "Requires exact-head delivery authorization."
+      }
+    ]
+  },
+  "anti_drift": {
+    "do_not": [
+      {
+        "id": "ADR-10-01",
+        "restriction": "Do not make external-viewer tests pass by flattening native annotations during Save.",
+        "reason": "That violates the editable save contract."
+      },
+      {
+        "id": "ADR-10-02",
+        "restriction": "Do not infer /AP correctness from PDF Hub/PDF.js rendering alone.",
+        "reason": "External viewers may not regenerate appearances."
+      },
+      {
+        "id": "ADR-10-03",
+        "restriction": "Do not change /NM identity/upsert semantics in a way that duplicates annotations/replies on repeated save.",
+        "reason": "Stable round-trip identity is protected."
+      },
+      {
+        "id": "ADR-10-04",
+        "restriction": "Do not collapse ReviewThread into the visual annotation object or duplicate discussion ownership.",
+        "reason": "Review and annotation are distinct domains."
+      },
+      {
+        "id": "ADR-10-05",
+        "restriction": "Do not claim a signed rewrite preserves signature validity without independently proven cryptographic support.",
+        "reason": "Security truth."
+      },
+      {
+        "id": "ADR-10-06",
+        "restriction": "Do not mark deferred Phase 8G/9 obligations complete from this phase.",
+        "reason": "Predecessor truth."
+      }
+    ],
+    "stale_if": [
+      {
+        "id": "STALE-10-01",
+        "condition": "RM-0004 no longer leaves WP-010 as the serial frontier.",
+        "effect": "STALE",
+        "rationale": "EP no longer matches roadmap authority."
+      },
+      {
+        "id": "STALE-10-02",
+        "condition": "Native save/writer/reader production path changes materially after the observed base.",
+        "effect": "RECONCILE",
+        "rationale": "Production-path qualification assumptions changed."
+      },
+      {
+        "id": "STALE-10-03",
+        "condition": "Issue #288 materially changes annotation/viewer/save/signature semantics.",
+        "effect": "STALE",
+        "rationale": "Coordination contract changed."
+      },
+      {
+        "id": "STALE-10-04",
+        "condition": "Verification oracle, engineering authority or protected invariant changes after qualification.",
+        "effect": "RECONCILE",
+        "rationale": "Material qualification boundary changed; reconcile the route and require a fresh qualification boundary before further writes."
+      }
+    ]
+  },
+  "implementation_plan": [
+    {
+      "id": "STEP-10-01",
+      "objective": "Create permanent native-annotation interoperability fixtures, semantic inventory and /AP expectation tests.",
+      "targets": [
+        "frontend/src/core/pdf-annotations/",
+        "frontend/scripts/",
+        "frontend/e2e/"
+      ],
+      "reads": [
+        "INPUT-10-01",
+        "INPUT-10-02",
+        "BENCH-10-01"
+      ],
+      "writes": [
+        "fixture/manifest support",
+        "semantic inventory/tests",
+        "Phase 10 corpus audit"
+      ],
+      "inputs": [
+        "INPUT-10-01",
+        "INPUT-10-02"
+      ],
+      "acceptance": [
+        "AC-10-01"
+      ],
+      "tests": [
+        "TEST-10-01"
+      ],
+      "expected_state": "Supported annotation types have deterministic native fixtures declaring identity, geometry, content, reply and /AP expectations.",
+      "stop_conditions": [
+        "Do not add a new annotation product type solely to increase fixture coverage."
+      ]
+    },
+    {
+      "id": "STEP-10-02",
+      "objective": "Implement explicit /AP generation and repeated native Save/reopen stability for corpus-proven gaps.",
+      "targets": [
+        "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+        "native reader/tests"
+      ],
+      "reads": [
+        "STEP-10-01 reports",
+        "BENCH-10-01"
+      ],
+      "writes": [
+        "bounded appearance-stream generation",
+        "round-trip regressions"
+      ],
+      "inputs": [
+        "INPUT-10-01",
+        "INPUT-10-02"
+      ],
+      "acceptance": [
+        "AC-10-02"
+      ],
+      "tests": [
+        "TEST-10-02"
+      ],
+      "expected_state": "Required annotations remain visible without viewer-side appearance regeneration and do not duplicate after repeated Save/reopen.",
+      "stop_conditions": [
+        "Stop if safe appearance generation requires a broader rendering-engine replacement."
+      ]
+    },
+    {
+      "id": "STEP-10-03",
+      "objective": "Establish named external-viewer compatibility evidence and external-save/reopen behavior.",
+      "targets": [
+        "frontend/e2e/",
+        "interoperability evidence manifests",
+        "documentation"
+      ],
+      "reads": [
+        "BENCH-10-02"
+      ],
+      "writes": [
+        "viewer evidence schema/harness",
+        "retained result manifests",
+        "support matrix"
+      ],
+      "inputs": [
+        "INPUT-10-01"
+      ],
+      "acceptance": [
+        "AC-10-03"
+      ],
+      "tests": [
+        "TEST-10-03"
+      ],
+      "expected_state": "Every claimed supported viewer has retained evidence; unavailable/failing viewers remain unclaimed.",
+      "stop_conditions": [
+        "Do not synthesize external-viewer PASS from PDF.js/browser behavior."
+      ]
+    },
+    {
+      "id": "STEP-10-04",
+      "objective": "Reconcile Save/Save As/Flattened/Searchable outcomes, bounded ReviewThread/native-reply separation, and signed-PDF rewrite warning.",
+      "targets": [
+        "frontend/src/core/document/",
+        "frontend/src/core/review/",
+        "bounded UI warnings/tests"
+      ],
+      "reads": [
+        "BENCH-10-03",
+        "BENCH-10-04",
+        "Docs/SAVE_SEMANTICS.md"
+      ],
+      "writes": [
+        "save-route regressions",
+        "bounded review mapping fixes",
+        "signed rewrite detection/warning"
+      ],
+      "inputs": [
+        "INPUT-10-03"
+      ],
+      "acceptance": [
+        "AC-10-04",
+        "AC-10-05"
+      ],
+      "tests": [
+        "TEST-10-04",
+        "TEST-10-05"
+      ],
+      "expected_state": "No hidden flattening, active editable state is preserved correctly, review mapping remains non-duplicated, and signed rewrites warn explicitly.",
+      "stop_conditions": [
+        "Stop if requested behavior requires signing creation/validation or a full review-system rewrite."
+      ]
+    },
+    {
+      "id": "STEP-10-05",
+      "objective": "Wire Phase 10 anti-drift/certification, documentation, QRV/checkpoint and tracked PR delivery.",
+      "targets": [
+        "frontend/scripts/",
+        "frontend/package.json",
+        "Docs/SAVE_SEMANTICS.md",
+        "ARCHITECTURE.md",
+        "agents/relay",
+        "Phase 10 PR"
+      ],
+      "reads": [
+        "all Phase 10 evidence",
+        "issues #183/#284/#286/#288"
+      ],
+      "writes": [
+        "audit:phase10-annotation-interoperability",
+        "certify:phase10",
+        "support matrix docs",
+        "quality/checkpoint/delivery/progress"
+      ],
+      "inputs": [
+        "INPUT-10-01",
+        "INPUT-10-03",
+        "INPUT-10-04"
+      ],
+      "acceptance": [
+        "AC-10-01",
+        "AC-10-02",
+        "AC-10-03",
+        "AC-10-04",
+        "AC-10-05"
+      ],
+      "tests": [
+        "TEST-10-06"
+      ],
+      "expected_state": "Phase 10 has permanent fixtures, bounded fixes, viewer-specific support matrix and truthful exact-head evidence.",
+      "stop_conditions": [
+        "Do not claim viewer compatibility/certification PASS without executed evidence; do not merge without Owner authorization."
+      ]
+    }
+  ],
+  "next_work": {
+    "phase_transition": true,
+    "steps": [
+      {
+        "order": 1,
+        "action": "A fresh independent local candidate reconstructs the conformance-corrected RM-0004 / issue #288 / EP-10-001 from repository state, answers QSET-10-002, obtains fresh DISC/QUAL/TC and live MATERIAL_WRITE_READY, then closes only STEP-10-01 findings F10-01/F10-02/F10-03.",
+        "targets": [
+          "agents/relay/certifications",
+          "frontend/src/core/pdf-annotations/",
+          "frontend/e2e/",
+          "frontend/scripts/"
+        ],
+        "inputs": [
+          "INPUT-10-01",
+          "INPUT-10-02",
+          "INPUT-10-03",
+          "INPUT-10-04"
+        ],
+        "tests": [
+          "TEST-10-01"
+        ],
+        "benchmarks": [
+          "BENCH-10-01",
+          "BENCH-10-02",
+          "BENCH-10-03",
+          "BENCH-10-04"
+        ],
+        "acceptance": [
+          "AC-10-01"
+        ],
+        "expected_result": "The incoming candidate independently validates the corrected quality-router contract and then completes only the bounded STEP-10-01 acceptance corrections: explicit reply/IRT oracle, precedence-policy alignment, and fail-closed all-17-type fixture coverage.",
+        "stop_if": [
+          "QSET-10-002 / fresh DISC / QUAL / TC does not PASS under Common 65518fd5340599b2a0fb88db5041f6c96389ccb8.",
+          "Live route/Git basis becomes stale.",
+          "EP-10-001 or QSET-10-002 changes after qualification.",
+          "The correction expands into STEP-10-02 /AP production implementation before AC-10-01 is accepted."
+        ],
+        "execution_requirement": {
+          "id": "EXECREQ-10-REQUAL-CORRECTION",
+          "type": "EXTERNAL_ENVIRONMENT",
+          "actor": "FRESH_INDEPENDENT_LOCAL_CANDIDATE",
+          "environment": {
+            "kind": "LOCAL_AGENT_WITH_REPOSITORY_CHECKOUT",
+            "description": "Independent local agent/session with Pdf-Hub checkout and Common pinned at 65518fd5340599b2a0fb88db5041f6c96389ccb8, able to run pinned V2.5 validators and focused frontend tests."
+          },
+          "command": null,
+          "instruction": "Reconstruct corrected EP-10-001/QSET-10-002 from repository state only; create/validate fresh DISC/QUAL/TC; derive live MATERIAL_WRITE_READY; only if WRITE, close F10-01/F10-02/F10-03 inside STEP-10-01 and post exact evidence to issue #288.",
+          "working_directory": "<local-checkout>/Pdf-Hub",
+          "required_basis": [
+            "repository reallaksh19/Pdf-Hub",
+            "branch phase10/native-annotation-interoperability",
+            "roadmap RM-0004 / WP-010",
+            "issue #288",
+            "handoff/base 78e55b0ed9816bce6ed2126d589c7ec7f19b93da",
+            "Common engineering-pr-delivery-v2.5 pinned to 65518fd5340599b2a0fb88db5041f6c96389ccb8",
+            "current conformance-corrected EP-10-001 and QSET-10-002 from repository at execution time",
+            "issues #284 and #286 remain PENDING_NOT_SATISFIED"
+          ],
+          "unavailable_here_reason": "This session prepared the conformance-corrected EP/QSET boundary and cannot validly act as its independent incoming candidate/evaluator; a dependency-capable local checkout is also required for pinned validators and focused frontend tests.",
+          "expected_evidence": [
+            "TEST-10-01"
+          ],
+          "blocks": [
+            "candidate-specific TAKEOVER_CERTIFIED on corrected EP digest",
+            "candidate-specific MATERIAL_WRITE_READY on corrected EP digest",
+            "STEP-10-01 correction writes",
+            "STEP-10-02 start"
+          ],
+          "success_condition": "A non-preparer candidate posts fresh repository-only DISC/QUAL/TC accepted by pinned validators for corrected EP-10-001, derives MATERIAL_WRITE_READY, closes F10-01/F10-02/F10-03 only, and posts audit/TEST-10-01 evidence to issue #288.",
+          "clears": [
+            "corrected Phase 10 takeover admission",
+            "qualified candidate authorization for STEP-10-01 correction",
+            "AC-10-01 correction execution wait"
+          ],
+          "delegation": {
+            "mode": "LOCAL_AGENT",
+            "prompt": "Repository: reallaksh19/Pdf-Hub. Branch: phase10/native-annotation-interoperability. Work from a local checkout root. Governing protocol: reallaksh19/Common@65518fd5340599b2a0fb88db5041f6c96389ccb8/skills/engineering-pr-delivery-v2.5. Current route: RM-0004 / WP-010 / issue #288 / PR #289. Read agents/relay/REPO_STATE.yaml, agents/relay/execution-packages/EP-10-001.yaml and agents/relay/certifications/qualification/QSET-10-002.yaml from repository only; do not rely on predecessor chat. Use a candidate identity different from the preparer recorded in QSET-10-002. Produce fresh DISC-10-* covering every receipt-required DSTEP with conversation_context_used:false. Answer Q1-Q5 exactly, obtain independent/deterministic QUAL-10-* PASS, create route-bound TC-10-* PASS, run pinned material_write_ready.py with your candidate id, and do not touch product files unless it returns WRITE. If WRITE, remain strictly inside STEP-10-01 and close Relay findings F10-01/F10-02/F10-03: encode deterministic root/reply identity and /IRT object-reference expectations with repeated-save verification; align enforced external-edit precedence claims with oracle/test coverage and explicitly mark pending fields; drive fixture/oracle validation fail-closed across all 17 supported annotation types. Do not implement production /AP streams, do not start STEP-10-02, do not add annotation types, do not broaden viewer claims, and do not alter Phase 8G/9 pending dispositions. Run npm run audit:phase10-annotation-interoperability and npx vitest run src/core/pdf-annotations/. Post back to issue #288: candidate id; DISC/QUAL/TC ids/paths/digests; validator outputs; material_write_ready result; exact head; files changed; F10-01/F10-02/F10-03 mapping; commands/results; remaining gaps; any stop condition.",
+            "publication": {
+              "target": "CURRENT_WORK_ISSUE",
+              "method": "COMMENT",
+              "local_result_update": "SAME_LOCATION",
+              "readback_required": true
+            },
+            "response_check": {
+              "timer_required": true,
+              "timer_title": "Phase 10 corrected takeover check",
+              "after_minutes": 60,
+              "selection_reason": "Qualification plus local fixture/oracle setup is multi-step local verification.",
+              "on_due": "Read issue #288 for fresh QSET-10-002 candidate evidence, validate it against the corrected EP digest/current route/pinned Common, then reconcile before further material work.",
+              "on_no_response": "Report WAITING truthfully and schedule another check only if useful; do not infer takeover, WRITE, AC-10-01 acceptance, or STEP-10-02 authorization."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "qualification_boundary": {
+    "required": true,
+    "trigger": "MATERIAL_QUALIFICATION_BOUNDARY_CHANGED",
+    "from_phase": "PHASE-010",
+    "to_phase": "PHASE-010",
+    "changed_dimensions": [
+      "ENGINEERING_AUTHORITY",
+      "VERIFICATION_ORACLE"
+    ],
+    "basis": [
+      "Pinned V2.5 conformance repair expands the Phase 10 engineering review authority to include UI/UX, accessibility and migration procedures that were silently omitted.",
+      "Verification authority now includes those quality procedures in addition to the existing semantic/interoperability oracles.",
+      "Because the EP contract digest changes, prior QSET/QUAL/TC bindings cannot authorize further writes even though the nominal roadmap phase remains PHASE-010."
+    ],
+    "question_policy": "DEFAULT",
+    "question_policy_basis": [
+      "Owner requested normal Proceed next and did not suppress Phase 10 qualification questions."
+    ],
+    "not_applicable_reason": null,
+    "question_set": {
+      "id": "QSET-10-002",
+      "path": "agents/relay/certifications/qualification/QSET-10-002.yaml"
+    }
+  },
+  "quality": {
+    "applicable": [
+      {
+        "blueprint": "software-design",
+        "reason": "Phase 10 touches save/native-annotation/review boundaries.",
+        "review_focus": [
+          "state ownership",
+          "native-vs-review identity",
+          "save/export separation",
+          "signed-warning boundary"
+        ]
+      },
+      {
+        "blueprint": "coding",
+        "reason": "Low-level PDF annotation dictionaries and appearance streams are sensitive.",
+        "review_focus": [
+          "PDF object/reference integrity",
+          "appearance resources",
+          "upsert/idempotency",
+          "failure semantics"
+        ]
+      },
+      {
+        "blueprint": "ui-ux",
+        "reason": "Phase 10 changes user-visible Save warning behavior for signed PDFs and must preserve clear Save/Save As/Export distinctions.",
+        "review_focus": [
+          "warning timing before rewrite",
+          "cancel/continue clarity",
+          "Save vs Export wording",
+          "no false signature-preservation message"
+        ]
+      },
+      {
+        "blueprint": "testing",
+        "reason": "Interoperability claims require fixtures, semantic oracles and external evidence.",
+        "review_focus": [
+          "oracle independence",
+          "viewer-specific claims",
+          "repeated round trips",
+          "hidden flattening"
+        ]
+      },
+      {
+        "blueprint": "code-review",
+        "reason": "Annotation loss/duplication can silently damage review data.",
+        "review_focus": [
+          "duplicate /NM/IRT families",
+          "reply loss",
+          "appearance loss",
+          "session-state clearing"
+        ]
+      },
+      {
+        "blueprint": "accessibility",
+        "reason": "Signed-save warning and any related save-flow interaction must remain keyboard/screen-reader operable and must not encode critical risk only visually.",
+        "review_focus": [
+          "keyboard operability",
+          "dialog focus management",
+          "accessible warning text",
+          "non-color-only risk communication"
+        ]
+      },
+      {
+        "blueprint": "migration",
+        "reason": "Phase 10 changes interoperability precedence between standard PDF annotation fields and existing PDFHubData/custom metadata while preserving legacy PDF Hub-authored documents.",
+        "review_focus": [
+          "old/new metadata compatibility",
+          "standard-field precedence",
+          "external annotations without custom keys",
+          "idempotent legacy round trips"
+        ]
+      },
+      {
+        "blueprint": "github-delivery",
+        "reason": "WP-010 is issue/PR coordinated and predecessor obligations remain pending.",
+        "review_focus": [
+          "issue↔EP correlation",
+          "stacked branch basis",
+          "NOT_RUN truth",
+          "merge authority"
+        ]
+      }
+    ],
+    "not_applicable": [
+      {
+        "blueprint": "engineering-numerics",
+        "reason": "No numerical engineering authority, calculation method, or domain tolerance model is introduced."
+      },
+      {
+        "blueprint": "performance",
+        "reason": "Phase 10 acceptance is semantic interoperability and evidence correctness; no performance claim or optimization is part of this work package."
+      }
+    ],
+    "review_contract": {
+      "required": true,
+      "required_before_checkpoint": true,
+      "receipt_namespace": "QRV-",
+      "required_outputs": [
+        "procedure_results",
+        "findings",
+        "owner_report",
+        "successor_handover"
+      ]
+    },
+    "findings_policy": "Quality findings remain quality state unless they map to acceptance, authority, protected-invariant, repository-state or safety hard-stop conditions.",
+    "ordinary_findings_are_hard_stops": false
+  },
+  "acceptance": [
+    {
+      "id": "AC-10-01",
+      "description": "Permanent native-annotation fixtures and semantic inventory declare identity, geometry/content/reply and required /AP expectations for supported types.",
+      "weight": 20,
+      "verification": [
+        "TEST-10-01",
+        "BENCH-10-01"
+      ]
+    },
+    {
+      "id": "AC-10-02",
+      "description": "Required /AP generation and repeated Save/reopen preserve supported native editability/appearance without duplication.",
+      "weight": 25,
+      "verification": [
+        "TEST-10-02",
+        "BENCH-10-01"
+      ]
+    },
+    {
+      "id": "AC-10-03",
+      "description": "Every claimed supported external viewer has retained round-trip evidence; unavailable/failing viewers remain unclaimed.",
+      "weight": 20,
+      "verification": [
+        "TEST-10-03",
+        "BENCH-10-02"
+      ]
+    },
+    {
+      "id": "AC-10-04",
+      "description": "Save/Save As/Flattened/Searchable semantics remain distinct and bounded ReviewThread/native-reply continuity has no hidden flattening or duplication.",
+      "weight": 20,
+      "verification": [
+        "TEST-10-04",
+        "BENCH-10-03"
+      ]
+    },
+    {
+      "id": "AC-10-05",
+      "description": "Signed-PDF rewrite risk is detected/warned truthfully and Phase 10 audit/certification/docs expose the verified support matrix.",
+      "weight": 15,
+      "verification": [
+        "TEST-10-05",
+        "TEST-10-06",
+        "BENCH-10-04"
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "id": "TEST-10-01",
+      "class": "MUST_PASS",
+      "method": "Fixture/manifest tests prove deterministic native annotation inputs and semantic /AP/identity/reply expectations for the supported type set.",
+      "proves": [
+        "AC-10-01"
+      ]
+    },
+    {
+      "id": "TEST-10-02",
+      "class": "MUST_PASS",
+      "method": "Focused writer/reader tests perform repeated editable Save/reopen and verify native dictionaries, /AP, /NM, geometry/content and /IRT reply relationships without duplication.",
+      "proves": [
+        "AC-10-02"
+      ]
+    },
+    {
+      "id": "TEST-10-03",
+      "class": "SHOULD_RUN",
+      "method": "Run named external-viewer round-trip scenarios and retain evidence per viewer; unsupported/unavailable viewers are not marked PASS.",
+      "proves": [
+        "AC-10-03"
+      ]
+    },
+    {
+      "id": "TEST-10-04",
+      "class": "MUST_PASS",
+      "method": "Save/Save As/Export Flattened/Searchable regressions prove file/session effects remain distinct and active editable annotation/review state is not silently cleared.",
+      "proves": [
+        "AC-10-04"
+      ]
+    },
+    {
+      "id": "TEST-10-05",
+      "class": "MUST_PASS",
+      "method": "Signed-PDF fixture verifies explicit rewrite-risk warning and absence of signature-preservation claim.",
+      "proves": [
+        "AC-10-05"
+      ]
+    },
+    {
+      "id": "TEST-10-06",
+      "class": "SHOULD_RUN",
+      "method": "Run exact-head certify:phase10 including inherited audits, Phase 10 audit, focused native annotation/save/review tests and build; if #183 prevents runner allocation record NOT_RUN.",
+      "proves": [
+        "AC-10-01",
+        "AC-10-02",
+        "AC-10-03",
+        "AC-10-04",
+        "AC-10-05"
+      ]
+    }
+  ],
+  "failure_and_stop_conditions": {
+    "hard_stop_categories": [
+      "OWNER_DECISION_REQUIRED",
+      "ESSENTIAL_INPUT_MISSING",
+      "AUTHORITY_VIOLATION",
+      "PROTECTED_INVARIANT_FAILURE",
+      "WRITE_COLLISION",
+      "SUPERSEDED_EP",
+      "ROADMAP_CONFLICT",
+      "REPOSITORY_STATE_CONFLICT",
+      "UNSAFE_ENGINEERING_RESULT"
+    ]
+  },
+  "report_contract": {
+    "status_publication": {
+      "default_after_minutes": 25,
+      "owner_override": null
+    },
+    "sections": [
+      "Executive state",
+      "Overall / phase / EP progress",
+      "Work completed",
+      "Files changed",
+      "Acceptance matrix",
+      "Tests and evidence",
+      "Quality findings",
+      "Known limitations",
+      "Owner decisions required",
+      "GitHub issue changes",
+      "Roadmap changes",
+      "Exact next actions",
+      "Successor EP"
+    ],
+    "payloads": [
+      {
+        "id": "RPT-STATE",
+        "section": "Executive state",
+        "sources": [
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "relay_state",
+          "current_position",
+          "execution_state",
+          "material_authority",
+          "stop"
+        ]
+      },
+      {
+        "id": "RPT-PROGRESS",
+        "section": "Overall / phase / EP progress",
+        "sources": [
+          "PROGRESS",
+          "OVERALL_ROADMAP",
+          "EP"
+        ],
+        "required_fields": [
+          "progress_basis",
+          "overall",
+          "phase",
+          "work_package",
+          "step",
+          "acceptance"
+        ]
+      },
+      {
+        "id": "RPT-WORK",
+        "section": "Work completed",
+        "sources": [
+          "EP",
+          "CP"
+        ],
+        "required_fields": [
+          "completed_steps",
+          "implementation_result"
+        ]
+      },
+      {
+        "id": "RPT-FILES",
+        "section": "Files changed",
+        "sources": [
+          "CP"
+        ],
+        "required_fields": [
+          "files_changed"
+        ]
+      },
+      {
+        "id": "RPT-AC",
+        "section": "Acceptance matrix",
+        "sources": [
+          "EP",
+          "PROGRESS",
+          "CP"
+        ],
+        "required_fields": [
+          "criterion",
+          "status",
+          "percent",
+          "basis"
+        ]
+      },
+      {
+        "id": "RPT-EVIDENCE",
+        "section": "Tests and evidence",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "validation_id",
+          "obligation_class",
+          "status",
+          "basis_ref",
+          "not_run_reason"
+        ]
+      },
+      {
+        "id": "RPT-QUALITY",
+        "section": "Quality findings",
+        "sources": [
+          "EP",
+          "QRV",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "quality_review",
+          "procedures",
+          "findings",
+          "disposition",
+          "execution_effect"
+        ]
+      },
+      {
+        "id": "RPT-LIMITS",
+        "section": "Known limitations",
+        "sources": [
+          "EP",
+          "CP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "limitations",
+          "evidence_gaps",
+          "deferred_items"
+        ]
+      },
+      {
+        "id": "RPT-OWNER",
+        "section": "Owner decisions required",
+        "sources": [
+          "ODR",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "decision_required",
+          "pending_items",
+          "authority_effect"
+        ]
+      },
+      {
+        "id": "RPT-ISSUES",
+        "section": "GitHub issue changes",
+        "sources": [
+          "ISSUE_GRAPH",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "operations",
+          "relationships",
+          "projection_state"
+        ]
+      },
+      {
+        "id": "RPT-ROADMAP",
+        "section": "Roadmap changes",
+        "sources": [
+          "OVERALL_ROADMAP",
+          "ROADMAP_REVISION",
+          "PROGRESS"
+        ],
+        "required_fields": [
+          "revision",
+          "topology_or_status_change",
+          "frontier_after",
+          "progress_basis_effect"
+        ]
+      },
+      {
+        "id": "RPT-NEXT",
+        "section": "Exact next actions",
+        "sources": [
+          "EP"
+        ],
+        "required_fields": [
+          "ordered_actions",
+          "targets",
+          "inputs",
+          "tests",
+          "benchmarks",
+          "acceptance",
+          "expected_result",
+          "stop_conditions"
+        ]
+      },
+      {
+        "id": "RPT-SUCCESSOR",
+        "section": "Successor EP",
+        "sources": [
+          "CP",
+          "OVERALL_ROADMAP",
+          "REPO_STATE"
+        ],
+        "required_fields": [
+          "successor_mode",
+          "next_frontier",
+          "ep_or_terminal_disposition"
+        ]
+      }
+    ]
+  },
+  "checkpoint_contract": {
+    "required": true
+  },
+  "successor_relay": {
+    "required": true,
+    "duties": [
+      "reconcile current roadmap node",
+      "create checkpoint",
+      "update progress",
+      "update issue projection when applicable",
+      "compute next executable frontier",
+      "create successor EP when work continues",
+      "validate successor EP",
+      "run cold-start check",
+      "update REPO_STATE"
+    ],
+    "required_outputs": [
+      "checkpoint",
+      "progress_reconciliation",
+      "issue_projection_disposition",
+      "next_frontier",
+      "successor_ep_or_terminal_disposition"
+    ]
+  }
+}

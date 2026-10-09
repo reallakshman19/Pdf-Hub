@@ -1,0 +1,87 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-003",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "8987020cba5a090e6757457b8ca9d4dba93df565"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288
+  },
+  "qualification": {
+    "required": true,
+    "state": "PASS",
+    "candidate": "antigravity-gemini-candidate-20260921-phase10",
+    "discovery_receipt": {
+      "id": "DISC-10-001",
+      "digest": "sha256:d1599827818a25639f752cf9f0852ea4b185542e2207fb01fde488ce52b531d8"
+    },
+    "qualification_receipt": {
+      "id": "QUAL-10-001",
+      "digest": "sha256:d458c86f39b8b67db9bb7db3108c8f138d7839405704b688107c374572f8950e"
+    },
+    "takeover_certification": {
+      "id": "TC-10-001",
+      "digest": "sha256:c644581cd1af66ae1911051d3793ec43c83e1e11f3720874b45c6768ca8cf2a3"
+    },
+    "ep_contract_digest": "sha256:d8b5bb4ab25e2b4084ede3a82a270193f3001a09942a6ac4a5ea8dd72d5d3f97",
+    "material_write_ready_reported": true,
+    "candidate_admitted": true
+  },
+  "step_10_01": {
+    "implementation_state": "IMPLEMENTED_REVIEW_FINDINGS_OPEN",
+    "acceptance_state": "IN_PROGRESS_ZERO_EARNED",
+    "candidate_report_comment": 5756264130,
+    "review_comment": 5756857247,
+    "findings": [
+      "F10-01: fixture manifest lacks explicit deterministic reply/review/IRT contract and raw-object-reference verification.",
+      "F10-02: external-edit precedence policy declares a wider field set than the oracle actually reconciles/tests.",
+      "F10-03: two-save native round-trip test exercises only 8 of 17 supported types; acceptance substrate must fail closed across all supported types."
+    ]
+  },
+  "checks": {
+    "provider_exact_head": {
+      "state": "NOT_RUN_INFRASTRUCTURE",
+      "workflow": "certify-writer-overlay-v2",
+      "run_id": 35568266466,
+      "job_id": 106234318393,
+      "runner_id": 0,
+      "steps_executed": 0,
+      "provider_conclusion": "failure"
+    },
+    "candidate_local_report": {
+      "audit_phase10_annotation_interoperability": "PASS_REPORTED",
+      "pdf_annotations_vitest": "13_PASS_REPORTED",
+      "note": "Local results are retained in issue #288 candidate report but do not close F10-01/F10-02/F10-03."
+    }
+  },
+  "review": {
+    "state": "CHANGES_REQUIRED_BY_RELAY_REVIEW",
+    "unresolved_findings": 3
+  },
+  "evidence_truth": {
+    "phase10_qualification": "PASS",
+    "candidate_material_write_ready": "PASS_REPORTED_AT_8987020cba5a090e6757457b8ca9d4dba93df565",
+    "step_10_01_acceptance": 0,
+    "step_10_02_authorized_to_start": false,
+    "phase8g_deferred": "PENDING_NOT_SATISFIED",
+    "phase9_deferred": "PENDING_NOT_SATISFIED"
+  }
+}

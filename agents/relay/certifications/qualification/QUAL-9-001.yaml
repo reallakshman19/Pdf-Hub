@@ -1,0 +1,92 @@
+{
+  "schema_version": "relay-v2.5-qualification",
+  "id": "QUAL-9-001",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9"
+  },
+  "question_set": {
+    "id": "QSET-9-001",
+    "path": "agents/relay/certifications/qualification/QSET-9-001.yaml",
+    "ep_contract_digest": "sha256:2fcb1663951a67e41914e2e43ef244c45eeee4eebcbb86f571d62c0c247420ec"
+  },
+  "discovery_receipt": {
+    "id": "DISC-9-001",
+    "path": "agents/relay/certifications/discovery/DISC-9-001.yaml"
+  },
+  "evaluated_by": {
+    "type": "REPOSITORY_EVIDENCE_RULESET",
+    "identity": "QSET-9-001 required-output/evidence contract",
+    "independence": "Candidate did not prepare EP-9-001 or QSET-9-001; answers are reconstructed from repository/provider state."
+  },
+  "answers": {
+    "Q1": {
+      "production_entrypoint": "PdfCommand dispatch enters the serial document transaction and calls the canonical PdfMutationEngine; structural commands do not own a parallel writer.",
+      "state_owner": "PdfLibMutationEngine session owns the loaded pdf-lib PDFDocument until commit; DocumentSession/history own application/revision state around it.",
+      "authority_source": "PageGraph/PageId is page identity/order authority; documentTransaction publishes the immutable revision and durable history after mutation.",
+      "downstream_consumer": "Reopen emitted bytes with pdf-lib semantic inventory plus PDF.js render/text/PageLabels as an independent consumer. Page-only new-PDF/copyPages rebuilds can omit catalog/name-tree structures not reachable solely through copied page dictionaries.",
+      "evidence": [
+        "dispatch.ts",
+        "transaction/documentTransaction.ts",
+        "PdfLibMutationEngine.ts",
+        "ARCHITECTURE.md"
+      ]
+    },
+    "Q2": {
+      "reconstruction_steps": [
+        "A page-only rebuild creates a new catalog/pages tree, then copies the ten page dictionaries/content/resources.",
+        "The nested outline lives under catalog /Outlines and its destination/action graph is not recreated merely by copying pages.",
+        "PageLabels lives under catalog /PageLabels and is not implied by copied pages.",
+        "AcroForm field hierarchy lives under catalog /AcroForm; widgets may be page annotations but field-tree/root semantics can be orphaned or lost.",
+        "A native annotation physically attached to a copied page may survive depending on copy behavior, but any document-level relationships/appearance dependencies require explicit verification.",
+        "Embedded files live in catalog name trees (/Names/EmbeddedFiles) and are not recreated by copying pages."
+      ],
+      "intermediate_result": "All ten pages can render while outline navigation, logical labels, form semantics and attachment reachability are already lost or broken; annotation semantics may also degrade despite visible markup.",
+      "expected_result": "The two-cycle oracle must detect exact fixture-declared preservation/transformation after both reopen cycles and fail any silent disappearance/unreachability.",
+      "evidence": [
+        "Issue #286 fixture model",
+        "PdfLibMutationEngine page-copy rebuild behavior",
+        "PDF catalog structure ownership"
+      ]
+    },
+    "Q3": {
+      "mutation_effect": "Renderability-only success is a fidelity failure if a protected semantic structure is silently absent/unreachable. A content-mutated signed PDF must be classified as signature-invalidated/unsupported rather than signature-valid.",
+      "protected_invariant": "Supported mutations preserve fixture-declared semantic structures across repeated save/reopen cycles or explicitly transform/invalidate/reject them; cryptographic validity is never implied after unsupported/content-changing mutation.",
+      "falsifier": "Any required structure disappears or becomes unreachable after first/second reopen while operation reports supported success, or a mutated signed fixture is reported cryptographically valid without independent proof.",
+      "evidence": [
+        "QSET-9-001 protected invariant",
+        "Issue #286"
+      ]
+    },
+    "Q4": {
+      "independent_method": "Generate/retain fixtures from a manifest that declares provenance, baseline semantic inventory and operation-specific expected disposition. Inventory baseline with an inspector independent of the mutation operation; run two save/reopen cycles; compare semantic inventory by meaning (counts, names, destinations, field values/widget linkage, labels, attachment names/bytes hashes, tag presence) and separately reopen/render with PDF.js. Signed/encrypted fixtures use explicit support/invalidation assertions rather than mutation-derived expectations.",
+      "predicted_result": "Supported fixtures match declared semantic expectations after both cycles and render/reopen independently; explicitly unsupported fixtures reject before destructive publication; signed content mutation never yields a valid-signature claim.",
+      "tolerance_or_exactness": "Semantic presence/identity/count/name/value/hash and support disposition are exact unless a fixture manifest explicitly declares an allowed transformation; rendering is an independent sanity check, not the oracle.",
+      "evidence": [
+        "BENCH-9-01/02/03 contract",
+        "Issue #286",
+        "ARCHITECTURE.md repeat-cycle requirement"
+      ]
+    },
+    "Q5": {
+      "first_change": "Add the permanent Phase 9 fidelity corpus manifest/schema, provenance model and deterministic fixture generators/retained-fixture declarations before any PdfLibMutationEngine behavior change.",
+      "predicted_before": "Required fidelity classes are architectural prose plus scattered test fixtures; there is no single machine-readable fixture expectation/provenance authority.",
+      "predicted_after": "Every initial corpus entry has stable fixture id/class, reproducibility/provenance, baseline semantic expectations and operation disposition; missing required classes are machine-detectable.",
+      "verification": "Focused manifest validation test/audit checks schema validity, unique ids, class coverage, reproducibility/provenance and non-empty fixture-specific semantic expectations without invoking mutation-engine fixes.",
+      "evidence": [
+        "STEP-9-01",
+        "AC-9-01",
+        "TEST-9-01"
+      ]
+    }
+  },
+  "checks": {
+    "required_output_keys": "PASS",
+    "repository_evidence": "PASS",
+    "phase_transition_understood": "PASS",
+    "production_path_reconstructed": "PASS",
+    "protected_invariants_understood": "PASS",
+    "independent_oracle_design": "PASS",
+    "first_safe_slice_bounded": "PASS"
+  },
+  "result": "PASS"
+}

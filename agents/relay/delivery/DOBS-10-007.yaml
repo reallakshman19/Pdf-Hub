@@ -1,0 +1,86 @@
+{
+  "schema_version": "relay-v2.5-delivery-observation",
+  "id": "DOBS-10-007",
+  "provider": "GITHUB",
+  "repository": "reallaksh19/Pdf-Hub",
+  "vehicle": {
+    "kind": "PULL_REQUEST",
+    "number": 289,
+    "url": "https://github.com/reallaksh19/Pdf-Hub/pull/289",
+    "lifecycle": "DRAFT",
+    "head": {
+      "ref": "phase10/native-annotation-interoperability",
+      "sha": "c8c0a76fdb7bd0ae9728ddd67be4f1331577ea85"
+    },
+    "base": {
+      "ref": "phase9/pdf-fidelity-laboratory",
+      "sha": "78e55b0ed9816bce6ed2126d589c7ec7f19b93da"
+    }
+  },
+  "mergeability": {
+    "state": "MERGEABLE"
+  },
+  "roadmap": {
+    "revision": "RM-0004",
+    "work_package": "WP-010",
+    "issue": 288
+  },
+  "qualification": {
+    "required": true,
+    "state": "PENDING_FRESH_CANDIDATE",
+    "execution_package": "EP-10-001",
+    "ep_contract_digest": "sha256:e7519b17eb94784634f79e4e58fcd6f894987655c49a767ea65de5e8bfcea3e4",
+    "question_set": "QSET-10-002",
+    "question_set_conformance": {
+      "state": "CORRECTED_BEFORE_ADMISSION",
+      "comment": 5763399306,
+      "fixes": [
+        "Q2 focus corrected to ENGINEERING_PROBLEM",
+        "Q1/Q2/Q3 anchors corrected to incoming EP-native IDs"
+      ]
+    },
+    "candidate_admitted": false,
+    "prior_chain_disposition": "HISTORICAL_SUPERSEDED_FOR_WRITE_AUTHORITY"
+  },
+  "step_10_01": {
+    "implementation_state": "IMPLEMENTED_REVIEW_FINDINGS_OPEN",
+    "acceptance_state": "IN_PROGRESS_ZERO_EARNED",
+    "findings": [
+      "F10-01",
+      "F10-02",
+      "F10-03"
+    ],
+    "corrective_work_authorized": false,
+    "blocked_on": "fresh DISC/QUAL/TC + live MATERIAL_WRITE_READY for corrected EP/QSET"
+  },
+  "checks": {
+    "state": "NOT_RUN",
+    "head_sha": "c8c0a76fdb7bd0ae9728ddd67be4f1331577ea85",
+    "observed": [
+      {
+        "workflow": "certify-writer-overlay-v2",
+        "run_id": 35622076724,
+        "job_id": 106407318090,
+        "provider_conclusion": "failure",
+        "runner_id": 0,
+        "steps_executed": 0,
+        "classification": "NOT_RUN_INFRASTRUCTURE"
+      }
+    ],
+    "note": "The exact-head job completed before runner allocation with zero executed steps; no executable PASS or code-level failure is inferred."
+  },
+  "review": {
+    "state": "PENDING",
+    "reviews": 0,
+    "unresolved_threads": 0
+  },
+  "evidence_truth": {
+    "phase10_fresh_qualification": "PENDING",
+    "candidate_material_write_ready": false,
+    "ac_10_01_percent": 0,
+    "step_10_02_started": false,
+    "merge_authorization": "NOT_GRANTED",
+    "phase8g_deferred": "PENDING_NOT_SATISFIED",
+    "phase9_deferred": "PENDING_NOT_SATISFIED"
+  }
+}

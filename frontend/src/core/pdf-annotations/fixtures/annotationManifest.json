@@ -1,0 +1,755 @@
+{
+  "schema_version": "phase10-annotation-manifest-v1",
+  "phase": "PHASE-010",
+  "work_package": "WP-010",
+  "contract_issue": 288,
+  "supported_annotation_types": [
+    "textbox",
+    "callout",
+    "sticky-note",
+    "highlight",
+    "underline",
+    "strikeout",
+    "squiggly",
+    "shape-rect",
+    "shape-ellipse",
+    "shape-polygon",
+    "shape-cloud",
+    "line",
+    "arrow",
+    "ink",
+    "stamp",
+    "comment",
+    "redaction"
+  ],
+  "fixtures": {
+    "textbox": {
+      "type": "textbox",
+      "pdfSubtype": "FreeText",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "DA",
+        "Contents",
+        "NM",
+        "F",
+        "Border",
+        "C",
+        "IC",
+        "Q"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "FreeText",
+        "candidateTypes": [
+          "textbox",
+          "callout"
+        ],
+        "disambiguationField": "IT",
+        "rule": "If IT is not FreeTextCallout and CL is absent, annotation is a textbox"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 50,
+        "width": 160,
+        "height": 36
+      },
+      "defaults": {
+        "text": "Deterministic Textbox Content",
+        "fontSize": 14,
+        "borderColor": "#2563eb",
+        "backgroundColor": "#eff6ff"
+      }
+    },
+    "callout": {
+      "type": "callout",
+      "pdfSubtype": "FreeText",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "DA",
+        "Contents",
+        "NM",
+        "F",
+        "IT",
+        "CL",
+        "Border",
+        "C",
+        "IC"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "FreeText",
+        "candidateTypes": [
+          "textbox",
+          "callout"
+        ],
+        "disambiguationField": "IT",
+        "rule": "If IT is FreeTextCallout or CL callout coordinates are present, annotation is a callout"
+      },
+      "geometry": {
+        "x": 60,
+        "y": 100,
+        "width": 180,
+        "height": 50
+      },
+      "defaults": {
+        "text": "Deterministic Callout Leader",
+        "anchor": {
+          "x": 20,
+          "y": 40
+        },
+        "knee": {
+          "x": 40,
+          "y": 70
+        },
+        "borderColor": "#475569",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "sticky-note": {
+      "type": "sticky-note",
+      "pdfSubtype": "Text",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Contents",
+        "NM",
+        "F",
+        "Name",
+        "Open",
+        "C",
+        "T",
+        "M",
+        "CreationDate"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Text",
+        "candidateTypes": [
+          "comment",
+          "sticky-note"
+        ],
+        "disambiguationField": "Open",
+        "rule": "Text annotation with standard Note/Comment icon; sticky notes represent standalone canvas notes"
+      },
+      "geometry": {
+        "x": 30,
+        "y": 40,
+        "width": 32,
+        "height": 32
+      },
+      "defaults": {
+        "text": "Deterministic Sticky Note Message",
+        "author": "Reviewer Alice",
+        "backgroundColor": "#fef08a",
+        "isCollapsed": false
+      }
+    },
+    "comment": {
+      "type": "comment",
+      "pdfSubtype": "Text",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Contents",
+        "NM",
+        "F",
+        "Name",
+        "Open",
+        "C",
+        "T",
+        "StateModel",
+        "State",
+        "M",
+        "CreationDate"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Text",
+        "candidateTypes": [
+          "comment",
+          "sticky-note"
+        ],
+        "disambiguationField": "StateModel",
+        "rule": "Text annotation with Review state model and/or associated reply threads"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 60,
+        "width": 32,
+        "height": 32
+      },
+      "defaults": {
+        "text": "Review comment item",
+        "author": "Lead Reviewer",
+        "backgroundColor": "#fed7aa"
+      }
+    },
+    "highlight": {
+      "type": "highlight",
+      "pdfSubtype": "Highlight",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "highlight"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Highlight with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 120,
+        "width": 200,
+        "height": 18
+      },
+      "defaults": {
+        "backgroundColor": "#fde047",
+        "opacity": 0.4
+      }
+    },
+    "underline": {
+      "type": "underline",
+      "pdfSubtype": "Underline",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "underline"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Underline with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 150,
+        "width": 180,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#2563eb",
+        "opacity": 1.0
+      }
+    },
+    "strikeout": {
+      "type": "strikeout",
+      "pdfSubtype": "StrikeOut",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "strikeout"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype StrikeOut with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 180,
+        "width": 150,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#dc2626",
+        "opacity": 1.0
+      }
+    },
+    "squiggly": {
+      "type": "squiggly",
+      "pdfSubtype": "Squiggly",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "QuadPoints",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "squiggly"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Squiggly with QuadPoints coordinate arrays"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 210,
+        "width": 160,
+        "height": 18
+      },
+      "defaults": {
+        "borderColor": "#16a34a",
+        "opacity": 1.0
+      }
+    },
+    "shape-rect": {
+      "type": "shape-rect",
+      "pdfSubtype": "Square",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "BE",
+        "rule": "Square annotation lacking BE cloud border effect and non-mask coloring is shape-rect"
+      },
+      "geometry": {
+        "x": 70,
+        "y": 240,
+        "width": 120,
+        "height": 80
+      },
+      "defaults": {
+        "borderColor": "#0284c7",
+        "backgroundColor": "#e0f2fe",
+        "borderWidth": 2,
+        "opacity": 0.9
+      }
+    },
+    "shape-ellipse": {
+      "type": "shape-ellipse",
+      "pdfSubtype": "Circle",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "shape-ellipse"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Circle"
+      },
+      "geometry": {
+        "x": 80,
+        "y": 250,
+        "width": 100,
+        "height": 70
+      },
+      "defaults": {
+        "borderColor": "#7c3aed",
+        "backgroundColor": "#ede9fe",
+        "borderWidth": 2,
+        "opacity": 0.85
+      }
+    },
+    "shape-polygon": {
+      "type": "shape-polygon",
+      "pdfSubtype": "Polygon",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Vertices",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "shape-polygon"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Polygon with Vertices coordinate list"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 300,
+        "width": 120,
+        "height": 90
+      },
+      "defaults": {
+        "vertices": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 120,
+            "y": 20
+          },
+          {
+            "x": 60,
+            "y": 90
+          }
+        ],
+        "borderColor": "#059669",
+        "backgroundColor": "#d1fae5",
+        "borderWidth": 2,
+        "opacity": 0.9
+      }
+    },
+    "shape-cloud": {
+      "type": "shape-cloud",
+      "pdfSubtype": "Square",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "BE",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "BE",
+        "rule": "Square annotation with Border Effect BE dictionary << /S /C >> represents cloudy border"
+      },
+      "geometry": {
+        "x": 100,
+        "y": 320,
+        "width": 140,
+        "height": 80
+      },
+      "defaults": {
+        "borderColor": "#0d9488",
+        "backgroundColor": "#ccfbf1",
+        "borderWidth": 2,
+        "opacity": 0.8
+      }
+    },
+    "line": {
+      "type": "line",
+      "pdfSubtype": "Line",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "L",
+        "LE",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Line",
+        "candidateTypes": [
+          "line",
+          "arrow"
+        ],
+        "disambiguationField": "LE",
+        "rule": "Line annotation without arrow ending style in LE is a plain line"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 420,
+        "width": 160,
+        "height": 60
+      },
+      "defaults": {
+        "points": [
+          0,
+          0,
+          160,
+          60
+        ],
+        "lineStartCap": "none",
+        "lineEndCap": "none",
+        "borderColor": "#334155",
+        "borderWidth": 2
+      }
+    },
+    "arrow": {
+      "type": "arrow",
+      "pdfSubtype": "Line",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "L",
+        "LE",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Line",
+        "candidateTypes": [
+          "line",
+          "arrow"
+        ],
+        "disambiguationField": "LE",
+        "rule": "Line annotation with OpenArrow or ClosedArrow in LE is an arrow"
+      },
+      "geometry": {
+        "x": 50,
+        "y": 430,
+        "width": 150,
+        "height": 50
+      },
+      "defaults": {
+        "points": [
+          0,
+          0,
+          150,
+          50
+        ],
+        "lineStartCap": "none",
+        "lineEndCap": "arrow",
+        "borderColor": "#e11d48",
+        "borderWidth": 2
+      }
+    },
+    "ink": {
+      "type": "ink",
+      "pdfSubtype": "Ink",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "InkList",
+        "Border",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "ink"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Ink with InkList strokes"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 500,
+        "width": 120,
+        "height": 60
+      },
+      "defaults": {
+        "strokes": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              40,
+              30
+            ],
+            [
+              80,
+              20
+            ],
+            [
+              120,
+              60
+            ]
+          ]
+        ],
+        "borderColor": "#4f46e5",
+        "borderWidth": 3,
+        "opacity": 0.95
+      }
+    },
+    "stamp": {
+      "type": "stamp",
+      "pdfSubtype": "Stamp",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Name",
+        "C",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": null,
+        "candidateTypes": [
+          "stamp"
+        ],
+        "disambiguationField": null,
+        "rule": "Unambiguous standard PDF subtype Stamp with Name identifier"
+      },
+      "geometry": {
+        "x": 120,
+        "y": 520,
+        "width": 140,
+        "height": 50
+      },
+      "defaults": {
+        "stampStyle": "approved",
+        "borderColor": "#15803d",
+        "opacity": 0.9
+      }
+    },
+    "redaction": {
+      "type": "redaction",
+      "pdfSubtype": "Square",
+      "appearanceStreamRequired": true,
+      "standardPdfFields": [
+        "Subtype",
+        "Rect",
+        "Border",
+        "C",
+        "IC",
+        "CA",
+        "NM",
+        "F"
+      ],
+      "ambiguity": {
+        "sharedSubtype": "Square",
+        "candidateTypes": [
+          "shape-rect",
+          "shape-cloud",
+          "redaction"
+        ],
+        "disambiguationField": "C/IC",
+        "rule": "Square visual mask with opaque black/solid styling; MUST NOT emit PDF Redact dictionary"
+      },
+      "geometry": {
+        "x": 60,
+        "y": 600,
+        "width": 180,
+        "height": 30
+      },
+      "defaults": {
+        "backgroundColor": "#000000",
+        "borderColor": "#000000",
+        "opacity": 1.0
+      }
+    }
+  },
+  "subtype_ambiguities": {
+    "Text": {
+      "candidate_types": [
+        "comment",
+        "sticky-note"
+      ],
+      "primary_distinction": "StateModel dictionary presence or thread reply structure vs standalone sticky note",
+      "oracle_rule": "If StateModel or review status is present, classify as comment; otherwise classify as sticky-note"
+    },
+    "Square": {
+      "candidate_types": [
+        "shape-rect",
+        "shape-cloud",
+        "redaction"
+      ],
+      "primary_distinction": "BE (Border Effect) for cloud, solid black fill/stroke mask for redaction, standard stroke/fill for shape-rect",
+      "oracle_rule": "If BE is present with /S /C -> shape-cloud; else if visual mask styling -> redaction; else shape-rect"
+    },
+    "Line": {
+      "candidate_types": [
+        "line",
+        "arrow"
+      ],
+      "primary_distinction": "LE (Line Ending) array indicating arrowheads",
+      "oracle_rule": "If LE contains OpenArrow or ClosedArrow -> arrow; else line"
+    },
+    "FreeText": {
+      "candidate_types": [
+        "textbox",
+        "callout"
+      ],
+      "primary_distinction": "IT dictionary entry (/FreeTextCallout) and CL callout line coordinates",
+      "oracle_rule": "If IT is FreeTextCallout or CL is defined -> callout; else textbox"
+    }
+  },
+  "policies": {
+    "appearance_stream_requirement": {
+      "enforce_ap_for_all_supported_types": true,
+      "rationale": "External viewers without dynamic appearance generation (Adobe Acrobat, Preview, third-party viewers) depend on explicit /AP streams to render annotations."
+    },
+    "external_edit_precedence": {
+      "standard_fields_override_custom_data": true,
+      "monitored_fields": [
+        "Contents",
+        "Rect",
+        "C",
+        "IC",
+        "DA",
+        "CL",
+        "L",
+        "QuadPoints",
+        "Vertices",
+        "InkList"
+      ],
+      "rationale": "When a PDF is edited in an external viewer, standard PDF dictionary fields reflect the latest edits and must take precedence over stale serialized PDFHubData."
+    },
+    "save_vs_export_separation": {
+      "save_preserves_native_annotations": true,
+      "export_flattened_burns_into_page": true,
+      "hidden_flattening_prohibited": true,
+      "rationale": "Save/Save As must remain fully editable without destroying native /Annot dictionaries. Export Flattened permanently renders into page contents."
+    },
+    "signed_pdf_rewrite_policy": {
+      "warn_on_rewrite": true,
+      "prevent_false_validity_claims": true,
+      "rationale": "Full document rewrite invalidates cryptographic signatures. Users must be warned explicitly."
+    }
+  }
+}

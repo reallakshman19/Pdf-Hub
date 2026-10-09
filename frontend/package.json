@@ -139,7 +139,11 @@
     "certify:phase8g": "npm run certify:phase8f && npm run audit:phase8-large-document-performance && vitest run src/core/search/incrementalResults.test.ts src/core/search/indexer.test.ts src/components/sidebar/SearchPanel.test.tsx --pool=forks --maxWorkers=1 && npm run build && npm run benchmark:phase8g && npm run certify:phase8g:evidence",
     "benchmark:phase8g:evaluate": "node scripts/phase8g-benchmark-harness.mjs",
     "benchmark:phase8g": "node scripts/phase8g-run-benchmarks.mjs",
-    "certify:phase8g:evidence": "node scripts/phase8g-certify-evidence.mjs"
+    "certify:phase8g:evidence": "node scripts/phase8g-certify-evidence.mjs",
+    "generate:phase9-fidelity-fixtures": "node scripts/phase9-generate-fidelity-fixtures.mjs",
+    "audit:phase9-fidelity-corpus": "node scripts/phase9-fidelity-corpus-audit.mjs",
+    "certify:phase9-step1": "npm run audit:phase9-fidelity-corpus && vitest run src/core/pdf-fidelity/manifestValidation.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase10-annotation-interoperability": "node scripts/phase10-annotation-interoperability-audit.mjs"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

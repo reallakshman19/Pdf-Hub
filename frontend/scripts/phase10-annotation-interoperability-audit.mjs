@@ -1,0 +1,113 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendRoot = path.resolve(__dirname, '..');
+
+console.log('=== Running Phase 10 Native Annotation Interoperability Audit ===');
+
+const manifestPath = path.join(frontendRoot, 'src/core/pdf-annotations/fixtures/annotationManifest.json');
+if (!fs.existsSync(manifestPath)) {
+  console.error(`FAIL: Missing annotation manifest at ${manifestPath}`);
+  process.exit(1);
+}
+
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+const typesFilePath = path.join(frontendRoot, 'src/core/annotations/annotationTypes.ts');
+const typesContent = fs.readFileSync(typesFilePath, 'utf-8');
+
+// Extract ANNOTATION_TYPES array from annotationTypes.ts
+const match = typesContent.match(/export const ANNOTATION_TYPES = \s*\[([^\]]+)\]/);
+if (!match) {
+  console.error('FAIL: Could not extract ANNOTATION_TYPES from annotationTypes.ts');
+  process.exit(1);
+}
+
+const canonicalTypes = match[1]
+  .split(',')
+  .map((s) => s.trim().replace(/['"]/g, ''))
+  .filter(Boolean);
+
+console.log(`Discovered ${canonicalTypes.length} canonical annotation types in DocCraft:`);
+console.log(canonicalTypes.map((t) => `  - ${t}`).join('\n'));
+
+if (canonicalTypes.length !== 17) {
+  console.error(`FAIL: Expected exactly 17 supported annotation types, found ${canonicalTypes.length}`);
+  process.exit(1);
+}
+
+let errors = [];
+
+// 1. Check all canonical types are present in manifest fixtures
+for (const type of canonicalTypes) {
+  if (!manifest.fixtures[type]) {
+    errors.push(`Missing fixture definition in manifest for type: ${type}`);
+    continue;
+  }
+
+  const f = manifest.fixtures[type];
+  if (!f.pdfSubtype) {
+    errors.push(`Fixture ${type} has no declared pdfSubtype`);
+  }
+  if (f.appearanceStreamRequired !== true) {
+    errors.push(`Fixture ${type} must declare appearanceStreamRequired: true`);
+  }
+  if (!Array.isArray(f.standardPdfFields) || f.standardPdfFields.length === 0) {
+    errors.push(`Fixture ${type} must declare non-empty standardPdfFields`);
+  }
+  if (!f.geometry || typeof f.geometry.width !== 'number' || typeof f.geometry.height !== 'number') {
+    errors.push(`Fixture ${type} has invalid or missing geometry`);
+  }
+}
+
+// 2. Check subtype ambiguities are explicitly handled
+const requiredAmbiguities = ['Text', 'Square', 'Line', 'FreeText'];
+for (const amb of requiredAmbiguities) {
+  if (!manifest.subtype_ambiguities[amb]) {
+    errors.push(`Missing subtype ambiguity rule for ${amb}`);
+  } else {
+    const def = manifest.subtype_ambiguities[amb];
+    if (!Array.isArray(def.candidate_types) || def.candidate_types.length < 2) {
+      errors.push(`Ambiguity ${amb} must list at least 2 candidate types`);
+    }
+    if (!def.oracle_rule || typeof def.oracle_rule !== 'string') {
+      errors.push(`Ambiguity ${amb} must specify a concrete oracle_rule`);
+    }
+  }
+}
+
+// 3. Verify policies
+if (!manifest.policies?.appearance_stream_requirement?.enforce_ap_for_all_supported_types) {
+  errors.push('Manifest policies must enforce /AP appearance stream requirement for all supported types');
+}
+
+if (!manifest.policies?.external_edit_precedence?.standard_fields_override_custom_data) {
+  errors.push('Manifest policies must declare external edit precedence (standard fields override custom data)');
+}
+
+if (!manifest.policies?.save_vs_export_separation?.save_preserves_native_annotations) {
+  errors.push('Manifest policies must declare save preserves native annotations');
+}
+
+if (!manifest.policies?.save_vs_export_separation?.hidden_flattening_prohibited) {
+  errors.push('Manifest policies must prohibit hidden flattening');
+}
+
+if (!manifest.policies?.signed_pdf_rewrite_policy?.warn_on_rewrite) {
+  errors.push('Manifest policies must declare signed PDF rewrite warning');
+}
+
+if (errors.length > 0) {
+  console.error('\nAudit FAILED with errors:');
+  errors.forEach((err) => console.error(`  - ${err}`));
+  process.exit(1);
+}
+
+console.log('\n[PASS] All 17 annotation types covered.');
+console.log('[PASS] All 4 subtype ambiguities (Text, Square, Line, FreeText) verified with oracle rules.');
+console.log('[PASS] Appearance stream (/AP) expectations declared.');
+console.log('[PASS] External-edit precedence, Save/Export separation, and signed rewrite policies verified.');
+console.log('=== Phase 10 Audit PASSED ===');

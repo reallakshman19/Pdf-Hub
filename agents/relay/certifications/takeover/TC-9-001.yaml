@@ -1,0 +1,65 @@
+{
+  "schema_version": "relay-v2.5-takeover-certification",
+  "id": "TC-9-001",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9"
+  },
+  "prepared_by": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260920-phase9-preparer"
+  },
+  "evaluated_by": {
+    "type": "REPOSITORY_EVIDENCE_RULESET",
+    "identity": "EP-9-001 + QSET-9-001 route validation",
+    "basis": [
+      "DISC-9-001 and QUAL-9-001 reconstruct the live RM-0003 route and satisfy every required QSET output on the pinned EP digest."
+    ]
+  },
+  "self_certification": {
+    "allowed": false
+  },
+  "route": {
+    "route_key": "SERIAL:EP-9-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-9-001",
+    "ep_id": "EP-9-001",
+    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0003",
+    "relay_protocol_basis_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d",
+    "material_ref": "5c634599f006fc770e0b7bef882d0cb843b18dad",
+    "ep_contract_digest": "sha256:2fcb1663951a67e41914e2e43ef244c45eeee4eebcbb86f571d62c0c247420ec",
+    "predecessor_baton": {
+      "type": "OWNER_RESEQUENCE",
+      "id": "ODR-0004",
+      "path": "agents/relay/roadmap/owner-decisions/ODR-0004.yaml",
+      "digest": null
+    }
+  },
+  "discovery_receipt": {
+    "id": "DISC-9-001",
+    "path": "agents/relay/certifications/discovery/DISC-9-001.yaml"
+  },
+  "qualification": {
+    "required": true,
+    "status": "PASS",
+    "receipt_id": "QUAL-9-001",
+    "receipt_path": "agents/relay/certifications/qualification/QUAL-9-001.yaml",
+    "receipt_digest": null
+  },
+  "checks": {
+    "baton_semantics": "PASS",
+    "repository_discovery": "PASS",
+    "route_grounding": "PASS",
+    "input_oracle_readiness": "PASS",
+    "scope_understood": "PASS",
+    "qualification_boundary": "PASS",
+    "report_successor_contract": "PASS"
+  },
+  "result": "PASS",
+  "conversation_context_used": false
+}

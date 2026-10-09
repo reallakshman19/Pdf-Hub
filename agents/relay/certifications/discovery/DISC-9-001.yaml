@@ -1,0 +1,244 @@
+{
+  "schema_version": "relay-v2.5-discovery",
+  "id": "DISC-9-001",
+  "candidate": {
+    "agent_instance_id": "chatgpt-gpt56-sol-20260921-phase9"
+  },
+  "route": {
+    "route_key": "SERIAL:EP-9-001",
+    "mode": "SERIAL",
+    "execution_ref": "EP-9-001",
+    "ep_id": "EP-9-001",
+    "ep_path": "agents/relay/execution-packages/EP-9-001.yaml",
+    "plan_id": null,
+    "plan_path": null,
+    "lane_id": null
+  },
+  "basis": {
+    "roadmap_id": "PDFHUB-READINESS-2026",
+    "roadmap_revision": "RM-0003",
+    "relay_protocol_basis_ref": "629a6ab1bcbbbdbd0e246ebb1b886c792fe32e9d",
+    "material_ref": "5c634599f006fc770e0b7bef882d0cb843b18dad",
+    "ep_contract_digest": "sha256:2fcb1663951a67e41914e2e43ef244c45eeee4eebcbb86f571d62c0c247420ec",
+    "predecessor_baton": {
+      "type": "OWNER_RESEQUENCE",
+      "id": "ODR-0004",
+      "path": "agents/relay/roadmap/owner-decisions/ODR-0004.yaml",
+      "digest": null
+    }
+  },
+  "steps": [
+    {
+      "id": "DSTEP-9-01",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "roadmap revision/frontier",
+          "value": "RM-0003 / PHASE-009 / WP-009",
+          "basis": [
+            "OVERALL_ROADMAP on the Phase 9 branch."
+          ]
+        },
+        {
+          "name": "active issue mapping",
+          "value": "Issue #286 / EP-9-001",
+          "basis": [
+            "REPO_STATE, EP-9-001 and PR #287 correlation."
+          ]
+        },
+        {
+          "name": "Phase 8G deferred obligation",
+          "value": "Issue #284 remains open; certify:phase8g is PENDING_NOT_SATISFIED under ODR-0003.",
+          "basis": [
+            "ODR-0003 and ODR-0004."
+          ]
+        }
+      ],
+      "basis": [
+        "Repository authority reconstruction."
+      ]
+    },
+    {
+      "id": "DSTEP-9-02",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "checked-out branch",
+          "value": "phase9/pdf-fidelity-laboratory",
+          "basis": [
+            "PR #287 head branch."
+          ]
+        },
+        {
+          "name": "current HEAD",
+          "value": "5c634599f006fc770e0b7bef882d0cb843b18dad",
+          "basis": [
+            "PR #287 provider readback."
+          ]
+        },
+        {
+          "name": "base ancestry",
+          "value": "PASS: Phase 9 is stacked on phase8/large-document-performance handoff 42ca85036cdd67f636a5f3dec2e4a9160ad624cb.",
+          "basis": [
+            "PR #287 base/head readback."
+          ]
+        },
+        {
+          "name": "drift result",
+          "value": "NO PRODUCT DRIFT: current Phase 9 changes are relay/roadmap preparation only.",
+          "basis": [
+            "PR #287 description and changed-file scope."
+          ]
+        }
+      ],
+      "basis": [
+        "Git route verified before qualification."
+      ]
+    },
+    {
+      "id": "DSTEP-9-03",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "mutation entrypoint",
+          "value": "Canonical PdfCommand dispatch/document transaction invokes PdfMutationEngine operations.",
+          "basis": [
+            "frontend/src/core/commands/dispatch.ts and transaction/documentTransaction.ts."
+          ]
+        },
+        {
+          "name": "session state owner",
+          "value": "PdfLibMutationEngine holds one opened pdf-lib PDFDocument per mutation session and commits complete output bytes.",
+          "basis": [
+            "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts."
+          ]
+        },
+        {
+          "name": "rebuild/copy operations",
+          "value": "Structural reorder/delete/duplicate paths can create a new PDFDocument and copy selected pages.",
+          "basis": [
+            "PdfLibMutationEngine structural operation implementations."
+          ]
+        },
+        {
+          "name": "document-level structures at risk",
+          "value": "Catalog/name-tree structures such as outlines, AcroForm roots, attachments, tags and other non-page references can be omitted by page-only rebuild.",
+          "basis": [
+            "Production code plus Phase 9 contract/architecture non-claims."
+          ]
+        }
+      ],
+      "basis": [
+        "Canonical mutation call graph traced."
+      ]
+    },
+    {
+      "id": "DSTEP-9-04",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "renderer validation path",
+          "value": "PDF.js revision/source-backed renderer can reopen output for independent render/text/PageLabel checks.",
+          "basis": [
+            "frontend/src/adapters/pdf-renderer and active renderer architecture."
+          ]
+        },
+        {
+          "name": "PageGraph authority",
+          "value": "Stable PageId/PageGraph remains application identity/order authority.",
+          "basis": [
+            "frontend/src/core/pages/types.ts and PageGraph architecture."
+          ]
+        },
+        {
+          "name": "PageLabels consumer",
+          "value": "PDF.js getPageLabels plus canonical page-label reader validates logical labels independently.",
+          "basis": [
+            "frontend/src/core/pages/pdfPageLabels.ts."
+          ]
+        },
+        {
+          "name": "independent reopen/render boundary",
+          "value": "Saved bytes are reopened as a new document; fixture-declared semantic inventory remains the oracle, not the mutation implementation.",
+          "basis": [
+            "Issue #286 and QSET-9-001 verification contract."
+          ]
+        }
+      ],
+      "basis": [
+        "Independent consumer boundary reconstructed."
+      ]
+    },
+    {
+      "id": "DSTEP-9-05",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "required fixture classes",
+          "value": "ordinary/scanned, mixed geometry/CropBox/MediaBox, outlines, PageLabels, AcroForms, annotations, attachments/metadata, tagged, CID/subset, Arabic/CJK/RTL, object streams/incremental, encrypted/signed, malformed-readable xrefs",
+          "basis": [
+            "ARCHITECTURE.md testing requirements."
+          ]
+        },
+        {
+          "name": "repeat-cycle steps",
+          "value": "open → mutate → save → reopen → validate/render → mutate → save → reopen",
+          "basis": [
+            "ARCHITECTURE.md and issue #286."
+          ]
+        },
+        {
+          "name": "protected identity invariants",
+          "value": "PageId/PageGraph and immutable revision/history authority remain unchanged by fidelity lab tooling.",
+          "basis": [
+            "Phase 9 EP protected scope."
+          ]
+        }
+      ],
+      "basis": [
+        "Architecture contract available."
+      ]
+    },
+    {
+      "id": "DSTEP-06",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "authorized outcomes",
+          "value": "Fixture-specific preserve/transform/invalidate/explicit-reject dispositions; render success alone is insufficient.",
+          "basis": [
+            "Issue #286 and EP-9-001."
+          ]
+        },
+        {
+          "name": "signature/encryption semantics",
+          "value": "Never imply cryptographic validity after content mutation; unsupported protected inputs must be explicit.",
+          "basis": [
+            "Issue #286/QSET protected invariant."
+          ]
+        }
+      ],
+      "basis": [
+        "Provider coordination contract reconstructed."
+      ]
+    },
+    {
+      "id": "DSTEP-07",
+      "status": "PASS",
+      "outputs": [
+        {
+          "name": "runner availability evidence",
+          "value": "Issue #183 remains the known hosted-runner constraint; zero-step jobs are NOT_RUN, never PASS.",
+          "basis": [
+            "Current relay evidence and issue #183 policy."
+          ]
+        }
+      ],
+      "basis": [
+        "Evidence semantics preserved."
+      ]
+    }
+  ],
+  "result": "PASS",
+  "conversation_context_used": false
+}
