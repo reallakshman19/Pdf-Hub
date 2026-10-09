@@ -1,0 +1,31 @@
+name: certify-ps-isonote-professional
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/core/macro/psIsonote/professional/**'
+      - 'frontend/src/core/macro/psIsonote/psIsonoteIdentity.ts'
+      - 'frontend/package.json'
+      - '.github/workflows/certify-ps-isonote-professional.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - name: Install dependencies
+        run: cd frontend && pnpm install --no-frozen-lockfile
+      - name: Typecheck
+        run: cd frontend && pnpm typecheck
+      - name: Professional core tests
+        run: cd frontend && pnpm vitest run src/core/macro/psIsonote/professional --reporter=verbose
