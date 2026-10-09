@@ -1,10 +1,11 @@
 import type {
   ExistingTextContentScanResult,
   ExistingTextDecodedContentStream,
+  ExistingTextDoubleQuoteOperator,
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
+  ExistingTextSingleQuoteOperator,
   ExistingTextSingleStringTjArrayOperator,
-  ExistingTextTjOperator,
 } from './provenanceTypes';
 import type {
   ExistingTextTransform,
@@ -32,6 +33,10 @@ export interface ExistingTextContentToken {
 
 interface GraphicsState {
   transformSafe: boolean;
+  charSpacingPt: number;
+  wordSpacingPt: number;
+  charSpacingSafe: boolean;
+  wordSpacingSafe: boolean;
 }
 
 interface TextState {
@@ -77,6 +82,10 @@ export function scanExistingTextContentStream(
     GraphicsState[] = [];
   let graphics: GraphicsState = {
     transformSafe: true,
+    charSpacingPt: 0,
+    wordSpacingPt: 0,
+    charSpacingSafe: true,
+    wordSpacingSafe: true,
   };
   let text: TextState =
     initialTextState();
@@ -103,6 +112,10 @@ export function scanExistingTextContentStream(
           graphicsStack.pop()
           ?? {
             transformSafe: false,
+            charSpacingPt: 0,
+            wordSpacingPt: 0,
+            charSpacingSafe: false,
+            wordSpacingSafe: false,
           };
         break;
 
@@ -118,6 +131,7 @@ export function scanExistingTextContentStream(
           )
         ) {
           graphics = {
+            ...graphics,
             transformSafe: false,
           };
         }
@@ -272,17 +286,49 @@ export function scanExistingTextContentStream(
         break;
       }
 
-      case "'":
-      case '"':
+      case "'": {
         if (text.inTextObject) {
+          const candidate =
+            buildSimpleQuoteCandidate(
+              stream,
+              token,
+              operatorIndex,
+              operands,
+              graphics,
+              text,
+            );
+          if (candidate) {
+            candidates.push(
+              candidate,
+            );
+          }
           text.placementSafe =
             false;
-          text.textLineMatrix =
-            null;
-          text.textLeadingPt =
-            null;
         }
         break;
+      }
+
+      case '"': {
+        if (text.inTextObject) {
+          const candidate =
+            buildDoubleQuoteCandidate(
+              stream,
+              token,
+              operatorIndex,
+              operands,
+              graphics,
+              text,
+            );
+          if (candidate) {
+            candidates.push(
+              candidate,
+            );
+          }
+          text.placementSafe =
+            false;
+        }
+        break;
+      }
 
       case 'TJ': {
         if (text.inTextObject) {
@@ -306,10 +352,24 @@ export function scanExistingTextContentStream(
         break;
       }
 
+      case 'Tc': {
+        applySimpleTc(
+          operands,
+          graphics,
+        );
+        break;
+      }
+
+      case 'Tw': {
+        applySimpleTw(
+          operands,
+          graphics,
+        );
+        break;
+      }
+
       case 'Tz':
       case 'Ts':
-      case 'Tc':
-      case 'Tw':
         if (text.inTextObject) {
           text.styleSafe =
             false;
@@ -358,6 +418,8 @@ function buildSimpleTextCandidate(
 ): ExistingTextSimpleTextOperator | null {
   if (
     !graphics.transformSafe
+    || !graphics.charSpacingSafe
+    || !graphics.wordSpacingSafe
     || !text.placementSafe
     || !text.styleSafe
     || !text.fontResourceName
@@ -416,6 +478,10 @@ function buildSimpleTextCandidate(
       text.fontResourceName,
     fontSizePt:
       text.fontSizePt,
+    charSpacingPt:
+      graphics.charSpacingPt,
+    wordSpacingPt:
+      graphics.wordSpacingPt,
     textMatrix: [
       ...text.textMatrix,
     ],
@@ -433,6 +499,8 @@ function buildSingleStringTjCandidate(
 ): ExistingTextSingleStringTjArrayOperator | null {
   if (
     !graphics.transformSafe
+    || !graphics.charSpacingSafe
+    || !graphics.wordSpacingSafe
     || !text.placementSafe
     || !text.styleSafe
     || !text.fontResourceName
@@ -507,6 +575,238 @@ function buildSingleStringTjCandidate(
       text.fontResourceName,
     fontSizePt:
       text.fontSizePt,
+    charSpacingPt:
+      graphics.charSpacingPt,
+    wordSpacingPt:
+      graphics.wordSpacingPt,
+    textMatrix: [
+      ...text.textMatrix,
+    ],
+  };
+}
+
+function buildSimpleQuoteCandidate(
+  stream:
+    ExistingTextDecodedContentStream,
+  operatorToken: ExistingTextContentToken,
+  operatorIndex: number,
+  operands: readonly ExistingTextContentToken[],
+  graphics: GraphicsState,
+  text: TextState,
+): ExistingTextSingleQuoteOperator | null {
+  if (
+    !graphics.transformSafe
+    || !graphics.charSpacingSafe
+    || !graphics.wordSpacingSafe
+    || !text.styleSafe
+    || !text.fontResourceName
+    || !text.fontSizePt
+    || operands.length !== 1
+    || text.textLeadingPt === null
+    || !Number.isFinite(text.textLeadingPt)
+    || !text.textLineMatrix
+    || !isSimpleTextMatrix(text.textLineMatrix)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  const operand = operands[0];
+  if (
+    operand.kind !== 'literal-string'
+    && operand.kind !== 'hex-string'
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  if (
+    operand.decodedText === undefined
+    || !operand.encoding
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  const advanced = applyLineTranslation(
+    0,
+    -text.textLeadingPt,
+    text,
+  );
+  if (!advanced || !text.textMatrix || !isSimpleTextMatrix(text.textMatrix)) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  return {
+    streamIndex:
+      stream.streamIndex,
+    streamRef: stream.streamRef,
+    operatorIndex,
+    operator: "'",
+    operatorRange: {
+      start:
+        operatorToken.rawStart,
+      end: operatorToken.rawEnd,
+    },
+    operandRange: {
+      start: operand.rawStart,
+      end: operand.rawEnd,
+    },
+    decodedText:
+      operand.decodedText,
+    encoding:
+      operand.encoding,
+    fontResourceName:
+      text.fontResourceName,
+    fontSizePt:
+      text.fontSizePt,
+    charSpacingPt:
+      graphics.charSpacingPt,
+    wordSpacingPt:
+      graphics.wordSpacingPt,
+    textMatrix: [
+      ...text.textMatrix,
+    ],
+  };
+}
+
+function buildDoubleQuoteCandidate(
+  stream:
+    ExistingTextDecodedContentStream,
+  operatorToken: ExistingTextContentToken,
+  operatorIndex: number,
+  operands: readonly ExistingTextContentToken[],
+  graphics: GraphicsState,
+  text: TextState,
+): ExistingTextDoubleQuoteOperator | null {
+  if (operands.length !== 3) {
+    graphics.wordSpacingSafe = false;
+    graphics.charSpacingSafe = false;
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  const awToken = operands[0];
+  const acToken = operands[1];
+  const stringOperand = operands[2];
+
+  if (
+    awToken.kind !== 'number'
+    || awToken.numberValue === undefined
+    || !Number.isFinite(awToken.numberValue)
+  ) {
+    graphics.wordSpacingSafe = false;
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  if (
+    acToken.kind !== 'number'
+    || acToken.numberValue === undefined
+    || !Number.isFinite(acToken.numberValue)
+  ) {
+    graphics.charSpacingSafe = false;
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  // Set spacing in order: aw Tw, then ac Tc
+  graphics.wordSpacingPt = awToken.numberValue;
+  graphics.wordSpacingSafe = true;
+  graphics.charSpacingPt = acToken.numberValue;
+  graphics.charSpacingSafe = true;
+
+  if (
+    stringOperand.kind !== 'literal-string'
+    && stringOperand.kind !== 'hex-string'
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  if (
+    stringOperand.decodedText === undefined
+    || !stringOperand.encoding
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  if (
+    !graphics.transformSafe
+    || !text.styleSafe
+    || !text.fontResourceName
+    || !text.fontSizePt
+    || text.textLeadingPt === null
+    || !Number.isFinite(text.textLeadingPt)
+    || !text.textLineMatrix
+    || !isSimpleTextMatrix(text.textLineMatrix)
+  ) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  const advanced = applyLineTranslation(
+    0,
+    -text.textLeadingPt,
+    text,
+  );
+  if (!advanced || !text.textMatrix || !isSimpleTextMatrix(text.textMatrix)) {
+    text.placementSafe = false;
+    text.textLineMatrix = null;
+    text.textMatrix = null;
+    return null;
+  }
+
+  return {
+    streamIndex:
+      stream.streamIndex,
+    streamRef: stream.streamRef,
+    operatorIndex,
+    operator: '"',
+    operatorRange: {
+      start:
+        operatorToken.rawStart,
+      end: operatorToken.rawEnd,
+    },
+    operandRange: {
+      start:
+        stringOperand.rawStart,
+      end: stringOperand.rawEnd,
+    },
+    decodedText:
+      stringOperand.decodedText,
+    encoding:
+      stringOperand.encoding,
+    fontResourceName:
+      text.fontResourceName,
+    fontSizePt:
+      text.fontSizePt,
+    charSpacingPt:
+      graphics.charSpacingPt,
+    wordSpacingPt:
+      graphics.wordSpacingPt,
     textMatrix: [
       ...text.textMatrix,
     ],
@@ -665,6 +965,52 @@ function applySimpleTStar(
     -text.textLeadingPt,
     text,
   );
+}
+
+function applySimpleTc(
+  operands: readonly ExistingTextContentToken[],
+  graphics: GraphicsState,
+): void {
+  if (operands.length !== 1) {
+    graphics.charSpacingSafe = false;
+    return;
+  }
+
+  const operand = operands[0];
+  if (
+    operand.kind !== 'number'
+    || operand.numberValue === undefined
+    || !Number.isFinite(operand.numberValue)
+  ) {
+    graphics.charSpacingSafe = false;
+    return;
+  }
+
+  graphics.charSpacingPt = operand.numberValue;
+  graphics.charSpacingSafe = true;
+}
+
+function applySimpleTw(
+  operands: readonly ExistingTextContentToken[],
+  graphics: GraphicsState,
+): void {
+  if (operands.length !== 1) {
+    graphics.wordSpacingSafe = false;
+    return;
+  }
+
+  const operand = operands[0];
+  if (
+    operand.kind !== 'number'
+    || operand.numberValue === undefined
+    || !Number.isFinite(operand.numberValue)
+  ) {
+    graphics.wordSpacingSafe = false;
+    return;
+  }
+
+  graphics.wordSpacingPt = operand.numberValue;
+  graphics.wordSpacingSafe = true;
 }
 
 function readNumericMatrix(

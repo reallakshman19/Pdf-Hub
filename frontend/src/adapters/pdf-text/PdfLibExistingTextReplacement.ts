@@ -235,6 +235,10 @@ export async function applySimpleExistingTextReplacementToDocument(
           input.span.advanceWidthPt,
         fontSizePt:
           input.provenance.fontSizePt,
+        charSpacingPt:
+          input.provenance.charSpacingPt,
+        wordSpacingPt:
+          input.provenance.wordSpacingPt,
         signal: input.signal,
       },
       lib,
@@ -806,14 +810,38 @@ function sameProvenance(
       === expected.encoding
     && current.fontResourceName
       === expected.fontResourceName
-    && current.fontSizePt
-      === expected.fontSizePt
+    && nearlyEqual(
+      current.fontSizePt,
+      expected.fontSizePt,
+    )
+    && nearlyEqual(
+      current.charSpacingPt,
+      expected.charSpacingPt,
+    )
+    && nearlyEqual(
+      current.wordSpacingPt,
+      expected.wordSpacingPt,
+    )
     && current.textMatrix.every(
       (value, index) =>
-        value
-        === expected
-          .textMatrix[index],
+        nearlyEqual(
+          value,
+          expected
+            .textMatrix[index],
+        ),
     )
+  );
+}
+
+function nearlyEqual(
+  left: number,
+  right: number,
+  tolerance = 1e-6,
+): boolean {
+  return (
+    Number.isFinite(left)
+    && Number.isFinite(right)
+    && Math.abs(left - right) <= tolerance
   );
 }
 

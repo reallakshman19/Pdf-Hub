@@ -96,6 +96,8 @@ const provenance = {
     number,
     number,
   ],
+  charSpacingPt: 0,
+  wordSpacingPt: 0,
 };
 
 function fittingFit(

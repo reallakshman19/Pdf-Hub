@@ -66,25 +66,12 @@ requireTokens(
 );
 
 requireTokens(
-  'scanner quote operators remain strictly unsupported',
+  'scanner text state invalidation for unsupported operators',
   scanner,
   [
-    "case \"'\":",
-    "case '\"':",
-    'text.placementSafe =\n            false;',
-    'text.textLineMatrix =\n            null;',
-    'text.textLeadingPt =\n            null;',
-  ],
-);
-
-forbidTokens(
-  'scanner does not admit quote operators as valid text shows',
-  scanner,
-  [
-    'buildSimpleQuoteCandidate',
-    'buildQuoteCandidate',
-    'case "\'": {\n          applyQuote',
-    'case "\'":\n          applyQuote',
+    "case 'Tz':",
+    "case 'Ts':",
+    'text.styleSafe =\n            false;',
   ],
 );
 
