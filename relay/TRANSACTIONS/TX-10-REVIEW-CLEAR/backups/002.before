@@ -1,0 +1,155 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0005-V3-ADMISSION",
+    "state_digest": "sha256:fe89f9ccd2d29ad914b05a96661a1c54d6f352bb0d8950eb6a3135624bf57d5d",
+    "material_basis": {
+      "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
+      "tree_digest": "sha256:5801dbac4f88bd6951a7a7d477bf4c3512e1053f7abe7218207d3aaeea15790f",
+      "relevant_paths_digest": "sha256:f1307846b5a3e299e5216cec1792550ea7310c454c5a694d051d12b882f76b11",
+      "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+    },
+    "coordination_head": "ab7d66a64b924d83fff1921021217c5b9293f6ce"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+  },
+  "programme": {
+    "accepted_progress": 0,
+    "completed_work": [],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-010",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "ACTIVE",
+    "work_package": "WP-010",
+    "ep": "EP-10-INTEROP-FIX",
+    "lease": "LEASE-10-INTEROP-FIX",
+    "executor": "chatgpt-gpt56-sol"
+  },
+  "scope": {
+    "allowed_writes": [
+      "frontend/src/core/pdf-annotations/nativeAnnotationReader.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperability.test.ts",
+      "frontend/src/core/pdf-annotations/annotationInteroperabilityOracle.ts",
+      "frontend/src/core/pdf-annotations/fixtures/**",
+      "frontend/scripts/phase10-annotation-interoperability-audit.mjs",
+      "relay/**"
+    ],
+    "protected": [
+      "agents/relay/**",
+      "frontend/src/core/pdf-annotations/nativeAnnotationWriter.ts",
+      "frontend/src/core/document/commitPipeline.ts"
+    ],
+    "prohibited": [
+      "Production /AP appearance-stream implementation (STEP-10-02)",
+      "New annotation product types",
+      "Signature creation or signature-preserving rewrite architecture",
+      "Phase 11+ work",
+      "MERGE",
+      "RELEASE"
+    ]
+  },
+  "material": {
+    "base": "6f16bc859d3bd6975969ac408a3b119d7431fbb0",
+    "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
+    "relevant_paths_digest": "sha256:f1307846b5a3e299e5216cec1792550ea7310c454c5a694d051d12b882f76b11",
+    "dependency_digest": "sha256:d6ff26eee39db4aaeecd682f785177f9b7c0b00edd7d5ea83adc664ba814421d"
+  },
+  "evidence": {
+    "latest_checkpoint": null,
+    "latest_material_validation": {
+      "head": "ab7d66a64b924d83fff1921021217c5b9293f6ce",
+      "focused_vitest": {
+        "result": "PASS",
+        "tests": "7/7",
+        "command": "pnpm exec vitest run src/core/pdf-annotations/annotationInteroperability.test.ts --pool=forks --maxWorkers=1"
+      },
+      "phase10_audit": {
+        "result": "PASS",
+        "command": "pnpm run audit:phase10-annotation-interoperability"
+      },
+      "protected_writer_commit_pipeline_diff": "PASS_EMPTY",
+      "frozen_v25_tree_diff": "PASS_EMPTY",
+      "working_tree": "CLEAN",
+      "typecheck": {
+        "result": "FAIL_PREEXISTING",
+        "basis": "Every reported source file is byte-identical to material base 6f16bc859d3bd6975969ac408a3b119d7431fbb0."
+      },
+      "build": {
+        "result": "FAIL_PREEXISTING",
+        "basis": "Fails in the same unrelated byte-identical files as typecheck."
+      },
+      "runtime": {
+        "node": "v24.11.1",
+        "pnpm": "10.23.0",
+        "engine_conformance": "NODE_OUTSIDE_DECLARED_22_RANGE"
+      },
+      "evidence_refs": [
+        "issue#288:5776099220",
+        "user local rerun bound to ab7d66a64b924d83fff1921021217c5b9293f6ce"
+      ]
+    }
+  },
+  "controls": {
+    "execution_blockers": [
+      "CTRL-10-INDEPENDENT-REVIEW"
+    ],
+    "handover_blockers": [],
+    "delivery_blockers": [
+      "CTRL-10-INDEPENDENT-REVIEW"
+    ],
+    "informational": [
+      "Repository-wide typecheck/build remain pre-existing failures outside the bounded Phase 10 diff; focused tests/audit are green."
+    ]
+  },
+  "delivery": {
+    "issue": 288,
+    "pr": 290,
+    "lifecycle": "DRAFT",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": null,
+    "delivery_action": "Obtain independent review of exact head ab7d66a64b924d83fff1921021217c5b9293f6ce; keep PR #290 draft until CTRL-10-INDEPENDENT-REVIEW is resolved.",
+    "stop_conditions": [
+      "Do not mark quality CLEAR or accept a checkpoint without independent review bound to the exact head.",
+      "Do not start STEP-10-02 production /AP work.",
+      "Do not mutate frozen agents/relay/** V2.5 history.",
+      "Do not merge/release under the current OWNER_OVERRIDE lease."
+    ]
+  },
+  "handoff": {
+    "zero_context_takeover_possible": true,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/WORK/EP-10-INTEROP-FIX.yaml",
+      "relay/LEASES/LEASE-10-INTEROP-FIX.yaml",
+      "relay/EVENTS.jsonl"
+    ]
+  }
+}

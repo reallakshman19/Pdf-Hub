@@ -1,0 +1,24 @@
+{
+  "schema_version": "relay-v3-protocol-selection",
+  "selected_protocol": "V3",
+  "status": "ACTIVE",
+  "legacy": {
+    "root": "agents/relay",
+    "tree_digest": "sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a",
+    "policy": "READ_ONLY_HISTORY"
+  },
+  "v3": {
+    "state_path": "relay/STATE.yaml",
+    "validation": "PASS"
+  },
+  "cutover": {
+    "owner_authorized": true,
+    "owner_basis": {
+      "direct_utterance_digest": "sha256:4ad403bb77d967639b6827b28b590a9d1c3d6082043d0cd28cbcef1e1664b4ae",
+      "session_timestamp": "2026-09-22T11:03:02Z"
+    },
+    "legacy_freeze_digest": "sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a",
+    "readiness_digest": "sha256:304c319d534e14076e7de90800e9038ece2c7f7c32d9da11c8aa4c5e887340fb",
+    "activated_at": "2026-09-22T11:18:30Z"
+  }
+}

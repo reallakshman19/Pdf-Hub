@@ -47,6 +47,33 @@ export function createDeterministicAnnotation(
   };
 }
 
+
+export function createDeterministicReviewThreadFixture(): PdfAnnotation {
+  return createDeterministicAnnotation('comment', {
+    id: 'phase10-review-root-1',
+    data: {
+      text: 'Original review text',
+      author: 'Lead Reviewer',
+      review: {
+        author: 'Lead Reviewer',
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_100,
+        status: 'resolved',
+        title: 'Deterministic interoperability thread',
+        category: 'review',
+        replies: [
+          {
+            id: 'phase10-review-reply-1',
+            author: 'Second Reviewer',
+            content: 'Deterministic reply',
+            createdAt: 1_700_000_000_050,
+          },
+        ],
+      },
+    },
+  });
+}
+
 export function getAllPhase10Fixtures(): PdfAnnotation[] {
   return PHASE10_SUPPORTED_TYPES.map((type) => createDeterministicAnnotation(type));
 }

@@ -163,9 +163,24 @@ export class AnnotationInteroperabilityOracle {
   }
 
   /**
-   * Reconciles external edits according to the Phase 10 oracle rule:
-   * Standard PDF fields modified externally (/Contents, /Rect, /C, /IC, /DA, /CL, /L)
-   * take precedence over conflicting cached properties in PDFHubData.
+   * Returns the declared production-reader precedence boundary. Fields listed as
+   * pending are intentionally not claimed as preserved native edit semantics yet.
+   */
+  public static getExternalEditPrecedencePolicy(): {
+    readerEnforcedFields: readonly string[];
+    pendingFields: readonly string[];
+  } {
+    const policy = manifest.policies.external_edit_precedence;
+    return {
+      readerEnforcedFields: policy.reader_enforced_fields,
+      pendingFields: policy.pending_fields,
+    };
+  }
+
+  /**
+   * Reconciles direct application-data mappings used by the semantic oracle.
+   * Production reader tests separately prove Rect/CL/State handling because those
+   * fields require page-coordinate or review-model interpretation.
    */
   public static reconcileExternalEdits(
     standardFields: Record<string, unknown>,
@@ -187,6 +202,14 @@ export class AnnotationInteroperabilityOracle {
 
     if (standardFields.L !== undefined && Array.isArray(standardFields.L)) {
       result.points = standardFields.L;
+    }
+
+    if (standardFields.Vertices !== undefined && Array.isArray(standardFields.Vertices)) {
+      result.points = standardFields.Vertices;
+    }
+
+    if (standardFields.InkList !== undefined && Array.isArray(standardFields.InkList)) {
+      result.paths = standardFields.InkList;
     }
 
     return result;

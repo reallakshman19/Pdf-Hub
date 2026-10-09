@@ -148,13 +148,18 @@ function parseRootAnnotation(
 
   const rect = pdfRectToAppRect(rectValues, page.getHeight());
   const customData = readCustomData(dict, lib);
+  const native = nativeData(dict, type, rect, page.getHeight(), lib);
+
+  // Standard PDF fields are the portable source of truth after an external
+  // edit/save. PDFHubData is a compatibility cache/fallback only, so native
+  // values must be layered on top when both representations are present.
   const data: PdfAnnotation['data'] = {
-    ...nativeData(dict, type, rect, page.getHeight(), lib),
     ...customData,
+    ...native,
   };
 
   const text = readText(dict, 'Contents', lib);
-  if (text && typeof data.text !== 'string') {
+  if (text !== null) {
     data.text = text;
   }
 
@@ -233,9 +238,9 @@ function ensureReviewMetadata(
     ? annotation.data.review
     : undefined;
 
-  const status =
-    current?.status
-    ?? (dict ? readReviewStatus(dict, lib) : 'open');
+  const status = dict
+    ? readReviewStatus(dict, lib, current?.status ?? 'open')
+    : current?.status ?? 'open';
 
   return {
     author:
@@ -405,16 +410,23 @@ function hasArrowEnding(dict: PDFDict, lib: PdfLibModule): boolean {
 function readReviewStatus(
   dict: PDFDict,
   lib: PdfLibModule,
+  fallback: ReviewStatus = 'open',
 ): ReviewStatus {
+  // /State is the portable native review value and may have been changed by an
+  // external PDF writer while PDFHubReviewStatus remained untouched.
+  const state = readName(dict, 'State', lib);
+  if (state === 'Completed' || state === 'Accepted') return 'resolved';
+  if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
+  if (state === 'None') return 'open';
+
+  // Private metadata remains useful for older PDF Hub files or producers that
+  // omit a native review state, but it must never override a recognized /State.
   const custom = readText(dict, 'PDFHubReviewStatus', lib);
   if (custom === 'resolved' || custom === 'rejected' || custom === 'open') {
     return custom;
   }
 
-  const state = readName(dict, 'State', lib);
-  if (state === 'Completed' || state === 'Accepted') return 'resolved';
-  if (state === 'Rejected' || state === 'Cancelled') return 'rejected';
-  return 'open';
+  return fallback;
 }
 
 function isReviewMetadata(value: unknown): value is ReviewMetadata {

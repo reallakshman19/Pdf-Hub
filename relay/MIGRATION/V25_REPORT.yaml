@@ -1,0 +1,591 @@
+{
+  "schema_version": "relay-v3-migration-report",
+  "authority": "DERIVED_MIGRATION_REPORT",
+  "source_protocol": "2.5",
+  "generated_at": "2026-09-22T11:15:30Z",
+  "source": {
+    "root": "github:reallaksh19/Pdf-Hub@25780bef7401cf7558bc622518a452b00712e540",
+    "state_path": "agents/relay/REPO_STATE.yaml",
+    "state_digest": "sha256:5970389bb4f72eb106598cdb8a5b908368adaa962d3a217e0a48f332c2a2b9a9",
+    "roadmap_path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+    "legacy_tree_digest": "sha256:ee453b02ca19c540c63fbc1fc86dd7a5382035c1d64ab2d265142300224fb82a"
+  },
+  "validation": {
+    "repo_state": "PASS",
+    "basis": [
+      "Pinned validate_repo_state.py semantics reproduced against provider-readback at 25780bef7401cf7558bc622518a452b00712e540.",
+      "The only pre-bootstrap validation defect (stale predecessor_join id with null path) was repaired before inventory.",
+      "All REPO_STATE roadmap/active-EP/delivery pointers resolve on the frozen source tree."
+    ]
+  },
+  "legacy_inventory": {
+    "file_count": 90,
+    "category_counts": {
+      "OTHER": 7,
+      "REPO_STATE": 1,
+      "DISCOVERY": 6,
+      "QUALIFICATION": 8,
+      "TAKEOVER_CERTIFICATION": 6,
+      "DELIVERY": 22,
+      "EP": 29,
+      "ROADMAP": 11
+    },
+    "entries": [
+      {
+        "path": "agents/relay/REPO_PROFILE.yaml",
+        "digest": "sha256:ac34059de175c7d5d7bbc6be22650dfefdcf7e187c04cabc18f7890c6d2214df",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/REPO_STATE.yaml",
+        "digest": "sha256:5970389bb4f72eb106598cdb8a5b908368adaa962d3a217e0a48f332c2a2b9a9",
+        "category": "REPO_STATE",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-10-001.yaml",
+        "digest": "sha256:8f54a8f60890b55e5ab0269646f39c03af1a061209cab0df2362fd93f804ba35",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-8D3-001.yaml",
+        "digest": "sha256:54ec8d5c1ed3cfe857a71f25e68c45d0b82e81b4d3b55a6b23e8f2d7c554a999",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-8D3-002.yaml",
+        "digest": "sha256:6dbc212e830ee5e94cdca1943697b5d10299e493371eef34a12f3936e3bc29b3",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-8D3-003.yaml",
+        "digest": "sha256:f2933a9dc7ebaede05a389348da4ffe7e8ae5a761525652f3d00c36dfc4d38dc",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-8D3-004.yaml",
+        "digest": "sha256:2852d708f24a727f42ebcc6d2e4c70fb50aa0764660c47483f6d56c139d77c26",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/discovery/DISC-9-001.yaml",
+        "digest": "sha256:6a7f341bd9c89c84713e55a3e354922c1a1d38a4b5b31e82d72832f3882efb30",
+        "category": "DISCOVERY",
+        "schema_version": "relay-v2.5-discovery"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-10-001.yaml",
+        "digest": "sha256:ff5c455758531684ecaa5f4735b6bf4c2665150db1ed36a0dcc00604f2c058f7",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-10-002.yaml",
+        "digest": "sha256:b7e0a9f6794baef12d2f8851768115d0e53238fecb0a86ea59b276cf71db900b",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-8G-001.yaml",
+        "digest": "sha256:1d3fd69857b9f7bd73843ba1d1f51a785e1b6c12517234874b2c447b7c416b0d",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-9-001.yaml",
+        "digest": "sha256:3be1467d2016fc27c5b5c08d989badee6afd7401a806bfb2493115a3c98190e9",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-9-002.yaml",
+        "digest": "sha256:e94ad9b70166b9f04f19ac9da3254bdfd05a8a3c5a71004e819f82989c1efd90",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QSET-9-003.yaml",
+        "digest": "sha256:282fb73e46174bad70d81d5c06d91678345215080370206783feea518d4f0155",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-question-set"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QUAL-10-001.yaml",
+        "digest": "sha256:1ee67264f35cc429976827a2c77b43a842e785f5baefd80e363fe64e87a8d0c7",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-qualification"
+      },
+      {
+        "path": "agents/relay/certifications/qualification/QUAL-9-001.yaml",
+        "digest": "sha256:8bb100750ce90fd536e2b11def8fa03d1489ffb04768e2a19d07493ccd3427b4",
+        "category": "QUALIFICATION",
+        "schema_version": "relay-v2.5-qualification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-10-001.yaml",
+        "digest": "sha256:fe6f7712dc103a779af061e9b76db4562a3a4896e71034b9582392c821d402e3",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-8D3-001.yaml",
+        "digest": "sha256:d43f9bfb6454d245ce41ce4c1876135804923c6187e95d7fa7673ddbe5c6c325",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-8D3-002.yaml",
+        "digest": "sha256:b77c23ad013bfa1508cb6ccd64793166e45cff0775193a8bb28e1457058558e0",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-8D3-003.yaml",
+        "digest": "sha256:e0582e3611483d80bd9972a835ed7fdb2e869c6e54a9525e128f8a0b7588e5d1",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-8D3-004.yaml",
+        "digest": "sha256:a0c950064d89a11afb51708c1ed2bd2deb9e2e88116d95ced84208c71cd3ffee",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/certifications/takeover/TC-9-001.yaml",
+        "digest": "sha256:5117ac0076c1f0748a1ba7b8bd643234f2f317044af6efdc3048df73caccf1cc",
+        "category": "TAKEOVER_CERTIFICATION",
+        "schema_version": "relay-v2.5-takeover-certification"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-001.yaml",
+        "digest": "sha256:0070cca9aef9fa3bf6f233751296158bd00d13fac78f18db134c77229c41305c",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-002.yaml",
+        "digest": "sha256:918d77f7631c367fd4c1f3ebbe4f2a81a89436975050443d1c964495d04d391c",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-003.yaml",
+        "digest": "sha256:2f339578c63b6d2c6c6dbf1eda876af1f3c25018b0c530b2ace38299ba3c2c82",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-004.yaml",
+        "digest": "sha256:757f63f5b5a3ca3c6b4a080bc735809d720f9c296f7e9d790d252e3c26ff77ad",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-005.yaml",
+        "digest": "sha256:5e0444c6fddc2d445471fb6cd662fa3a38d1b2369c476f1de46892a4ba0f47de",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-006.yaml",
+        "digest": "sha256:59e5fc7d4d4af3e0e5fc691cae141cef73fde6188c314d7eded67ea2d782969c",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-007.yaml",
+        "digest": "sha256:abd725eab763a369c10daf4f43a55109570d1b4739aac56d8b0ba59561a818f9",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-008.yaml",
+        "digest": "sha256:7fb9a430bf59f371bf3d04cacf50098c24868627b0143b085ba806a9e5a994d1",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-10-009.yaml",
+        "digest": "sha256:53d2611022122618055baa2418145a238297cd6b059ea22b68f94b220ae56fb1",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8D3-001.yaml",
+        "digest": "sha256:f058d35c8036bbfcdb3e3b0a0ff1b777b72872fa434b270145de9345c55f1c45",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8D3-002.yaml",
+        "digest": "sha256:df6c98981251926ea747c36c538815c753b5665400c5af920e464ce0da2c1a10",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8D3-003.yaml",
+        "digest": "sha256:fd72c27dcf21b5ea0dc6ea21a673fd62136e4b39cb33db9c067619f3c9779deb",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8F-001.yaml",
+        "digest": "sha256:6a73398d50ecb2eeca53c97fb5d98343eaf3ff80d839d2f2a35046ef4c36a20d",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8G-001.yaml",
+        "digest": "sha256:0b49ac3c1891e53e89b471d6a6326d6c208793fe61a1bee22c2a9e922265be20",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8G-002.yaml",
+        "digest": "sha256:e7bb5cb8b8a9dd706ed12c7962af8f410c0c70e69593e71462c064af77128f1b",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8G-003.yaml",
+        "digest": "sha256:828dbed0c4b5538fe3740fc73ac03698d20b40fe4817b29ade806718361a3bed",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8G-004.yaml",
+        "digest": "sha256:3d56e9bdd63ff55ef2cce0ea735af6d2a204efe9e40f40471b3ffcafb6366f44",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-8G-005.yaml",
+        "digest": "sha256:4dbc11ca01f78fbf60e63bfc8aba1cdc38d9802e2eb3c5f364d2b76a88f9b81c",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-9-001.yaml",
+        "digest": "sha256:21d7d84c2c15d14b177a88b4227e1ad1075be574d6dbb1e6d481548915f5923b",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-9-002.yaml",
+        "digest": "sha256:b9b35d68775baccb64fb85ca8fe0d0cbe7b3b0ffee51e303b229a631c9de723a",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-9-003.yaml",
+        "digest": "sha256:8038c6b526081c9d133899f48752b22c42906e4c03c6d914244d7a5e75f84c18",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/delivery/DOBS-9-004.yaml",
+        "digest": "sha256:d304ddbab54bdaeafadbb430d3ff655dd99644edae5e1e7b442863830de88dd4",
+        "category": "DELIVERY",
+        "schema_version": "relay-v2.5-delivery-observation"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-10-001.yaml",
+        "digest": "sha256:4e145b4cc163f169932ebca8058785d8600571af527f08e351ad78939c516cb0",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8D3-001.yaml",
+        "digest": "sha256:254e25aa5b200f2e175cedf1d157178e535291356a302a2fb6e59702dc813162",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E-CLOSURE-001.yaml",
+        "digest": "sha256:65e8cd47672a66a9224096bc3b5e947a428731a6586190d83e3e5febd3330ff3",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E1-001.yaml",
+        "digest": "sha256:ed64997c2a418c832b186283c62b9fb336313bb8bf1ceb44628b5bf16d0a9fcd",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E2-001.yaml",
+        "digest": "sha256:4ec09cd65535edaef6622732f9bf2579a6e17a9ed68d862aaaef4768a41fc049",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E3-001.yaml",
+        "digest": "sha256:695da2fd55cfe4c652cb97e67c0a5a3379e8b4b553401adb8a499eef798fb322",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E4-001.yaml",
+        "digest": "sha256:9524e3b349f8be453b1e502329cfe7bf5e97b19445c8067024fde6ce0c8f6f4f",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5A-001.yaml",
+        "digest": "sha256:9729886edd6d19e17c97a19463027223cfc50e3ddd9fe0bf963f1150524b20a0",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B1-001.yaml",
+        "digest": "sha256:7ba2f5aa8a71f551224fd62f2fb91336eeccc2a0d5d1f4e31887d45b995e7b87",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B2-001.yaml",
+        "digest": "sha256:ee6de115673a37f1b4f32772ef63e96cf8eb1ecd35a9d53164f67bf20cba01d8",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3A-001.yaml",
+        "digest": "sha256:0a3cd31326ad25541d59ac4554dd3628faa19e3722f60bff6ec696d4117da451",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3B-001.yaml",
+        "digest": "sha256:908854f6322dd86cc175b3c1134c2c106fd0b224c2e80993345cf244345c8273",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C1-001.yaml",
+        "digest": "sha256:ea5a0b0658145346adadf3e866a9bda654e92f2c804f49ee5b44bf8903ae222a",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C1A-001.yaml",
+        "digest": "sha256:3e33fae4eb871db18f5cd13e0d4089e00eee2f1e3c55a0a838d3d3f61267425b",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2A-001.yaml",
+        "digest": "sha256:80910ce590e14d4eb35910c8d0bb721a4f507c415dabf2e268b4df8d6d228d8e",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2B1-001.yaml",
+        "digest": "sha256:67d399a7e26e5b15f0d26e833283a66bc198793d5e25131427321db085a6c4bc",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2B2A-001.yaml",
+        "digest": "sha256:3c55e7c06ff34ca85f58253108494dc868d242b8e1975858f048b565f31d506c",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2B2B-001.yaml",
+        "digest": "sha256:302a5078c69f3f5d32e688673f22d20d933ee89fbf7041751b9d9f65e7bfd81a",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2B2C-001.yaml",
+        "digest": "sha256:31a3bef7e737d4de00258ffe2ec46d09d9e7f6baf6294204691dcec966b61311",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2C1-001.yaml",
+        "digest": "sha256:49f9a4d78036872ea056cef7ba8dda21fb27f9fc76ed3983b243dc816bec87f3",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2C2-001.yaml",
+        "digest": "sha256:dee3dee43e02f7fa5a4697b5c3f760fffe87cfbd786efeb0dc25aee843c2b74f",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5B3C2C3-001.yaml",
+        "digest": "sha256:e36072232c2ad5daa9a1341513efc07b421dc5f70f8efa654736d07d39ba03bb",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5C1-001.yaml",
+        "digest": "sha256:01894b9e0c2b083cd19d3addd47a3c6ba9bb68740fdb7182281a2bbdbaf37d22",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5C2-001.yaml",
+        "digest": "sha256:484528e42d33af11cdc980f26aae13fd26fb3f041f397014292cc1cc4c577d7f",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5C3-001.yaml",
+        "digest": "sha256:b61eccefd1a4df7368a34f61ec65a8b8316bac4472ca7d01bdad34dbff095d60",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8E5C4-001.yaml",
+        "digest": "sha256:c7bf5c52fa073a5780f19d741b4764b77fa0ee09d166d65fd81aba30cb111ef3",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8F-001.yaml",
+        "digest": "sha256:393ffc0bca2a35147061f2b73597aab75d021524811cd6ee59450f21c79f668a",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-8G-001.yaml",
+        "digest": "sha256:290289ce4b90ee551bfd4653921980d0aa0e7dd3e8fc343cd92d9c044b512095",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/execution-packages/EP-9-001.yaml",
+        "digest": "sha256:67bea45b8892e6a013269efa838395b66c2f439c9febfede5963bfa153de3c2c",
+        "category": "EP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/migration/MIGINV-0001.yaml",
+        "digest": "sha256:88ebd413601faffbee197420878c5b2b3edf9d56191b99f4473376d6bbf866f9",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-migration-inventory"
+      },
+      {
+        "path": "agents/relay/migration/MIGRATION_RECONCILIATION.yaml",
+        "digest": "sha256:706247891030a88831344e70e4709515aa454c025d3bb8d303d31f9b67e03341",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-migration-reconciliation"
+      },
+      {
+        "path": "agents/relay/publication/OWNER_PUBLICATION.yaml",
+        "digest": "sha256:ee8c0988c3b4b9626ccf8c9be826b2a9c8f21a2b82871a1e17d14b61dcd5ec22",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-owner-publication"
+      },
+      {
+        "path": "agents/relay/quality/QRV-8D3-001.yaml",
+        "digest": "sha256:59e5263d71a56ec8af787433e60cf51ac658f5bf64527f8f011f7f0cecfd2471",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-quality-review"
+      },
+      {
+        "path": "agents/relay/quality/QRV-8D3-002.yaml",
+        "digest": "sha256:c539a948ff83311f38aa1d86f41af5dbe145d7ac6d08ca8a3f328e12c0bcd658",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-quality-review"
+      },
+      {
+        "path": "agents/relay/quality/QRV-8D3-003.yaml",
+        "digest": "sha256:6de42929c2328d7be0d8ca3d3d7d1056ca7d99ca1bc19c6ff0a414bcc7362f0e",
+        "category": "OTHER",
+        "schema_version": "relay-v2.5-quality-review"
+      },
+      {
+        "path": "agents/relay/roadmap/ISSUE_GRAPH.yaml",
+        "digest": "sha256:3bc7eaf97902bb69c8e7ed0409df1ae86523f28021a14798effd187f9cf6ec20",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/OVERALL_ROADMAP.yaml",
+        "digest": "sha256:6d1677c82429e6a92da815a4c88683b2576f4e584de805544d12b4d3bdd30675",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/PROGRESS.yaml",
+        "digest": "sha256:93c4b6ad1b54a49e8043a6e19d80f8737bb66b42bc1221f5f1d5591004e19819",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0001.yaml",
+        "digest": "sha256:799a37c33d7a3a2a45c09df96b9e1af6bde7def3cf6f1240d4c13c1182c269c8",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0002.yaml",
+        "digest": "sha256:7e316661a2ae91b02395e72bf6c8c42a608d8614eeea563bffbfdf3bd4f95063",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0003.yaml",
+        "digest": "sha256:42496e49eed25c11fca178ed5af0cebbc509c41b5ada9b8d0e82ceed193e794a",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0004.yaml",
+        "digest": "sha256:fef86ca94c16572d9acce666f9e03e5cbc1617703baa055dc6af379f507b2af4",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0005.yaml",
+        "digest": "sha256:f3d47af6856f09f5958430ee5aa3d9103d680cfd04897e833f18a3c464f5cfb0",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/owner-decisions/ODR-0006.yaml",
+        "digest": "sha256:b952facc157272be6a7be7cbf89245f2f8f01953efd8a7f6120cef8f06475c74",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/revisions/RM-0003.yaml",
+        "digest": "sha256:85a2402716f00840aa4e8401af1d10e7d8cd100213104b8fc41779e506ab1c76",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      },
+      {
+        "path": "agents/relay/roadmap/revisions/RM-0004.yaml",
+        "digest": "sha256:16a4b25dd35d018a2e5cda93693f700c01df0d7dbd67321ec7e8b92d497dc31e",
+        "category": "ROADMAP",
+        "schema_version": "relay-v2.5"
+      }
+    ]
+  },
+  "current": {
+    "relay_state": "ACTIVE",
+    "active_ep": "EP-10-001",
+    "last_checkpoint": "INFRA-EXCEPTION-8F",
+    "roadmap_revision": "RM-0004",
+    "execution_policy": "SERIAL",
+    "delivery_required": true
+  },
+  "bootstrap": {
+    "allowed": true,
+    "lifecycle": "INITIALIZING",
+    "preserves_legacy_tree": true,
+    "creates_native_history": false,
+    "reason": "Bootstrap creates only present-day V3 INITIALIZING authority and retains V2.5 evidence as read-only source history."
+  }
+}

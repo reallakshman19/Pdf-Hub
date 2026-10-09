@@ -1,0 +1,99 @@
+{
+  "schema_version": "relay-v3-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "generated_from": {
+    "roadmap_revision": "RM-0006-SIGNED-PDF-WARNING",
+    "state_digest": "sha256:bf16cf491143510835ea7fac636464bfcba62831247c9c08012181fa12be6c82",
+    "material_basis": {
+      "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+      "tree_digest": "sha256:28f5949e98b86b2c4a89d52e46d0a75eeb944dca983cbe91f10db35a3cddaf21",
+      "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
+      "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
+    },
+    "coordination_head": "bc7607fa77757f56f7cc8a41ff48e5beeb14d267"
+  },
+  "owner": {
+    "outcome": "Professional PDF editing preserves supported native review work across document lifecycles without silent semantic loss.",
+    "current_goal": "Fix Phase 10 native annotation interoperability under Engineering Relay V3, starting with the external-edit return and STEP-10-01 reliability gaps."
+  },
+  "programme": {
+    "accepted_progress": 4.76,
+    "completed_work": [
+      "WP-010"
+    ],
+    "remaining_work": [
+      "WP-004",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-8A",
+      "WP-8B",
+      "WP-8C1",
+      "WP-8C2",
+      "WP-8C3",
+      "WP-8D1",
+      "WP-8D2",
+      "WP-8D3",
+      "WP-8E",
+      "WP-8F",
+      "WP-8G",
+      "WP-009",
+      "WP-011",
+      "WP-012",
+      "WP-013",
+      "WP-014"
+    ]
+  },
+  "execution": {
+    "lifecycle": "IDLE",
+    "work_package": null,
+    "ep": null,
+    "lease": null,
+    "executor": null
+  },
+  "scope": {
+    "allowed_writes": [],
+    "protected": [],
+    "prohibited": []
+  },
+  "material": {
+    "base": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+    "head": "0c82102bd6d6c9ed5b9539ee369eccf7de5fd924",
+    "relevant_paths_digest": "sha256:a38e91981c38f907fc41bef3cda21188c3df6848052799e5ad82af0c50947bda",
+    "dependency_digest": "sha256:b6b6aaa7589c29a95cab479d52459323fa716549967e7e49affb729a957de7ea"
+  },
+  "evidence": {
+    "latest_checkpoint": "CP-10-SIGNED-PDF-WARNING-001",
+    "latest_material_validation": {
+      "focused_tests": "PASS",
+      "spec_delivery": "NOT_APPLICABLE",
+      "full_guardrails": "NOT_APPLICABLE"
+    }
+  },
+  "controls": {
+    "execution_blockers": [],
+    "handover_blockers": [],
+    "delivery_blockers": [],
+    "informational": []
+  },
+  "delivery": {
+    "issue": null,
+    "pr": 291,
+    "lifecycle": "DECLARED",
+    "merge_authorized": false
+  },
+  "next": {
+    "immediate_material_action": null,
+    "delivery_action": "PR #291 is merged. Proceed only through a newly admitted Phase 10 EP.",
+    "stop_conditions": []
+  },
+  "handoff": {
+    "zero_context_takeover_possible": true,
+    "reconstruction_sources": [
+      "relay/ROADMAP/ROADMAP.yaml",
+      "relay/STATE.yaml",
+      "relay/CONTROLS/controls.yaml",
+      "relay/CHECKPOINTS/CP-10-SIGNED-PDF-WARNING-001.yaml"
+    ]
+  }
+}
