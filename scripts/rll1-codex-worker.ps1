@@ -8,9 +8,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Repository = 'reallaksh19/Pdf-Hub'
-$WorkerId = 'pdfhub-rll-local'
+$WorkerId = 'codex-local'
 $AuthorizedLogin = 'reallaksh19'
-$RequiredCommonBasis = 'e551cb50941b160b50cc21ea76888f2b962ca248'
+$RequiredCommonBasis = '22d365839e64c19c7ba606e2cf4edc6b9cc2999f'
+$ForbiddenProviderTokenEnv = @(
+    'GH_TOKEN',
+    'GITHUB_TOKEN',
+    'GH_ENTERPRISE_TOKEN',
+    'GITHUB_ENTERPRISE_TOKEN'
+)
 
 function Require-Command {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -21,91 +27,135 @@ function Require-Command {
     return $command.Source
 }
 
+foreach ($Name in $ForbiddenProviderTokenEnv) {
+    $Value = [Environment]::GetEnvironmentVariable($Name, 'Process')
+    if (-not [string]::IsNullOrWhiteSpace($Value)) {
+        throw "Scheduled RLL refuses provider token environment variable: $Name"
+    }
+}
+
 if (-not (Test-Path $ConfigPath)) {
     throw "RLL Codex worker config is missing: $ConfigPath. Run scripts\install-rll1-codex-task.ps1 first."
 }
 
 $Config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-if ($Config.schema -ne 'PDF_HUB_RLL_CODEX_CONFIG_V1') {
+if ($Config.schema -ne 'PDF_HUB_RLL_CODEX_CONFIG_V2') {
     throw "Unsupported RLL Codex worker config schema: $($Config.schema)"
 }
-
-if ([string]::IsNullOrWhiteSpace([string]$Config.tool_path)) {
-    throw 'RLL Codex worker config has no validated tool PATH.'
+if ($Config.required_common_basis -ne $RequiredCommonBasis) {
+    throw "Configured Common basis does not match adapter basis $RequiredCommonBasis."
+}
+if ($Config.worker_id -ne $WorkerId) {
+    throw "Configured RLL worker identity does not match $WorkerId."
+}
+if ($Config.executor -ne 'codex') {
+    throw 'Configured executor must be codex.'
 }
 
-$env:PATH = [string]$Config.tool_path
-$env:PYTHONUTF8 = '1'
-$env:PYTHONIOENCODING = 'utf-8'
-
-$Git = Require-Command 'git'
-$Gh = Require-Command 'gh'
-$Python = Require-Command 'python'
-$Codex = Require-Command 'codex'
-
-$RepoRoot = (Resolve-Path ([string]$Config.repo_root)).Path
-$CommonRoot = (Resolve-Path ([string]$Config.common_repo_root)).Path
+$Wsl = Require-Command 'wsl.exe'
+$Distro = [string]$Config.wsl_distro
+$RepoRoot = [string]$Config.repo_root_wsl
+$CommonRoot = [string]$Config.common_repo_root_wsl
+$CodexUser = [string]$Config.codex_user
+$CodexHome = [string]$Config.codex_home
 $LogPath = [string]$Config.log_path
+
+foreach ($Pair in @(
+    @{ Name = 'wsl_distro'; Value = $Distro },
+    @{ Name = 'repo_root_wsl'; Value = $RepoRoot },
+    @{ Name = 'common_repo_root_wsl'; Value = $CommonRoot },
+    @{ Name = 'codex_user'; Value = $CodexUser },
+    @{ Name = 'codex_home'; Value = $CodexHome },
+    @{ Name = 'log_path'; Value = $LogPath }
+)) {
+    if ([string]::IsNullOrWhiteSpace([string]$Pair.Value)) {
+        throw "RLL Codex worker config has no $($Pair.Name)."
+    }
+}
+
 $LogRoot = Split-Path $LogPath -Parent
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 
-& $Git -C $RepoRoot rev-parse --git-dir *> $null
-if ($LASTEXITCODE -ne 0) {
-    throw "PDF Hub root is not a Git repository: $RepoRoot"
+$Kernel = (& $Wsl -d $Distro -- uname -r | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $Kernel -notmatch '(?i)(WSL2|microsoft-standard)') {
+    throw "Scheduled CODEX_LOCAL_V1 BRANCH_RESUME requires WSL2. distro=$Distro kernel=$Kernel"
 }
 
-& $Git -C $CommonRoot rev-parse --git-dir *> $null
+& $Wsl -d $Distro -- git -C $RepoRoot rev-parse --git-dir *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw "Common root is not a Git repository: $CommonRoot"
+    throw "PDF Hub WSL root is not a Git repository: $RepoRoot"
 }
 
-& $Gh auth status *> $null
+& $Wsl -d $Distro -- git -C $CommonRoot rev-parse --git-dir *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw 'GitHub CLI authentication is unavailable. Run gh auth login.'
+    throw "Common WSL root is not a Git repository: $CommonRoot"
 }
 
-& $Codex login status *> $null
+& $Wsl -d $Distro -- gh auth status *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw 'Codex authentication is unavailable. Authenticate Codex interactively before scheduled execution.'
+    throw 'WSL provider GitHub CLI authentication is unavailable. Use browser-backed gh auth login in WSL.'
 }
 
-& $Git -C $CommonRoot fetch origin main --quiet
+& $Wsl -d $Distro -- sudo -n -u $CodexUser env "CODEX_HOME=$CodexHome" "HOME=/home/$CodexUser" codex login status *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw 'Unable to fetch Common origin/main.'
+    throw "Codex authentication is unavailable for dedicated WSL user $CodexUser."
 }
 
-& $Git -C $CommonRoot merge-base --is-ancestor $RequiredCommonBasis HEAD
-if ($LASTEXITCODE -ne 0) {
-    $localCommonHead = (& $Git -C $CommonRoot rev-parse HEAD).Trim()
-    $remoteCommonHead = (& $Git -C $CommonRoot rev-parse origin/main).Trim()
-    throw "Local Common checkout lacks required CODEX_LOCAL_V1 basis $RequiredCommonBasis. local=$localCommonHead origin/main=$remoteCommonHead"
+& $Wsl -d $Distro -- sudo -n -u $CodexUser env "HOME=/home/$CodexUser" gh auth status *> $null
+if ($LASTEXITCODE -eq 0) {
+    throw 'Dedicated Codex identity unexpectedly has GitHub provider authentication.'
 }
 
-$WorkerPath = Join-Path $CommonRoot 'skills\engineering-pr-delivery-v3.1\scripts\rll_worker.py'
-if (-not (Test-Path $WorkerPath)) {
+& $Wsl -d $Distro -- git -C $CommonRoot fetch origin main --quiet
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to fetch Common origin/main in WSL.'
+}
+
+& $Wsl -d $Distro -- git -C $CommonRoot merge-base --is-ancestor $RequiredCommonBasis HEAD
+if ($LASTEXITCODE -ne 0) {
+    $LocalCommonHead = (& $Wsl -d $Distro -- git -C $CommonRoot rev-parse HEAD | Out-String).Trim()
+    $RemoteCommonHead = (& $Wsl -d $Distro -- git -C $CommonRoot rev-parse origin/main | Out-String).Trim()
+    throw "Local Common checkout lacks required CODEX_LOCAL_V1 basis $RequiredCommonBasis. local=$LocalCommonHead origin/main=$RemoteCommonHead"
+}
+
+$WorkerPath = "$CommonRoot/skills/engineering-pr-delivery-v3.1/scripts/rll_worker.py"
+& $Wsl -d $Distro -- test -f $WorkerPath
+if ($LASTEXITCODE -ne 0) {
     throw "Canonical Common RLL worker is missing: $WorkerPath"
 }
 
 $SmokeEnabled = $Smoke.IsPresent -or [bool]$Config.smoke
 
-$WorkerArgs = @(
+$WslArgs = @(
+    '-d', $Distro,
+    '--',
+    'env',
+    '-u', 'GH_TOKEN',
+    '-u', 'GITHUB_TOKEN',
+    '-u', 'GH_ENTERPRISE_TOKEN',
+    '-u', 'GITHUB_ENTERPRISE_TOKEN',
+    'PYTHONUTF8=1',
+    'PYTHONIOENCODING=utf-8',
+    'python3',
     $WorkerPath,
     '--repo-root', $RepoRoot,
     '--repository', $Repository,
     '--worker-id', $WorkerId,
     '--authorized-login', $AuthorizedLogin,
     '--executor', 'codex',
+    '--codex-user', $CodexUser,
+    '--codex-home', $CodexHome,
     '--effort', 'high'
 )
 
 if ($SmokeEnabled) {
-    $WorkerArgs += '--smoke'
+    $WslArgs += '--smoke'
 }
 
 $Started = (Get-Date).ToUniversalTime().ToString('o')
-"[$Started] START executor=codex smoke=$SmokeEnabled" | Add-Content -Path $LogPath -Encoding UTF8
+"[$Started] START executor=codex runtime=WSL2 distro=$Distro smoke=$SmokeEnabled" | Add-Content -Path $LogPath -Encoding UTF8
 
-$Output = & $Python @WorkerArgs 2>&1
+$Output = & $Wsl @WslArgs 2>&1
 $ExitCode = $LASTEXITCODE
 
 if ($Output) {
