@@ -1165,19 +1165,19 @@
       "classes": [
         "encrypted"
       ],
-      "availability": "required-pending",
+      "availability": "retained",
       "provenance": {
-        "kind": "required-source-pending",
-        "source": "Phase 9 redistributable encrypted fixture with documented credentials/policy is required.",
-        "licenseOrOwnership": "Must be legally redistributable and contain no secret production credentials.",
-        "reproducible": false
+        "kind": "redistributable-retained",
+        "source": "qpdf/qtest/qpdf/encrypted-with-images.pdf; retained bytes match upstream Git blob dbceb4454f6f37ee83edfe519a0d4c46935a9a57.",
+        "licenseOrOwnership": "qpdf project material is distributed under Apache-2.0 (with historical Artistic-2.0 option for older material); no fixture-specific third-party notice was identified for this qtest PDF. The fixture contains no production credential and upstream qpdf tests exercise it with an empty user password.",
+        "reproducible": true
       },
-      "artifactPath": null,
+      "artifactPath": "fidelity/phase9/retained/encrypted-with-images.pdf",
       "generatorId": null,
       "baseline": [
         {
           "structure": "encryption",
-          "expected": "Encryption/protection state is detectable and support disposition is explicit."
+          "expected": "Encrypted PDF is detectable; upstream qpdf regression characterizes revision R=3, permissions P=-4, and an empty user password after supported qpdf rewrite/linearization paths. PDF Hub mutation support remains explicitly reject-until-proven."
         }
       ],
       "mutations": {
@@ -1264,7 +1264,11 @@
       },
       "structures": [
         "encryption"
-      ]
+      ],
+      "integrity": {
+        "gitBlobSha1": "dbceb4454f6f37ee83edfe519a0d4c46935a9a57",
+        "byteLength": 50219
+      }
     },
     {
       "id": "signed-document",

@@ -169,6 +169,40 @@ export function validateFidelityCorpusManifest(
       });
     }
 
+    if (fixture.availability === 'retained') {
+      if (
+        fixture.provenance.kind
+          !== 'redistributable-retained'
+        || !fixture.provenance.reproducible
+        || !fixture.artifactPath
+      ) {
+        diagnostics.push({
+          code: 'INVALID_AVAILABILITY',
+          fixtureId: fixture.id,
+          message:
+            `Retained fixture ${fixture.id} requires reproducible redistributable-retained provenance and an artifact path.`,
+        });
+      }
+
+      if (
+        !fixture.integrity
+        || !/^[0-9a-f]{40}$/i.test(
+          fixture.integrity.gitBlobSha1,
+        )
+        || !Number.isInteger(
+          fixture.integrity.byteLength,
+        )
+        || fixture.integrity.byteLength <= 0
+      ) {
+        diagnostics.push({
+          code: 'MISSING_INTEGRITY',
+          fixtureId: fixture.id,
+          message:
+            `Retained fixture ${fixture.id} requires a 40-hex Git blob SHA-1 and positive byte length.`,
+        });
+      }
+    }
+
     if (fixture.baseline.length === 0) {
       diagnostics.push({
         code:
