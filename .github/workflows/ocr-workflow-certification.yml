@@ -26,5 +26,5 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint
       - run: pnpm run certify:writer-v2-ocr:static
-      - run: pnpm exec vitest run src/components/ocr/__tests__/OcrWorkflowShell.test.tsx src/components/ocr/__tests__/OcrPanelWriterConnected.test.tsx src/components/ocr/__tests__/OcrRunControls.test.tsx src/components/ocr/__tests__/useOcrRunWorkflow.test.tsx --pool=forks --maxWorkers=1
+      - run: pnpm exec vitest run src/components/ocr/__tests__/OcrWorkflowShell.test.tsx src/components/ocr/__tests__/OcrPanelWriterConnected.test.tsx src/components/ocr/__tests__/OcrRunControls.test.tsx src/components/ocr/__tests__/useOcrRunWorkflow.test.tsx src/components/ocr/__tests__/OcrReviewWorkspace.test.tsx --pool=forks --maxWorkers=1
       - run: pnpm run build
