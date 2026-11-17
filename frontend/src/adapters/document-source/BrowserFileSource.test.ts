@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { BrowserFileSource } from './BrowserFileSource';
 import type { BrowserFileReadable } from './BrowserFileSource';
@@ -111,11 +111,9 @@ describe('BrowserFileSource', () => {
       file: {
         size: 4,
         slice() {
-          return {
-            arrayBuffer: async () => {
-              throw new Error('fixture read failed');
-            },
-          } as Blob;
+          const blob = new Blob();
+          vi.spyOn(blob, 'arrayBuffer').mockRejectedValue(new Error('fixture read failed'));
+          return blob;
         },
       },
     });

@@ -312,7 +312,9 @@ export function createPdfCommand<TType extends PdfCommandType>(
     ...(input.groupId ? { groupId: input.groupId } : {}),
   };
 
-  return command as PdfCommandOfType<TType>;
+  // The generic input couples the command discriminator with its payload.
+  // TypeScript cannot reduce Extract over a generic discriminator here.
+  return command as unknown as PdfCommandOfType<TType>;
 }
 
 export function materializePdfCommand(

@@ -26,6 +26,7 @@ import {
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import {
   commitDocumentMutation,
+  type DocumentMutationTransactionError,
 } from './documentTransaction';
 
 const persistenceMocks = vi.hoisted(() => ({

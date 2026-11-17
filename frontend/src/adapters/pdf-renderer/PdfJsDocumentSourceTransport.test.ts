@@ -4,10 +4,13 @@ import type { DocumentSource } from '@/core/document-source/types';
 
 vi.mock('pdfjs-dist', () => ({
   PDFDataRangeTransport: class {
-    constructor(
-      readonly length: number,
-      readonly initialData: Uint8Array | null,
-    ) {}
+    readonly length: number;
+    readonly initialData: Uint8Array | null;
+
+    constructor(length: number, initialData: Uint8Array | null) {
+      this.length = length;
+      this.initialData = initialData;
+    }
 
     onDataRange(
       _begin: number,
@@ -29,7 +32,7 @@ import { PdfJsDocumentSourceTransport } from './PdfJsDocumentSourceTransport';
 
 function source(
   bytes: Uint8Array,
-  read = vi.fn(async (offset: number, length: number) =>
+  read: DocumentSource['read'] = vi.fn(async (offset: number, length: number) =>
     bytes.slice(offset, offset + length)),
 ): DocumentSource {
   return {

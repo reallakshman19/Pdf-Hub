@@ -9,7 +9,7 @@ import type {
 } from '@/core/document-history/journal/store';
 import {
   getBrowserHistoryJournalStore,
-} from '../browserHistoryJournalStore';
+} from './browserHistoryJournalStore';
 
 afterEach(() => {
   clearHistoryJournalStoreRegistryForTests();

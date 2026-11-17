@@ -136,8 +136,9 @@ function validateSelector(
       break;
 
     case 'pageLabelRange': {
+      const { startPageId } = selector.include;
       const exists = pageGraph.pageLabelRanges?.some(
-        (range) => range.startPageId === selector.include.startPageId,
+        (range) => range.startPageId === startPageId,
       );
       if (!exists) {
         errors.push(

@@ -5,7 +5,7 @@ import {
   cloneHistoryJournalManifest,
   createInitialHistoryJournalManifest,
   resolveHistoryJournalActiveTransactionId,
-} from '../types';
+} from './types';
 
 describe('history journal manifest', () => {
   it('creates an admission checkpoint without embedding PDF bytes', () => {

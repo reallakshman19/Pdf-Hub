@@ -9,10 +9,13 @@ vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
   Util: { transform: vi.fn() },
   PDFDataRangeTransport: class {
-    constructor(
-      readonly length: number,
-      readonly initialData: Uint8Array | null,
-    ) {}
+    readonly length: number;
+    readonly initialData: Uint8Array | null;
+
+    constructor(length: number, initialData: Uint8Array | null) {
+      this.length = length;
+      this.initialData = initialData;
+    }
 
     onDataRange(
       _begin: number,
@@ -59,7 +62,7 @@ function loadingTask(doc: PDFDocumentProxy) {
   return {
     promise: Promise.resolve(doc),
     destroy: vi.fn().mockResolvedValue(undefined),
-  } as ReturnType<typeof pdfjsLib.getDocument>;
+  } as unknown as ReturnType<typeof pdfjsLib.getDocument>;
 }
 
 describe('PdfRendererAdapter document lifecycle', () => {
@@ -76,7 +79,7 @@ describe('PdfRendererAdapter document lifecycle', () => {
     const doc = mockDocument('one');
     vi.mocked(pdfjsLib.getDocument).mockReturnValue({
       promise: Promise.resolve(doc),
-    } as ReturnType<typeof pdfjsLib.getDocument>);
+    } as unknown as ReturnType<typeof pdfjsLib.getDocument>);
 
     const first = await PdfRendererAdapter.acquireDocument(new Uint8Array([1, 2, 3]));
     const second = await PdfRendererAdapter.acquireDocument(new Uint8Array([1, 2, 3]));
@@ -100,7 +103,7 @@ describe('PdfRendererAdapter document lifecycle', () => {
     const doc = mockDocument('one');
     vi.mocked(pdfjsLib.getDocument).mockReturnValue({
       promise: Promise.resolve(doc),
-    } as ReturnType<typeof pdfjsLib.getDocument>);
+    } as unknown as ReturnType<typeof pdfjsLib.getDocument>);
 
     const lease = await PdfRendererAdapter.acquireDocument(new Uint8Array([4]));
     await lease.release();
@@ -112,9 +115,9 @@ describe('PdfRendererAdapter document lifecycle', () => {
   it('destroys the least-recently-used idle document when the cache exceeds two entries', async () => {
     const docs = [mockDocument('one'), mockDocument('two'), mockDocument('three')];
     vi.mocked(pdfjsLib.getDocument)
-      .mockReturnValueOnce({ promise: Promise.resolve(docs[0]) } as ReturnType<typeof pdfjsLib.getDocument>)
-      .mockReturnValueOnce({ promise: Promise.resolve(docs[1]) } as ReturnType<typeof pdfjsLib.getDocument>)
-      .mockReturnValueOnce({ promise: Promise.resolve(docs[2]) } as ReturnType<typeof pdfjsLib.getDocument>);
+      .mockReturnValueOnce({ promise: Promise.resolve(docs[0]) } as unknown as ReturnType<typeof pdfjsLib.getDocument>)
+      .mockReturnValueOnce({ promise: Promise.resolve(docs[1]) } as unknown as ReturnType<typeof pdfjsLib.getDocument>)
+      .mockReturnValueOnce({ promise: Promise.resolve(docs[2]) } as unknown as ReturnType<typeof pdfjsLib.getDocument>);
 
     const first = await PdfRendererAdapter.acquireDocument(new Uint8Array([1]));
     await first.release();
@@ -255,7 +258,7 @@ describe('PdfRendererAdapter document lifecycle', () => {
           new Error('source parse failed'),
         ),
         destroy: vi.fn().mockResolvedValue(undefined),
-      } as ReturnType<typeof pdfjsLib.getDocument>)
+      } as unknown as ReturnType<typeof pdfjsLib.getDocument>)
       .mockReturnValueOnce(loadingTask(retryDoc));
 
     await expect(
@@ -322,7 +325,7 @@ describe('PdfRendererAdapter document lifecycle', () => {
         resolveLoad = resolve;
       }),
       destroy,
-    } as ReturnType<typeof pdfjsLib.getDocument>);
+    } as unknown as ReturnType<typeof pdfjsLib.getDocument>);
 
     const controller = new AbortController();
     const cancelled =
@@ -604,10 +607,10 @@ describe('PdfRendererAdapter document lifecycle', () => {
         promise: Promise.resolve().then(() => {
           throw new Error('malformed PDF');
         }),
-      } as ReturnType<typeof pdfjsLib.getDocument>))
+      } as unknown as ReturnType<typeof pdfjsLib.getDocument>))
       .mockReturnValueOnce({
         promise: Promise.resolve(doc),
-      } as ReturnType<typeof pdfjsLib.getDocument>);
+      } as unknown as ReturnType<typeof pdfjsLib.getDocument>);
 
     await expect(
       PdfRendererAdapter.acquireDocument(new Uint8Array([9])),

@@ -2,6 +2,7 @@ import type {
   PDFArray,
   PDFDict,
   PDFDocument,
+  PDFObject,
   PDFPage,
   PDFRef,
 } from 'pdf-lib';
@@ -11,6 +12,11 @@ import type { ReviewReply } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 
 type PdfLibModule = typeof import('pdf-lib');
+
+// Mirrors the recursive input accepted by PDFContext.obj; native PDF objects
+// are retained as objects rather than converted or discarded.
+type PdfLiteral = PDFObject | string | number | boolean | null | undefined | PdfLiteral[] | PdfLiteralDict;
+interface PdfLiteralDict { [key: string]: PdfLiteral }
 
 export interface NativeAnnotationWriteResult {
   bytes: Uint8Array;
@@ -305,7 +311,7 @@ function assertNativeRichTextReplyMutationsSupported(
     }
     if (!sourceHasRichText) continue;
 
-    if (!replyHasRichText) {
+    if (!replyHasRichText || !reply.nativeInterop) {
       throw nativeRichTextMutationError(
         `${reply.id}`,
         'missing reply protected import snapshot',
@@ -675,7 +681,7 @@ function replyContentsValue(
   reply: ReviewReply,
   source: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   if (hasNativeRichText(source, lib)) {
     const sourceContents = source?.get(lib.PDFName.of('Contents'));
     if (sourceContents) return sourceContents;
@@ -1016,7 +1022,7 @@ function registerNativeAnnotation(
   const modifiedAt = annotation.data.review?.updatedAt ?? annotation.updatedAt;
   const createdAt = annotation.data.review?.createdAt ?? annotation.createdAt;
 
-  const base: Record<string, unknown> = {
+  const base: PdfLiteralDict = {
     Type: 'Annot',
     Subtype: subtypeFor(annotation.type),
     Rect: geometry.rect,
@@ -1073,7 +1079,7 @@ function registerNativeAnnotation(
 }
 
 function addSubtypeFields(
-  target: Record<string, unknown>,
+  target: PdfLiteralDict,
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
   stroke: PdfColor,
@@ -1286,7 +1292,7 @@ function textMarkupQuadPoints(
   geometry: AnnotationGeometry,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const normalized = readFiniteNumberArray(annotation.data.textMarkupQuads);
   const validNormalized = Boolean(
     normalized
@@ -1378,7 +1384,7 @@ function defaultAppearanceValue(
   fontSize: number,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const sourceObject = sourceDict?.get(lib.PDFName.of('DA'));
   const sourceText = sourceDict
     ? readTextObject(sourceDict, 'DA', lib)
@@ -1780,12 +1786,12 @@ function annotationFlagsValue(
 function textAnnotationNameValue(
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   return sourceDict?.get(lib.PDFName.of('Name')) ?? 'Comment';
 }
 
 function applyAnnotationBorderFields(
-  target: Record<string, unknown>,
+  target: PdfLiteralDict,
   annotation: PdfAnnotation,
   fallbackWidth: number,
   sourceDict: PDFDict | null,
@@ -1813,7 +1819,7 @@ function annotationBorderValue(
   fallbackWidth: number,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const desiredWidth =
     annotation.data.borderStyle === 'none'
       ? 0
@@ -1923,7 +1929,7 @@ function annotationBorderStyleValue(
   fallbackWidth: number,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown | null {
+): PdfLiteral {
   const sourceObject = sourceDict?.get(lib.PDFName.of('BS'));
   const sourceSemantics = sourceDict
     ? readBorderSemantics(sourceDict, lib, true)
@@ -1976,7 +1982,7 @@ function annotationBorderStyleValue(
 function cloudBorderEffectValue(
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const sourceObject = sourceDict?.get(lib.PDFName.of('BE'));
   const effect = sourceDict?.lookupMaybe(lib.PDFName.of('BE'), lib.PDFDict);
   const style = effect?.lookupMaybe(lib.PDFName.of('S'), lib.PDFName)?.decodeText();
@@ -1989,7 +1995,7 @@ function lineEndingsValue(
   annotation: PdfAnnotation,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const sourceObject = sourceDict?.get(lib.PDFName.of('LE'));
   const sourceEndings = sourceDict
     ? readPdfLineEndings(sourceDict, lib)
@@ -2056,7 +2062,7 @@ function stampNameValue(
   annotation: PdfAnnotation,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   const sourceObject = sourceDict?.get(lib.PDFName.of('Name'));
   const sourceName = sourceDict
     ?.lookupMaybe(lib.PDFName.of('Name'), lib.PDFName)
@@ -2095,7 +2101,7 @@ function freeTextAlignmentValue(
   annotation: PdfAnnotation,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
-): unknown {
+): PdfLiteral {
   if (hasNativeRichText(sourceDict, lib)) {
     const sourceQ = sourceDict?.get(lib.PDFName.of('Q'));
     if (sourceQ) return sourceQ;

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createInitialHistoryJournalManifest,
 } from '@/core/document-history/journal/types';
-import { MemoryHistoryJournalStore } from '../MemoryHistoryJournalStore';
+import { MemoryHistoryJournalStore } from './MemoryHistoryJournalStore';
 
 describe('MemoryHistoryJournalStore', () => {
   it('round-trips, lists and removes cloned manifests', async () => {

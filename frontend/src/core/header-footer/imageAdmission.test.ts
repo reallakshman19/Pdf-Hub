@@ -12,7 +12,7 @@ const PNG_BYTES = Uint8Array.from(
   ),
 );
 
-function minimalWebpVp8x(): Uint8Array {
+function minimalWebpVp8x(): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(30);
   bytes.set([0x52, 0x49, 0x46, 0x46], 0); // RIFF
   bytes.set([0x57, 0x45, 0x42, 0x50], 8); // WEBP

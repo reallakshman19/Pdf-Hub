@@ -122,10 +122,11 @@ implements WorkingRevisionStore {
     randomAccess: true,
   });
 
-  constructor(
-    private readonly backing:
-      DurableBacking,
-  ) {}
+  private readonly backing: DurableBacking;
+
+  constructor(backing: DurableBacking) {
+    this.backing = backing;
+  }
 
   async commit(
     input: CommitRevisionInput,
@@ -218,10 +219,11 @@ implements HistoryJournalStore {
     persistent: true,
   });
 
-  constructor(
-    private readonly backing:
-      DurableBacking,
-  ) {}
+  private readonly backing: DurableBacking;
+
+  constructor(backing: DurableBacking) {
+    this.backing = backing;
+  }
 
   async save(
     manifest:

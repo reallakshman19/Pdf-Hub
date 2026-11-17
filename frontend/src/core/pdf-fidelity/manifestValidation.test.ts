@@ -173,7 +173,7 @@ describe(
                   'ordinary-native-text',
                 ],
                 mutations:
-                  withoutRotate,
+                  withoutRotate as FidelityFixtureManifestEntry['mutations'],
               }),
             ],
           } as unknown as

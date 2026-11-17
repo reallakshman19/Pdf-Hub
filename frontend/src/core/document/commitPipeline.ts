@@ -96,7 +96,7 @@ export async function composeEditablePdf(
 
   if (annotations.length > 0) {
     const native = await writeNativePdfAnnotations(nextBytes, annotations);
-    nextBytes = native.bytes;
+    nextBytes = new Uint8Array(native.bytes);
   }
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);

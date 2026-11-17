@@ -31,8 +31,6 @@ describe('CommentsSidebar', () => {
   beforeEach(() => {
     useAnnotationStore.setState({
       annotations: [],
-      history: [],
-      future: [],
       activeAnnotationId: null,
       selectedAnnotationIds: [],
       clipboard: [],

@@ -36,7 +36,7 @@ const outputs: MacroOutputQueueItem[] = [
 describe('MacroOutputQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    saveMock.mockResolvedValue(undefined);
+    saveMock.mockResolvedValue(null);
   });
 
   it('shows an empty state when no outputs exist', () => {
@@ -81,7 +81,7 @@ describe('MacroOutputQueue', () => {
     const onChange = vi.fn();
     const onError = vi.fn();
     saveMock
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(null)
       .mockRejectedValueOnce(new Error('disk full'));
 
     render(
