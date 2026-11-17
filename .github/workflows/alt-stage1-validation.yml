@@ -1,0 +1,103 @@
+name: ALT Stage 1 isolated evidence
+on:
+  push:
+    branches: [validation/alt-stage1-wp01-wp03]
+    paths:
+      - '.github/workflows/alt-stage1-validation.yml'
+      - 'validation/alt-stage1/**'
+permissions:
+  contents: read
+concurrency:
+  group: alt-stage1-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  evidence:
+    name: ALT WP-${{ matrix.wp }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wp: '01'
+            drive: 1LzNkMkSxhoJhLd6uBxW_WAPrgmgVvV6K
+            digest: 150875fdd01af97b340424b04de77f2d0392eb4c92033351478e56efb2574d89
+            expected: 807c996a4e389ba82a589ce4015ecb91bc4f57712230cfabf5439e42ac5b63d3
+          - wp: '02'
+            drive: 1COoV8uCE3OFylcXY6ut-4gC-7DCZepKw
+            digest: bcbe2c3e6c49ce39703a75af9b1f534786918adf552eb928f46870066b41cfdc
+            expected: cf32ec28f4f21673ceb79a3a39f1f62caf4276fa44ef1d06bcdb1067af362502
+          - wp: '03'
+            drive: 1Tz7qtVDEQoj1gqJ0eYkpRNnWjEfJmceV
+            digest: 742e5cae70c1eab5215bb18ef5445a70ae8f0a9827ca562971a2455e16f9d3be
+            expected: 29d250f27995d045302f895cbb948cd940e10da7eaab42500d99029f0de2ea4e
+    env:
+      BASELINE: 9f43e4c52557035c0603850d90465bee940e144d
+      COMMON_READ_SHA: 63ad7af77be6ff25146097fc9071ba1bf6325763
+      WP: ${{ matrix.wp }}
+      PACKAGE_ID: ${{ matrix.drive }}
+      PACKAGE_SHA: ${{ matrix.digest }}
+      EXPECTED_SHA: ${{ matrix.expected }}
+      CI: '1'
+    steps:
+      - name: Checkout coordinator harness
+        uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Checkout immutable application
+        uses: actions/checkout@v4
+        with:
+          ref: 9f43e4c52557035c0603850d90465bee940e144d
+          path: baseline
+          persist-credentials: false
+      - name: Prepare isolated evidence paths
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/alt-evidence/logs" "$RUNNER_TEMP/alt-package"
+          echo "OUT=$RUNNER_TEMP/alt-evidence" >> "$GITHUB_ENV"
+          echo "PKG=$RUNNER_TEMP/alt-package" >> "$GITHUB_ENV"
+          echo "REPO=$GITHUB_WORKSPACE/baseline" >> "$GITHUB_ENV"
+          printf '%s\n' "$BASELINE" > "$RUNNER_TEMP/alt-evidence/baseline.txt"
+      - name: Receive exact public synthetic package
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --max-time 120 --silent --show-error "https://drive.usercontent.google.com/download?id=$PACKAGE_ID&export=download&confirm=t" -o "$RUNNER_TEMP/alt-package.zip"
+          echo "$PACKAGE_SHA  $RUNNER_TEMP/alt-package.zip" | sha256sum --check | tee "$OUT/logs/package-sha.log"
+          python3 harness/validation/alt-stage1/verify-package.py "$RUNNER_TEMP/alt-package.zip" "$PKG" "$EXPECTED_SHA" "$BASELINE" | tee "$OUT/logs/package-manifest.log"
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: pnpm 10.23.0
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.23.0
+          run_install: false
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute exact-baseline validation
+        shell: bash
+        run: bash harness/validation/alt-stage1/run.sh
+      - name: Verify application tracked source unchanged
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d "$REPO/.git" ]]; then
+            git -C "$REPO" rev-parse HEAD | tee "$OUT/post-head.txt"
+            git -C "$REPO" status --porcelain --untracked-files=no | tee "$OUT/post-status.txt"
+            test "$(cat "$OUT/post-head.txt")" = "$BASELINE"
+            test ! -s "$OUT/post-status.txt"
+          fi
+      - name: Preserve raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALT-WP${{ matrix.wp }}-stage1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/alt-evidence/
+          if-no-files-found: warn
+          retention-days: 30
