@@ -22,7 +22,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # The locked Playwright version does not support Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -44,6 +45,17 @@ jobs:
         run: pnpm -C frontend run build
       - name: Verify production artifact
         run: node frontend/scripts/verify-pages-artifact.mjs frontend/dist /Pdf-Hub/
+      - name: Install Chromium for production smoke
+        run: pnpm -C frontend exec playwright install --with-deps chromium
+      - name: Smoke-test compiled application
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm -C frontend exec vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/pdf-hub-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/Pdf-Hub/ > /dev/null
+          node frontend/scripts/smoke-pages-build.mjs http://127.0.0.1:4173/Pdf-Hub/
       - name: Upload artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
