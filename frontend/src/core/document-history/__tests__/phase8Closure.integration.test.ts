@@ -47,8 +47,10 @@ import {
   useHistoryStore,
 } from '@/core/document-history/store';
 import {
+  recomputeOcrDerivedState,
   useOcrStore,
 } from '@/core/ocr/ocrStore';
+import { reanchorOcrPageStateAfterPageGraphChange, rekeyOcrPageAnchoredState } from '@/core/ocr/ocrPageAnchor';
 import {
   clearRevisionPinsForTests,
 } from '@/core/revision-store/pins';
@@ -930,6 +932,17 @@ async function recoverFromBacking(
           ),
         },
       });
+
+      // The injected dispatch stands in for the canonical transaction. Its
+      // contract includes transforming dependent OCR state on page rotation.
+      const nextGraph = useSessionStore.getState().pageGraph!;
+      const ocr = useOcrStore.getState();
+      useOcrStore.setState(recomputeOcrDerivedState({
+        ...ocr,
+        ...rekeyOcrPageAnchoredState(
+          reanchorOcrPageStateAfterPageGraphChange(ocr, graph, nextGraph), ACTIVE,
+        ),
+      }));
 
       return {
         success: true,

@@ -36,9 +36,11 @@ function page(pageId: string, currentIndex: number) {
 
 function decodeLabelDictionary(dict: PDFDict) {
   const style = dict.lookupMaybe(PDFName.of('S'), PDFName)?.asString();
-  const prefix =
-    dict.lookupMaybe(PDFName.of('P'), PDFString)?.decodeText()
-    ?? dict.lookupMaybe(PDFName.of('P'), PDFHexString)?.decodeText();
+  const prefixObject = dict.lookup(PDFName.of('P'));
+  if (prefixObject !== undefined && !(prefixObject instanceof PDFString) && !(prefixObject instanceof PDFHexString)) {
+    throw new Error('Expected a PDF text string for the PageLabels prefix');
+  }
+  const prefix = prefixObject?.decodeText();
   const startNumber =
     dict.lookupMaybe(PDFName.of('St'), PDFNumber)?.asNumber();
 

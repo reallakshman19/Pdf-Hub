@@ -310,7 +310,8 @@ function omitUndefinedObjectProperties(
     return clone;
   }
 
-  const clone: Record<string, unknown> = {};
+  // Preserve own JSON keys such as __proto__ as data, never as setters.
+  const clone: Record<string, unknown> = Object.create(null);
   seen.set(objectValue, clone);
   for (const [key, child] of Object.entries(
     objectValue as Record<string, unknown>,

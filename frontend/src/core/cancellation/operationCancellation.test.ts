@@ -13,6 +13,15 @@ describe('operation cancellation', () => {
       .toThrow(OperationCancelledError);
   });
 
+  it('cleans up an already-started operation if the signal is already aborted', async () => {
+    const controller = new AbortController();
+    const cleanup = vi.fn();
+    controller.abort('superseded before race registration');
+    await expect(raceWithAbort(Promise.reject(new Error('late rejection')), controller.signal, 'test', cleanup))
+      .rejects.toBeInstanceOf(OperationCancelledError);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects an active operation and invokes cleanup once', async () => {
     const controller = new AbortController();
     const cleanup = vi.fn();

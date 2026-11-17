@@ -918,7 +918,7 @@ describe('document transaction history memory', () => {
     );
     expect(history.undoStack[0]?.command.source).toBe('toolbar');
     expect(history.undoStack[0]?.before.annotations).toEqual([beforeAnnotation]);
-    expect(history.undoStack[0]?.after.annotations).toEqual([afterAnnotation]);
+    expect(history.undoStack[0]?.after.annotations).toEqual([{ ...afterAnnotation, pageId: 'stable-page' }]);
     expect(history.undoStack[0]?.before.ocr?.documentFingerprint).toBe('hash-1');
     expect(history.undoStack[0]?.before.ocr?.result?.pages[0]?.pageId).toBe(
       'stable-page',
@@ -934,7 +934,7 @@ describe('document transaction history memory', () => {
     await expect(applyUndo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2]));
     expect(useSessionStore.getState().documentKey).toBe('hash-2');
-    expect(useAnnotationStore.getState().annotations).toEqual([afterAnnotation]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...afterAnnotation, pageId: 'stable-page' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('hash-2');
     expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
       pageId: 'stable-page',
@@ -945,7 +945,7 @@ describe('document transaction history memory', () => {
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1]));
     expect(useSessionStore.getState().documentKey).toBe('hash-1');
     expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe('stable-page');
-    expect(useAnnotationStore.getState().annotations).toEqual([beforeAnnotation]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...beforeAnnotation, pageId: 'stable-page' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('hash-1');
     expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
       pageId: 'stable-page',
@@ -955,7 +955,7 @@ describe('document transaction history memory', () => {
     await expect(applyRedo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([2]));
     expect(useSessionStore.getState().documentKey).toBe('hash-2');
-    expect(useAnnotationStore.getState().annotations).toEqual([afterAnnotation]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...afterAnnotation, pageId: 'stable-page' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('hash-2');
     expect(useOcrStore.getState().result?.pages[0]?.pageId).toBe('stable-page');
   });
