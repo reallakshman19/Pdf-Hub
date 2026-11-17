@@ -1,0 +1,436 @@
+{
+  "schema_version": "relay-v3.1-task-snapshot",
+  "authority": "DERIVED_READ_MODEL",
+  "source_protocol": "V3_1",
+  "protocol_basis": {
+    "protocol": "V3.1",
+    "common_repository": "reallaksh19/Common",
+    "common_sha": "63ad7af77be6ff25146097fc9071ba1bf6325763",
+    "two_pass_revision": "TPG-2P-2026-09-28-R3"
+  },
+  "identity": {
+    "work_package": null,
+    "ep": null,
+    "issue": 6,
+    "delivery_vehicle": 44
+  },
+  "purpose": {
+    "programme_outcome": "Professional, Personal and Basic PDF editor readiness under issue #5",
+    "current_goal": "Restore shared foundation and establish a fixed investigation baseline",
+    "task_outcome": "Scoped PR #44 accepted independently of broader functional certification",
+    "why_this_task_exists": "Recover cancellation, evidence, durable history, page anchors, and production regression gating; repair stale recorder projection"
+  },
+  "lineage": {
+    "predecessor_checkpoint": null,
+    "upstream_dependencies": [],
+    "roadmap_admission": {
+      "disposition": "UNKNOWN",
+      "revision": "RM-0007-AP-QUALIFICATION",
+      "basis": [
+        "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879",
+        "No new canonical EP or roadmap package created; existing #6 is broader than this PR."
+      ]
+    }
+  },
+  "parent_issue": {
+    "repository": "reallakshman19/Pdf-Hub",
+    "number": 6,
+    "title": "Phase 8: genuine large-PDF architecture — DocumentSource, OPFS revisions, checkpoint history",
+    "state": "OPEN",
+    "url": "https://github.com/reallakshman19/Pdf-Hub/issues/6",
+    "baseline": null,
+    "current": null,
+    "updates": [
+      {
+        "ref": "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879",
+        "summary": "Owner-authorized scoped foundation recovery; issue remains open."
+      }
+    ],
+    "disposition": "NO_CHANGE",
+    "relationships": [],
+    "handover_ledger": null
+  },
+  "programme_parent": {
+    "repository": "reallakshman19/Pdf-Hub",
+    "number": 5,
+    "title": "Post-merge execution roadmap: Phase 4 completion to Professional / Personal / Basic readiness",
+    "url": "https://github.com/reallakshman19/Pdf-Hub/issues/5"
+  },
+  "planning": {
+    "state": "MISSING",
+    "provider_ref": null,
+    "revision": null,
+    "digest": null,
+    "observed_at": null,
+    "expected_next_observable": {
+      "statement": "Scoped exact-head merge and main deployment verification",
+      "evidence": [
+        "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879"
+      ]
+    }
+  },
+  "task_publications": [
+    {
+      "type": "PLAN_UPDATE",
+      "ref": "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879",
+      "observed_at": "2026-11-17T13:59:05Z",
+      "summary": "Bounded Owner-approved recovery scope, verified material and remaining feature/coordination debt.",
+      "exact_head": "83b182e6f1bebfc9742bad593c9c935519670c9f"
+    }
+  ],
+  "programme_progress": null,
+  "task_acceptance_progress": {
+    "criteria": [
+      {
+        "id": "FND-01",
+        "statement": "529 shared-foundation regression tests pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-02",
+        "statement": "TypeScript, compiled production build, artifact and annotation browser journey pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-03",
+        "statement": "V3.1 recorder foundation validation passes after snapshot reconciliation",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464"
+        ]
+      },
+      {
+        "id": "FND-04",
+        "statement": "Exact-head native binding validation and scoped merge/deployment readback",
+        "state": "PENDING",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879"
+        ]
+      }
+    ],
+    "summary": {
+      "pass": 3,
+      "partial": 0,
+      "fail": 0,
+      "not_run": 0,
+      "pending": 1,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 4
+    },
+    "coverage": {
+      "satisfied": 3,
+      "applicable_total": 4,
+      "percent": 75,
+      "basis": "UNWEIGHTED_CRITERIA"
+    }
+  },
+  "verification": {
+    "state": "PARTIAL",
+    "observations": [
+      {
+        "id": "FND-01",
+        "statement": "529 shared-foundation regression tests pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-02",
+        "statement": "TypeScript, compiled production build, artifact and annotation browser journey pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-03",
+        "statement": "V3.1 recorder foundation validation passes after snapshot reconciliation",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464"
+        ]
+      },
+      {
+        "id": "FND-04",
+        "statement": "Exact-head native binding validation and scoped merge/deployment readback",
+        "state": "PENDING",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879"
+        ]
+      },
+      {
+        "id": "FND-05",
+        "statement": "Full product functional certification",
+        "state": "FAIL",
+        "reason_class": "SIBLING_WORKSTREAM",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156563"
+        ]
+      }
+    ],
+    "failure_origins": {
+      "SIBLING_WORKSTREAM": 1
+    }
+  },
+  "delivery": {
+    "pr": 44,
+    "url": "https://github.com/reallakshman19/Pdf-Hub/pull/44",
+    "lifecycle": "DRAFT",
+    "base": "e627bcdca88f8c3698f2aa1d5f14540cacfa8429",
+    "head": "83b182e6f1bebfc9742bad593c9c935519670c9f",
+    "mergeability": "MERGEABLE"
+  },
+  "completion": {
+    "overall_state": "PARTIAL",
+    "headline": "Scoped foundation tests passed; merge and native binding pending",
+    "implementation": "COMPLETE",
+    "verification": "PARTIAL",
+    "delivery": "DRAFT",
+    "work_issue_acceptance": "PARTIAL",
+    "programme_contribution": "PARTIAL",
+    "provider_issue": "OPEN",
+    "what_done": [
+      "529/529 foundation tests, production artifact and compiled annotation round-trip passed at 0dd42f2c4640d71dd5f986f766e443807ba74c8c",
+      "Relay foundation projection validated at 83b182e6f1bebfc9742bad593c9c935519670c9f"
+    ],
+    "what_remains": [
+      "Exact-head integration/binding, merge and main deployment verification",
+      "26 portable failures, 1 browser failure, 5 unit skips and 1 browser skip; separate seven workpacks",
+      "Original PDF font-warning case not reproduced"
+    ],
+    "dependencies": [],
+    "owner_decisions": [
+      "Owner authorized scoped foundation acceptance only; not full release."
+    ]
+  },
+  "parent_issue_progress": {
+    "checklist": [],
+    "summary": {
+      "complete": 0,
+      "partial": 0,
+      "pending": 0,
+      "blocked": 0,
+      "deferred": 0,
+      "not_applicable": 0,
+      "unknown": 0,
+      "total": 0
+    }
+  },
+  "current_task_progress": {
+    "checklist": [
+      {
+        "id": "FND-01",
+        "statement": "529 shared-foundation regression tests pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-02",
+        "statement": "TypeScript, compiled production build, artifact and annotation browser journey pass",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+        ]
+      },
+      {
+        "id": "FND-03",
+        "statement": "V3.1 recorder foundation validation passes after snapshot reconciliation",
+        "state": "PASS",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464"
+        ]
+      },
+      {
+        "id": "FND-04",
+        "statement": "Exact-head native binding validation and scoped merge/deployment readback",
+        "state": "PENDING",
+        "reason_class": "CURRENT_TASK",
+        "evidence": [
+          "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879"
+        ]
+      }
+    ],
+    "summary": {
+      "complete": 3,
+      "partial": 0,
+      "pending": 1,
+      "blocked": 0,
+      "total": 4
+    }
+  },
+  "offloads": [],
+  "pending_items": [
+    "Exact-head binding and post-merge evidence",
+    "Stage 1 coordinator bindings are separate"
+  ],
+  "known_issues": [
+    "Full CI remains red; scope-specific acceptance is not full certification",
+    "Local live refresh and ACK not available; Common live sources read through GitHub; no local ACK claimed",
+    "FNT-001 source not received"
+  ],
+  "improvement_vs_original_issue": {
+    "baseline_digest": null,
+    "items": []
+  },
+  "scope": {
+    "write": [
+      ".github/workflows/deploy.yml",
+      ".github/workflows/v3-relay.yml",
+      "AGENTS.md",
+      "frontend/src/adapters/pdf-renderer/activePdfDocumentLease.test.ts",
+      "frontend/src/adapters/pdf-renderer/activePdfDocumentLease.ts",
+      "frontend/src/core/cancellation/operationCancellation.test.ts",
+      "frontend/src/core/cancellation/operationCancellation.ts",
+      "frontend/src/core/commands/transaction/documentTransaction.history.test.ts",
+      "frontend/src/core/document-evidence/canonical.ts",
+      "frontend/src/core/document-evidence/conformance.test.ts",
+      "frontend/src/core/document-history/__tests__/phase8Closure.integration.test.ts",
+      "frontend/src/core/document-history/journal/__tests__/recoveryExecutor.test.ts",
+      "frontend/src/core/document-history/journal/__tests__/stateCheckpoint.test.ts",
+      "frontend/src/core/document-history/journal/stateCheckpoint.ts",
+      "frontend/src/core/pages/pdfPageLabelWriter.test.ts",
+      "relay/GENERATED/CURRENT_SNAPSHOT.yaml",
+      "scripts/relay-v31-live.py"
+    ],
+    "read": [
+      "frontend/",
+      "relay/",
+      "AGENTS.md"
+    ],
+    "protected": [
+      "Original PDF bytes",
+      "Existing canonical roadmap and checkpoints",
+      "Historical agents/relay/**"
+    ],
+    "prohibited": [
+      "Feature expansion",
+      "Closing #6 as complete",
+      "Claiming full certification",
+      "Releasing Stage 2"
+    ]
+  },
+  "inputs": [
+    "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156563",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464"
+  ],
+  "benchmarks": [],
+  "execution": {
+    "lifecycle": "UNKNOWN",
+    "lease_or_custody": null,
+    "executor": null,
+    "route": "GITHUB",
+    "branch": "fix/shared-foundation-recovery"
+  },
+  "material": {
+    "base": "e627bcdca88f8c3698f2aa1d5f14540cacfa8429",
+    "current_head": "83b182e6f1bebfc9742bad593c9c935519670c9f"
+  },
+  "acceptance": [
+    {
+      "id": "FND-01",
+      "statement": "529 shared-foundation regression tests pass",
+      "state": "PASS",
+      "reason_class": "CURRENT_TASK",
+      "evidence": [
+        "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+      ]
+    },
+    {
+      "id": "FND-02",
+      "statement": "TypeScript, compiled production build, artifact and annotation browser journey pass",
+      "state": "PASS",
+      "reason_class": "CURRENT_TASK",
+      "evidence": [
+        "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632"
+      ]
+    },
+    {
+      "id": "FND-03",
+      "statement": "V3.1 recorder foundation validation passes after snapshot reconciliation",
+      "state": "PASS",
+      "reason_class": "CURRENT_TASK",
+      "evidence": [
+        "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464"
+      ]
+    },
+    {
+      "id": "FND-04",
+      "statement": "Exact-head native binding validation and scoped merge/deployment readback",
+      "state": "PENDING",
+      "reason_class": "CURRENT_TASK",
+      "evidence": [
+        "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879"
+      ]
+    }
+  ],
+  "controls": {
+    "material_write": "OWNER_AUTHORIZED_BOUNDED",
+    "checkpoint": "NOT_RECORDED",
+    "handover": "PENDING",
+    "pr_ready": "PENDING",
+    "merge": "OWNER_AUTHORIZED_SCOPED",
+    "release": "FULL_PRODUCT_NOT_CERTIFIED"
+  },
+  "knowledge_state": {
+    "known_true": [
+      "Prior exact material passed targeted gate and production round-trip",
+      "Relay foundation validated on coordination-only head"
+    ],
+    "known_false": [
+      "Full suite green",
+      "Independent review of own changes",
+      "Local ACK"
+    ],
+    "unknown": [
+      "Owner source PDF font issue",
+      "All 38 target workflows"
+    ],
+    "assumptions": [
+      "Issue #6 is the bounded native tracking anchor; no entire issue completion is implied."
+    ]
+  },
+  "negative_knowledge": [
+    "No test suppression or weakening of acceptance gate",
+    "Do not infer full product certification from Pages smoke"
+  ],
+  "next": {
+    "immediate_action": "Validate native binding and exact scoped integration; merge only tested material.",
+    "next_value_frontier": "Record immutable main baseline for read-only investigation.",
+    "stop_conditions": [
+      "Unexpected main or candidate material drift",
+      "Foundation gate failure",
+      "No Stage 2 without central review"
+    ]
+  },
+  "reconstruction_sources": [
+    "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6950175879",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156632",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44079156563",
+    "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44098038464",
+    "https://github.com/reallakshman19/Pdf-Hub/pull/44"
+  ]
+}
