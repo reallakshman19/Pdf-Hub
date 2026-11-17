@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, PDFString, type PDFObject } from 'pdf-lib';
+import { PDFBool, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, PDFString, type PDFObject } from 'pdf-lib';
 
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import {
@@ -1283,7 +1283,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const stickyDict2 = (stickyDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
       .lookup(0) as PDFDict;
     expect(requiredPdfText(stickyDict2.lookup(PDFName.of('Name')))).toBe('Key');
-    expect(stickyDict2.lookup(PDFName.of('Open')).toString()).toBe('true');
+    expect(stickyDict2.lookup(PDFName.of('Open'), PDFBool).toString()).toBe('true');
 
     const collapsed = {
       ...stickyRead.annotations[0],
@@ -1306,7 +1306,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     }
     expect(stickyDict3).toBeTruthy();
     expect(requiredPdfText(stickyDict3!.lookup(PDFName.of('Name')))).toBe('Key');
-    expect(stickyDict3!.lookup(PDFName.of('Open')).toString()).toBe('false');
+    expect(stickyDict3!.lookup(PDFName.of('Open'), PDFBool).toString()).toBe('false');
 
     const reviewComment = createDeterministicReviewThreadFixture();
     const commentSave = await writeNativePdfAnnotations(baseBytes, [reviewComment]);
@@ -1343,7 +1343,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       }
     }
     expect(commentRoot2).toBeTruthy();
-    expect(commentRoot2!.lookup(PDFName.of('Open')).toString()).toBe('true');
+    expect(commentRoot2!.lookup(PDFName.of('Open'), PDFBool).toString()).toBe('true');
 
     const stamp = createDeterministicAnnotation('stamp', {
       id: 'phase10-field-symmetry-stamp-1',

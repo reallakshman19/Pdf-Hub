@@ -57,6 +57,7 @@ describe('history journal manifest', () => {
           angle: 90,
         },
         source: 'toolbar',
+        risk: 'safe',
         documentKey: 'sha256:one',
         id: 'command-1',
         createdAt: '2026-09-19T00:00:00.000Z',
