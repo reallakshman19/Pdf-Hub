@@ -1,7 +1,7 @@
 name: ALT Stage 1 isolated evidence
 on:
   push:
-    branches: [validation/alt-stage1-wp01-wp03]
+    branches: [validation/alt-stage1-wp02-reconcile]
     paths:
       - '.github/workflows/alt-stage1-validation.yml'
       - 'validation/alt-stage1/**'
@@ -19,10 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - wp: '03'
-            drive: 1Tz7qtVDEQoj1gqJ0eYkpRNnWjEfJmceV
-            digest: 742e5cae70c1eab5215bb18ef5445a70ae8f0a9827ca562971a2455e16f9d3be
-            expected: 29d250f27995d045302f895cbb948cd940e10da7eaab42500d99029f0de2ea4e
+          - wp: '02'
+            drive: 1COoV8uCE3OFylcXY6ut-4gC-7DCZepKw
+            digest: bcbe2c3e6c49ce39703a75af9b1f534786918adf552eb928f46870066b41cfdc
+            expected: cf32ec28f4f21673ceb79a3a39f1f62caf4276fa44ef1d06bcdb1067af362502
     env:
       BASELINE: 9f43e4c52557035c0603850d90465bee940e144d
       COMMON_READ_SHA: 63ad7af77be6ff25146097fc9071ba1bf6325763

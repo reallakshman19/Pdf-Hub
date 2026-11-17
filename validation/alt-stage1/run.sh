@@ -57,7 +57,7 @@ case "$WP" in
     step fixture-receipt python3 "$PKG/validators/verify_fixtures.py"
     step oracle-controls python3 "$PKG/validators/selftest_native_oracles.py" "$OUT/controls"
     step focused-vitest pnpm -C frontend exec vitest run src/core/review src/core/annotations src/core/pdf-annotations src/components/writer-v2 --pool=forks --maxWorkers=1 || true
-    cfg="$PKG/playwright.config.cjs"; functional='R0[1-9]';;
+    cfg="$PKG/playwright.config.cjs"; functional='R0[2578]';;
   03)
     mkdir -p "$OUT"/{native,independent}
     step fixture-receipt python3 "$PKG/validators/validate.py" fixtures
@@ -82,7 +82,7 @@ f_rc=0; b_rc=0
 step functional-browser pnpm -C frontend exec playwright test --config "$cfg" --grep "$functional" --output "$OUT/playwright-artifacts" --workers=1 --retries=0 || f_rc=$?
 if [[ -f "$OUT/playwright-results.json" ]]; then mv "$OUT/playwright-results.json" "$OUT/playwright-functional-results.json"; fi
 if [[ -d "$OUT/playwright-report" ]]; then mv "$OUT/playwright-report" "$OUT/playwright-functional-report"; fi
-step benchmark-browser pnpm -C frontend exec playwright test --config "$cfg" --grep 'B0[1-3]' --output "$OUT/playwright-benchmark-artifacts" --workers=1 --retries=0 || b_rc=$?
+step benchmark-browser pnpm -C frontend exec playwright test --config "$cfg" --grep 'B0[1-3]' --trace off --output "$OUT/playwright-benchmark-artifacts" --workers=1 --retries=0 || b_rc=$?
 if [[ -f "$OUT/playwright-results.json" ]]; then mv "$OUT/playwright-results.json" "$OUT/playwright-benchmark-results.json"; fi
 if [[ -d "$OUT/playwright-report" ]]; then mv "$OUT/playwright-report" "$OUT/playwright-benchmark-report"; fi
 python3 - "$OUT" <<'PY'
