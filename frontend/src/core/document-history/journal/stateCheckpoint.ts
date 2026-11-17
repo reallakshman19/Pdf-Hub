@@ -65,14 +65,17 @@ export function createHistoryStateCheckpointPayload(
     schemaVersion:
       HISTORY_RECOVERY_CHECKPOINT_SCHEMA_VERSION,
     pageCount: input.pageCount,
-    pageGraph: input.pageGraph,
+    pageGraph: omitUndefinedObjectProperties(input.pageGraph) as PageGraph<PageNode> | null,
     documentKey: input.documentKey,
     selectedPageIds: input.selectedPageIds,
     selectedPages: input.selectedPages,
     currentPageId: input.currentPageId,
     currentPage: input.currentPage,
-    annotations: input.annotations,
-    writer: input.writer,
+    // Optional object properties are absent in the JSON checkpoint schema.
+    // Preserve the strict validator for arrays, binary data, cycles and other
+    // unsupported values; normalize only ordinary object property absence.
+    annotations: omitUndefinedObjectProperties(input.annotations) as PdfAnnotation[],
+    writer: omitUndefinedObjectProperties(input.writer) as WriterHistoryState,
     ocr: omitUndefinedObjectProperties(
       input.ocr,
     ) as OcrPageAnchoredState,

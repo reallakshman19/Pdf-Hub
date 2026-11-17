@@ -356,6 +356,26 @@ describe('history state checkpoint payload', () => {
     ).toBe(false);
   });
 
+  it('normalizes optional annotation, Writer and PageGraph object properties without weakening validation', () => {
+    const state = historyState({
+      annotations: [annotation({ text: 'Comment', review: { statusAuthor: undefined } })],
+    });
+    state.writer!.elements[0] = { ...state.writer!.elements[0]!, review: undefined, callout: undefined };
+    state.pageGraph!.pages[0]!.logicalLabel = undefined;
+    const payload = createHistoryStateCheckpointPayload(state);
+    expect(payload.annotations[0]!.data).toEqual({ text: 'Comment', review: {} });
+    expect(payload.writer.elements[0]).not.toHaveProperty('review');
+    expect(payload.writer.elements[0]).not.toHaveProperty('callout');
+    expect(payload.pageGraph!.pages[0]).not.toHaveProperty('logicalLabel');
+    expect(state.annotations[0]!.data.review).toHaveProperty('statusAuthor');
+    expect(() => createHistoryStateCheckpointPayload(historyState({
+      annotations: [annotation({ invalidArray: [undefined] })],
+    }))).toThrow(/unsupported undefined/);
+    expect(() => createHistoryStateCheckpointPayload(historyState({
+      annotations: [annotation({ unsafe: { data: new Uint8Array([1]) } })],
+    }))).toThrow(/binary typed data/);
+  });
+
   it('clones without retaining mutable aliases', () => {
     const payload = createHistoryStateCheckpointPayload(
       historyState(),

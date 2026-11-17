@@ -159,6 +159,30 @@ describe('annotation store durable history', () => {
     });
   });
 
+  it('commits a comment, reply, and review state with optional metadata', async () => {
+    const journal = await openJournalAwareSession();
+    const store = useAnnotationStore.getState();
+    store.addAnnotation(annotation('comment-1', {
+      type: 'comment',
+      data: { text: 'Review this', author: 'Current User' },
+    }));
+    await drainDocumentQueue();
+    store.addReviewReply('comment-1', 'Reply to comment');
+    await drainDocumentQueue();
+    store.setReviewStatus('comment-1', 'resolved');
+    await drainDocumentQueue();
+    expect(useAnnotationStore.getState().annotations[0]?.data.review).toMatchObject({
+      status: 'resolved',
+      replies: [{ content: 'Reply to comment' }],
+    });
+    const manifest = await journal.load('history-annotations');
+    expect(manifest?.entries).toHaveLength(3);
+    expect(manifest?.checkpoints.at(-1)?.statePayload?.annotations[0]?.data.review).toMatchObject({
+      status: 'resolved',
+      replies: [{ content: 'Reply to comment' }],
+    });
+  });
+
   it('derives rapid queued annotation edits from sequential committed state', async () => {
     const journal = await openJournalAwareSession();
 

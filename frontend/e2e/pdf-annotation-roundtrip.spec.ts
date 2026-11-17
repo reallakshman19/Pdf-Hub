@@ -16,7 +16,7 @@ import { buildTestPdf } from './fixtures/testPdf';
  */
 test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) => {
   await stubNativeFilePickers(page);
-  await page.goto('/');
+  await page.goto('./');
   await page.getByRole('button', { name: 'Browse Files' }).waitFor({ state: 'visible' });
 
   const originalBytes = await buildTestPdf({
@@ -42,8 +42,17 @@ test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) =
   // The app defaults to the Annotate mode tab; place Sticky Note with a
   // single click (it's a placement-only tool, no text-selection drag needed).
   await page.getByRole('tab', { name: 'Annotate' }).click();
-  await page.getByRole('button', { name: 'Sticky Note' }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Sticky Note/ }).click();
   await pageSurface.click({ position: { x: 120, y: 160 } });
+
+  // Prove that placement committed and rendered before switching tools or saving.
+  await expect(pageSurface.getByText('New note', { exact: true })).toBeVisible({ timeout: 15_000 });
+
+  // Place a distinct comment via the primary annotation toolbar.
+  await page.getByRole('button', { name: 'Comment', exact: true }).click();
+  await pageSurface.click({ position: { x: 220, y: 250 } });
+  await expect(pageSurface.getByText('New note', { exact: true })).toHaveCount(2, { timeout: 15_000 });
 
   // Switch to the File mode tab to reach Save (the toolbar's real Open icon
   // is w-4 sized; the mode tab itself also uses a folder-open icon at a
@@ -79,7 +88,7 @@ test('open PDF, annotate, save, reopen, annotation persists', async ({ page }) =
   const savedAnnotationCount = await countPageAnnotations(savedBytes);
 
   // Save preserves the annotation as a native PDF annotation object.
-  expect(savedAnnotationCount).toBeGreaterThan(originalAnnotationCount);
+  expect(savedAnnotationCount).toBeGreaterThanOrEqual(originalAnnotationCount + 2);
 });
 
 async function countPageAnnotations(bytes: Uint8Array): Promise<number> {

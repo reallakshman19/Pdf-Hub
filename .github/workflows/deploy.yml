@@ -56,6 +56,7 @@ jobs:
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/Pdf-Hub/ > /dev/null
           node frontend/scripts/smoke-pages-build.mjs http://127.0.0.1:4173/Pdf-Hub/
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173/Pdf-Hub/ pnpm -C frontend exec playwright test e2e/pdf-annotation-roundtrip.spec.ts --retries=0 --reporter=line
       - name: Upload artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
