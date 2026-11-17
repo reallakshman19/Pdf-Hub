@@ -39,6 +39,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Shared foundation regression gate
+        run: pnpm -C frontend exec vitest run src/core/cancellation src/core/document-source src/core/revision-store src/core/document-history src/core/document-evidence src/core/admission src/core/session src/core/commands src/core/pages src/adapters/document-source src/adapters/revision-store src/adapters/history-journal src/adapters/pdf-renderer src/core/annotations/store.durableHistory.test.ts --pool=forks --maxWorkers=1
       - name: Build
         env:
           VITE_BASE_PATH: /Pdf-Hub/

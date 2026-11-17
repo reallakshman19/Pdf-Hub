@@ -31,7 +31,16 @@ export async function raceWithAbort<T>(
   operation: string,
   onAbort?: () => void,
 ): Promise<T> {
-  throwIfAborted(signal, operation);
+  // The promise is already running. Even if the signal was aborted before
+  // this call, run its cleanup and observe a late rejection.
+  if (signal?.aborted) {
+    void operationPromise.catch(() => undefined);
+    try {
+      onAbort?.();
+    } finally {
+      throw new OperationCancelledError(operation, signal.reason);
+    }
+  }
   if (!signal) return operationPromise;
 
   let removeAbortListener: () => void = () => undefined;

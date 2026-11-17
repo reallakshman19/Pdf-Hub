@@ -376,6 +376,14 @@ describe('history state checkpoint payload', () => {
     }))).toThrow(/binary typed data/);
   });
 
+  it('preserves own JSON __proto__ keys without changing the object prototype', () => {
+    const data = JSON.parse('{"__proto__":{"sentinel":true},"text":"note"}') as Record<string, unknown>;
+    const payload = createHistoryStateCheckpointPayload(historyState({ annotations: [annotation(data)] }));
+    expect(Object.getPrototypeOf(payload.annotations[0]!.data)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(payload.annotations[0]!.data, '__proto__')).toBe(true);
+    expect(payload.annotations[0]!.data['__proto__']).toEqual({ sentinel: true });
+  });
+
   it('clones without retaining mutable aliases', () => {
     const payload = createHistoryStateCheckpointPayload(
       historyState(),

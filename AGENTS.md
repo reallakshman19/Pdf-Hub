@@ -16,7 +16,7 @@ run:
 python scripts/relay-v31-live.py refresh
 ```
 
-The command always resolves current `reallaksh19/Common@main`.
+The command always resolves current `reallakshman19/Common@main`.
 
 If it exits with `REFRESH_REQUIRED`:
 

@@ -68,6 +68,10 @@ describe('DocumentEvidence v1 conformance', () => {
   it('rejects non-finite numbers and lone surrogates', () => {
     expect(() => canonicalJson(Number.POSITIVE_INFINITY)).toThrow('JCS_NUMBER_NONFINITE');
     expect(() => canonicalJson('\ud800')).toThrow('JCS_LONE_SURROGATE');
+    expect(() => canonicalJson('a\ud800')).toThrow('JCS_LONE_SURROGATE');
+    expect(() => canonicalJson('\udc00')).toThrow('JCS_LONE_SURROGATE');
+    expect(() => canonicalJson({ ['\ud800']: 1 })).toThrow('JCS_LONE_SURROGATE');
+    expect(canonicalJson('😀')).toBe('"😀"');
   });
 
   it('keeps accepted evidence extraction-only', () => {

@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-COMMON_URL = "https://github.com/reallaksh19/Common.git"
+COMMON_URL = "https://github.com/reallakshman19/Common.git"
 
 
 def run(*args: str, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -54,6 +54,7 @@ def refresh_common(root: Path) -> dict:
             raise RuntimeError(f"live Common cache exists but is not a git checkout: {common}")
         run("git", "clone", "--quiet", "--depth", "1", "--branch", "main", COMMON_URL, str(common))
     else:
+        run("git", "-C", str(common), "remote", "set-url", "origin", COMMON_URL)
         run("git", "-C", str(common), "fetch", "--quiet", "--depth", "1", "origin", "main")
         run("git", "-C", str(common), "checkout", "--quiet", "--detach", "FETCH_HEAD")
         run("git", "-C", str(common), "reset", "--quiet", "--hard", "FETCH_HEAD")

@@ -40,6 +40,7 @@ export async function acquireActivePdfDocumentLease(
     'resolve active PDF renderer input',
   );
 
+  throwIfAborted(signal, 'acquire active PDF document');
   if (!input) return null;
 
   if (input.kind === 'source') {

@@ -281,8 +281,10 @@ function manifest(
         'tx-checkpoint',
       createdAt:
         '2026-09-20T08:00:01.000Z',
+      // The persisted checkpoint must be the exact state used for planning.
+      // Keep a detached snapshot so stale-plan negative tests remain meaningful.
       statePayload:
-        checkpointState(),
+        structuredClone(recoveryPlan.state),
     }],
     entries,
   };

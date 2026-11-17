@@ -162,7 +162,9 @@ describe('acquireActivePdfDocumentLease', () => {
       controller.signal,
     );
 
-    await Promise.resolve();
+    // Cancel only after acquisition has actually begun; one microtask is
+    // not sufficient to establish that the resolver has completed.
+    await vi.waitFor(() => expect(PdfRendererAdapter.acquireDocument).toHaveBeenCalledWith(bytes));
     controller.abort('superseded');
 
     await expect(pending).rejects.toBeInstanceOf(
