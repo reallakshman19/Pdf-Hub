@@ -38,12 +38,14 @@ export ALT_WP02_MACHINE="ubuntu-24.04;github-run=$GITHUB_RUN_ID;$(uname -m)"
 export PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173/Pdf-Hub/
 python3 "$GITHUB_WORKSPACE/harness/validation/alt-stage1/integrate.py" "$WP" "$PKG" | tee "$OUT/logs/integration-delta.log"
 # Additional read-only tests are copied as untracked files into Vitest discovery; removed on exit.
+if [[ "$WP" != 03 ]]; then
 extra="$REPO/frontend/src/core/alt-stage1-supplement.test.ts"
 cp "$GITHUB_WORKSPACE/harness/validation/alt-stage1/supplement.test.ts" "$extra"
 if [[ "$WP" == 01 ]]; then supplemental="A05|A08"; else supplemental="R04"; fi
 export ALT_FIXTURE_DIR="$PKG/fixtures"
 step supplemental-vitest pnpm -C frontend exec vitest run src/core/alt-stage1-supplement.test.ts --pool=forks --maxWorkers=1 -t "$supplemental" || true
 rm -f "$extra"
+fi
 case "$WP" in
   01)
     mkdir -p "$OUT"/{benchmarks,native,native-inspections,screenshots,observations,playwright-artifacts}

@@ -13,4 +13,6 @@ if wp=="01":
     patch("benchmarks/benchmarks.spec.ts",old,new)
 elif wp=="02":
     patch("tests/support.ts", "resolve(dirname(fileURLToPath(import.meta.url)), '..')", "resolve(__dirname, '..')")
+elif wp=="03":
+    patch("tests/helpers.cjs", "test.beforeEach(async({page},testInfo)=>{", "test.beforeEach(async({page},testInfo)=>{\n  await page.addInitScript(()=>{delete window.showOpenFilePicker;delete window.showSaveFilePicker;});")
 else: raise ValueError(wp)
