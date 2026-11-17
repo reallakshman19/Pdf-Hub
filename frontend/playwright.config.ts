@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://127.0.0.1:5173/Pdf-Hub/',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173/Pdf-Hub/',
     trace: 'on-first-retry',
   },
   projects: [
@@ -27,7 +27,7 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     // `npm run dev` invokes `node node_modules/.bin/vite`, which fails on
     // Linux (node_modules/.bin/vite is a POSIX shell shim, not JS — node
     // cannot execute it directly). Call vite's real JS entrypoint instead.
