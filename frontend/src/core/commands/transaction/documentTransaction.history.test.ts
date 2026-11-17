@@ -945,7 +945,7 @@ describe('document transaction history memory', () => {
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1]));
     expect(useSessionStore.getState().documentKey).toBe('hash-1');
     expect(useSessionStore.getState().pageGraph?.pages[0]?.pageId).toBe('stable-page');
-    expect(useAnnotationStore.getState().annotations).toEqual([beforeAnnotation]);
+    expect(useAnnotationStore.getState().annotations).toEqual([{ ...beforeAnnotation, pageId: 'stable-page' }]);
     expect(useOcrStore.getState().documentFingerprint).toBe('hash-1');
     expect(useOcrStore.getState().result?.pages[0]).toMatchObject({
       pageId: 'stable-page',
