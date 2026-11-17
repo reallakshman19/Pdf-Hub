@@ -18,7 +18,7 @@ import {
 } from '@/core/existing-text/contentStreamScanner';
 import {
   readExistingTextPageContentStreams,
-} from '../PdfLibExistingTextContentStreams';
+} from './PdfLibExistingTextContentStreams';
 
 describe('pdf-lib existing-text content stream reader', () => {
   it('decodes a generated simple page stream and exposes a matchable Tj operator', async () => {

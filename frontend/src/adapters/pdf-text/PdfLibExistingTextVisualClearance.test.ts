@@ -1,5 +1,4 @@
 import {
-  PDFArray,
   PDFDocument,
   PDFName,
   StandardFonts,

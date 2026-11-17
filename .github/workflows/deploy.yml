@@ -3,23 +3,28 @@ name: Deploy static content to Pages
 on:
   push:
     branches: ['main']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'frontend/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.nvmrc'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: 'pages'
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+  build:
+    # The locked Playwright version does not support Ubuntu 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,17 +36,45 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'pnpm'
+          cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
-        run: cd frontend && pnpm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+        env:
+          VITE_BASE_PATH: /Pdf-Hub/
+        run: pnpm -C frontend run build
+      - name: Verify production artifact
+        run: node frontend/scripts/verify-pages-artifact.mjs frontend/dist /Pdf-Hub/
+      - name: Install Chromium for production smoke
+        run: pnpm -C frontend exec playwright install --with-deps chromium
+      - name: Smoke-test compiled application
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm -C frontend exec vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/pdf-hub-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/Pdf-Hub/ > /dev/null
+          node frontend/scripts/smoke-pages-build.mjs http://127.0.0.1:4173/Pdf-Hub/
       - name: Upload artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './frontend/dist'
+          path: frontend/dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -7,20 +7,20 @@ import {
 import {
   clearHistoryJournalStoreRegistryForTests,
   registerHistoryJournalStore,
-} from '../registry';
+} from './registry';
 import {
   createInitialHistoryJournalManifest,
-} from '../types';
+} from './types';
 import type {
   HistoryState,
-} from '../../types';
+} from '../types';
 import {
   attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
-} from '../appendMutation';
+} from './appendMutation';
 import {
   prepareHistoryJournalNavigation,
-} from '../navigation';
+} from './navigation';
 
 function recoveryState(
   revisionId: string,

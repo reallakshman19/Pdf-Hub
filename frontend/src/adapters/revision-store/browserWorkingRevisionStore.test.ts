@@ -103,7 +103,7 @@ describe('browser working revision store selection', () => {
       storeId: 'reuse-store',
       createOpfsStore: async (id) => {
         creates += 1;
-        return new MemoryRevisionStore({ id });
+        return fakeOpfsStore(id);
       },
     });
     const second = await getBrowserWorkingRevisionStore({

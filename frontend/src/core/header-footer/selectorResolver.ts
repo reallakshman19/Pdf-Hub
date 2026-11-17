@@ -34,11 +34,12 @@ export function matchesHeaderFooterSelector(
       return selector.include.pageIds.includes(page.pageId);
 
     case 'range': {
+      const { startPageId, endPageId } = selector.include;
       const start = pageGraph.pages.findIndex(
-        (candidate) => candidate.pageId === selector.include.startPageId,
+        (candidate) => candidate.pageId === startPageId,
       );
       const end = pageGraph.pages.findIndex(
-        (candidate) => candidate.pageId === selector.include.endPageId,
+        (candidate) => candidate.pageId === endPageId,
       );
       if (start < 0 || end < 0) return false;
       const low = Math.min(start, end);

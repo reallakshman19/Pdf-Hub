@@ -5,10 +5,11 @@ import {
   clearResolvedPageLabels,
 } from './pageLabels';
 import { createPageGraph } from './pageGraph';
+import type { PageNode } from './types';
 import { readResolvedPdfPageLabels } from './pdfPageLabels';
 
 function graph() {
-  return createPageGraph([
+  return createPageGraph<PageNode>([
     {
       pageId: 'cover',
       documentKey: 'doc',

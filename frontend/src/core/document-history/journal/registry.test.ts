@@ -6,7 +6,7 @@ import {
   registerHistoryJournalStore,
   releaseHistoryJournalStore,
   resolveHistoryJournalStore,
-} from '../registry';
+} from './registry';
 
 describe('history journal store registry', () => {
   beforeEach(() => {

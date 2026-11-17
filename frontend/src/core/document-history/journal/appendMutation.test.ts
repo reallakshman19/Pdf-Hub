@@ -7,15 +7,15 @@ import {
 import {
   clearHistoryJournalStoreRegistryForTests,
   registerHistoryJournalStore,
-} from '../registry';
+} from './registry';
 import {
   createInitialHistoryJournalManifest,
-} from '../types';
+} from './types';
 import type { HistoryState } from '../types';
 import {
   attachHistoryJournalBarrierState,
   prepareHistoryJournalMutation,
-} from '../appendMutation';
+} from './appendMutation';
 
 function rotateCommand(
   documentKey = 'sha256:before',

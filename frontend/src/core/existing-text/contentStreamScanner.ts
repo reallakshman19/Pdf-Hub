@@ -4,7 +4,6 @@ import type {
   ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
   ExistingTextSingleStringTjArrayOperator,
-  ExistingTextTjOperator,
 } from './provenanceTypes';
 import type {
   ExistingTextTransform,

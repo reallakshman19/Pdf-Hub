@@ -102,7 +102,7 @@ async function copyDocumentSourceToWritable(
       );
     }
     await raceWithAbort(
-      input.writable.write(bytes),
+      input.writable.write(bytes.buffer instanceof ArrayBuffer ? bytes as Uint8Array<ArrayBuffer> : Uint8Array.from(bytes)),
       input.signal,
       'commit working revision: write chunk',
     );

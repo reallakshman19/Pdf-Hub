@@ -15,11 +15,6 @@ function openAdvanced(): void {
   fireEvent.click(screen.getByText('Advanced'));
 }
 
-function viewRecipeSource(): void {
-  openAdvanced();
-  fireEvent.click(screen.getByRole('button', { name: 'View recipe source' }));
-}
-
 describe('MacroRecipeBuilder slice 8', () => {
   beforeEach(() => {
     localStorage.clear();

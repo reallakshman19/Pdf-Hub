@@ -85,7 +85,8 @@ jobs:
 
   e2e-tests:
     name: End-to-end journeys
-    runs-on: ubuntu-latest
+    # The locked Playwright version does not support Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -109,11 +110,11 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright end-to-end tests
         working-directory: frontend
-        run: npx playwright test
+        run: pnpm exec playwright test
 
       - name: Upload Playwright report
         if: always()

@@ -180,7 +180,7 @@ describe('OpfsRevisionStore', () => {
       chunkBytes: 2,
     });
 
-    let releaseRead: (() => void) | null = null;
+    let releaseRead!: () => void;
     const blocked = new Promise<void>((resolve) => {
       releaseRead = resolve;
     });
@@ -231,7 +231,7 @@ describe('OpfsRevisionStore', () => {
       code: 'REVISION_EXISTS',
     });
 
-    releaseRead?.();
+    releaseRead();
     await pending;
     expect(await store.has('pending')).toBe(true);
     await expect(

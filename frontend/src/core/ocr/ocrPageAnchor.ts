@@ -406,7 +406,7 @@ function transformOcrPageResult(
 
     return {
       ...common,
-      rows: block.rows.map((row) => ({
+      rows: block.rows?.map((row) => ({
         ...row,
         cells: row.cells.map((cell) => ({
           ...cell,

@@ -36,7 +36,9 @@ export class AnnotationInteroperabilityOracle {
   /** Checks whether the given annotation type requires an explicit /AP appearance stream. */
   public static isAppearanceStreamRequired(type: AnnotationType): boolean {
     const entry = manifest.fixtures[type as keyof typeof manifest.fixtures];
-    return entry ? Boolean(entry.appearanceStreamRequired) : true;
+    // The manifest deliberately gates /AP generation on retained named-viewer evidence.
+    // Without such evidence, no supported fixture requires a new stream.
+    return !entry || entry.appearanceStreamPolicy !== 'EVIDENCE_GATED';
   }
 
   /** Gets the expected PDF Subtype for a given application annotation type. */

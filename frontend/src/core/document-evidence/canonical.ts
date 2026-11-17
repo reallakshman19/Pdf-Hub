@@ -4,7 +4,7 @@ export function canonicalJson(value: JsonValue): string {
   return serialize(value);
 }
 
-export function canonicalJsonBytes(value: JsonValue): Uint8Array {
+export function canonicalJsonBytes(value: JsonValue): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(canonicalJson(value));
 }
 
@@ -70,7 +70,7 @@ function schemaDomain(value: JsonValue): string | null {
   return typeof schema === 'string' && schema.length > 0 ? schema : null;
 }
 
-function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array<ArrayBuffer> {
   const output = new Uint8Array(left.length + right.length);
   output.set(left, 0);
   output.set(right, left.length);
