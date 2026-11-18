@@ -155,4 +155,72 @@ describe('buildWriterTableDragResizeCommand', () => {
         'Writer table resize target is unavailable.',
     });
   });
+
+  it('clamps paired widths while preserving total table width at the minimum', () => {
+    const result = buildWriterTableDragResizeCommand({
+      drag: { type: 'resize-column', columnIndex: 0, startX: 100, initialWidths: [100, 100, 100] },
+      point: { x: 190, y: 0 },
+      elements: [tableElement()],
+      elementId: 'table-1',
+    });
+    expect(result.changed).toBe(true);
+    expect(result.command).toMatchObject({
+      type: 'UPDATE_WRITER_ELEMENT',
+      patch: { tableData: { columns: [
+        { id: 'col-1', width: 184 },
+        { id: 'col-2', width: 16 },
+        { id: 'col-3', width: 100 },
+      ] } },
+    });
+  });
+
+  it('rejects resizing the terminal column without an adjacent sibling', () => {
+    const result = buildWriterTableDragResizeCommand({
+      drag: { type: 'resize-column', columnIndex: 2, startX: 300, initialWidths: [100, 100, 100] },
+      point: { x: 330, y: 0 },
+      elements: [tableElement()],
+      elementId: 'table-1',
+    });
+    expect(result.changed).toBe(false);
+    expect(result.command).toBeNull();
+  });
+
+  it('rejects a stale document-specific table drag even when its element ID collides', () => {
+    const foreign = { ...tableElement(), documentFingerprint: 'doc-B' };
+    const result = buildWriterTableDragResizeCommand({
+      drag: { type: 'resize-column', documentFingerprint: 'doc-A', columnIndex: 0, startX: 100, initialWidths: [100, 100, 100] },
+      point: { x: 130, y: 0 },
+      elements: [foreign],
+      elementId: 'table-1',
+    });
+    expect(result.changed).toBe(false);
+    expect(result.command).toBeNull();
+  });
+
+  it('rejects a locked table without creating a mutation command', () => {
+    const result = buildWriterTableDragResizeCommand({
+      drag: { type: 'resize-column', columnIndex: 0, startX: 100, initialWidths: [100, 100, 100] },
+      point: { x: 130, y: 0 },
+      elements: [{ ...tableElement(), locked: true }],
+      elementId: 'table-1',
+    });
+    expect(result.changed).toBe(false);
+    expect(result.command).toBeNull();
+  });
+
+  it('carries every original table row and cell through an atomic paired-column command', () => {
+    const original = tableElement();
+    const result = buildWriterTableDragResizeCommand({
+      drag: { type: 'resize-column', columnIndex: 0, startX: 100, initialWidths: [100, 100, 100] },
+      point: { x: 125, y: 0 },
+      elements: [original],
+      elementId: 'table-1',
+    });
+    expect(result.changed).toBe(true);
+    if (result.command?.type !== 'UPDATE_WRITER_ELEMENT') throw new Error('No canonical update');
+    const tableData = result.command.patch.tableData;
+    expect(tableData?.rows).toEqual(original.tableData?.rows);
+    expect(tableData?.columns.map((column) => column.width)).toEqual([125, 75, 100]);
+  });
+
 });
