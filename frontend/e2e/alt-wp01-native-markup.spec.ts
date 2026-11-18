@@ -1,5 +1,6 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { PDFArray, PDFDict, PDFDocument, PDFName, StandardFonts, degrees } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import fs from 'node:fs/promises';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
@@ -185,18 +186,10 @@ test('ALT WP01 visual mask is Square AP, not redaction; source text survives', a
   const native = await readNative(saved);
   expect(native.subtype).toBe('Square');
   expect(native.subtype).not.toBe('Redact');
-  // Native PDF stream retains original source text; proof of non-secure mask.
-  const pdfText = await native.doc.getPage(0).getContentStream();
-  expect(pdfText).toBeTruthy();
-  const word = Buffer.from(saved).includes(Buffer.from('ALPHA VALVE'));
-  // PDF text can be compressed; content bytes alone are insufficient to prove
-  // extraction, so do not treat this boolean as a product pass.
-  await info.attach('source-text-inspection-note', {
-    body: Buffer.from(JSON.stringify({
-      source_pdf_preserved_by_writer_not_removed: true,
-      raw_literal_found_in_bytes: word,
-      independent_PyMuPDF_extraction_required: true,
-    }, null, 2)),
-    contentType: 'application/json',
-  });
+  // PDF.js independently reads the user-extractable source text from
+  // the emitted PDF. The separate PyMuPDF/pypdf audit remains mandatory.
+  const parsed = await getDocument({ data: saved.slice() }).promise;
+  const extracted = await (await parsed.getPage(1)).getTextContent();
+  expect(extracted.items.map((item) => 'str' in item ? item.str : '').join(' ')).toContain('ALPHA VALVE');
+  await parsed.destroy();
 });
