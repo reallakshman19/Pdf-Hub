@@ -129,7 +129,7 @@ export const WriterTableInteractionOverlay: React.FC<
         type: 'resize-column',
         pointerId: event.pointerId,
         documentFingerprint: element.documentFingerprint,
-        columnIds: element.tableData.columns.map((column) => column.id),
+        columnIds: element.tableData?.columns.map((column) => column.id) ?? [],
         columnIndex: resizeHit.index,
         startX: point.x,
         initialWidths: [...layout.columnWidths],
