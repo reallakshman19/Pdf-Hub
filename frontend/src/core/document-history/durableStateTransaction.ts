@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   enqueueDocumentOperation,
 } from '@/core/commands/documentOperationQueue';
-import { useSessionStore } from '@/core/session/store';
+import { getDocumentSessionGeneration, useSessionStore } from '@/core/session/store';
 import {
   prepareHistoryJournalStateTransaction,
 } from './journal/appendStateTransaction';
@@ -24,32 +24,82 @@ export type DurableStateMutationFactory = () =>
   | null
   | Promise<CommitDurableStateTransactionInput | null>;
 
+/**
+ * A queued state edit owns the editing session and the coordinate/revision
+ * basis it was invoked against, not whichever document happens to be active
+ * when the queue drains. A reopen of identical bytes is a different session.
+ */
+export class StaleDurableStateMutationError extends Error {
+  constructor() {
+    super('State transaction belongs to a stale document session or revision.');
+    this.name = 'StaleDurableStateMutationError';
+  }
+}
+
+type MutationOwner = {
+  generation: number;
+  session: ReturnType<typeof useSessionStore.getState>;
+};
+
+function captureMutationOwner(): MutationOwner {
+  return {
+    generation: getDocumentSessionGeneration(),
+    session: useSessionStore.getState(),
+  };
+}
+
+function isMutationOwnerCurrent(owner: MutationOwner): boolean {
+  const current = useSessionStore.getState();
+  const prior = owner.session;
+  // Same-revision queued state edits can run sequentially. A byte revision
+  // or page graph change invalidates captured positional intent; retry the
+  // gesture on the new basis instead of silently targeting another page.
+  return owner.generation === getDocumentSessionGeneration()
+    && prior.documentKey === current.documentKey
+    && prior.sourceId === current.sourceId
+    && prior.revisionStoreId === current.revisionStoreId
+    && prior.activeRevisionId === current.activeRevisionId
+    && prior.historyJournalStoreId === current.historyJournalStoreId
+    && prior.historyJournalId === current.historyJournalId
+    && prior.pageGraph === current.pageGraph
+    && prior.workingBytes === current.workingBytes;
+}
+
+function assertMutationOwner(owner: MutationOwner): void {
+  if (!isMutationOwnerCurrent(owner)) {
+    throw new StaleDurableStateMutationError();
+  }
+}
+
 export async function commitDurableStateTransaction(
   input: CommitDurableStateTransactionInput,
 ): Promise<boolean> {
-  return enqueueDocumentOperation(() =>
-    commitDurableStateTransactionWithinQueue(
-      input,
-    )
-  );
+  const owner = captureMutationOwner();
+  return enqueueDocumentOperation(() => {
+    assertMutationOwner(owner);
+    return commitDurableStateTransactionWithinQueue(input, owner);
+  });
 }
 
 export async function commitDurableStateMutation(
   factory: DurableStateMutationFactory,
 ): Promise<boolean> {
+  const owner = captureMutationOwner();
   return enqueueDocumentOperation(async () => {
+    assertMutationOwner(owner);
     const input = await factory();
+    assertMutationOwner(owner);
     if (!input) return false;
 
-    return commitDurableStateTransactionWithinQueue(
-      input,
-    );
+    return commitDurableStateTransactionWithinQueue(input, owner);
   });
 }
 
 async function commitDurableStateTransactionWithinQueue(
   input: CommitDurableStateTransactionInput,
+  owner: MutationOwner,
 ): Promise<boolean> {
+  assertMutationOwner(owner);
   const sessionSnapshot =
     useSessionStore.getState();
   const historyBefore =
@@ -90,6 +140,7 @@ async function commitDurableStateTransactionWithinQueue(
       ).toISOString(),
     });
 
+  assertMutationOwner(owner);
   assertSessionUnchanged(sessionSnapshot);
   assertHistoryUnchanged(historyBefore);
 
@@ -105,8 +156,13 @@ async function commitDurableStateTransactionWithinQueue(
 
   let applyStarted = false;
   try {
+    assertMutationOwner(owner);
     applyStarted = true;
-    await input.apply();
+    // Production store callbacks apply synchronously. Do not introduce an
+    // await between applying them and publishing their history cursor.
+    const applied = input.apply();
+    if (applied) await applied;
+    assertMutationOwner(owner);
 
     useHistoryStore
       .getState()
@@ -118,18 +174,27 @@ async function commitDurableStateTransactionWithinQueue(
       );
     }
 
+    assertMutationOwner(owner);
     return true;
   } catch (error) {
+    // A save that was already started belongs to the old journal. Never
+    // restore old snapshots or execute old rollback callbacks in a new
+    // editing session, even when the old journal write rejects late.
+    if (!isMutationOwnerCurrent(owner)) {
+      throw new StaleDurableStateMutationError();
+    }
     let rollbackError: unknown = null;
 
     if (applyStarted) {
       try {
-        await input.rollback();
+        const rolledBack = input.rollback();
+        if (rolledBack) await rolledBack;
       } catch (caughtRollbackError) {
         rollbackError = caughtRollbackError;
       }
     }
 
+    assertMutationOwner(owner);
     useSessionStore.setState(sessionSnapshot);
     useHistoryStore.setState(historySnapshot);
 

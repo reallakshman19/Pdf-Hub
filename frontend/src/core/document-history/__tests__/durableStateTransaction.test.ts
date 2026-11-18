@@ -6,6 +6,7 @@ import {
   materializePdfCommand,
 } from '@/core/commands/types';
 import {
+  enqueueDocumentOperation,
   resetDocumentOperationQueueForTests,
 } from '@/core/commands/documentOperationQueue';
 import {
@@ -28,6 +29,7 @@ import type {
 import {
   commitDurableStateMutation,
   commitDurableStateTransaction,
+  StaleDurableStateMutationError,
 } from '../durableStateTransaction';
 
 function state(
@@ -344,5 +346,72 @@ describe('commitDurableStateTransaction', () => {
     expect(
       useHistoryStore.getState().undoStack,
     ).toHaveLength(1);
+  });
+
+  it('rejects a factory queued before reopening the same bytes, before deriving state', async () => {
+    const open = () => useSessionStore.getState().openDocument({
+      documentKey: 'sha256:one', fileName: 'same.pdf',
+      bytes: Uint8Array.from([1]), pageCount: 1,
+    });
+    open();
+    let release!: () => void;
+    const blocker = enqueueDocumentOperation(() => new Promise<void>(resolve => { release = resolve; }));
+    await Promise.resolve();
+    const factory = vi.fn(() => null);
+    const pending = commitDurableStateMutation(factory);
+    const result = expect(pending).rejects.toBeInstanceOf(StaleDurableStateMutationError);
+    open();
+    release();
+    await blocker;
+    await result;
+    expect(factory).not.toHaveBeenCalled();
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('rejects an async factory after a document switch without applying', async () => {
+    await openJournalAwareSession();
+    let release!: () => void;
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    const apply = vi.fn();
+    const factory = vi.fn(async () => {
+      await barrier;
+      return { command: command(), label: 'Stale', before: state(''), after: state('after'), apply, rollback: vi.fn() };
+    });
+    const pending = commitDurableStateMutation(factory);
+    const result = expect(pending).rejects.toBeInstanceOf(StaleDurableStateMutationError);
+    await Promise.resolve();
+    expect(factory).toHaveBeenCalledOnce();
+    useSessionStore.getState().openDocument({ documentKey: 'sha256:two', fileName: 'B.pdf', bytes: Uint8Array.from([2]), pageCount: 1 });
+    release();
+    await result;
+    expect(apply).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().documentKey).toBe('sha256:two');
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it('does not restore old session or rollback old state after a late journal failure', async () => {
+    const journal = await openJournalAwareSession();
+    let rejectSave!: (error: Error) => void;
+    let signalStarted!: () => void;
+    const started = new Promise<void>(resolve => { signalStarted = resolve; });
+    vi.spyOn(journal, 'save').mockImplementationOnce(() => {
+      signalStarted();
+      return new Promise<void>((_, reject) => { rejectSave = reject; });
+    });
+    const rollback = vi.fn();
+    const pending = commitDurableStateTransaction({
+      command: command(), label: 'A', before: state(''), after: state('after'),
+      apply: () => useSessionStore.getState().setDirty(true), rollback,
+    });
+    const result = expect(pending).rejects.toBeInstanceOf(StaleDurableStateMutationError);
+    await started;
+    useSessionStore.getState().openDocument({ documentKey: 'sha256:two', fileName: 'B.pdf', bytes: Uint8Array.from([2]), pageCount: 1 });
+    useHistoryStore.getState().clear();
+    rejectSave(new Error('late A write failure'));
+    await result;
+    expect(rollback).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().documentKey).toBe('sha256:two');
+    expect(useSessionStore.getState().isDirty).toBe(false);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 });

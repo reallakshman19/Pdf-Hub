@@ -257,6 +257,14 @@ function resolveNavigationForGraph(
   };
 }
 
+// Runtime-only ownership identity. Content hashes can repeat on a reopen, and
+// revisions can change without opening a different editing session.
+let documentSessionGeneration = 0;
+
+export function getDocumentSessionGeneration(): number {
+  return documentSessionGeneration;
+}
+
 export const useSessionStore = create<DocumentSession & SessionActions>((set, get) => ({
   documentKey: null,
   sourceId: null,
@@ -399,6 +407,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     }
 
     if (import.meta.env.DEV) Object.freeze(bytes.buffer);
+    documentSessionGeneration += 1;
     return set({
       documentKey,
       sourceId,
@@ -700,6 +709,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     releaseHistoryJournalStore(
       get().historyJournalStoreId,
     );
+    documentSessionGeneration += 1;
     return set({
       documentKey: null,
       sourceId: null,

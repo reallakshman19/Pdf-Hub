@@ -203,6 +203,24 @@ function annotationSnapshot(
   };
 }
 
+// Preserve already imported records verbatim; reject a mutation only if it
+// introduces/increases an ambiguous identity. Do not silently deduplicate.
+function introducesDuplicateAnnotationId(
+  before: readonly PdfAnnotation[],
+  after: readonly PdfAnnotation[],
+): boolean {
+  const counts = (items: readonly PdfAnnotation[]) => {
+    const result = new Map<string, number>();
+    for (const item of items) result.set(item.id, (result.get(item.id) ?? 0) + 1);
+    return result;
+  };
+  const previous = counts(before);
+  for (const [id, count] of counts(after)) {
+    if (count > Math.max(1, previous.get(id) ?? 0)) return true;
+  }
+  return false;
+}
+
 type AnnotationStore =
   AnnotationState & AnnotationActions;
 
@@ -250,6 +268,10 @@ export const useAnnotationStore =
 
           const nextAnnotations =
             next.annotations ?? state.annotations;
+          if (introducesDuplicateAnnotationId(state.annotations, nextAnnotations)) {
+            logError('annotation', 'Duplicate annotation identity rejected', { label });
+            return state;
+          }
           markAnnotationDirty();
           recordAnnotationMutation(
             state,
@@ -268,6 +290,10 @@ export const useAnnotationStore =
 
         const nextAnnotations =
           next.annotations ?? state.annotations;
+        if (introducesDuplicateAnnotationId(state.annotations, nextAnnotations)) {
+          logError('annotation', 'Duplicate annotation identity rejected', { label });
+          return null;
+        }
         const transaction =
           createAnnotationTransactionInput(
             state,
@@ -306,6 +332,19 @@ export const useAnnotationStore =
 
   addAnnotation: (annotation) =>
     runMutation((state) => {
+      const graph = useSessionStore.getState().pageGraph;
+      if (graph && (
+        !Number.isInteger(annotation.pageNumber)
+        || annotation.pageNumber < 1
+        || annotation.pageNumber > graph.pages.length
+        || (annotation.pageId !== undefined
+          && graph.pages[annotation.pageNumber - 1]?.pageId !== annotation.pageId)
+      )) {
+        logError('annotation', 'Invalid or stale annotation page anchor rejected', {
+          annotationId: annotation.id,
+        });
+        return state;
+      }
       const normalizedAnnotation = annotationForTargetPage(
         normalizeAnnotationReview(annotation),
         useSessionStore.getState().pageGraph,
