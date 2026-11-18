@@ -5,7 +5,6 @@ import type {
   WriterTableCommandBridgeResult,
 } from './writerTableCommandBridge';
 import {
-  buildResizeTableColumnCommand,
   buildResizeTableRowCommand,
 } from './writerTableCommandBridge';
 import {
@@ -15,12 +14,17 @@ import {
 export type WriterTableResizeDrag =
   | {
       type: 'resize-column';
+      /** Captured at gesture start; prevents stale paste-like table targeting. */
+      documentFingerprint?: string;
+      columnIds?: string[];
       columnIndex: number;
       startX: number;
       initialWidths: number[];
     }
   | {
       type: 'resize-row';
+      documentFingerprint?: string;
+      rowId?: string;
       rowIndex: number;
       startY: number;
       initialHeight: number;
@@ -38,46 +42,100 @@ export function buildWriterTableDragResizeCommand(
     (item) => item.id === input.elementId,
   );
 
-  if (!element?.tableData) {
+  if (!element?.tableData || element.locked || element.hidden) {
     return {
       command: null,
       changed: false,
-      message:
-        'Writer table resize target is unavailable.',
+      message: 'Writer table resize target is unavailable.',
+    };
+  }
+
+  if (
+    input.drag.documentFingerprint
+    && input.drag.documentFingerprint !== element.documentFingerprint
+  ) {
+    return {
+      command: null,
+      changed: false,
+      message: 'Writer table resize belongs to a different document.',
     };
   }
 
   if (input.drag.type === 'resize-column') {
-    const delta =
-      input.point.x - input.drag.startX;
-    const nextWidths =
-      computeResizedColumnWidths({
-        currentWidths:
-          input.drag.initialWidths,
-        columnIndex:
-          input.drag.columnIndex,
-        delta,
-      });
-    const column =
-      element.tableData.columns[
-        input.drag.columnIndex
-      ];
-
-    if (!column) {
+    const columns = element.tableData.columns;
+    const index = input.drag.columnIndex;
+    const capturedColumnIds = input.drag.columnIds;
+    const capturedWidths = input.drag.initialWidths;
+    // A drag moves the common boundary between two columns. Never admit
+    // only the left-hand update: it changes the entire table width and
+    // invalidates the pointer's observed geometry.
+    if (
+      index < 0
+      || index + 1 >= columns.length
+      || capturedWidths.length !== columns.length
+      || (
+        capturedColumnIds
+        && (
+          capturedColumnIds.length !== columns.length
+          || columns.some((column, i) => column.id !== capturedColumnIds[i])
+        )
+      )
+    ) {
       return {
         command: null,
         changed: false,
-        message:
-          'Writer table column is unavailable.',
+        message: 'Writer table column structure changed during resize.',
       };
     }
 
-    return buildResizeTableColumnCommand(
-      input.elements,
-      input.elementId,
-      column.id,
-      nextWidths[input.drag.columnIndex],
-    );
+    const delta = input.point.x - input.drag.startX;
+    const nextWidths = computeResizedColumnWidths({
+      currentWidths: capturedWidths,
+      columnIndex: index,
+      delta,
+    });
+    if (
+      nextWidths.some((width) => !Number.isFinite(width) || width <= 0)
+      || nextWidths.every((width, i) => width === capturedWidths[i])
+    ) {
+      return {
+        command: null,
+        changed: false,
+        message: 'Writer table column resize did not change valid widths.',
+      };
+    }
+
+    // Persist the complete visual width vector in ONE canonical command.
+    // This is critical when column source weights were normalized to the
+    // current viewport; a one-column patch causes re-normalization drift.
+    return {
+      command: {
+        type: 'UPDATE_WRITER_ELEMENT',
+        id: element.id,
+        patch: {
+          tableData: {
+            ...element.tableData,
+            columns: columns.map((column, i) => ({
+              ...column,
+              width: nextWidths[i],
+            })),
+          },
+        },
+      },
+      changed: true,
+      message: 'Table adjacent columns resized together.',
+    };
+  }
+
+  if (
+    input.drag.rowId
+    && element.tableData.rows[input.drag.rowIndex]?.id !== input.drag.rowId
+  ) {
+    return {
+      command: null,
+      changed: false,
+      message: 'Writer table row structure changed during resize.',
+    };
   }
 
   const delta =

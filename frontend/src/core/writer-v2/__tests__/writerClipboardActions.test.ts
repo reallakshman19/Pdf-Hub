@@ -101,6 +101,18 @@ function hydrateSelection(elements: WriterElementV2[], selectedIds: string[]): v
   useWriterV2Store.getState().hydrateWriterSession({
     documentFingerprint: 'clipboard-doc',
     elements,
+    // An image reference is valid only with its actual same-document asset.
+    assetRecords: elements.some((element) => element.imageAssetId === 'asset-1')
+      ? [{
+          id: 'asset-1',
+          documentFingerprint: 'clipboard-doc',
+          kind: 'image',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XmkAAAAASUVORK5CYII=',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }]
+      : [],
   });
   useWriterV2Store.getState().dispatchWriterCommand({
     type: 'SET_ACTIVE_WRITER_ELEMENT',
