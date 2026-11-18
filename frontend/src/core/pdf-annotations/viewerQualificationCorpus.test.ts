@@ -129,7 +129,10 @@ async function inspectReviewJourney(bytes: Uint8Array) {
   expect(comment!.has(PDFName.of('AP'))).toBe(false);
 
   expect(readName(highlight!, 'Subtype')).toBe('Highlight');
-  expect(highlight!.has(PDFName.of('AP'))).toBe(false);
+  const highlightAp = highlight!.lookupMaybe(PDFName.of('AP'), PDFDict);
+  expect(highlightAp).toBeInstanceOf(PDFDict);
+  const highlightNormal = highlightAp?.lookup(PDFName.of('N')) as { dict?: PDFDict } | undefined;
+  expect(highlightNormal?.dict?.lookupMaybe(PDFName.of('Subtype'), PDFName)?.decodeText()).toBe('Form');
 
   expect(readName(reply!, 'Subtype')).toBe('Text');
   expect(readName(reply!, 'RT')).toBe('R');
@@ -242,7 +245,7 @@ async function maybeWriteCorpus(
       pdfSubtype: entry.pdfSubtype,
       annotationId: entry.annotationId,
       file: fileName,
-      apPresent: false,
+      apPresent: (await inspectManagedAnnotation(entry.bytes, entry.annotationId)).hasAppearance,
     });
   }
 
@@ -254,7 +257,16 @@ async function maybeWriteCorpus(
       file: journey.fileName,
       rootIds: journey.rootIds,
       graph: journey.graph,
-      apPresentOnRoots: false,
+      // A review journey contains one markup root with AP and a separate
+      // Text root without AP. Never report that every root has an AP.
+      apPresentOnRoots: (
+        await Promise.all(journey.rootIds.map((id) => inspectManagedAnnotation(journey.bytes, id)))
+      ).every((root) => root.hasAppearance),
+      appearanceByRoot: Object.fromEntries(
+        await Promise.all(journey.rootIds.map(async (id) =>
+          [id, (await inspectManagedAnnotation(journey.bytes, id)).hasAppearance],
+        )),
+      ),
     });
   }
 
@@ -316,7 +328,9 @@ describe('Phase 10 viewer appearance qualification corpus', () => {
       expect(result.annotationCount).toBe(1);
       expect(actual.nm).toBe(annotation.id);
       expect(actual.subtype).toBe(expected.pdfSubtype);
-      expect(actual.hasAppearance).toBe(false);
+      const mustHaveAp = type === 'highlight' || type === 'underline'
+        || type === 'strikeout' || type === 'squiggly' || type === 'redaction';
+      expect(actual.hasAppearance).toBe(mustHaveAp);
 
       entries.push({
         type,

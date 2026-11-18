@@ -10,6 +10,11 @@ import type {
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import type { ReviewReply } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { attachNativeMarkupAppearance } from './nativeMarkupAppearance';
+import {
+  createMarkupSpace, markupOrMask, pdfPointToView, viewPointToPdf,
+  viewRectToPdfRect, type MarkupSpace,
+} from './markupGeometry';
 
 type PdfLibModule = typeof import('pdf-lib');
 
@@ -37,6 +42,7 @@ interface AnnotationGeometry {
   width: number;
   height: number;
   pageHeight: number;
+  space?: MarkupSpace;
 }
 
 interface ReviewStateRecord {
@@ -1007,9 +1013,10 @@ function registerNativeAnnotation(
   const stroke = readColor(annotation.data.borderColor, DEFAULT_STROKE);
   const fill = readColor(annotation.data.backgroundColor, DEFAULT_FILL);
   const opacity =
-    typeof annotation.data.opacity === 'number'
-      ? clamp(annotation.data.opacity, 0, 1)
-      : 1;
+    annotation.type === 'redaction' ? 1
+      : typeof annotation.data.opacity === 'number'
+        ? clamp(annotation.data.opacity, 0, 1)
+        : annotation.type === 'highlight' ? 0.35 : 1;
   const borderWidth =
     typeof annotation.data.borderWidth === 'number'
       ? Math.max(0, annotation.data.borderWidth)
@@ -1073,6 +1080,15 @@ function registerNativeAnnotation(
     ROOT_APPEARANCE_KEYS,
     lib,
   );
+  if (markupOrMask(annotation.type)) {
+    const nativeQuads = annotation.type === 'redaction'
+      ? []
+      : readPdfNumberArray(dict, 'QuadPoints', lib) ?? [];
+    attachNativeMarkupAppearance(
+      doc, dict, annotation, geometry.rect, nativeQuads,
+      annotation.type === 'highlight' ? fill : stroke, opacity, borderWidth, lib,
+    );
+  }
   const ref = doc.context.register(dict);
   relinkPopupParent(sourceDict, ref, lib);
   return ref;
@@ -1272,19 +1288,23 @@ function subtypeFor(type: PdfAnnotation['type']): string {
 
 function toPdfGeometry(annotation: PdfAnnotation, page: PDFPage): AnnotationGeometry {
   const pageHeight = page.getHeight();
+  // Only markup/mask uses the displayed crop/rotation mapping. Other PDF
+  // annotation families belong to separate governed workpacks.
+  const space = markupOrMask(annotation.type)
+    ? createMarkupSpace(page.getCropBox(), page.getRotation().angle)
+    : undefined;
+  if (space) {
+    const rect = viewRectToPdfRect(annotation.rect, space);
+    return {
+      x: rect[0], y: rect[1], width: rect[2] - rect[0],
+      height: rect[3] - rect[1], pageHeight, rect, space,
+    };
+  }
   const x = annotation.rect.x;
   const y = pageHeight - annotation.rect.y - annotation.rect.height;
   const width = Math.max(0, annotation.rect.width);
   const height = Math.max(0, annotation.rect.height);
-
-  return {
-    x,
-    y,
-    width,
-    height,
-    pageHeight,
-    rect: [x, y, x + width, y + height],
-  };
+  return { x, y, width, height, pageHeight, rect: [x, y, x + width, y + height] };
 }
 
 function textMarkupQuadPoints(
@@ -1295,11 +1315,8 @@ function textMarkupQuadPoints(
 ): PdfLiteral {
   const normalized = readFiniteNumberArray(annotation.data.textMarkupQuads);
   const validNormalized = Boolean(
-    normalized
-    && normalized.length >= 8
-    && normalized.length % 8 === 0,
+    normalized && normalized.length >= 8 && normalized.length % 8 === 0,
   );
-
   const sourceQuadObject = sourceDict?.get(lib.PDFName.of('QuadPoints'));
   const sourceQuadArray = sourceDict
     ? sourceDict.lookupMaybe(lib.PDFName.of('QuadPoints'), lib.PDFArray)
@@ -1308,71 +1325,53 @@ function textMarkupQuadPoints(
     ? readPdfNumberArray(sourceDict, 'Rect', lib)
     : null;
 
-  if (
-    validNormalized
-    && sourceQuadObject
-    && sourceQuadArray
-    && sourceRect
-    && numberArraysEquivalent(sourceRect, geometry.rect)
-  ) {
+  if (validNormalized && sourceQuadObject && sourceQuadArray && sourceRect
+    && numberArraysEquivalent(sourceRect, geometry.rect)) {
     const sourceValues = readPdfArrayValues(sourceQuadArray, lib);
-    const sourceNormalized = normalizePdfQuadPoints(
-      sourceValues,
-      geometry,
-    );
-    if (
-      sourceNormalized
-      && numberArraysEquivalent(sourceNormalized, normalized!)
-    ) {
+    const sourceNormalized = normalizePdfQuadPoints(sourceValues, geometry, annotation.rect);
+    if (sourceNormalized && numberArraysEquivalent(sourceNormalized, normalized!)) {
       return sourceQuadObject;
     }
   }
 
+  const transform = (x: number, y: number) => geometry.space
+    ? viewPointToPdf(x, y, geometry.space)
+    : { x, y: geometry.pageHeight - y };
+
   if (validNormalized) {
     const values: number[] = [];
     for (let index = 0; index + 1 < normalized!.length; index += 2) {
-      const nx = normalized![index];
-      const ny = normalized![index + 1];
-      const appX = annotation.rect.x + (nx * annotation.rect.width);
-      const appY = annotation.rect.y + (ny * annotation.rect.height);
-      values.push(appX, geometry.pageHeight - appY);
+      const appX = annotation.rect.x + normalized![index] * annotation.rect.width;
+      const appY = annotation.rect.y + normalized![index + 1] * annotation.rect.height;
+      const native = transform(appX, appY);
+      values.push(native.x, native.y);
     }
     return values;
   }
-
-  const left = geometry.x;
-  const right = geometry.x + geometry.width;
-  const bottom = geometry.y;
-  const top = geometry.y + geometry.height;
-
-  return [
-    left, top,
-    right, top,
-    left, bottom,
-    right, bottom,
+  const { x, y, width, height } = annotation.rect;
+  // Native /QuadPoints follow the text direction: TL TR BL BR in displayed
+  // coordinates. These remain ordered even for /Rotate 90/180/270.
+  const corners = [
+    transform(x, y), transform(x + width, y),
+    transform(x, y + height), transform(x + width, y + height),
   ];
+  return corners.flatMap((point) => [point.x, point.y]);
 }
 
 function normalizePdfQuadPoints(
   values: number[],
   geometry: AnnotationGeometry,
+  rect: PdfAnnotation['rect'],
 ): number[] | null {
-  if (
-    values.length < 8
-    || values.length % 8 !== 0
-    || geometry.width <= 0
-    || geometry.height <= 0
-  ) {
-    return null;
-  }
-
+  if (values.length < 8 || values.length % 8 !== 0
+    || rect.width <= 0 || rect.height <= 0) return null;
   const normalized: number[] = [];
-  const appRectY = geometry.pageHeight - geometry.y - geometry.height;
   for (let index = 0; index + 1 < values.length; index += 2) {
-    const appX = values[index];
-    const appY = geometry.pageHeight - values[index + 1];
-    const nx = (appX - geometry.x) / geometry.width;
-    const ny = (appY - appRectY) / geometry.height;
+    const app = geometry.space
+      ? pdfPointToView(values[index], values[index + 1], geometry.space)
+      : { x: values[index], y: geometry.pageHeight - values[index + 1] };
+    const nx = (app.x - rect.x) / rect.width;
+    const ny = (app.y - rect.y) / rect.height;
     if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
     normalized.push(nx, ny);
   }

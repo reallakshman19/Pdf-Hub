@@ -3,12 +3,14 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import {
   render,
   waitFor,
 } from '@testing-library/react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useSessionStore } from '@/core/session/store';
 import { clearWriterElementClipboard } from '@/core/writer-v2/writerClipboardActions';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { WriterKeyboardHandler } from '../WriterKeyboardHandler';
@@ -51,6 +53,40 @@ describe('WriterKeyboardHandler clipboard shortcuts', () => {
         state.elements[1].id,
       ]);
     });
+  });
+
+
+  it('reports cross-document keyboard paste rejection and leaves B unchanged', async () => {
+    hydrateSelection([makeElement('a-box')], ['a-box']);
+    render(<WriterKeyboardHandler />);
+    const failSaveOperation = vi.spyOn(useSessionStore.getState(), 'failSaveOperation');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'c',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'different-keyboard-doc-B',
+    });
+
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'v',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    await waitFor(() => {
+      expect(failSaveOperation).toHaveBeenCalledWith(
+        expect.stringMatching(/different document identity/i),
+      );
+    });
+    expect(useWriterV2Store.getState().elements).toHaveLength(0);
+    expect(useWriterV2Store.getState().currentDocumentFingerprint).toBe('different-keyboard-doc-B');
+    failSaveOperation.mockRestore();
   });
 
   it('does not intercept copy inside editable targets', () => {
