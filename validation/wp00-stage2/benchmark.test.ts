@@ -6,6 +6,7 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useSessionStore } from '@/core/session/store';
 import { useHistoryStore } from '@/core/document-history/store';
+import { HISTORY_POLICY } from '@/core/document-history/historyPolicy';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { enqueueDocumentOperation, resetDocumentOperationQueueForTests } from '@/core/commands/documentOperationQueue';
 import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
@@ -29,7 +30,7 @@ function reset(){
  clearHistoryJournalStoreRegistryForTests();clearWorkingRevisionStoreRegistryForTests();
 }
 it('WP00 20 same-session edits and 20 stale attempts: two warmups and ten measured each',async()=>{
- const rows:{workload:string,iteration:number,warmup:boolean,ms:number,correct:boolean,annotations:number,history:number,journalEntries:number}[]=[];
+ const rows:{workload:string,iteration:number,warmup:boolean,ms:number,correct:boolean,annotations:number,history:number,journalEntries:number,dropped:number,exactIds:boolean}[]=[];
  for(const workload of ['same-session','stale-session']){
   for(let iteration=0;iteration<12;iteration++){
    reset();let j=await open('sha256:A');const store=useAnnotationStore.getState();
@@ -49,7 +50,14 @@ it('WP00 20 same-session edits and 20 stale attempts: two warmups and ten measur
    const history=useHistoryStore.getState().undoStack.length;
    const journalEntries=(await j.load(workload==='same-session'?'sha256:A-history':'sha256:B-history'))!.entries.length;
    const expected=workload==='same-session'?20:0;
-   rows.push({workload,iteration,warmup:iteration<2,ms,correct:annotations===expected&&history===expected&&journalEntries===expected,annotations,history,journalEntries});
+   const retained=Math.min(expected,HISTORY_POLICY.maxUndoDepth);
+   const dropped=useHistoryStore.getState().droppedTransactions;
+   const ids=useAnnotationStore.getState().annotations.map(a=>a.id);
+   const exactIds=ids.length===expected&&ids.every((id,n)=>id==='edit-'+n);
+   const undo=useHistoryStore.getState().undoStack;
+   const lastJournal=(await j.load(workload==='same-session'?'sha256:A-history':'sha256:B-history'))!;
+   const exactCursor=expected===0?lastJournal.activeTransactionId===null:undo.at(-1)?.id===lastJournal.activeTransactionId;
+   rows.push({workload,iteration,warmup:iteration<2,ms,correct:annotations===expected&&history===retained&&dropped===expected-retained&&journalEntries===expected&&exactIds&&exactCursor,annotations,history,journalEntries,dropped,exactIds});
   }
  }
  const summary=['same-session','stale-session'].map(workload=>{
