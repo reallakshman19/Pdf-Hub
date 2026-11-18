@@ -2617,15 +2617,6 @@ function resizeLineLikeRect(
 }
 
 
-function domRectToPageRect(domRect: DOMRect, pageRect: DOMRect, scale: number): Rect {
-  return {
-    x: (domRect.left - pageRect.left) / scale,
-    y: (domRect.top - pageRect.top) / scale,
-    width: domRect.width / scale,
-    height: domRect.height / scale,
-  };
-}
-
 /**
  * Merge span rects that are on the same line (same y ± half-height) into a
  * single wider rect per line. This avoids creating dozens of tiny per-word
