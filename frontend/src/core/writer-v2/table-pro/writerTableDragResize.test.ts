@@ -115,20 +115,19 @@ describe('buildWriterTableDragResizeCommand', () => {
       });
 
     expect(result.changed).toBe(true);
-    expect(result.command).toMatchObject({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: 'table-1',
-      patch: {
-        tableData: {
-          rows: [
-            {
-              id: 'row-1',
-              height: 60,
-            },
-          ],
-        },
-      },
-    });
+    expect(result.command?.type).toBe('UPDATE_WRITER_ELEMENT');
+    if (result.command?.type !== 'UPDATE_WRITER_ELEMENT') {
+      throw new Error('Missing canonical Writer update command.');
+    }
+
+    // toMatchObject does not permit truncated ARRAY expectations. Verify
+    // all rows instead: only row 1 changes height, and no cells/rows vanish.
+    const original = tableElement().tableData!;
+    expect(result.command.patch.tableData?.rows).toEqual([
+      { ...original.rows[0], height: 60 },
+      original.rows[1],
+    ]);
+    expect(result.command.patch.tableData?.columns).toEqual(original.columns);
   });
 
   it('returns no command when the table target disappears before commit', () => {
