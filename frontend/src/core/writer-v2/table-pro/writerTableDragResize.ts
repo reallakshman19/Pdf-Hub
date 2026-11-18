@@ -42,20 +42,22 @@ export function buildWriterTableDragResizeCommand(
     (item) => item.id === input.elementId,
   );
 
+  if (!element?.tableData || element.locked || element.hidden) {
+    return {
+      command: null,
+      changed: false,
+      message: 'Writer table resize target is unavailable.',
+    };
+  }
+
   if (
-    !element?.tableData
-    || element.locked
-    || element.hidden
-    || (
-      input.drag.documentFingerprint
-      && input.drag.documentFingerprint !== element.documentFingerprint
-    )
+    input.drag.documentFingerprint
+    && input.drag.documentFingerprint !== element.documentFingerprint
   ) {
     return {
       command: null,
       changed: false,
-      message:
-        'Writer table resize target is unavailable or belongs to a different document.',
+      message: 'Writer table resize belongs to a different document.',
     };
   }
 
