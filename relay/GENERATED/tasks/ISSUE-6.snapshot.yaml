@@ -62,15 +62,15 @@
   },
   "planning": {
     "state": "CURRENT",
-    "provider_ref": "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6966562546",
-    "revision": 1,
+    "provider_ref": "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6968001169",
+    "revision": 2,
     "digest": null,
     "observed_at": "2026-11-18T01:50:07Z",
     "expected_next_observable": {
-      "statement": "PR48 exact-head tests and independent review, then Owner acceptance",
+      "statement": "N1/N1S RED→GREEN and preserve prior nine passes, independent delta review.",
       "evidence": [
-        "https://github.com/reallakshman19/Pdf-Hub/pull/48",
-        "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44134898762/job/134221640206"
+        "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6968001169",
+        "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6967740700"
       ]
     }
   },
@@ -88,6 +88,13 @@
       "observed_at": "2026-11-18T01:50:07Z",
       "summary": "WP00 isolation/identity repair; explicit bounded authority",
       "exact_head": "9f43e4c52557035c0603850d90465bee940e144d"
+    },
+    {
+      "type": "PLAN_UPDATE",
+      "ref": "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6968001169",
+      "observed_at": "2026-11-18T03:19:38Z",
+      "summary": "Owner accepted narrow A08, authorized native N1/N1S correction and S2J investigation",
+      "exact_head": "87de26c7f3d8edcf8d72420829179630d1f9dfdc"
     }
   ],
   "programme_progress": null,
@@ -203,12 +210,12 @@
     "url": "https://github.com/reallakshman19/Pdf-Hub/pull/48",
     "lifecycle": "DRAFT",
     "base": "9f43e4c52557035c0603850d90465bee940e144d",
-    "head": "7763d9777222651449030bc82694658538351f15",
+    "head": "fe51d5dfb620dbddb045c567334ea50abf1d128c",
     "mergeability": "UNKNOWN"
   },
   "completion": {
     "overall_state": "PARTIAL",
-    "headline": "WP00 candidate implemented; tests and independent review pending",
+    "headline": "Narrow A08 independently accepted; native ownership correction implemented; validation pending",
     "implementation": "PARTIAL",
     "verification": "PENDING",
     "delivery": "DRAFT",
@@ -217,12 +224,13 @@
     "provider_issue": "OPEN",
     "what_done": [
       "Owner authorized WP00; candidate changes in seven files committed to PR48",
-      "Original A08 RED reproduced at immutable baseline"
+      "Original A08 RED reproduced at immutable baseline",
+      "Owner accepted bounded A08 and authorized native correction; independent N1/N1S wrong-owner failure reproduced on both prior refs."
     ],
     "what_remains": [
-      "Exact-head gates and A05/A08 replay",
-      "Benchmark, independent review, Owner acceptance",
-      "Full portable suite preexisting red; FNT-001 source absent"
+      "Corrected exact-head independent 12-case replay and full regression comparison",
+      "S2J supported API investigation and independent delta review",
+      "Owner acceptance before merge or dependent release"
     ],
     "dependencies": [],
     "owner_decisions": [
@@ -298,13 +306,16 @@
   },
   "offloads": [],
   "pending_items": [
-    "Exact-head evidence and independent review",
-    "WP01–03 HOLD"
+    "Corrected exact-head independent 12-case replay and full regression comparison",
+    "S2J supported API investigation and independent delta review",
+    "Owner acceptance before merge or dependent release"
   ],
   "known_issues": [
     "Original full suite 26 failures; no claim full certification",
     "FNT-001 source not received",
-    "Local ACK unavailable; live sources read through connector"
+    "Local ACK unavailable; live sources read through connector",
+    "N1/N1S prior heads confirmed native cross-session wrong-owner commit; corrected candidate unverified.",
+    "S2J direct synthetic rebind fails; normal UI reachability unestablished."
   ],
   "improvement_vs_original_issue": {
     "baseline_digest": null,
@@ -319,7 +330,13 @@
       "frontend/src/core/document-history/__tests__/durableStateTransaction.test.ts",
       "frontend/src/core/annotations/store.durableHistory.test.ts",
       "frontend/src/core/writer-v2/writerV2Store.durableHistory.test.ts",
-      "relay/GENERATED/tasks/ISSUE-6.snapshot.yaml"
+      "relay/GENERATED/tasks/ISSUE-6.snapshot.yaml",
+      "frontend/src/core/session/mutationOwner.ts",
+      "frontend/src/core/commands/bus.ts",
+      "frontend/src/core/commands/dispatch.ts",
+      "frontend/src/core/commands/transaction/documentTransaction.ts",
+      "frontend/src/core/commands/transaction/documentTransaction.history.test.ts",
+      "frontend/src/core/macro/sessionRunner.ts"
     ],
     "read": [
       "frontend/",
@@ -352,7 +369,7 @@
   },
   "material": {
     "base": "9f43e4c52557035c0603850d90465bee940e144d",
-    "current_head": "7763d9777222651449030bc82694658538351f15"
+    "current_head": "fe51d5dfb620dbddb045c567334ea50abf1d128c"
   },
   "acceptance": [
     {
@@ -427,7 +444,7 @@
     "Do not infer full product certification from Pages smoke"
   ],
   "next": {
-    "immediate_action": "Validate exact candidate and obtain independent review.",
+    "immediate_action": "Execute corrected exact-head independent package and foundation gates; preserve A08 positives.",
     "next_value_frontier": "Owner acceptance of WP00 then bounded dependent release.",
     "stop_conditions": [
       "New test failure",
@@ -443,6 +460,8 @@
     "https://github.com/reallakshman19/Pdf-Hub/pull/44",
     "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6966562546",
     "https://github.com/reallakshman19/Pdf-Hub/actions/runs/44134898762/job/134221640206",
-    "https://github.com/reallakshman19/Pdf-Hub/pull/48"
+    "https://github.com/reallakshman19/Pdf-Hub/pull/48",
+    "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6968001169",
+    "https://github.com/reallakshman19/Pdf-Hub/issues/6#issuecomment-6967740700"
   ]
 }
