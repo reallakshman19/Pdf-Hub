@@ -15,7 +15,7 @@ jobs:
           - label: baseline
             sha: 9f43e4c52557035c0603850d90465bee940e144d
           - label: candidate
-            sha: 87de26c7f3d8edcf8d72420829179630d1f9dfdc
+            sha: dcb4b7bfcc1b0598ca392423a03c8562e0576324
     env:
       PROBE_SHA: ${{ matrix.sha }}
       PROBE_LABEL: ${{ matrix.label }}
