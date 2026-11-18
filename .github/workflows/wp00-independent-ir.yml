@@ -1,0 +1,93 @@
+name: WP00 independent reviewer frozen execution
+on:
+  push:
+    branches: [validation/wp00-independent-ir]
+    paths: ['.github/workflows/wp00-independent-ir.yml']
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: baseline
+            sha: 9f43e4c52557035c0603850d90465bee940e144d
+          - label: candidate
+            sha: 87de26c7f3d8edcf8d72420829179630d1f9dfdc
+    env:
+      REF: ${{ matrix.sha }}
+      COMMON_READ_SHA: 63ad7af77be6ff25146097fc9071ba1bf6325763
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          path: app
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10.23.0
+          run_install: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact independent package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ir-package" "$RUNNER_TEMP/ir-preflight" "$RUNNER_TEMP/ir-out"
+          echo "PKG=$RUNNER_TEMP/ir-package" >> "$GITHUB_ENV"
+          echo "OUT=$RUNNER_TEMP/ir-out" >> "$GITHUB_ENV"
+          echo "PREFLIGHT=$RUNNER_TEMP/ir-preflight" >> "$GITHUB_ENV"
+          curl --fail --location --retry 3 --max-time 120 --silent --show-error "https://drive.usercontent.google.com/download?id=1GVXQRuji-HksoDJC8kgjgAtrqAzlF4xD&export=download&confirm=t" -o "$RUNNER_TEMP/ir.zip"
+          echo "f21b214858673abddfbafa219381ad72269fc998c81e930e9ab8db108c9b925b  $RUNNER_TEMP/ir.zip" | sha256sum -c | tee "$RUNNER_TEMP/ir-preflight/package-sha.log"
+          python - "$RUNNER_TEMP/ir.zip" "$RUNNER_TEMP/ir-package" <<'PY'
+          import sys,zipfile,pathlib,stat
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              names=z.namelist()
+              assert len(names)==len(set(names))==9 and z.testzip() is None
+              assert all(not pathlib.PurePosixPath(n).is_absolute() and '..' not in pathlib.PurePosixPath(n).parts and not stat.S_ISLNK(i.external_attr>>16) for n,i in zip(names,z.infolist()))
+              z.extractall(sys.argv[2])
+          PY
+          cd "$RUNNER_TEMP/ir-package"
+          sha256sum -c SHA256SUMS | tee "$RUNNER_TEMP/ir-preflight/manifest-check.log"
+          python -m pip install --disable-pip-version-check pymupdf==1.26.7
+      - name: Live protocol acknowledgement by coordinator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd app
+          test "$(git rev-parse HEAD)" = "$REF"
+          rc=0; python scripts/relay-v31-live.py refresh > "$PREFLIGHT/refresh.log" 2>&1 || rc=$?
+          cat "$PREFLIGHT/refresh.log"
+          if [[ "$rc" == 2 ]]; then
+            actual=$(python -c 'import json;print(json.load(open(".git/relay-v31-live/current.json"))["common_sha"])')
+            test "$actual" = "$COMMON_READ_SHA"
+            python scripts/relay-v31-live.py acknowledge --sha "$actual" | tee "$PREFLIGHT/ack.log"
+          elif [[ "$rc" != 0 ]]; then exit "$rc"; fi
+          python scripts/relay-v31-live.py refresh | tee "$PREFLIGHT/recheck.log"
+      - name: Execute reviewer runner unchanged
+        shell: bash
+        run: bash "$PKG/run_exact_ref.sh" "$GITHUB_WORKSPACE/app" "$OUT" "$REF"
+      - name: Verify tracked source and retain preflight
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT/preflight"
+          cp -a "$PREFLIGHT/." "$OUT/preflight/"
+          git -C app status --porcelain | tee "$OUT/coordinator-post-status.txt"
+          test ! -s "$OUT/coordinator-post-status.txt"
+          test "$(git -C app rev-parse HEAD)" = "$REF"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: WP00-IR-${{ matrix.label }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/ir-out/
+          if-no-files-found: warn
+          retention-days: 30
