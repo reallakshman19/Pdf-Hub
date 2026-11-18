@@ -51,6 +51,8 @@ type DragState =
   | {
       type: 'resize-column';
       pointerId: number;
+      documentFingerprint: string;
+      columnIds: string[];
       columnIndex: number;
       startX: number;
       initialWidths: number[];
@@ -59,6 +61,8 @@ type DragState =
   | {
       type: 'resize-row';
       pointerId: number;
+      documentFingerprint: string;
+      rowId: string | undefined;
       rowIndex: number;
       startY: number;
       initialHeight: number;
@@ -124,6 +128,8 @@ export const WriterTableInteractionOverlay: React.FC<
       setDragState({
         type: 'resize-column',
         pointerId: event.pointerId,
+        documentFingerprint: element.documentFingerprint,
+        columnIds: element.tableData.columns.map((column) => column.id),
         columnIndex: resizeHit.index,
         startX: point.x,
         initialWidths: [...layout.columnWidths],
@@ -138,6 +144,8 @@ export const WriterTableInteractionOverlay: React.FC<
       setDragState({
         type: 'resize-row',
         pointerId: event.pointerId,
+        documentFingerprint: element.documentFingerprint,
+        rowId: row?.id,
         rowIndex: resizeHit.index,
         startY: point.y,
         initialHeight: row?.height ?? layout.rowHeight,
