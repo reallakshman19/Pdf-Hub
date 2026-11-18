@@ -1,0 +1,115 @@
+name: WP00 exact-head RED GREEN and benchmark
+on:
+  push:
+    branches: [validation/alt-wp00-stage2]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: baseline
+            sha: 9f43e4c52557035c0603850d90465bee940e144d
+          - label: candidate
+            sha: 87de26c7f3d8edcf8d72420829179630d1f9dfdc
+    env:
+      PROBE_SHA: ${{ matrix.sha }}
+      PROBE_LABEL: ${{ matrix.label }}
+      COMMON_READ_SHA: 63ad7af77be6ff25146097fc9071ba1bf6325763
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          path: app
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 020c62be87e06ec48fe379eca54fca2e59d3984a
+          path: original-probes
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10.23.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify package, fixture and protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wp00-evidence" "$RUNNER_TEMP/wp00-fixture"
+          echo "OUT=$RUNNER_TEMP/wp00-evidence" >> "$GITHUB_ENV"
+          echo "ALT_FIXTURE_DIR=$RUNNER_TEMP/wp00-fixture" >> "$GITHUB_ENV"
+          OUT="$RUNNER_TEMP/wp00-evidence"
+          curl --fail --location --retry 3 --max-time 120 --silent --show-error "https://drive.usercontent.google.com/download?id=1LzNkMkSxhoJhLd6uBxW_WAPrgmgVvV6K&export=download&confirm=t" -o "$RUNNER_TEMP/wp01.zip"
+          echo "150875fdd01af97b340424b04de77f2d0392eb4c92033351478e56efb2574d89  $RUNNER_TEMP/wp01.zip" | sha256sum -c | tee "$OUT/package-sha.log"
+          unzip -j "$RUNNER_TEMP/wp01.zip" 'fixtures/F01-text-mixed-3p.pdf' -d "$RUNNER_TEMP/wp00-fixture"
+          sha256sum "$RUNNER_TEMP/wp00-fixture/F01-text-mixed-3p.pdf" > "$OUT/fixture-sha.txt"
+          cd app
+          test "$(git rev-parse HEAD)" = "$PROBE_SHA"
+          git rev-parse HEAD | tee "$OUT/head.txt"
+          git rev-parse HEAD^{tree} | tee "$OUT/tree.txt"
+          rc=0; python3 scripts/relay-v31-live.py refresh > "$OUT/relay-refresh.log" 2>&1 || rc=$?
+          if [[ "$rc" = 2 ]]; then
+            actual=$(python3 -c 'import json;print(json.load(open(".git/relay-v31-live/current.json"))["common_sha"])')
+            test "$actual" = "$COMMON_READ_SHA"
+            python3 scripts/relay-v31-live.py acknowledge --sha "$actual" | tee "$OUT/relay-ack.log"
+            python3 scripts/relay-v31-live.py refresh | tee "$OUT/relay-recheck.log"
+          elif [[ "$rc" != 0 ]]; then exit "$rc"; fi
+      - name: Install and replay unchanged A05/A08 oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd app
+          pnpm install --frozen-lockfile
+          cp ../original-probes/validation/alt-stage1/supplement.test.ts frontend/src/core/alt-stage1-supplement.test.ts
+          sha256sum frontend/src/core/alt-stage1-supplement.test.ts > "$OUT/original-probe-sha.txt"
+          rc=0
+          pnpm -C frontend exec vitest run src/core/alt-stage1-supplement.test.ts --pool=forks --maxWorkers=1 -t 'A05|A08' --reporter=verbose --reporter=json --outputFile.json="$OUT/replay.json" > "$OUT/replay.log" 2>&1 || rc=$?
+          cat "$OUT/replay.log"
+          printf '%s\n' "$rc" > "$OUT/replay-exit.txt"
+          rm frontend/src/core/alt-stage1-supplement.test.ts
+          python3 - "$OUT/replay.json" "$PROBE_LABEL" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          outcomes={a['title']:a['status'] for f in r['testResults'] for a in f['assertionResults'] if a['title'].startswith(('A05','A08'))}
+          print(outcomes)
+          assert len(outcomes)==4
+          if sys.argv[2]=='candidate': assert all(s=='passed' for s in outcomes.values())
+          else:
+              for title,status in outcomes.items():
+                  assert status==('failed' if 'duplicate annotation identity' in title or 'queued annotation from previous' in title else 'passed'),(title,status)
+          PY
+      - name: Run same-session and stale-session benchmark
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd app
+          cp ../harness/validation/wp00-stage2/benchmark.test.ts frontend/src/core/alt-wp00-benchmark.test.ts
+          trap 'rm -f frontend/src/core/alt-wp00-benchmark.test.ts frontend/src/core/alt-stage1-supplement.test.ts' EXIT
+          pnpm -C frontend exec vitest run src/core/alt-wp00-benchmark.test.ts --pool=forks --maxWorkers=1 --reporter=verbose | tee "$OUT/benchmark.log"
+      - name: Verify unchanged tracked source
+        if: always()
+        shell: bash
+        run: |
+          git -C app status --porcelain --untracked-files=no | tee "$OUT/post-status.txt"
+          test ! -s "$OUT/post-status.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: WP00-${{ matrix.label }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/wp00-evidence/
+          if-no-files-found: warn
+          retention-days: 30
