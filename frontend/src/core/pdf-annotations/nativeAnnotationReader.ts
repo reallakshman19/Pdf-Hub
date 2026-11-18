@@ -8,6 +8,10 @@ import type { PdfAnnotation } from '@/core/annotations/types';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import {
+  createMarkupSpace, markupOrMask, pdfPointToView,
+  pdfRectToViewRect, type MarkupSpace,
+} from './markupGeometry';
 
 type PdfLibModule = typeof import('pdf-lib');
 
@@ -239,9 +243,14 @@ function parseRootAnnotation(
   const rectValues = readNumberArray(dict, 'Rect', lib);
   if (!rectValues || rectValues.length < 4) return null;
 
-  const rect = pdfRectToAppRect(rectValues, page.getHeight());
+  const markupSpace = markupOrMask(type)
+    ? createMarkupSpace(page.getCropBox(), page.getRotation().angle)
+    : undefined;
+  const rect = markupSpace
+    ? pdfRectToViewRect(rectValues, markupSpace)
+    : pdfRectToAppRect(rectValues, page.getHeight());
   const customData = readCustomData(dict, lib);
-  const native = nativeData(dict, type, rect, page.getHeight(), lib);
+  const native = nativeData(dict, type, rect, page.getHeight(), lib, markupSpace);
 
   // Standard PDF fields are the portable source of truth after an external
   // edit/save. PDFHubData is a compatibility cache/fallback only, so native
@@ -514,6 +523,7 @@ function nativeData(
   rect: PdfAnnotation['rect'],
   pageHeight: number,
   lib: PdfLibModule,
+  markupSpace?: MarkupSpace,
 ): PdfAnnotation['data'] {
   const data: PdfAnnotation['data'] = {};
   const stroke = readColor(dict, 'C', lib);
@@ -579,6 +589,7 @@ function nativeData(
       rect,
       pageHeight,
       lib,
+      markupSpace,
     );
     if (quads) data.textMarkupQuads = quads;
   }
@@ -665,6 +676,7 @@ function readNormalizedTextMarkupQuads(
   rect: PdfAnnotation['rect'],
   pageHeight: number,
   lib: PdfLibModule,
+  markupSpace?: MarkupSpace,
 ): number[] | null {
   const values = readNumberArray(dict, 'QuadPoints', lib);
   if (
@@ -681,10 +693,11 @@ function readNormalizedTextMarkupQuads(
   for (let index = 0; index + 1 < values.length; index += 2) {
     const pdfX = values[index];
     const pdfY = values[index + 1];
-    const appX = pdfX;
-    const appY = pageHeight - pdfY;
-    const nx = (appX - rect.x) / rect.width;
-    const ny = (appY - rect.y) / rect.height;
+    const app = markupSpace
+      ? pdfPointToView(pdfX, pdfY, markupSpace)
+      : { x: pdfX, y: pageHeight - pdfY };
+    const nx = (app.x - rect.x) / rect.width;
+    const ny = (app.y - rect.y) / rect.height;
     if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
     normalized.push(nx, ny);
   }

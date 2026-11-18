@@ -1095,7 +1095,15 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(rawQuads3[5]).toBeCloseTo(582);
     expect(rawQuads3[8]).toBeCloseTo(242.5);
     expect(rawQuads3[10]).toBeCloseTo(400);
-    expect(dict3.get(PDFName.of('AP'))).toBeUndefined();
+    // Local Rect changes invalidate the external appearance. The new
+    // standards-native Form appearance must be generated for the new quads,
+    // rather than retaining stale output or falling back to missing /AP.
+    const ap3 = dict3.lookup(PDFName.of('AP'), PDFDict);
+    expect(ap3).toBeInstanceOf(PDFDict);
+    const normal3 = ap3.lookup(PDFName.of('N')) as { dict?: PDFDict };
+    expect(normal3?.dict).toBeInstanceOf(PDFDict);
+    expect(normal3.dict?.lookupMaybe(PDFName.of('Subtype'), PDFName)?.decodeText()).toBe('Form');
+    expect(normal3.dict?.lookup(PDFName.of('BBox'))).toBeTruthy();
 
     const read3 = await readNativePdfAnnotations(save3.bytes);
     const quads3 = read3.annotations[0].data.textMarkupQuads;
