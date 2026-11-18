@@ -102,6 +102,7 @@ async function runMacroRecipeAgainstSessionNow(
 
     const binaryResourceId = 'macro:final-bytes';
     const commitResult = await commandBus.execute({
+      workingBytes: session.workingBytes,
       command: materializePdfCommand(
         {
           type: 'APPLY_WORKING_COPY',

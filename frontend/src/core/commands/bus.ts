@@ -1,4 +1,5 @@
 import { dispatchPdfCommand } from './dispatch';
+import { captureDocumentMutationOwner, type DocumentMutationOwner } from '@/core/session/mutationOwner';
 import {
   enqueueDocumentOperation,
   resetDocumentOperationQueueForTests,
@@ -29,6 +30,7 @@ function validationFailure(
 
 async function executeNow(
   input: CommandExecutionInput,
+  owner: DocumentMutationOwner,
 ): Promise<CommandResult> {
   const validation = validateCommand(input.command);
   if (!validation.ok) {
@@ -37,12 +39,13 @@ async function executeNow(
       validation.errors.join(' '),
     );
   }
-  return dispatchPdfCommand(input);
+  return dispatchPdfCommand(input, owner);
 }
 
 export const commandBus = {
   execute(input: CommandExecutionInput): Promise<CommandResult> {
-    return enqueueDocumentOperation(() => executeNow(input));
+    const owner = captureDocumentMutationOwner();
+    return enqueueDocumentOperation(() => executeNow(input, owner));
   },
 };
 

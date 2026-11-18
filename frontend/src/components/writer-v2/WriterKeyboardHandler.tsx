@@ -1,5 +1,6 @@
 import React from 'react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useSessionStore } from '@/core/session/store';
 import {
   deleteSelectedWriterElements,
   duplicateSelectedWriterElements,
@@ -46,7 +47,19 @@ export const WriterKeyboardHandler: React.FC = () => {
 
       if (ctrl && event.key.toLowerCase() === 'v') {
         event.preventDefault();
-        void pasteWriterClipboardElements();
+        void pasteWriterClipboardElements()
+          .then((result) => {
+            if (!result.changed) {
+              // Fail-closed copy rejection must be visible for keyboard paste,
+              // even when there is no selected object / quick-action toolbar.
+              useSessionStore.getState().failSaveOperation(result.message);
+            }
+          })
+          .catch((error: unknown) => {
+            useSessionStore.getState().failSaveOperation(
+              error instanceof Error ? error.message : String(error),
+            );
+          });
         return;
       }
 

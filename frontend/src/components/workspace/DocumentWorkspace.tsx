@@ -1,3 +1,4 @@
+import { selectedMarkupTextRects } from './textSelectionGeometry';
 import React from 'react';
 import { UploadCloud } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -1396,36 +1397,13 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     }
 
     const pageEl = pageRef.current;
-    const pageRect = pageEl.getBoundingClientRect();
     const range = selection.getRangeAt(0);
 
-    // Use text-item span positions (derived from PDF.js coordinates) rather than
-    // range.getClientRects() — the latter uses browser font metrics which differ
-    // from the PDF's embedded fonts, causing visible annotation offsets.
-    const textSpans = Array.from(
-      pageEl.querySelectorAll<HTMLSpanElement>('[data-text-item="true"]'),
+    // Selection offsets must be projected inside the PDF.js source span;
+    // intersecting a whole span cannot authorize its unselected neighboring words.
+    const rects = mergeAdjacentLineRects(
+      selectedMarkupTextRects(range, pageEl, scale),
     );
-    const spanRects = textSpans
-      .filter((span) => {
-        try { return range.intersectsNode(span); } catch { return false; }
-      })
-      .map((span) => {
-        const br = span.getBoundingClientRect();
-        return {
-          x: (br.left - pageRect.left) / scale,
-          y: (br.top  - pageRect.top)  / scale,
-          width:  br.width  / scale,
-          height: br.height / scale,
-        };
-      })
-      .filter((r) => r.width > 2 && r.height > 2);
-
-    // Fallback to client rects if no span intersection found (e.g. cross-page edge case)
-    const rects = spanRects.length > 0
-      ? mergeAdjacentLineRects(spanRects)
-      : Array.from(range.getClientRects())
-          .map((domRect) => domRectToPageRect(domRect, pageRect, scale))
-          .filter((rect) => rect.width > 2 && rect.height > 2);
 
     if (rects.length === 0) {
       setTextSelectionDraft(null);
@@ -2638,15 +2616,6 @@ function resizeLineLikeRect(
   return { rect: newRect, points: nextPoints };
 }
 
-
-function domRectToPageRect(domRect: DOMRect, pageRect: DOMRect, scale: number): Rect {
-  return {
-    x: (domRect.left - pageRect.left) / scale,
-    y: (domRect.top - pageRect.top) / scale,
-    width: domRect.width / scale,
-    height: domRect.height / scale,
-  };
-}
 
 /**
  * Merge span rects that are on the same line (same y ± half-height) into a

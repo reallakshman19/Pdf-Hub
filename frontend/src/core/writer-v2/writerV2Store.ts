@@ -309,30 +309,10 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       const session = useSessionStore.getState();
 
       if (
-        !usesDurableWriterHistory(
-          beforeStore,
-          session,
-        )
+        !usesDurableWriterHistory(beforeStore, session)
+        || beforeStore.currentDocumentFingerprint !== initialStore.currentDocumentFingerprint
       ) {
-        const fallbackCommand =
-          factory(beforeStore);
-
-        committedResult = fallbackCommand
-          ? get().dispatchWriterCommand(
-              fallbackCommand,
-              {
-                allowPdfOverlayMutation:
-                  true,
-              },
-            )
-          : {
-              state:
-                writerCommandState(beforeStore),
-              changed: false,
-              reason:
-                'Writer command factory produced no command.',
-            };
-        return null;
+        throw new Error('Writer durable mutation belongs to a stale document or mode.');
       }
 
       const command = factory(beforeStore);

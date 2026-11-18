@@ -41,6 +41,16 @@ export function reviewThreadFromAnnotation(
     author: reply.author,
     content: reply.content,
     createdAt: reply.createdAt,
+    // Preserve the native /IRT relationship through the review-domain adapter.
+    // Direct replies omit this property; nested replies retain their exact ID.
+    ...(reply.parentReplyId !== undefined
+      ? { parentReplyId: reply.parentReplyId }
+      : {}),
+    // Native rich-text replies must retain their fail-closed provenance in UI
+    // projections; the adapter must not convert them into editable flat text.
+    ...(reply.nativeInterop
+      ? { nativeInterop: { ...reply.nativeInterop } }
+      : {}),
   }));
 
   return {

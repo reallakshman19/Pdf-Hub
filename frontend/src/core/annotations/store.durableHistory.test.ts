@@ -70,33 +70,33 @@ describe('annotation store durable history', () => {
     clearHistoryJournalStoreRegistryForTests();
   });
 
-  async function openJournalAwareSession() {
+  async function openJournalAwareSession(key = 'sha256:one', suffix = '') {
     const revisions = new MemoryRevisionStore({
-      id: 'annotation-durable-revisions',
+      id: 'annotation-durable-revisions' + suffix,
     });
     registerWorkingRevisionStore(revisions);
 
     const journal = new MemoryHistoryJournalStore({
-      id: 'annotation-durable-journal',
+      id: 'annotation-durable-journal' + suffix,
     });
     registerHistoryJournalStore(journal);
 
     await journal.save(
       createInitialHistoryJournalManifest({
-        journalId: 'history-annotations',
+        journalId: 'history-annotations' + suffix,
         revisionStoreId: revisions.id,
-        revisionId: 'sha256:one',
+        revisionId: key,
         fileName: 'fixture.pdf',
       }),
     );
 
     useSessionStore.getState().openDocument({
-      documentKey: 'sha256:one',
+      documentKey: key,
       revisionStoreId: revisions.id,
-      originalRevisionId: 'sha256:one',
-      activeRevisionId: 'sha256:one',
+      originalRevisionId: key,
+      activeRevisionId: key,
       historyJournalStoreId: journal.id,
-      historyJournalId: 'history-annotations',
+      historyJournalId: 'history-annotations' + suffix,
       historyJournalPersistent: false,
       fileName: 'fixture.pdf',
       bytes: Uint8Array.from([1]),
@@ -319,5 +319,50 @@ describe('annotation store durable history', () => {
       useAnnotationStore.getState().clipboard
         .map((item) => item.id),
     ).toEqual(['a2']);
+  });
+
+  it('rejects duplicate ID in durable and legacy mutations without new history', async () => {
+    const journal = await openJournalAwareSession();
+    const store = useAnnotationStore.getState();
+    store.addAnnotation(annotation('same-id'));
+    await drainDocumentQueue();
+    store.addAnnotation(annotation('same-id', { pageNumber: 2 }));
+    await drainDocumentQueue();
+    expect(useAnnotationStore.getState().annotations).toMatchObject([{ id: 'same-id', pageNumber: 1 }]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+    expect((await journal.load('history-annotations'))?.entries).toHaveLength(1);
+    useSessionStore.getState().clearDocument();
+    useHistoryStore.getState().clear();
+    useAnnotationStore.getState().setAnnotations([]);
+    useSessionStore.getState().openDocument({documentKey:'legacy',fileName:'legacy.pdf',bytes:Uint8Array.from([1]),pageCount:2});
+    store.addAnnotation(annotation('same-id'));
+    store.addAnnotation(annotation('same-id', {pageNumber:2}));
+    expect(useAnnotationStore.getState().annotations).toMatchObject([{id:'same-id',pageNumber:1}]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
+  });
+
+  it('rejects queued add/update/delete/reply/status from A before B derives state', async () => {
+    await openJournalAwareSession();
+    const store = useAnnotationStore.getState();
+    store.addAnnotation(annotation('shared', {type:'comment', data:{text:'A'}}));
+    await drainDocumentQueue();
+    let release!: () => void;
+    const blocker = enqueueDocumentOperation(() => new Promise<void>(resolve => {release=resolve;}));
+    await Promise.resolve();
+    store.addAnnotation(annotation('stale-queued'));
+    store.updateAnnotation('shared', {data:{text:'stale-update'}});
+    store.addReviewReply('shared','stale-reply');
+    store.setReviewStatus('shared','resolved');
+    store.deleteAnnotation('shared');
+    const journalB = await openJournalAwareSession('sha256:two','-B');
+    store.setAnnotations([annotation('shared',{type:'comment',data:{text:'B'}})]);
+    useHistoryStore.getState().clear();
+    release();
+    await blocker;
+    await drainDocumentQueue();
+    expect(useAnnotationStore.getState().annotations).toMatchObject([{id:'shared',data:{text:'B'}}]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+    expect(useSessionStore.getState().isDirty).toBe(false);
+    expect((await journalB.load('history-annotations-B'))?.entries).toHaveLength(0);
   });
 });
