@@ -9,6 +9,7 @@ import {
 import { MemoryHistoryJournalStore } from '@/adapters/history-journal/MemoryHistoryJournalStore';
 import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
 import {
+  enqueueDocumentOperation,
   resetDocumentOperationQueueForTests,
 } from '@/core/commands/documentOperationQueue';
 import {
@@ -814,5 +815,25 @@ describe('Writer V2 durable command dispatch', () => {
     expect(
       useWriterV2Store.getState().undoStack.length,
     ).toBeGreaterThan(0);
+  });
+
+  it('rejects a queued Writer factory when a different document is opened before it runs', async () => {
+    await openJournalAwareWriterSession();
+    let release!: () => void;
+    const blocker = enqueueDocumentOperation(() => new Promise<void>(resolve => {release=resolve;}));
+    await Promise.resolve();
+    const factory = vi.fn(() => ({type:'ADD_WRITER_ELEMENT' as const, element:element('stale-writer')}));
+    const pending = useWriterV2Store.getState().dispatchWriterCommandDurableLatest(factory);
+    const result = expect(pending).rejects.toThrow(/stale document session/);
+    useSessionStore.getState().openDocument({documentKey:'sha256:two',fileName:'B.pdf',bytes:Uint8Array.from([2]),pageCount:1});
+    useWriterV2Store.getState().hydrateWriterSession({documentFingerprint:'sha256:two',elements:[],documentMeta:createPdfOverlayWriterDocumentMeta({documentFingerprint:'sha256:two',pageCount:1})});
+    useHistoryStore.getState().clear();
+    release();
+    await blocker;
+    await result;
+    expect(factory).not.toHaveBeenCalled();
+    expect(useWriterV2Store.getState().elements).toEqual([]);
+    expect(useSessionStore.getState().isDirty).toBe(false);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
   });
 });

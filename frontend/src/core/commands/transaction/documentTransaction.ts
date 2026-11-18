@@ -18,6 +18,10 @@ import type {
 import { clonePageGraph, rekeyPageGraph } from '@/core/pages/pageGraph';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import { useSessionStore } from '@/core/session/store';
+import {
+  assertDocumentMutationOwner, captureDocumentMutationOwner, isDocumentSessionOwnerCurrent,
+  StaleDocumentMutationError, type DocumentMutationOwner,
+} from '@/core/session/mutationOwner';
 import { ensureStoredRevision } from '@/core/revision-store/ensureRevision';
 import {
   acquireRevisionStoreExclusiveLease,
@@ -65,6 +69,7 @@ export interface DocumentMutationRevisionMetadata {
 }
 
 export interface CommitDocumentMutationInput {
+  owner?: DocumentMutationOwner;
   command: PdfCommand;
   label: string;
   beforeBytes: Uint8Array;
@@ -137,6 +142,7 @@ function toTransactionError(
   message: string,
   error: unknown,
 ): DocumentMutationTransactionError {
+  if (error instanceof StaleDocumentMutationError) throw error;
   if (error instanceof DocumentMutationTransactionError) return error;
   const reason = error instanceof Error ? error.message : String(error);
   return new DocumentMutationTransactionError(stage, `${message}: ${reason}`, error);
@@ -256,7 +262,9 @@ export async function commitDocumentMutation(
   let afterPageCount: number;
   let nextDocumentKey: string;
 
-  const sessionSnapshot = useSessionStore.getState();
+  const owner = input.owner ?? captureDocumentMutationOwner();
+  assertDocumentMutationOwner(owner);
+  const sessionSnapshot = owner.session;
   const isRecoveryReplay =
     input.executionMode === 'recovery-replay';
   const recoveryRevision =
@@ -296,6 +304,7 @@ export async function commitDocumentMutation(
       FileAdapter.hashBytes(effectiveAfterBytes),
     ]);
 
+    assertDocumentMutationOwner(owner);
     [beforePageCount, afterPageCount] = pageCounts;
     if (
       recoveryRevision
@@ -390,6 +399,7 @@ export async function commitDocumentMutation(
       : null;
 
   try {
+    assertDocumentMutationOwner(owner);
     let publishedRevisionId: string | null;
     try {
       publishedRevisionId = await publishMutationRevision(
@@ -406,6 +416,7 @@ export async function commitDocumentMutation(
       );
     }
 
+  assertDocumentMutationOwner(owner);
   if (input.executionMode !== 'recovery-replay') {
     try {
       await saveAnnotations(
@@ -421,6 +432,7 @@ export async function commitDocumentMutation(
     }
   }
 
+  assertDocumentMutationOwner(owner);
   const annotationSnapshot = {
     annotations: [...annotationState.annotations],
     activeAnnotationId: annotationState.activeAnnotationId,
@@ -473,6 +485,7 @@ export async function commitDocumentMutation(
     );
   }
 
+  assertDocumentMutationOwner(owner);
   const previousAfter = historyState.undoStack.at(-1)?.after;
   const beforeRevisionBacking = revisionHistoryBacking(
     sessionSnapshot.revisionStoreId,
@@ -496,6 +509,7 @@ export async function commitDocumentMutation(
     activeRevisionId: sessionSnapshot.activeRevisionId,
   };
 
+  assertDocumentMutationOwner(owner);
   try {
     useSessionStore.getState().replaceWorkingCopy(
       effectiveAfterBytes,
@@ -601,6 +615,7 @@ export async function commitDocumentMutation(
       });
     }
 
+    if (!isDocumentSessionOwnerCurrent(owner)) throw new StaleDocumentMutationError();
     if (preparedJournal) {
       const committedTransaction =
         useHistoryStore.getState().peekUndo();
@@ -620,6 +635,7 @@ export async function commitDocumentMutation(
       });
 
       try {
+        if (!isDocumentSessionOwnerCurrent(owner)) throw new StaleDocumentMutationError();
         await preparedJournal.store.save(
           preparedJournal.manifest,
         );
@@ -631,7 +647,11 @@ export async function commitDocumentMutation(
         );
       }
     }
+    if (!isDocumentSessionOwnerCurrent(owner)) throw new StaleDocumentMutationError();
   } catch (error) {
+    // Publication might have advanced our revision; session identity must
+    // still match before restoring any old snapshots.
+    if (!isDocumentSessionOwnerCurrent(owner)) throw new StaleDocumentMutationError();
     useSessionStore.setState(sessionSnapshot);
     useAnnotationStore.setState(annotationSnapshot);
     restoreWriterSnapshot(writerSnapshot);

@@ -1027,4 +1027,31 @@ describe('document transaction history memory', () => {
     expect(pdfMocks.countPages).toHaveBeenCalledTimes(2);
   });
 
+
+  it('rejects native publication after a replacement session opens during annotation persistence', async () => {
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    persistenceMocks.saveAnnotations.mockImplementationOnce(() => {
+      entered();
+      return new Promise<void>(resolve => { release = resolve; });
+    });
+    const pending = commitDocumentMutation({
+      command: command('hash-1','old-native'), label:'Old native mutation',
+      beforeBytes: Uint8Array.from([1]), afterBytes: Uint8Array.from([2]),
+      revisionMetadata:{beforePageCount:1,afterPageCount:1},
+      nextAnnotations:[afterAnnotation],
+    });
+    const rejected = expect(pending).rejects.toThrow(/session or revision changed/);
+    await started;
+    useSessionStore.getState().openDocument({documentKey:'hash-1',fileName:'B.pdf',bytes:Uint8Array.from([1]),pageCount:1});
+    useAnnotationStore.getState().setAnnotations([beforeAnnotation]);
+    useHistoryStore.getState().clear();
+    const replacement = useSessionStore.getState();
+    release();
+    await rejected;
+    expect(useSessionStore.getState()).toBe(replacement);
+    expect(useAnnotationStore.getState().annotations).toMatchObject([{id:beforeAnnotation.id}]);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(0);
+  });
 });

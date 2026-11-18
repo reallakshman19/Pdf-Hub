@@ -21,6 +21,10 @@ import {
   ExistingTextReplacementError,
 } from '@/core/existing-text/replacementError';
 import { useSessionStore } from '@/core/session/store';
+import {
+  assertDocumentMutationOwner, captureDocumentMutationOwner,
+  StaleDocumentMutationError, type DocumentMutationOwner,
+} from '@/core/session/mutationOwner';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
   duplicatePagesInGraph,
@@ -75,6 +79,8 @@ import type {
   CommandResult,
   PdfCommand,
 } from './types';
+
+type OwnedCommandInput = CommandExecutionInput & { readonly owner: DocumentMutationOwner };
 
 type ResolvedCommandContext = {
   workingBytes: Uint8Array;
@@ -222,13 +228,12 @@ function outputName(prefix: string, pageIndices: number[], fallback?: string): s
   return `${prefix}-${humanPages}.pdf`;
 }
 
-function activeDocumentKey(input: CommandExecutionInput): string | null {
-  return input.context?.documentKey ?? useSessionStore.getState().documentKey;
-}
-
 function assertCommandDocumentCurrent(input: CommandExecutionInput): CommandResult | null {
-  const activeKey = activeDocumentKey(input);
-  if (!activeKey || activeKey === input.command.documentKey) return null;
+  const session = useSessionStore.getState();
+  const activeKey = session.documentKey;
+  if ((!activeKey || activeKey === input.command.documentKey)
+    && (!input.context?.documentKey || input.context.documentKey === input.command.documentKey)
+    && (!input.workingBytes || !session.workingBytes || input.workingBytes === session.workingBytes)) return null;
   return commandError(
     input.command,
     'STALE_DOCUMENT',
@@ -283,19 +288,22 @@ function activePdfOverlayWriterElements(): WriterElementV2[] | null {
 
 async function resolveStructuralPageGraph(
   context: ResolvedCommandContext,
-  input: CommandExecutionInput,
+  input: OwnedCommandInput,
   pageCount: number,
 ): Promise<PageGraph<PageNode>> {
+  assertDocumentMutationOwner(input.owner);
   const current = useSessionStore.getState().pageGraph;
   if (current && current.pages.length === pageCount) {
     return current;
   }
 
-  return buildPageGraphFromPdfBytes(
+  const graph = await buildPageGraphFromPdfBytes(
     context.workingBytes,
     context.documentKey,
     input.signal,
   );
+  assertDocumentMutationOwner(input.owner);
+  return graph;
 }
 
 function orderFromGraphs(
@@ -407,7 +415,7 @@ interface ApplyMutationOptions {
 }
 
 async function applyMutation(
-  input: CommandExecutionInput,
+  input: OwnedCommandInput,
   beforeBytes: Uint8Array,
   afterBytes: Uint8Array,
   nextAnnotations?: PdfAnnotation[],
@@ -418,7 +426,9 @@ async function applyMutation(
   options?: ApplyMutationOptions,
 ): Promise<{ nextBytes: Uint8Array; nextPageCount: number }> {
   const { command } = input;
+  assertDocumentMutationOwner(input.owner);
   return commitDocumentMutation({
+    owner: input.owner,
     command,
     label: commandLabel(command),
     beforeBytes,
@@ -438,7 +448,7 @@ async function applyMutation(
 }
 
 async function applyCommittedSessionMutation(
-  input: CommandExecutionInput,
+  input: OwnedCommandInput,
   beforeBytes: Uint8Array,
   beforePageCount: number,
   committed: PdfMutationCommitResult,
@@ -469,7 +479,7 @@ async function applyCommittedSessionMutation(
 }
 
 async function executeRotatePagesCommand(
-  input: CommandExecutionInput,
+  input: OwnedCommandInput,
   context: ResolvedCommandContext,
   sessionPageGraph: PageGraph<PageNode> | null,
 ): Promise<CommandResult> {
@@ -484,6 +494,7 @@ async function executeRotatePagesCommand(
   });
 
   try {
+    assertDocumentMutationOwner(input.owner);
     const pageCount = mutationSession.pageCount;
 
     if (
@@ -654,9 +665,16 @@ function assertMutationSessionPageCount(
 }
 
 export async function dispatchPdfCommand(
-  input: CommandExecutionInput,
+  execution: CommandExecutionInput,
+  owner: DocumentMutationOwner = captureDocumentMutationOwner(),
 ): Promise<CommandResult> {
+  const input: OwnedCommandInput = { ...execution, owner };
   const { command } = input;
+  try {
+    assertDocumentMutationOwner(owner);
+  } catch (error) {
+    return commandError(command, 'STALE_DOCUMENT', (error as Error).message);
+  }
 
   const stale = assertCommandDocumentCurrent(input);
   if (stale) return stale;
@@ -691,6 +709,7 @@ export async function dispatchPdfCommand(
         signal: input.signal,
       });
 
+      assertDocumentMutationOwner(owner);
       if (
         sessionPageGraph
         && sessionPageGraph.pages.length
@@ -709,6 +728,7 @@ export async function dispatchPdfCommand(
         context.workingBytes,
       );
 
+    assertDocumentMutationOwner(owner);
     switch (command.type) {
       case 'REORDER_PAGES': {
         const { fromIndex, toIndex } = command.payload;
@@ -819,6 +839,7 @@ export async function dispatchPdfCommand(
           return commandError(command, 'VALIDATION_FAILED', 'No pages selected for extraction.');
         }
         const extractedBytes = await PdfEditAdapter.extractPages(context.workingBytes, pageIndices);
+        assertDocumentMutationOwner(owner);
         return commandSuccess(command, false, 'Pages extracted', undefined, undefined, [
           {
             kind: 'pdf',
@@ -1764,6 +1785,7 @@ export async function dispatchPdfCommand(
           `${context.documentKey}::working-copy::${command.id}`,
           input.signal,
         );
+        assertDocumentMutationOwner(owner);
         const nextAnnotations = rebindAnnotationsByPageNumber(
           useAnnotationStore.getState().annotations,
           rebuiltPageGraph,
@@ -1809,6 +1831,9 @@ export async function dispatchPdfCommand(
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Command execution failed';
+    if (error instanceof StaleDocumentMutationError) {
+      return commandError(command, 'STALE_DOCUMENT', message);
+    }
     if (isOperationCancelledError(error)) {
       return commandError(command, 'CANCELLED', message);
     }
