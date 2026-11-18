@@ -62,6 +62,7 @@ export function buildWriterTableDragResizeCommand(
   if (input.drag.type === 'resize-column') {
     const columns = element.tableData.columns;
     const index = input.drag.columnIndex;
+    const capturedColumnIds = input.drag.columnIds;
     // A drag moves the common boundary between two columns. Never admit
     // only the left-hand update: it changes the entire table width and
     // invalidates the pointer's observed geometry.
@@ -70,9 +71,11 @@ export function buildWriterTableDragResizeCommand(
       || index + 1 >= columns.length
       || input.drag.initialWidths.length !== columns.length
       || (
-        input.drag.columnIds
-        && columns.some((column, i) => input.drag.type === 'resize-column'
-          && column.id !== input.drag.columnIds?.[i])
+        capturedColumnIds
+        && (
+          capturedColumnIds.length !== columns.length
+          || columns.some((column, i) => column.id !== capturedColumnIds[i])
+        )
       )
     ) {
       return {
