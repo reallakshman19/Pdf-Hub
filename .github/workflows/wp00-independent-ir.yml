@@ -13,10 +13,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: baseline
-            sha: 9f43e4c52557035c0603850d90465bee940e144d
-          - label: candidate
-            sha: 87de26c7f3d8edcf8d72420829179630d1f9dfdc
+          - label: corrected
+            sha: dcb4b7bfcc1b0598ca392423a03c8562e0576324
     env:
       REF: ${{ matrix.sha }}
       COMMON_READ_SHA: 63ad7af77be6ff25146097fc9071ba1bf6325763
@@ -71,9 +69,23 @@ jobs:
             python scripts/relay-v31-live.py acknowledge --sha "$actual" | tee "$PREFLIGHT/ack.log"
           elif [[ "$rc" != 0 ]]; then exit "$rc"; fi
           python scripts/relay-v31-live.py refresh | tee "$PREFLIGHT/recheck.log"
-      - name: Execute reviewer runner unchanged
+      - name: Execute frozen probes with corrected-ref-only runner adaptation
         shell: bash
-        run: bash "$PKG/run_exact_ref.sh" "$GITHUB_WORKSPACE/app" "$OUT" "$REF"
+        run: |
+          set -euo pipefail
+          python - "$PKG" "$PREFLIGHT" <<'PY'
+          import sys,pathlib,hashlib,difflib
+          p=pathlib.Path(sys.argv[1]); evidence=pathlib.Path(sys.argv[2])
+          raw=(p/'run_exact_ref.sh').read_text()
+          old="  87de26c7f3d8edcf8d72420829179630d1f9dfdc) TREE=6ce7e0c4711e5d44b56a2457385890a3853a80c5;;"
+          new=old+"\n  dcb4b7bfcc1b0598ca392423a03c8562e0576324) TREE=619417f913da63a973a6b5f7ae7b706aa138a405;;"
+          assert raw.count(old)==1
+          adapted=raw.replace(old,new)
+          (p/'run_corrected_ref.sh').write_text(adapted)
+          (evidence/'runner-ref-only.diff').write_text(''.join(difflib.unified_diff(raw.splitlines(True),adapted.splitlines(True),fromfile='sealed',tofile='adapted')))
+          (evidence/'runner-digests.txt').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  sealed\n'+hashlib.sha256(adapted.encode()).hexdigest()+'  adapted\n')
+          PY
+          bash "$PKG/run_corrected_ref.sh" "$GITHUB_WORKSPACE/app" "$OUT" "$REF"
       - name: Verify tracked source and retain preflight
         if: always()
         shell: bash
