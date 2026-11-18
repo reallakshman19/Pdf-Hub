@@ -3,7 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   enqueueDocumentOperation,
 } from '@/core/commands/documentOperationQueue';
-import { getDocumentSessionGeneration, useSessionStore } from '@/core/session/store';
+import { useSessionStore } from '@/core/session/store';
+import {
+  captureDocumentMutationOwner as captureMutationOwner,
+  isDocumentMutationOwnerCurrent as isMutationOwnerCurrent,
+  type DocumentMutationOwner as MutationOwner,
+} from '@/core/session/mutationOwner';
 import {
   prepareHistoryJournalStateTransaction,
 } from './journal/appendStateTransaction';
@@ -34,35 +39,6 @@ export class StaleDurableStateMutationError extends Error {
     super('State transaction belongs to a stale document session or revision.');
     this.name = 'StaleDurableStateMutationError';
   }
-}
-
-type MutationOwner = {
-  generation: number;
-  session: ReturnType<typeof useSessionStore.getState>;
-};
-
-function captureMutationOwner(): MutationOwner {
-  return {
-    generation: getDocumentSessionGeneration(),
-    session: useSessionStore.getState(),
-  };
-}
-
-function isMutationOwnerCurrent(owner: MutationOwner): boolean {
-  const current = useSessionStore.getState();
-  const prior = owner.session;
-  // Same-revision queued state edits can run sequentially. A byte revision
-  // or page graph change invalidates captured positional intent; retry the
-  // gesture on the new basis instead of silently targeting another page.
-  return owner.generation === getDocumentSessionGeneration()
-    && prior.documentKey === current.documentKey
-    && prior.sourceId === current.sourceId
-    && prior.revisionStoreId === current.revisionStoreId
-    && prior.activeRevisionId === current.activeRevisionId
-    && prior.historyJournalStoreId === current.historyJournalStoreId
-    && prior.historyJournalId === current.historyJournalId
-    && prior.pageGraph === current.pageGraph
-    && prior.workingBytes === current.workingBytes;
 }
 
 function assertMutationOwner(owner: MutationOwner): void {
