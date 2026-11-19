@@ -116,7 +116,7 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   });
   const review = page.getByTestId('ocr-review-workspace');
   await expect(review).toBeVisible();
-  await expect(page.getByTestId('ocr-result-summary')).toContainText(/Words\\s*[1-9][0-9]*/, {
+  await expect(page.getByTestId('ocr-result-summary')).toContainText(/Words\s*[1-9][0-9]*/, {
     timeout: 10_000,
   });
   const summaryBeforeExport = await page.getByTestId('ocr-result-summary').textContent();
