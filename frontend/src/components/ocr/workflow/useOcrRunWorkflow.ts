@@ -115,14 +115,42 @@ export function useOcrRunWorkflow({
       && (!session.documentKey || session.documentKey === run.documentFingerprint);
   }, []);
 
-  // The left-rail OCR panel may be unmounted on a route change. An old
-  // recognition promise is never allowed to publish into a replacement
-  // document even if its engine ignores AbortSignal.
-  React.useEffect(() => () => {
-    generationRef.current += 1;
-    const run = activeRunRef.current;
-    activeRunRef.current = null;
-    run?.abort.cancel();
+  // A session revision can be replaced without remounting the left-rail
+  // panel or changing its physical page index. Subscribe to the authoritative
+  // session identity so old callbacks cannot commit during the same render.
+  React.useEffect(() => {
+    const release = useSessionStore.subscribe((session) => {
+      const run = activeRunRef.current;
+      if (!run) return;
+      if (
+        session.documentKey === run.documentKey
+        && session.activeRevisionId === run.activeRevisionId
+      ) return;
+      generationRef.current += 1;
+      activeRunRef.current = null;
+      run.abort.cancel();
+      // This state update is triggered by an external session mutation.
+      setActiveAbort(null);
+      setLastBatchController(null);
+      setIsRunning(false);
+      setErrorMessage(null);
+    });
+    return release;
+  }, []);
+
+  // The left-rail OCR panel may unmount on route changes. Abort on disposal
+  // or fingerprint changes; stale promises cannot publish even if their
+  // underlying Tesseract worker ignores AbortSignal.
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- new document identity invalidates old OCR presentation.
+    setIsRunning(false);
+    setErrorMessage(null);
+    return () => {
+      generationRef.current += 1;
+      const run = activeRunRef.current;
+      activeRunRef.current = null;
+      run?.abort.cancel();
+    };
   }, [effectiveDocumentFingerprint]);
 
   const selectedPages = React.useMemo(
