@@ -18,18 +18,28 @@ test(`dragging a note at page rotation ${rotation} persists its native location`
   await picker.setFiles({ name: 'synthetic-note.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await doc.save()) });
   const element = page.locator('[data-page="1"] [data-annotation-type="comment"]');
   await expect(element).toBeVisible();
+  const canvasElement = page.locator('[data-page="1"] canvas');
+  await expect(canvasElement).toBeVisible();
+  // Selecting can open the inspector and move the page. Let Playwright wait for
+  // the note to be actionable, select it, and then measure the drag in page
+  // coordinates rather than treating workspace movement as note movement.
+  await element.click({ position: { x: 5, y: 5 } });
+  await element.hover({ position: { x: 5, y: 5 } });
   const before = await element.boundingBox();
-  if (!before) throw new Error('Note has no display bounds');
+  const canvasBefore = await canvasElement.boundingBox();
+  if (!before || !canvasBefore) throw new Error('Note or page has no display bounds');
   await page.mouse.move(before.x + 5, before.y + 5);
   await page.mouse.down();
   await page.mouse.move(before.x + 25, before.y + 17, { steps: 4 });
   await page.mouse.up();
   const after = await element.boundingBox();
-  expect(Math.abs(after!.x - before.x - 20)).toBeLessThan(2);
-  expect(Math.abs(after!.y - before.y - 12)).toBeLessThan(2);
-  const canvas = await page.locator('[data-page="1"] canvas').boundingBox();
-  if (!canvas) throw new Error('Page canvas has no display bounds');
-  const scale = canvas.width / (rotation % 180 === 0 ? 400 : 500);
+  const canvasAfter = await canvasElement.boundingBox();
+  if (!after || !canvasAfter) throw new Error('Note or page disappeared after dragging');
+  const viewDeltaX = (after.x - canvasAfter.x) - (before.x - canvasBefore.x);
+  const viewDeltaY = (after.y - canvasAfter.y) - (before.y - canvasBefore.y);
+  expect(Math.abs(viewDeltaX - 20)).toBeLessThan(2);
+  expect(Math.abs(viewDeltaY - 12)).toBeLessThan(2);
+  const scale = canvasAfter.width / (rotation % 180 === 0 ? 400 : 500);
   await page.getByRole('tab', { name: 'File' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
   const stream = await download.createReadStream();
@@ -41,8 +51,8 @@ test(`dragging a note at page rotation ${rotation} persists its native location`
   const dict = saved.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
   const rect = dict.lookup(PDFName.of('Rect'), PDFArray);
   const values = Array.from({ length: rect.size() }, (_, index) => rect.lookup(index, PDFNumber).asNumber());
-  const viewX = (after!.x - before.x) / scale;
-  const viewY = (after!.y - before.y) / scale;
+  const viewX = viewDeltaX / scale;
+  const viewY = viewDeltaY / scale;
   const [dx, dy] = rotation === 0 ? [viewX, -viewY] : rotation === 90 ? [viewY, viewX]
     : rotation === 180 ? [-viewX, viewY] : [-viewY, -viewX];
   [60 + dx, 300 + dy, 100 + dx, 320 + dy].forEach((value, index) => {
