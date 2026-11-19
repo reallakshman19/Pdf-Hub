@@ -31,9 +31,13 @@ async function openSourcePdf(page: Page, bytes: Uint8Array) {
 async function saveProject(page: Page) {
   await page.getByRole('tab', { name: 'Write' }).click();
   const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Save Project' }).click(),
-  ]);
+    page.waitForEvent('download', { timeout: 25_000 }),
+    page.getByRole('button', { name: 'Save Project' }).click({ timeout: 10_000 }),
+  ]).catch(async (error: unknown) => {
+    const alerts = await page.getByRole('alert').allTextContents();
+    const visibleStatus = await page.getByTestId('status-bar').allTextContents();
+    throw new Error(`Save Project did not create a browser download: ${String(error)}; alerts=${JSON.stringify(alerts)}; status=${JSON.stringify(visibleStatus)}`);
+  });
   const stream = await download.createReadStream();
   if (!stream) throw new Error('Project ZIP download stream unavailable');
   const chunks: Buffer[] = [];
@@ -87,6 +91,10 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
   await expect(page.getByTestId('ocr-region-row')).toHaveCount(1);
 
   const firstZip = await saveProject(page);
+  await test.info().attach('wp05-synthetic-first-project.pdfhub.zip', {
+    body: firstZip,
+    contentType: 'application/zip',
+  });
   const first = await readRegions(firstZip);
   expect(first).toHaveLength(1);
   expect(first[0].geometryProvenance).toBe('pdf-user-space-v2');
@@ -110,10 +118,13 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
       buffer: firstZip,
     });
     await expect(reopened.locator('[data-page="1"] canvas')).toBeVisible({ timeout: 20_000 });
+    await expect(reopened.getByTestId('ocr-region-row')).toHaveCount(1, { timeout: 15_000 });
     const secondZip = await saveProject(reopened);
     const second = await readRegions(secondZip);
     expect(second).toEqual(first);
   } finally {
-    await fresh.close();
+    if (!fresh.pages().every((opened) => opened.isClosed())) {
+      await fresh.close().catch(() => undefined);
+    }
   }
 });
