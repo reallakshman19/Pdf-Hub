@@ -77,6 +77,20 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   const zipBytes = await fs.readFile(zipPath as string);
   const zip = await JSZip.loadAsync(zipBytes);
 
+  // Preserve exact native output + evidence archive for an external parser.
+  const annotatedEntry = zip.file('annotated.pdf');
+  expect(annotatedEntry).toBeTruthy();
+  const annotatedBytes = await annotatedEntry!.async('uint8array');
+  const { createHash } = await import('node:crypto');
+  const annotatedSha256 = createHash('sha256').update(annotatedBytes).digest('hex');
+  expect(annotatedSha256).toMatch(/^[a-f0-9]{64}$/);
+  const evidenceDir = process.env.WP07_EVIDENCE_DIR;
+  if (evidenceDir) {
+    await fs.mkdir(evidenceDir, { recursive: true });
+    await fs.writeFile(`${evidenceDir}/ps-isonote-verified-${annotatedSha256}.pdf`, annotatedBytes);
+    await fs.writeFile(`${evidenceDir}/ps-isonote-evidence-${annotatedSha256}.zip`, zipBytes);
+  }
+
   // The evidence package must be a real, non-empty ZIP with at least one
   // audit/manifest entry describing the run.
   const fileNames = Object.keys(zip.files).filter((name) => !zip.files[name].dir);
