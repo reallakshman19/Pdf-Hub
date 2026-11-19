@@ -13,6 +13,7 @@ on:
       - "frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx"
       - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts"
       - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts"
+      - "frontend/src/components/ocr/workflow/**"
       - "frontend/src/core/ocr/**"
       - "frontend/src/core/pages/**"
       - "frontend/src/components/ocr/**"
@@ -54,6 +55,7 @@ jobs:
             src/core/ocr/__tests__/tesseractJsEngine.test.ts \
             src/core/ocr/__tests__/ocrPageAnchor.test.ts \
             src/core/ocr/__tests__/ocrRegionRunner.test.ts \
+            src/components/ocr/workflow/useOcrRunWorkflow.test.tsx \
             src/components/ocr/__tests__/OcrRegionTool.test.tsx \
             src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
             src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
