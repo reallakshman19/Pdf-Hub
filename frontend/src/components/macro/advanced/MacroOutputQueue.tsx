@@ -4,11 +4,8 @@ import { Save, Trash2 } from 'lucide-react';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
-import type { MacroOutputFile } from '@/core/macro/types';
-
-export interface MacroOutputQueueItem extends MacroOutputFile {
-  id: string;
-}
+import type { MacroOutputQueueItem } from '@/core/macro/outputQueueStore';
+export type { MacroOutputQueueItem } from '@/core/macro/outputQueueStore';
 
 export interface MacroOutputQueueProps {
   outputs: MacroOutputQueueItem[];
