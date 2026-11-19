@@ -6,6 +6,9 @@ on:
       - "frontend/e2e/wp05-native-page-labels.spec.ts"
       - "frontend/e2e/wp05-ocr-area-project.spec.ts"
       - "frontend/e2e/wp05-real-tesseract.spec.ts"
+      - "frontend/src/core/writer-v2/export/exportCurrentWriterProject.ts"
+      - "frontend/src/core/writer-v2/export/exportCurrentWriterProject.test.ts"
+      - "frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx"
       - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts"
       - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts"
       - "frontend/src/core/ocr/**"
@@ -34,6 +37,7 @@ jobs:
       - name: WP-05 source-level regression set
         run: |
           pnpm -C frontend exec vitest run \
+            src/core/writer-v2/export/exportCurrentWriterProject.test.ts \
             src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts \
             src/core/pages/pageGraphAdmission.test.ts \
             src/core/pages/pdfPageLabelNativeReader.test.ts \
