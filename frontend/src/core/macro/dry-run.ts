@@ -1,6 +1,7 @@
 import type {
   MacroCondition,
   MacroDryRunDiff,
+  InsertPosition,
   MacroDryRunReport,
   MacroRecipe,
   MacroStep,
@@ -54,6 +55,17 @@ export async function simulateMacroDryRun(
       currentPage,
     });
 
+  const blankInsertIndex = (position: InsertPosition): number => {
+    if (position.mode === 'start') return 0;
+    if (position.mode === 'end') return finalPageCount;
+    if (position.mode === 'before') return Math.max(0, Math.min(position.page - 1, finalPageCount));
+    if (position.mode === 'after') return Math.max(0, Math.min(position.page, finalPageCount));
+    const current = Math.max(1, Math.min(currentPage ?? 1, Math.max(1, finalPageCount)));
+    return position.mode === 'before-current'
+      ? Math.max(0, Math.min(current - 1, finalPageCount))
+      : Math.max(0, Math.min(current, finalPageCount));
+  };
+
   const conditionMatches = (condition: MacroCondition): boolean => {
     switch (condition.type) {
       case 'page_count_gt':
@@ -93,7 +105,17 @@ export async function simulateMacroDryRun(
 
       try {
         if (op === 'insert_blank_page') {
-          finalPageCount += Math.max(1, Math.floor(step.count ?? 1));
+          const count = Math.max(1, Math.floor(step.count ?? 1));
+          let nextSelection = [...selection];
+          for (let index = 0; index < count; index += 1) {
+            const insertedAt = blankInsertIndex(step.position);
+            nextSelection = nextSelection.map((page) => (
+              page > insertedAt ? page + 1 : page
+            ));
+            finalPageCount += 1;
+          }
+          if (pendingSelections) pendingSelections.push(nextSelection);
+          else finalSelectedPages = nextSelection;
           modifiedBytes = true;
         } else if (op === 'duplicate_pages') {
           const pages = resolvePages(step.selector, selection);
