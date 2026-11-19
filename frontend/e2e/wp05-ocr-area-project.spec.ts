@@ -112,12 +112,18 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
     const reopened = await fresh.newPage();
     await stubNativeFilePickers(reopened);
     await reopened.goto('./');
+    // The native project input belongs to the Write-mode ribbon; it is not
+    // mounted in a fresh default File-mode workspace.
+    await reopened.getByRole('tab', { name: 'Write' }).click();
     await reopened.getByLabel('Import editable Writer project or PDF').setInputFiles({
       name: 'wp05-proof.pdfhub.zip',
       mimeType: 'application/zip',
       buffer: firstZip,
     });
     await expect(reopened.locator('[data-page="1"] canvas')).toBeVisible({ timeout: 20_000 });
+    // OCR review is a separate left-rail panel, not automatically visible
+    // just because the project contains restored OCR state.
+    await reopened.getByRole('button', { name: 'OCR', exact: true }).click();
     await expect(reopened.getByTestId('ocr-region-row')).toHaveCount(1, { timeout: 15_000 });
     const secondZip = await saveProject(reopened);
     const second = await readRegions(secondZip);
