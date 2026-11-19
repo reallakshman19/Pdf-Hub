@@ -144,7 +144,7 @@ async function execute(
     ?? useSessionStore.getState().documentKey
     ?? 'test-doc';
 
-  return commandBus.execute({
+  const result = await commandBus.execute({
     command: materializePdfCommand(
       draft,
       options?.source ?? 'toolbar',
@@ -158,6 +158,10 @@ async function execute(
     ),
     resources: options?.resources,
   });
+  if (!result.success && process.env.WP05_DISPATCH_DIAG === '1') {
+    process.stderr.write(`WP05_DISPATCH_DIAG type=${draft.type} error=${JSON.stringify(result.error)}\n`);
+  }
+  return result;
 }
 
 async function admitDonor(
