@@ -110,6 +110,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
     pageIndex: number;
     bbox: PdfRect;
     mode: OcrRegionMode;
+    geometryProvenance?: 'pdf-user-space-v2';
     now?: string;
   }) => OcrRegion | null;
   upsertOcrRegion: (region: OcrRegion) => void;
@@ -326,6 +327,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       pageIndex: input.pageIndex,
       bbox: input.bbox,
       mode: input.mode,
+      geometryProvenance: input.geometryProvenance,
       now: input.now,
     });
 
