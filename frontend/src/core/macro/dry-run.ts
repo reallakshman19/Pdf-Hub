@@ -99,9 +99,13 @@ export async function simulateMacroDryRun(
           if (pages.length > 0) {
             const resultingCount = finalPageCount - pages.length;
             if (resultingCount < 1) {
-              warnings.push(`${op}: removal of all pages may be rejected by the PDF engine.`);
+              // PdfEditAdapter.removePages fails closed if no pages remain.
+              // Reject both remove_pages and split_pages before execution.
+              errors.push(`${op}: Cannot remove all pages from the document.`);
+              logs.push(`  → ERROR: ${op} would leave an empty document`);
+              return;
             }
-            finalPageCount = Math.max(1, resultingCount);
+            finalPageCount = resultingCount;
             modifiedBytes = true;
             const nextSelection = op === 'split_pages'
               ? []
