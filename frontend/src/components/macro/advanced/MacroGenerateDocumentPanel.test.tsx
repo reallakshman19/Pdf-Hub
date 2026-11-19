@@ -142,4 +142,53 @@ describe('MacroGenerateDocumentPanel', () => {
     expect(screen.getByTestId('macro-generate-run')).toBeDisabled();
     expect(screen.getByLabelText('Generate Document Template')).toBeDisabled();
   });
+  it('does not run the generator when a required title is blank', async () => {
+    render(<MacroGenerateDocumentPanel />);
+    fireEvent.change(screen.getByLabelText(/^Title/), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByTestId('macro-generate-run'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Complete required field: Title.');
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it('names a fallback output using the submitted record title', async () => {
+    const onOutputsProduced = vi.fn();
+    render(<MacroGenerateDocumentPanel onOutputsProduced={onOutputsProduced} />);
+    fireEvent.change(screen.getByLabelText(/^Title/), {
+      target: { value: 'Alpha Valve' },
+    });
+    fireEvent.click(screen.getByTestId('macro-generate-run'));
+
+    await waitFor(() => {
+      expect(onOutputsProduced).toHaveBeenCalledWith([
+        expect.objectContaining({ name: 'professional-report-alpha-valve.pdf' }),
+      ]);
+    });
+  });
+
+  it('exposes cancellation and does not publish cancelled output', async () => {
+    const onOutputsProduced = vi.fn();
+    runMock.mockImplementationOnce(async (_recipe, options) => new Promise((resolve) => {
+      options?.abortSignal?.addEventListener('abort', () => {
+        resolve({
+          success: false,
+          status: 'cancelled',
+          outputFiles: [],
+          stepResults: [],
+          finalBytes: new Uint8Array([1]),
+          logs: ['Cancelled.'],
+          selectedPages: [],
+        });
+      }, { once: true });
+    }));
+
+    render(<MacroGenerateDocumentPanel onOutputsProduced={onOutputsProduced} />);
+    fireEvent.click(screen.getByTestId('macro-generate-run'));
+    await waitFor(() => expect(runMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByTestId('macro-generate-cancel'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Generate Document was cancelled.');
+    expect(onOutputsProduced).not.toHaveBeenCalled();
+  });
 });

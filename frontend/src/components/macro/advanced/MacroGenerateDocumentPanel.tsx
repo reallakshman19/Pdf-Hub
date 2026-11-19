@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
+import { missingRequiredGenerationFields } from '@/core/macro/generateDocument/generationFieldValidation';
 import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import {
   GENERATION_TEMPLATES,
@@ -51,6 +52,11 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   const [logs, setLogs] = React.useState<string[]>([]);
   const [runError, setRunError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const generationAbortRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => () => {
+    generationAbortRef.current?.abort('Generate Document panel closed');
+  }, []);
 
   const selectedTemplate = React.useMemo(
     () => getGenerationTemplateById(selectedGenerationId),
@@ -107,6 +113,17 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   const generate = async () => {
     if (!workingBytes || !selectedTemplate || disabled || isRunning) return;
 
+    const missing = missingRequiredGenerationFields(
+      selectedTemplate,
+      generationValues,
+    );
+    if (missing.length > 0) {
+      setRunError(`Complete required field${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.`);
+      return;
+    }
+
+    const controller = new AbortController();
+    generationAbortRef.current = controller;
     onBusyChange?.(true);
     setIsRunning(true);
     setRunError(null);
@@ -129,15 +146,11 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         },
         {
           saveOutputs: false,
+          abortSignal: controller.signal,
         },
       );
 
-      if (result.status === 'failed' || result.success === false) {
-        setRunError(result.logs.at(-1) ?? 'Generate Document failed.');
-        return;
-      }
-
-      if (result.status === 'cancelled') {
+      if (result.status === 'cancelled' || controller.signal.aborted) {
         setRunError('Generate Document was cancelled.');
         return;
       }
@@ -147,25 +160,37 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         return;
       }
 
+      if (result.status === 'failed' || result.success === false) {
+        setRunError(result.logs.at(-1) ?? 'Generate Document failed.');
+        return;
+      }
+
       setLogs(result.logs ?? []);
 
       const outputs: MacroOutputFile[] = result.outputFiles.length > 0
         ? result.outputFiles
         : [
             {
-              name: buildGeneratedDocumentOutputName(selectedTemplate),
+              name: buildGeneratedDocumentOutputName(selectedTemplate, generationValues),
               bytes: result.finalBytes,
             },
           ];
 
       onOutputsProduced?.(outputs);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setRunError(message);
-      logError('macro', 'Failed to generate document', {
-        error: message,
-      });
+      if (controller.signal.aborted) {
+        setRunError('Generate Document was cancelled.');
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        setRunError(message);
+        logError('macro', 'Failed to generate document', {
+          error: message,
+        });
+      }
     } finally {
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+      }
       setIsRunning(false);
       onBusyChange?.(false);
     }
@@ -287,6 +312,17 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
       >
         {isRunning ? 'Generating…' : 'Generate PDF'}
       </Button>
+
+      {isRunning ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => generationAbortRef.current?.abort('User cancelled generation')}
+          data-testid="macro-generate-cancel"
+        >
+          Cancel Generation
+        </Button>
+      ) : null}
 
       {runError ? (
         <div
