@@ -1,4 +1,4 @@
-import type { PDFArray, PDFDict, PDFNumber } from 'pdf-lib';
+import type { PDFDict } from 'pdf-lib';
 
 import {
   isOperationCancelledError,
