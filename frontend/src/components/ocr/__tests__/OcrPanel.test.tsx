@@ -184,6 +184,7 @@ describe('OcrPanel primary workflow', () => {
   it('shows stored real-document regions without exposing a synthetic region tool', () => {
     useOcrStore.getState().addOcrRegion({
       id: 'region-real-document',
+      geometryProvenance: 'pdf-user-space-v2',
       documentFingerprint: 'doc-region',
       pageIndex: 0,
       mode: 'table',
