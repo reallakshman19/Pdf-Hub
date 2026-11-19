@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
+import JSZip from 'jszip';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -29,6 +30,30 @@ async function scannedOnlyPdf(page: Page): Promise<Uint8Array> {
   const p = pdf.addPage([500, 600]);
   p.drawImage(image, { x: 0, y: 0, width: 500, height: 600 });
   return new Uint8Array(await pdf.save());
+}
+
+async function readRecognizedWordsFromEditableProject(page: Page): Promise<string[]> {
+  // Public product export is the independent witness of OCR transcription.
+  // This synthetic PDF contains no customer information and the exported
+  // artifact is used only for browser certification.
+  await page.getByRole('tab', { name: 'Write' }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 30_000 }),
+    page.getByRole('button', { name: 'Save Project' }).click({ timeout: 10_000 }),
+  ]);
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error('OCR project did not return downloadable ZIP bytes');
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  await download.delete();
+  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const file = zip.file('ocr/result.json');
+  if (!file) throw new Error('Editable ZIP has no persisted OCR result for real Tesseract output');
+  const parsed: unknown = JSON.parse(await file.async('text'));
+  const result = parsed as { pages?: Array<{ words?: Array<{ text?: string }> }> };
+  return (result.pages ?? []).flatMap((item) =>
+    (item.words ?? []).map((word) => word.text ?? ''),
+  );
 }
 
 test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app and exposes searchable OCR text', async ({ page }) => {
@@ -66,6 +91,10 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   await run.click();
   const review = page.getByTestId('ocr-review-workspace');
   await expect(review).toBeVisible({ timeout: 150_000 });
+  const transcribed = await readRecognizedWordsFromEditableProject(page);
+  console.log('WP05_REAL_OCR_TRANSCRIBED_WORDS', JSON.stringify(transcribed));
+  expect(transcribed.some((word) => /ALPHA/i.test(word)), 'Tesseract must decode the synthetic ALPHA pixels').toBe(true);
+  expect(transcribed.some((word) => /VALVE/i.test(word)), 'Tesseract must decode the synthetic VALVE pixels').toBe(true);
   const search = page.getByPlaceholder('Search OCR result');
   // Capture real recognized words through the public search interface.
   // Diagnostics distinguish recognition errors from a broken index/UI.
