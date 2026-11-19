@@ -4,13 +4,14 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
-  Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal,
+  Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal, Copy, ClipboardPaste,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
 import { useWriterStore } from '@/core/writer/store';
+import { useAnnotationStore } from '@/core/annotations/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
@@ -167,6 +168,15 @@ const AnnotateSection: React.FC = () => {
     hideResolved: state.hideResolved,
     setHideResolved: state.setHideResolved,
   })));
+  const { selectedAnnotationIds, clipboard, clipboardDocumentKey, copySelection, pasteClipboard } = useAnnotationStore(useShallow((state) => ({
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    clipboard: state.clipboard,
+    clipboardDocumentKey: state.clipboardDocumentKey,
+    copySelection: state.copySelection,
+    pasteClipboard: state.pasteClipboard,
+  })));
+  const currentPage = useSessionStore((state) => state.viewState.currentPage);
+  const documentKey = useSessionStore((state) => state.documentKey);
   const [moreOpen, setMoreOpen] = React.useState(false);
   const moreRef = React.useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
@@ -230,6 +240,20 @@ const AnnotateSection: React.FC = () => {
         active={activeTool === 'comment'}
         onClick={() => handleToolClick('comment')}
       />
+      <CtxBtn
+        icon={MessageSquareDot}
+        label="Callout"
+        active={activeTool === 'callout'}
+        onClick={() => handleToolClick('callout')}
+      />
+      <CtxBtn
+        icon={Stamp}
+        label="Stamp"
+        active={activeTool === 'stamp'}
+        onClick={() => handleToolClick('stamp')}
+      />
+      <CtxBtn icon={Copy} label="Copy annotation" disabled={selectedAnnotationIds.length === 0} onClick={copySelection} />
+      <CtxBtn icon={ClipboardPaste} label="Paste annotation" disabled={clipboard.length === 0 || clipboardDocumentKey !== documentKey} onClick={() => pasteClipboard(currentPage)} />
 
       <div ref={moreRef} className="relative shrink-0">
         <CtxBtn

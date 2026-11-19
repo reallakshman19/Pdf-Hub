@@ -13,7 +13,7 @@ export const ArrowNode: React.FC<AnnotationNodeProps<'arrow'>> = ({
   onTransformStart,
 }) => {
   const color = annotation.data?.borderColor ?? '#111827';
-  const width = annotation.data?.borderWidth ?? 2;
+  const width = (annotation.data?.borderWidth ?? 2) * scale;
   const points = (annotation.data?.points ?? [0, rect.height / 2, rect.width, rect.height / 2]).map((value) => value * scale);
   const startCap = readLineCap(annotation.data?.lineStartCap, 'none');
   const endCap = readLineCap(annotation.data?.lineEndCap, 'arrow');
@@ -36,7 +36,7 @@ export const ArrowNode: React.FC<AnnotationNodeProps<'arrow'>> = ({
         onTransformStart(e, 'move');
       }}
     >
-      <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+      <svg width="100%" height="100%" style={{ overflow: 'visible', opacity: annotation.data?.opacity ?? 1 }}>
         <defs>
           {startCap !== 'none' && (
             <LineCapMarker id={markerStartId} cap={startCap} color={color} />
@@ -52,6 +52,7 @@ export const ArrowNode: React.FC<AnnotationNodeProps<'arrow'>> = ({
           y2={points[3]}
           stroke={color}
           strokeWidth={width}
+          strokeDasharray={annotation.data?.borderStyle === 'dashed' ? `${3 * scale} ${2 * scale}` : annotation.data?.borderStyle === 'dotted' ? `${scale} ${scale}` : undefined}
           markerStart={startCap !== 'none' ? `url(#${markerStartId})` : undefined}
           markerEnd={endCap !== 'none' ? `url(#${markerEndId})` : undefined}
         />

@@ -8,8 +8,12 @@ import type { PdfAnnotation } from '@/core/annotations/types';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { calloutBodyRect } from './freeTextGeometry';
+import { fingerprintStampAppearance, verifyStampAppearanceFingerprint, verifyStampRotationFingerprint } from './nativeStampProvenance';
+import { BOX_GENERATED_AP_ORIENTATION_KEY, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
+import { orderNativeReviewStates } from './nativeReviewStateOrder';
 import {
-  createMarkupSpace, markupOrMask, pdfPointToView,
+  createMarkupSpace, pdfPointToView,
   pdfRectToViewRect, type MarkupSpace,
 } from './markupGeometry';
 
@@ -73,6 +77,53 @@ export async function readNativePdfAnnotations(
       if (!parsed) {
         skippedCount += 1;
         continue;
+      }
+
+      if (parsed.type === 'stamp') {
+        // A persisted app marker is not proof that an external editor left the
+        // appearance unchanged. Legacy or unverifiable forms retain artwork.
+        const hasNativeAppearance = Boolean(record.dict.get(lib.PDFName.of('AP')));
+        parsed.data.hasCustomAppearance = hasNativeAppearance;
+        const generated = hasNativeAppearance && parsed.data.nativeStampAppearanceKind === 'generated'
+          && await verifyStampAppearanceFingerprint(doc, record.dict, lib);
+        parsed.data.nativeStampAppearanceKind = generated ? 'generated' : 'imported';
+        parsed.data.nativeStampRotationReadOnly = !generated && Boolean(record.dict.get(lib.PDFName.of('PDFHubBaseAP')))
+          && !await verifyStampRotationFingerprint(doc, record.dict, lib);
+      }
+
+      if (parsed.type === 'shape-rect' || parsed.type === 'shape-ellipse') {
+        // This is derived only from the actual source graph. A stored sidecar or
+        // PDFHubData value must never authorize replacing an arbitrary AP.
+        delete parsed.data.nativeBoxShapeTurn;
+        delete parsed.data.nativeBoxShapeSourceHash;
+        delete parsed.data.nativeBoxShapeGenerated;
+        delete parsed.data.nativeBoxShapeGeneratedOrientation;
+        parsed.data.nativeBoxShapeImported = true;
+        parsed.data.nativeBoxShapeHasAppearance = Boolean(record.dict.get(lib.PDFName.of('AP')));
+        const flags = record.dict.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0;
+        const unsupported = ['RD', 'BE', 'IT', 'Measure', 'Vertices', 'InkList', 'L', 'CL', 'QuadPoints', 'Rotate', 'PDFHubBaseAP']
+          .some((key) => record.dict.get(lib.PDFName.of(key))) || (Math.trunc(flags) & 16) !== 0;
+        if (!unsupported) {
+          const hash = await fingerprintStampAppearance(doc, record.dict, lib);
+          if (hash) parsed.data.nativeBoxShapeSourceHash = hash;
+          if (await verifyGeneratedBoxAppearanceFingerprint(doc, record.dict, lib)) {
+            parsed.data.nativeBoxShapeGenerated = true;
+            parsed.data.nativeBoxShapeGeneratedOrientation = record.dict.lookup(lib.PDFName.of(BOX_GENERATED_AP_ORIENTATION_KEY), lib.PDFNumber).asNumber();
+          }
+        }
+      }
+
+      if (record.refKey) parsed.data.nativeSourceRef = record.refKey;
+      if (parsed.type === 'textbox' || parsed.type === 'callout') {
+        parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
+      }
+      if (parsed.type === 'stamp' && parsed.data.hasCustomAppearance && record.refKey) {
+        const match = /^(\d+)\s+(\d+)\s+R$/.exec(record.refKey);
+        if (match) {
+          parsed.data.nativeAppearanceRef = `${match[1]}R${match[2] === '0' ? '' : match[2]}`;
+          parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
+          parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
+        }
       }
 
       annotations.push(parsed);
@@ -144,11 +195,13 @@ export async function readNativePdfAnnotations(
       parent.updatedAt = Math.max(parent.updatedAt, reply.createdAt);
     }
 
-    const orderedStates = [...states].sort((left, right) => {
-      const timestampDelta =
-        reviewStateTimestamp(left.dict, lib) - reviewStateTimestamp(right.dict, lib);
-      return timestampDelta || left.index - right.index;
-    });
+    const orderedStates = orderNativeReviewStates(states, (record) => ({
+      key: record.refKey,
+      parent: pdfObjectKey(record.dict.get(lib.PDFName.of('IRT')), lib),
+      author: readText(record.dict, 'T', lib),
+      time: reviewStateTimestamp(record.dict, lib),
+      index: record.index,
+    }));
 
     for (const record of orderedStates) {
       const resolved = resolveRootForRelatedRecord(
@@ -181,6 +234,32 @@ export async function readNativePdfAnnotations(
       };
       parent.updatedAt = Math.max(parent.updatedAt, updatedAt);
     }
+  }
+
+  // /NM need only be unique within a page in real-world PDFs. Give the UI
+  // distinct IDs while remembering the original native name for writing.
+  const counts = new Map<string, number>();
+  const perPage = new Map<string, number>();
+  for (const annotation of annotations) {
+    counts.set(annotation.id, (counts.get(annotation.id) ?? 0) + 1);
+    const key = `${annotation.pageNumber}\u0000${annotation.id}`;
+    perPage.set(key, (perPage.get(key) ?? 0) + 1);
+  }
+  const occupied = new Set(annotations.map((annotation) => annotation.id));
+  for (const annotation of annotations) {
+    if ((counts.get(annotation.id) ?? 0) < 2) continue;
+    const nativeName = annotation.id;
+    const pageKey = `${annotation.pageNumber}\u0000${nativeName}`;
+    let candidate = `pdfhub-native-p${annotation.pageNumber}:${encodeURIComponent(nativeName)}`;
+    let suffix = 1;
+    while (occupied.has(candidate)) candidate = `pdfhub-native-p${annotation.pageNumber}:${encodeURIComponent(nativeName)}:${suffix++}`;
+    occupied.add(candidate);
+    annotation.id = candidate;
+    annotation.data = {
+      ...annotation.data,
+      nativeOriginalName: nativeName,
+      ...((perPage.get(pageKey) ?? 0) > 1 ? { nativeIdentityAmbiguous: true } : {}),
+    };
   }
 
   return {
@@ -242,13 +321,16 @@ function parseRootAnnotation(
 
   const rectValues = readNumberArray(dict, 'Rect', lib);
   if (!rectValues || rectValues.length < 4) return null;
+  const freeTextBase = type === 'callout' || type === 'textbox'
+    ? readNumberArray(dict, 'PDFHubBaseRect', lib) ?? rectValues : rectValues;
+  const bodyValues = type === 'callout'
+    ? calloutBodyRect(freeTextBase, readNumberArray(dict, 'PDFHubBaseRD', lib) ?? readNumberArray(dict, 'RD', lib), readNumberArray(dict, 'PDFHubBaseCL', lib) ?? readNumberArray(dict, 'CL', lib)) ?? freeTextBase
+    : type === 'stamp'
+      ? readNumberArray(dict, 'PDFHubBaseRect', lib) ?? rectValues
+      : freeTextBase;
 
-  const markupSpace = markupOrMask(type)
-    ? createMarkupSpace(page.getCropBox(), page.getRotation().angle)
-    : undefined;
-  const rect = markupSpace
-    ? pdfRectToViewRect(rectValues, markupSpace)
-    : pdfRectToAppRect(rectValues, page.getHeight());
+  const markupSpace = createMarkupSpace(page.getCropBox(), page.getRotation().angle);
+  const rect = pdfRectToViewRect(bodyValues, markupSpace);
   const customData = readCustomData(dict, lib);
   const native = nativeData(dict, type, rect, page.getHeight(), lib, markupSpace);
 
@@ -259,6 +341,13 @@ function parseRootAnnotation(
     ...customData,
     ...native,
   };
+  if ((type === 'textbox' || type === 'callout' || type === 'stamp') && dict.get(lib.PDFName.of('PDFHubBaseRect'))) {
+    data.rotation = readNumber(dict, 'PDFHubRotation', lib) ?? 0;
+  }
+  if (type === 'stamp' && data.hasCustomAppearance) {
+    data.nativeStampAppearanceKind = customData.nativeStampAppearanceKind === 'generated'
+      ? 'generated' : 'imported';
+  }
 
   const text = readText(dict, 'Contents', lib);
   const hasNativeRichText = dict.get(lib.PDFName.of('RC')) !== undefined;
@@ -335,7 +424,9 @@ function parseRootAnnotation(
     Boolean(data.review)
     || type === 'comment'
     || type === 'sticky-note'
-    || Boolean(readTextOrName(dict, 'StateModel', lib));
+    || Boolean(readTextOrName(dict, 'StateModel', lib))
+    || Boolean(readTextOrName(dict, 'State', lib))
+    || Boolean(readText(dict, 'PDFHubReviewStatus', lib));
 
   if (shouldHaveReview) {
     annotation.data = {
@@ -369,6 +460,7 @@ function parseReply(
     author: readText(dict, 'T', lib) ?? 'Unknown',
     content,
     createdAt,
+    ...(readPdfDate(dict, 'M', lib) !== null ? { updatedAt: readPdfDate(dict, 'M', lib)! } : {}),
     ...(parentReplyId ? { parentReplyId } : {}),
     ...(hasNativeRichText
       ? {
@@ -571,6 +663,11 @@ function nativeData(
     const name = readName(dict, 'Name', lib);
     if (name) {
       data.stampStyle = stampStyleFromPdfName(name);
+      data.stampName = name;
+    }
+    const ap = dict.lookupMaybe(lib.PDFName.of('AP'), lib.PDFDict);
+    if (ap) {
+      data.hasCustomAppearance = true;
     }
   }
 
@@ -607,15 +704,13 @@ function nativeData(
   if (type === 'line' || type === 'arrow') {
     const line = readNumberArray(dict, 'L', lib);
     if (line && line.length >= 4) {
-      const x1 = line[0];
-      const y1 = pageHeight - line[1];
-      const x2 = line[2];
-      const y2 = pageHeight - line[3];
+      const first = markupSpace ? pdfPointToView(line[0], line[1], markupSpace) : { x: line[0], y: pageHeight - line[1] };
+      const second = markupSpace ? pdfPointToView(line[2], line[3], markupSpace) : { x: line[2], y: pageHeight - line[3] };
       data.points = [
-        x1 - rect.x,
-        y1 - rect.y,
-        x2 - rect.x,
-        y2 - rect.y,
+        first.x - rect.x,
+        first.y - rect.y,
+        second.x - rect.x,
+        second.y - rect.y,
       ];
     }
   }
@@ -625,7 +720,8 @@ function nativeData(
     if (vertices && vertices.length >= 6) {
       const converted: number[] = [];
       for (let index = 0; index + 1 < vertices.length; index += 2) {
-        converted.push(vertices[index], pageHeight - vertices[index + 1]);
+        const point = markupSpace ? pdfPointToView(vertices[index], vertices[index + 1], markupSpace) : { x: vertices[index], y: pageHeight - vertices[index + 1] };
+        converted.push(point.x, point.y);
       }
       data.points = converted;
     }
@@ -641,10 +737,8 @@ function nativeData(
         const values = readPdfArrayNumbers(path, lib);
         const converted: number[] = [];
         for (let index = 0; index + 1 < values.length; index += 2) {
-          converted.push(
-            values[index] - rect.x,
-            pageHeight - values[index + 1] - rect.y,
-          );
+          const point = markupSpace ? pdfPointToView(values[index], values[index + 1], markupSpace) : { x: values[index], y: pageHeight - values[index + 1] };
+          converted.push(point.x, point.y);
         }
         if (converted.length >= 4) paths.push(converted);
       }
@@ -653,17 +747,11 @@ function nativeData(
   }
 
   if (type === 'callout') {
-    const callout = readNumberArray(dict, 'CL', lib);
+    const callout = readNumberArray(dict, 'PDFHubBaseCL', lib) ?? readNumberArray(dict, 'CL', lib);
     if (callout && callout.length >= 4) {
-      data.anchor = {
-        x: callout[0],
-        y: pageHeight - callout[1],
-      };
+      data.anchor = markupSpace ? pdfPointToView(callout[0], callout[1], markupSpace) : { x: callout[0], y: pageHeight - callout[1] };
       if (callout.length >= 6) {
-        data.knee = {
-          x: callout[2],
-          y: pageHeight - callout[3],
-        };
+        data.knee = markupSpace ? pdfPointToView(callout[2], callout[3], markupSpace) : { x: callout[2], y: pageHeight - callout[3] };
       }
     }
   }
@@ -973,22 +1061,6 @@ function isReviewMetadata(value: unknown): value is ReviewMetadata {
   );
 }
 
-function pdfRectToAppRect(
-  values: number[],
-  pageHeight: number,
-): PdfAnnotation['rect'] {
-  const x1 = Math.min(values[0], values[2]);
-  const x2 = Math.max(values[0], values[2]);
-  const y1 = Math.min(values[1], values[3]);
-  const y2 = Math.max(values[1], values[3]);
-
-  return {
-    x: x1,
-    y: pageHeight - y2,
-    width: x2 - x1,
-    height: y2 - y1,
-  };
-}
 
 function readText(
   dict: PDFDict,

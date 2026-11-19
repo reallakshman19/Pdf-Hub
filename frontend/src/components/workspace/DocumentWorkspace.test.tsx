@@ -26,6 +26,7 @@ class ResizeObserverMock {
 
 vi.mock('@/core/annotations/persistence', () => ({
   loadAnnotations: vi.fn().mockResolvedValue([]),
+  loadAnnotationsOrNull: vi.fn().mockResolvedValue(null),
   saveAnnotations: vi.fn(),
 }));
 

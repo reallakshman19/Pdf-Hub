@@ -8,8 +8,10 @@ import {
   Download,
   FileText,
   MessageSquare,
+  Pencil,
   RotateCcw,
   Send,
+  Trash2,
   XCircle,
 } from 'lucide-react';
 
@@ -30,12 +32,16 @@ export const CommentsSidebar: React.FC = () => {
     setActiveAnnotationId,
     setReviewStatus,
     addReviewReply,
+    updateReviewReply,
+    deleteReviewReply,
   } = useAnnotationStore(useShallow((state) => ({
     annotations: state.annotations,
     activeAnnotationId: state.activeAnnotationId,
     setActiveAnnotationId: state.setActiveAnnotationId,
     setReviewStatus: state.setReviewStatus,
     addReviewReply: state.addReviewReply,
+    updateReviewReply: state.updateReviewReply,
+    deleteReviewReply: state.deleteReviewReply,
   })));
   const { setPage } = useSessionStore(useShallow((state) => ({
     setPage: state.setPage,
@@ -47,6 +53,8 @@ export const CommentsSidebar: React.FC = () => {
 
   const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
+  const [newCommentDraft, setNewCommentDraft] = useState('');
+  const [editing, setEditing] = useState<{ threadId: string; replyId: string; text: string } | null>(null);
 
   const threads = useMemo(
     () => reviewThreadsFromAnnotations(annotations),
@@ -111,9 +119,29 @@ export const CommentsSidebar: React.FC = () => {
     setReplyDraft('');
   };
 
+  const selectedAnnotation = annotations.find((item) => item.id === activeAnnotationId);
+  const selectedHasThread = threads.some((thread) => thread.anchor.annotationId === activeAnnotationId);
+  const startComment = selectedAnnotation && !selectedHasThread ? (
+    <div className="border-b border-slate-200 p-3 dark:border-slate-800">
+      <label className="block text-xs font-medium text-slate-700 dark:text-slate-200" htmlFor="new-annotation-comment">
+        Comment on selected {selectedAnnotation.type}
+      </label>
+      <textarea id="new-annotation-comment" aria-label="Comment on selected annotation" value={newCommentDraft}
+        onChange={(event) => setNewCommentDraft(event.target.value)}
+        className="mt-2 w-full rounded-md border border-slate-300 bg-white p-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+      <Button size="sm" className="mt-2 h-7 text-xs" disabled={!newCommentDraft.trim()} onClick={() => {
+        addReviewReply(selectedAnnotation.id, newCommentDraft);
+        setExpandedThreadId(`review:${selectedAnnotation.id}`);
+        setNewCommentDraft('');
+      }}>Add comment</Button>
+    </div>
+  ) : null;
+
   if (threads.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center p-4">
+      <div className="h-full flex flex-col">
+        {startComment}
+        <div className="flex flex-1 items-center justify-center p-4">
         <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 text-center">
           <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
             <MessageSquare className="w-5 h-5" />
@@ -124,6 +152,7 @@ export const CommentsSidebar: React.FC = () => {
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Add a comment, sticky note, callout, or start a review on a markup.
           </div>
+        </div>
         </div>
       </div>
     );
@@ -142,6 +171,7 @@ export const CommentsSidebar: React.FC = () => {
           {threads.length}
         </span>
       </div>
+      {startComment}
 
       <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
         <div className="flex items-center justify-between">
@@ -271,13 +301,25 @@ export const CommentsSidebar: React.FC = () => {
                                     <span className="font-medium text-slate-700 dark:text-slate-200">
                                       {message.author}
                                     </span>
-                                    <span className="text-[10px] text-slate-500">
-                                      {new Date(message.createdAt).toLocaleString()}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-slate-500">{new Date(message.createdAt).toLocaleString()}</span>
+                                      {message.id !== `${thread.anchor.annotationId}:root` && (
+                                        <>
+                                          <button type="button" aria-label="Edit comment" title="Edit comment" onClick={() => setEditing({ threadId: thread.id, replyId: message.id, text: message.content })}><Pencil className="h-3 w-3" /></button>
+                                          <button type="button" aria-label="Delete comment" title="Delete comment" onClick={() => { deleteReviewReply(thread.anchor.annotationId, message.id); setEditing(null); }}><Trash2 className="h-3 w-3" /></button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
-                                  <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">
-                                    {message.content}
-                                  </p>
+                                  {editing?.threadId === thread.id && editing.replyId === message.id ? (
+                                    <div>
+                                      <textarea aria-label="Edit comment text" value={editing.text} onChange={(event) => setEditing({ ...editing, text: event.target.value })} className="w-full rounded border border-slate-300 bg-white p-1 text-slate-900" />
+                                      <div className="mt-1 flex gap-2">
+                                        <Button size="sm" className="h-6 text-xs" disabled={!editing.text.trim()} onClick={() => { updateReviewReply(thread.anchor.annotationId, message.id, editing.text); setEditing(null); }}>Save comment</Button>
+                                        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setEditing(null)}>Cancel</Button>
+                                      </div>
+                                    </div>
+                                  ) : <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">{message.content}</p>}
                                 </div>
                               ))}
                             </div>

@@ -1,9 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { PdfAnnotation } from './types';
+import type { PdfAnnotation, Point2D, Rect } from './types';
 import {
-  denormalizeAnnotationGeometry,
   normalizeAnnotationGeometry,
-  rotateNormalizedAnnotationGeometry,
 } from './normalized';
 
 /**
@@ -123,24 +121,51 @@ export function remapAfterRotate(
     const normalizedAngle = ((rot.angle % 360) + 360) % 360;
     if (normalizedAngle === 0) return annotation;
 
-    const page = { width: rot.width, height: rot.height };
-    // Always normalize from the current rect/data rather than trusting cached
-    // metadata, because live drag/resize edits can leave older persisted
-    // normalizedGeometry behind. Rotation must follow what the user sees now.
-    const normalizedGeometry = normalizeAnnotationGeometry(annotation, page);
-    const rotatedNormalizedGeometry = rotateNormalizedAnnotationGeometry(normalizedGeometry, normalizedAngle);
+    if (![90, 180, 270].includes(normalizedAngle)) throw new Error('Page rotation must be a multiple of 90 degrees.');
+    const rotate = ({ x, y }: Point2D): Point2D => {
+      if (normalizedAngle === 90) return { x: rot.height - y, y: x };
+      if (normalizedAngle === 180) return { x: rot.width - x, y: rot.height - y };
+      return { x: y, y: rot.width - x };
+    };
+    const oldRect = annotation.rect;
+    const corners = [rotate({ x: oldRect.x, y: oldRect.y }), rotate({ x: oldRect.x + oldRect.width, y: oldRect.y + oldRect.height })];
+    const rect: Rect = {
+      x: Math.min(corners[0].x, corners[1].x),
+      y: Math.min(corners[0].y, corners[1].y),
+      width: Math.abs(corners[1].x - corners[0].x),
+      height: Math.abs(corners[1].y - corners[0].y),
+    };
+    const transformPairs = (points: number[], relative = false): number[] => {
+      const result: number[] = [];
+      for (let i = 0; i + 1 < points.length; i += 2) {
+        const point = rotate({ x: points[i] + (relative ? oldRect.x : 0), y: points[i + 1] + (relative ? oldRect.y : 0) });
+        result.push(point.x - (relative ? rect.x : 0), point.y - (relative ? rect.y : 0));
+      }
+      return result;
+    };
+    const data = { ...annotation.data };
+    if (data.anchor) data.anchor = rotate(data.anchor);
+    if (data.knee) data.knee = rotate(data.knee);
+    if (data.points) data.points = transformPairs(data.points, annotation.type === 'line' || annotation.type === 'arrow');
+    if (data.paths) data.paths = data.paths.map((path) => transformPairs(path));
+    if (data.textMarkupQuads && rect.width > 0 && rect.height > 0) {
+      const absolute = data.textMarkupQuads.map((value, index) => index % 2 === 0
+        ? oldRect.x + value * oldRect.width : oldRect.y + value * oldRect.height);
+      data.textMarkupQuads = transformPairs(absolute).map((value, index) => index % 2 === 0
+        ? (value - rect.x) / rect.width : (value - rect.y) / rect.height);
+    }
     const outputPage =
       normalizedAngle === 90 || normalizedAngle === 270
         ? { width: rot.height, height: rot.width }
-        : page;
-    const denormalized = denormalizeAnnotationGeometry(annotation, rotatedNormalizedGeometry, outputPage);
+        : { width: rot.width, height: rot.height };
+    const transformed = { ...annotation, rect, data };
 
     return {
-      ...denormalized,
+      ...transformed,
       data: {
-        ...denormalized.data,
+        ...data,
         geometryVersion: 2,
-        normalizedGeometry: rotatedNormalizedGeometry,
+        normalizedGeometry: normalizeAnnotationGeometry(transformed, outputPage),
       },
     };
   });

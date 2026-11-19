@@ -35,6 +35,17 @@ export function isNativeRichTextReadOnly(
   );
 }
 
+export function isImportedStampArtworkReadOnly(annotation: PdfAnnotation): boolean {
+  return annotation.type === 'stamp' && (annotation.data.nativeStampAppearanceKind === 'imported'
+    || (Boolean(annotation.data.hasCustomAppearance) && annotation.data.nativeStampAppearanceKind !== 'generated'));
+}
+
+export function isImportedBoxArtworkReadOnly(annotation: PdfAnnotation): boolean {
+  return (annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse')
+    && Boolean(annotation.data.nativeBoxShapeImported && annotation.data.nativeBoxShapeHasAppearance)
+    && !annotation.data.nativeBoxShapeGenerated;
+}
+
 export function hasNativeRichTextSemantics(
   annotation: PdfAnnotation,
 ): boolean {
@@ -53,6 +64,9 @@ export function guardNativeInteropAnnotationPatch(
   annotation: PdfAnnotation,
   patch: Partial<PdfAnnotation>,
 ): Partial<PdfAnnotation> {
+  if (patch.data?.nativeInterop?.fidelityClass === 'MUTATED_USER_EDIT') {
+    return patch;
+  }
   if (!hasNativeRichTextSemantics(annotation)) return patch;
 
   const guarded: Partial<PdfAnnotation> = { ...patch };
@@ -89,15 +103,22 @@ export function guardNativeInteropAnnotationPatch(
   return guarded;
 }
 
-export function guardNativeInteropStylePatch(
+export function guardNativeInteropStylePatch<T extends Partial<AnnotationStyle>>(
   annotation: PdfAnnotation,
-  stylePatch: Partial<AnnotationStyle>,
-): Partial<AnnotationStyle> {
-  if (!isNativeRichTextReadOnly(annotation)) return stylePatch;
+  stylePatch: T,
+): T {
+  if (!isNativeRichTextReadOnly(annotation) && !isImportedStampArtworkReadOnly(annotation) && !isImportedBoxArtworkReadOnly(annotation)) return stylePatch;
 
   const guarded = { ...stylePatch };
-  for (const key of RICH_TEXT_PROTECTED_STYLE_KEYS) {
-    Reflect.deleteProperty(guarded, key);
+  if (isNativeRichTextReadOnly(annotation)) {
+    for (const key of RICH_TEXT_PROTECTED_STYLE_KEYS) Reflect.deleteProperty(guarded, key);
+  }
+  if (isImportedStampArtworkReadOnly(annotation) || isImportedBoxArtworkReadOnly(annotation)) {
+    for (const key of [
+      'fill', 'stroke', 'strokeWidth', 'backgroundColor', 'borderColor', 'borderWidth',
+      'borderStyle', 'borderRadius', 'opacity', 'textColor', 'fontSize', 'fontWeight',
+      'fontStyle', 'fontFamily', 'textAlign', 'lineHeight', 'autoSize',
+    ]) Reflect.deleteProperty(guarded, key);
   }
   return guarded;
 }

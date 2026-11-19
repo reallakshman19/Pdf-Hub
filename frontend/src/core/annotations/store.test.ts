@@ -128,10 +128,13 @@ describe('annotation store', () => {
     expect(useAnnotationStore.getState().annotations[0].pageNumber).toBe(beforePage);
 
     store.copySelection();
-    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+    expect(useAnnotationStore.getState().clipboard).toHaveLength(1);
 
     store.duplicateSelection();
-    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+    expect(useAnnotationStore.getState().annotations).toHaveLength(2);
+    const duplicated = useAnnotationStore.getState().annotations[1];
+    expect(duplicated.id).not.toBe('rich-1');
+    expect(duplicated.data.nativeInterop).toBeUndefined();
   });
 
   it('blocks cloning or structural reassignment when only a represented reply carries native rich text', () => {
@@ -209,10 +212,14 @@ describe('annotation store', () => {
     expect(current.data.review?.replies[0].id).toBe('rich-reply');
 
     store.copySelection();
-    expect(useAnnotationStore.getState().clipboard).toEqual([]);
+    expect(useAnnotationStore.getState().clipboard).toHaveLength(1);
 
     store.duplicateSelection();
-    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+    expect(useAnnotationStore.getState().annotations).toHaveLength(2);
+    const threadDuplicated = useAnnotationStore.getState().annotations[1];
+    expect(threadDuplicated.id).not.toBe('thread-rich-reply');
+    expect(threadDuplicated.data.review?.replies[0].id).not.toBe('rich-reply');
+    expect(threadDuplicated.data.review?.replies[0].content).toBe('Native rich reply');
   });
 
   it('setSelection normalizes unknown/duplicate ids and sets active id', () => {
@@ -321,6 +328,54 @@ describe('annotation store', () => {
     expect(pasted?.createdAt).toBe(1700000000000);
     expect(state.selectedAnnotationIds).toEqual([pasted?.id]);
     nowSpy.mockRestore();
+  });
+
+  it('does not paste document-scoped native references into a different document', () => {
+    useSessionStore.getState().setDocumentKey('first-document');
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([baseAnnotation('native', 1, 20, 30)]);
+    store.setSelection(['native']);
+    store.copySelection();
+    useSessionStore.getState().setDocumentKey('second-document');
+    store.setAnnotations([]);
+    store.pasteClipboard(1);
+    expect(useAnnotationStore.getState().annotations).toEqual([]);
+    useSessionStore.getState().setDocumentKey('first-document');
+    store.pasteClipboard(1);
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+  });
+
+  it('applies inspector appearance fields and legacy style aliases to the actual annotation data', () => {
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([baseAnnotation('appearance', 1, 10, 20)]);
+    store.setSelection(['appearance']);
+    store.updateStyleForSelection({
+      backgroundColor: '#112233', borderColor: '#445566', borderWidth: 0,
+      borderStyle: 'dashed', opacity: 0, autoSize: false, locked: true,
+    });
+    expect(useAnnotationStore.getState().annotations[0].data).toMatchObject({
+      backgroundColor: '#112233', borderColor: '#445566', borderWidth: 0,
+      borderStyle: 'dashed', opacity: 0, autoSize: false, locked: true,
+    });
+    store.updateStyleForSelection({ fill: '#abcdef', stroke: '#fedcba', strokeWidth: 2 });
+    expect(useAnnotationStore.getState().annotations[0].data).toMatchObject({
+      backgroundColor: '#abcdef', borderColor: '#fedcba', borderWidth: 2,
+    });
+  });
+
+  it('does not recolor imported stamp artwork through a multi-selection style update', () => {
+    const store = useAnnotationStore.getState();
+    store.setAnnotations([
+      { ...baseAnnotation('imported', 1, 10, 20), type: 'stamp', data: { hasCustomAppearance: true, nativeStampAppearanceKind: 'imported' } },
+      { ...baseAnnotation('new', 1, 40, 20), type: 'stamp', data: {} },
+    ]);
+    store.setSelection(['imported', 'new']);
+    store.updateStyleForSelection({ backgroundColor: '#00ff00', locked: true });
+    const items = useAnnotationStore.getState().annotations;
+    expect(items[0].data.backgroundColor).toBeUndefined();
+    expect(items[0].data.locked).toBe(true);
+    expect(items[1].data.backgroundColor).toBe('#00ff00');
+    expect(items[1].data.locked).toBe(true);
   });
 
   it('alignSelection ignores locked annotations and moves unlocked records', () => {

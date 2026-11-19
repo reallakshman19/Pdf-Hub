@@ -41,6 +41,7 @@ export function reviewThreadFromAnnotation(
     author: reply.author,
     content: reply.content,
     createdAt: reply.createdAt,
+    ...(reply.updatedAt !== undefined ? { updatedAt: reply.updatedAt } : {}),
     // Preserve the native /IRT relationship through the review-domain adapter.
     // Direct replies omit this property; nested replies retain their exact ID.
     ...(reply.parentReplyId !== undefined

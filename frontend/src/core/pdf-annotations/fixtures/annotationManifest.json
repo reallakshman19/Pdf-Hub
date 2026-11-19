@@ -413,20 +413,7 @@
         "height": 90
       },
       "defaults": {
-        "vertices": [
-          {
-            "x": 0,
-            "y": 0
-          },
-          {
-            "x": 120,
-            "y": 20
-          },
-          {
-            "x": 60,
-            "y": 90
-          }
-        ],
+        "points": [50, 300, 170, 320, 110, 390],
         "borderColor": "#059669",
         "backgroundColor": "#d1fae5",
         "borderWidth": 2,
@@ -586,26 +573,7 @@
         "height": 60
       },
       "defaults": {
-        "strokes": [
-          [
-            [
-              0,
-              0
-            ],
-            [
-              40,
-              30
-            ],
-            [
-              80,
-              20
-            ],
-            [
-              120,
-              60
-            ]
-          ]
-        ],
+        "paths": [[40, 500, 80, 530, 120, 520, 160, 560]],
         "borderColor": "#4f46e5",
         "borderWidth": 3,
         "opacity": 0.95

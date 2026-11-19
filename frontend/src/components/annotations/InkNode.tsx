@@ -89,8 +89,10 @@ export const InkNode: React.FC<AnnotationNodeProps<'ink'>> = ({
             key={i}
             d={d}
             fill="none"
-            stroke={strokeColor}
+            stroke={annotation.data?.borderStyle === 'none' ? 'none' : strokeColor}
             strokeWidth={strokeWidth}
+            strokeDasharray={annotation.data?.borderStyle === 'dashed' ? `${3 * scale} ${2 * scale}` : annotation.data?.borderStyle === 'dotted' ? `${scale} ${scale}` : undefined}
+            opacity={annotation.data?.opacity ?? 1}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

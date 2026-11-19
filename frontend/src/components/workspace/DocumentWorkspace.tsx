@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
@@ -25,6 +26,7 @@ import { useWriterPersistence } from './useWriterPersistence';
 import { useShallow } from 'zustand/react/shallow';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
+import { useNativeStampAppearances } from '@/core/renderer/useNativeStampAppearances';
 
 import { useSearchStore } from '@/core/search/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
@@ -953,6 +955,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     scale,
     canvasRef,
   });
+  const nativeStampAppearances = useNativeStampAppearances(doc, pageAnnotations);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1038,14 +1041,9 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   }, []);
 
   const commitTextEdit = (annotation: PdfAnnotation, value: string) => {
-    if (isNativeRichTextReadOnly(annotation)) {
-      setEditingId(null);
-      return;
-    }
-
     const currentRect = draftRectsRef.current[annotation.id];
     const nextRect =
-      annotation.data.autoSize !== false && isTextLike(annotation.type)
+      !isNativeRichTextReadOnly(annotation) && annotation.data.autoSize !== false && isTextLike(annotation.type)
         ? autoSizeRectForText(
             value,
             readFontSize(annotation),
@@ -1053,12 +1051,22 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           )
         : currentRect ?? annotation.rect;
 
+    const nextData: Record<string, unknown> = {
+      ...annotation.data,
+      text: value,
+    };
+
+    if (isNativeRichTextReadOnly(annotation) && value !== (annotation.data.text ?? '')) {
+      nextData.nativeInterop = {
+        fidelityClass: 'MUTATED_USER_EDIT',
+        reason: 'USER_EDITED',
+        richText: true,
+      };
+    }
+
     onCommitAnnotation(annotation.id, {
       rect: nextRect,
-      data: {
-        ...annotation.data,
-        text: value,
-      },
+      data: nextData,
     });
     setEditingId(null);
   };
@@ -1309,12 +1317,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       const current = anchorDragRef.current;
       if (!current) return;
 
-      const dx = (moveEvent.clientX - current.startClientX) / scale;
-      const dy = (moveEvent.clientY - current.startClientY) / scale;
-      const nextAnchor = {
-        x: clamp(current.startAnchor.x + dx, 0, current.pageWidth),
-        y: clamp(current.startAnchor.y + dy, 0, current.pageHeight),
-      };
+      const screenDx = (moveEvent.clientX - current.startClientX) / scale;
+      const screenDy = (moveEvent.clientY - current.startClientY) / scale;
+      const radians = (annotation.data.rotation ?? 0) * Math.PI / 180;
+      const dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
+      const dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      const nextAnchor = annotation.data.rotation
+        ? { x: current.startAnchor.x + dx, y: current.startAnchor.y + dy }
+        : { x: clamp(current.startAnchor.x + dx, 0, current.pageWidth), y: clamp(current.startAnchor.y + dy, 0, current.pageHeight) };
 
       setDraftAnchors((state) => ({
         ...state,
@@ -1710,6 +1720,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       clearTextSelectionDraft();
 
       const annotation = buildAnnotation(tool, pageNumber, startX, startY);
+      if (annotation.type === 'stamp') annotation.data.nativeStampBasisRotation = rotation;
 
       if (isDrag) {
         const finalRect: Rect = {
@@ -2064,6 +2075,9 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
 
           const selected = selectedAnnotationIds.includes(annotation.id);
           const rawRect = draftRects[annotation.id] ?? annotation.rect;
+          const displayAnnotation = (annotation.type === 'ink' || annotation.type === 'shape-polygon') && rawRect !== annotation.rect
+            ? { ...annotation, rect: rawRect, data: remapAnnotationGeometry(annotation, rawRect) }
+            : annotation;
           const scaledRect = {
             x: rawRect.x * scale,
             y: rawRect.y * scale,
@@ -2081,13 +2095,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           return (
             <NodeComponent
               key={annotation.id}
-              annotation={annotation}
+              annotation={displayAnnotation}
               rect={scaledRect}
               scale={scale}
               isSelected={selected}
               isEditing={editingId === annotation.id}
               editingValue={editingValue}
               pageRotation={rotation}
+              nativeAppearanceUrl={annotation.data.nativeAppearanceRef ? nativeStampAppearances[annotation.data.nativeAppearanceRef] : undefined}
               onSelect={(event: React.PointerEvent<HTMLDivElement>) => {
                 event.stopPropagation();
                 clearTextSelectionDraft();
@@ -2099,10 +2114,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
               }}
               onTransformStart={(event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => startTransform(event, annotation, mode)}
               onDoubleClick={() => {
-                if (
-                  annotation.data?.locked === true
-                  || isNativeRichTextReadOnly(annotation)
-                ) return;
+                if (annotation.data?.locked === true) return;
                 setEditingId(annotation.id);
                 setEditingValue(readText(annotation));
               }}
@@ -2486,7 +2498,9 @@ function buildCalloutFromSelection(
 }
 
 function isTextLike(type: AnnotationType): boolean {
-  return type === 'textbox' || type === 'comment' || type === 'stamp' || type === 'callout' || type === 'sticky-note';
+  // Native Text notes are icons: editing their contents must not resize their
+  // PDF rectangle or make an otherwise unchanged copied appearance invalid.
+  return type === 'textbox' || type === 'stamp' || type === 'callout';
 }
 
 function readText(annotation: PdfAnnotation): string {

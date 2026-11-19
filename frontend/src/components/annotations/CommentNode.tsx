@@ -1,23 +1,25 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { nativeTextDisplayRect } from './shared/nativeTextAnchor';
 
 export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
   onSelect, onTransformStart, onDoubleClick, onCommitEdit, pageRotation = 0,
 }) => {
+  const displayRect = nativeTextDisplayRect(rect, pageRotation);
   return (
     <div
+      data-annotation-type="comment"
       style={{
         position: 'absolute',
-        left: rect.x, top: rect.y, width: rect.width, height: rect.height,
+        left: displayRect.x, top: displayRect.y, width: displayRect.width, height: displayRect.height,
         background: annotation.data?.backgroundColor ?? '#fff7cc',
         border: `1.5px solid ${annotation.data?.borderColor ?? '#d4b106'}`,
         color: annotation.data?.textColor ?? '#111827',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
         borderRadius: 6, padding: 4,
         cursor: 'pointer', pointerEvents: 'all',
-        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
       onDoubleClick={onDoubleClick}

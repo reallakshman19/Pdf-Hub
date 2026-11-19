@@ -3,25 +3,69 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 
 export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
-  annotation, rect, scale, isSelected, onSelect, onTransformStart, pageRotation = 0,
+  annotation, rect, scale, isSelected, onSelect, onTransformStart, pageRotation = 0, nativeAppearanceUrl,
 }) => {
+  const isCustom = annotation.data.nativeStampAppearanceKind !== 'generated'
+    && (annotation.data?.stampStyle === 'custom' || Boolean(annotation.data?.hasCustomAppearance));
+  // Generated stamps remain editable after reopening, so their live preview
+  // must reflect current text and styles instead of a cached old appearance.
+  const displayedAppearance = annotation.data.nativeStampAppearanceKind === 'generated' ? undefined : nativeAppearanceUrl;
+  const stampName = annotation.data?.stampName ?? annotation.data?.name;
+  const label = isCustom
+    ? (stampName ? `[Stamp: ${String(stampName).replace(/^#/, '')}]` : 'Native Stamp')
+    : (annotation.data?.text ?? 'APPROVED');
+
+  const bg = isCustom
+    ? (annotation.data?.backgroundColor ?? 'rgba(238, 242, 255, 0.85)')
+    : (annotation.data?.backgroundColor ?? '#fef2f2');
+  const border = isCustom
+    ? (annotation.data?.borderColor ?? '#6366f1')
+    : (annotation.data?.borderColor ?? '#ef4444');
+  const color = isCustom
+    ? (annotation.data?.textColor ?? '#3730a3')
+    : (annotation.data?.textColor ?? '#b91c1c');
+  const sourcePageRotation = annotation.data.nativeCopySource
+    ? (annotation.data.nativeAppearancePageRotation ?? pageRotation) : pageRotation;
+  const isLiveGenerated = annotation.data.nativeStampAppearanceKind === 'generated'
+    || (annotation.data.nativeStampAppearanceKind !== 'imported' && !isCustom);
+  const basis = annotation.data.nativeStampBasisRotation ?? (annotation.data.nativeStampAppearanceKind === 'generated' ? 0 : pageRotation);
+  const appearancePageRotation = isLiveGenerated
+    ? ((pageRotation - basis) % 360 + 360) % 360 : sourcePageRotation;
+  const sideways = ((appearancePageRotation % 180) + 180) % 180 === 90;
+  const baseWidth = sideways ? rect.height : rect.width;
+  const baseHeight = sideways ? rect.width : rect.height;
+  const sourceAngle = annotation.data.nativeAppearanceRotation ?? 0;
+  const radians = sourceAngle * Math.PI / 180;
+  const appearanceWidth = Math.abs(Math.cos(radians)) * baseWidth + Math.abs(Math.sin(radians)) * baseHeight;
+  const appearanceHeight = Math.abs(Math.sin(radians)) * baseWidth + Math.abs(Math.cos(radians)) * baseHeight;
+
   return (
     <div
+      data-annotation-type="stamp"
       style={{
         position: 'absolute',
-        left: rect.x, top: rect.y, width: rect.width, height: rect.height,
-        background: annotation.data?.backgroundColor ?? '#fef2f2',
-        border: `2px solid ${annotation.data?.borderColor ?? '#ef4444'}`,
-        color: annotation.data?.textColor ?? '#b91c1c',
-        fontSize: (annotation.data?.fontSize ?? 14) * scale,
+        left: rect.x + (rect.width - baseWidth) / 2,
+        top: rect.y + (rect.height - baseHeight) / 2,
+        width: baseWidth, height: baseHeight,
+        background: displayedAppearance ? 'transparent' : bg,
+        border: displayedAppearance ? 'none' : `2px ${isCustom ? 'dashed' : 'solid'} ${border}`,
+        borderRadius: 4,
+        color: color,
+        fontSize: Math.max(9, (annotation.data?.fontSize ?? 13) * scale),
         fontWeight: 'bold',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', pointerEvents: 'all',
-        transform: `rotate(${pageRotation}deg)`,
+        transform: `rotate(${appearancePageRotation + (annotation.data?.rotation ?? 0)}deg)`,
+        padding: displayedAppearance ? 0 : '2px 4px',
+        textAlign: 'center',
+        userSelect: 'none',
       }}
+      title={isCustom ? `Native Stamp: ${stampName ?? 'Custom appearance preserved on save'}` : label}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >
-      {annotation.data?.text ?? 'APPROVED'}
+      {displayedAppearance
+        ? <img data-native-stamp-appearance src={displayedAppearance} alt="" draggable={false} style={{ position: 'absolute', left: '50%', top: '50%', width: appearanceWidth, height: appearanceHeight, transform: `translate(-50%, -50%) rotate(${-sourceAngle}deg)`, pointerEvents: 'none' }} />
+        : <span className="truncate max-w-full">{label}</span>}
       {isSelected && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}
     </div>
   );

@@ -9,6 +9,7 @@ import {
   commitDurableStateMutation,
 } from '../document-history/durableStateTransaction';
 import { useSessionStore } from '../session/store';
+import { remapAnnotationGeometry } from './geometryTransform';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { error as logError } from '../logger/service';
 import {
@@ -24,11 +25,12 @@ import {
 import {
   guardNativeInteropAnnotationPatch,
   guardNativeInteropStylePatch,
-  hasNativeRichTextSemantics,
 } from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
+import type { ReviewReply } from '../review/types';
 import type {
+  AnnotationData,
   AnnotationStyle,
   PdfAnnotation,
   ReviewStatus,
@@ -46,9 +48,13 @@ export type DistributeMode = 'horizontal' | 'vertical';
 
 interface AnnotationState {
   annotations: PdfAnnotation[];
+  /** Document key whose complete native annotation model has been loaded. */
+  hydratedDocumentKey: string | null;
   activeAnnotationId: string | null;
   selectedAnnotationIds: string[];
   clipboard: PdfAnnotation[];
+  /** Native appearance references are valid only in their source document. */
+  clipboardDocumentKey: string | null;
 }
 
 interface AnnotationActions {
@@ -71,8 +77,10 @@ interface AnnotationActions {
   setReviewStatusForSelection: (status: ReviewStatus) => void;
   setReviewStatus: (id: string, status: ReviewStatus) => void;
   addReviewReply: (id: string, content: string, author?: string) => void;
+  updateReviewReply: (id: string, replyId: string, content: string) => void;
+  deleteReviewReply: (id: string, replyId: string) => void;
   toggleLockSelection: () => void;
-  updateStyleForSelection: (stylePatch: Partial<AnnotationStyle>) => void;
+  updateStyleForSelection: (stylePatch: Partial<AnnotationStyle> & Partial<AnnotationData>) => void;
 }
 
 function createAnnotationTransactionInput(
@@ -247,12 +255,81 @@ function annotationStateSnapshot(
 ): AnnotationState {
   return {
     annotations: [...state.annotations],
+    hydratedDocumentKey: state.hydratedDocumentKey,
     activeAnnotationId: state.activeAnnotationId,
     selectedAnnotationIds: [
       ...state.selectedAnnotationIds,
     ],
     clipboard: [...state.clipboard],
+    clipboardDocumentKey: state.clipboardDocumentKey,
   };
+}
+
+function cloneAnnotationData(
+  annotation: PdfAnnotation,
+  now: number,
+  offset: { x: number; y: number },
+): AnnotationData {
+  const cleanData: AnnotationData = { ...annotation.data };
+  // A copied or duplicated annotation is a fresh user-owned annotation.
+  // It must not carry read-only interop locks from source document parsing.
+  delete cleanData.nativeInterop;
+  cleanData.nativeCopySource = annotation.data.nativeCopySource ?? {
+    pageNumber: annotation.pageNumber,
+    nativeName: annotation.data.nativeOriginalName ?? annotation.id,
+    ...(annotation.data.nativeIdentityAmbiguous ? { ambiguous: true } : {}),
+    ...((annotation.data.nativeInterop?.richText || annotation.data.hasCustomAppearance) ? { requiresSource: true } : {}),
+  };
+  delete cleanData.nativeOriginalName;
+  delete cleanData.nativeIdentityAmbiguous;
+  delete cleanData.nativeDeletedReplyIds;
+
+  // Deep clone review thread with fresh unique IDs and remapped parent references
+  if (cleanData.review?.replies && cleanData.review.replies.length > 0) {
+    const idMap = new Map<string, string>();
+    cleanData.review.replies.forEach((reply) => {
+      idMap.set(reply.id, uuidv4());
+    });
+
+    const clonedReplies: ReviewReply[] = cleanData.review.replies.map((reply) => {
+      const clonedReply: ReviewReply = {
+        ...reply,
+        id: idMap.get(reply.id) ?? uuidv4(),
+        nativeCopySourceId: reply.nativeCopySourceId ?? reply.id,
+      };
+      if (reply.parentReplyId && idMap.has(reply.parentReplyId)) {
+        clonedReply.parentReplyId = idMap.get(reply.parentReplyId);
+      }
+      delete clonedReply.nativeInterop;
+      return clonedReply;
+    });
+
+    cleanData.review = {
+      ...cleanData.review,
+      replies: clonedReplies,
+      updatedAt: now,
+    };
+  }
+
+  // Offset anchor and knee if present
+  if (cleanData.anchor && typeof cleanData.anchor === 'object' && cleanData.anchor !== null) {
+    cleanData.anchor = {
+      x: (cleanData.anchor as { x: number }).x + offset.x,
+      y: (cleanData.anchor as { y: number }).y + offset.y,
+    };
+  }
+  if (cleanData.knee && typeof cleanData.knee === 'object' && cleanData.knee !== null) {
+    cleanData.knee = {
+      x: (cleanData.knee as { x: number }).x + offset.x,
+      y: (cleanData.knee as { y: number }).y + offset.y,
+    };
+  }
+
+  return remapAnnotationGeometry(annotation, {
+    ...annotation.rect,
+    x: annotation.rect.x + offset.x,
+    y: annotation.rect.y + offset.y,
+  }, cleanData);
 }
 
 export const useAnnotationStore =
@@ -326,9 +403,11 @@ export const useAnnotationStore =
 
     return {
   annotations: [],
+  hydratedDocumentKey: null,
   activeAnnotationId: null,
   selectedAnnotationIds: [],
   clipboard: [],
+  clipboardDocumentKey: null,
 
   addAnnotation: (annotation) =>
     runMutation((state) => {
@@ -374,6 +453,9 @@ export const useAnnotationStore =
         const updated: PdfAnnotation = {
           ...annotation,
           ...guardedPatch,
+          data: guardedPatch.rect
+            ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
+            : guardedPatch.data ?? annotation.data,
           updatedAt: Date.now(),
         };
 
@@ -418,6 +500,9 @@ export const useAnnotationStore =
         const updated: PdfAnnotation = {
           ...annotation,
           ...guardedPatch,
+          data: guardedPatch.rect
+            ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
+            : guardedPatch.data ?? annotation.data,
           updatedAt: Date.now(),
         };
 
@@ -530,86 +615,63 @@ export const useAnnotationStore =
           ? [state.activeAnnotationId]
           : [];
 
-      const copied = selectedAnnotations(state.annotations, ids)
-        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
-        .map((annotation) => ({
-          ...annotation,
-          data: { ...annotation.data },
-        }));
-
-      return { clipboard: copied };
-    }),
-
-  pasteClipboard: (targetPage) => {
-    const sourceClipboard = get().clipboard
-      .filter((annotation) => !hasNativeRichTextSemantics(annotation))
-      .map(
+      const copied = selectedAnnotations(state.annotations, ids).map(
         (annotation) => ({
           ...annotation,
-          rect: { ...annotation.rect },
           data: { ...annotation.data },
         }),
       );
+
+      return { clipboard: copied, clipboardDocumentKey: useSessionStore.getState().documentKey };
+    }),
+
+  pasteClipboard: (targetPage) => {
+    if (get().clipboardDocumentKey !== useSessionStore.getState().documentKey) return;
+    const sourceClipboard = get().clipboard.map(
+      (annotation) => ({
+        ...annotation,
+        rect: { ...annotation.rect },
+        data: { ...annotation.data },
+      }),
+    );
 
     runMutation((state) => {
       if (sourceClipboard.length === 0) return state;
 
       const now = Date.now();
-      const targetGraph =
-        useSessionStore.getState().pageGraph;
+      const targetGraph = useSessionStore.getState().pageGraph;
       const pasted = sourceClipboard.map(
-        (annotation, index) =>
-          annotationForTargetPage(
+        (annotation, index) => {
+          const offsetX = 18;
+          const offsetY = 18 + index * 4;
+          const data = cloneAnnotationData(annotation, now, { x: offsetX, y: offsetY });
+          const destination = targetPage ?? annotation.pageNumber;
+          const sourceRotation = targetGraph?.pages[annotation.pageNumber - 1]?.rotation;
+          const targetRotation = targetGraph?.pages[destination - 1]?.rotation;
+          const basis = annotation.data.nativeStampBasisRotation;
+          if (annotation.type === 'stamp' && annotation.data.nativeStampAppearanceKind !== 'imported'
+            && typeof basis === 'number' && sourceRotation !== undefined && targetRotation !== undefined) {
+            data.nativeStampCopySourceBasisRotation = annotation.data.nativeStampCopySourceBasisRotation ?? basis;
+            data.nativeStampBasisRotation = ((basis + targetRotation - sourceRotation) % 360 + 360) % 360;
+          }
+          return annotationForTargetPage(
             {
               ...annotation,
               id: uuidv4(),
-              pageNumber:
-                targetPage ?? annotation.pageNumber,
+              pageNumber: destination,
               rect: {
                 ...annotation.rect,
-                x: annotation.rect.x + 18,
-                y:
-                  annotation.rect.y
-                  + 18
-                  + index * 4,
+                x: annotation.rect.x + offsetX,
+                y: annotation.rect.y + offsetY,
               },
-              data: {
-                ...annotation.data,
-                anchor:
-                  annotation.data.anchor
-                  && typeof annotation.data.anchor
-                    === 'object'
-                  && annotation.data.anchor !== null
-                    ? {
-                        x:
-                          (annotation.data.anchor as { x: number }).x + 18,
-                        y:
-                          (annotation.data.anchor as { y: number }).y
-                          + 18
-                          + index * 4,
-                      }
-                    : annotation.data.anchor,
-                knee:
-                  annotation.data.knee
-                  && typeof annotation.data.knee
-                    === 'object'
-                  && annotation.data.knee !== null
-                    ? {
-                        x:
-                          (annotation.data.knee as { x: number }).x + 18,
-                        y:
-                          (annotation.data.knee as { y: number }).y
-                          + 18
-                          + index * 4,
-                      }
-                    : annotation.data.knee,
-              },
+              data,
               createdAt: now,
               updatedAt: now,
             },
             targetGraph,
-            targetPage ?? annotation.pageNumber,
-          ),
+            destination,
+          );
+        },
       );
 
       return annotationSnapshot(
@@ -631,44 +693,27 @@ export const useAnnotationStore =
         : [];
 
     runMutation((state) => {
-
       if (ids.length === 0) return state;
 
       const now = Date.now();
-      const duplicated = selectedAnnotations(state.annotations, ids)
-        .filter((annotation) => !hasNativeRichTextSemantics(annotation))
-        .map((annotation, index) => ({
-        ...annotation,
-        id: uuidv4(),
-        rect: {
-          ...annotation.rect,
-          x: annotation.rect.x + 20,
-          y: annotation.rect.y + 20 + index * 4,
+      const duplicated = selectedAnnotations(state.annotations, ids).map(
+        (annotation, index) => {
+          const offsetX = 20;
+          const offsetY = 20 + index * 4;
+          return {
+            ...annotation,
+            id: uuidv4(),
+            rect: {
+              ...annotation.rect,
+              x: annotation.rect.x + offsetX,
+              y: annotation.rect.y + offsetY,
+            },
+            data: cloneAnnotationData(annotation, now, { x: offsetX, y: offsetY }),
+            createdAt: now,
+            updatedAt: now,
+          };
         },
-        data: {
-          ...annotation.data,
-          anchor:
-            annotation.data.anchor &&
-            typeof annotation.data.anchor === 'object' &&
-            annotation.data.anchor !== null
-              ? {
-                  x: (annotation.data.anchor as { x: number }).x + 20,
-                  y: (annotation.data.anchor as { y: number }).y + 20 + index * 4,
-                }
-              : annotation.data.anchor,
-          knee:
-            annotation.data.knee &&
-            typeof annotation.data.knee === 'object' &&
-            annotation.data.knee !== null
-              ? {
-                  x: (annotation.data.knee as { x: number }).x + 20,
-                  y: (annotation.data.knee as { y: number }).y + 20 + index * 4,
-                }
-              : annotation.data.knee,
-        },
-        createdAt: now,
-        updatedAt: now,
-      }));
+      );
 
       if (duplicated.length === 0) return state;
 
@@ -719,6 +764,7 @@ export const useAnnotationStore =
         return {
           ...annotation,
           rect,
+          data: remapAnnotationGeometry(annotation, rect),
           updatedAt: Date.now(),
         };
       });
@@ -780,6 +826,7 @@ export const useAnnotationStore =
         nextById.set(annotation.id, {
           ...annotation,
           rect,
+          data: remapAnnotationGeometry(annotation, rect),
           updatedAt: Date.now(),
         });
       }
@@ -845,6 +892,37 @@ export const useAnnotationStore =
       return annotationSnapshot(state, nextAnnotations, state.selectedAnnotationIds, state.activeAnnotationId);
     }),
 
+  updateReviewReply: (id, replyId, content) =>
+    runMutation((state) => {
+      const text = content.trim();
+      const annotation = state.annotations.find((item) => item.id === id);
+      const reply = annotation?.data.review?.replies.find((item) => item.id === replyId);
+      if (!text || !annotation || !reply || reply.content === text || !annotation.data.review) return state;
+      const now = Date.now();
+      const review = { ...annotation.data.review, updatedAt: now, replies: annotation.data.review.replies.map((item) => item.id === replyId ? { ...item, content: text, updatedAt: now } : item) };
+      const next = state.annotations.map((item) => item.id === id ? { ...item, updatedAt: now, data: { ...item.data, review } } : item);
+      return annotationSnapshot(state, next, state.selectedAnnotationIds, state.activeAnnotationId);
+    }),
+
+  deleteReviewReply: (id, replyId) =>
+    runMutation((state) => {
+      const annotation = state.annotations.find((item) => item.id === id);
+      const review = annotation?.data.review;
+      const reply = review?.replies.find((item) => item.id === replyId);
+      if (!annotation || !review || !reply) return state;
+      const now = Date.now();
+      const replies = review.replies.filter((item) => item.id !== replyId).map((item) => {
+        if (item.parentReplyId !== replyId) return item;
+        const { parentReplyId: _oldParent, ...rest } = item;
+        return reply.parentReplyId ? { ...rest, parentReplyId: reply.parentReplyId } : rest;
+      });
+      const nativeDeletedReplyIds = [...new Set([...(annotation.data.nativeDeletedReplyIds ?? []), replyId])];
+      const next = state.annotations.map((item) => item.id === id ? {
+        ...item, updatedAt: now, data: { ...item.data, nativeDeletedReplyIds, review: { ...review, replies, updatedAt: now } },
+      } : item);
+      return annotationSnapshot(state, next, state.selectedAnnotationIds, state.activeAnnotationId);
+    }),
+
   toggleLockSelection: () => {
     const targetIds = [
       ...get().selectedAnnotationIds,
@@ -886,80 +964,26 @@ export const useAnnotationStore =
       const nextAnnotations = state.annotations.map((annotation) => {
         if (!selectedSet.has(annotation.id)) return annotation;
 
-        const guardedStylePatch = guardNativeInteropStylePatch(
-          annotation,
-          stylePatch,
-        );
-        if (Object.keys(guardedStylePatch).length === 0) {
-          return annotation;
+        const guardedStylePatch = guardNativeInteropStylePatch(annotation, stylePatch);
+        const patch: AnnotationData = {};
+        const directKeys = [
+          'backgroundColor', 'borderColor', 'borderWidth', 'borderStyle', 'borderRadius',
+          'opacity', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'fontFamily',
+          'textAlign', 'lineHeight', 'autoSize', 'leaderStyle', 'arrowHead',
+          'lineStartCap', 'lineEndCap', 'locked',
+        ] as const;
+        for (const key of directKeys) {
+          if (Object.prototype.hasOwnProperty.call(guardedStylePatch, key)) {
+            Object.assign(patch, { [key]: guardedStylePatch[key] });
+          }
         }
-
-        return {
-                ...annotation,
-                data: {
-                  ...annotation.data,
-                  ...(guardedStylePatch.fill
-                    ? {
-                        backgroundColor:
-                          guardedStylePatch.fill,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.stroke
-                    ? {
-                        borderColor:
-                          guardedStylePatch.stroke,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.strokeWidth
-                    !== undefined
-                    ? {
-                        borderWidth:
-                          guardedStylePatch.strokeWidth,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.textColor
-                    ? {
-                        textColor:
-                          guardedStylePatch.textColor,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.opacity
-                    !== undefined
-                    ? {
-                        opacity:
-                          guardedStylePatch.opacity,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.fontSize
-                    !== undefined
-                    ? {
-                        fontSize:
-                          guardedStylePatch.fontSize,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.fontWeight
-                    ? {
-                        fontWeight:
-                          guardedStylePatch.fontWeight,
-                      }
-                    : {}),
-                  ...(guardedStylePatch.textAlign
-                    ? {
-                        textAlign:
-                          guardedStylePatch.textAlign,
-                      }
-                    : {}),
-                  style: {
-                    ...(annotation.data.style
-                    && typeof annotation.data.style
-                      === 'object'
-                      ? (annotation.data.style as AnnotationStyle)
-                      : {}),
-                    ...guardedStylePatch,
-                  },
-                },
-                updatedAt: Date.now(),
-              };
+        if (guardedStylePatch.fill !== undefined) patch.backgroundColor = guardedStylePatch.fill;
+        if (guardedStylePatch.stroke !== undefined) patch.borderColor = guardedStylePatch.stroke;
+        if (guardedStylePatch.strokeWidth !== undefined) patch.borderWidth = guardedStylePatch.strokeWidth;
+        if (Object.keys(patch).length === 0) return annotation;
+        const guarded = guardNativeInteropAnnotationPatch(annotation, { data: { ...annotation.data, ...patch } });
+        if (!guarded.data) return annotation;
+        return { ...annotation, data: guarded.data, updatedAt: Date.now() };
       });
 
       if (

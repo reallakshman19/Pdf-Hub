@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveAnnotations: vi.fn(),
   addToast: vi.fn(),
   commitWorkingCopy: vi.fn(),
+  setSessionState: vi.fn(),
   beginSaveOperation: vi.fn(),
   beginExportOperation: vi.fn(),
   completeSaveOperation: vi.fn(),
@@ -22,7 +23,11 @@ const mocks = vi.hoisted(() => ({
     fileName: 'signed.pdf',
     saveHandle: null as FileSystemFileHandle | null,
     isDirty: true,
+    documentKey: 'sha256:opened',
   },
+  annotations: [] as unknown[],
+  hydratedDocumentKey: 'sha256:opened' as string | null,
+  writerElements: [] as unknown[],
 }));
 
 vi.mock('@/core/pdf-signatures/signatureRisk', () => ({
@@ -56,8 +61,8 @@ vi.mock('@/core/annotations/persistence', () => ({
   saveAnnotations: mocks.saveAnnotations,
 }));
 
-vi.mock('@/core/session/store', () => ({
-  useSessionStore: (selector: (state: unknown) => unknown) => selector({
+vi.mock('@/core/session/store', () => {
+  const getState = () => ({
     ...mocks.session,
     setSaveHandle: mocks.setSaveHandle,
     recordSaveExportAction: mocks.recordSaveExportAction,
@@ -66,19 +71,25 @@ vi.mock('@/core/session/store', () => ({
     beginExportOperation: mocks.beginExportOperation,
     completeSaveOperation: mocks.completeSaveOperation,
     failSaveOperation: mocks.failSaveOperation,
-  }),
-}));
+  });
+  return {
+    getDocumentSessionGeneration: () => 1,
+    useSessionStore: Object.assign((selector: (state: unknown) => unknown) => selector(getState()), {
+      getState,
+      setState: mocks.setSessionState,
+    }),
+  };
+});
 
 vi.mock('@/core/annotations/store', () => ({
-  useAnnotationStore: (selector: (state: unknown) => unknown) => selector({
-    annotations: [],
+  useAnnotationStore: Object.assign((selector: (state: unknown) => unknown) => selector({ annotations: mocks.annotations }), {
+    getState: () => ({ annotations: mocks.annotations, hydratedDocumentKey: mocks.hydratedDocumentKey }),
   }),
 }));
 
 vi.mock('@/core/writer/store', () => ({
-  useWriterStore: (selector: (state: unknown) => unknown) => selector({
-    elements: [],
-    clearElementsAfterCommit: mocks.clearWriterElementsAfterCommit,
+  useWriterStore: Object.assign((selector: (state: unknown) => unknown) => selector({ elements: mocks.writerElements }), {
+    getState: () => ({ elements: mocks.writerElements }),
   }),
 }));
 
@@ -96,6 +107,9 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     mocks.session.workingBytes = new Uint8Array([1, 2, 3]);
     mocks.session.fileName = 'signed.pdf';
     mocks.session.saveHandle = null;
+    mocks.annotations = [];
+    mocks.hydratedDocumentKey = 'sha256:opened';
+    mocks.writerElements = [];
     mocks.inspectPdfSignatureRisk.mockResolvedValue({
       status: 'SIGNED',
       signatureCount: 1,
@@ -133,6 +147,16 @@ describe('ToolbarFile signed PDF Save preflight', () => {
 
     expect(screen.queryByText(/may invalidate existing digital signatures/i)).toBeNull();
     expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reconcile an incomplete annotation model while loading a document', async () => {
+    mocks.hydratedDocumentKey = null;
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.failSaveOperation).toHaveBeenCalledWith(expect.stringContaining('annotations are still loading')));
+    expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
+    expect(mocks.savePdfBytes).not.toHaveBeenCalled();
   });
 
   it('fails safe when signature state is unknown and waits for explicit confirmation', async () => {
@@ -200,7 +224,26 @@ describe('ToolbarFile signed PDF Save preflight', () => {
 
     expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledTimes(1);
     expect(mocks.beginSaveOperation).toHaveBeenCalledTimes(1);
-    expect(mocks.commitWorkingCopy).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.setSessionState).toHaveBeenCalledWith({
+      isDirty: false, isDocumentDirty: false, isReviewDirty: false, isSessionDirty: false,
+    }));
+    expect(mocks.commitWorkingCopy).not.toHaveBeenCalled();
+    expect(mocks.clearWriterElementsAfterCommit).not.toHaveBeenCalled();
+  });
+
+  it('does not mark edits made during an asynchronous save as saved', async () => {
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
+    let finish: ((result: unknown) => void) | undefined;
+    mocks.composeEditablePdf.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(finish).toBeDefined());
+    mocks.annotations = [{ id: 'newer-edit' }];
+    finish!({ bytes: new Uint8Array([9, 9, 9]), pageCount: 1, documentKey: 'sha256:saved' });
+    await waitFor(() => expect(mocks.savePdfBytes).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.completeSaveOperation).toHaveBeenCalledWith(expect.stringContaining('newer changes remain unsaved')));
+    expect(mocks.saveAnnotations).toHaveBeenCalledWith('sha256:opened', mocks.annotations);
+    expect(mocks.setSessionState).not.toHaveBeenCalled();
   });
 
   it('does not re-prompt when the confirmed Save falls back to Save As', async () => {
