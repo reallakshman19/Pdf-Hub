@@ -142,6 +142,52 @@ describe('tesseractJsEngine', () => {
     expect(terminate).toHaveBeenCalledTimes(1);
   });
 
+  it('uses PSM AUTO for quarter-turn PDF raster without rotating recognized pixel boxes', async () => {
+    const order: string[] = [];
+    const setParameters = vi.fn(async (params: Record<string, string>) => {
+      expect(params).toEqual({ tessedit_pageseg_mode: '3' });
+      order.push('psm3');
+    });
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        setParameters,
+        async recognize(_image, _options, output) {
+          order.push('recognize');
+          expect(output).toEqual({ blocks: true });
+          return {
+            data: {
+              text: 'ANCHOR',
+              confidence: 96,
+              blocks: [{
+                text: 'ANCHOR',
+                bbox: { x0: 20, y0: 10, x1: 60, y1: 30 },
+              }],
+            },
+          };
+        },
+        async terminate() { order.push('terminate'); },
+      }),
+    });
+    const page = {
+      pageIndex: 1, imageBytes: new Uint8Array([1, 2, 3]),
+      width: 80, height: 40,
+      pixelToPdfTransform: [0, 0.5, 0.5, 0, 70, 100] as [number, number, number, number, number, number],
+    };
+    const result = await recognizer.recognize({
+      image: page.imageBytes, language: 'eng', page,
+    });
+    expect(result.text).toBe('ANCHOR');
+    expect(order).toEqual(['psm3', 'recognize', 'terminate']);
+    expect(setParameters).toHaveBeenCalledTimes(1);
+    expect(
+      tesseractBboxToPdfRect(
+        { x0: 20, y0: 10, x1: 60, y1: 30 },
+        page,
+        { x: 0, y: 0, width: 1, height: 1 },
+      ),
+    ).toEqual({ x: 75, y: 110, width: 10, height: 20 });
+  });
+
   it('falls back when Tesseract bbox is missing', () => {
     const fallback = {
       x: 1,
