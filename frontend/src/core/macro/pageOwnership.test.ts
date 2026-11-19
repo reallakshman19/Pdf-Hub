@@ -55,7 +55,7 @@ const writer = (pageId = 'original-B'): WriterElementV2 => ({
   documentFingerprint: 'source-document',
   pageId,
   pageIndex: 1,
-  type: 'text',
+  type: 'richTextBox',
   rect: { x: 5, y: 6, width: 60, height: 20 },
   style: { zIndex: 1 },
   plainText: 'Owned by B',
