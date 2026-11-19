@@ -4,7 +4,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import { createOcrProjectPayloadFromStore } from '@/core/ocr/ocrHydrationBridge';
+import { createOcrProjectPayloadFromStore, hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useEditorStore } from '@/core/editor/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
