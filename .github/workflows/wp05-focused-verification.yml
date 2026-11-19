@@ -86,18 +86,23 @@ jobs:
           done
           cat /tmp/wp05-preview.log
           exit 1
-      - name: P02/P04 genuine PDF browser Save and reopen
+      - name: P01/P02/P04/P05 independent compiled-browser certification
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
-        run: pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0
-      - name: P05 rotated OCR area project ZIP Save/reopen
-        env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
-        run: pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0
-      - name: P01 real Tesseract.js on a genuine scanned PDF
-        env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
-        run: pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0
+        run: |
+          set +e
+          pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0
+          native_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0
+          ocr_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0
+          project_status=$?
+          echo "WP05_NATIVE_P02_P04_EXIT=${native_status}"
+          echo "WP05_REAL_OCR_P01_EXIT=${ocr_status}"
+          echo "WP05_PROJECT_P05_EXIT=${project_status}"
+          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ]; then
+            exit 1
+          fi
       - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
