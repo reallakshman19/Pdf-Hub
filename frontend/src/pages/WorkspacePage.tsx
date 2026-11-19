@@ -56,7 +56,7 @@ export const WorkspacePage: React.FC = () => {
         statusbar={<StatusBar />}
       />
       {activeMode === 'write' && <WriterToolsHub />}
-      {capabilities.hasMacroConsole && <MacroBuilderDrawer />}
+      {capabilities.canUseClientMacros && <MacroBuilderDrawer />}
       <WriterAutosaveController />
       <WriterRecoveryBanner />
     </>

@@ -139,6 +139,8 @@ export async function executeMacroRecipe(
           pageCount: ctx.pageCount,
           selectedPages: ctx.selectedPages,
           fileName: ctx.fileName,
+          currentPage: ctx.currentPage,
+          now: ctx.now,
         }),
         'dry run',
       );

@@ -57,6 +57,8 @@ export async function validateRecipeBeforeRun(
       pageCount: ctx.pageCount,
       selectedPages: ctx.selectedPages,
       fileName: ctx.fileName,
+      currentPage: ctx.currentPage,
+      now: ctx.now,
     });
     dryRunDiff = report.diff;
     dryRunLogs.push(...report.diff.logs);
