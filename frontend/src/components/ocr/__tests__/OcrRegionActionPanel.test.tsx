@@ -132,6 +132,39 @@ describe('OcrRegionActionPanel', () => {
     expect(element.tableData?.columns).toHaveLength(2);
   });
 
+  it('holds older OCR regions whose saved coordinates have no source provenance', () => {
+    const fresh = makeTextRegion();
+    const legacy: OcrRegion = {
+      ...fresh,
+      bbox: { ...fresh.bbox },
+    };
+    delete legacy.geometryProvenance;
+    registerRegion(legacy);
+    const onRegionResult = vi.fn();
+
+    render(
+      <OcrRegionActionPanel
+        region={legacy}
+        pageInput={{
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        }}
+        onRegionResult={onRegionResult}
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-region-geometry-review')).toHaveTextContent(
+      /Review Required/,
+    );
+    expect(screen.getByTestId('ocr-region-run')).toBeDisabled();
+    expect(onRegionResult).not.toHaveBeenCalled();
+    const persisted = useOcrStore.getState().regions[0]!;
+    expect(persisted.bbox).toEqual(legacy.bbox);
+    expect(persisted.geometryProvenance).toBeUndefined();
+  });
+
   it('shows message when no page input is available', () => {
     render(
       <OcrRegionActionPanel
@@ -252,6 +285,7 @@ function registerRegion(region: OcrRegion): OcrRegion {
 function makeTextRegion() {
   return createOcrRegion({
     id: 'region-text-action',
+    geometryProvenance: 'pdf-user-space-v2',
     documentFingerprint: 'doc-region-action',
     pageIndex: 0,
     mode: 'text',
@@ -268,6 +302,7 @@ function makeTextRegion() {
 function makeTableRegion() {
   return createOcrRegion({
     id: 'region-table-action',
+    geometryProvenance: 'pdf-user-space-v2',
     documentFingerprint: 'doc-region-action',
     pageIndex: 0,
     mode: 'table',
