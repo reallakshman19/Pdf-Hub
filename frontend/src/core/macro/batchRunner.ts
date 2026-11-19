@@ -497,6 +497,12 @@ function finishBatchRun(input: {
     ...(record.status !== 'not-run' && 'pageCount' in record && typeof record.pageCount === 'number'
       ? { pageCount: record.pageCount }
       : {}),
+    ...(record.sourceSha256 ? { sourceSha256: record.sourceSha256 } : {}),
+    ...(record.status === 'success' ? {
+      outputSha256: record.outputSha256,
+      outputName: record.outputName,
+      outputDisposition: record.outputDisposition,
+    } : {}),
     status: record.status,
   }));
   const evidence = createBatchPdfAdmissionEvidence({
@@ -555,7 +561,7 @@ export function buildBatchOutputName(
   if (!Number.isSafeInteger(inputIndex) || inputIndex < 0) {
     throw new Error('Batch output naming requires a valid source ordinal.');
   }
-  return `${String(inputIndex + 1).padStart(3, '0')}-${safe(fileName.replace(/\\.pdf$/i, ''), 'document')}-${safe(recipeId, 'workflow')}-${sourceDigest.slice(0,12)}.pdf`;
+  return `${String(inputIndex + 1).padStart(3, '0')}-${safe(fileName.replace(/\.pdf$/i, ''), 'document')}-${safe(recipeId, 'workflow')}-${sourceDigest.slice(0,12)}.pdf`;
 }
 
 function firstDiagnosticMessage(
