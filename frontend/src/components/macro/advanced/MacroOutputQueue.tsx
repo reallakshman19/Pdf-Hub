@@ -87,7 +87,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     setNotice(null);
     markDownloadPending(id, false);
     try {
-      await verifyBatchSave(output);
+      if (output.sourceKind === 'batch') await verifyBatchSave(output);
       const handle = await FileAdapter.savePdfBytes(output.bytes, output.name, null);
       if (handle) {
         await verifyBatchSave(output, handle);
@@ -118,7 +118,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     try {
       for (const output of outputs) {
         try {
-          await verifyBatchSave(output);
+          if (output.sourceKind === 'batch') await verifyBatchSave(output);
           const handle = await FileAdapter.savePdfBytes(output.bytes, output.name, null);
           if (!handle) {
             markDownloadPending(output.id, true);
