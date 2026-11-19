@@ -8,7 +8,8 @@ import {
   isPageRotation,
 } from './pageGraph';
 import { readResolvedPdfPageLabels } from './pdfPageLabels';
-import { applyResolvedPageLabels } from './pageLabels';
+import { readNativePdfPageLabelRanges } from './pdfPageLabelNativeReader';
+import { applyResolvedPageLabels, withPageLabelRanges } from './pageLabels';
 import type { PageGraph, PageId, PageNode, PageRotation } from './types';
 
 export async function buildPageGraphFromPdfBytes(
@@ -66,10 +67,27 @@ export async function buildPageGraphFromPdfBytes(
       }
     }
 
-    return applyResolvedPageLabels(
-      createPageGraph(pages),
-      resolvedPageLabels,
-    );
+    // Recover the original /PageLabels rules, not only PDF.js' formatted
+    // strings. Never accept a structural rewrite model whose labels disagree
+    // with the PDF.js source reader (malformed trees remain resolved-only).
+    const graph = createPageGraph(pages);
+    const resolved = applyResolvedPageLabels(graph, resolvedPageLabels);
+    if (resolvedPageLabels) {
+      const nativeRanges = await readNativePdfPageLabelRanges(
+        bytes,
+        pages.map((page) => page.pageId),
+        signal,
+      );
+      if (nativeRanges) {
+        const canonical = withPageLabelRanges(graph, nativeRanges);
+        if (canonical.pages.every(
+          (page, index) => page.logicalLabel === resolvedPageLabels[index],
+        )) {
+          return canonical;
+        }
+      }
+    }
+    return resolved;
   } finally {
     await lease.release();
   }
