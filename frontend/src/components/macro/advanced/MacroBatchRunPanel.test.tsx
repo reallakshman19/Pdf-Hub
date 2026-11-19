@@ -139,6 +139,7 @@ describe('MacroBatchRunPanel', () => {
         await options.onOutputs?.([{
           outputIndex: 0,
           outputKind: 'working-copy',
+          outputPageCount: 1,
           inputIndex: 0,
           fileName: 'drawing.pdf',
           inputPageCount: 1,
@@ -210,6 +211,7 @@ describe('MacroBatchRunPanel', () => {
       await options.onOutputs?.([{
         outputIndex: 0,
         outputKind: 'working-copy',
+        outputPageCount: 1,
         inputIndex: 0,
         fileName: 'mutable.pdf',
         inputPageCount: 1,
