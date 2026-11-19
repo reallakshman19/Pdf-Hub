@@ -670,6 +670,25 @@ test('WP07 B03: extracted current-page PDF and working copy are both hashed, que
   console.log(`WP07_BATCH_MULTI run=${report.metadata.runId} manifests=2 working=ABC auxiliary=A atomic_queued=true sha256_verified=true receipts_explicit=true`);
 });
 
+async function readBatchReceipts(page: Page): Promise<Array<{ method: string; outputName: string; outputSha256: string }>> {
+  return page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('pdf-hub-wp07-output-custody-v1');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<Array<{ method: string; outputName: string; outputSha256: string }>>((resolve, reject) => {
+        const request = db.transaction('receipts', 'readonly').objectStore('receipts').getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
+  });
+}
+
 test('WP07 R4: batch queue and report recover after reload; receipt deletion stays deleted', async ({ page }) => {
   await openDocumentAndBuilder(page);
   await page.locator('[data-macro-builder="true"]')
@@ -732,6 +751,7 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
     .toBe(report.records[0].outputs[0].outputSha256);
   await queue.getByRole('button', { name: 'Confirm received' }).first().click();
   await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1);
+  await expect(queue.getByTestId('batch-receipt-ledger')).toContainText('browser-user-confirmed');
   await persistPublicSyntheticEvidence(
     `recovered-primary-${createHash('sha256').update(primary).digest('hex')}.pdf`, primary,
   );
@@ -740,6 +760,10 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
   queue = page.getByTestId('macro-output-queue');
   await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1, { timeout: 20_000 });
   await expect(queue).toContainText('PDF #2 (auxiliary)');
+  expect(await readBatchReceipts(page)).toMatchObject([{
+    method: 'browser-user-confirmed',
+    outputSha256: report.records[0].outputs[0].outputSha256,
+  }]);
   const [secondDownload] = await Promise.all([
     page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
     queue.getByRole('button', { name: 'Save', exact: true }).click(),
@@ -756,11 +780,65 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
   await reopenWorkspace();
   await expect(page.getByTestId('macro-output-queue')).toHaveCount(0);
   await expect(page.getByTestId('batch-custody-blocked')).toHaveCount(0);
+  const journal = await readBatchReceipts(page);
+  expect(journal).toHaveLength(2);
+  expect(journal.map((receipt) => receipt.method)).toEqual([
+    'browser-user-confirmed', 'browser-user-confirmed',
+  ]);
+  expect(journal.map((receipt) => receipt.outputSha256)).toEqual(
+    report.records[0].outputs.map((output) => output.outputSha256),
+  );
   await persistPublicSyntheticEvidence(
     `recovered-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
   console.log(`WP07_R4_RECOVERY run=${report.metadata.runId} reloads=3 outputs_restored=2 partial_receipt_retained=true completed_receipts_removed=true`);
+});
+
+test('WP07 Stage2: Clear requires confirmation and journals every discarded PDF across reload', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  await page.getByTestId('automate-batch-run')
+    .getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+  const source = Buffer.from(await createThreePageSource());
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([{ name: 'discard-source.pdf', mimeType: 'application/pdf', buffer: source }]);
+
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  await queue.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(queue.getByRole('alert')).toContainText('Discard 2 queued PDF(s)?');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2);
+  await queue.getByRole('button', { name: 'Keep PDFs' }).click();
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2);
+
+  await queue.getByRole('button', { name: 'Clear', exact: true }).click();
+  await queue.getByRole('button', { name: 'Discard queued PDFs' }).click();
+  await expect(page.getByTestId('macro-output-queue')).toHaveCount(0, { timeout: 12_000 });
+  const tombstones = await readBatchReceipts(page);
+  expect(tombstones).toHaveLength(2);
+  expect(tombstones.every((record) => record.method === 'discarded-without-receipt')).toBe(true);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Browse Files' }).waitFor();
+  const [sourcePicker] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Browse Files' }).click(),
+  ]);
+  await sourcePicker.setFiles({
+    name: 'discard-source.pdf', mimeType: 'application/pdf', buffer: source,
+  });
+  await expect(page.locator('[data-page="1"]')).toBeVisible({ timeout: 15_000 });
+  await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  await expect(page.getByTestId('macro-output-queue')).toHaveCount(0);
+  expect(await readBatchReceipts(page)).toEqual(tombstones);
 });
 
 test('WP07 R4 FSA: mismatched external file readback leaves durable output queued for retry', async ({ page }) => {
