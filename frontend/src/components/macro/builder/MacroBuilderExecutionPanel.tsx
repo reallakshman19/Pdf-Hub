@@ -9,6 +9,7 @@ import {
 } from '@/core/macro/validation/validator';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
 import { analyzeMacroWorkflowRisk } from '@/core/macro/risk';
+import { sameMacroPreview, snapshotMacroPreview, type MacroPreviewIdentity } from '@/core/macro/previewIdentity';
 
 export interface MacroBuilderExecutionPanelProps {
   recipe: MacroRecipe;
@@ -19,18 +20,18 @@ export function MacroBuilderExecutionPanel({
   recipe,
   validationValid,
 }: MacroBuilderExecutionPanelProps): React.ReactElement {
-  const workingBytes = useSessionStore((state) => state.workingBytes);
-  const fileName = useSessionStore((state) => state.fileName);
-  const pageCount = useSessionStore((state) => state.pageCount);
-  const selectedPages = useSessionStore((state) => state.selectedPages);
-  const currentPage = useSessionStore((state) => state.viewState.currentPage);
-
+  // Observe the full session so every revision, PageId or selection change
+  // invalidates previews created for a different editing context.
+  const session = useSessionStore();
+  const workingBytes = session.workingBytes;
+  const fileName = session.fileName;
   const recipeSignature = React.useMemo(() => JSON.stringify(recipe), [recipe]);
   const riskAnalysis = React.useMemo(() => analyzeMacroWorkflowRisk(recipe), [recipe]);
+  const currentIdentity = snapshotMacroPreview(recipeSignature, session);
 
   const [preflight, setPreflight] = React.useState<PreflightReport | null>(null);
-  const [preflightSignature, setPreflightSignature] = React.useState<string | null>(null);
-  const [lastTestedRecipeSignature, setLastTestedRecipeSignature] = React.useState<string | null>(null);
+  const [preflightIdentity, setPreflightIdentity] = React.useState<MacroPreviewIdentity | null>(null);
+  const [lastTestedIdentity, setLastTestedIdentity] = React.useState<MacroPreviewIdentity | null>(null);
   const [status, setStatus] = React.useState<'idle' | 'testing' | 'running' | 'success' | 'error'>('idle');
   const [message, setMessage] = React.useState<string | null>(null);
   const [logs, setLogs] = React.useState<string[]>([]);
@@ -45,60 +46,56 @@ export function MacroBuilderExecutionPanel({
   const canTest = validationValid && hasDocument && !busy;
   const previewSatisfied =
     riskAnalysis.risk === 'safe'
-    || lastTestedRecipeSignature === recipeSignature;
+    || sameMacroPreview(lastTestedIdentity, currentIdentity);
   const canRun = validationValid && hasDocument && !busy && previewSatisfied;
-  const assessmentCurrent = preflightSignature === recipeSignature;
+  const assessmentCurrent = sameMacroPreview(preflightIdentity, currentIdentity);
 
-  const buildPreflight = React.useCallback(async (): Promise<PreflightReport | null> => {
-    if (!fileName || !validationValid) return null;
-
+  const buildPreflight = React.useCallback(async (): Promise<{
+    report: PreflightReport;
+    identity: MacroPreviewIdentity;
+  } | null> => {
+    const before = useSessionStore.getState();
+    if (!before.fileName || !before.workingBytes || !validationValid) return null;
+    const identity = snapshotMacroPreview(recipeSignature, before);
     const report = await validateRecipeBeforeRun(
+      { ...recipe, dryRun: true },
       {
-        ...recipe,
-        dryRun: true,
-      },
-      {
-        pageCount: Math.max(1, pageCount),
-        selectedPages,
-        currentPage,
-        fileName,
+        pageCount: Math.max(1, before.pageCount),
+        selectedPages: before.selectedPages,
+        currentPage: before.viewState.currentPage,
+        fileName: before.fileName,
         donorFiles: {},
         now: new Date(),
       },
     );
-
+    if (!sameMacroPreview(identity, snapshotMacroPreview(recipeSignature, useSessionStore.getState()))) {
+      setLastTestedIdentity(null);
+      throw new Error('Document or selection changed during preflight; run Test Run again.');
+    }
     setPreflight(report);
-    setPreflightSignature(recipeSignature);
+    setPreflightIdentity(identity);
     setLogs(report.dryRunLogs);
-    return report;
-  }, [
-    currentPage,
-    fileName,
-    pageCount,
-    recipe,
-    selectedPages,
-    recipeSignature,
-    validationValid,
-  ]);
+    return { report, identity };
+  }, [recipe, recipeSignature, validationValid]);
 
   const handleTestRun = async () => {
     if (!canTest) return;
     setStatus('testing');
     setMessage(null);
     setPreflight(null);
-    setPreflightSignature(recipeSignature);
+    setPreflightIdentity(null);
     setLogs([]);
 
     try {
-      const report = await buildPreflight();
-      if (!report) {
+      const checked = await buildPreflight();
+      if (!checked) {
         setStatus('error');
         setMessage('A valid workflow and an open PDF are required.');
         return;
       }
 
-      if (report.isValid) {
-        setLastTestedRecipeSignature(recipeSignature);
+      if (checked.report.isValid) {
+        setLastTestedIdentity(checked.identity);
         setStatus('idle');
         setMessage(
           riskAnalysis.risk === 'preview-required'
@@ -106,7 +103,7 @@ export function MacroBuilderExecutionPanel({
             : 'Test Run complete. Review the impact summary before running.',
         );
       } else {
-        setLastTestedRecipeSignature(null);
+        setLastTestedIdentity(null);
         setStatus('error');
         setMessage('Test Run found blocking issues.');
       }
@@ -127,14 +124,24 @@ export function MacroBuilderExecutionPanel({
     setStatus('testing');
     setMessage(null);
     setPreflight(null);
-    setPreflightSignature(recipeSignature);
+    setPreflightIdentity(null);
     setLogs([]);
 
     try {
-      const report = await buildPreflight();
-      if (!report?.isValid) {
+      const checked = await buildPreflight();
+      if (!checked?.report.isValid) {
         setStatus('error');
         setMessage('Fix the preflight issues before running this workflow.');
+        return;
+      }
+      const live = snapshotMacroPreview(recipeSignature, useSessionStore.getState());
+      if (
+        !sameMacroPreview(checked.identity, live)
+        || (riskAnalysis.risk === 'preview-required' && !sameMacroPreview(lastTestedIdentity, live))
+      ) {
+        setLastTestedIdentity(null);
+        setStatus('error');
+        setMessage('Document, selection or recipe changed since Test Run; preview again.');
         return;
       }
 
@@ -151,6 +158,7 @@ export function MacroBuilderExecutionPanel({
         {
           saveOutputs: true,
           abortSignal: controller.signal,
+          expectedPreview: live,
         },
       );
 
