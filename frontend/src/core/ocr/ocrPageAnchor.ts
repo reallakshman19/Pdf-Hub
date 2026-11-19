@@ -135,6 +135,12 @@ export function reanchorOcrPageStateAfterPageGraphChange(
   options: OcrPageGraphChangeOptions = {},
 ): OcrPageAnchoredState {
   const before = normalizeOcrPageAnchoredState(state, beforeGraph);
+  // PDF /Rotate changes the display viewport, not original PDF user space.
+  const nativeResultIds = new Set(
+    before.result?.pages
+      .filter((page) => page.geometryProvenance === 'pdf-user-space-v2' && page.pageId)
+      .map((page) => page.pageId!) ?? [],
+  );
   const dropped = new Set(options.dropPageIds ?? []);
   const survivingPageIds = new Set(afterGraph.pages.map((page) => page.pageId));
 
@@ -192,12 +198,14 @@ export function reanchorOcrPageStateAfterPageGraphChange(
       dropped,
       (value, rotationDelta, beforePage) => ({
         ...value,
-        bbox: transformRectForRotation(
-          value.bbox,
-          effectivePageWidth(beforePage),
-          effectivePageHeight(beforePage),
-          rotationDelta,
-        ),
+        bbox: nativeResultIds.has(value.pageId!)
+          ? { ...value.bbox }
+          : transformRectForRotation(
+              value.bbox,
+              effectivePageWidth(beforePage),
+              effectivePageHeight(beforePage),
+              rotationDelta,
+            ),
       }),
     ),
   );
@@ -210,12 +218,14 @@ export function reanchorOcrPageStateAfterPageGraphChange(
       dropped,
       (value, rotationDelta, beforePage) => ({
         ...value,
-        bbox: transformRectForRotation(
-          value.bbox,
-          effectivePageWidth(beforePage),
-          effectivePageHeight(beforePage),
-          rotationDelta,
-        ),
+        bbox: value.geometryProvenance === 'pdf-user-space-v2'
+          ? { ...value.bbox }
+          : transformRectForRotation(
+              value.bbox,
+              effectivePageWidth(beforePage),
+              effectivePageHeight(beforePage),
+              rotationDelta,
+            ),
       }),
     ),
   );
@@ -226,6 +236,7 @@ export function reanchorOcrPageStateAfterPageGraphChange(
         beforeGraph,
         afterGraph,
         dropped,
+        nativeResultIds,
       )
     : null;
 
@@ -331,6 +342,7 @@ function transformReviewFocus(
   beforeGraph: PageGraph<PageNode>,
   afterGraph: PageGraph<PageNode>,
   dropped: ReadonlySet<PageId>,
+  nativeResultIds: ReadonlySet<PageId>,
 ): OcrReviewFocus | null {
   if (!focus.pageId || dropped.has(focus.pageId)) return null;
   const beforePage = pageNodeById(beforeGraph, focus.pageId);
@@ -344,12 +356,14 @@ function transformReviewFocus(
   return {
     ...focus,
     pageIndex: nextIndex,
-    bbox: transformRectForRotation(
-      focus.bbox,
-      effectivePageWidth(beforePage),
-      effectivePageHeight(beforePage),
-      delta,
-    ),
+    bbox: nativeResultIds.has(focus.pageId)
+      ? { ...focus.bbox }
+      : transformRectForRotation(
+          focus.bbox,
+          effectivePageWidth(beforePage),
+          effectivePageHeight(beforePage),
+          delta,
+        ),
   };
 }
 
@@ -369,9 +383,13 @@ function transformOcrPageResult(
     typeof page.height === 'number' && page.height > 0
       ? page.height
       : fallbackHeight;
+  const nativePdfSpace = page.geometryProvenance === 'pdf-user-space-v2';
   const rotateRect = (rect: PdfRect) =>
-    transformRectForRotation(rect, width, height, rotationDelta);
-  const swapsDimensions = rotationDelta === 90 || rotationDelta === 270;
+    nativePdfSpace
+      ? { ...rect }
+      : transformRectForRotation(rect, width, height, rotationDelta);
+  const swapsDimensions =
+    !nativePdfSpace && (rotationDelta === 90 || rotationDelta === 270);
 
   const words = page.words?.map((word) => ({
     ...word,
