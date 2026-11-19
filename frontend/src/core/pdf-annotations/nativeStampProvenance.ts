@@ -1,7 +1,10 @@
-import type { PDFDict, PDFDocument, PDFObject, PDFRawStream } from 'pdf-lib';
 import { Unzlib } from 'fflate';
 import { computeFileHash } from '@/core/document/fileHash';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
+type PDFObject = import('pdf-lib').PDFObject;
+type PDFRawStream = import('pdf-lib').PDFRawStream;
 type Lib = typeof import('pdf-lib');
 
 /**

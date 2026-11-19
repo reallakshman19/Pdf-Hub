@@ -115,7 +115,7 @@ describe('Callout and FreeText text editing, fidelity, and preservation', () => 
     const findDictByNM = (arr: pdfLib.PDFArray, nm: string) => {
       for (let i = 0; i < arr.size(); i++) {
         const dict = arr.lookup(i, pdfLib.PDFDict);
-        const nameVal = dict.get(pdfLib.PDFName.of('NM')) as any;
+        const nameVal = dict.lookupMaybe(pdfLib.PDFName.of('NM'), pdfLib.PDFString, pdfLib.PDFHexString);
         if (nameVal && nameVal.decodeText() === nm) return dict;
       }
       return null;
@@ -130,7 +130,7 @@ describe('Callout and FreeText text editing, fidelity, and preservation', () => 
 
     // Edited annot1 checks:
     // Contents updated
-    const contents1 = outDict1!.lookup(pdfLib.PDFName.of('Contents')) as any;
+    const contents1 = outDict1!.lookup(pdfLib.PDFName.of('Contents'), pdfLib.PDFString, pdfLib.PDFHexString);
     expect(contents1.decodeText()).toBe('User Edited Callout 1');
     // Edited rich text and a fresh normal appearance are both present.
     expect(outDict1!.lookupMaybe(pdfLib.PDFName.of('AP'), pdfLib.PDFDict)?.get(pdfLib.PDFName.of('N'))).toBeDefined();
@@ -141,7 +141,7 @@ describe('Callout and FreeText text editing, fidelity, and preservation', () => 
 
     // Untouched annot2 checks:
     // Contents unchanged
-    const contents2 = outDict2!.lookup(pdfLib.PDFName.of('Contents')) as any;
+    const contents2 = outDict2!.lookup(pdfLib.PDFName.of('Contents'), pdfLib.PDFString, pdfLib.PDFHexString);
     expect(contents2.decodeText()).toBe('Callout 2 Text');
     // /AP preserved
     expect(outDict2!.lookupMaybe(pdfLib.PDFName.of('AP'), pdfLib.PDFDict)).toBeDefined();
@@ -205,7 +205,7 @@ describe('Callout and FreeText text editing, fidelity, and preservation', () => 
     const modRes = await writeNativePdfAnnotations(sourceBytes, [modBox]);
     const modDoc = await pdfLib.PDFDocument.load(modRes.bytes);
     const modAnnot = modDoc.getPage(0).node.lookupMaybe(pdfLib.PDFName.of('Annots'), pdfLib.PDFArray)!.lookup(0, pdfLib.PDFDict);
-    const modContents = modAnnot.lookup(pdfLib.PDFName.of('Contents')) as any;
+    const modContents = modAnnot.lookup(pdfLib.PDFName.of('Contents'), pdfLib.PDFString, pdfLib.PDFHexString);
     expect(modContents.decodeText()).toBe('Edited Box Text');
     expect(modAnnot.lookupMaybe(pdfLib.PDFName.of('AP'), pdfLib.PDFDict)?.get(pdfLib.PDFName.of('N'))).toBeDefined();
     expect(modAnnot.get(pdfLib.PDFName.of('RC'))).toBeDefined();

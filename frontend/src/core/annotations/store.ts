@@ -913,7 +913,8 @@ export const useAnnotationStore =
       const now = Date.now();
       const replies = review.replies.filter((item) => item.id !== replyId).map((item) => {
         if (item.parentReplyId !== replyId) return item;
-        const { parentReplyId: _oldParent, ...rest } = item;
+        const rest = { ...item };
+        delete rest.parentReplyId;
         return reply.parentReplyId ? { ...rest, parentReplyId: reply.parentReplyId } : rest;
       });
       const nativeDeletedReplyIds = [...new Set([...(annotation.data.nativeDeletedReplyIds ?? []), replyId])];

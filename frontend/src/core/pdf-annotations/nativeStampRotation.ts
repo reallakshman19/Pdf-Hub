@@ -1,7 +1,8 @@
-import type { PDFDict, PDFDocument } from 'pdf-lib';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { PdfRect } from './freeTextGeometry';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
 type Lib = typeof import('pdf-lib');
 
 function numbers(dict: PDFDict, key: string, lib: Lib): number[] | null {

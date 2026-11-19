@@ -1,6 +1,7 @@
-import type { PDFDict, PDFDocument } from 'pdf-lib';
 import { fingerprintStampAppearance, type StampFingerprintLimits } from './nativeStampProvenance';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
 type Lib = typeof import('pdf-lib');
 
 /** Integrity marker, not authentication: a PDF writer can recompute it. */

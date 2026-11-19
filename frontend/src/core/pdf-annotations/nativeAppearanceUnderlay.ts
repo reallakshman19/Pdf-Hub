@@ -1,6 +1,9 @@
-import type { PDFDict, PDFDocument, PDFRawStream, PDFRef } from 'pdf-lib';
 import { computeFileHash } from '@/core/document/fileHash';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
+type PDFRawStream = import('pdf-lib').PDFRawStream;
+type PDFRef = import('pdf-lib').PDFRef;
 type Lib = typeof import('pdf-lib');
 export interface TextlessUnderlay { ref: PDFRef; bbox: number[]; matrix: number[] }
 

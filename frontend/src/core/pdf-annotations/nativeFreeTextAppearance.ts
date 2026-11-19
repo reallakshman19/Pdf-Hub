@@ -1,9 +1,12 @@
-import type { PDFDict, PDFDocument, PDFFont, PDFRef } from 'pdf-lib';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { calloutBodyRect } from './freeTextGeometry';
 import { makeTextlessUnderlay } from './nativeAppearanceUnderlay';
 import { computeFileHash } from '@/core/document/fileHash';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
+type PDFFont = import('pdf-lib').PDFFont;
+type PDFRef = import('pdf-lib').PDFRef;
 type Lib = typeof import('pdf-lib');
 type Color = { r: number; g: number; b: number };
 type Align = 'left' | 'center' | 'right';

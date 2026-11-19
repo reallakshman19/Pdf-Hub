@@ -35,8 +35,8 @@ describe('native FreeText ink bounds', () => {
     expect(tight.x + 1.116 * tight.size).toBeLessThanOrEqual(10 + 1e-4);
   });
 
-  it.each(['Helvetica', 'Times', 'Courier'].flatMap((family) => [false, true].map((italic) => [family, italic] as const)))
-  ('can compare tight and roomy %s italic=%s in a second renderer', async (family, italic) => {
+  it.each(['Helvetica', 'Times', 'Courier'].flatMap((family) => [false, true].map((italic) => [family, italic] as const)))(
+  'can compare tight and roomy %s italic=%s in a second renderer', async (family, italic) => {
     const tight = await appearance(12, 20, italic, 'left', family);
     const wide = await appearance(100, tight.size, italic, 'left', family);
     expect(wide.size).toBeCloseTo(tight.size, 4);
