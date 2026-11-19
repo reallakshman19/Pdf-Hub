@@ -80,8 +80,10 @@ async function importRecipe(page: Page, steps: unknown[]): Promise<void> {
 
 async function saveAndInspect(page: Page): Promise<string[]> {
   const builder = page.locator('[data-macro-builder="true"]');
-  await builder.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(builder).toHaveCount(0);
+  if (await builder.count()) {
+    await builder.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(builder).toHaveCount(0);
+  }
   await page.getByRole('tab', { name: 'File' }).click();
 
   const [download] = await Promise.all([
@@ -187,4 +189,32 @@ test('WP07 M03: remove-all preflight blocks Run and preserves native source', as
 
   const actual = await saveAndInspect(page);
   expect(actual).toEqual(['A', 'B', 'C']);
+});
+
+test('WP07 M03: undo and redo recover the original and transformed native PDF', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await importRecipe(page, [
+    { op: 'select_pages', selector: { mode: 'list', pages: [1, 3] } },
+    { op: 'duplicate_pages', selector: { mode: 'selected' } },
+  ]);
+  const builder = page.locator('[data-macro-builder="true"]');
+  await builder.getByTestId('macro-builder-test-run').click();
+  await expect(builder.getByTestId('macro-builder-run')).toBeEnabled();
+  await builder.getByTestId('macro-builder-run').click();
+  await expect(builder.getByText('Workflow complete.', { exact: false })).toBeVisible();
+  expect(await saveAndInspect(page)).toEqual(['A', 'A', 'B', 'C', 'C']);
+
+  await page.getByRole('tab', { name: 'Organize' }).click();
+  const undo = page.locator('button[title="Undo"]').first();
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(page.locator('[data-page="3"]')).toBeVisible();
+  expect(await saveAndInspect(page)).toEqual(['A', 'B', 'C']);
+
+  await page.getByRole('tab', { name: 'Organize' }).click();
+  const redo = page.locator('button[title="Redo"]').first();
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(page.locator('[data-page="5"]')).toBeVisible();
+  expect(await saveAndInspect(page)).toEqual(['A', 'A', 'B', 'C', 'C']);
 });
