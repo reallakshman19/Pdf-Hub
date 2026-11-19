@@ -216,6 +216,9 @@ export function tesseractDataToOcrPageResult(input: {
       ? 'success'
       : 'partial',
     pageType: input.page.region ? 'mixed' : 'scanned',
+    ...(input.page.pixelToPdfTransform
+      ? { geometryProvenance: 'pdf-user-space-v2' as const }
+      : {}),
     orientationDeg: 0,
     languageHints: [input.language],
     width: input.page.width,
