@@ -126,7 +126,11 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
     await page.getByRole('button', { name: 'Page 3', exact: true }).click({ modifiers: ['Control'] });
     await page.getByRole('tab', { name: 'Organize' }).click();
     const extractedBytes = await downloadBytes(page, 'Extract selected or current pages');
-    await fs.writeFile(path.join(process.cwd(), 'wp05-evidence', `wp05-B02-${count}p-extracted.pdf`), extractedBytes);
+    const extractedPath = path.join(process.cwd(), 'wp05-evidence', `wp05-B02-${count}p-extracted.pdf`);
+    await fs.writeFile(extractedPath, extractedBytes);
+    const bytesOnDisk = await fs.readFile(extractedPath);
+    expect(bytesOnDisk).toEqual(Buffer.from(extractedBytes));
+    expect(bytesOnDisk.subarray(0, 5).toString('ascii')).toBe('%PDF-');
     await assertExtractedText(extractedBytes);
 
     // The extracted native PDF must load in a fresh app context, not only in PDF.js.
@@ -145,11 +149,18 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
         reopened.waitForEvent('filechooser'),
         reopened.getByRole('button', { name: 'Browse Files' }).click(),
       ]);
-      await reopenPicker.setFiles({
-        name: 'wp05-b02-extracted-3p.pdf',
-        mimeType: 'application/pdf',
-        buffer: Buffer.from(extractedBytes),
+      // Reopen the exact *on-disk native PDF* that was downloaded from the
+      // product. This avoids inventing a second in-memory Playwright file
+      // payload and lets us independently check the browser File bytes.
+      await reopenPicker.setFiles(extractedPath);
+      const selectedUpload = await reopenPicker.element().evaluate(async (element) => {
+        const file = (element as HTMLInputElement).files?.[0];
+        if (!file) return null;
+        const prefix = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+        return { size: file.size, prefix: [...prefix] };
       });
+      expect(selectedUpload?.size).toBe(extractedBytes.byteLength);
+      expect(selectedUpload?.prefix).toEqual([...extractedBytes.subarray(0, 16)]);
       try {
         await expect(reopened.locator('[data-page="1"] canvas')).toBeVisible({ timeout: 15_000 });
       } catch (error) {
