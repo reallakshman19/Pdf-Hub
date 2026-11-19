@@ -32,7 +32,7 @@ jobs:
       - name: WP07 browser native PDF identity
         env:
           WP07_EVIDENCE_DIR: artifacts/wp07-native
-        run: pnpm exec playwright test e2e/wp07-pr58-identity.spec.ts --project=chromium --reporter=line
+        run: pnpm exec playwright test e2e/wp07-pr58-identity.spec.ts --project=chromium --retries=0 --reporter=line
         working-directory: frontend
       - name: Upload native PDF/JSON witnesses
         if: always()

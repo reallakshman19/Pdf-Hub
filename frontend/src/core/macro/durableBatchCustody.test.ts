@@ -71,7 +71,11 @@ describe('WP07 R4 durable batch output custody contract', () => {
     await useMacroOutputQueueStore.getState().saveBatchReport(reportFixture());
     expect(ids).toHaveLength(2);
     expect(useMacroOutputQueueStore.getState().batchCustodyStatus).toBe('volatile');
-    configureBatchCustodyAdapter(adapter);
+    configureBatchCustodyAdapter({
+      ...adapter,
+      // Emulate IndexedDB UUID-primary-key ordering, not commit ordering.
+      async loadOutputs() { return (await adapter.loadOutputs()).reverse(); },
+    });
     expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(0);
     await useMacroOutputQueueStore.getState().hydrateBatchCustody();
     const restored = useMacroOutputQueueStore.getState();

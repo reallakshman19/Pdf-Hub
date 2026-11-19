@@ -23,6 +23,8 @@ export interface MacroOutputQueueItem extends MacroOutputFile {
   sourceSha256?: string;
   outputSha256?: string;
   batchRunId?: string;
+  /** UI FIFO ordering, not source-document identity. */
+  custodyStagedAt?: number;
 }
 
 export type BatchCustodyStatus = 'uninitialized' | 'loading' | 'persistent'
@@ -111,6 +113,15 @@ async function hydrateCustody(): Promise<void> {
       const [stored, report] = await Promise.all([
         batchCustody.loadOutputs(), batchCustody.loadLatestReport(),
       ]);
+      // IndexedDB getAll follows UUID primary keys, NOT execution order.
+      // Restore stable batch-group FIFO with the saved staging time and
+      // exact per-input/per-output ordinals; never infer order from filenames.
+      stored.sort((left, right) =>
+        (left.custodyStagedAt ?? 0) - (right.custodyStagedAt ?? 0)
+        || (left.batchRunId ?? '').localeCompare(right.batchRunId ?? '')
+        || (left.sourceInputIndex ?? 0) - (right.sourceInputIndex ?? 0)
+        || (left.sourceOutputIndex ?? 0) - (right.sourceOutputIndex ?? 0),
+      );
       const occurrences = new Set<string>();
       for (const row of stored) {
         validateRecoveredBatch(row);
@@ -232,6 +243,7 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get)
         throw new Error(`Batch output SHA-256 mismatch for output #${item.outputIndex}.`);
       }
     }
+    const custodyStagedAt = Date.now();
     const queued: MacroOutputQueueItem[] = snapshots.map((item) => ({
       id: uuidv4(),
       name: item.outputName,
@@ -247,6 +259,7 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get)
       sourceRecipeId: item.recipeId,
       sourceRecipeSha256: item.recipeSha256,
       batchRunId: item.batchRunId,
+      custodyStagedAt,
     }));
     if (get().outputs.some((item) =>
       item.sourceKind === 'batch'
