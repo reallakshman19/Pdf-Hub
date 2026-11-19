@@ -96,8 +96,18 @@ test('P06-SWAP: replacing the document during real OCR never publishes old words
   await runTesseract(page);
   await admit(page, newSource, 'wp05-inflight-new.pdf');
 
-  // Old async work may complete after replacement; allow its late callbacks.
+  // The old run must not contaminate B, but B must also recognize its own text.
+  // The deferred-engine barrier negative control remains a separate pending test.
   await page.waitForTimeout(3500);
+  await page.getByRole('button', { name: 'OCR', exact: true }).click();
+  const settings = page.getByTestId('ocr-run-advanced-settings');
+  if ((await settings.getAttribute('open')) === null) {
+    await settings.locator('summary').click();
+  }
+  await page.getByTestId('ocr-engine-select').selectOption('tesseract-js');
+  await expect(page.getByTestId('run-ocr-button')).toBeEnabled({ timeout: 20_000 });
+  await page.getByTestId('run-ocr-button').click();
+  await expect(page.getByTestId('ocr-run-status')).toContainText('OCR complete.', { timeout: 90_000 });
   const zip = await exportZip(page);
   const sourceFile = zip.file('original.pdf');
   expect(sourceFile).toBeTruthy();
@@ -111,7 +121,7 @@ test('P06-SWAP: replacing the document during real OCR never publishes old words
       } | null
     : null;
   const terms = (result?.pages ?? []).flatMap((p) => (p.words ?? []).map((w) => w.text ?? ''));
-  console.log('WP05_P06_SWAP_NEW_PROJECT_TERMS', JSON.stringify(terms));
-  expect(terms).not.toContain('ALPHA');
-  expect(terms).not.toContain('VALVE');
+  process.stdout.write(`WP05_P06_SWAP_NEW_PROJECT_TERMS ${JSON.stringify(terms)}\n`);
+  expect(terms.join(' ')).toMatch(/BETA\s+COMPRESSOR\s+25\s+PSI/i);
+  expect(terms.join(' ')).not.toMatch(/ALPHA|VALVE/i);
 });

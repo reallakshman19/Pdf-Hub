@@ -19,5 +19,5 @@ export async function persistWp05SyntheticEvidence(
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, filename), bytes);
   const digest = createHash('sha256').update(bytes).digest('hex');
-  console.log(`WP05_SYNTHETIC_NATIVE_EVIDENCE name=${filename} bytes=${bytes.byteLength} sha256=${digest}`);
+  process.stdout.write(`WP05_SYNTHETIC_NATIVE_EVIDENCE name=${filename} bytes=${bytes.byteLength} sha256=${digest}\n`);
 }

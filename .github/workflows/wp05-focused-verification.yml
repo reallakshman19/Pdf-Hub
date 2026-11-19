@@ -7,6 +7,7 @@ on:
       - "frontend/e2e/wp05-ocr-area-project.spec.ts"
       - "frontend/e2e/wp05-real-tesseract.spec.ts"
       - "frontend/e2e/wp05-original-f03-region.spec.ts"
+      - "frontend/e2e/wp05-original-f02-rotated-ocr.spec.ts"
       - "frontend/e2e/fixtures/wp05-source-f01-f08/**"
       - "frontend/e2e/wp05-ocr-cancel-swap.spec.ts"
       - "frontend/src/core/writer-v2/export/projectImportController.ts"
@@ -50,8 +51,9 @@ jobs:
         run: pnpm -C frontend run typecheck
       - name: WP-05 source-level regression set
         run: |
-          pnpm -C frontend exec vitest run \
+          WP05_DISPATCH_DIAG=1 pnpm -C frontend exec vitest run \
             src/core/writer-v2/export/projectImportController.test.ts \
+            src/core/writer-v2/export/projectImportController.source.test.ts \
             src/core/writer-v2/export/exportCurrentWriterProject.test.ts \
             src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts \
             src/core/pages/pageGraphAdmission.test.ts \
@@ -60,6 +62,8 @@ jobs:
             src/core/pages/pdfPageLabelWriter.test.ts \
             src/core/pages/pdfPageLabels.test.ts \
             src/core/ocr/__tests__/ocrProjectCodec.test.ts \
+            src/core/ocr/__tests__/ocrStoreOwnerGuard.test.ts \
+            src/core/commands/__tests__/dispatch.test.ts \
             src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
             src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
             src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
@@ -128,16 +132,19 @@ jobs:
           ocr_status=$?
           pnpm -C frontend exec playwright test e2e/wp05-original-f03-region.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-f03
           f03_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-original-f02-rotated-ocr.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-f02
+          f02_status=$?
           pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-project
           project_status=$?
           pnpm -C frontend exec playwright test e2e/wp05-ocr-cancel-swap.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-race
           race_status=$?
           echo "WP05_P06_CANCEL_SWAP_EXIT=${race_status}"
           echo "WP05_ORIGINAL_F03_REGION_EXIT=${f03_status}"
+          echo "WP05_ORIGINAL_F02_ROTATED_REGION_EXIT=${f02_status}"
           echo "WP05_NATIVE_P02_P04_EXIT=${native_status}"
           echo "WP05_REAL_OCR_P01_EXIT=${ocr_status}"
           echo "WP05_PROJECT_P05_EXIT=${project_status}"
-          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ] || [ "${race_status}" -ne 0 ] || [ "${f03_status}" -ne 0 ]; then
+          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ] || [ "${race_status}" -ne 0 ] || [ "${f03_status}" -ne 0 ] || [ "${f02_status}" -ne 0 ]; then
             exit 1
           fi
       - name: Manifest native PDF/ZIP evidence hashes

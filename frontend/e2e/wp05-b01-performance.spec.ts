@@ -124,7 +124,7 @@ test('B01: original F03 real region OCR 2 warmups plus 10 measured runs per fres
               ordinal: i + 1, source_correct: true, ...measured,
             };
             samples.push(sample);
-            console.log('WP05_B01_SAMPLE', JSON.stringify(sample));
+            process.stdout.write(`WP05_B01_SAMPLE ${JSON.stringify(sample)}\n`);
           } catch (error) {
             failure = { condition, ordinal: i + 1, message: String(error) };
             throw error;

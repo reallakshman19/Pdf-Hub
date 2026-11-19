@@ -57,6 +57,7 @@ export interface TesseractWorkerLike {
   ): Promise<{
     data: TesseractRecognizeData;
   }>;
+  setParameters?(params: Record<string, string>): Promise<unknown>;
   terminate(): Promise<void>;
 }
 
@@ -276,7 +277,7 @@ export function createDefaultTesseractRecognizer(input: {
   workerFactory?: TesseractWorkerFactory;
 } = {}): TesseractRecognizer {
   return {
-    async recognize({ image, language, signal }) {
+    async recognize({ image, language, signal, page }) {
       const workerFactory = input.workerFactory ?? createDefaultTesseractWorker;
       let activeWorker: TesseractWorkerLike | null = null;
       let terminationPromise: Promise<void> | null = null;
@@ -303,9 +304,25 @@ export function createDefaultTesseractRecognizer(input: {
       );
 
       try {
-        // Tesseract.js v6/v7 returns text only by default. Explicitly request
-        // the real Block > Paragraph > Line > Word geometry. Without this
-        // option the fallback synthesizes fictitious word rectangles.
+        // Tesseract.js defaults to PSM 6 (one horizontal text block), which
+        // misreads sideways words on native /Rotate 90/270 pages. Rotated
+        // PDF.js crops have off-diagonal pixel-to-PDF affine coefficients.
+        // PSM 3 analyzes image layout without rotating the bitmap, so native
+        // word boxes remain in their original raster coordinate convention.
+        // The existing pixelToPdfTransform then maps them to original PDF
+        // user space without a second rotation or invented rectangles.
+        if (isQuarterTurnPdfRaster(page)) {
+          if (!worker.setParameters) {
+            throw new Error('Tesseract worker cannot configure rotated-page segmentation.');
+          }
+          await raceWithAbort(
+            worker.setParameters({ tessedit_pageseg_mode: '3' }),
+            signal,
+            'configure rotated Tesseract page segmentation',
+            () => { void terminateOnce(); },
+          );
+        }
+        // Request the real Block > Paragraph > Line > Word geometry.
         const recognitionPromise = worker.recognize(image, {}, { blocks: true });
         const result = await raceWithAbort(
           recognitionPromise,
@@ -319,6 +336,19 @@ export function createDefaultTesseractRecognizer(input: {
       }
     },
   };
+}
+
+/** A true quarter-turn PDF.js raster has approximately zero diagonal
+ * coefficients and nonzero off-diagonal coefficients. This is not an
+ * arbitrary tall image: image aspect ratio alone cannot prove rotation. */
+function isQuarterTurnPdfRaster(page: OcrEnginePageInput): boolean {
+  const affine = page.pixelToPdfTransform;
+  if (!affine) return false;
+  const [a, b, c, d] = affine;
+  const cross = Math.max(Math.abs(b), Math.abs(c));
+  return cross > 1e-8
+    && Math.abs(a) < cross * 1e-5
+    && Math.abs(d) < cross * 1e-5;
 }
 
 export async function createDefaultTesseractWorker(

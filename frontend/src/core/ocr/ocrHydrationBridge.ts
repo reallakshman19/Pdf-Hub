@@ -67,6 +67,37 @@ export interface OcrHydrationSummary {
   searchableWords: number;
 }
 
+/** OCR-owned atomic import bridge used by the Writer admission transaction. */
+export function snapshotOcrImportState(): OcrStoreState {
+  return useOcrStore.getState();
+}
+
+export function commitOcrImportState(
+  payload: OcrProjectPayloadV1 | null | undefined,
+  documentFingerprint: string,
+): void {
+  if (!payload) {
+    useOcrStore.getState().clearOcr();
+    return;
+  }
+  if (payload.manifest.documentFingerprint !== documentFingerprint) {
+    throw new Error('OCR project payload belongs to a different source document.');
+  }
+  const hydrated = hydrateOcrStoreFromProjectPayload({
+    payload,
+    expectedDocumentFingerprint: documentFingerprint,
+  });
+  if (!hydrated.restored) {
+    throw new Error(
+      hydrated.diagnostics[0]?.message ?? 'OCR project state could not be restored.',
+    );
+  }
+}
+
+export function restoreOcrImportState(previous: OcrStoreState): void {
+  useOcrStore.setState(previous, true);
+}
+
 export function hydrateOcrStoreFromProjectPayload(
   input: HydrateOcrStoreFromProjectPayloadInput,
 ): OcrHydrationResult {

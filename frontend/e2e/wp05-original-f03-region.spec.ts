@@ -63,11 +63,11 @@ test('P01-F03: authentic fixture OCR Area uses real Tesseract and decodes exact 
   });
   const elapsed = performance.now() - start;
   const recognized = (await page.getByTestId('ocr-region-result-preview').textContent()) ?? '';
-  console.log('WP05_ORIGINAL_F03_REGION', JSON.stringify({
+  process.stdout.write('WP05_ORIGINAL_F03_REGION ' + JSON.stringify({
     source_sha256: expectedSha,
     engine: 'tesseract-js',
     elapsed_ms: Math.round(elapsed),
     recognized,
-  }));
+  }) + '\n');
   expect(recognized).toMatch(/ALPHA\s+VALVE\s+10\s+BAR/i);
 });
