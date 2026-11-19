@@ -398,44 +398,120 @@ async function executeValidatedBatchPdf(
     });
   }
 
-  // One callback currently hands off one working-copy PDF per input.
-  // Never silently discard separately generated extract/split PDFs: a
-  // complete batch provenance record must account for every emitted file.
-  if (execution.outputFiles.length > 0) {
-    return freezeRecord({
-      inputIndex: input.inputIndex,
-      fileName: input.fileName,
-      inputBytes: input.sourceBytes,
-      pageCount: input.pageCount,
-      sourceSha256,
-      status: 'failed',
-      error: `BATCH_AUXILIARY_OUTPUTS_NOT_SUPPORTED: ${execution.outputFiles.length} separately generated PDF(s) need an explicit multi-output custody contract; none was handed off.`,
-      logs,
-    });
-  }
-
+  // Prepare every PDF and its digest before the first handoff. In particular,
+  // never enqueue the working copy while a later auxiliary is unaccounted for.
   const output = new Uint8Array(execution.finalBytes);
   const outputBytes = output.byteLength;
   const outputSha256 = await FileAdapter.hashBytes(output);
   const outputName = buildBatchOutputName(
     input.inputIndex, input.fileName, options.recipe.id, sourceSha256,
   );
-  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
-  // Completion acknowledges only that the caller accepted a byte copy, NOT
-  // that the browser or operating system durably saved a file.
-  try {
-    await options.onOutput?.({
+  const commonIdentity = {
+    inputIndex: input.inputIndex,
+    fileName: input.fileName,
+    inputPageCount: input.pageCount,
+    sourceSha256,
+    batchRunId: runId,
+    recipeId: options.recipe.id,
+    recipeSha256,
+  };
+  const artifacts: BatchOutputArtifact[] = [{
+    ...commonIdentity,
+    outputIndex: 0,
+    outputKind: 'working-copy',
+    outputSha256,
+    outputName,
+    bytes: output,
+  }];
+  for (let index = 0; index < execution.outputFiles.length; index += 1) {
+    throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before auxiliary ${index + 1}`);
+    const sourceOutput = execution.outputFiles[index];
+    if (
+      !sourceOutput
+      || !(sourceOutput.bytes instanceof Uint8Array)
+      || !hasBatchPdfSignature(sourceOutput.bytes)
+    ) {
+      return freezeRecord({
+        inputIndex: input.inputIndex,
+        fileName: input.fileName,
+        inputBytes: input.sourceBytes,
+        pageCount: input.pageCount,
+        sourceSha256,
+        status: 'failed',
+        error: `BATCH_AUXILIARY_PDF_INVALID: output ${index + 1} has no valid PDF signature; no files were handed off.`,
+        logs,
+      });
+    }
+    const bytes = new Uint8Array(sourceOutput.bytes);
+    artifacts.push({
+      ...commonIdentity,
+      outputIndex: index + 1,
+      outputKind: 'auxiliary',
+      originalOutputName: sourceOutput.name,
+      outputSha256: await FileAdapter.hashBytes(bytes),
+      outputName: buildBatchAuxiliaryOutputName(
+        input.inputIndex, input.fileName, options.recipe.id, sourceSha256,
+        index + 1, sourceOutput.name,
+      ),
+      bytes,
+    });
+  }
+  const manifest = (
+    disposition: BatchOutputManifestEntry['outputDisposition'],
+  ): readonly BatchOutputManifestEntry[] => Object.freeze(artifacts.map((item) =>
+    Object.freeze({
+      outputIndex: item.outputIndex,
+      outputKind: item.outputKind,
+      ...(item.originalOutputName === undefined
+        ? {} : { originalOutputName: item.originalOutputName }),
+      outputName: item.outputName,
+      outputBytes: item.bytes.byteLength,
+      outputSha256: item.outputSha256,
+      outputDisposition: disposition,
+    }),
+  ));
+
+  if (options.onOutputs && options.onOutput) {
+    return freezeRecord({
       inputIndex: input.inputIndex,
       fileName: input.fileName,
-      inputPageCount: input.pageCount,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
       sourceSha256,
-      outputSha256,
       outputName,
-      batchRunId: runId,
-      recipeId: options.recipe.id,
-      recipeSha256,
-      bytes: output,
+      outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
+      outputDisposition: 'handoff-failed-unverified',
+      status: 'failed',
+      error: 'BATCH_OUTPUT_CONTRACT_AMBIGUOUS: choose one batch handoff callback.',
+      logs,
     });
+  }
+  if (artifacts.length > 1 && !options.onOutputs) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      outputName,
+      outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
+      outputDisposition: 'handoff-failed-unverified',
+      status: 'failed',
+      error: `BATCH_MULTI_OUTPUT_HANDOFF_REQUIRED: ${artifacts.length} PDFs need one atomic onOutputs callback; no files were handed off.`,
+      logs,
+    });
+  }
+
+  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
+  // A resolved callback establishes in-session custody, NOT durable disk receipt.
+  try {
+    if (options.onOutputs) {
+      await options.onOutputs(artifacts);
+    } else if (options.onOutput) {
+      await options.onOutput(artifacts[0]);
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const details = {
@@ -454,10 +530,15 @@ async function executeValidatedBatchPdf(
       ...details,
       outputName,
       outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
       outputDisposition: 'handoff-failed-unverified' as const,
       status: 'failed' as const,
     });
   }
+
+  const disposition = options.onOutputs || options.onOutput
+    ? 'handoff-completed-unverified' as const
+    : 'not-requested' as const;
   return freezeRecord({
     inputIndex: input.inputIndex,
     fileName: input.fileName,
@@ -467,7 +548,9 @@ async function executeValidatedBatchPdf(
     outputBytes,
     outputSha256,
     outputName,
-    outputDisposition: options.onOutput ? 'handoff-completed-unverified' : 'not-requested',
+    outputCount: artifacts.length,
+    outputs: manifest(disposition),
+    outputDisposition: disposition,
     status: 'success',
     logs,
   });
@@ -639,6 +722,35 @@ export function buildBatchOutputName(
     throw new Error('Batch output naming requires a valid source ordinal.');
   }
   return `${String(inputIndex + 1).padStart(3, '0')}-${safe(fileName.replace(/\.pdf$/i, ''), 'document')}-${safe(recipeId, 'workflow')}-${sourceDigest.slice(0,12)}.pdf`;
+}
+
+export function buildBatchAuxiliaryOutputName(
+  inputIndex: number,
+  fileName: string,
+  recipeId: string,
+  sourceSha256: string,
+  outputIndex: number,
+  originalName: string,
+): string {
+  if (!Number.isSafeInteger(outputIndex) || outputIndex < 1) {
+    throw new Error('Auxiliary PDF requires an index greater than zero.');
+  }
+  // A macro-supplied output name is an audit label, never a filesystem path.
+  const leaf = originalName.split(/[\\/]/).at(-1) ?? '';
+  const safeLeaf = leaf.replace(/\.pdf$/i, '')
+    .trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[.\-]+|[.\-]+$/g, '').slice(0, 72) || 'generated';
+  const parent = buildBatchOutputName(inputIndex, fileName, recipeId, sourceSha256)
+    .replace(/\.pdf$/i, '');
+  return `${parent}-aux-${String(outputIndex).padStart(3, '0')}-${safeLeaf}.pdf`;
+}
+
+function hasBatchPdfSignature(bytes: Uint8Array): boolean {
+  const marker = [37, 80, 68, 70, 45]; // %PDF-
+  for (let i = 0; i <= Math.min(bytes.byteLength, 1024) - marker.length; i += 1) {
+    if (marker.every((value, offset) => bytes[i + offset] === value)) return true;
+  }
+  return false;
 }
 
 function firstDiagnosticMessage(
