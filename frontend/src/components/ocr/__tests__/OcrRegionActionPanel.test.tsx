@@ -3,8 +3,10 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -139,6 +141,61 @@ describe('OcrRegionActionPanel', () => {
     );
 
     expect(screen.getByTestId('ocr-region-run')).toBeDisabled();
+  });
+
+  it('does not publish when the owning document changes while the OCR crop is pending', async () => {
+    const region = registerRegion(makeTextRegion());
+    const onRegionResult = vi.fn();
+    let releaseCrop!: (resolved: {
+      pageInput: {
+        pageIndex: number;
+        imageBytes: Uint8Array;
+        width: number;
+        height: number;
+      };
+      diagnostics: [];
+    }) => void;
+    const resolvePageInput = vi.fn(() => new Promise<{
+      pageInput: {
+        pageIndex: number;
+        imageBytes: Uint8Array;
+        width: number;
+        height: number;
+      };
+      diagnostics: [];
+    }>((resolve) => {
+      releaseCrop = resolve;
+    }));
+
+    render(
+      <OcrRegionActionPanel
+        region={region}
+        pageInput={null}
+        resolvePageInput={resolvePageInput}
+        onRegionResult={onRegionResult}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('ocr-region-run'));
+    await waitFor(() => expect(resolvePageInput).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      useOcrStore.getState().clearOcr();
+      useSessionStore.setState({ documentKey: 'different-document' });
+    });
+    await act(async () => {
+      releaseCrop({
+        pageInput: {
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        },
+        diagnostics: [],
+      });
+    });
+
+    expect(onRegionResult).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('ocr-region-result-preview')).toBeNull();
   });
 
   it('uses async page input resolver when supplied', async () => {
