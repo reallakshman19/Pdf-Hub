@@ -1,0 +1,41 @@
+name: WP-05 Focused Geometry and Ownership Verification
+
+on:
+  pull_request:
+    paths:
+      - "frontend/src/core/ocr/**"
+      - "frontend/src/components/ocr/**"
+      - "frontend/src/components/writer/WriterOverlay.tsx"
+      - "frontend/src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx"
+      - "frontend/src/core/renderer/usePageRenderer.ts"
+      - "frontend/src/components/workspace/DocumentWorkspace.tsx"
+      - ".github/workflows/wp05-focused-verification.yml"
+  workflow_dispatch:
+
+jobs:
+  wp05-focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: pnpm -C frontend install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -C frontend run typecheck
+      - name: WP-05 source-level regression set
+        run: |
+          pnpm -C frontend exec vitest run \
+            src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
+            src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
+            src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
+            src/core/ocr/__tests__/tesseractJsEngine.test.ts \
+            src/core/ocr/__tests__/ocrPageAnchor.test.ts \
+            src/core/ocr/__tests__/ocrRegionRunner.test.ts \
+            src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
+            src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
+            --pool=forks --maxWorkers=1
+      - name: Production build
+        run: VITE_BASE_PATH=/Pdf-Hub/ pnpm -C frontend run build
