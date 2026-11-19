@@ -423,6 +423,10 @@ function ocrDocument(
 describe('canonical command dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear queued one-shot mocks left unconsumed by fail-closed commands.
+    mutationEngineMocks.open.mockReset();
+    mutationEngineMocks.commit.mockReset();
+    pageGraphMocks.buildPageGraphFromPdfBytes.mockReset();
     resetCommandBusForTests();
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
@@ -449,28 +453,46 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([2, 2, 2]),
       pageCount: 3,
     });
-    mutationEngineMocks.open.mockImplementation(async () => ({
-      pageCount: 3,
-      getPageMetrics: mutationEngineMocks.getPageMetrics,
-      rotatePages: mutationEngineMocks.rotatePages,
-      reorderPages: mutationEngineMocks.reorderPages,
-      removePages: mutationEngineMocks.removePages,
-      insertBlankPage: mutationEngineMocks.insertBlankPage,
-      duplicatePages: mutationEngineMocks.duplicatePages,
-      insertPdf: mutationEngineMocks.insertPdf,
-      replacePage: mutationEngineMocks.replacePage,
-      appendPdfs: mutationEngineMocks.appendPdfs,
-      setPageLabels: mutationEngineMocks.setPageLabels,
-      drawText: mutationEngineMocks.drawText,
-      drawVisualMasks: mutationEngineMocks.drawVisualMasks,
-      applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
-      replaceExistingText:
-        mutationEngineMocks.replaceExistingText,
-      reconstructExistingText:
-        mutationEngineMocks.reconstructExistingText,
-      commit: mutationEngineMocks.commit,
-      dispose: mutationEngineMocks.dispose,
-    }));
+    mutationEngineMocks.open.mockImplementation(async () => {
+      // The real PDF mutation session changes pageCount with structural edits.
+      // Emulate that contract instead of presenting a fixed three-page count.
+      let pageCount = 3;
+      return {
+        get pageCount() { return pageCount; },
+        getPageMetrics: mutationEngineMocks.getPageMetrics,
+        rotatePages: mutationEngineMocks.rotatePages,
+        reorderPages: mutationEngineMocks.reorderPages,
+        removePages: async (indices: number[]) => {
+          await mutationEngineMocks.removePages(indices);
+          pageCount -= indices.length;
+        },
+        insertBlankPage: async (atIndex: number, size: { width: number; height: number }) => {
+          await mutationEngineMocks.insertBlankPage(atIndex, size);
+          pageCount += 1;
+        },
+        duplicatePages: async (indices: number[]) => {
+          await mutationEngineMocks.duplicatePages(indices);
+          pageCount += indices.length;
+        },
+        insertPdf: async (atIndex: number, donorBytes: Uint8Array) => {
+          await mutationEngineMocks.insertPdf(atIndex, donorBytes);
+          pageCount += 3; // original admitted donor fixture has three pages
+        },
+        replacePage: mutationEngineMocks.replacePage,
+        appendPdfs: async (donors: Uint8Array[]) => {
+          await mutationEngineMocks.appendPdfs(donors);
+          pageCount += 3 * donors.length;
+        },
+        setPageLabels: mutationEngineMocks.setPageLabels,
+        drawText: mutationEngineMocks.drawText,
+        drawVisualMasks: mutationEngineMocks.drawVisualMasks,
+        applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
+        replaceExistingText: mutationEngineMocks.replaceExistingText,
+        reconstructExistingText: mutationEngineMocks.reconstructExistingText,
+        commit: mutationEngineMocks.commit,
+        dispose: mutationEngineMocks.dispose,
+      };
+    });
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
     );
