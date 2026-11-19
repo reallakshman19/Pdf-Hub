@@ -104,6 +104,10 @@ export async function simulateMacroDryRun(
       const op = step.op;
       const selection = branchSelection ?? finalSelectedPages;
       logs.push(`${depth > 0 ? '  '.repeat(depth) : ''}Step ${i + 1}: ${op}`);
+      if (uncertainPageCount) {
+        errors.push(`${op}: cannot certify subsequent steps after a donor with unknown page count.`);
+        continue;
+      }
 
       try {
         if (op === 'insert_blank_page') {
@@ -181,7 +185,12 @@ export async function simulateMacroDryRun(
             });
           }
         } else if (op === 'add_content_page' || op === 'add_image_header_page') {
+          const insertAt = blankInsertIndex(step.position);
+          const nextSelection = selection.map((page) => page > insertAt ? page + 1 : page);
+          if (currentPage > insertAt) currentPage += 1;
           finalPageCount += 1;
+          if (pendingSelections) pendingSelections.push(nextSelection);
+          else finalSelectedPages = nextSelection;
           modifiedBytes = true;
         } else if (op === 'conditional') {
           if (
