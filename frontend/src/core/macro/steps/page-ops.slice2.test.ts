@@ -6,6 +6,9 @@ import {
   resolvePageSelector,
   resolveSelector,
   toZeroBasedPageIndices,
+  remapSelectionAfterRemoval,
+  remapSelectionAfterDuplication,
+  remapSelectionAfterReorder,
 } from './page-ops';
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
 
@@ -353,5 +356,41 @@ describe('page-ops slice 2', () => {
       expect.any(Uint8Array),
       [2, 0, 1],
     );
+  });
+});
+
+
+describe('WP07 identity-sensitive structural selection remapping', () => {
+  it('retains surviving source page B when page A is deleted', () => {
+    expect(remapSelectionAfterRemoval([2], [1], 3)).toEqual([1]);
+    expect(remapSelectionAfterRemoval([2, 4], [1, 3], 4)).toEqual([1, 2]);
+    expect(remapSelectionAfterRemoval([1, 3], [1, 3], 3)).toEqual([]);
+  });
+
+  it('keeps original selected pages selected when earlier sources are duplicated', () => {
+    expect(remapSelectionAfterDuplication([3], [1, 3], 3)).toEqual([4]);
+    expect(remapSelectionAfterDuplication([1, 3], [1, 3], 3)).toEqual([1, 4]);
+  });
+
+  it('reorders selected source positions instead of retaining stale physical numbers', () => {
+    expect(remapSelectionAfterReorder([1, 3], [3, 2, 1])).toEqual([1, 3]);
+    expect(remapSelectionAfterReorder([2], [3, 1, 2])).toEqual([3]);
+  });
+
+  it('emits the remapped selection from the actual remove_pages runner', async () => {
+    const source = state();
+    source.pageCount = 3;
+    source.selectedPages = [2];
+    vi.mocked(PdfEditAdapter.countPages).mockResolvedValueOnce(2);
+    const result = await macroRegistry.execute(
+      { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+      ctx(),
+      source,
+    );
+    expect(result.status).toBe('success');
+    expect(result.sideEffects).toContainEqual({
+      type: 'selection_changed',
+      selectedPages: [1],
+    });
   });
 });
