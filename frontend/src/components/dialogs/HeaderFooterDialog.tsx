@@ -29,6 +29,8 @@ import { HeaderFooterNumberingPresetBar } from './header-footer/HeaderFooterNumb
 import { HeaderFooterPreviewPane } from './header-footer/HeaderFooterPreviewPane';
 import { HeaderFooterImagePanel } from './header-footer/HeaderFooterImagePanel';
 import { useHeaderFooterImageEditor } from './header-footer/useHeaderFooterImageEditor';
+import { renderHeaderFooterNativePreview } from '@/core/header-footer/nativePreview';
+import { useSessionStore } from '@/core/session/store';
 
 interface HeaderFooterDialogProps {
   isOpen: boolean;
@@ -65,6 +67,14 @@ export const HeaderFooterDialog: React.FC<
     () => new Date(),
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const workingBytes = useSessionStore((state) => state.workingBytes);
+  const [nativePreview, setNativePreview] = React.useState<{
+    imageUrl: string | null;
+    busy: boolean;
+    error: string | null;
+    warnings: string[];
+  }>({ imageUrl: null, busy: false, error: null, warnings: [] });
+  const previewAbortRef = React.useRef<AbortController | null>(null);
   const imageEditor = useHeaderFooterImageEditor({
     isOpen,
     image: draft.image,
@@ -150,6 +160,56 @@ export const HeaderFooterDialog: React.FC<
       currentMatched?.pageId ?? preview.pages[0]?.pageId ?? null,
     );
   }, [currentPageId, preview.pages, previewPageId]);
+
+  // Invalidate prior pixels on any edit, selected page change or source update.
+  React.useEffect(() => {
+    previewAbortRef.current?.abort('Native preview inputs changed');
+    setNativePreview({ imageUrl: null, busy: false, error: null, warnings: [] });
+    return () => {
+      previewAbortRef.current?.abort('Native preview closed or superseded');
+    };
+  }, [
+    isOpen, preview.template, previewPageId, workingBytes,
+    imageEditor.binaryResources,
+  ]);
+
+  const renderNative = async () => {
+    if (!isOpen || !workingBytes || !preview.template || !previewPageId) return;
+    const selected = preview.pages.find((page) => page.pageId === previewPageId);
+    if (!selected) return;
+    previewAbortRef.current?.abort('Native preview superseded');
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+    setNativePreview({ imageUrl: null, busy: true, error: null, warnings: [] });
+    try {
+      const result = await renderHeaderFooterNativePreview({
+        baseBytes: workingBytes,
+        pageGraph,
+        template: preview.template,
+        context: { fileName, now: previewNow },
+        binaryResources: imageEditor.binaryResources,
+        physicalPageNumber: selected.physicalPageNumber,
+        signal: controller.signal,
+      });
+      if (previewAbortRef.current === controller && !controller.signal.aborted) {
+        setNativePreview({
+          imageUrl: result.dataUrl,
+          busy: false,
+          error: null,
+          warnings: result.warnings,
+        });
+      }
+    } catch (error) {
+      if (previewAbortRef.current === controller && !controller.signal.aborted) {
+        setNativePreview({
+          imageUrl: null,
+          busy: false,
+          error: error instanceof Error ? error.message : String(error),
+          warnings: [],
+        });
+      }
+    }
+  };
 
   const patchDraft = (
     patch: Partial<HeaderFooterEditorDraft>,
@@ -258,7 +318,12 @@ export const HeaderFooterDialog: React.FC<
           previewPageId={previewPageId}
           error={preview.error}
           warnings={preview.warnings}
-          imageUrls={imageEditor.imageUrls}
+          nativeImageUrl={nativePreview.imageUrl}
+          nativeBusy={nativePreview.busy}
+          nativeError={nativePreview.error}
+          nativeWarnings={nativePreview.warnings}
+          nativeAvailable={Boolean(workingBytes) && !imageEditor.busy && !submitting}
+          onRenderNativePreview={() => void renderNative()}
           onPreviewPageChange={setPreviewPageId}
         />
 

@@ -1,6 +1,5 @@
 import React from 'react';
 import { ImageIcon, Sparkles } from 'lucide-react';
-import { useShallow } from 'zustand/react/shallow';
 
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
@@ -12,7 +11,7 @@ import {
   getGenerationTemplateById,
 } from '@/core/macro/generateDocument/generationRecipes';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
-import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { runGenerationRecipeOnSnapshot } from '@/core/macro/generateDocument/runIsolatedGeneration';
 import type { MacroOutputFile } from '@/core/macro/types';
 import { useSessionStore } from '@/core/session/store';
 
@@ -27,15 +26,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   onBusyChange,
   onOutputsProduced,
 }) => {
-  const {
-    workingBytes,
-    fileName,
-    pageCount,
-  } = useSessionStore(useShallow((state) => ({
-    workingBytes: state.workingBytes,
-    fileName: state.fileName,
-    pageCount: state.pageCount,
-  })));
+  const workingBytes = useSessionStore((state) => state.workingBytes);
 
   const [brandImageDataUrl, setBrandImageDataUrl] = React.useState('');
   const [selectedGenerationId, setSelectedGenerationId] = React.useState(
@@ -122,6 +113,17 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
       return;
     }
 
+    const source = useSessionStore.getState();
+    if (!source.documentKey || !source.workingBytes || !source.fileName) {
+      setRunError('No active source PDF is available.');
+      return;
+    }
+    const sourceIdentity = {
+      documentKey: source.documentKey,
+      workingBytes: source.workingBytes,
+      fileName: source.fileName,
+      pageCount: source.pageCount,
+    };
     const controller = new AbortController();
     generationAbortRef.current = controller;
     onBusyChange?.(true);
@@ -130,24 +132,29 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
     setLogs([]);
 
     try {
+      const now = new Date();
       const finalRecipe = buildGenerationRecipe({
         template: selectedTemplate,
         values: generationValues,
-        fileName: fileName ?? 'document.pdf',
-        pageCount: Math.max(1, pageCount),
-        now: new Date(),
+        fileName: sourceIdentity.fileName,
+        pageCount: Math.max(1, sourceIdentity.pageCount),
+        now,
         brandImageDataUrl: brandImageDataUrl || null,
       });
 
-      const result = await runMacroRecipeAgainstSession(
+      // Do not commit generated pages to the live PDF. Each record receives
+      // an isolated input snapshot and an independent queued output.
+      const result = await runGenerationRecipeOnSnapshot(
+        { ...finalRecipe, dryRun: false },
         {
-          ...finalRecipe,
-          dryRun: false,
+          workingBytes: sourceIdentity.workingBytes,
+          pageCount: sourceIdentity.pageCount,
+          selectedPages: [...source.selectedPages],
+          currentPage: source.viewState.currentPage ?? undefined,
+          fileName: sourceIdentity.fileName,
+          now,
         },
-        {
-          saveOutputs: false,
-          abortSignal: controller.signal,
-        },
+        controller.signal,
       );
 
       if (result.status === 'cancelled' || controller.signal.aborted) {
@@ -162,6 +169,18 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
 
       if (result.status === 'failed' || result.success === false) {
         setRunError(result.logs.at(-1) ?? 'Generate Document failed.');
+        return;
+      }
+
+      // Do not publish a stale result against a changed source or document.
+      const live = useSessionStore.getState();
+      if (
+        live.documentKey !== sourceIdentity.documentKey
+        || live.workingBytes !== sourceIdentity.workingBytes
+        || live.fileName !== sourceIdentity.fileName
+        || live.pageCount !== sourceIdentity.pageCount
+      ) {
+        setRunError('Source PDF changed during generation; output was discarded.');
         return;
       }
 
@@ -205,6 +224,10 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         <Sparkles className="h-4 w-4" />
         Generate Document
       </div>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        Generate a separate output from the active source snapshot; the open
+        document is not changed. Outputs appear in the queue below.
+      </p>
 
       <label className="sr-only" htmlFor="generate-document-template">
         Generate Document Template
