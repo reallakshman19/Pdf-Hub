@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { degrees, PDFArray, PDFDict, PDFDocument, PDFName, PDFString, StandardFonts } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -30,6 +30,31 @@ async function createThreePageSource(): Promise<Uint8Array> {
     });
   }
   return pdf.save();
+}
+
+/** Native PDF page tree + direct PDF note annotation, not a DOM overlay. */
+async function createR5RotatedAnnotatedSource(): Promise<Uint8Array> {
+  const document = await PDFDocument.create();
+  const font = await document.embedFont(StandardFonts.Helvetica);
+  for (const label of ['A', 'B', 'C']) {
+    const page = document.addPage([612, 792]);
+    page.drawText(`WP07 R5 NATIVE ANNOTATED PAGE ${label}`, {
+      x: 80, y: 704, font, size: 17,
+    });
+    if (label === 'A') {
+      page.setRotation(degrees(90));
+      const note = document.context.register(document.context.obj({
+        Type: 'Annot',
+        Subtype: 'Text',
+        NM: PDFString.of('WP07-R5-AUTHORITATIVE-NOTE'),
+        Contents: PDFString.of('R5 owner note remains on source page A'),
+        Rect: [130, 410, 152, 432],
+        P: page.ref,
+      }));
+      page.node.set(PDFName.of('Annots'), document.context.obj([note]));
+    }
+  }
+  return new Uint8Array(await document.save());
 }
 
 async function openDocumentAndBuilder(page: Page): Promise<void> {
@@ -1004,4 +1029,93 @@ test('WP07 R5: cancellation during input read preserves prior native PDFs and ne
     Buffer.from(JSON.stringify(report, null, 2)),
   );
   console.log('WP07_R5_CANCEL first_outputs=2 cancelled_input=1 later_unread=true reload_retained=2');
+});
+
+test('WP07 R5: native rotated annotations survive batch extraction in both primary and auxiliary PDFs', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+
+  const source = Buffer.from(await createR5RotatedAnnotatedSource());
+  const sourceSha256 = createHash('sha256').update(source).digest('hex');
+  await persistPublicSyntheticEvidence(`r5-rotated-native-source-${sourceSha256}.pdf`, source);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([{ name: 'rotated-note.pdf', mimeType: 'application/pdf', buffer: source }]);
+
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    records: Array<{ status: string; sourceSha256: string; outputs: Array<{
+      outputIndex: number; outputSha256: string; outputName: string; outputPageCount: number;
+    }> }>;
+  };
+  expect(report.records[0].status).toBe('success');
+  expect(report.records[0].sourceSha256).toBe(`sha256:${sourceSha256}`);
+  expect(report.records[0].outputs.map((o) => o.outputPageCount)).toEqual([3, 1]);
+
+  const readNativeNote = async (raw: Uint8Array): Promise<{
+    pages: number; rotation: number; noteText: string; noteId: string; rect: string;
+  }> => {
+    const pdf = await PDFDocument.load(raw);
+    const owner = pdf.getPage(0);
+    const notes = owner.node.lookup(PDFName.of('Annots'), PDFArray);
+    expect(notes.size()).toBe(1);
+    const native = notes.lookup(0, PDFDict);
+    const readString = (key: string) => native.lookup(PDFName.of(key), PDFString).decodeText();
+    return {
+      pages: pdf.getPageCount(),
+      rotation: owner.getRotation().angle,
+      noteText: readString('Contents'),
+      noteId: readString('NM'),
+      rect: native.lookup(PDFName.of('Rect'), PDFArray).toString(),
+    };
+  };
+  const before = await readNativeNote(new Uint8Array(source));
+  expect(before).toMatchObject({
+    pages: 3, rotation: 90,
+    noteText: 'R5 owner note remains on source page A',
+    noteId: 'WP07-R5-AUTHORITATIVE-NOTE',
+  });
+  const nativeOutputs: Array<ReturnType<typeof readNativeNote> extends Promise<infer T> ? T : never> = [];
+  for (const [index, manifest] of report.records[0].outputs.entries()) {
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+      queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+    ]);
+    const bytes = await readFile(await download.path() as string);
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    expect(`sha256:${digest}`).toBe(manifest.outputSha256);
+    expect(download.suggestedFilename()).toBe(manifest.outputName);
+    const after = await readNativeNote(new Uint8Array(bytes));
+    expect(after).toEqual({
+      ...before, pages: index === 0 ? 3 : 1,
+    });
+    const pdfjs = await getDocument({ data: new Uint8Array(bytes) }).promise;
+    const pageOne = await pdfjs.getPage(1);
+    expect(pageOne.rotate).toBe(90);
+    expect((await pageOne.getAnnotations()).length).toBe(1);
+    await pdfjs.destroy();
+    nativeOutputs.push(after);
+    await persistPublicSyntheticEvidence(`r5-rotated-native-export-${digest}.pdf`, bytes);
+    await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+  }
+  await expect(queue).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `r5-rotated-native-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify({ report, sourceSha256, before, nativeOutputs }, null, 2)),
+  );
+  console.log('WP07_R5_ROTATED_NATIVE source=ABC output=ABC,A rotation=90 note_identity=true native_annotation=1 each_output=true');
 });
