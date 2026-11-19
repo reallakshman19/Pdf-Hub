@@ -4,6 +4,7 @@ import './steps/content-ops';
 import './steps/conditional-ops';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { executeMacroRecipe } from './executor';
+import { validateRecipeBeforeRun } from './validation/validator';
 import { resolveSelector as resolvePageSelector } from './steps/page-ops';
 import type { MacroExecutionContext, MacroRecipe } from './types';
 
@@ -408,6 +409,67 @@ describe('macro executor', () => {
     expect(result.success).toBe(false);
     expect(result.rolledBack).toBe(false);
     expect(result.finalBytes).toEqual(new Uint8Array([4, 4, 4]));
+  });
+
+  it('predicts selected source identity across remove then duplicate, not only count', async () => {
+    const recipe: MacroRecipe = {
+      id: 'source-b-survives',
+      name: 'Select B, remove A, duplicate B',
+      steps: [
+        { op: 'select_pages', selector: { mode: 'list', pages: [2] } },
+        { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+        { op: 'duplicate_pages', selector: { mode: 'selected' } },
+      ],
+    };
+    const preview = await executeMacroRecipe(
+      { ...recipe, dryRun: true },
+      { ...baseContext, pageCount: 3, selectedPages: [], currentPage: 2 },
+    );
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(3);
+    expect(preview.dryRunDiff?.selectedPagesAfter).toEqual([1]);
+  });
+
+  it('preflight blocks removing or splitting all pages before mutation', async () => {
+    for (const op of ['remove_pages', 'split_pages'] as const) {
+      const recipe: MacroRecipe = {
+        id: 'reject-empty-' + op,
+        name: 'Preserve a nonempty PDF',
+        steps: [{ op, selector: { mode: 'all' } }],
+        dryRun: true,
+      };
+      const report = await validateRecipeBeforeRun(recipe, {
+        ...baseContext,
+        pageCount: 3,
+      });
+      expect(report.isValid).toBe(false);
+      expect(report.errors.join(' ')).toContain('Cannot remove all pages');
+    }
+  });
+
+  it('previews selection shift on blank insertion and rearrangement', async () => {
+    const inserted = await executeMacroRecipe({
+      id: 'insert-start-preview',
+      name: 'Insert before selection',
+      steps: [
+        { op: 'select_pages', selector: { mode: 'list', pages: [2] } },
+        { op: 'insert_blank_page', position: { mode: 'start' }, size: 'a4', count: 2 },
+      ],
+      dryRun: true,
+    }, { ...baseContext, pageCount: 3, selectedPages: [] });
+    expect(inserted.dryRunDiff?.finalPageCount).toBe(5);
+    expect(inserted.dryRunDiff?.selectedPagesAfter).toEqual([4]);
+
+    const reordered = await executeMacroRecipe({
+      id: 'reorder-preview',
+      name: 'Reorder and keep selected source',
+      steps: [
+        { op: 'select_pages', selector: { mode: 'list', pages: [2] } },
+        { op: 'reorder_pages', order: [3, 1, 2] },
+      ],
+      dryRun: true,
+    }, { ...baseContext, pageCount: 3, selectedPages: [] });
+    expect(reordered.dryRunDiff?.selectedPagesAfter).toEqual([3]);
   });
 
 });
