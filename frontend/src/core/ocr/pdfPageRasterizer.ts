@@ -5,6 +5,7 @@ import {
 import type {
   OcrDiagnostic,
 } from './types';
+import { raceWithAbort, throwIfAborted } from '../cancellation/operationCancellation';
 import type {
   OcrEnginePageInput,
 } from './engines/ocrEngineContract';
@@ -84,6 +85,7 @@ export interface PdfPageRasterizerOptions {
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
   canvasFactory?: PdfRasterCanvasFactory;
+  signal?: AbortSignal;
 }
 
 export interface RasterizePdfPageInput extends PdfPageRasterizerOptions {
@@ -144,7 +146,12 @@ export async function loadPdfDocumentForOcrRasterizer(
 export async function rasterizePdfPageForOcr(
   input: RasterizePdfPageInput,
 ): Promise<RasterizedPdfPage> {
-  const document = await resolvePdfRasterizerDocument(input);
+  throwIfAborted(input.signal, 'begin OCR page rasterization');
+  const document = await raceWithAbort(
+    resolvePdfRasterizerDocument(input),
+    input.signal,
+    'load document for OCR rasterization',
+  );
   const pageNumber = input.pageIndex + 1;
 
   if (pageNumber < 1 || pageNumber > document.numPages) {
@@ -169,7 +176,11 @@ export async function rasterizePdfPageForOcr(
     };
   }
 
-  const page = await document.getPage(pageNumber);
+  const page = await raceWithAbort(
+    document.getPage(pageNumber),
+    input.signal,
+    'load selected OCR page',
+  );
   const baseViewport = page.getViewport({ scale: 1 });
   const requestedScale = input.scale ?? 2;
   const scale = clampScaleForMaxPixels({
@@ -195,7 +206,12 @@ export async function rasterizePdfPageForOcr(
       viewport,
     });
 
-    await renderTask.promise;
+    await raceWithAbort(
+      renderTask.promise,
+      input.signal,
+      'render selected OCR region',
+      () => { renderTask.cancel?.(); },
+    );
 
     const mimeType = input.mimeType ?? 'image/png';
     const quality = input.quality ?? 0.92;
@@ -231,9 +247,14 @@ export async function rasterizePdfPageForOcr(
     const rasterWidth = crop ? Math.max(1, Math.floor(crop.width)) : canvas.width;
     const rasterHeight = crop ? Math.max(1, Math.floor(crop.height)) : canvas.height;
 
-    const imageBytes = crop
-      ? await canvas.cropToBytes(crop, mimeType, quality)
-      : await canvas.toBytes(mimeType, quality);
+    const imageBytes = await raceWithAbort(
+      crop
+        ? canvas.cropToBytes(crop, mimeType, quality)
+        : canvas.toBytes(mimeType, quality),
+      input.signal,
+      'encode selected OCR region',
+    );
+    throwIfAborted(input.signal, 'publish selected OCR raster');
     const pixelToPdfTransform = derivePixelToPdfTransform({
       viewport,
       crop,
@@ -287,6 +308,7 @@ export async function rasterizePdfPagesForOcr(
         mimeType: input.mimeType,
         quality: input.quality,
         canvasFactory: input.canvasFactory,
+        signal: input.signal,
       }),
     );
   }
