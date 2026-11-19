@@ -92,6 +92,10 @@ test('P02/P04: native PageLabels survive browser rotate, PDF Save and fresh-cont
   await page.getByRole('button', { name: 'Rotate selected or current pages' }).click();
 
   const firstSave = await saveNativePdf(page);
+  await test.info().attach('wp05-rotate-native-output.pdf', {
+    body: Buffer.from(firstSave),
+    contentType: 'application/pdf',
+  });
   const native = await assertNativeLabelRules(firstSave, [
     { start: 0, prefix: 'Cover' },
     { start: 1, style: '/r' },
@@ -126,6 +130,10 @@ test('P04: native range starts reanchor on browser Delete, survive Save and reop
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
 
   const saved = await saveNativePdf(page);
+  await test.info().attach('wp05-delete-native-output.pdf', {
+    body: Buffer.from(saved),
+    contentType: 'application/pdf',
+  });
   const native = await assertNativeLabelRules(saved, [
     { start: 0, style: '/r' },
     { start: 1, style: '/D', prefix: 'Body-', number: 7 },
