@@ -52,6 +52,7 @@ jobs:
         run: |
           pnpm -C frontend exec vitest run \
             src/core/writer-v2/export/projectImportController.test.ts \
+            src/core/writer-v2/export/projectImportController.source.test.ts \
             src/core/writer-v2/export/exportCurrentWriterProject.test.ts \
             src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts \
             src/core/pages/pageGraphAdmission.test.ts \
@@ -60,6 +61,7 @@ jobs:
             src/core/pages/pdfPageLabelWriter.test.ts \
             src/core/pages/pdfPageLabels.test.ts \
             src/core/ocr/__tests__/ocrProjectCodec.test.ts \
+            src/core/ocr/__tests__/ocrStoreOwnerGuard.test.ts \
             src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
             src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
             src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
