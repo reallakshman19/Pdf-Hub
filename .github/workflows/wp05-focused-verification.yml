@@ -29,6 +29,7 @@ jobs:
       - name: WP-05 source-level regression set
         run: |
           pnpm -C frontend exec vitest run \
+            src/core/pages/pageGraphAdmission.test.ts \
             src/core/pages/pdfPageLabelNativeReader.test.ts \
             src/core/pages/pageLabels.test.ts \
             src/core/pages/pdfPageLabelWriter.test.ts \
