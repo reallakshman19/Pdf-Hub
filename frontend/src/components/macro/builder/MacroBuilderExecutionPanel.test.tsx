@@ -187,6 +187,41 @@ describe('MacroBuilderExecutionPanel', () => {
     expect(screen.getByTestId('macro-builder-run')).toBeDisabled();
   });
 
+  it('invalidates destructive preview when page selection changes', async () => {
+    const risky: MacroRecipe = {
+      id: 'selection-bound',
+      name: 'Remove selected',
+      steps: [{ op: 'remove_pages', selector: { mode: 'selected' } }],
+    };
+    render(<MacroBuilderExecutionPanel recipe={risky} validationValid />);
+    fireEvent.click(screen.getByTestId('macro-builder-test-run'));
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).not.toBeDisabled());
+    useSessionStore.getState().setSelectedPages([2]);
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).toBeDisabled());
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates preview when the same-key document is reopened with equal bytes', async () => {
+    const risky: MacroRecipe = {
+      id: 'reopen-bound',
+      name: 'Remove selected',
+      steps: [{ op: 'remove_pages', selector: { mode: 'selected' } }],
+    };
+    render(<MacroBuilderExecutionPanel recipe={risky} validationValid />);
+    fireEvent.click(screen.getByTestId('macro-builder-test-run'));
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).not.toBeDisabled());
+    const bytes = useSessionStore.getState().workingBytes;
+    expect(bytes).toBeTruthy();
+    useSessionStore.getState().openDocument({
+      documentKey: 'builder-execution-doc',
+      fileName: 'builder-execution.pdf',
+      bytes: bytes!,
+      pageCount: 2,
+    });
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).toBeDisabled());
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
   it('blocks Run when preflight reports an error', async () => {
     validateMock.mockResolvedValueOnce({
       isValid: false,
