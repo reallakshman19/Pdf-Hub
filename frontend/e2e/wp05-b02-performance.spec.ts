@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { execFileSync } from 'node:child_process';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
@@ -32,9 +33,14 @@ function nearestRank(samples: number[], p: number): number {
 
 async function downloadBytes(page: Page, controlName: string) {
   const [download] = await Promise.all([
-    page.waitForEvent('download', { timeout: 25_000 }),
-    page.getByRole('button', { name: controlName }).click({ timeout: 10_000 }),
-  ]);
+    page.waitForEvent('download', { timeout: 45_000 }),
+    page.getByRole('button', { name: controlName, exact: true }).click({ timeout: 10_000 }),
+  ]).catch(async (error: unknown) => {
+    const alerts = await page.getByRole('alert').allTextContents().catch(() => []);
+    const status = await page.locator('[role="status"]').allTextContents().catch(() => []);
+    const pageCount = await page.locator('input[inputmode="numeric"][aria-label^="Page "]').first().getAttribute('aria-label').catch(() => null);
+    throw new Error(`Native ${controlName} failed; ${String(error)}; alerts=${JSON.stringify(alerts)}; status=${JSON.stringify(status)}; navigator=${pageCount}`);
+  });
   const stream = await download.createReadStream();
   if (!stream) throw new Error(`${controlName} returned no native file bytes`);
   const chunks: Buffer[] = [];
@@ -92,8 +98,14 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
     await page.getByRole('tab', { name: 'Organize' }).click();
     const rotateStart = performance.now();
     await page.getByRole('button', { name: 'Rotate selected or current pages' }).click();
+    // The command bus is asynchronous. A click is not a commit acknowledgement;
+    // wait for an explicit completed mutation before invoking Save.
+    await expect(page.getByRole('alert').filter({ hasText: 'Rotated 1 page(s) by 90°.' }))
+      .toBeVisible({ timeout: 45_000 });
     await page.getByRole('tab', { name: 'File' }).click();
     const rotatedBytes = await downloadBytes(page, 'Save');
+    await fs.mkdir(path.join(process.cwd(), 'wp05-evidence'), { recursive: true });
+    await fs.writeFile(path.join(process.cwd(), 'wp05-evidence', `wp05-B02-${count}p-rotated.pdf`), rotatedBytes);
     const rotated = await PDFDocument.load(rotatedBytes);
     expect(rotated.getPageCount()).toBe(count);
     expect(rotated.getPage(0).getRotation().angle).toBe(0);
@@ -114,6 +126,7 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
     await page.getByRole('button', { name: 'Page 3', exact: true }).click({ modifiers: ['Control'] });
     await page.getByRole('tab', { name: 'Organize' }).click();
     const extractedBytes = await downloadBytes(page, 'Extract selected or current pages');
+    await fs.writeFile(path.join(process.cwd(), 'wp05-evidence', `wp05-B02-${count}p-extracted.pdf`), extractedBytes);
     await assertExtractedText(extractedBytes);
 
     // The extracted native PDF must load in a fresh app context, not only in PDF.js.
@@ -131,7 +144,14 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
         mimeType: 'application/pdf',
         buffer: Buffer.from(extractedBytes),
       });
-      await waitForPhase8gRenderedPage(reopened, 1);
+      try {
+        await waitForPhase8gRenderedPage(reopened, 1);
+      } catch (error) {
+        const alerts = await reopened.getByRole('alert').allTextContents().catch(() => []);
+        const visibleText = (await reopened.locator('body').innerText().catch(() => '')).slice(-2400);
+        const sourceState = await reopened.locator('input[inputmode="numeric"][aria-label^="Page "]').first().getAttribute('aria-label').catch(() => null);
+        throw new Error(`Extracted ${count}-page source produced independently parseable 3-page PDF but app did not reopen: ${String(error)}; alerts=${JSON.stringify(alerts)}; navigator=${sourceState}; body=${visibleText}`);
+      }
     } finally {
       await fresh.close();
     }
@@ -193,7 +213,7 @@ for (const pageCount of [100, 500] as const) {
             schema: 'wp05-b02-correctness-gated-v1',
             status: failure ? 'FAIL_CLOSED' : samples.length === 12 ? 'OBSERVED_UNGRADED' : 'INCOMPLETE',
             fixture: { id: pageCount === 100 ? 'F05' : 'F06', pages: pageCount, sha256: observed, bytes: source.byteLength },
-            environment: { github_sha: process.env.GITHUB_SHA ?? null, browser: browserName, browser_version: browser.version(), os: os.platform(), cpu: os.cpus()[0]?.model ?? null },
+            environment: { checkout_sha: execFileSync('git', ['rev-parse','HEAD'], { encoding: 'utf8' }).trim(), github_event_sha: process.env.GITHUB_SHA ?? null, browser: browserName, browser_version: browser.version(), os: os.platform(), cpu: os.cpus()[0]?.model ?? null },
             warmups_required: WARMUPS, samples_required: MEASURED,
             samples, summary, failure,
             verdict_note: 'No p95 regression threshold authorized; measured success does not imply performance approval.',
