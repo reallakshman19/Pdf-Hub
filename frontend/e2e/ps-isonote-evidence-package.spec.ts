@@ -43,6 +43,9 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   // "sparkles" icon also appears, at a different size, on the Generate mode
   // tab, so the class selector must disambiguate by size).
   await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  // Specialized workflows are intentionally collapsed in the integrated
+  // Automate UI; interact through the real user-visible entrypoint.
+  await page.getByText('Specialized workflows', { exact: true }).click();
 
   const recipeBuilder = page.getByTestId('ps-isonote-recipe-builder');
   await expect(recipeBuilder).toBeVisible({ timeout: 15_000 });
