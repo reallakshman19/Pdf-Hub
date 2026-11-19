@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
-import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFString } from 'pdf-lib';
+import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFStream, PDFString } from 'pdf-lib';
 
 describe('ALT-WP01 Synthetic Reproducer — Imported /Stamp /AP Preservation', () => {
   it('preserves /AP on imported Stamp during no-op save', async () => {
@@ -44,7 +44,8 @@ describe('ALT-WP01 Synthetic Reproducer — Imported /Stamp /AP Preservation', (
     const annot0 = annots.lookup(0, PDFDict);
     expect(annot0.lookup(PDFName.of('Subtype'), PDFName).decodeText()).toBe('Stamp');
     const ap = annot0.lookup(PDFName.of('AP'), PDFDict);
-    const normal = ap.lookup(PDFName.of('N'), PDFRawStream);
+    const normal = ap.lookup(PDFName.of('N'), PDFStream);
+    if (!(normal instanceof PDFRawStream)) throw new Error('Expected a raw appearance stream');
     expect(normal.dict.lookup(PDFName.of('Subtype'), PDFName).decodeText()).toBe('Form');
     expect(normal.dict.lookup(PDFName.of('BBox'), PDFArray).asRectangle()).toEqual({ x: 0, y: 0, width: 120, height: 50 });
     expect(normal.dict.lookup(PDFName.of('Resources'), PDFDict)).toBeDefined();
