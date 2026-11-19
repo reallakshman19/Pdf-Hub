@@ -260,3 +260,79 @@ test('WP07 M05: generated PDF stays in the session queue until browser receipt i
   await expect(queue).toHaveCount(0);
   console.log(`WP07_OUTPUT_CUSTODY sha256=${digest} queued_before_confirm=true pages=1`);
 });
+
+
+test('WP07 P0: native annotation ownership follows source B through C,A,B reorder', async ({ page }) => {
+  await stubNativeFilePickers(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Browse Files' })).toBeVisible();
+  const bytes = await createThreePageSource();
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Browse Files' }).click(),
+  ]);
+  await chooser.setFiles({
+    name: 'wp07-annotated-three-pages.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from(bytes),
+  });
+  await expect(page.locator('[data-page="1"]')).toBeVisible();
+
+  // Create an actual PDF-Hub overlay on source B through the live UI.
+  await page.getByRole('button', { name: /^Page 2\\b/ }).click();
+  await expect(page.locator('[data-page="2"]')).toBeVisible();
+  await page.getByRole('tab', { name: 'Annotate' }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Sticky Note/ }).click();
+  await page.locator('[data-page="2"]').click({ position: { x: 140, y: 180 } });
+  await expect(page.locator('[data-page="2"]').getByText('New note', { exact: true })).toBeVisible();
+
+  // Run a same-count reorder that previously rebound B's note to physical
+  // page 2 (source A) instead of retaining its source PageId.
+  await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Build', exact: true }).click();
+  await sidebar.getByRole('button', { name: 'Open Workflow Builder' }).click();
+  const builder = page.locator('[data-macro-builder="true"]');
+  await expect(builder).toBeVisible();
+  await builder.getByTestId('macro-builder-advanced').locator('summary').click();
+  await importRecipe(page, [{ op: 'reorder_pages', order: [3, 1, 2] }]);
+  await builder.getByTestId('macro-builder-test-run').click();
+  await expect(builder.getByTestId('macro-builder-run')).toBeEnabled();
+  await builder.getByTestId('macro-builder-run').click();
+  await expect(builder.getByText('Workflow complete.', { exact: false })).toBeVisible();
+  await builder.getByRole('button', { name: 'Close', exact: true }).click();
+
+  await page.getByRole('tab', { name: 'File' }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('button:has(svg.lucide-save.w-4)').click(),
+  ]);
+  const saved = new Uint8Array(await readFile(await download.path() as string));
+  const sha256 = createHash('sha256').update(saved).digest('hex');
+  await persistPublicSyntheticEvidence(`annotated-reordered-${sha256}.pdf`, saved);
+  const native = await getDocument({ data: saved.slice() }).promise;
+  try {
+    expect(native.numPages).toBe(3);
+    const order: string[] = [];
+    const annotations: number[] = [];
+    for (let n = 1; n <= native.numPages; n += 1) {
+      const pageNative = await native.getPage(n);
+      const content = (await pageNative.getTextContent()).items
+        .map((item) => ('str' in item ? item.str : '')).join(' ');
+      order.push(content.match(/WP07 NATIVE SOURCE PAGE ([ABC])/)?.[1] ?? 'MISSING');
+      annotations.push((await pageNative.getAnnotations({ intent: 'display' })).length);
+    }
+    expect(order).toEqual(['C', 'A', 'B']);
+    expect(annotations[2]).toBeGreaterThanOrEqual(1);
+    expect(annotations[1]).toBe(0);
+    expect(annotations[0]).toBe(0);
+    await persistPublicSyntheticEvidence(
+      `annotated-reordered-${sha256}.json`,
+      Buffer.from(JSON.stringify({ sha256, page_order: order, annotation_count_by_page: annotations }, null, 2)),
+    );
+    console.log(`WP07_ANNOTATION_OWNER sha256=${sha256} order=${order.join(',')} notes=${annotations.join(',')}`);
+  } finally {
+    await native.destroy();
+  }
+});
