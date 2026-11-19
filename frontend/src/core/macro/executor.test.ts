@@ -472,4 +472,93 @@ describe('macro executor', () => {
     expect(reordered.dryRunDiff?.selectedPagesAfter).toEqual([3]);
   });
 
+  it('executes the current selector on source B after deleting source A', async () => {
+    pdfMocks.countPages.mockResolvedValueOnce(2);
+    const steps: MacroRecipe = {
+      id: 'current-after-remove',
+      name: 'Delete A then rotate B',
+      steps: [
+        { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+        { op: 'rotate_pages', selector: { mode: 'current' }, degrees: 90 },
+      ],
+    };
+    const ctx = { ...baseContext, pageCount: 3, currentPage: 2, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...steps, dryRun: true }, ctx);
+    expect(preview.dryRunDiff?.currentPageBefore).toBe(2);
+    expect(preview.dryRunDiff?.currentPageAfter).toBe(1);
+    const result = await executeMacroRecipe(steps, ctx);
+    expect(result.success).toBe(true);
+    expect(result.currentPage).toBe(1);
+    expect(pdfMocks.rotatePages).toHaveBeenCalledWith(
+      expect.any(Uint8Array), [0], 90,
+    );
+  });
+
+  it('tracks current source C when preceding page A is duplicated', async () => {
+    pdfMocks.countPages.mockResolvedValueOnce(4);
+    const recipe: MacroRecipe = {
+      id: 'current-after-duplicate',
+      name: 'Duplicate A then rotate C',
+      steps: [
+        { op: 'duplicate_pages', selector: { mode: 'list', pages: [1] } },
+        { op: 'rotate_pages', selector: { mode: 'current' }, degrees: 90 },
+      ],
+    };
+    const ctx = { ...baseContext, pageCount: 3, currentPage: 3, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, ctx);
+    expect(preview.dryRunDiff?.currentPageAfter).toBe(4);
+    const result = await executeMacroRecipe(recipe, ctx);
+    expect(result.success).toBe(true);
+    expect(result.currentPage).toBe(4);
+    expect(pdfMocks.rotatePages).toHaveBeenCalledWith(
+      expect.any(Uint8Array), [3], 90,
+    );
+  });
+
+  it('tracks source B across blank insertion and reorder before current-page rotation', async () => {
+    pdfMocks.countPages.mockResolvedValueOnce(4);
+    const recipe: MacroRecipe = {
+      id: 'current-after-insert-and-reorder',
+      name: 'Insert, reorder and rotate B',
+      steps: [
+        { op: 'insert_blank_page', position: { mode: 'start' }, size: 'a4', count: 1 },
+        { op: 'reorder_pages', order: [4, 1, 2, 3] },
+        { op: 'rotate_pages', selector: { mode: 'current' }, degrees: 90 },
+      ],
+    };
+    const ctx = { ...baseContext, pageCount: 3, currentPage: 2, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, ctx);
+    expect(preview.dryRunDiff?.currentPageAfter).toBe(4);
+    const result = await executeMacroRecipe(recipe, ctx);
+    expect(result.success).toBe(true);
+    expect(result.currentPage).toBe(4);
+    expect(pdfMocks.rotatePages).toHaveBeenCalledWith(
+      expect.any(Uint8Array), [3], 90,
+    );
+  });
+
+  it('observes nested conditional selection changes between child steps', async () => {
+    pdfMocks.countPages.mockResolvedValueOnce(2);
+    const recipe: MacroRecipe = {
+      id: 'nested-selection-identity',
+      name: 'Conditional selected B after removing A',
+      steps: [{
+        op: 'conditional',
+        condition: { type: 'page_count_gt', value: 2 },
+        then: [
+          { op: 'select_pages', selector: { mode: 'list', pages: [2] } },
+          { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+          { op: 'rotate_pages', selector: { mode: 'selected' }, degrees: 90 },
+        ],
+      }],
+    };
+    const ctx = { ...baseContext, pageCount: 3, currentPage: 2, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, ctx);
+    expect(preview.dryRunDiff?.selectedPagesAfter).toEqual([1]);
+    const result = await executeMacroRecipe(recipe, ctx);
+    expect(result.success).toBe(true);
+    expect(result.selectedPages).toEqual([1]);
+    expect(pdfMocks.rotatePages).toHaveBeenCalledWith(expect.any(Uint8Array), [0], 90);
+  });
+
 });
