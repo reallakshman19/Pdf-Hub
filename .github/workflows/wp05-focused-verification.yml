@@ -86,7 +86,7 @@ jobs:
           done
           cat /tmp/wp05-preview.log
           exit 1
-      - name: P01/P02/P03/P04/P05 independent compiled-browser certification
+      - name: P01–P05 plus P06 invalid-admission compiled-browser certification
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
         run: |
