@@ -922,3 +922,77 @@ test('WP07 R5: repository-native engineering PDF corpus with invalid and encrypt
   );
   console.log('WP07_R5_REPO_CORPUS valid=2 rejected=2 generated=4 SHA_verified=true native_pdf_page_counts_verified=true rotations_verified=true');
 });
+
+test('WP07 R5: cancellation during input read preserves prior native PDFs and never processes the next input', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+  const original = Buffer.from(await createThreePageSource());
+  await page.evaluate(() => {
+    const win = window as Window & { __wp07SlowReadStarted?: boolean; __wp07LaterReadStarted?: boolean };
+    const originalRead = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      if (this.name === 'slow-read.pdf') {
+        win.__wp07SlowReadStarted = true;
+        return new Promise<ArrayBuffer>(() => undefined);
+      }
+      if (this.name === 'later-unread.pdf') win.__wp07LaterReadStarted = true;
+      return originalRead.call(this);
+    };
+  });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([
+    { name: 'completed-first.pdf', mimeType: 'application/pdf', buffer: original },
+    { name: 'slow-read.pdf', mimeType: 'application/pdf', buffer: original },
+    { name: 'later-unread.pdf', mimeType: 'application/pdf', buffer: original },
+  ]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  await page.waitForFunction(() =>
+    (window as Window & { __wp07SlowReadStarted?: boolean }).__wp07SlowReadStarted === true,
+  );
+  await batch.getByRole('button', { name: 'Cancel Batch' }).click();
+  await expect(batch.getByRole('button', { name: 'Choose Workflow' })).toBeVisible({ timeout: 12_000 });
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2);
+  expect(await page.evaluate(() =>
+    (window as Window & { __wp07LaterReadStarted?: boolean }).__wp07LaterReadStarted ?? false,
+  )).toBe(false);
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    cancelled: boolean;
+    records: Array<{ status: string; inputIndex: number; outputs?: Array<{ outputName: string }> }>;
+  };
+  expect(report.cancelled).toBe(true);
+  expect(report.records.map((row) => row.status)).toEqual(['success', 'cancelled', 'not-run']);
+  expect(report.records[0].outputs).toHaveLength(2);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Browse Files' })).toBeVisible();
+  const [sourcePicker] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Browse Files' }).click(),
+  ]);
+  await sourcePicker.setFiles({
+    name: 'reload-after-cancel.pdf', mimeType: 'application/pdf', buffer: original,
+  });
+  await expect(page.locator('[data-page="1"]')).toBeVisible({ timeout: 15_000 });
+  await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  await expect(page.getByTestId('macro-output-queue')
+    .getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 20_000 });
+  await persistPublicSyntheticEvidence(
+    `cancel-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log('WP07_R5_CANCEL first_outputs=2 cancelled_input=1 later_unread=true reload_retained=2');
+});
