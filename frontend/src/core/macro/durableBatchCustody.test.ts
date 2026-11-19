@@ -89,11 +89,20 @@ describe('WP07 R4 durable batch output custody contract', () => {
   it('awaits durable delete before hiding a receipt-confirmed output; the other is recoverable', async () => {
     const files = await outputGroup();
     const ids = await useMacroOutputQueueStore.getState().enqueueBatchOutputs(files);
-    await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0]);
+    await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0], 'native-readback-verified', 'one-source.pdf', files[0].outputSha256);
     expect(useMacroOutputQueueStore.getState().outputs.map((o) => o.id)).toEqual([ids[1]]);
+    expect(useMacroOutputQueueStore.getState().batchReceipts).toMatchObject([{
+      id: ids[0],
+      method: 'native-readback-verified',
+      readbackSha256: files[0].outputSha256,
+    }]);
     configureBatchCustodyAdapter(adapter);
     await useMacroOutputQueueStore.getState().hydrateBatchCustody();
     expect(useMacroOutputQueueStore.getState().outputs.map((o) => o.id)).toEqual([ids[1]]);
+    expect(useMacroOutputQueueStore.getState().batchReceipts).toHaveLength(1);
+    expect(useMacroOutputQueueStore.getState().batchReceipts[0]).toMatchObject({
+      id: ids[0], method: 'native-readback-verified',
+    });
   });
 
   it('blocks recovery on changed persisted bytes without silently deleting corrupt originals', async () => {
@@ -139,14 +148,15 @@ describe('WP07 R4 durable batch output custody contract', () => {
       async acknowledge() { throw new Error('IndexedDB delete denied'); },
     });
     await useMacroOutputQueueStore.getState().hydrateBatchCustody();
-    await expect(useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0]))
+    await expect(useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0], 'browser-user-confirmed'))
       .rejects.toThrow(/delete denied/);
     expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(2);
     configureBatchCustodyAdapter(adapter);
     await useMacroOutputQueueStore.getState().hydrateBatchCustody();
     expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(2);
-    await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0]);
+    await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0], 'browser-user-confirmed');
     expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(1);
+    expect(useMacroOutputQueueStore.getState().batchReceipts[0].method).toBe('browser-user-confirmed');
   });
 
   it('legacy memory-only set/clear cannot silently discard durable batch PDFs', async () => {
@@ -158,5 +168,29 @@ describe('WP07 R4 durable batch output custody contract', () => {
     await useMacroOutputQueueStore.getState().clearAllOutputs();
     expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(0);
     expect(await adapter.loadOutputs()).toHaveLength(0);
+    const receipts = await adapter.loadReceipts();
+    expect(receipts).toHaveLength(2);
+    expect(receipts.every((receipt) => receipt.method === 'discarded-without-receipt')).toBe(true);
+  });
+
+  it('rejects a fabricated native receipt without a matching saved-byte digest', async () => {
+    const [id] = await useMacroOutputQueueStore.getState().enqueueBatchOutputs(await outputGroup());
+    await expect(useMacroOutputQueueStore.getState().acknowledgeBatchOutput(
+      id, 'native-readback-verified', 'one-source.pdf', 'sha256:' + 'f'.repeat(64),
+    )).rejects.toThrow(/BATCH_RECEIPT_IDENTITY_INVALID/);
+    expect((await adapter.loadOutputs()).length).toBe(2);
+    expect(await adapter.loadReceipts()).toEqual([]);
+  });
+
+  it('records explicit user-confirmed browser receipt separately from native readback', async () => {
+    const ids = await useMacroOutputQueueStore.getState().enqueueBatchOutputs(await outputGroup());
+    await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(ids[0], 'browser-user-confirmed');
+    configureBatchCustodyAdapter(adapter);
+    await useMacroOutputQueueStore.getState().hydrateBatchCustody();
+    expect(useMacroOutputQueueStore.getState().batchReceipts).toMatchObject([
+      { id: ids[0], method: 'browser-user-confirmed' },
+    ]);
+    expect(useMacroOutputQueueStore.getState().batchReceipts[0].readbackSha256).toBeUndefined();
+    expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(1);
   });
 });
