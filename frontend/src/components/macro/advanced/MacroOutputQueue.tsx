@@ -12,7 +12,7 @@ export interface MacroOutputQueueItem extends MacroOutputFile {
 
 export interface MacroOutputQueueProps {
   outputs: MacroOutputQueueItem[];
-  onChange: (outputs: MacroOutputQueueItem[]) => void;
+  onChange: React.Dispatch<React.SetStateAction<MacroOutputQueueItem[]>>;
   onError?: (message: string) => void;
 }
 
@@ -23,14 +23,23 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
 }) => {
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
+  // A synchronous ref protects against double clicks before React renders the busy state.
+  const savingRef = React.useRef(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+
   const saveOutput = async (id: string) => {
+    if (savingRef.current) return;
     const output = outputs.find((item) => item.id === id);
     if (!output) return;
 
+    savingRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
+
     try {
-      setSaveError(null);
       await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-      onChange(outputs.filter((item) => item.id !== id));
+      // Remove only the saved identity. Functional updates preserve concurrent additions.
+      onChange((current) => current.filter((item) => item.id !== id));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logError('macro', 'Failed to save workflow output', {
@@ -39,27 +48,39 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       });
       setSaveError(message);
       onError?.(message);
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
     }
   };
 
   const saveAllOutputs = async () => {
+    if (savingRef.current || outputs.length === 0) return;
+    savingRef.current = true;
+    setIsSaving(true);
     setSaveError(null);
-    for (const output of outputs) {
-      try {
-        await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logError('macro', 'Failed to save workflow outputs', {
-          outputName: output.name,
-          error: message,
-        });
-        setSaveError(message);
-        onError?.(message);
-        return;
-      }
-    }
 
-    onChange([]);
+    try {
+      for (const output of outputs) {
+        try {
+          await FileAdapter.savePdfBytes(output.bytes, output.name, null);
+          // A later failure must not re-queue an earlier successfully saved file.
+          onChange((current) => current.filter((item) => item.id !== output.id));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logError('macro', 'Failed to save workflow outputs', {
+            outputName: output.name,
+            error: message,
+          });
+          setSaveError(message);
+          onError?.(message);
+          return;
+        }
+      }
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -76,7 +97,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => void saveAllOutputs()}
-            disabled={outputs.length === 0}
+            disabled={isSaving || outputs.length === 0}
           >
             <Save className="mr-1 h-3.5 w-3.5" />
             Save All
@@ -85,7 +106,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => onChange([])}
-            disabled={outputs.length === 0}
+            disabled={isSaving || outputs.length === 0}
           >
             <Trash2 className="mr-1 h-3.5 w-3.5" />
             Clear
@@ -121,6 +142,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => void saveOutput(output.id)}
+              disabled={isSaving}
             >
               <Save className="mr-1 h-3.5 w-3.5" />
               Save
