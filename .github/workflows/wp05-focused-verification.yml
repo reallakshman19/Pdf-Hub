@@ -91,11 +91,11 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
         run: |
           set +e
-          pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0
+          pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-native
           native_status=$?
-          pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0
+          pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-ocr
           ocr_status=$?
-          pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0
+          pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-project
           project_status=$?
           echo "WP05_NATIVE_P02_P04_EXIT=${native_status}"
           echo "WP05_REAL_OCR_P01_EXIT=${ocr_status}"
@@ -103,13 +103,18 @@ jobs:
           if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ]; then
             exit 1
           fi
-      - name: Upload failure evidence
-        if: failure()
+      - name: Manifest native browser evidence hashes
+        if: always()
+        run: |
+          mkdir -p frontend/test-results
+          find frontend/test-results -type f ! -name 'WP05_ARTIFACT_SHA256SUMS.txt' -print0 | sort -z | xargs -0 -r sha256sum > frontend/test-results/WP05_ARTIFACT_SHA256SUMS.txt
+      - name: Upload synthetic native browser evidence (pass or fail)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wp05-native-browser-failure
+          name: wp05-native-browser-evidence
           path: |
             frontend/test-results/
             /tmp/wp05-preview.log
-          if-no-files-found: ignore
-          retention-days: 7
+          if-no-files-found: warn
+          retention-days: 14
