@@ -381,7 +381,23 @@ export const WriterV2ToolbarControls: React.FC = () => {
       if (standaloneImportRef.current?.generation === generation) {
         standaloneImportRef.current.staged = staged;
       }
-      const imported = await commitStagedWriterProjectImport(staged, operation);
+      const imported = await commitStagedWriterProjectImport(staged, operation, {
+        prepareOcrRestore: (payload, documentFingerprint) => {
+          const previousOcrState = useOcrStore.getState();
+          return {
+            apply: () => {
+              const result = hydrateOcrStoreFromProjectPayload({
+                payload,
+                expectedDocumentFingerprint: documentFingerprint,
+              });
+              if (!result.restored) {
+                throw new Error('Writer project OCR payload could not be restored.');
+              }
+            },
+            rollback: () => useOcrStore.setState(previousOcrState, true),
+          };
+        },
+      });
       if (!operation.isCurrent()) return;
       completeSaveOperation(
         imported.documentMeta?.mode === 'blankDocument'
