@@ -67,8 +67,15 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   const review = page.getByTestId('ocr-review-workspace');
   await expect(review).toBeVisible({ timeout: 150_000 });
   const search = page.getByPlaceholder('Search OCR result');
-  await search.fill('ALPHA');
-  const hits = page.getByTestId('ocr-search-match');
-  await expect(hits.first()).toBeVisible({ timeout: 15_000 });
-  await expect(hits.first()).toContainText(/ALPHA/i);
+  // Capture real recognized words through the public search interface.
+  // Diagnostics distinguish recognition errors from a broken index/UI.
+  const probes: Record<string, string[]> = {};
+  for (const query of ['a', 'ALPHA', 'VALVE', '10', 'BAR']) {
+    await search.fill(query);
+    await expect.poll(async () => page.getByTestId('ocr-search-mini-panel').count()).toBe(1);
+    probes[query] = await page.getByTestId('ocr-search-match').allTextContents();
+  }
+  console.log('WP05_REAL_OCR_SEARCH_PROBES', JSON.stringify(probes));
+  expect(probes.ALPHA.some((value) => /ALPHA/i.test(value)), 'independent scanned source must yield searchable ALPHA').toBe(true);
+  expect(probes.VALVE.some((value) => /VALVE/i.test(value)), 'independent scanned source must yield searchable VALVE').toBe(true);
 });
