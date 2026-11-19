@@ -50,4 +50,20 @@ describe('native shape sidecar source binding', () => {
     expect(restored.data.nativeBoxShapeGeneratedOrientation).toBe(1);
     unmount();
   });
+  it.each(['fresh-cloud-hash', undefined])('rebinds a recovered cloud turn to actual source hash %s', async (sourceHash) => {
+    const stale = { ...shape('old-cloud-hash'), type: 'shape-cloud' as const };
+    stale.data.nativeBoxShapeHasAppearance = true;
+    stale.data.nativeBoxShapeTurn = { turns: 1, sourceHash: 'old-cloud-hash' };
+    const source = { ...shape(sourceHash), type: 'shape-cloud' as const };
+    source.data.nativeBoxShapeHasAppearance = Boolean(sourceHash);
+    mocks.load.mockResolvedValue([stale]); mocks.read.mockResolvedValue({ annotations: [source] });
+    const { unmount } = renderHook(() => useAnnotationPersistence({ documentKey: 'shape-doc', workingBytes: bytes, pdfDoc: null,
+      annotations: useAnnotationStore.getState().annotations, setAnnotations: useAnnotationStore.getState().setAnnotations, setRestoredCount: vi.fn() }));
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe('shape-doc'));
+    const restored = useAnnotationStore.getState().annotations[0];
+    expect(restored.data.nativeBoxShapeSourceHash).toBe(sourceHash);
+    expect(restored.data.nativeBoxShapeTurn?.sourceHash).toBe('old-cloud-hash');
+    expect(rotateBoxShapeQuarterTurn(restored)).toBeNull();
+    unmount();
+  });
 });

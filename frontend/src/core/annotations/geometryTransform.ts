@@ -2,11 +2,14 @@ import type { AnnotationData, PdfAnnotation, Rect } from './types';
 
 /** Rotate a square/circle annotation and its selection box as one undoable edit. */
 export function rotateBoxShapeQuarterTurn(annotation: PdfAnnotation): Partial<PdfAnnotation> | null {
-  if (annotation.type !== 'shape-rect' && annotation.type !== 'shape-ellipse') return null;
+  if (annotation.type !== 'shape-rect' && annotation.type !== 'shape-ellipse' && annotation.type !== 'shape-cloud') return null;
   const { x, y, width, height } = annotation.rect;
   if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
   const prior = annotation.data.nativeBoxShapeTurn;
   const hash = prior?.sourceHash ?? annotation.data.nativeBoxShapeSourceHash;
+  // Clouds have no app-generated AP yet: only a source-backed, validated
+  // native appearance can be transformed without inventing artwork.
+  if (annotation.type === 'shape-cloud' && (!annotation.data.nativeBoxShapeImported || !annotation.data.nativeBoxShapeHasAppearance || !hash)) return null;
   if (annotation.data.nativeBoxShapeImported && (!hash || hash !== annotation.data.nativeBoxShapeSourceHash)) return null;
   const previous = prior?.turns ?? 0;
   if (!Number.isInteger(previous) || previous < 0 || previous > 3) return null;
