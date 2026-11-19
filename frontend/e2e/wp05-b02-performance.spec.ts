@@ -133,6 +133,12 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
     const fresh = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     try {
       const reopened = await fresh.newPage();
+      const browserExceptions: string[] = [];
+      const consoleErrors: string[] = [];
+      reopened.on('pageerror', (error) => browserExceptions.push(String(error)));
+      reopened.on('console', (message) => {
+        if (message.type() === 'error') consoleErrors.push(message.text());
+      });
       await stubNativeFilePickers(reopened);
       await reopened.goto('./');
       const [reopenPicker] = await Promise.all([
@@ -145,12 +151,13 @@ async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, 
         buffer: Buffer.from(extractedBytes),
       });
       try {
-        await waitForPhase8gRenderedPage(reopened, 1);
+        await expect(reopened.locator('[data-page="1"] canvas')).toBeVisible({ timeout: 15_000 });
       } catch (error) {
+        const openFailure = await reopened.getByTestId('open-pdf-failure').allTextContents().catch(() => []);
         const alerts = await reopened.getByRole('alert').allTextContents().catch(() => []);
         const visibleText = (await reopened.locator('body').innerText().catch(() => '')).slice(-2400);
         const sourceState = await reopened.locator('input[inputmode="numeric"][aria-label^="Page "]').first().getAttribute('aria-label').catch(() => null);
-        throw new Error(`Extracted ${count}-page source produced independently parseable 3-page PDF but app did not reopen: ${String(error)}; alerts=${JSON.stringify(alerts)}; navigator=${sourceState}; body=${visibleText}`);
+        throw new Error(`Extracted ${count}-page source produced independently parseable 3-page PDF but app did not reopen: ${String(error)}; explicit_open_failure=${JSON.stringify(openFailure)}; alerts=${JSON.stringify(alerts)}; browser_exceptions=${JSON.stringify(browserExceptions)}; console_errors=${JSON.stringify(consoleErrors)}; navigator=${sourceState}; body=${visibleText}`);
       }
     } finally {
       await fresh.close();
