@@ -121,6 +121,47 @@ describe('MacroOutputQueue', () => {
     });
   });
 
+  it('preserves newly generated outputs while an earlier Save All is in flight', async () => {
+    let completeFirstSave: (() => void) | undefined;
+    saveMock.mockImplementationOnce(() => new Promise<null>((resolve) => {
+      completeFirstSave = () => resolve(null);
+    }));
+
+    function ConcurrentOutputQueue() {
+      const [items, setItems] = React.useState(outputs);
+      return (
+        <>
+          <button type="button" onClick={() => setItems((current) => [
+            ...current,
+            { id: 'three', name: 'three.pdf', bytes: new Uint8Array([3]) },
+          ])}>Add generated output</button>
+          <MacroOutputQueue outputs={items} onChange={setItems} />
+        </>
+      );
+    }
+
+    render(<ConcurrentOutputQueue />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add generated output' }));
+    expect(screen.getByText('three.pdf')).toBeInTheDocument();
+
+    completeFirstSave?.();
+    await waitFor(() => {
+      expect(saveMock).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText('one.pdf')).not.toBeInTheDocument();
+      expect(screen.queryByText('two.pdf')).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText('three.pdf')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    await waitFor(() => {
+      expect(screen.getByText('No generated output files.')).toBeInTheDocument();
+    });
+    expect(saveMock.mock.calls.map((call) => call[1])).toEqual([
+      'one.pdf', 'two.pdf', 'three.pdf',
+    ]);
+  });
+
   it('clears queued outputs without writing files', () => {
     const onChange = vi.fn();
     render(<MacroOutputQueue outputs={outputs} onChange={onChange} />);
