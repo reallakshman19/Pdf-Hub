@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   PDFArray, PDFDict, PDFDocument, PDFHexString,
-  PDFName, PDFNumber, StandardFonts,
+  PDFName, PDFNumber, PDFStream, StandardFonts,
 } from 'pdf-lib';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
@@ -153,6 +153,66 @@ test('P04: native range starts reanchor on browser Delete, survive Save and reop
     ]);
     expect(reopenedNative.getPageCount()).toBe(2);
     expect(reopenedNative.getPage(0).getRotation().angle).toBe(90);
+  } finally {
+    await fresh.close();
+  }
+});
+
+function nativeStreamBytes(doc: PDFDocument, index: number): string[] {
+  const page = doc.getPage(index);
+  const contents = page.node.Contents();
+  if (!contents) throw new Error('Extracted PDF has no page content');
+  const nodes = contents instanceof PDFArray ? contents.asArray() : [contents];
+  return nodes.map((node) => {
+    const stream = doc.context.lookup(node, PDFStream);
+    return Buffer.from(stream.getContents()).toString('base64');
+  });
+}
+
+test('P03: browser Extract emits one native PDF page with original content and keeps source unchanged', async ({ page, browser }) => {
+  test.setTimeout(60_000);
+  const source = await nativeLabeledSource();
+  const sourcePdf = await PDFDocument.load(source);
+  const expectedPageStream = nativeStreamBytes(sourcePdf, 0);
+  await openRealPdf(page, source);
+
+  await page.getByRole('tab', { name: 'Organize' }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 20_000 }),
+    page.getByRole('button', { name: 'Extract selected or current pages' }).click(),
+  ]);
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error('Extract did not emit native PDF bytes');
+  const buffers: Buffer[] = [];
+  for await (const chunk of stream) buffers.push(Buffer.from(chunk));
+  await download.delete();
+  const extractedBytes = new Uint8Array(Buffer.concat(buffers));
+  await test.info().attach('wp05-extract-native-output.pdf', {
+    body: Buffer.from(extractedBytes),
+    contentType: 'application/pdf',
+  });
+
+  const extracted = await PDFDocument.load(extractedBytes);
+  expect(extracted.getPageCount()).toBe(1);
+  expect(extracted.getPage(0).getWidth()).toBe(612);
+  expect(extracted.getPage(0).getHeight()).toBe(792);
+  expect(nativeStreamBytes(extracted, 0)).toEqual(expectedPageStream);
+
+  // Extraction must be non-destructive to the source document.
+  const originalSaved = await saveNativePdf(page);
+  const original = await assertNativeLabelRules(originalSaved, [
+    { start: 0, prefix: 'Cover' },
+    { start: 1, style: '/r' },
+    { start: 2, style: '/D', prefix: 'Body-', number: 7 },
+  ]);
+  expect(original.getPageCount()).toBe(3);
+
+  // Verify the emitted artifact independently reopens in a clean workspace.
+  const fresh = await browser.newContext();
+  try {
+    const reopened = await fresh.newPage();
+    await openRealPdf(reopened, extractedBytes);
+    await expect(reopened.locator('[data-page="1"] canvas')).toBeVisible();
   } finally {
     await fresh.close();
   }
