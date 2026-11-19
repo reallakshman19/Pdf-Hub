@@ -83,8 +83,7 @@ async function saveAndInspect(page: Page): Promise<string[]> {
       const nativePage = await native.getPage(index);
       const content = await nativePage.getTextContent();
       const text = content.items
-        .filter((item): item is typeof item & { str: string } => 'str' in item)
-        .map((item) => item.str)
+        .map((item) => ('str' in item ? item.str : ''))
         .join(' ');
       const marker = text.match(/WP07 NATIVE SOURCE PAGE ([ABC])/);
       expect(marker, `native PDF page ${index} source identity`).not.toBeNull();
