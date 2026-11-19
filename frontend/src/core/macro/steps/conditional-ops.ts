@@ -2,6 +2,7 @@ import { macroRegistry } from '../registry';
 import type { MacroMutableState, StepResult } from '../registry';
 import type { MacroExecutionContext, MacroCondition, MacroStep } from '../types';
 import { getMacroExecutionBudget } from '../resourceBudget';
+import { advanceMacroPageLineage } from '../pageLineage';
 
 type ConditionalStep = Extract<MacroStep, { op: 'conditional' }>;
 type ApplyTemplateVarsStep = Extract<MacroStep, { op: 'apply_template_vars' }>;
@@ -25,6 +26,7 @@ async function executeConditional(
       : await operation;
     budget?.checkpoint(`${subStep.op} result`);
     budget?.afterStep(state, result.sideEffects);
+    advanceMacroPageLineage(state, subStep, result);
     subResults.push(result);
     mergedSideEffects.push(...result.sideEffects);
 
