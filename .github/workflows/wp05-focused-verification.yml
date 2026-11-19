@@ -41,6 +41,7 @@ jobs:
             src/core/ocr/__tests__/tesseractJsEngine.test.ts \
             src/core/ocr/__tests__/ocrPageAnchor.test.ts \
             src/core/ocr/__tests__/ocrRegionRunner.test.ts \
+            src/components/ocr/__tests__/OcrRegionTool.test.tsx \
             src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
             src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
             --pool=forks --maxWorkers=1
