@@ -31,6 +31,10 @@ async function executeConditional(
     for (const effect of result.sideEffects) {
       if (effect.type === 'bytes_updated') state.workingBytes = effect.bytes;
       if (effect.type === 'page_count_changed') state.pageCount = effect.newCount;
+      // Nested operations must observe the side effects of preceding steps.
+      // The same effects are replayed by the enclosing executor on completion.
+      if (effect.type === 'selection_changed') state.selectedPages = effect.selectedPages;
+      if (effect.type === 'current_page_changed') state.currentPage = effect.currentPage;
     }
 
     if (result.status === 'error') break;
