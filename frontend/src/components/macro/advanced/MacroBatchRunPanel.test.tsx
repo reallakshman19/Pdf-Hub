@@ -214,7 +214,7 @@ describe('MacroBatchRunPanel', () => {
         fileName: 'mutable.pdf',
         inputPageCount: 1,
         sourceSha256: 'sha256:' + '1'.repeat(64),
-        outputSha256: 'sha256:' + '2'.repeat(64),
+        outputSha256: 'sha256:' + 'b'.repeat(64),
         outputName: '001-mutable-fixture-111111111111.pdf',
         batchRunId: 'mutate-run',
         recipeId: 'fixture',
