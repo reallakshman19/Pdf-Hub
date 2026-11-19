@@ -528,4 +528,55 @@ describe('macro executor', () => {
     expect(pdfMocks.insertBlankPage).not.toHaveBeenCalled();
   });
 
+  for (const op of ['remove_pages', 'split_pages'] as const) {
+    it(`rejects ${op} on the complete page set before document mutation`, async () => {
+      const recipe: MacroRecipe = {
+        id: `reject-all-${op}`,
+        name: 'Do not remove the complete source',
+        steps: [{ op, selector: { mode: 'all' } }],
+      };
+      const context = {
+        ...baseContext,
+        pageCount: 3,
+        selectedPages: [],
+        currentPage: 1,
+      };
+
+      const preview = await executeMacroRecipe(
+        { ...recipe, dryRun: true },
+        context,
+      );
+      expect(preview.success).toBe(false);
+      expect(preview.status).toBe('failed');
+      expect(preview.dryRunDiff?.finalPageCount).toBe(3);
+      expect(preview.logs.join(' ')).toContain('Cannot remove all pages');
+      expect(pdfMocks.removePages).not.toHaveBeenCalled();
+      expect(pdfMocks.extractPages).not.toHaveBeenCalled();
+
+      pdfMocks.removePages.mockRejectedValueOnce(
+        new Error('Cannot remove all pages from the document'),
+      );
+      const executed = await executeMacroRecipe(recipe, context);
+      expect(executed.success).toBe(false);
+      expect(executed.rolledBack).toBe(true);
+      expect(executed.finalBytes).toEqual(context.workingBytes);
+    });
+  }
+
+  it('still previews a valid partial removal without blocking the operation', async () => {
+    const recipe: MacroRecipe = {
+      id: 'valid-partial-remove',
+      name: 'Remove page two',
+      steps: [{ op: 'remove_pages', selector: { mode: 'list', pages: [2] } }],
+    };
+    const context = { ...baseContext, pageCount: 3, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, context);
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(2);
+    pdfMocks.countPages.mockResolvedValueOnce(2);
+    const executed = await executeMacroRecipe(recipe, context);
+    expect(executed.success).toBe(true);
+    expect(pdfMocks.removePages).toHaveBeenCalledWith(context.workingBytes, [1]);
+  });
+
 });
