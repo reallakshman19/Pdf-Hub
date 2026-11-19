@@ -101,6 +101,8 @@ interface NativeCopyOrigin {
 
 const DEFAULT_STROKE: PdfColor = { r: 0.25, g: 0.35, b: 0.5 };
 const DEFAULT_FILL: PdfColor = { r: 1, g: 0.95, b: 0.3 };
+const MARKUP_GENERATED_AP_KEY = 'PDFHubGeneratedMarkupAPFingerprint';
+const MARKUP_GENERATED_AP_VERSION = 'pdfhub-generated-markup-ap-v1:';
 
 const ROOT_OWNED_KEYS = new Set([
   'Type', 'Subtype', 'Rect', 'P', 'NM', 'M', 'CreationDate', 'T', 'F',
@@ -108,7 +110,7 @@ const ROOT_OWNED_KEYS = new Set([
   'PDFHubBaseAP', 'PDFHubBaseRect', 'PDFHubBaseRD', 'PDFHubBaseCL', 'PDFHubRotation',
   'State', 'StateModel', 'IRT', 'RT',
   'Name', 'Open', 'C', 'CA', 'IC', 'Border', 'BS', 'DA', 'Q', 'IT', 'CL', 'RD', 'BE',
-  'Vertices', 'L', 'LE', 'InkList', 'QuadPoints',
+  'Vertices', 'L', 'LE', 'InkList', 'QuadPoints', MARKUP_GENERATED_AP_KEY,
 ]);
 const STAMP_ROOT_OWNED_KEYS = new Set([...ROOT_OWNED_KEYS, STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY]);
 const BOX_ROOT_OWNED_KEYS = new Set([...ROOT_OWNED_KEYS, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY]);
@@ -125,6 +127,65 @@ const REPLY_OWNED_KEYS = new Set([
 ]);
 
 const REPLY_APPEARANCE_KEYS = ['Subtype', 'Contents'] as const;
+
+/** Bind application-generated artwork to the actual PDF geometry, not sidecar flags. */
+async function fingerprintGeneratedMarkupAppearance(doc: PDFDocument, source: PDFDict, lib: PdfLibModule): Promise<string | null> {
+  try {
+    const name = source.lookupMaybe(lib.PDFName.of('Subtype'), lib.PDFName)?.decodeText();
+    if (!name || !['Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Square'].includes(name)) return null;
+    if (name === 'Square' && readTextObject(source, 'PDFHubType', lib) !== 'redaction') return null;
+    if (name === 'Square' && source.get(lib.PDFName.of('QuadPoints'))) return null;
+    if (['IT', 'Measure', 'Vertices', 'L', 'CL', 'InkList', 'RD', 'BE', 'Rotate', 'PDFHubBaseAP', 'MK', 'AS', 'OC']
+      .some((key) => source.get(lib.PDFName.of(key)))) return null;
+    const rect = readPdfNumberArray(source, 'Rect', lib);
+    if (!rect || rect.length !== 4 || !rect.every(Number.isFinite) || rect[2] <= rect[0] || rect[3] <= rect[1]) return null;
+    const quads = name === 'Square' ? [] : readPdfNumberArray(source, 'QuadPoints', lib);
+    if (!quads || (name !== 'Square' && (quads.length < 8 || quads.length % 8 || !quads.every(Number.isFinite)))) return null;
+    const ap = source.get(lib.PDFName.of('AP'));
+    if (!ap) return null;
+    const root = doc.context.obj({}) as PDFDict;
+    root.set(lib.PDFName.of('Subtype'), lib.PDFName.of(name));
+    root.set(lib.PDFName.of('Rect'), doc.context.obj(rect));
+    root.set(lib.PDFName.of('AP'), ap);
+    root.set(lib.PDFName.of('PDFHubData'), lib.PDFString.of(JSON.stringify(quads)));
+    for (const key of ['F', 'C', 'CA', 'IC', 'Border', 'BS']) {
+      const value = source.get(lib.PDFName.of(key));
+      if (value) root.set(lib.PDFName.of(key), value);
+    }
+    const fingerprint = await fingerprintStampAppearance(doc, root, lib);
+    return fingerprint?.startsWith('pdfhub-stamp-ap-v1:')
+      ? MARKUP_GENERATED_AP_VERSION + fingerprint.slice('pdfhub-stamp-ap-v1:'.length) : null;
+  } catch { return null; }
+}
+
+async function verifyGeneratedMarkupAppearance(doc: PDFDocument, source: PDFDict, lib: PdfLibModule): Promise<boolean> {
+  try {
+    const stored = source.lookupMaybe(lib.PDFName.of(MARKUP_GENERATED_AP_KEY), lib.PDFString, lib.PDFHexString)?.decodeText();
+    return Boolean(stored && /^pdfhub-generated-markup-ap-v1:[0-9a-f]{64}$/.test(stored)
+      && stored === await fingerprintGeneratedMarkupAppearance(doc, source, lib));
+  } catch { return false; }
+}
+
+async function sealGeneratedMarkupAppearance(doc: PDFDocument, target: PDFDict, lib: PdfLibModule): Promise<boolean> {
+  const digest = await fingerprintGeneratedMarkupAppearance(doc, target, lib);
+  if (!digest) { target.delete(lib.PDFName.of(MARKUP_GENERATED_AP_KEY)); return false; }
+  target.set(lib.PDFName.of(MARKUP_GENERATED_AP_KEY), lib.PDFString.of(digest));
+  return true;
+}
+
+/** The appearance builder consumes paired top/bottom edges, not perimeter order. */
+function supportsMarkupAppearanceQuads(values: number[]): boolean {
+  if (values.length < 8 || values.length % 8 || !values.every(Number.isFinite)) return false;
+  for (let i = 0; i < values.length; i += 8) {
+    const p = [0, 1, 3, 2].map((index) => ({ x: values[i + index * 2], y: values[i + index * 2 + 1] }));
+    const turns = p.map((point, index) => {
+      const next = p[(index + 1) % 4]; const after = p[(index + 2) % 4];
+      return (next.x - point.x) * (after.y - next.y) - (next.y - point.y) * (after.x - next.x);
+    });
+    if (!turns.every((turn) => turn > 1e-9) && !turns.every((turn) => turn < -1e-9)) return false;
+  }
+  return true;
+}
 
 /**
  * Writes PDF Hub annotations as native PDF /Annot dictionaries.
@@ -159,7 +220,7 @@ export async function writeNativePdfAnnotations(
   const copies = annotations.filter((annotation) => annotation.data.nativeCopySource);
   const sourceModels = options.replaceManagedAnnotations || copies.length
     || annotations.some((item) => item.id.startsWith('native:p') || item.type === 'stamp'
-      || item.type === 'comment' || item.type === 'sticky-note' || item.data.review)
+      || item.type === 'comment' || item.type === 'sticky-note' || markupOrMask(item.type) || item.data.review)
     ? (await readNativePdfAnnotations(baseBytes)).annotations : [];
   const copyOrigins = new Map<PdfAnnotation, NativeCopyOrigin>();
   for (const annotation of copies) {
@@ -243,6 +304,10 @@ export async function writeNativePdfAnnotations(
         }
       }
       const nativeSubtype = existingRoot ? doc.context.lookup(existingRoot.get(lib.PDFName.of('Subtype'))) : undefined;
+      if (existingRoot && sourceModel && markupOrMask(sourceModel.type)
+        && annotation.type !== sourceModel.type && existingRoot.get(lib.PDFName.of('AP'))) {
+        throw new Error('Cannot safely convert this markup while preserving its native appearance.');
+      }
       if (existingRoot && sourceModel && ['shape-rect', 'shape-ellipse', 'shape-cloud'].includes(sourceModel.type)
         && annotation.type !== sourceModel.type && existingRoot.get(lib.PDFName.of('AP'))
         && !await verifyGeneratedBoxAppearanceFingerprint(doc, existingRoot, lib)) {
@@ -359,6 +424,11 @@ export async function writeNativePdfAnnotations(
           // only the new native copy; the source and its thread stay intact.
           const copiedDict = doc.context.lookup(rootRef, lib.PDFDict);
           copiedDict.set(lib.PDFName.of('Contents'), pdfText(lib, annotationText(adjustedCopy)));
+        } else if (textChanged && markupOrMask(annotation.type) && !hasNativeRichText(copyOrigin.dict, lib)) {
+          // For text markup and visual masks Contents is comment metadata;
+          // keep the cloned appearance and change only the new copy's text.
+          const copiedDict = doc.context.lookup(rootRef, lib.PDFDict);
+          copiedDict.set(lib.PDFName.of('Contents'), pdfText(lib, annotationText(adjustedCopy)));
         } else if (textChanged || (freeText && annotation.data.rotation)) {
           if (annotation.type !== 'textbox' && annotation.type !== 'callout') {
             throw new Error('Cannot safely edit the appearance of this copied native annotation.');
@@ -416,6 +486,13 @@ export async function writeNativePdfAnnotations(
         const outputShape = doc.context.lookup(rootRef, lib.PDFDict);
         if (!await sealGeneratedBoxAppearanceFingerprint(doc, outputShape, orientation, lib)) {
           throw new Error('Cannot safely preserve editable shape provenance for this appearance.');
+        }
+      }
+      if (copyOrigin && markupOrMask(annotation.type)
+        && await verifyGeneratedMarkupAppearance(doc, copyOrigin.dict, lib)) {
+        const outputMarkup = doc.context.lookup(rootRef, lib.PDFDict);
+        if (outputMarkup.get(lib.PDFName.of('AP')) && !await sealGeneratedMarkupAppearance(doc, outputMarkup, lib)) {
+          throw new Error('Cannot safely preserve editable markup appearance provenance.');
         }
       }
       annots.push(rootRef);
@@ -2077,7 +2154,7 @@ function registerCopiedNativeAnnotation(
   const dict = doc.context.obj({}) as PDFDict;
   for (const key of sourceDict.keys()) {
     const name = key.decodeText();
-    if (['P', 'NM', 'Rect', 'Popup', 'Parent', 'IRT', 'RT', 'State', 'StateModel', 'PDFHubData', 'PDFHubType', 'PDFHubVersion', 'AP', STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY].includes(name)
+    if (['P', 'NM', 'Rect', 'Popup', 'Parent', 'IRT', 'RT', 'State', 'StateModel', 'PDFHubData', 'PDFHubType', 'PDFHubVersion', 'AP', STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY, MARKUP_GENERATED_AP_KEY].includes(name)
       || (['stamp', 'textbox', 'callout'].includes(annotation.type) && ['PDFHubBaseAP', 'PDFHubBaseRect', 'PDFHubBaseRD', 'PDFHubBaseCL', 'PDFHubRotation'].includes(name))) continue;
     const value = sourceDict.get(key);
     if (value) dict.set(key, value);
@@ -2314,6 +2391,8 @@ async function registerNativeAnnotation(
   sourceModel?: PdfAnnotation,
 ): Promise<PDFRef> {
   const originalSource = sourceDict;
+  const trustedGeneratedMarkup = Boolean(markupOrMask(annotation.type) && sourceDict
+    && await verifyGeneratedMarkupAppearance(doc, sourceDict, lib));
   if (annotation.type === 'textbox' || annotation.type === 'callout') {
     const foreignRotation = sourceDict?.lookupMaybe(lib.PDFName.of('Rotate'), lib.PDFNumber)?.asNumber() ?? 0;
     if (annotation.data.rotation && foreignRotation && !sourceDict?.get(lib.PDFName.of('PDFHubBaseRect'))) {
@@ -2466,6 +2545,21 @@ async function registerNativeAnnotation(
     const originalAppearance = sourceDict.get(lib.PDFName.of('AP'));
     if (originalAppearance) dict.set(lib.PDFName.of('AP'), originalAppearance);
   }
+  if (markupOrMask(annotation.type) && sourceDict?.get(lib.PDFName.of('AP')) && !dict.get(lib.PDFName.of('AP'))) {
+    // Contents is comment metadata for text markups and visual masks. Its
+    // update alone must not replace arbitrary imported artwork. A simultaneous
+    // ordinary move/resize can carry that same artwork without regeneration.
+    if (appearanceFieldsEquivalent(sourceDict, dict, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Contents'), lib)
+      || isPureAppearanceRectTransform(sourceDict, dict, lib, true)) {
+      dict.set(lib.PDFName.of('AP'), sourceDict.get(lib.PDFName.of('AP'))!);
+    } else {
+      const editable = ['Contents', 'Rect', 'QuadPoints', 'C', 'CA', 'IC', 'Border', 'BS'];
+      if (!trustedGeneratedMarkup
+        || !appearanceFieldsEquivalent(sourceDict, dict, ROOT_APPEARANCE_KEYS.filter((key) => !editable.includes(key)), lib)) {
+        throw new Error('Cannot safely replace this imported markup appearance after changing its geometry or style.');
+      }
+    }
+  }
   if (generatedBoxSource && sourceDict && !regenerateBox && !boxTurns && !dict.get(lib.PDFName.of('AP'))) {
     // Verified app-created box artwork does not depend on /Contents. Keep it
     // even when external style metadata and the visible AP disagree; only an
@@ -2547,10 +2641,32 @@ async function registerNativeAnnotation(
     const nativeQuads = annotation.type === 'redaction'
       ? []
       : readPdfNumberArray(dict, 'QuadPoints', lib) ?? [];
-    attachNativeMarkupAppearance(
-      doc, dict, annotation, geometry.rect, nativeQuads,
-      annotation.type === 'highlight' ? fill : stroke, opacity, borderWidth, lib,
-    );
+    const hasSourceAppearance = Boolean(sourceDict?.get(lib.PDFName.of('AP')));
+    const importedNoApSource = Boolean(sourceDict && !hasSourceAppearance);
+    if (importedNoApSource) {
+      // Source point order does not prove text direction: even a convex paired
+      // quadrilateral may start at the bottom edge. Also preserve viewer
+      // authority for an existing visual mask with no appearance.
+      if (!appearanceFieldsEquivalent(sourceDict!, dict, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Contents'), lib)
+        && !isPureAppearanceRectTransform(sourceDict!, dict, lib, true, true)) {
+        throw new Error('Cannot safely change imported markup without a native appearance.');
+      }
+    } else {
+      if (!dict.get(lib.PDFName.of('AP')) && annotation.type !== 'redaction'
+        && !supportsMarkupAppearanceQuads(nativeQuads)) {
+        throw new Error('Cannot safely generate markup appearance with unsupported quadrilateral ordering.');
+      }
+      attachNativeMarkupAppearance(
+        doc, dict, annotation, geometry.rect, nativeQuads,
+        annotation.type === 'highlight' ? fill : stroke, opacity, borderWidth, lib,
+      );
+      // Never bless an imported AP as app-generated. Only seal a form that was
+      // just constructed by this writer or was verified against the actual PDF.
+      if ((!hasSourceAppearance || trustedGeneratedMarkup)
+        && !await sealGeneratedMarkupAppearance(doc, dict, lib)) {
+        throw new Error('Cannot safely preserve editable markup appearance provenance.');
+      }
+    }
   }
   if (annotation.type === 'shape-polygon' && !sourceDict && !dict.get(lib.PDFName.of('AP'))) {
     attachCreatedPolygonAppearance(doc, dict, annotation, lib);
@@ -2591,8 +2707,8 @@ async function registerNativeAnnotation(
   return ref;
 }
 
-function isPureAppearanceRectTransform(source: PDFDict, target: PDFDict, lib: PdfLibModule): boolean {
-  if (!source.get(lib.PDFName.of('AP'))) return false;
+function isPureAppearanceRectTransform(source: PDFDict, target: PDFDict, lib: PdfLibModule, ignoreContents = false, translationWithoutAppearance = false): boolean {
+  if (!source.get(lib.PDFName.of('AP')) && !translationWithoutAppearance) return false;
   const before = readPdfNumberArray(source, 'Rect', lib);
   const after = readPdfNumberArray(target, 'Rect', lib);
   if (!before || !after || before.length !== 4 || after.length !== 4) return false;
@@ -2600,11 +2716,13 @@ function isPureAppearanceRectTransform(source: PDFDict, target: PDFDict, lib: Pd
   if (width <= 0 || height <= 0) return false;
   const sx = (after[2] - after[0]) / width; const sy = (after[3] - after[1]) / height;
   if (sx <= 0 || sy <= 0) return false;
+  if (translationWithoutAppearance && (!nearlyEqual(sx, 1, 1e-4) || !nearlyEqual(sy, 1, 1e-4))) return false;
   if ((!nearlyEqual(sx, 1, 1e-4) || !nearlyEqual(sy, 1, 1e-4)) && source.get(lib.PDFName.of('RD'))) return false;
   const transform = (values: number[]) => values.map((value, index) => index % 2
     ? after[1] + (value - before[1]) * sy : after[0] + (value - before[0]) * sx);
   const coordinates = ['CL', 'L', 'Vertices', 'QuadPoints'];
-  if (!appearanceFieldsEquivalent(source, target, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Rect' && key !== 'InkList' && !coordinates.includes(key)), lib)) return false;
+  if (!appearanceFieldsEquivalent(source, target, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Rect' && key !== 'InkList'
+    && (!ignoreContents || key !== 'Contents') && !coordinates.includes(key)), lib)) return false;
   for (const key of coordinates) {
     const oldValue = readPdfNumberArray(source, key, lib);
     const newValue = readPdfNumberArray(target, key, lib);
@@ -2693,10 +2811,16 @@ function addSubtypeFields(
         sourceDict,
         lib,
       );
-      target.C = colorArray(
-        annotation.type === 'highlight' ? fill : stroke,
-      );
-      target.CA = opacity;
+      if (sourceDict && sourceModel && (annotation.type === 'highlight'
+        ? annotation.data.backgroundColor === sourceModel.data.backgroundColor
+        : annotation.data.borderColor === sourceModel.data.borderColor)) {
+        const original = sourceDict.get(lib.PDFName.of('C'));
+        if (original) target.C = original;
+      } else target.C = colorArray(annotation.type === 'highlight' ? fill : stroke);
+      if (sourceDict && sourceModel && annotation.data.opacity === sourceModel.data.opacity) {
+        const original = sourceDict.get(lib.PDFName.of('CA'));
+        if (original) target.CA = original;
+      } else target.CA = opacity;
       return;
 
     case 'textbox':
