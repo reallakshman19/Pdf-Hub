@@ -6,6 +6,8 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   createBestAvailableBatchCustodyAdapter,
   type BatchCustodyAdapter,
+  type BatchOutputReceipt,
+  type BatchReceiptMethod,
 } from './durableBatchCustody';
 
 /** WP-04 boundary: only batch outputs have a durable IndexedDB contract. */
@@ -36,6 +38,8 @@ type OutputChange =
 
 export interface MacroOutputQueueState {
   outputs: MacroOutputQueueItem[];
+  /** Immutable receipt/discard tombstones survive output-byte retirement and reload. */
+  batchReceipts: BatchOutputReceipt[];
   lastBatchReport: BatchRunResult | null;
   batchCustodyStatus: BatchCustodyStatus;
   batchCustodyError: string | null;
@@ -44,7 +48,12 @@ export interface MacroOutputQueueState {
   /** Database transaction must finish before any output becomes visible. */
   enqueueBatchOutputs: (files: readonly BatchOutputArtifact[]) => Promise<string[]>;
   /** Delete persisted bytes first; only then acknowledge and hide in the UI. */
-  acknowledgeBatchOutput: (id: string) => Promise<void>;
+  acknowledgeBatchOutput: (
+    id: string,
+    method: Exclude<BatchReceiptMethod, 'discarded-without-receipt'>,
+    externalFileName?: string,
+    readbackSha256?: string,
+  ) => Promise<void>;
   clearAllOutputs: () => Promise<void>;
   saveBatchReport: (report: BatchRunResult) => Promise<void>;
   /** Legacy in-session setter; product batches use saveBatchReport. */
@@ -91,6 +100,31 @@ function validateRecoveredBatch(row: MacroOutputQueueItem): void {
   }
 }
 
+function receiptFor(
+  row: MacroOutputQueueItem,
+  method: BatchReceiptMethod,
+  externalFileName?: string,
+  readbackSha256?: string,
+): BatchOutputReceipt {
+  if (row.sourceKind !== 'batch' || !row.outputSha256 || !row.sourceSha256
+    || !row.batchRunId || row.sourceInputIndex === undefined || row.sourceOutputIndex === undefined) {
+    throw new Error('BATCH_RECEIPT_SOURCE_IDENTITY_MISSING');
+  }
+  return {
+    id: row.id,
+    batchRunId: row.batchRunId,
+    sourceInputIndex: row.sourceInputIndex,
+    sourceOutputIndex: row.sourceOutputIndex,
+    sourceSha256: row.sourceSha256,
+    outputSha256: row.outputSha256,
+    outputName: row.name,
+    method,
+    recordedAt: new Date().toISOString(),
+    ...(externalFileName ? { externalFileName } : {}),
+    ...(readbackSha256 ? { readbackSha256 } : {}),
+  };
+}
+
 function failCustody(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
   useMacroOutputQueueStore.setState({
@@ -110,8 +144,8 @@ async function hydrateCustody(): Promise<void> {
   if (!hydration) {
     hydration = (async () => {
       useMacroOutputQueueStore.setState({ batchCustodyStatus: 'loading', batchCustodyError: null });
-      const [stored, report] = await Promise.all([
-        batchCustody.loadOutputs(), batchCustody.loadLatestReport(),
+      const [stored, report, receipts] = await Promise.all([
+        batchCustody.loadOutputs(), batchCustody.loadLatestReport(), batchCustody.loadReceipts(),
       ]);
       // IndexedDB getAll follows UUID primary keys, NOT execution order.
       // Restore stable batch-group FIFO with the saved staging time and
@@ -134,6 +168,21 @@ async function hydrateCustody(): Promise<void> {
           throw new Error(`RECOVERY_OUTPUT_HASH_MISMATCH: ${row.name}`);
         }
       }
+      const savedReceiptIds = new Set<string>();
+      for (const receipt of receipts) {
+        if (!receipt.id || !receipt.batchRunId || !/^sha256:[a-f0-9]{64}$/.test(receipt.outputSha256)
+          || !/^sha256:[a-f0-9]{64}$/.test(receipt.sourceSha256)
+          || !Number.isSafeInteger(receipt.sourceInputIndex)
+          || !Number.isSafeInteger(receipt.sourceOutputIndex)
+          || !Number.isFinite(Date.parse(receipt.recordedAt))
+          || !['native-readback-verified', 'browser-user-confirmed', 'discarded-without-receipt'].includes(receipt.method)
+          || savedReceiptIds.has(receipt.id)
+          || stored.some((row) => row.id === receipt.id)) {
+          throw new Error('RECOVERY_RECEIPT_IDENTITY_INVALID: receipt ledger conflicts with queued PDFs.');
+        }
+        savedReceiptIds.add(receipt.id);
+      }
+      receipts.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
       useMacroOutputQueueStore.setState((state) => {
         const currentIds = new Set(state.outputs.map((item) => item.id));
         return {
@@ -142,6 +191,7 @@ async function hydrateCustody(): Promise<void> {
             ...state.outputs,
           ],
           lastBatchReport: state.lastBatchReport ?? report,
+          batchReceipts: receipts,
           batchCustodyStatus: batchCustody.persistent ? 'persistent' : 'volatile',
           batchCustodyError: null,
         };
@@ -157,6 +207,7 @@ export function configureBatchCustodyAdapter(adapter: BatchCustodyAdapter): void
   hydration = null;
   useMacroOutputQueueStore.setState({
     outputs: [],
+    batchReceipts: [],
     lastBatchReport: null,
     batchCustodyStatus: 'uninitialized',
     batchCustodyError: null,
@@ -165,6 +216,7 @@ export function configureBatchCustodyAdapter(adapter: BatchCustodyAdapter): void
 
 export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get) => ({
   outputs: [],
+  batchReceipts: [],
   lastBatchReport: null,
   batchCustodyStatus: 'uninitialized',
   batchCustodyError: null,
@@ -192,20 +244,33 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get)
   })),
   clearAllOutputs: async () => {
     await hydrateCustody();
+    const batchRows = get().outputs.filter((row) => row.sourceKind === 'batch');
+    const discarded = batchRows.map((row) => receiptFor(row, 'discarded-without-receipt'));
     try {
-      await batchCustody.clearOutputs();
-      set({ outputs: [] });
+      // Journal every intentional destruction in the same transaction that
+      // removes the last recoverable browser-local copy.
+      await batchCustody.discardOutputs(discarded);
+      const ids = new Set(discarded.map((receipt) => receipt.id));
+      set((state) => ({
+        outputs: state.outputs.filter((item) => item.sourceKind === 'batch' && !ids.has(item.id)),
+        batchReceipts: [...state.batchReceipts, ...discarded],
+      }));
     } catch (error) {
       failCustody(error);
     }
   },
-  acknowledgeBatchOutput: async (id) => {
+  acknowledgeBatchOutput: async (id, method, externalFileName, readbackSha256) => {
     await hydrateCustody();
     const row = get().outputs.find((item) => item.id === id);
     if (!row || row.sourceKind !== 'batch') return;
+    const receipt = receiptFor(row, method, externalFileName, readbackSha256);
     try {
-      await batchCustody.acknowledge(id);
-      set((state) => ({ outputs: state.outputs.filter((item) => item.id !== id) }));
+      // One transaction: write immutable evidence AND retire output bytes.
+      await batchCustody.acknowledge(id, receipt);
+      set((state) => ({
+        outputs: state.outputs.filter((item) => item.id !== id),
+        batchReceipts: [...state.batchReceipts, receipt],
+      }));
     } catch (error) {
       failCustody(error);
     }
@@ -265,6 +330,8 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get)
       item.sourceKind === 'batch'
       && item.batchRunId === first.batchRunId
       && item.sourceInputIndex === first.inputIndex,
+    ) || get().batchReceipts.some((receipt) =>
+      receipt.batchRunId === first.batchRunId && receipt.sourceInputIndex === first.inputIndex,
     )) {
       throw new Error('Batch output group is already staged in the queue.');
     }
