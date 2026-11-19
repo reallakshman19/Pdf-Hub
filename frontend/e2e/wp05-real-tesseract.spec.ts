@@ -78,6 +78,10 @@ async function readRecognizedWordsFromEditableProject(page: Page): Promise<strin
 test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app and exposes searchable OCR text', async ({ page }) => {
   test.setTimeout(180_000);
   const source = await scannedOnlyPdf(page);
+  await test.info().attach('wp05-synthetic-tesseract-input.pdf', {
+    body: Buffer.from(source),
+    contentType: 'application/pdf',
+  });
   // Verify the source itself is genuinely image-only, not vector text.
   const sourcePdf = await PDFDocument.load(source);
   expect(sourcePdf.getPageCount()).toBe(1);
