@@ -52,7 +52,7 @@ export function rollbackMacroTransaction(
   state.currentPage = snapshot.currentPage;
   state.pageLineage = snapshot.pageLineage?.map((entry) => ({ ...entry }));
   state.lineageOrdinal = snapshot.lineageOrdinal;
-  state.outputFiles: snapshot.outputFiles.map((file) => ({
+  state.outputFiles = snapshot.outputFiles.map((file) => ({
     name: file.name,
     bytes: new Uint8Array(file.bytes),
   }));
