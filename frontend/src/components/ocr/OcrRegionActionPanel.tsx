@@ -99,11 +99,14 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
     );
   }
 
-  const canRun = Boolean((pageInput || resolvePageInput) && !isRunning);
+  // Old project files can contain identical bbox values with opposite
+  // origins. Without capture provenance there is no safe automatic Y-flip.
+  const requiresGeometryReview = region.geometryProvenance !== 'pdf-user-space-v2';
+  const canRun = Boolean((pageInput || resolvePageInput) && !isRunning && !requiresGeometryReview);
   const canConvert = Boolean(regionResult);
 
   const runSelectedRegion = async () => {
-    if (activeController.current) return;
+    if (activeController.current || requiresGeometryReview) return;
     const controller = new AbortController();
     activeController.current = controller;
     const generation = ++runGeneration.current;
@@ -224,6 +227,18 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
           Page {region.pageIndex + 1} · selected directly on the document
         </div>
       </div>
+
+      {requiresGeometryReview ? (
+        <div
+          role="status"
+          className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          data-testid="ocr-region-geometry-review"
+        >
+          Review Required: this region was saved without a verified PDF coordinate
+          origin. Reselect the area on the source page using OCR Area before
+          running recognition. The stored region and corrections are preserved.
+        </div>
+      ) : null}
 
       {inputDiagnostics.length > 0 ? (
         <div
