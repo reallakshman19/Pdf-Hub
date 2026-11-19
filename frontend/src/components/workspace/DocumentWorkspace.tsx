@@ -200,6 +200,7 @@ export const DocumentWorkspace: React.FC = () => {
   } | null>(null);
 
   const handleBrowse = async () => {
+    setLoadError(null);
     try {
       const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
@@ -608,6 +609,11 @@ export const DocumentWorkspace: React.FC = () => {
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
             Supports PDF up to 100 MB.
           </p>
+          {loadError ? (
+            <p role="alert" data-testid="open-pdf-failure" className="mb-4 max-w-sm text-sm text-red-700 dark:text-red-300">
+              Unable to open PDF: {loadError}
+            </p>
+          ) : null}
           <button
             className={[
               "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
