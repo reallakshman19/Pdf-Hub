@@ -55,6 +55,30 @@ describe('tesseractJsEngine', () => {
     });
   });
 
+  it('restores cropped 2x Tesseract word boxes to original PDF points', () => {
+    const result = tesseractBboxToPdfRect(
+      { x0: 20, y0: 10, x1: 60, y1: 30 },
+      {
+        height: 40,
+        pixelToPdfTransform: [0.5, 0, 0, -0.5, 100, 240],
+      },
+      { x: 0, y: 0, width: 1, height: 1 },
+    );
+    expect(result).toEqual({ x: 110, y: 225, width: 20, height: 10 });
+  });
+
+  it('maps a 90-degree rotated OCR image box through both affine axes', () => {
+    const result = tesseractBboxToPdfRect(
+      { x0: 20, y0: 10, x1: 60, y1: 30 },
+      {
+        height: 40,
+        pixelToPdfTransform: [0, 0.5, 0.5, 0, 70, 100],
+      },
+      { x: 0, y: 0, width: 1, height: 1 },
+    );
+    expect(result).toEqual({ x: 75, y: 110, width: 10, height: 20 });
+  });
+
   it('falls back when Tesseract bbox is missing', () => {
     const fallback = {
       x: 1,
