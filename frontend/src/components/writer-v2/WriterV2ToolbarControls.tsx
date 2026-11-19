@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayloadFromStore } from '@/core/ocr/ocrHydrationBridge';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useEditorStore } from '@/core/editor/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
@@ -274,9 +276,22 @@ export const WriterV2ToolbarControls: React.FC = () => {
       beginExportOperation('Exporting editable PDF Hub project…');
       await autosaveCurrentWriterDraft(undefined, { force: true });
 
+      const fingerprint = documentKey ?? documentMeta?.documentFingerprint;
+      const ocrStore = useOcrStore.getState();
+      const hasOcrData = Boolean(
+        ocrStore.result || ocrStore.corrections.length || ocrStore.regions.length,
+      );
+      if (hasOcrData && ocrStore.documentFingerprint !== fingerprint) {
+        throw new Error('OCR state belongs to another document; project export was not completed.');
+      }
+      const ocrProject = hasOcrData && fingerprint
+        ? createOcrProjectPayloadFromStore({ documentFingerprint: fingerprint, store: ocrStore })
+        : null;
+
       const bytes = await exportCurrentWriterProject({
         originalPdfBytes: sourceBytes,
-        documentFingerprint: documentKey ?? documentMeta?.documentFingerprint,
+        documentFingerprint: fingerprint,
+        ocrProject,
       });
 
       downloadWriterBytes(

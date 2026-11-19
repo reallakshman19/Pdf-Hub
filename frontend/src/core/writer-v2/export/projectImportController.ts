@@ -4,6 +4,9 @@ import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
+import { validateOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
   importPdfHubWriterProjectFromReader,
@@ -368,6 +371,7 @@ export async function commitStagedWriterProjectImport(
   const sessionSnapshot = useSessionStore.getState();
   const writerSnapshot = useWriterV2Store.getState();
   const editorSnapshot = useEditorStore.getState();
+  const ocrSnapshot = useOcrStore.getState();
 
   try {
     const mode = project.documentMeta?.mode ?? inferredModeFromProject(project);
@@ -402,6 +406,15 @@ export async function commitStagedWriterProjectImport(
       documentMeta: project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null,
     });
     useEditorStore.getState().setActiveMode('write');
+    if (project.ocrProject) {
+      const hydration = hydrateOcrStoreFromProjectPayload({
+        payload: project.ocrProject,
+        expectedDocumentFingerprint: project.manifest.documentFingerprint,
+      });
+      if (!hydration.restored) {
+        throw new Error('Writer project OCR payload could not be restored.');
+      }
+    }
     assertOperationCurrent(operation, 'standalone Writer project after commit');
 
     return {
@@ -415,6 +428,7 @@ export async function commitStagedWriterProjectImport(
     useSessionStore.setState(sessionSnapshot, true);
     useWriterV2Store.setState(writerSnapshot, true);
     useEditorStore.setState(editorSnapshot, true);
+    useOcrStore.setState(ocrSnapshot, true);
     throw error;
   } finally {
     registered.revoked = true;
@@ -446,6 +460,14 @@ async function reconcileImportedProject(
   }
   if (!manifest.documentFingerprint.trim()) {
     throw new Error('Writer project manifest is missing documentFingerprint.');
+  }
+  if (imported.ocrProject) {
+    if (!validateOcrProjectPayload(imported.ocrProject).valid) {
+      throw new Error('Writer project OCR payload is invalid.');
+    }
+    if (imported.ocrProject.manifest.documentFingerprint !== manifest.documentFingerprint) {
+      throw new Error('Writer project OCR payload belongs to a different document.');
+    }
   }
   if (manifest.counts.writerElements !== imported.elements.length) {
     throw new Error('Writer project element count does not match its manifest.');
