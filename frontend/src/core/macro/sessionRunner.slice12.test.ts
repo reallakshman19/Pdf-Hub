@@ -6,7 +6,7 @@ import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { useMacroOutputQueueStore } from './outputQueueStore';
 
-const commandExecute = vi.fn();
+const { commandExecute } = vi.hoisted(() => ({ commandExecute: vi.fn() }));
 
 vi.mock('@/core/commands/bus', () => ({
   commandBus: {
