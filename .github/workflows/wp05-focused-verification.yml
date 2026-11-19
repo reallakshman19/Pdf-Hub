@@ -5,6 +5,8 @@ on:
     paths:
       - "frontend/e2e/wp05-native-page-labels.spec.ts"
       - "frontend/e2e/wp05-real-tesseract.spec.ts"
+      - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts"
+      - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts"
       - "frontend/src/core/ocr/**"
       - "frontend/src/core/pages/**"
       - "frontend/src/components/ocr/**"
@@ -31,6 +33,7 @@ jobs:
       - name: WP-05 source-level regression set
         run: |
           pnpm -C frontend exec vitest run \
+            src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts \
             src/core/pages/pageGraphAdmission.test.ts \
             src/core/pages/pdfPageLabelNativeReader.test.ts \
             src/core/pages/pageLabels.test.ts \
