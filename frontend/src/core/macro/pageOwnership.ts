@@ -2,8 +2,10 @@ import type { PageGraph, PageNode } from '@/core/pages/types';
 import { createPageGraph, validatePageGraph } from '@/core/pages/pageGraph';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { normalizeAnnotationPageAnchors } from '@/core/annotations/pageAnchor';
+import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { normalizeWriterPageAnchors } from '@/core/writer-v2/writerPageAnchor';
+import { remapWriterAfterRotate } from '@/core/writer-v2/pageRemapper';
 import type { MacroPageLineageEntry } from './pageLineage';
 
 export interface ResolvedMacroPageOwnership {
@@ -121,8 +123,17 @@ export function resolveMacroPageOwnership(
     const source = before.pages[entry.sourceIndex];
     const target = graph.pages[index];
     const original = entry.instanceId === `source-${entry.sourceIndex}`;
+    const deltaRotation = (target.rotation - source.rotation + 360) % 360;
 
-    for (const annotation of annotationBySource.get(source.pageId) ?? []) {
+    for (const originalAnnotation of annotationBySource.get(source.pageId) ?? []) {
+      const annotation = deltaRotation
+        ? remapAfterRotate([originalAnnotation], [{
+            pageIndex: entry.sourceIndex,
+            angle: deltaRotation,
+            width: source.width,
+            height: source.height,
+          }])[0]
+        : originalAnnotation;
       nextAnnotations.push({
         ...annotation,
         ...(original ? {} : {
@@ -134,7 +145,15 @@ export function resolveMacroPageOwnership(
         data: { ...annotation.data },
       });
     }
-    for (const element of writerBySource.get(source.pageId) ?? []) {
+    for (const originalElement of writerBySource.get(source.pageId) ?? []) {
+      const element = deltaRotation
+        ? remapWriterAfterRotate([originalElement], [{
+            pageIndex: entry.sourceIndex,
+            angle: deltaRotation,
+            width: source.width,
+            height: source.height,
+          }])[0]
+        : originalElement;
       nextWriter.push({
         ...element,
         ...(original ? {} : {

@@ -126,6 +126,36 @@ describe('WP07 canonical macro PageId ownership', () => {
     expect(result.graph.pages[1].originalPageNumber).toBe(0);
   });
 
+  it('rotates annotation and Writer geometry to the same source page output orientation', () => {
+    const changed = output(3);
+    changed.pages[1].rotation = 90;
+    const resolved = resolveMacroPageOwnership(
+      source(), changed, [original(0), original(1), original(2)],
+      'macro-rotate', [annotation()], [writer()],
+    );
+    expect(resolved.annotations[0].pageId).toBe('original-B');
+    expect(resolved.annotations[0].rect).toEqual({
+      x: 792 - (20 + 30), y: 10, width: 30, height: 40,
+    });
+    expect(resolved.writerElements?.[0].rect).toEqual({
+      x: 792 - (6 + 20), y: 5, width: 20, height: 60,
+    });
+  });
+
+  it('applies rotation to a duplicated page independently of its original', () => {
+    const changed = output(4);
+    changed.pages[2].rotation = 90;
+    const result = resolveMacroPageOwnership(
+      source(), changed,
+      [original(0), original(1), copy(1, 1), original(2)],
+      'macro-copy-rotate', [annotation()], [writer()],
+    );
+    expect(result.annotations.map((a) => a.pageNumber)).toEqual([2, 3]);
+    expect(result.annotations[0].rect.x).toBe(10);
+    expect(result.annotations[1].rect.x).toBe(742);
+    expect(result.writerElements?.[1].rect.x).toBe(766);
+  });
+
   it('rejects incomplete, repeated and invalid source-lineage manifests', () => {
     const args = [source(), output(3), [original(0),original(1)], 'cmd', [], []] as const;
     expect(() => resolveMacroPageOwnership(...args)).toThrow(/complete output page-lineage/);
