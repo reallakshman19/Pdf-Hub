@@ -1,3 +1,4 @@
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -33,6 +34,11 @@ const outputs: MacroOutputQueueItem[] = [
   },
 ];
 
+function StatefulQueue({ onError }: { onError?: (message: string) => void }) {
+  const [items, setItems] = React.useState(outputs);
+  return <MacroOutputQueue outputs={items} onChange={setItems} onError={onError} />;
+}
+
 describe('MacroOutputQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,59 +53,72 @@ describe('MacroOutputQueue', () => {
   });
 
   it('saves one output and removes only that item', async () => {
-    const onChange = vi.fn();
-    render(<MacroOutputQueue outputs={outputs} onChange={onChange} />);
+    render(<StatefulQueue />);
 
-    const saveButtons = screen.getAllByRole('button', { name: 'Save' });
-    fireEvent.click(saveButtons[0]);
-
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
     await waitFor(() => {
-      expect(saveMock).toHaveBeenCalledWith(
-        outputs[0].bytes,
-        'one.pdf',
-        null,
-      );
+      expect(screen.queryByText('one.pdf')).not.toBeInTheDocument();
     });
-
-    expect(onChange).toHaveBeenCalledWith([outputs[1]]);
+    expect(screen.getByText('two.pdf')).toBeInTheDocument();
+    expect(saveMock).toHaveBeenCalledWith(outputs[0].bytes, 'one.pdf', null);
   });
 
-  it('saves every queued output and then clears the queue', async () => {
-    const onChange = vi.fn();
-    render(<MacroOutputQueue outputs={outputs} onChange={onChange} />);
-
+  it('saves every queued output and removes each acknowledged item', async () => {
+    render(<StatefulQueue />);
     fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
 
     await waitFor(() => {
       expect(saveMock).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('No generated output files.')).toBeInTheDocument();
     });
-
-    expect(onChange).toHaveBeenCalledWith([]);
   });
 
-  it('stops Save All on failure, preserves queue, and reports the error', async () => {
-    const onChange = vi.fn();
+  it('keeps only unsaved items after a partial failure and does not save successes twice', async () => {
     const onError = vi.fn();
     saveMock
       .mockResolvedValueOnce(null)
-      .mockRejectedValueOnce(new Error('disk full'));
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValueOnce(null);
 
-    render(
-      <MacroOutputQueue
-        outputs={outputs}
-        onChange={onChange}
-        onError={onError}
-      />,
-    );
-
+    render(<StatefulQueue onError={onError} />);
     fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith('disk full');
+      expect(screen.queryByText('one.pdf')).not.toBeInTheDocument();
     });
-
+    expect(screen.getByText('two.pdf')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('disk full');
-    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    await waitFor(() => {
+      expect(screen.getByText('No generated output files.')).toBeInTheDocument();
+    });
+    expect(saveMock.mock.calls.map((call) => call[1])).toEqual([
+      'one.pdf', 'two.pdf', 'two.pdf',
+    ]);
+  });
+
+  it('disables conflicting queue actions while a save is in flight', async () => {
+    let completeFirstSave: (() => void) | undefined;
+    saveMock.mockImplementationOnce(() => new Promise((resolve) => {
+      completeFirstSave = () => resolve(null);
+    }));
+    render(<StatefulQueue />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+
+    expect(screen.getByRole('button', { name: 'Save All' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeDisabled();
+    for (const saveButton of screen.getAllByRole('button', { name: 'Save' })) {
+      expect(saveButton).toBeDisabled();
+    }
+    expect(saveMock).toHaveBeenCalledTimes(1);
+
+    completeFirstSave?.();
+    await waitFor(() => {
+      expect(screen.getByText('No generated output files.')).toBeInTheDocument();
+      expect(saveMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('clears queued outputs without writing files', () => {
