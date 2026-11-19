@@ -128,6 +128,12 @@ describe('MacroOutputQueue delivery and retry contract', () => {
   it('clears output queue without triggering a write', async () => {
     render(<StatefulQueue />);
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByText('one.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep PDFs' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep PDFs' }));
+    expect(screen.getByText('one.pdf')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard queued PDFs' }));
     await waitFor(() => expect(screen.getByText('No generated output files.')).toBeInTheDocument());
     expect(saveMock).not.toHaveBeenCalled();
   });
