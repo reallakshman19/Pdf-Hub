@@ -1,0 +1,43 @@
+name: WP07 native proof (isolated evidence branch)
+
+on:
+  push:
+    branches: ['wp07/evidence-native-pr60-*']
+
+permissions:
+  contents: read
+
+jobs:
+  native-wp07:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Typecheck
+        run: pnpm run typecheck
+        working-directory: frontend
+      - name: WP07 focused unit tests
+        run: pnpm exec vitest run src/core/macro/executor.test.ts src/core/macro/steps/page-ops.slice2.test.ts src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx src/components/macro/advanced/MacroOutputQueue.test.tsx --pool=forks --maxWorkers=1
+        working-directory: frontend
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: WP07 browser native PDF identity
+        run: pnpm exec playwright test e2e/wp07-pr58-identity.spec.ts --project=chromium --reporter=line
+        working-directory: frontend
+      - name: Upload independent native witnesses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp07-native-pdf-evidence
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: warn
