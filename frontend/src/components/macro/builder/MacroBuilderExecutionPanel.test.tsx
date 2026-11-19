@@ -247,7 +247,7 @@ describe('MacroBuilderExecutionPanel', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('Workflow complete');
     });
-    expect(screen.getByTestId('macro-builder-preflight')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('macro-builder-preflight')).not.toBeInTheDocument();
   });
 
   it('blocks Run when preflight reports an error', async () => {
