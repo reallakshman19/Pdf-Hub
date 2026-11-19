@@ -522,11 +522,16 @@ function normalizePageIndexAnchor(
   pageIndex: number,
   graph: PageGraph<PageNode>,
 ): { pageId: PageId; pageIndex: number } | null {
-  const resolvedIndex = pageIndexForOcrPageId(graph, pageId);
-  if (resolvedIndex !== undefined && pageId) {
-    return { pageId, pageIndex: resolvedIndex };
+  // An explicitly recorded PageId is authoritative. Never silently rebind a
+  // stale/removed ID to the different page now occupying the same index.
+  if (pageId !== undefined) {
+    const resolvedIndex = pageIndexForOcrPageId(graph, pageId);
+    return resolvedIndex === undefined
+      ? null
+      : { pageId, pageIndex: resolvedIndex };
   }
 
+  // Legacy index-only records may be upgraded when no PageId was persisted.
   const resolvedPageId = pageIdForOcrPageIndex(graph, pageIndex);
   return resolvedPageId
     ? { pageId: resolvedPageId, pageIndex }
