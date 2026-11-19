@@ -98,7 +98,7 @@ export class IndexedDbBatchCustodyAdapter implements BatchCustodyAdapter {
       }
       await tx.done;
     } catch (error) {
-      tx.abort();
+      try { tx.abort(); } catch { /* IDB may already have aborted. */ }
       throw error;
     }
   }
