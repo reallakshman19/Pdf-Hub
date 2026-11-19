@@ -1248,12 +1248,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('reorders pages by explicit order', async () => {
-    useSessionStore.getState().setPageGraph({
-      pages: pageGraph(3).pages.map((page, index) => ({
-        ...page,
-        logicalLabel: ['i', 'ii', '1'][index],
-      })),
-    });
+    // This case tests stable physical ownership without native label ranges.
+    // A separate adversarial case covers resolved-only imported PageLabels.
+    useSessionStore.getState().setPageGraph(pageGraph(3));
     useAnnotationStore.getState().setAnnotations([
       { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
     ]);
@@ -1355,6 +1352,26 @@ describe('canonical command dispatch', () => {
       currentPageId: 'test-doc::stable::1',
       currentPage: 3,
     });
+  });
+
+  it('refuses to erase unverified imported PageLabels during structural reorder', async () => {
+    const imported = {
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['i', 'ii', '1'][index],
+      })),
+    };
+    useSessionStore.getState().setPageGraph(imported);
+    const result = await execute({
+      type: 'REORDER_PAGES_BY_ORDER',
+      payload: { order: [2, 1, 0] },
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/original numbering rules are unavailable/i);
+    expect(mutationEngineMocks.reorderPages).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().pageGraph?.pages.map((p) => p.pageId)).toEqual(
+      imported.pages.map((p) => p.pageId),
+    );
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
