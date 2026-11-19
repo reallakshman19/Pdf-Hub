@@ -759,7 +759,7 @@ test('WP07 R4 FSA: mismatched external file readback leaves durable output queue
   await page.evaluate(() => {
     // Simulates a provider that returns a writable handle but gives corrupt
     // bytes to a subsequent getFile() readback.
-    const win = window as Window & { showSaveFilePicker?: unknown };
+    const win = window as unknown as { showSaveFilePicker: () => Promise<unknown> };
     win.showSaveFilePicker = async () => ({
       createWritable: async () => ({
         write: async () => undefined,
@@ -783,7 +783,7 @@ test('WP07 R4 FSA: mismatched external file readback leaves durable output queue
   await page.evaluate(() => {
     // Next attempt writes the entire buffer, closes it, and returns the
     // same native bytes for readback. The queue may acknowledge only then.
-    const win = window as Window & { showSaveFilePicker?: unknown };
+    const win = window as unknown as { showSaveFilePicker: () => Promise<unknown> };
     win.showSaveFilePicker = async () => {
       let stored = new Uint8Array(0);
       return {
