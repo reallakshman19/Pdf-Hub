@@ -127,7 +127,9 @@ export interface BatchRunResult {
     readonly selected: number;
     readonly processed: number;
     readonly succeeded: number;
+    /** The sum of complete manifests produced by successful inputs only. */
     readonly outputsPrepared: number;
+    /** Handoff to a caller, never evidence of an OS or browser file receipt. */
     readonly outputsHandedOff: number;
     readonly failed: number;
     readonly cancelled: number;
@@ -642,6 +644,11 @@ function finishBatchRun(input: {
     selected: input.preflight.selectedFileCount,
     processed: records.filter((record) => record.status !== 'not-run').length,
     succeeded: records.filter((record) => record.status === 'success').length,
+    outputsPrepared: records.reduce((sum, record) =>
+      sum + (record.status === 'success' ? record.outputCount : 0), 0),
+    outputsHandedOff: records.reduce((sum, record) =>
+      sum + (record.status === 'success' && record.outputDisposition === 'handoff-completed-unverified'
+        ? record.outputCount : 0), 0),
     failed: records.filter((record) => record.status === 'failed').length,
     cancelled: records.filter((record) => record.status === 'cancelled').length,
     notRun: records.filter((record) => record.status === 'not-run').length,
@@ -658,10 +665,13 @@ function finishBatchRun(input: {
       outputSha256: record.outputSha256,
       outputName: record.outputName,
       outputDisposition: record.outputDisposition,
+      outputCount: record.outputCount,
+      outputs: record.outputs,
     } : record.status === 'failed' && record.outputDisposition ? {
       outputSha256: record.outputSha256,
       outputName: record.outputName,
       outputDisposition: record.outputDisposition,
+      ...(record.outputs ? { outputs: record.outputs } : {}),
     } : {}),
     status: record.status,
   }));
@@ -696,6 +706,8 @@ function finishBatchRun(input: {
     cancelled: summary.cancelled,
     notRun: summary.notRun,
     aggregateSourceBytes: input.preflight.aggregateSourceBytes,
+    outputsPrepared: summary.outputsPrepared,
+    outputsHandedOff: summary.outputsHandedOff,
   });
   return result;
 }
