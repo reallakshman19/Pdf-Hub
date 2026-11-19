@@ -72,7 +72,7 @@ export interface BatchPdfEvidenceRecord {
   readonly sourceSha256?: string;
   readonly outputSha256?: string;
   readonly outputName?: string;
-  readonly outputDisposition?: 'handoff-completed-unverified' | 'not-requested';
+  readonly outputDisposition?: 'handoff-completed-unverified' | 'handoff-failed-unverified' | 'not-requested';
   readonly status: BatchPdfRecordStatus;
 }
 

@@ -71,6 +71,9 @@ export interface BatchFileFailureRecord extends BatchFileRecordBase {
   readonly status: 'failed';
   readonly pageCount?: number;
   readonly error: string;
+  readonly outputName?: string;
+  readonly outputSha256?: string;
+  readonly outputDisposition?: 'handoff-failed-unverified';
 }
 
 export interface BatchFileCancelledRecord extends BatchFileRecordBase {
@@ -373,18 +376,41 @@ async function executeValidatedBatchPdf(
   throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
   // Completion acknowledges only that the caller accepted a byte copy, NOT
   // that the browser or operating system durably saved a file.
-  await options.onOutput?.({
-    inputIndex: input.inputIndex,
-    fileName: input.fileName,
-    inputPageCount: input.pageCount,
-    sourceSha256,
-    outputSha256,
-    outputName,
-    batchRunId: runId,
-    recipeId: options.recipe.id,
-    recipeSha256,
-    bytes: output,
-  });
+  try {
+    await options.onOutput?.({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputPageCount: input.pageCount,
+      sourceSha256,
+      outputSha256,
+      outputName,
+      batchRunId: runId,
+      recipeId: options.recipe.id,
+      recipeSha256,
+      bytes: output,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const details = {
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      error: reason,
+      logs,
+    };
+    if (isOperationCancelledError(error)) {
+      return freezeRecord({ ...details, status: 'cancelled' as const });
+    }
+    return freezeRecord({
+      ...details,
+      outputName,
+      outputSha256,
+      outputDisposition: 'handoff-failed-unverified' as const,
+      status: 'failed' as const,
+    });
+  }
   return freezeRecord({
     inputIndex: input.inputIndex,
     fileName: input.fileName,
@@ -499,6 +525,10 @@ function finishBatchRun(input: {
       : {}),
     ...(record.sourceSha256 ? { sourceSha256: record.sourceSha256 } : {}),
     ...(record.status === 'success' ? {
+      outputSha256: record.outputSha256,
+      outputName: record.outputName,
+      outputDisposition: record.outputDisposition,
+    } : record.status === 'failed' && record.outputDisposition ? {
       outputSha256: record.outputSha256,
       outputName: record.outputName,
       outputDisposition: record.outputDisposition,

@@ -336,3 +336,115 @@ test('WP07 P0: native annotation ownership follows source B through C,A,B reorde
     await native.destroy();
   }
 });
+
+test('WP07 B01: same-named batch PDFs retain separate hashes, output custody and receipt states', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await expect(batch).toBeVisible();
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await expect(page.getByLabel('Batch workflow')).toHaveValue('review-current-page');
+
+  const makePdf = async (marker: 'A' | 'B') => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const native = doc.addPage([612, 792]);
+    native.drawText(`WP07 BATCH SOURCE ${marker}`, { x: 72, y: 700, size: 16, font });
+    return Buffer.from(await doc.save());
+  };
+  const sourceA = await makePdf('A');
+  const sourceB = await makePdf('B');
+  const shaSource = [sourceA, sourceB].map((bytes) =>
+    createHash('sha256').update(bytes).digest('hex'));
+  await persistPublicSyntheticEvidence(`batch-source-${shaSource[0]}.pdf`, sourceA);
+  await persistPublicSyntheticEvidence(`batch-source-${shaSource[1]}.pdf`, sourceB);
+
+  const initiated: string[] = [];
+  page.on('download', (download) => initiated.push(download.suggestedFilename()));
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([
+    { name: 'repeat.pdf', mimeType: 'application/pdf', buffer: sourceA },
+    { name: 'repeat.pdf', mimeType: 'application/pdf', buffer: sourceB },
+  ]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 25_000 });
+  expect(initiated.filter((name) => name.endsWith('.pdf'))).toEqual([]);
+  await expect(queue).toContainText('Input #1: repeat.pdf');
+  await expect(queue).toContainText('Input #2: repeat.pdf');
+
+  // Browser report download is an initiation, not proof of receipt. Request
+  // it through a deliberate UI action and verify the JSON report itself.
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', {
+      predicate: (download) => download.suggestedFilename().endsWith('.json'),
+    }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string; recipeId: string; recipeSha256: string };
+    summary: { succeeded: number };
+    records: Array<{
+      inputIndex: number; fileName: string; sourceSha256: string;
+      outputSha256: string; outputName: string; outputDisposition: string;
+    }>;
+  };
+  expect(report.metadata.recipeId).toBe('review-current-page');
+  expect(report.metadata.recipeSha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+  expect(report.summary.succeeded).toBe(2);
+  expect(report.records.map((record) => record.inputIndex)).toEqual([0, 1]);
+  expect(report.records.map((record) => record.fileName)).toEqual(['repeat.pdf', 'repeat.pdf']);
+  expect(report.records.map((record) => record.sourceSha256)).toEqual(
+    shaSource.map((digest) => `sha256:${digest}`),
+  );
+  expect(new Set(report.records.map((record) => record.outputName)).size).toBe(2);
+  expect(report.records.map((record) => record.outputDisposition)).toEqual([
+    'handoff-completed-unverified', 'handoff-completed-unverified',
+  ]);
+  for (const record of report.records) {
+    expect(record.outputName).toContain(`${String(record.inputIndex + 1).padStart(3, '0')}-repeat-`);
+    expect(record.outputName).toContain(record.sourceSha256.slice(7, 19));
+  }
+  expect(JSON.stringify(report)).not.toContain('"bytes"');
+
+  for (let index = 0; index < 2; index += 1) {
+    const [download] = await Promise.all([
+      page.waitForEvent('download', {
+        predicate: (d) => d.suggestedFilename().endsWith('.pdf'),
+      }),
+      queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+    ]);
+    const output = await readFile(await download.path() as string);
+    const actualDigest = createHash('sha256').update(output).digest('hex');
+    expect(`sha256:${actualDigest}`).toBe(report.records[index].outputSha256);
+    expect(download.suggestedFilename()).toBe(report.records[index].outputName);
+    const doc = await getDocument({ data: new Uint8Array(output) }).promise;
+    try {
+      expect(doc.numPages).toBe(1);
+      const p1 = await doc.getPage(1);
+      const text = (await p1.getTextContent()).items.map(
+        (item) => 'str' in item ? item.str : '',
+      ).join(' ');
+      expect(text).toContain(`WP07 BATCH SOURCE ${index === 0 ? 'A' : 'B'}`);
+    } finally {
+      await doc.destroy();
+    }
+    await persistPublicSyntheticEvidence(`batch-export-${actualDigest}.pdf`, output);
+    await expect(queue).toContainText('Download initiated — receipt unverified');
+    await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+    if (index === 0) {
+      await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1);
+    }
+  }
+  await expect(queue).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `batch-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log(`WP07_BATCH_PROVENANCE run=${report.metadata.runId} inputs=2 queued=2 independent_outputs=2 sha256_verified=true receipts_explicit=true`);
+});
