@@ -32,6 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate PR head
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'WP05_EXACT_CHECKOUT_HEAD=%s\\n' "$actual"
+          test "$actual" = "$expected"
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -72,6 +80,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate PR head
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'WP05_EXACT_CHECKOUT_HEAD=%s\\n' "$actual"
+          test "$actual" = "$expected"
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
