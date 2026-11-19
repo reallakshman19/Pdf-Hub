@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
+import { persistWp05SyntheticEvidence } from './fixtures/wp05Evidence';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -47,6 +48,7 @@ async function readRecognizedWordsFromEditableProject(page: Page): Promise<strin
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   await download.delete();
   const zipBytes = Buffer.concat(chunks);
+  await persistWp05SyntheticEvidence('wp05-synthetic-tesseract-project.pdfhub.zip', zipBytes);
   await test.info().attach('wp05-synthetic-tesseract-project.pdfhub.zip', {
     body: zipBytes,
     contentType: 'application/zip',
@@ -78,6 +80,7 @@ async function readRecognizedWordsFromEditableProject(page: Page): Promise<strin
 test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app and exposes searchable OCR text', async ({ page }) => {
   test.setTimeout(180_000);
   const source = await scannedOnlyPdf(page);
+  await persistWp05SyntheticEvidence('wp05-synthetic-tesseract-input.pdf', Buffer.from(source));
   await test.info().attach('wp05-synthetic-tesseract-input.pdf', {
     body: Buffer.from(source),
     contentType: 'application/pdf',
