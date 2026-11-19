@@ -451,3 +451,101 @@ test('WP07 B01: same-named batch PDFs retain separate hashes, output custody and
   );
   console.log(`WP07_BATCH_PROVENANCE run=${report.metadata.runId} inputs=2 queued=2 independent_outputs=2 sha256_verified=true receipts_explicit=true`);
 });
+
+test('WP07 B02: a corrupt middle input does not steal custody or ordinal from later PDFs', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await expect(page.getByLabel('Batch workflow')).toHaveValue('review-current-page');
+
+  const makePdf = async (marker: string) => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const native = doc.addPage([612, 792]);
+    native.drawText(`WP07 MIXED SOURCE ${marker}`, { x: 72, y: 700, size: 16, font });
+    return Buffer.from(await doc.save());
+  };
+  const a = await makePdf('A');
+  const c = await makePdf('C');
+  const broken = Buffer.from([1, 2, 3, 4, 5]);
+  const sourceDigests = [a, c].map((bytes) => createHash('sha256').update(bytes).digest('hex'));
+  await persistPublicSyntheticEvidence(`mixed-source-${sourceDigests[0]}.pdf`, a);
+  await persistPublicSyntheticEvidence(`mixed-source-${sourceDigests[1]}.pdf`, c);
+
+  const pending: string[] = [];
+  page.on('download', (download) => pending.push(download.suggestedFilename()));
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([
+    { name: 'repeat.pdf', mimeType: 'application/pdf', buffer: a },
+    { name: 'corrupt.pdf', mimeType: 'application/pdf', buffer: broken },
+    { name: 'repeat.pdf', mimeType: 'application/pdf', buffer: c },
+  ]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 25_000 });
+  expect(pending.filter((name) => name.endsWith('.pdf'))).toEqual([]);
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', {
+      predicate: (d) => d.suggestedFilename().endsWith('.json'),
+    }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    records: Array<{
+      inputIndex: number; status: string; sourceSha256?: string;
+      outputSha256?: string; outputName?: string; error?: string;
+    }>;
+    summary: { selected: number; succeeded: number; failed: number; notRun: number };
+    evidence: { diagnostics: Array<{ code: string; inputIndex?: number }> };
+  };
+  expect(report.summary).toMatchObject({ selected: 3, succeeded: 2, failed: 1, notRun: 0 });
+  expect(report.records.map((record) => [record.inputIndex, record.status])).toEqual([
+    [0, 'success'], [1, 'failed'], [2, 'success'],
+  ]);
+  expect(report.records[0].sourceSha256).toBe(`sha256:${sourceDigests[0]}`);
+  expect(report.records[2].sourceSha256).toBe(`sha256:${sourceDigests[1]}`);
+  expect(report.records[0].outputName).toMatch(/^001-repeat-/);
+  expect(report.records[2].outputName).toMatch(/^003-repeat-/);
+  expect(report.records[1].outputName).toBeUndefined();
+  expect(report.evidence.diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ code: 'PDF_SIGNATURE_MISSING', inputIndex: 1 }),
+  ]));
+
+  for (const [queueIndex, recordIndex, marker] of [[0, 0, 'A'], [1, 2, 'C']] as const) {
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+      queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+    ]);
+    const output = await readFile(await download.path() as string);
+    const actualHash = createHash('sha256').update(output).digest('hex');
+    expect(`sha256:${actualHash}`).toBe(report.records[recordIndex].outputSha256);
+    expect(download.suggestedFilename()).toBe(report.records[recordIndex].outputName);
+    const doc = await getDocument({ data: new Uint8Array(output) }).promise;
+    try {
+      const native = await doc.getPage(1);
+      const text = (await native.getTextContent()).items.map((item) =>
+        'str' in item ? item.str : '',
+      ).join(' ');
+      expect(text).toContain(`WP07 MIXED SOURCE ${marker}`);
+    } finally {
+      await doc.destroy();
+    }
+    await persistPublicSyntheticEvidence(`mixed-export-${actualHash}.pdf`, output);
+    await expect(queue).toContainText('Download initiated — receipt unverified');
+    await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+    if (queueIndex === 0) await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1);
+  }
+  await expect(queue).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `mixed-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log(`WP07_BATCH_MIXED run=${report.metadata.runId} status=success,failed,success picker_indices=0,1,2 queued=2 saved=2`);
+});
