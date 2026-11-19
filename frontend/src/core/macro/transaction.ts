@@ -1,12 +1,15 @@
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useWriterStore } from '@/core/writer/store';
 import type { MacroMutableState, SideEffect } from './registry';
+import type { MacroPageLineageEntry } from './pageLineage';
 
 export interface MacroTransactionSnapshot {
   workingBytes: Uint8Array;
   pageCount: number;
   selectedPages: number[];
   currentPage?: number;
+  pageLineage?: MacroPageLineageEntry[];
+  lineageOrdinal?: number;
   outputFiles: { name: string; bytes: Uint8Array }[];
   annotations: ReturnType<typeof useAnnotationStore.getState>['annotations'];
   writerElements: ReturnType<typeof useWriterStore.getState>['elements'];
@@ -20,6 +23,8 @@ export function beginMacroTransaction(
     pageCount: state.pageCount,
     selectedPages: [...state.selectedPages],
     currentPage: state.currentPage,
+    pageLineage: state.pageLineage?.map((entry) => ({ ...entry })),
+    lineageOrdinal: state.lineageOrdinal,
     outputFiles: state.outputFiles.map((file) => ({
       name: file.name,
       bytes: new Uint8Array(file.bytes),
@@ -45,7 +50,9 @@ export function rollbackMacroTransaction(
   state.pageCount = snapshot.pageCount;
   state.selectedPages = [...snapshot.selectedPages];
   state.currentPage = snapshot.currentPage;
-  state.outputFiles = snapshot.outputFiles.map((file) => ({
+  state.pageLineage = snapshot.pageLineage?.map((entry) => ({ ...entry }));
+  state.lineageOrdinal = snapshot.lineageOrdinal;
+  state.outputFiles: snapshot.outputFiles.map((file) => ({
     name: file.name,
     bytes: new Uint8Array(file.bytes),
   }));

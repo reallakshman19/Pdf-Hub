@@ -1,4 +1,5 @@
 import type { MacroStep, MacroExecutionContext } from './types';
+import type { MacroPageLineageEntry } from './pageLineage';
 import { OperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { MacroResourceLimitError } from './resourceBudget';
 
@@ -22,6 +23,8 @@ export interface MacroMutableState {
   selectedPages: number[];
   /** Current one-based page position at this step of the macro. */
   currentPage?: number;
+  pageLineage?: MacroPageLineageEntry[];
+  lineageOrdinal?: number;
   templateVars: Record<string, string>;
   logs: string[];
   outputFiles: { name: string; bytes: Uint8Array }[];
