@@ -255,25 +255,24 @@ describe('OCR PageId anchors', () => {
     ).toBe(false);
   });
 
-  it('can rebind opaque same-count output by physical page index', () => {
+  it('rejects silent same-index ownership replacement after all original PageIds vanish', () => {
     const anchored = normalizeOcrPageAnchoredState(
       state(1),
       graph(['old-1', 'old-2']),
     );
+    expect(anchored.result?.pages[0].pageId).toBe('old-2');
 
-    const rebound = normalizeOcrPageAnchoredState(
+    const replacement = normalizeOcrPageAnchoredState(
       anchored,
       graph(['new-1', 'new-2']),
     );
 
-    expect(rebound.result?.pages[0]).toMatchObject({
-      pageId: 'new-2',
-      pageIndex: 1,
-    });
-    expect(rebound.corrections[0]).toMatchObject({
-      pageId: 'new-2',
-      pageIndex: 1,
-    });
+    // Opaque equal-page-count output is NOT identity evidence: it could be a
+    // completely different document with similar pagination.
+    expect(replacement.result?.pages).toEqual([]);
+    expect(replacement.corrections).toEqual([]);
+    expect(replacement.regions).toEqual([]);
+    expect(replacement.reviewFocus).toBeNull();
   });
 
   it('rekeys OCR state to the committed document revision', () => {
