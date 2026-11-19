@@ -69,6 +69,10 @@ export interface BatchPdfEvidenceRecord {
   readonly fileName: string;
   readonly sourceBytes: number;
   readonly pageCount?: number;
+  readonly sourceSha256?: string;
+  readonly outputSha256?: string;
+  readonly outputName?: string;
+  readonly outputDisposition?: 'handoff-completed-unverified' | 'not-requested';
   readonly status: BatchPdfRecordStatus;
 }
 
