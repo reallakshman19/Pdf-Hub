@@ -9,9 +9,15 @@ import type { MacroOutputFile } from './types';
  */
 export interface MacroOutputQueueItem extends MacroOutputFile {
   id: string;
-  sourceKind?: 'macro' | 'generated';
+  sourceKind?: 'macro' | 'generated' | 'batch';
   sourceDocumentKey?: string;
   sourceRecipeId?: string;
+  sourceRecipeSha256?: string;
+  sourceFileName?: string;
+  sourceInputIndex?: number;
+  sourceSha256?: string;
+  outputSha256?: string;
+  batchRunId?: string;
 }
 
 type OutputChange =
@@ -23,7 +29,17 @@ export interface MacroOutputQueueState {
   setOutputs: (change: OutputChange) => void;
   enqueueOutputs: (
     files: readonly MacroOutputFile[],
-    provenance?: Pick<MacroOutputQueueItem, 'sourceKind' | 'sourceDocumentKey' | 'sourceRecipeId'>,
+    provenance?: Pick<MacroOutputQueueItem,
+      | 'sourceKind'
+      | 'sourceDocumentKey'
+      | 'sourceRecipeId'
+      | 'sourceRecipeSha256'
+      | 'sourceFileName'
+      | 'sourceInputIndex'
+      | 'sourceSha256'
+      | 'outputSha256'
+      | 'batchRunId'
+    >,
   ) => string[];
   clearOutputs: () => void;
 }
@@ -37,7 +53,8 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set) => (
     const queued = files.map((file) => ({
       id: uuidv4(),
       name: file.name,
-      bytes: file.bytes,
+      // Snapshot for custody; producer mutation cannot change queued bytes.
+      bytes: new Uint8Array(file.bytes),
       ...provenance,
     }));
     if (queued.length > 0) {
