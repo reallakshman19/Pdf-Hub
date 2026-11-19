@@ -737,3 +737,68 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
   );
   console.log(`WP07_R4_RECOVERY run=${report.metadata.runId} reloads=3 outputs_restored=2 partial_receipt_retained=true completed_receipts_removed=true`);
 });
+
+test('WP07 R4 FSA: mismatched external file readback leaves durable output queued for retry', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  await page.getByTestId('automate-batch-run')
+    .getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+  const input = Buffer.from(await createThreePageSource());
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([{ name: 'fsa-source.pdf', mimeType: 'application/pdf', buffer: input }]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+
+  await page.evaluate(() => {
+    // Simulates a provider that returns a writable handle but gives corrupt
+    // bytes to a subsequent getFile() readback.
+    const win = window as Window & { showSaveFilePicker?: unknown };
+    win.showSaveFilePicker = async () => ({
+      createWritable: async () => ({
+        write: async () => undefined,
+        close: async () => undefined,
+      }),
+      getFile: async () => new File(
+        [new Uint8Array([37, 80, 68, 70, 45, 88])],
+        'corrupted.pdf',
+        { type: 'application/pdf' },
+      ),
+    });
+  });
+  await queue.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await expect(queue.getByRole('alert')).toContainText(
+    'OUTPUT_EXTERNAL_READBACK_MISMATCH',
+    { timeout: 12_000 },
+  );
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2);
+  await expect(queue).not.toContainText('Download initiated — receipt unverified');
+
+  await page.evaluate(() => {
+    // Next attempt writes the entire buffer, closes it, and returns the
+    // same native bytes for readback. The queue may acknowledge only then.
+    const win = window as Window & { showSaveFilePicker?: unknown };
+    win.showSaveFilePicker = async () => {
+      let stored = new Uint8Array(0);
+      return {
+        createWritable: async () => ({
+          write: async (data: ArrayBuffer | Uint8Array) => {
+            stored = new Uint8Array(data instanceof Uint8Array ? data : new Uint8Array(data));
+          },
+          close: async () => undefined,
+        }),
+        getFile: async () => new File([stored], 'verified.pdf', { type: 'application/pdf' }),
+      };
+    };
+  });
+  await queue.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1, { timeout: 12_000 });
+  await expect(queue).toContainText('PDF #2 (auxiliary)');
+  console.log('WP07_R4_FSA_READBACK corrupted_readback_rejected=true durable_output_retained=true verified_retry_acknowledged=true');
+});
