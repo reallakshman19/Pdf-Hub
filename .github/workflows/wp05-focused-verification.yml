@@ -50,7 +50,7 @@ jobs:
         run: pnpm -C frontend run typecheck
       - name: WP-05 source-level regression set
         run: |
-          pnpm -C frontend exec vitest run \
+          WP05_DISPATCH_DIAG=1 pnpm -C frontend exec vitest run \
             src/core/writer-v2/export/projectImportController.test.ts \
             src/core/writer-v2/export/projectImportController.source.test.ts \
             src/core/writer-v2/export/exportCurrentWriterProject.test.ts \
@@ -62,6 +62,7 @@ jobs:
             src/core/pages/pdfPageLabels.test.ts \
             src/core/ocr/__tests__/ocrProjectCodec.test.ts \
             src/core/ocr/__tests__/ocrStoreOwnerGuard.test.ts \
+            src/core/commands/__tests__/dispatch.test.ts \
             src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
             src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
             src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
