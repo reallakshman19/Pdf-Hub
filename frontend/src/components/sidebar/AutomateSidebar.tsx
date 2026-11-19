@@ -100,6 +100,9 @@ export const AutomateSidebar: React.FC = () => {
   const [generationBusy, setGenerationBusy] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
   const generatedOutputs = useMacroOutputQueueStore((state) => state.outputs);
+  const batchCustodyStatus = useMacroOutputQueueStore((state) => state.batchCustodyStatus);
+  const batchCustodyError = useMacroOutputQueueStore((state) => state.batchCustodyError);
+  const hydrateBatchCustody = useMacroOutputQueueStore((state) => state.hydrateBatchCustody);
   const setGeneratedOutputs = useMacroOutputQueueStore((state) => state.setOutputs);
   const enqueueGeneratedOutputs = useMacroOutputQueueStore((state) => state.enqueueOutputs);
   const abortRef = React.useRef<AbortController | null>(null);
@@ -108,6 +111,14 @@ export const AutomateSidebar: React.FC = () => {
     () => subscribeCustomMacroRecipeChanges(setCustomRecipes),
     [],
   );
+
+  React.useEffect(() => {
+    void hydrateBatchCustody().catch((cause) => {
+      logError('macro', 'Durable batch output recovery failed', {
+        cause: cause instanceof Error ? cause.message : String(cause),
+      });
+    });
+  }, [hydrateBatchCustody]);
 
   React.useEffect(() => () => {
     abortRef.current?.abort('Automate panel unmounted');
@@ -418,11 +429,21 @@ export const AutomateSidebar: React.FC = () => {
           />
         ) : null}
 
+        {batchCustodyStatus === 'blocked' ? (
+          <div role="alert" data-testid="batch-custody-blocked" className="mt-4 rounded border border-red-300 p-2 text-xs text-red-700">
+            Batch recovery blocked: {batchCustodyError ?? 'Stored PDF bytes or provenance failed validation.'}
+            Stored files have not been deleted. Recover the affected files before clearing site data.
+          </div>
+        ) : null}
+        {batchCustodyStatus === 'loading' ? (
+          <p role="status" className="mt-4 text-xs text-slate-500">Checking saved PDF output custody…</p>
+        ) : null}
         {generatedOutputs.length > 0 ? (
           <section aria-label="Generated PDF save queue" className="mt-4 space-y-2">
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              Generated PDFs are held in this browser session, not permanently saved.
-              Save or confirm receipt before reloading or closing this tab.
+              Batch PDFs are staged in this browser's IndexedDB when available; other generated PDFs remain session-only.
+              IndexedDB can be cleared by browser privacy controls, so save important files externally.
+              {batchCustodyStatus === 'volatile' ? ' Durable browser storage is unavailable; all outputs are session-only.' : ''}
             </p>
             <MacroOutputQueue outputs={generatedOutputs} onChange={setGeneratedOutputs} />
           </section>
