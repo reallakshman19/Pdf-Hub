@@ -279,7 +279,7 @@ test('WP07 P0: native annotation ownership follows source B through C,A,B reorde
   await expect(page.locator('[data-page="1"]')).toBeVisible();
 
   // Create an actual PDF-Hub overlay on source B through the live UI.
-  await page.getByRole('button', { name: /^Page 2\\b/ }).click();
+  await page.getByRole('button', { name: /^Page 2\b/ }).click();
   await expect(page.locator('[data-page="2"]')).toBeVisible();
   await page.getByRole('tab', { name: 'Annotate' }).click();
   await page.getByRole('button', { name: 'More', exact: true }).click();
