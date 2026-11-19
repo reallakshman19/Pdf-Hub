@@ -102,7 +102,7 @@ export async function simulateMacroDryRun(
               // PdfEditAdapter.removePages fails closed if no pages remain.
               // Reject both remove_pages and split_pages before execution.
               errors.push(`${op}: Cannot remove all pages from the document.`);
-              logs.push(`  → ERROR: ${op} would leave an empty document`);
+              logs.push(`  → ERROR: ${op}: Cannot remove all pages from the document.`);
               return;
             }
             finalPageCount = resultingCount;
