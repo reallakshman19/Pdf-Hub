@@ -32,6 +32,7 @@ export function MacroBuilderExecutionPanel({
   const [preflight, setPreflight] = React.useState<PreflightReport | null>(null);
   const [preflightIdentity, setPreflightIdentity] = React.useState<MacroPreviewIdentity | null>(null);
   const [lastTestedIdentity, setLastTestedIdentity] = React.useState<MacroPreviewIdentity | null>(null);
+  const [completedRunIdentity, setCompletedRunIdentity] = React.useState<MacroPreviewIdentity | null>(null);
   const [status, setStatus] = React.useState<'idle' | 'testing' | 'running' | 'success' | 'error'>('idle');
   const [message, setMessage] = React.useState<string | null>(null);
   const [logs, setLogs] = React.useState<string[]>([]);
@@ -49,6 +50,9 @@ export function MacroBuilderExecutionPanel({
     || sameMacroPreview(lastTestedIdentity, currentIdentity);
   const canRun = validationValid && hasDocument && !busy && previewSatisfied;
   const assessmentCurrent = sameMacroPreview(preflightIdentity, currentIdentity);
+  // A successful Run changes the revision and invalidates its preceding
+  // preflight; do not suppress the actual completion outcome.
+  const completionCurrent = sameMacroPreview(completedRunIdentity, currentIdentity);
 
   const buildPreflight = React.useCallback(async (): Promise<{
     report: PreflightReport;
@@ -84,6 +88,7 @@ export function MacroBuilderExecutionPanel({
     setMessage(null);
     setPreflight(null);
     setPreflightIdentity(null);
+    setCompletedRunIdentity(null);
     setLogs([]);
 
     try {
@@ -125,6 +130,7 @@ export function MacroBuilderExecutionPanel({
     setMessage(null);
     setPreflight(null);
     setPreflightIdentity(null);
+    setCompletedRunIdentity(null);
     setLogs([]);
 
     try {
@@ -182,6 +188,7 @@ export function MacroBuilderExecutionPanel({
         return;
       }
 
+      setCompletedRunIdentity(snapshotMacroPreview(recipeSignature, useSessionStore.getState()));
       setStatus('success');
       setMessage(
         result.outputFiles.length > 0
@@ -221,7 +228,7 @@ export function MacroBuilderExecutionPanel({
           </p>
         </div>
 
-        {assessmentCurrent && status === 'success' ? (
+        {completionCurrent && status === 'success' ? (
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
         ) : assessmentCurrent && status === 'error' ? (
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
@@ -282,7 +289,7 @@ export function MacroBuilderExecutionPanel({
         ) : null}
       </div>
 
-      {message && assessmentCurrent ? (
+      {message && (assessmentCurrent || completionCurrent || status === 'error') ? (
         <p
           className="mt-3 text-xs text-slate-700 dark:text-slate-300"
           role="status"
@@ -295,7 +302,7 @@ export function MacroBuilderExecutionPanel({
         <WorkflowPreflight report={preflight} />
       ) : null}
 
-      {logs.length > 0 && assessmentCurrent ? (
+      {logs.length > 0 && (assessmentCurrent || completionCurrent || status === 'error') ? (
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">
             Run details

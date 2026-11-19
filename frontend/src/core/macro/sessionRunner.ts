@@ -142,6 +142,7 @@ async function runMacroRecipeAgainstSessionNow(
               stepCount: recipe.steps.length,
             },
             selectedPages: result.selectedPages,
+            nextCurrentPage: result.currentPage,
           },
         },
         'macro-runner',

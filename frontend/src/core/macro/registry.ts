@@ -7,6 +7,7 @@ export type SideEffect =
   | { type: 'output_file'; name: string; bytes: Uint8Array }
   | { type: 'page_count_changed'; newCount: number }
   | { type: 'selection_changed'; selectedPages: number[] }
+  | { type: 'current_page_changed'; currentPage: number }
   | { type: 'log'; message: string };
 
 export interface StepResult {
@@ -19,6 +20,8 @@ export interface MacroMutableState {
   workingBytes: Uint8Array;
   pageCount: number;
   selectedPages: number[];
+  /** Current one-based page position at this step of the macro. */
+  currentPage?: number;
   templateVars: Record<string, string>;
   logs: string[];
   outputFiles: { name: string; bytes: Uint8Array }[];

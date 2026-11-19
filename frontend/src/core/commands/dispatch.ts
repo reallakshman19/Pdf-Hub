@@ -1838,7 +1838,7 @@ export async function dispatchPdfCommand(
           nextAnnotations,
           nextWriterElements,
           command.payload.selectedPages,
-          undefined,
+          command.payload.nextCurrentPage,
           rebuiltPageGraph,
           {
             ocrPagePolicy: {
