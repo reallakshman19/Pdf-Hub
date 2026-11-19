@@ -490,6 +490,110 @@ describe('runMacroBatch', () => {
     expect(report.summary.failed).toBe(1);
   });
 
+  it('hands off primary plus two auxiliary PDFs atomically with distinct output hashes and source-owner manifest', async () => {
+    const result = successResult(100);
+    result.outputFiles.push(
+      { name: 'same.pdf', bytes: pdfBytes(18) },
+      { name: '../same.pdf', bytes: pdfBytes(23) },
+    );
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    const perInput: Array<readonly import('./batchRunner').BatchOutputArtifact[]> = [];
+    const legacy = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('repeat.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs: (outputs) => { perInput.push(outputs); },
+    });
+    expect(legacy).not.toHaveBeenCalled();
+    expect(perInput).toHaveLength(1);
+    const group = perInput[0];
+    expect(group).toHaveLength(3);
+    expect(group.map((o) => o.outputIndex)).toEqual([0, 1, 2]);
+    expect(group.map((o) => o.outputKind)).toEqual(['working-copy', 'auxiliary', 'auxiliary']);
+    expect(group.map((o) => o.originalOutputName)).toEqual([undefined, 'same.pdf', '../same.pdf']);
+    expect(new Set(group.map((o) => o.outputName)).size).toBe(3);
+    expect(group[1].outputName).toContain('-aux-001-same.pdf');
+    expect(group[2].outputName).toContain('-aux-002-same.pdf');
+    expect(group.every((o) => o.sourceSha256 === group[0].sourceSha256)).toBe(true);
+    for (const output of group) {
+      expect(output.outputSha256).toBe(await FileAdapter.hashBytes(output.bytes));
+    }
+    expect(report.summary).toMatchObject({
+      succeeded: 1, outputsPrepared: 3, outputsHandedOff: 3,
+    });
+    expect(report.records[0]).toMatchObject({
+      status: 'success', outputCount: 3,
+      outputDisposition: 'handoff-completed-unverified',
+    });
+    if (report.records[0].status !== 'success') throw new Error('Invalid test record');
+    expect(report.records[0].outputs.map((o) => o.outputIndex)).toEqual([0, 1, 2]);
+    expect(report.records[0].outputs.every((o) => o.outputDisposition === 'handoff-completed-unverified')).toBe(true);
+    expect(report.evidence.inputs[0].outputs).toHaveLength(3);
+    expect(containsBinary(report)).toBe(false);
+  });
+
+  it('does not publish the working copy when an auxiliary has malformed PDF bytes', async () => {
+    const result = successResult(100);
+    result.outputFiles.push(
+      { name: 'first.pdf', bytes: pdfBytes(3) },
+      { name: 'bad.pdf', bytes: new Uint8Array([1, 2, 3]) },
+    );
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    const onOutputs = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('contains-bad.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs,
+    });
+    expect(onOutputs).not.toHaveBeenCalled();
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('BATCH_AUXILIARY_PDF_INVALID'),
+    });
+    expect(report.summary).toMatchObject({ outputsHandedOff: 0, succeeded: 0, failed: 1 });
+  });
+
+  it('fails closed for missing atomic onOutputs callback when multiple PDFs are generated', async () => {
+    const result = successResult(100);
+    result.outputFiles.push({ name: 'extracted.pdf', bytes: pdfBytes(4) });
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    const report = await runMacroBatch({
+      sources: [createSource('missing-handler.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+    });
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('BATCH_MULTI_OUTPUT_HANDOFF_REQUIRED'),
+    });
+    expect(report.summary.outputsHandedOff).toBe(0);
+  });
+
+  it('retains all generated PDF identities as failed-unverified when atomic handoff rejects', async () => {
+    const result = successResult(100);
+    result.outputFiles.push({ name: 'extra.pdf', bytes: pdfBytes(4) });
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    const report = await runMacroBatch({
+      sources: [createSource('atomic-fail.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs: async () => { throw new Error('atomic queue failed'); },
+    });
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      error: 'atomic queue failed',
+      outputDisposition: 'handoff-failed-unverified',
+      outputs: [
+        expect.objectContaining({ outputIndex: 0, outputDisposition: 'handoff-failed-unverified' }),
+        expect.objectContaining({ outputIndex: 1, outputDisposition: 'handoff-failed-unverified' }),
+      ],
+    });
+    expect(report.summary.outputsHandedOff).toBe(0);
+    expect(containsBinary(report)).toBe(false);
+  });
+
   it('continues after macro failure when continueOnError is true', async () => {
     macroMocks.executeMacroRecipe
       .mockResolvedValueOnce(failureResult('first failed'))
