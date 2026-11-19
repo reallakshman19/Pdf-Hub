@@ -217,3 +217,40 @@ test('P03: browser Extract emits one native PDF page with original content and k
     await fresh.close();
   }
 });
+
+test('P06: malformed PDF admission fails closed without losing the current editable source', async ({ page }) => {
+  test.setTimeout(60_000);
+  const source = await nativeLabeledSource();
+  const sourcePdf = await PDFDocument.load(source);
+  const expectedStreams = nativeStreamBytes(sourcePdf, 0);
+  await openRealPdf(page, source);
+  await page.getByRole('tab', { name: 'File' }).click();
+
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Open PDF' }).click(),
+  ]);
+  const invalid = Buffer.from('not a PDF: malicious or corrupt input', 'utf8');
+  await chooser.setFiles({
+    name: 'wp05-malformed.pdf',
+    mimeType: 'application/pdf',
+    buffer: invalid,
+  });
+  await expect(page.getByText('Unable to Open PDF').first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
+
+  const saved = await saveNativePdf(page);
+  await test.info().attach('wp05-after-malformed-input-native-output.pdf', {
+    body: Buffer.from(saved),
+    contentType: 'application/pdf',
+  });
+  const verified = await assertNativeLabelRules(saved, [
+    { start: 0, prefix: 'Cover' },
+    { start: 1, style: '/r' },
+    { start: 2, style: '/D', prefix: 'Body-', number: 7 },
+  ]);
+  expect(verified.getPageCount()).toBe(3);
+  expect(nativeStreamBytes(verified, 0)).toEqual(expectedStreams);
+});
