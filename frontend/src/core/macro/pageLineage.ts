@@ -47,8 +47,9 @@ function selected(state: MacroMutableState, selector: PageSelector): number[] {
 }
 
 function changeCount(result: StepResult): number | undefined {
-  const countEffects = result.sideEffects.filter((e) => e.type === 'page_count_changed');
-  return countEffects.at(-1)?.newCount;
+  return result.sideEffects
+    .flatMap((effect) => effect.type === 'page_count_changed' ? [effect.newCount] : [])
+    .at(-1);
 }
 
 /**
