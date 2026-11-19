@@ -367,6 +367,22 @@ async function executeValidatedBatchPdf(
     });
   }
 
+  // One callback currently hands off one working-copy PDF per input.
+  // Never silently discard separately generated extract/split PDFs: a
+  // complete batch provenance record must account for every emitted file.
+  if (execution.outputFiles.length > 0) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      status: 'failed',
+      error: `BATCH_AUXILIARY_OUTPUTS_NOT_SUPPORTED: ${execution.outputFiles.length} separately generated PDF(s) need an explicit multi-output custody contract; none was handed off.`,
+      logs,
+    });
+  }
+
   const output = new Uint8Array(execution.finalBytes);
   const outputBytes = output.byteLength;
   const outputSha256 = await FileAdapter.hashBytes(output);

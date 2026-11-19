@@ -438,6 +438,30 @@ describe('runMacroBatch', () => {
       .toThrow(/valid source ordinal/);
   });
 
+  it('fails closed when a macro emits extra PDFs that the one-output batch contract cannot stage', async () => {
+    const withAuxiliary = successResult(25);
+    withAuxiliary.outputFiles.push({
+      name: 'split-other.pdf',
+      bytes: pdfBytes(),
+    });
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(withAuxiliary);
+    const handoff = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('with-aux.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: handoff,
+    });
+    expect(handoff).not.toHaveBeenCalled();
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      sourceSha256: expect.stringMatching(/^sha256:/),
+      error: expect.stringContaining('BATCH_AUXILIARY_OUTPUTS_NOT_SUPPORTED'),
+    });
+    expect(report.summary.succeeded).toBe(0);
+    expect(report.summary.failed).toBe(1);
+  });
+
   it('continues after macro failure when continueOnError is true', async () => {
     macroMocks.executeMacroRecipe
       .mockResolvedValueOnce(failureResult('first failed'))

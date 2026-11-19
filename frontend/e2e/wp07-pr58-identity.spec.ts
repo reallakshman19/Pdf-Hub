@@ -410,7 +410,10 @@ test('WP07 B01: same-named batch PDFs retain separate hashes, output custody and
     expect(record.outputName).toContain(`${String(record.inputIndex + 1).padStart(3, '0')}-repeat-`);
     expect(record.outputName).toContain(record.sourceSha256.slice(7, 19));
   }
-  expect(JSON.stringify(report)).not.toContain('"bytes"');
+  // Metadata legitimately uses "bytes" as a measurement unit. Reject
+  // serialized byte arrays, not the word in measurement labels.
+  expect(JSON.stringify(report)).not.toMatch(/"0"\\s*:\\s*\\d+/);
+  expect(JSON.stringify(report)).not.toContain('%PDF-');
 
   for (let index = 0; index < 2; index += 1) {
     const [download] = await Promise.all([

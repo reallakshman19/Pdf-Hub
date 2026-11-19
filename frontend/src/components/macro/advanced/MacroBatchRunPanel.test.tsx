@@ -116,6 +116,7 @@ describe('MacroBatchRunPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useMacroOutputQueueStore.getState().clearOutputs();
+    useMacroOutputQueueStore.getState().setLastBatchReport(null);
 
     fileMocks.pickPdfFileSources.mockResolvedValue([
       {
@@ -220,6 +221,18 @@ describe('MacroBatchRunPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run Selected Batch' }));
     await waitFor(() => expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(1));
     expect(useMacroOutputQueueStore.getState().outputs[0].bytes).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+
+  it('retains the metadata report when Automate tab unmounts and remounts the panel', async () => {
+    const { unmount } = render(<MacroBatchRunPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Workflow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run Selected Batch' }));
+    await waitFor(() => expect(useMacroOutputQueueStore.getState().lastBatchReport).not.toBeNull());
+    unmount();
+    render(<MacroBatchRunPanel />);
+    expect(screen.getByRole('button', { name: 'Download JSON Report Again' })).toBeVisible();
+    expect(useMacroOutputQueueStore.getState().outputs).toHaveLength(1);
   });
 
   it('reports busy state for the full batch operation', async () => {

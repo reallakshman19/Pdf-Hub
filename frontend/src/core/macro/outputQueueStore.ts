@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { MacroOutputFile } from './types';
+import type { BatchRunResult } from './batchRunner';
 
 /**
  * Generated PDF bytes remain available in the browser session until the
@@ -26,6 +27,9 @@ type OutputChange =
 
 export interface MacroOutputQueueState {
   outputs: MacroOutputQueueItem[];
+  /** Metadata-only report survives unmount/remount inside this tab/session. */
+  lastBatchReport: BatchRunResult | null;
+  setLastBatchReport: (report: BatchRunResult | null) => void;
   setOutputs: (change: OutputChange) => void;
   enqueueOutputs: (
     files: readonly MacroOutputFile[],
@@ -46,6 +50,8 @@ export interface MacroOutputQueueState {
 
 export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set) => ({
   outputs: [],
+  lastBatchReport: null,
+  setLastBatchReport: (report) => set({ lastBatchReport: report }),
   setOutputs: (change) => set((state) => ({
     outputs: typeof change === 'function' ? change(state.outputs) : change,
   })),
