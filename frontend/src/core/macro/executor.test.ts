@@ -4,6 +4,7 @@ import './steps/content-ops';
 import './steps/conditional-ops';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { executeMacroRecipe } from './executor';
+import { validateRecipeBeforeRun } from './validation/validator';
 import { resolveSelector as resolvePageSelector } from './steps/page-ops';
 import type { MacroExecutionContext, MacroRecipe } from './types';
 
@@ -541,6 +542,20 @@ describe('macro executor', () => {
         selectedPages: [],
         currentPage: 1,
       };
+
+      const preflight = await validateRecipeBeforeRun(
+        { ...recipe, dryRun: true },
+        {
+          pageCount: context.pageCount,
+          selectedPages: context.selectedPages,
+          currentPage: context.currentPage,
+          fileName: context.fileName,
+          donorFiles: context.donorFiles,
+          now: context.now,
+        },
+      );
+      expect(preflight.isValid).toBe(false);
+      expect(preflight.errors.join(' ')).toContain('Cannot remove all pages');
 
       const preview = await executeMacroRecipe(
         { ...recipe, dryRun: true },
