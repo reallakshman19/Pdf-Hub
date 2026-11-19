@@ -113,6 +113,7 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
       pageIndex,
       mode: draft.mode,
       bbox: draft.bbox,
+      geometryProvenance: 'pdf-user-space-v2',
     });
 
     const validation = validateOcrRegion(region, {
