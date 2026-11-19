@@ -390,22 +390,25 @@ async function executeValidatedBatchPdf(
       bytes: output,
     });
   } catch (error) {
-    const cancelled = isOperationCancelledError(error);
     const reason = error instanceof Error ? error.message : String(error);
-    return freezeRecord({
+    const details = {
       inputIndex: input.inputIndex,
       fileName: input.fileName,
       inputBytes: input.sourceBytes,
       pageCount: input.pageCount,
       sourceSha256,
-      outputName,
-      outputSha256,
-      ...(cancelled ? {} : {
-        outputDisposition: 'handoff-failed-unverified' as const,
-      }),
-      status: cancelled ? 'cancelled' as const : 'failed' as const,
       error: reason,
       logs,
+    };
+    if (isOperationCancelledError(error)) {
+      return freezeRecord({ ...details, status: 'cancelled' as const });
+    }
+    return freezeRecord({
+      ...details,
+      outputName,
+      outputSha256,
+      outputDisposition: 'handoff-failed-unverified' as const,
+      status: 'failed' as const,
     });
   }
   return freezeRecord({
