@@ -54,6 +54,8 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible({ timeout: 20_000 });
 
   await page.getByRole('button', { name: 'OCR', exact: true }).click();
+  // Engine is deliberately inside a collapsed native details control.
+  await page.getByTestId('ocr-run-advanced-settings').locator('summary').click();
   const engine = page.getByTestId('ocr-engine-select');
   await expect(engine).toBeVisible();
   await engine.selectOption('tesseract-js');
