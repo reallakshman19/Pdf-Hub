@@ -67,6 +67,10 @@ async function readRegions(bytes: Buffer): Promise<SavedRegion[]> {
 test('P05: document OCR Area on a real rotated CropBox page survives two editable-project reopen cycles', async ({ page, browser }) => {
   test.setTimeout(120_000);
   const source = await rotatedCropBoxPdf();
+  await test.info().attach('wp05-synthetic-rotated-cropbox-source.pdf', {
+    body: Buffer.from(source),
+    contentType: 'application/pdf',
+  });
   await openSourcePdf(page, source);
   await page.getByRole('tab', { name: 'Annotate' }).click();
   await page.getByRole('button', { name: 'More', exact: true }).click();
@@ -126,6 +130,10 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
     await reopened.getByRole('button', { name: 'OCR', exact: true }).click();
     await expect(reopened.getByTestId('ocr-region-row')).toHaveCount(1, { timeout: 15_000 });
     const secondZip = await saveProject(reopened);
+    await test.info().attach('wp05-synthetic-second-project.pdfhub.zip', {
+      body: secondZip,
+      contentType: 'application/zip',
+    });
     const second = await readRegions(secondZip);
     expect(second).toEqual(first);
   } finally {
