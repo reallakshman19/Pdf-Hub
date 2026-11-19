@@ -45,7 +45,7 @@ describe('WP05 active-document OCR owner guards', () => {
     });
     useOcrStore.getState().focusOcrTarget({
       documentFingerprint: 'document-A', pageIndex: 0, bbox,
-      targetId: 'word-A', source: 'lowConfidence', requestedAt: 1,
+      targetId: 'word-A', source: 'lowConfidence',
     });
     expect(useOcrStore.getState().regions).toEqual([]);
     expect(useOcrStore.getState().corrections).toEqual([]);
