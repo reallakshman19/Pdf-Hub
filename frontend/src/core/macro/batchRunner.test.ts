@@ -390,6 +390,34 @@ describe('runMacroBatch', () => {
     expect(containsBinary(report)).toBe(false);
   });
 
+  it('executes one frozen recipe revision even if its caller edits steps during input handoff', async () => {
+    const recipe: MacroRecipe = {
+      id: 'frozen',
+      name: 'Frozen owner recipe',
+      steps: [],
+    };
+    const digest = await FileAdapter.hashBytes(
+      new TextEncoder().encode(JSON.stringify(recipe)),
+    );
+    const report = await runMacroBatch({
+      sources: [createSource('one.pdf'), createSource('two.pdf')],
+      recipe,
+      continueOnError: true,
+      onOutput: ({ inputIndex }) => {
+        if (inputIndex === 0) {
+          recipe.steps.push({ op: 'rotate_pages', selector: { mode: 'all' }, degrees: 90 });
+        }
+      },
+    });
+    expect(recipe.steps).toHaveLength(1);
+    expect(macroMocks.executeMacroRecipe).toHaveBeenCalledTimes(2);
+    for (const call of macroMocks.executeMacroRecipe.mock.calls) {
+      expect(call[0].steps).toEqual([]);
+    }
+    expect(report.metadata.recipeSha256).toBe(digest);
+    expect(report.metadata.recipeId).toBe('frozen');
+  });
+
   it('does not report durable receipt after a successful output handoff', async () => {
     const output = successResult(21);
     macroMocks.executeMacroRecipe.mockResolvedValueOnce(output);

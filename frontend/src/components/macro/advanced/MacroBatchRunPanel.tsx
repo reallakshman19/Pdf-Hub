@@ -95,8 +95,10 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
       setLastReport(report);
       // The report's browser download is unverified; retain it in this panel
       // for retry, even after partial cancellation.
+      let reportDownloadInitiated = false;
       try {
         downloadReport(report);
+        reportDownloadInitiated = true;
       } catch {
         // Retained report remains available through explicit retry.
       }
@@ -117,7 +119,10 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
           `Processed ${report.summary.processed} file(s): `
           + `${report.summary.succeeded} succeeded, `
           + `${report.summary.failed} failed. `
-          + `Outputs are queued for explicit saving; report download was initiated but receipt is unverified.`,
+          + `Outputs are queued for explicit saving; `
+          + (reportDownloadInitiated
+            ? 'report download was initiated but receipt is unverified.'
+            : 'report download did not start; use Download JSON Report Again.'),
       });
     } catch (error) {
       if (
