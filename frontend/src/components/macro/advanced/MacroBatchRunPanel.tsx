@@ -24,7 +24,8 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [isRunning, setIsRunning] = React.useState(false);
   const [activeRecipeName, setActiveRecipeName] = React.useState<string | null>(null);
-  const [lastReport, setLastReport] = React.useState<BatchRunResult | null>(null);
+  const lastReport = useMacroOutputQueueStore((state) => state.lastBatchReport);
+  const setLastReport = useMacroOutputQueueStore((state) => state.setLastBatchReport);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
@@ -199,8 +200,9 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
               Download JSON Report Again
             </Button>
             <p className="text-[11px] text-amber-700 dark:text-amber-300">
-              PDF outputs are queued in this browser session. Download initiation
-              does not prove receipt; save or confirm before leaving the tab.
+              PDF outputs and this report are held in this browser session,
+              not durable across reload. Download initiation does not prove receipt;
+              save or confirm before closing the tab.
             </p>
           </div>
         ) : null}
