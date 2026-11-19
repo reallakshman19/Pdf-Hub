@@ -182,7 +182,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
     setMarqueeStart(null);
     setMarqueeCurrent(null);
-  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, pageNumber, setActiveTool, ocrViewport, addToast]);
+  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, setActiveTool, ocrViewport, addToast]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
