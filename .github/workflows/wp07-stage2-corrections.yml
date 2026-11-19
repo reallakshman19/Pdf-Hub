@@ -27,6 +27,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           src/core/macro/psIsonote/psIsonoteAudit.test.ts
+          src/core/macro/psIsonote/psIsonoteIdentity.test.ts
           src/core/macro/psIsonote/psIsonoteVerification.test.ts
           src/core/macro/psIsonote/psIsonoteEvidencePackage.test.ts
           src/core/macro/outputQueueStore.test.ts
