@@ -429,7 +429,10 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
         outputBytes,
         outputDocumentKey: outputDocumentKey ?? null,
         expectedPageCount: inputPageCount,
-        expectedMarkers: built.callouts,
+        expectedMarkers: built.callouts.map((callout) => ({
+          ...callout,
+          visibleNoteText: `ISO Note: ${callout.mapping.isonote}`,
+        })),
       });
       if (!verification.verified) {
         // Fail closed: a readable PDF with a missing/duplicate marker is not a
@@ -449,7 +452,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
         verification,
       });
       setMessage(
-        `Verified ${verification.verifiedMarkerCount} of ${verification.expectedMarkerCount} PS occurrence marker(s) in the reopened output PDF.`,
+        `Verified ${verification.verifiedMarkerCount} of ${verification.expectedMarkerCount} PS marker(s) and expected ISONOTE text in the reopened output PDF (visual geometry requires separate review).`,
       );
     } catch (runError) {
       const failureMessage = runError instanceof Error ? runError.message : String(runError);
