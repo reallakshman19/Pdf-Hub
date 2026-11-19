@@ -192,7 +192,7 @@ export function MacroBuilderExecutionPanel({
       setStatus('success');
       setMessage(
         result.outputFiles.length > 0
-          ? `Workflow complete. ${result.outputFiles.length} output file(s) produced.`
+          ? `Workflow complete. ${result.outputFiles.length} output PDF(s) queued in Automate for saving. Save before reloading.`
           : 'Workflow complete. The active document was updated.',
       );
     } catch (error) {

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
@@ -10,6 +10,13 @@ import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
  * drive the deployed React entrypoint, its recipe JSON importer, preflight,
  * canonical macro runner, normal Save and an independently parsed PDF.
  */
+async function persistPublicSyntheticEvidence(name: string, bytes: Uint8Array | Buffer): Promise<void> {
+  const dir = process.env.WP07_EVIDENCE_DIR;
+  if (!dir) return;
+  await mkdir(dir, { recursive: true });
+  await writeFile(`${dir}/${name}`, bytes);
+}
+
 async function createThreePageSource(): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -33,6 +40,7 @@ async function openDocumentAndBuilder(page: Page): Promise<void> {
   const bytes = await createThreePageSource();
   const sourceFile = Buffer.from(bytes);
   const sourceSha256 = createHash('sha256').update(sourceFile).digest('hex');
+  await persistPublicSyntheticEvidence(`source-${sourceSha256}.pdf`, sourceFile);
   await test.info().attach('ALT-WP07_native-source.pdf', {
     body: sourceFile,
     contentType: 'application/pdf',
@@ -85,6 +93,7 @@ async function saveAndInspect(page: Page): Promise<string[]> {
 
   const file = await readFile(path as string);
   const outputSha256 = createHash('sha256').update(file).digest('hex');
+  await persistPublicSyntheticEvidence(`export-${outputSha256}.pdf`, file);
   await test.info().attach('ALT-WP07_native-export.pdf', {
     body: file,
     contentType: 'application/pdf',
@@ -117,6 +126,10 @@ async function saveAndInspect(page: Page): Promise<string[]> {
     body: Buffer.from(JSON.stringify(witness, null, 2)),
     contentType: 'application/json',
   });
+  await persistPublicSyntheticEvidence(
+    `witness-${outputSha256}.json`,
+    Buffer.from(JSON.stringify(witness, null, 2)),
+  );
   console.log(`ALT_WP07_EXPORT sha256=${outputSha256} pages=${markers.length} source_order=${markers.join(',')}`);
   return markers;
 }

@@ -2,7 +2,7 @@ import type { MacroRecipe } from './types';
 import type { MacroResourceLimits } from './resourceBudget';
 import { executeMacroRecipe, type MacroExecutionResult } from './executor';
 import { useSessionStore } from '@/core/session/store';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { useMacroOutputQueueStore } from './outputQueueStore';
 import { throwIfAborted } from '@/core/cancellation/operationCancellation';
 import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
@@ -167,11 +167,15 @@ async function runMacroRecipeAgainstSessionNow(
     }
   }
 
-  if (options?.saveOutputs && executionSucceeded) {
-    for (const output of result.outputFiles) {
-      throwIfAborted(options.abortSignal, `saving macro output ${output.name}`);
-      await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-    }
+  if (!options?.dryRun && options?.saveOutputs && executionSucceeded && result.outputFiles.length > 0) {
+    // External filesystem/download writes are not transactional with the
+    // document commit. Keep every output recoverable in the shared UI queue
+    // instead of starting silent downloads that can fail after commit.
+    useMacroOutputQueueStore.getState().enqueueOutputs(result.outputFiles, {
+      sourceKind: 'macro',
+      sourceDocumentKey: session.documentKey ?? undefined,
+      sourceRecipeId: recipe.id,
+    });
   }
 
   return result;
