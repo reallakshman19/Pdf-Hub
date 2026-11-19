@@ -4,7 +4,7 @@ import { Save, Trash2 } from 'lucide-react';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
-import type { MacroOutputQueueItem } from '@/core/macro/outputQueueStore';
+import { useMacroOutputQueueStore, type MacroOutputQueueItem } from '@/core/macro/outputQueueStore';
 export type { MacroOutputQueueItem } from '@/core/macro/outputQueueStore';
 
 export interface MacroOutputQueueProps {
@@ -35,10 +35,35 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       : current.filter((value) => value !== id));
   };
 
-  const saveAcknowledged = (id: string) => {
+  const saveAcknowledged = async (id: string) => {
+    const output = outputs.find((item) => item.id === id);
+    if (!output) return;
+    // Remove the IDB record BEFORE hiding a batch output. A failed delete is
+    // visible and recoverable after reload; it must not appear acknowledged.
+    if (output.sourceKind === 'batch') {
+      await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(id);
+    } else {
+      onChange((current) => current.filter((item) => item.id !== id));
+    }
     markDownloadPending(id, false);
-    // Functional updates preserve outputs created while a previous save was in flight.
-    onChange((current) => current.filter((item) => item.id !== id));
+  };
+
+  const verifyBatchSave = async (output: MacroOutputQueueItem, handle?: FileSystemFileHandle | null) => {
+    if (output.sourceKind !== 'batch') return;
+    if (!output.outputSha256) throw new Error('Missing batch output digest.');
+    const memoryHash = await FileAdapter.hashBytes(output.bytes);
+    if (memoryHash !== output.outputSha256) {
+      throw new Error('OUTPUT_PRE_SAVE_HASH_MISMATCH: pending PDF differs from its provenance.');
+    }
+    if (handle) {
+      // Native FSA writes close before returning. Prove readback rather than
+      // assuming a successful close establishes file contents.
+      const persistedFile = await handle.getFile();
+      const savedBytes = new Uint8Array(await persistedFile.arrayBuffer());
+      if (await FileAdapter.hashBytes(savedBytes) !== output.outputSha256) {
+        throw new Error('OUTPUT_EXTERNAL_READBACK_MISMATCH: saved PDF hash differs.');
+      }
+    }
   };
 
   const reportFailure = (output: MacroOutputQueueItem, failure: unknown) => {
@@ -62,9 +87,11 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     setNotice(null);
     markDownloadPending(id, false);
     try {
+      await verifyBatchSave(output);
       const handle = await FileAdapter.savePdfBytes(output.bytes, output.name, null);
       if (handle) {
-        saveAcknowledged(id);
+        await verifyBatchSave(output, handle);
+        await saveAcknowledged(id);
       } else {
         markDownloadPending(id, true);
         setNotice('Browser download started. Confirm you received the file before removing it from the queue.');
@@ -91,6 +118,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     try {
       for (const output of outputs) {
         try {
+          await verifyBatchSave(output);
           const handle = await FileAdapter.savePdfBytes(output.bytes, output.name, null);
           if (!handle) {
             markDownloadPending(output.id, true);
@@ -98,7 +126,8 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             setNotice('Browser download started. Confirm receipt before saving the remaining files.');
             return;
           }
-          saveAcknowledged(output.id);
+          await verifyBatchSave(output, handle);
+          await saveAcknowledged(output.id);
         } catch (failure) {
           reportFailure(output, failure);
           return;
@@ -110,10 +139,22 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     }
   };
 
-  const confirmReceived = (id: string) => {
+  const confirmReceived = async (id: string) => {
     if (savingRef.current || !downloadPendingIds.includes(id)) return;
-    saveAcknowledged(id);
-    setNotice('Receipt confirmed by you. Other queued outputs remain available.');
+    const output = outputs.find((item) => item.id === id);
+    if (!output) return;
+    savingRef.current = true;
+    setIsSaving(true);
+    try {
+      await verifyBatchSave(output);
+      await saveAcknowledged(id);
+      setNotice('Receipt confirmed by you. Other queued outputs remain available.');
+    } catch (failure) {
+      reportFailure(output, failure);
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -139,9 +180,25 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => {
-              setDownloadPendingIds([]);
-              setNotice(null);
-              onChange([]);
+              if (outputs.some((item) => item.sourceKind === 'batch')) {
+                savingRef.current = true;
+                setIsSaving(true);
+                void useMacroOutputQueueStore.getState().clearAllOutputs()
+                  .then(() => {
+                    setDownloadPendingIds([]);
+                    setNotice(null);
+                    onChange([]);
+                  })
+                  .catch((failure) => reportFailure(outputs[0], failure))
+                  .finally(() => {
+                    savingRef.current = false;
+                    setIsSaving(false);
+                  });
+              } else {
+                setDownloadPendingIds([]);
+                setNotice(null);
+                onChange([]);
+              }
             }}
             disabled={isSaving || outputs.length === 0}
           >
@@ -182,7 +239,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
               </div>
               <div className="flex items-center gap-1">
                 {pending ? (
-                  <Button variant="secondary" size="sm" disabled={isSaving} onClick={() => confirmReceived(output.id)}>
+                  <Button variant="secondary" size="sm" disabled={isSaving} onClick={() => void confirmReceived(output.id)}>
                     Confirm received
                   </Button>
                 ) : null}

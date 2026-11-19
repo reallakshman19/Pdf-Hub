@@ -24,7 +24,7 @@ jobs:
         run: pnpm run typecheck
         working-directory: frontend
       - name: WP07 focused unit tests
-        run: pnpm exec vitest run src/core/macro/executor.test.ts src/core/macro/steps/page-ops.slice2.test.ts src/core/macro/sessionRunner.slice12.test.ts src/core/macro/sessionRunner.test.ts src/core/macro/batchRunner.test.ts src/core/admission/batchEntrypoints.test.ts src/components/macro/advanced/MacroBatchRunPanel.test.tsx src/core/macro/outputQueueStore.test.ts src/core/macro/pageOwnership.test.ts src/core/macro/pageLineage.test.ts src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx src/components/macro/advanced/MacroOutputQueue.test.tsx --pool=forks --maxWorkers=1
+        run: pnpm exec vitest run src/core/macro/executor.test.ts src/core/macro/steps/page-ops.slice2.test.ts src/core/macro/sessionRunner.slice12.test.ts src/core/macro/sessionRunner.test.ts src/core/macro/batchRunner.test.ts src/core/admission/batchEntrypoints.test.ts src/components/macro/advanced/MacroBatchRunPanel.test.tsx src/core/macro/outputQueueStore.test.ts src/core/macro/durableBatchCustody.test.ts src/core/macro/pageOwnership.test.ts src/core/macro/pageLineage.test.ts src/components/macro/builder/MacroBuilderExecutionPanel.test.tsx src/components/macro/advanced/MacroOutputQueue.test.tsx --pool=forks --maxWorkers=1
         working-directory: frontend
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium

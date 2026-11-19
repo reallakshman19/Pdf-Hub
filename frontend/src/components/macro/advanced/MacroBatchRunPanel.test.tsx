@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { MacroBatchRunPanel } from './MacroBatchRunPanel';
-import { useMacroOutputQueueStore } from '@/core/macro/outputQueueStore';
+import { configureBatchCustodyAdapter, useMacroOutputQueueStore } from '@/core/macro/outputQueueStore';
+import { createVolatileBatchCustodyAdapter } from '@/core/macro/durableBatchCustody';
 import type { BatchOutputArtifact } from '@/core/macro/batchRunner';
 
 const fileMocks = vi.hoisted(() => ({
@@ -119,8 +120,7 @@ function completedReport() {
 describe('MacroBatchRunPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useMacroOutputQueueStore.getState().clearOutputs();
-    useMacroOutputQueueStore.getState().setLastBatchReport(null);
+    configureBatchCustodyAdapter(createVolatileBatchCustodyAdapter());
 
     fileMocks.pickPdfFileSources.mockResolvedValue([
       {
