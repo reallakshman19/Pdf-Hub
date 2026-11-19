@@ -42,6 +42,7 @@ async function openRealPdf(page: Page, bytes: Uint8Array) {
 }
 
 async function saveNativePdf(page: Page) {
+  await page.getByRole('tab', { name: 'File' }).click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Save', exact: true }).click(),
@@ -87,6 +88,7 @@ test('P02/P04: native PageLabels survive browser rotate, PDF Save and fresh-cont
   test.setTimeout(120_000);
   const source = await nativeLabeledSource();
   await openRealPdf(page, source);
+  await page.getByRole('tab', { name: 'Organize' }).click();
   await page.getByRole('button', { name: 'Rotate selected or current pages' }).click();
 
   const firstSave = await saveNativePdf(page);
@@ -101,6 +103,7 @@ test('P02/P04: native PageLabels survive browser rotate, PDF Save and fresh-cont
   try {
     const reopened = await fresh.newPage();
     await openRealPdf(reopened, firstSave);
+    await reopened.getByRole('tab', { name: 'Organize' }).click();
     await reopened.getByRole('button', { name: 'Rotate selected or current pages' }).click();
     const secondSave = await saveNativePdf(reopened);
     const reopenedNative = await assertNativeLabelRules(secondSave, [
@@ -118,6 +121,7 @@ test('P04: native range starts reanchor on browser Delete, survive Save and reop
   test.setTimeout(120_000);
   const source = await nativeLabeledSource();
   await openRealPdf(page, source);
+  await page.getByRole('tab', { name: 'Organize' }).click();
   await page.getByRole('button', { name: 'Delete selected or current pages' }).click();
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
 
@@ -132,6 +136,7 @@ test('P04: native range starts reanchor on browser Delete, survive Save and reop
   try {
     const reopened = await fresh.newPage();
     await openRealPdf(reopened, saved);
+    await reopened.getByRole('tab', { name: 'Organize' }).click();
     await reopened.getByRole('button', { name: 'Rotate selected or current pages' }).click();
     const secondSave = await saveNativePdf(reopened);
     const reopenedNative = await assertNativeLabelRules(secondSave, [
