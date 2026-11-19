@@ -949,7 +949,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
 
-  const { size: renderSize } = usePageRenderer({
+  const { size: renderSize, ocrViewport } = usePageRenderer({
     doc,
     pageNumber,
     scale,
@@ -2144,6 +2144,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         pageNumber={pageNumber}
         scale={scale}
         pageDimensions={renderSize || size}
+        ocrViewport={ocrViewport}
       />
 
       <WriterOverlayLayer
