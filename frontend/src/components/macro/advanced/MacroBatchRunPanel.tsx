@@ -25,7 +25,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
   const [isRunning, setIsRunning] = React.useState(false);
   const [activeRecipeName, setActiveRecipeName] = React.useState<string | null>(null);
   const lastReport = useMacroOutputQueueStore((state) => state.lastBatchReport);
-  const setLastReport = useMacroOutputQueueStore((state) => state.setLastBatchReport);
+  const saveBatchReport = useMacroOutputQueueStore((state) => state.saveBatchReport);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
@@ -58,8 +58,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
     onBusyChange?.(true);
     setIsRunning(true);
     setActiveRecipeName(recipe.name);
-    setLastReport(null);
-
+    // Preserve the previous durable report until a complete replacement is saved.
     try {
       const sources = await FileAdapter.pickPdfFileSources(true);
       if (sources.length === 0 || controller.signal.aborted) return;
@@ -80,7 +79,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
         },
       });
 
-      setLastReport(report);
+      await saveBatchReport(report);
       // The report's browser download is unverified; retain it in this panel
       // for retry, even after partial cancellation.
       let reportDownloadInitiated = false;
@@ -193,9 +192,9 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
               Download JSON Report Again
             </Button>
             <p className="text-[11px] text-amber-700 dark:text-amber-300">
-              PDF outputs and this report are held in this browser session,
-              not durable across reload. Download initiation does not prove receipt;
-              save or confirm before closing the tab.
+              Batch PDFs and this metadata report can recover from this browser's
+              IndexedDB when available. Browser storage can be cleared or unavailable.
+              Download initiation does not prove external receipt; save and verify files.
             </p>
           </div>
         ) : null}
