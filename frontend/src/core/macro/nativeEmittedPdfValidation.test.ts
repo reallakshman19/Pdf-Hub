@@ -14,6 +14,27 @@ async function nativePdf(pageCount: number): Promise<Uint8Array> {
   return new Uint8Array(await document.save());
 }
 
+/** A correctly indexed, directly authored PDF with an empty /Pages tree. */
+function nativeZeroPagePdf(): Uint8Array {
+  let pdf = '%PDF-1.4\\n';
+  const offsets = [0];
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [] /Count 0 >>',
+  ];
+  for (const [index, body] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\\n${body}\\nendobj\\n`;
+  }
+  const xref = pdf.length;
+  pdf += 'xref\\n0 3\\n0000000000 65535 f \\n';
+  for (const offset of offsets.slice(1)) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \\n`;
+  }
+  pdf += `trailer\\n<< /Root 1 0 R /Size 3 >>\\nstartxref\\n${xref}\\n%%EOF\\n`;
+  return new TextEncoder().encode(pdf);
+}
+
 describe('WP07 R5 native emitted PDF validation (real parser)', () => {
   it('accepts a genuine native two-page PDF and retains its real page count', async () => {
     const value = await validateEmittedBatchPdf(await nativePdf(2), 1);
@@ -29,8 +50,8 @@ describe('WP07 R5 native emitted PDF validation (real parser)', () => {
     });
   });
 
-  it('rejects an actual syntactically loadable zero-page PDF', async () => {
-    const value = await validateEmittedBatchPdf(await nativePdf(0), 0);
+  it('rejects a directly authored zero-page PDF with a valid page-tree and xref', async () => {
+    const value = await validateEmittedBatchPdf(nativeZeroPagePdf(), 0);
     expect(value).toMatchObject({
       valid: false,
       error: expect.stringContaining('BATCH_PRIMARY_PDF_INVALID'),
