@@ -170,6 +170,13 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             <div key={output.id} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 p-2 dark:border-slate-800">
               <div className="min-w-0">
                 <div className="truncate text-xs text-slate-700 dark:text-slate-200">{output.name}</div>
+                {output.sourceKind === 'batch' ? (
+                  <div className="text-[11px] text-slate-500" data-testid="batch-output-provenance">
+                    Input #{(output.sourceInputIndex ?? 0) + 1}: {output.sourceFileName ?? '(unknown)'}
+                    {' · '}source {output.sourceSha256?.slice(7, 19) ?? 'unverified'}
+                    {' · '}output {output.outputSha256?.slice(7, 19) ?? 'unverified'}
+                  </div>
+                ) : null}
                 {pending ? <div className="text-[11px] text-amber-700">Download initiated — receipt unverified</div> : null}
               </div>
               <div className="flex items-center gap-1">
