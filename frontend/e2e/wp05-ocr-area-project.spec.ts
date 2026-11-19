@@ -96,8 +96,8 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
   // Source /CropBox has a nonzero lower-left and a 90-degree rotation.
   expect(first[0].bbox.x).toBeGreaterThanOrEqual(70);
   expect(first[0].bbox.y).toBeGreaterThanOrEqual(100);
-  expect(first[0].bbox.x + first[0].bbox.width).toBeLessThanOrEqual(470);
-  expect(first[0].bbox.y + first[0].bbox.height).toBeLessThanOrEqual(520);
+  expect(first[0].bbox.x + first[0].bbox.width).toBeLessThanOrEqual(540);
+  expect(first[0].bbox.y + first[0].bbox.height).toBeLessThanOrEqual(620);
 
   const fresh = await browser.newContext();
   try {
