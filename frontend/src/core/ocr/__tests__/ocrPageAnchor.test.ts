@@ -215,6 +215,46 @@ describe('OCR PageId anchors', () => {
     });
   });
 
+  it('does not double-rotate native PDF-space OCR words, regions, corrections or focus', () => {
+    const before = graph(['p1']);
+    const native = state(0);
+    native.result!.pages[0].geometryProvenance = 'pdf-user-space-v2';
+    native.regions[0].geometryProvenance = 'pdf-user-space-v2';
+    const after = rotatePagesInGraph(before, ['p1'], 90);
+
+    const remapped = reanchorOcrPageStateAfterPageGraphChange(
+      normalizeOcrPageAnchoredState(native, before),
+      before,
+      after,
+    );
+
+    expect(remapped.result?.pages[0]).toMatchObject({
+      pageId: 'p1', pageIndex: 0, width: 600, height: 800,
+      geometryProvenance: 'pdf-user-space-v2',
+    });
+    expect(remapped.result?.pages[0]?.words?.[0].bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    expect(remapped.regions[0].bbox).toEqual({
+      x: 80, y: 180, width: 120, height: 60,
+    });
+    expect(remapped.corrections[0].bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    expect(remapped.reviewFocus?.bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    // Existing untagged coordinates retain the historical rotation rule,
+    // never silently upgraded to the verified native-space convention.
+    const legacy = reanchorOcrPageStateAfterPageGraphChange(
+      normalizeOcrPageAnchoredState(state(0), before),
+      before,
+      after,
+    );
+    expect(legacy.result?.pages[0]?.words?.[0].bbox.x).toBe(200);
+    expect(legacy.regions[0].geometryProvenance).toBeUndefined();
+  });
+
   it('invalidates OCR when page content is replaced despite PageId surviving', () => {
     const before = graph(['p1', 'p2']);
     const after = graph(['p1', 'p2']);
