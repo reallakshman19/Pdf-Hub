@@ -82,7 +82,8 @@ test('P06-CANCEL: user Cancel aborts an in-flight real Tesseract job without lat
   // Give the old worker enough time to attempt a late callback.
   await page.waitForTimeout(2500);
   await expect(page.getByText('OCR job cancelled.').first()).toBeVisible();
-  await expect(page.getByTestId('ocr-run-status')).not.toContainText('OCR complete.');
+  // Completed-state status is deliberately unmounted after cancellation.
+  await expect(page.getByTestId('ocr-run-status')).toHaveCount(0);
 });
 
 test('P06-SWAP: replacing the document during real OCR never publishes old words into the new project', async ({ page }) => {
