@@ -495,4 +495,37 @@ describe('macro executor', () => {
     );
   });
 
+  it('does not re-expand conditionals after a nested template-variable mutation', async () => {
+    // Runtime expands the whole outer conditional before its nested branch runs.
+    // A second expansion after apply_template_vars would incorrectly take the then branch.
+    const recipe: MacroRecipe = {
+      id: 'nested-expansion-parity',
+      name: 'Nested variable snapshot',
+      steps: [
+        {
+          op: 'conditional',
+          condition: { type: 'page_count_gt', value: 0 },
+          then: [
+            { op: 'apply_template_vars', vars: { gate: 'open' } },
+            {
+              op: 'conditional',
+              condition: { type: 'custom_var_equals', key: 'gate', value: '{{gate}}' },
+              then: [
+                { op: 'insert_blank_page', size: 'a4', position: { mode: 'end' } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const context = { ...baseContext, pageCount: 3 };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, context);
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(3);
+
+    const executed = await executeMacroRecipe(recipe, context);
+    expect(executed.success).toBe(true);
+    expect(pdfMocks.insertBlankPage).not.toHaveBeenCalled();
+  });
+
 });
