@@ -34,5 +34,5 @@ c=canvas.Canvas(str(ROOT/'F03-scan-only.pdf'),pagesize=(612,792),invariant=1); c
 im=Image.new('RGBA',(240,100),(0,0,0,0)); d=ImageDraw.Draw(im);d.rectangle((10,10,230,90),fill=(0,80,160,255));d.rectangle((30,30,210,70),fill=(255,255,255,255));im.save(ROOT/'F04-logo-transparent.png')
 (ROOT/'F07-records.csv').write_text('id,title,tag,pressure\nR001,Alpha Valve,P-101,10\nR002,Beta Pump,P-102,25\n',encoding='utf-8')
 (ROOT/'F08-invalid.pdf').write_bytes(b'%PDF-1.7\ntruncated synthetic negative input\n')
-files={p.name:{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size} for p in sorted(ROOT.iterdir()) if p.is_file() and p.name not in ('manifest.json','generate.py')}
+files={p.name:{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size} for p in sorted(ROOT.iterdir()) if p.is_file() and p.name not in ('manifest.json','generate.py','verify_fixtures.py')}
 (ROOT/'manifest.json').write_text(json.dumps({'version':'PDFHUB-SYNTH-1','classification':'public synthetic input only, no expected output golden','files':files},indent=2)+'\n')
