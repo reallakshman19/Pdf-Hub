@@ -7,13 +7,86 @@ import { HighlightNode } from './HighlightNode';
 import { UnderlineNode } from './UnderlineNode';
 import { StrikeoutNode } from './StrikeoutNode';
 import { SquigglyNode } from './SquigglyNode';
-import { axisAlignedTextMarkupQuads } from './shared/textMarkupQuads';
+import { axisAlignedTextMarkupQuads, orientedTextMarkupQuads } from './shared/textMarkupQuads';
+import { remapAfterRotate } from '@/core/annotations/pageRemapper';
 
 // The two quads use Z and perimeter ordering, respectively.
 const quads = [0, 0, 0.8, 0, 0, 0.2, 0.8, 0.2,
   0.1, 0.6, 0.7, 0.6, 0.7, 0.8, 0.1, 0.8];
 
 describe('native multi-quad text-markup previews', () => {
+  it('keeps quad preview geometry correct when the user rotates a page', () => {
+    const annotation = { id: 'q', type: 'underline', pageNumber: 1, rect: { x: 30, y: 10, width: 200, height: 50 },
+      data: { textMarkupQuads: [0, 0, 0.8, 0, 0, 0.2, 0.8, 0.2] }, createdAt: 1, updatedAt: 1 } satisfies PdfAnnotation;
+    const rotated = remapAfterRotate([annotation], [{ pageIndex: 0, angle: 90, width: 400, height: 500 }])[0];
+    const view = render(<UnderlineNode annotation={{ ...rotated, type: 'underline' }} rect={rotated.rect}
+      scale={1} isSelected={false} pageRotation={90} onSelect={vi.fn()} onTransformStart={vi.fn()} />);
+    const line = view.container.querySelector('line')!;
+    expect(Number(line.getAttribute('x1'))).toBeCloseTo(41.7);
+    expect(Number(line.getAttribute('y1'))).toBeCloseTo(0);
+    expect(Number(line.getAttribute('x2'))).toBeCloseTo(41.7);
+    expect(Number(line.getAttribute('y2'))).toBeCloseTo(160);
+  });
+
+  it('rejects rotated bottom-edge-first, malformed and undefined orientations', () => {
+    const reversed = [0, 0.8, 0, 0, 1, 0.8, 1, 0];
+    expect(orientedTextMarkupQuads(reversed, 10, 160, 90)).toBeNull();
+    expect(orientedTextMarkupQuads([0, 0, 1, 0, 0, 1, NaN, 1], 200, 100, 0)).toBeNull();
+    expect(orientedTextMarkupQuads(quads, 200, 100, undefined)).toBeNull();
+    expect(orientedTextMarkupQuads(quads, 200, 100, 45)).toBeNull();
+    expect(orientedTextMarkupQuads([0, 1, 1, 1, 0, 0, 1, 0], 1e9, 20, 0)).toBeNull();
+    expect(orientedTextMarkupQuads([0, 0, 0, 1, 1, 0, 1, 1], 20, 1e9, 90)).toBeNull();
+  });
+  it.each([
+    [0, [0, 8.3, 160, 8.3], [20, 38.3, 140, 38.3]],
+    [90, [41.7, 0, 41.7, 160], [11.7, 20, 11.7, 140]],
+    [180, [200, 41.7, 40, 41.7], [180, 11.7, 60, 11.7]],
+    [270, [8.3, 200, 8.3, 40], [38.3, 180, 38.3, 60]],
+  ])('keeps underline baseline with each native quad on a %s-degree page', async (rotation, expected, expectedSecond) => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([400, 500]);
+    page.setRotation(degrees(rotation as number));
+    const root = doc.context.register(doc.context.obj({ Type: 'Annot', Subtype: 'Underline', NM: PDFString.of('synthetic'),
+      Rect: [30, 440, 230, 490], QuadPoints: [30, 490, 190, 490, 30, 480, 190, 480,
+        50, 460, 170, 460, 170, 450, 50, 450] }));
+    page.node.set(PDFName.of('Annots'), doc.context.obj([root]));
+    const imported = (await readNativePdfAnnotations(await doc.save())).annotations[0];
+    const { container } = render(<UnderlineNode annotation={{ ...imported, type: 'underline' }} rect={imported.rect}
+      scale={1} isSelected={false} pageRotation={rotation as number} onSelect={vi.fn()} onTransformStart={vi.fn()} />);
+    const lines = container.querySelectorAll('svg line');
+    expect(lines).toHaveLength(2);
+    ['x1', 'y1', 'x2', 'y2'].forEach((key, index) =>
+      expect(Number(lines[0].getAttribute(key))).toBeCloseTo((expected as number[])[index]));
+    ['x1', 'y1', 'x2', 'y2'].forEach((key, index) =>
+      expect(Number(lines[1].getAttribute(key))).toBeCloseTo((expectedSecond as number[])[index]));
+  });
+
+  it.each([
+    [0, [0, 5.5, 160, 5.5], 'translate(0 0)'],
+    [90, [44.5, 0, 44.5, 160], 'translate(50 0) rotate(90)'],
+    [180, [200, 44.5, 40, 44.5], 'translate(200 50) rotate(180)'],
+    [270, [5.5, 200, 5.5, 40], 'translate(0 200) rotate(270)'],
+  ])('orients strikeout and squiggly previews with the %s-degree page', async (rotation, expected, transform) => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([400, 500]);
+    page.setRotation(degrees(rotation as number));
+    const root = doc.context.register(doc.context.obj({ Type: 'Annot', Subtype: 'StrikeOut', NM: PDFString.of('synthetic'),
+      Rect: [30, 440, 230, 490], QuadPoints: [30, 490, 190, 490, 30, 480, 190, 480,
+        50, 460, 170, 460, 50, 450, 170, 450] }));
+    page.node.set(PDFName.of('Annots'), doc.context.obj([root]));
+    const imported = (await readNativePdfAnnotations(await doc.save())).annotations[0];
+    const props = { rect: imported.rect, scale: 1, isSelected: false, pageRotation: rotation as number,
+      onSelect: vi.fn(), onTransformStart: vi.fn() };
+    const line = render(<StrikeoutNode {...props} annotation={{ ...imported, type: 'strikeout' }} />);
+    const lines = line.container.querySelectorAll('svg line');
+    expect(lines).toHaveLength(2);
+    ['x1', 'y1', 'x2', 'y2'].forEach((key, index) =>
+      expect(Number(lines[0].getAttribute(key))).toBeCloseTo((expected as number[])[index]));
+    const wave = render(<SquigglyNode {...props} annotation={{ ...imported, type: 'squiggly' }} />);
+    const paths = wave.container.querySelectorAll('svg path');
+    expect(paths).toHaveLength(2);
+    expect(paths[0].getAttribute('transform')).toBe(transform);
+  });
   it('uses native PDF QuadPoints read from a synthetic imported highlight', async () => {
     const doc = await PDFDocument.create();
     const page = doc.addPage([400, 500]);
@@ -95,7 +168,7 @@ describe('native multi-quad text-markup previews', () => {
     expect(paths.reduce((total, path) => total + (path.getAttribute('d')?.match(/Q/g)?.length ?? 0), 0)).toBeLessThanOrEqual(4096);
   });
 
-  it.each([0, 180])('disables the new oriented line preview where page rotation %s is ambiguous', async (rotation) => {
+  it.each([0, 180])('previews rectangular native underline quads on page rotation %s', async (rotation) => {
     const doc = await PDFDocument.create();
     const page = doc.addPage([400, 500]);
     page.setRotation(degrees(rotation));
@@ -112,7 +185,7 @@ describe('native multi-quad text-markup previews', () => {
       scale: 1, isSelected: false, pageRotation: rotation, onSelect: vi.fn(), onTransformStart: vi.fn() };
     const { container } = render(<UnderlineNode {...props} />);
     const lines = container.querySelectorAll('svg line');
-    expect(lines).toHaveLength(rotation === 0 ? 2 : 1);
+    expect(lines).toHaveLength(2);
     if (rotation === 0) {
       expect(Number(lines[0].getAttribute('y1'))).toBeCloseTo(8.3);
       expect(Number(lines[1].getAttribute('y1'))).toBeCloseTo(38.3);

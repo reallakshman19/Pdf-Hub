@@ -1,6 +1,55 @@
 /** A supported, axis-aligned text-markup quadrilateral in local pixels. */
 export interface TextMarkupQuadRect { x: number; y: number; width: number; height: number }
 
+/** A validated top-left-first text quad in its local, upright coordinate system. */
+export interface OrientedTextMarkupQuad extends TextMarkupQuadRect { angle: number }
+
+/**
+ * Preview a limited subset of native quads: rectangular, top-edge-first text
+ * whose orientation follows the page. Other orders and directions are
+ * ambiguous and must use the existing approximate fallback.
+ */
+export function orientedTextMarkupQuads(
+  values: number[] | undefined,
+  width: number,
+  height: number,
+  pageRotation: number | undefined,
+): OrientedTextMarkupQuad[] | null {
+  if (pageRotation === undefined || !Number.isFinite(pageRotation)) return null;
+  const angle = ((pageRotation % 360) + 360) % 360;
+  if (![0, 90, 180, 270].includes(angle)) return null;
+  const rects = axisAlignedTextMarkupQuads(values, width, height);
+  if (!rects || !values) return null;
+  const result: OrientedTextMarkupQuad[] = [];
+  for (let i = 0; i < rects.length; i++) {
+    const rect = rects[i];
+    const first = { x: values[i * 8] * width, y: values[i * 8 + 1] * height };
+    const second = { x: values[i * 8 + 2] * width, y: values[i * 8 + 3] * height };
+    const right = rect.x + rect.width; const bottom = rect.y + rect.height;
+    const expected = angle === 0 ? [rect.x, rect.y, right, rect.y]
+      : angle === 90 ? [right, rect.y, right, bottom]
+        : angle === 180 ? [right, bottom, rect.x, bottom]
+          : [rect.x, bottom, rect.x, rect.y];
+    const epsilonX = Math.min(Math.max(rect.width, 1) * 1e-6, rect.width / 4);
+    const epsilonY = Math.min(Math.max(rect.height, 1) * 1e-6, rect.height / 4);
+    if ([first.x, first.y, second.x, second.y].some((n, index) =>
+      Math.abs(n - expected[index]) > (index % 2 === 0 ? epsilonX : epsilonY))) return null;
+    const along = angle % 180 === 0 ? rect.width : rect.height;
+    const across = angle % 180 === 0 ? rect.height : rect.width;
+    if (along <= across) return null;
+    result.push({ x: first.x, y: first.y, width: along, height: across, angle });
+  }
+  return result;
+}
+
+/** Transform local upright quad coordinates into displayed page coordinates. */
+export function pointOnTextMarkupQuad(quad: OrientedTextMarkupQuad, x: number, y: number): { x: number; y: number } {
+  if (quad.angle === 90) return { x: quad.x - y, y: quad.y + x };
+  if (quad.angle === 180) return { x: quad.x - x, y: quad.y - y };
+  if (quad.angle === 270) return { x: quad.x + y, y: quad.y - x };
+  return { x: quad.x + x, y: quad.y + y };
+}
+
 /**
  * The reader stores /QuadPoints as pairs normalized to the annotation Rect.
  * Accept either common corner ordering when the points form an axis-aligned

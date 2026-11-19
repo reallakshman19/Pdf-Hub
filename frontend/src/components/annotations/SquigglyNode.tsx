@@ -1,7 +1,7 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
-import { axisAlignedTextMarkupQuads } from './shared/textMarkupQuads';
+import { orientedTextMarkupQuads } from './shared/textMarkupQuads';
 
 function squigglyPath(width: number, height: number, amplitude = 2, segmentBudget = 1024): string {
   if (![width, height, amplitude].every(Number.isFinite) || width <= 0 || height <= 0) return '';
@@ -25,12 +25,13 @@ export const SquigglyNode: React.FC<AnnotationNodeProps<'squiggly'>> = ({
 }) => {
   const color = annotation.data?.borderColor ?? '#ef4444';
   const width = annotation.data?.borderWidth ?? 1.5;
-  const quads = axisAlignedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, { pageRotation })
-    ?? [{ x: 0, y: 0, width: rect.width, height: rect.height }];
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, pageRotation)
+    ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
   const segmentBudget = Math.max(3, Math.floor(4096 / quads.length));
 
   return (
     <div
+      data-annotation-type="squiggly"
       style={{
         position: 'absolute',
         left: rect.x, top: rect.y,
@@ -42,7 +43,7 @@ export const SquigglyNode: React.FC<AnnotationNodeProps<'squiggly'>> = ({
       <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
         {quads.map((quad, index) => <path key={index}
           d={squigglyPath(quad.width, quad.height, 2 * scale, segmentBudget)}
-          transform={`translate(${quad.x} ${quad.y})`}
+          transform={`translate(${quad.x} ${quad.y})${quad.angle ? ` rotate(${quad.angle})` : ''}`}
           fill="none"
           stroke={color}
           strokeWidth={width}
