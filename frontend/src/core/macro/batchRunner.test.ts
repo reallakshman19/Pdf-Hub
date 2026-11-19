@@ -3,7 +3,7 @@ import { FileAdapter, type PickedPdfFileSource } from '@/adapters/file/FileAdapt
 import { DEFAULT_MACRO_RESOURCE_LIMITS } from './resourceBudget';
 import type { MacroExecutionResult } from './executor';
 import type { MacroRecipe } from './types';
-import { runMacroBatch, type BatchRunResult } from './batchRunner';
+import { runMacroBatch, type BatchRunResult, buildBatchOutputName } from './batchRunner';
 
 const pdfMocks = vi.hoisted(() => ({
   countPages: vi.fn(),
@@ -281,7 +281,7 @@ describe('runMacroBatch', () => {
     expect(macroMocks.executeMacroRecipe).not.toHaveBeenCalled();
   });
 
-  it('executes one macro for a valid PDF and records output length only', async () => {
+  it('records source and output SHA-256 without embedding binary contents', async () => {
     macroMocks.executeMacroRecipe.mockResolvedValueOnce(successResult(321, ['done']));
 
     const report = await runMacroBatch({
@@ -291,14 +291,26 @@ describe('runMacroBatch', () => {
     });
 
     expect(macroMocks.executeMacroRecipe).toHaveBeenCalledTimes(1);
-    expect(report.records[0]).toEqual({
+    expect(report.records[0]).toMatchObject({
       inputIndex: 0,
       fileName: 'valid.pdf',
       inputBytes: expect.any(Number),
       pageCount: 2,
+      sourceSha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       outputBytes: 321,
+      outputSha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      outputName: expect.stringMatching(/^001-valid-batch-test-[a-f0-9]{12}\.pdf$/),
+      outputDisposition: 'not-requested',
       status: 'success',
       logs: ['done'],
+    });
+    expect(report.metadata).toMatchObject({
+      runId: expect.any(String),
+      recipeSha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+    });
+    expect(report.evidence.inputs[0]).toMatchObject({
+      sourceSha256: report.records[0].sourceSha256,
+      outputSha256: (report.records[0] as { outputSha256: string }).outputSha256,
     });
   });
 
@@ -333,6 +345,97 @@ describe('runMacroBatch', () => {
       status: 'success',
       outputBytes: 321,
     });
+  });
+
+
+  it('binds repeated filenames to exact picker ordinal, source hash, output hash and recipe', async () => {
+    const left = pdfBytes(8);
+    const right = pdfBytes(9);
+    right[right.length - 1] = 0x42;
+    macroMocks.executeMacroRecipe
+      .mockResolvedValueOnce(successResult(21))
+      .mockResolvedValueOnce(successResult(23));
+
+    const outputs: Array<{
+      inputIndex: number; fileName: string; outputName: string;
+      sourceSha256: string; outputSha256: string;
+      recipeSha256: string; batchRunId: string; bytes: Uint8Array;
+    }> = [];
+    const report = await runMacroBatch({
+      sources: [createSource('repeat.pdf', left), createSource('repeat.pdf', right)],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: (value) => {
+        outputs.push(value);
+      },
+    });
+    expect(report.summary.succeeded).toBe(2);
+    expect(outputs.map((a) => a.inputIndex)).toEqual([0, 1]);
+    expect(outputs.map((a) => a.fileName)).toEqual(['repeat.pdf', 'repeat.pdf']);
+    expect(outputs[0].sourceSha256).not.toBe(outputs[1].sourceSha256);
+    expect(outputs[0].outputName).not.toBe(outputs[1].outputName);
+    expect(outputs[0].outputName).toBe(
+      buildBatchOutputName(0, 'repeat.pdf', RECIPE.id, outputs[0].sourceSha256),
+    );
+    expect(outputs[1].outputName).toBe(
+      buildBatchOutputName(1, 'repeat.pdf', RECIPE.id, outputs[1].sourceSha256),
+    );
+    expect(outputs[0].outputSha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(outputs.every((a) => a.recipeSha256 === report.metadata.recipeSha256)).toBe(true);
+    expect(outputs.every((a) => a.batchRunId === report.metadata.runId)).toBe(true);
+    expect(report.records.map((a) => a.status)).toEqual(['success', 'success']);
+    expect(report.records.every((a) =>
+      a.status === 'success' && a.outputDisposition === 'handoff-completed-unverified',
+    )).toBe(true);
+    expect(containsBinary(report)).toBe(false);
+  });
+
+  it('does not report durable receipt after a successful output handoff', async () => {
+    const output = successResult(21);
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(output);
+    let handedOff: Uint8Array | null = null;
+    const report = await runMacroBatch({
+      sources: [createSource('one.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: (value) => { handedOff = value.bytes; },
+    });
+    expect(handedOff).not.toBe(output.finalBytes);
+    expect(Array.from(handedOff ?? [])).toEqual(Array.from(output.finalBytes));
+    expect(report.records[0]).toMatchObject({
+      status: 'success',
+      outputDisposition: 'handoff-completed-unverified',
+    });
+    expect(JSON.stringify(report)).not.toMatch(/durably saved|received/i);
+  });
+
+  it('marks a rejected handoff as failed and continues without claiming delivery', async () => {
+    const seen: number[] = [];
+    const report = await runMacroBatch({
+      sources: [createSource('A.pdf'), createSource('B.pdf'), createSource('C.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput: ({ inputIndex }) => {
+        seen.push(inputIndex);
+        if (inputIndex === 1) throw new Error('Queue custody rejected source B');
+      },
+    });
+    expect(seen).toEqual([0, 1, 2]);
+    expect(report.records.map((record) => record.status)).toEqual(['success', 'failed', 'success']);
+    expect(report.records[1]).toMatchObject({
+      inputIndex: 1,
+      error: 'Queue custody rejected source B',
+      sourceSha256: expect.stringMatching(/^sha256:/),
+    });
+    expect(report.records.some((record) => record.status === 'success' && record.inputIndex === 1)).toBe(false);
+    expect(containsBinary(report)).toBe(false);
+  });
+
+  it('rejects invalid output name digest or picker index before naming a file', () => {
+    expect(() => buildBatchOutputName(0, 'x.pdf', 'recipe', 'not-a-digest'))
+      .toThrow(/verified SHA-256/);
+    expect(() => buildBatchOutputName(-1, 'x.pdf', 'recipe', 'sha256:' + 'a'.repeat(64)))
+      .toThrow(/valid source ordinal/);
   });
 
   it('continues after macro failure when continueOnError is true', async () => {
