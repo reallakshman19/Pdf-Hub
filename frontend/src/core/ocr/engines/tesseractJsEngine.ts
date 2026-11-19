@@ -50,7 +50,11 @@ export interface TesseractRecognizer {
 export type TesseractWorkerFactory = (language: string) => Promise<TesseractWorkerLike>;
 
 export interface TesseractWorkerLike {
-  recognize(image: TesseractImageSource): Promise<{
+  recognize(
+    image: TesseractImageSource,
+    options?: Record<string, unknown>,
+    output?: { blocks?: boolean },
+  ): Promise<{
     data: TesseractRecognizeData;
   }>;
   terminate(): Promise<void>;
@@ -216,6 +220,9 @@ export function tesseractDataToOcrPageResult(input: {
       ? 'success'
       : 'partial',
     pageType: input.page.region ? 'mixed' : 'scanned',
+    ...(input.page.pixelToPdfTransform
+      ? { geometryProvenance: 'pdf-user-space-v2' as const }
+      : {}),
     orientationDeg: 0,
     languageHints: [input.language],
     width: input.page.width,
@@ -296,7 +303,10 @@ export function createDefaultTesseractRecognizer(input: {
       );
 
       try {
-        const recognitionPromise = worker.recognize(image);
+        // Tesseract.js v6/v7 returns text only by default. Explicitly request
+        // the real Block > Paragraph > Line > Word geometry. Without this
+        // option the fallback synthesizes fictitious word rectangles.
+        const recognitionPromise = worker.recognize(image, {}, { blocks: true });
         const result = await raceWithAbort(
           recognitionPromise,
           signal,
@@ -341,10 +351,16 @@ function collectTesseractWords(
   }
 
   const fromBlocks = flattenNodes(data.blocks, 'words');
+  if (fromBlocks.length > 0) return fromBlocks;
 
-  if (fromBlocks.length > 0) {
-    return fromBlocks;
-  }
+  const fromBlockLines = flattenNodes(flattenNodes(data.blocks, 'lines'), 'words');
+  if (fromBlockLines.length > 0) return fromBlockLines;
+
+  const fromNestedBlocks = flattenNodes(
+    flattenNodes(flattenNodes(data.blocks, 'paragraphs'), 'lines'),
+    'words',
+  );
+  if (fromNestedBlocks.length > 0) return fromNestedBlocks;
 
   return data.text
     ? createFallbackWordNodesFromText(data.text, data.confidence)
@@ -365,10 +381,13 @@ function collectTesseractLines(
   }
 
   const fromBlocks = flattenNodes(data.blocks, 'lines');
+  if (fromBlocks.length > 0) return fromBlocks;
 
-  if (fromBlocks.length > 0) {
-    return fromBlocks;
-  }
+  const fromNestedBlocks = flattenNodes(
+    flattenNodes(data.blocks, 'paragraphs'),
+    'lines',
+  );
+  if (fromNestedBlocks.length > 0) return fromNestedBlocks;
 
   if (data.text) {
     return data.text
@@ -611,7 +630,7 @@ export function normalizeTesseractConfidence(
 
 export function tesseractBboxToPdfRect(
   bbox: TesseractBbox | undefined,
-  page: Pick<OcrEnginePageInput, 'height'>,
+  page: Pick<OcrEnginePageInput, 'height' | 'pixelToPdfTransform'>,
   fallback: PdfRect,
 ): PdfRect {
   if (
@@ -634,6 +653,27 @@ export function tesseractBboxToPdfRect(
   const topFromImage = Math.min(y0, y1);
   const bottomFromImage = Math.max(y0, y1);
 
+  // Tesseract boxes are relative to the *cropped image in pixels*.
+  // Map all four corners through the captured inverse PDF.js transform:
+  // rotation and CropBox offsets make a simple Y-flip or scale invalid.
+  if (page.pixelToPdfTransform) {
+    const [a, b, c, d, e, f] = page.pixelToPdfTransform;
+    const points = [
+      [left, topFromImage],
+      [right, topFromImage],
+      [left, bottomFromImage],
+      [right, bottomFromImage],
+    ].map(([x, y]) => [a * x + c * y + e, b * x + d * y + f]);
+    const minX = Math.min(...points.map(([x]) => x));
+    const maxX = Math.max(...points.map(([x]) => x));
+    const minY = Math.min(...points.map(([, y]) => y));
+    const maxY = Math.max(...points.map(([, y]) => y));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  // Legacy callers supply 1:1 full-page images without transform metadata.
+  // Preserve their established interpretation; rasterized PDF input always
+  // supplies an explicit pixelToPdfTransform.
   return {
     x: left,
     y: Math.max(0, page.height - bottomFromImage),

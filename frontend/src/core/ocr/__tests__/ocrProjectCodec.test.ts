@@ -138,6 +138,46 @@ describe('ocrProjectCodec', () => {
     expect(imported?.writerInsertionQueue.candidates).toHaveLength(1);
   });
 
+  it('preserves legacy ambiguous region coordinates without inventing provenance, while retaining v2 capture tags', async () => {
+    const legacy = makeRegion('doc-custody');
+    const verified = {
+      ...makeRegion('doc-custody'),
+      id: 'region-verified-v2',
+      geometryProvenance: 'pdf-user-space-v2' as const,
+    };
+    const payload = createOcrProjectPayload({
+      documentFingerprint: 'doc-custody',
+      regions: [legacy, verified],
+      corrections: [makeCorrection('doc-custody')],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    const zip = new JSZip();
+    await writeOcrProjectPayloadToZip(zip, payload);
+    const rawSavedRegions = JSON.parse(await zip.file('ocr/regions.json')!.async('text'));
+    expect(rawSavedRegions[0].geometryProvenance).toBeUndefined();
+    expect(rawSavedRegions[1].geometryProvenance).toBe('pdf-user-space-v2');
+
+    const bytes = await zip.generateAsync({ type: 'uint8array' });
+    const reopened = await readOcrProjectPayloadFromZip(await JSZip.loadAsync(bytes));
+    expect(reopened?.manifest.schemaVersion).toBe(1);
+    expect(reopened?.regions[0].bbox).toEqual(legacy.bbox);
+    expect(reopened?.regions[0].geometryProvenance).toBeUndefined();
+    expect(reopened?.regions[1].geometryProvenance).toBe('pdf-user-space-v2');
+    expect(reopened?.corrections).toHaveLength(1);
+
+    // A second export/reopen must not "upgrade" an older opposite-origin bbox.
+    const again = new JSZip();
+    await writeOcrProjectPayloadToZip(again, reopened!);
+    const second = await readOcrProjectPayloadFromZip(
+      await JSZip.loadAsync(await again.generateAsync({ type: 'uint8array' })),
+    );
+    expect(second?.regions[0].bbox).toEqual(legacy.bbox);
+    expect(second?.regions[0].geometryProvenance).toBeUndefined();
+    expect(second?.regions[1].geometryProvenance).toBe('pdf-user-space-v2');
+  });
+
   it('returns null when ZIP has no OCR manifest', async () => {
     const zip = new JSZip();
 

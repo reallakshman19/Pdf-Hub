@@ -1,0 +1,158 @@
+name: WP-05 Focused Geometry and Ownership Verification
+
+on:
+  pull_request:
+    paths:
+      - "frontend/e2e/wp05-native-page-labels.spec.ts"
+      - "frontend/e2e/wp05-ocr-area-project.spec.ts"
+      - "frontend/e2e/wp05-real-tesseract.spec.ts"
+      - "frontend/e2e/wp05-original-f03-region.spec.ts"
+      - "frontend/e2e/fixtures/wp05-source-f01-f08/**"
+      - "frontend/e2e/wp05-ocr-cancel-swap.spec.ts"
+      - "frontend/src/core/writer-v2/export/projectImportController.ts"
+      - "frontend/src/core/writer-v2/export/projectImportController.test.ts"
+      - "frontend/src/core/writer-v2/export/exportCurrentWriterProject.ts"
+      - "frontend/src/core/writer-v2/export/exportCurrentWriterProject.test.ts"
+      - "frontend/src/components/writer-v2/WriterV2ToolbarControls.tsx"
+      - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.ts"
+      - "frontend/src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts"
+      - "frontend/src/components/ocr/workflow/**"
+      - "frontend/src/core/ocr/**"
+      - "frontend/src/core/pages/**"
+      - "frontend/src/components/ocr/**"
+      - "frontend/src/components/writer/WriterOverlay.tsx"
+      - "frontend/src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx"
+      - "frontend/src/core/renderer/usePageRenderer.ts"
+      - "frontend/src/components/workspace/DocumentWorkspace.tsx"
+      - ".github/workflows/wp05-focused-verification.yml"
+  workflow_dispatch:
+
+jobs:
+  wp05-focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate PR head
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'WP05_EXACT_CHECKOUT_HEAD=%s\\n' "$actual"
+          test "$actual" = "$expected"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: pnpm -C frontend install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -C frontend run typecheck
+      - name: WP-05 source-level regression set
+        run: |
+          pnpm -C frontend exec vitest run \
+            src/core/writer-v2/export/projectImportController.test.ts \
+            src/core/writer-v2/export/exportCurrentWriterProject.test.ts \
+            src/adapters/pdf-mutation/PdfLibMutationEngine.test.ts \
+            src/core/pages/pageGraphAdmission.test.ts \
+            src/core/pages/pdfPageLabelNativeReader.test.ts \
+            src/core/pages/pageLabels.test.ts \
+            src/core/pages/pdfPageLabelWriter.test.ts \
+            src/core/pages/pdfPageLabels.test.ts \
+            src/core/ocr/__tests__/ocrProjectCodec.test.ts \
+            src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
+            src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
+            src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
+            src/core/ocr/__tests__/tesseractJsEngine.test.ts \
+            src/core/ocr/__tests__/ocrPageAnchor.test.ts \
+            src/core/ocr/__tests__/ocrRegionRunner.test.ts \
+            src/components/ocr/workflow/useOcrRunWorkflow.test.tsx \
+            src/components/ocr/__tests__/OcrRegionTool.test.tsx \
+            src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
+            src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
+            --pool=forks --maxWorkers=1
+      - name: Production build
+        run: VITE_BASE_PATH=/Pdf-Hub/ pnpm -C frontend run build
+
+  wp05-compiled-browser:
+    # Playwright 1.60 cannot install Chromium on ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate PR head
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'WP05_EXACT_CHECKOUT_HEAD=%s\\n' "$actual"
+          test "$actual" = "$expected"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: pnpm -C frontend install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rebuild and SHA-verify original F01-F08 public fixtures
+        run: |
+          python -m pip install --disable-pip-version-check reportlab==4.4.9 pillow==12.3.0
+          python frontend/e2e/fixtures/wp05-source-f01-f08/generate.py
+          python frontend/e2e/fixtures/wp05-source-f01-f08/verify_fixtures.py
+      - name: Install pinned Chromium
+        run: pnpm -C frontend exec playwright install --with-deps chromium
+      - name: Compile production PDF Hub
+        run: VITE_BASE_PATH=/Pdf-Hub/ pnpm -C frontend run build
+      - name: Boot built production preview
+        run: |
+          pnpm -C frontend exec vite preview --host 127.0.0.1 --port 5173 --strictPort > /tmp/wp05-preview.log 2>&1 &
+          for n in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5173/Pdf-Hub/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/wp05-preview.log
+          exit 1
+      - name: P01–P05 plus P06 invalid-admission compiled-browser certification
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
+          # These three tests generate only synthetic PDFs. Never set for owner PDFs.
+          WP05_EVIDENCE_DIR: wp05-evidence
+        run: |
+          set +e
+          pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-native
+          native_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-ocr
+          ocr_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-original-f03-region.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-f03
+          f03_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-ocr-area-project.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-project
+          project_status=$?
+          pnpm -C frontend exec playwright test e2e/wp05-ocr-cancel-swap.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-race
+          race_status=$?
+          echo "WP05_P06_CANCEL_SWAP_EXIT=${race_status}"
+          echo "WP05_ORIGINAL_F03_REGION_EXIT=${f03_status}"
+          echo "WP05_NATIVE_P02_P04_EXIT=${native_status}"
+          echo "WP05_REAL_OCR_P01_EXIT=${ocr_status}"
+          echo "WP05_PROJECT_P05_EXIT=${project_status}"
+          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ] || [ "${race_status}" -ne 0 ] || [ "${f03_status}" -ne 0 ]; then
+            exit 1
+          fi
+      - name: Manifest native PDF/ZIP evidence hashes
+        if: always()
+        run: |
+          mkdir -p frontend/wp05-evidence
+          find frontend/wp05-evidence -type f ! -name 'WP05_ARTIFACT_SHA256SUMS.txt' -print0 | sort -z | xargs -0 -r sha256sum > frontend/wp05-evidence/WP05_ARTIFACT_SHA256SUMS.txt
+      - name: Upload synthetic native browser evidence (pass or fail)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp05-native-browser-evidence
+          path: |
+            frontend/wp05-evidence/
+            frontend/test-results/
+            /tmp/wp05-preview.log
+          if-no-files-found: warn
+          retention-days: 14

@@ -161,6 +161,45 @@ describe('ocrRegionRunner', () => {
     ).rejects.toBeInstanceOf(OcrRegionRunCancelledError);
   });
 
+  it('passes cancellation to the underlying recognition engine', async () => {
+    const controller = new AbortController();
+    let observedSignal: AbortSignal | undefined;
+    const engine: OcrEngine = {
+      id: 'probe',
+      label: 'Probe',
+      supportsTables: false,
+      supportsLayout: false,
+      supportsSearchablePdf: false,
+      async recognize(input) {
+        observedSignal = input.abortSignal;
+        controller.abort();
+        return {
+          documentFingerprint: input.documentFingerprint,
+          createdAt: '2026-11-19T00:00:00Z',
+          engineId: 'probe',
+          profileId: input.profile.id,
+          pages: [],
+          diagnostics: [],
+        };
+      },
+    };
+    const registry = createOcrEngineRegistry([engine]);
+    await expect(runOcrRegion({
+      documentFingerprint: 'doc-region-runner',
+      region: makeRegion('text'),
+      page: {
+        pageIndex: 0,
+        imageBytes: new Uint8Array([1]),
+        width: 595,
+        height: 842,
+      },
+      registry,
+      engineId: 'probe',
+      signal: controller.signal,
+    })).rejects.toBeInstanceOf(OcrRegionRunCancelledError);
+    expect(observedSignal).toBe(controller.signal);
+  });
+
   it('reports missing page result from custom engine', async () => {
     const emptyEngine: OcrEngine = {
       id: 'empty',

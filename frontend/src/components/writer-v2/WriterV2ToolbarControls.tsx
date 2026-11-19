@@ -277,6 +277,10 @@ export const WriterV2ToolbarControls: React.FC = () => {
       const bytes = await exportCurrentWriterProject({
         originalPdfBytes: sourceBytes,
         documentFingerprint: documentKey ?? documentMeta?.documentFingerprint,
+        // The project-ZIP worker path is not yet certified in static browser
+        // builds. Use the deterministic main-thread exporter for editable
+        // recovery until worker correctness and timeout fallback are proven.
+        useWorker: false,
       });
 
       downloadWriterBytes(

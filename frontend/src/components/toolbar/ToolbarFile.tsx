@@ -276,7 +276,7 @@ export const ToolbarFile: React.FC = () => {
     <>
       <div className="flex items-center space-x-1">
       <Tooltip content="Open PDF">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleOpen}>
+        <Button variant="ghost" size="icon" aria-label="Open PDF" className="h-8 w-8" onClick={handleOpen}>
           <FolderOpen className="w-4 h-4" />
         </Button>
       </Tooltip>

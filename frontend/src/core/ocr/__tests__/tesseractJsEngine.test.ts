@@ -55,6 +55,93 @@ describe('tesseractJsEngine', () => {
     });
   });
 
+  it('restores cropped 2x Tesseract word boxes to original PDF points', () => {
+    const result = tesseractBboxToPdfRect(
+      { x0: 20, y0: 10, x1: 60, y1: 30 },
+      {
+        height: 40,
+        pixelToPdfTransform: [0.5, 0, 0, -0.5, 100, 240],
+      },
+      { x: 0, y: 0, width: 1, height: 1 },
+    );
+    expect(result).toEqual({ x: 110, y: 225, width: 20, height: 10 });
+  });
+
+  it('maps a 90-degree rotated OCR image box through both affine axes', () => {
+    const result = tesseractBboxToPdfRect(
+      { x0: 20, y0: 10, x1: 60, y1: 30 },
+      {
+        height: 40,
+        pixelToPdfTransform: [0, 0.5, 0.5, 0, 70, 100],
+      },
+      { x: 0, y: 0, width: 1, height: 1 },
+    );
+    expect(result).toEqual({ x: 75, y: 110, width: 10, height: 20 });
+  });
+
+  it('extracts native nested v7 block/paragraph/line/word bboxes at 2x', () => {
+    const result = tesseractDataToOcrPageResult({
+      language: 'eng',
+      page: {
+        pageIndex: 0,
+        imageBytes: new Uint8Array([1, 2, 3]),
+        width: 500,
+        height: 600,
+        pixelToPdfTransform: [0.5, 0, 0, -0.5, 0, 600],
+      },
+      data: {
+        text: 'ALPHA VALVE',
+        confidence: 96,
+        blocks: [{
+          text: 'ALPHA VALVE',
+          confidence: 96,
+          bbox: { x0: 80, y0: 180, x1: 460, y1: 260 },
+          paragraphs: [{
+            text: 'ALPHA VALVE',
+            lines: [{
+              text: 'ALPHA VALVE',
+              bbox: { x0: 100, y0: 200, x1: 460, y1: 250 },
+              words: [
+                { text: 'ALPHA', confidence: 97, bbox: { x0: 100, y0: 200, x1: 230, y1: 250 } },
+                { text: 'VALVE', confidence: 96, bbox: { x0: 240, y0: 200, x1: 450, y1: 250 } },
+              ],
+            }],
+          }],
+        }],
+      },
+    });
+    expect(result.words?.map((word) => word.text)).toEqual(['ALPHA', 'VALVE']);
+    expect(result.words?.[0]?.bbox).toEqual({ x: 50, y: 475, width: 65, height: 25 });
+    expect(result.words?.[1]?.bbox).toEqual({ x: 120, y: 475, width: 105, height: 25 });
+    expect(result.lines).toHaveLength(1);
+    expect(result.blocks).toHaveLength(1);
+    expect(result.geometryProvenance).toBe('pdf-user-space-v2');
+  });
+
+  it('requests v7 native blocks from default Tesseract worker, not text-only fallback', async () => {
+    let observed: { blocks?: boolean } | undefined;
+    const terminate = vi.fn().mockResolvedValue(undefined);
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        async recognize(_image, _options, output) {
+          observed = output;
+          return {
+            data: { text: 'ALPHA VALVE', confidence: 96 },
+          };
+        },
+        terminate,
+      }),
+    });
+    const result = await recognizer.recognize({
+      image: new Uint8Array([1, 2, 3]),
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1, 2, 3]), width: 500, height: 600 },
+    });
+    expect(observed).toEqual({ blocks: true });
+    expect(result.text).toBe('ALPHA VALVE');
+    expect(terminate).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back when Tesseract bbox is missing', () => {
     const fallback = {
       x: 1,
