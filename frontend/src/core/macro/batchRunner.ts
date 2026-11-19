@@ -801,7 +801,7 @@ type EmittedPdfValidation =
  * enforce a positive integer page count before *any* output is handed off.
  * Cancellation is propagated rather than mislabeled as corruption.
  */
-async function validateEmittedBatchPdf(
+export async function validateEmittedBatchPdf(
   bytes: Uint8Array,
   outputIndex: number,
   abortSignal?: AbortSignal,
