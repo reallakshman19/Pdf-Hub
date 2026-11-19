@@ -823,6 +823,15 @@ test('WP07 R5: repository-native engineering PDF corpus with invalid and encrypt
     { name: 'encrypted-with-images.pdf', bytes: await readFile('fidelity/phase9/retained/encrypted-with-images.pdf'), valid: false },
   ];
   const sourceDigests = cases.map(({ bytes }) => createHash('sha256').update(bytes).digest('hex'));
+  // Keep the exact public repository fixture bytes alongside their native
+  // descendants so an independent auditor can compare original PDF objects
+  // and rendered page appearances instead of trusting producer summaries.
+  for (const [index, source] of cases.entries()) {
+    await persistPublicSyntheticEvidence(
+      `r5-source-${String(index + 1).padStart(2, '0')}-${sourceDigests[index]}.pdf`,
+      source.bytes,
+    );
+  }
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
