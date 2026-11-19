@@ -1,4 +1,5 @@
 import { useWriterV2Store } from '../writerV2Store';
+import { validateOcrProjectPayload, type OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -12,6 +13,8 @@ import {
 export interface ExportCurrentWriterProjectInput {
   originalPdfBytes?: Uint8Array | null;
   documentFingerprint?: string;
+  /** Optional same-document OCR snapshot captured by the Save Project caller. */
+  ocrProject?: OcrProjectPayloadV1 | null;
   /**
    * Force main-thread (false) or worker (true) execution. Defaults to
    * `typeof Worker !== 'undefined'` — see exportCurrentWriterPdf.ts for the
@@ -38,12 +41,22 @@ export async function exportCurrentWriterProject(
     throw new Error('Cannot export PDF overlay project without originalPdfBytes.');
   }
 
+  if (input.ocrProject) {
+    if (input.ocrProject.manifest.documentFingerprint !== documentFingerprint) {
+      throw new Error('Cannot export OCR state belonging to a different document.');
+    }
+    if (!validateOcrProjectPayload(input.ocrProject).valid) {
+      throw new Error('Cannot export invalid OCR project data.');
+    }
+  }
+
   const packInput: ExportPdfHubProjectInput = {
     originalPdfBytes: input.originalPdfBytes,
     documentFingerprint,
     documentMeta: state.documentMeta,
     elements: state.elements,
     assets: state.assetRecords,
+    ocrProject: input.ocrProject ?? null,
   };
 
   const shouldUseWorker = input.useWorker ?? typeof Worker !== 'undefined';

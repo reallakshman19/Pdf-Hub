@@ -12,6 +12,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -486,4 +487,48 @@ describe('atomic standalone Writer project import', () => {
     await expect(pending).rejects.toThrow('cancelled');
     expect(stateSnapshot()).toEqual(before);
   });
+  it('restores a valid OCR project payload with the Writer project', async () => {
+    seedExistingState();
+    const ocrProject = createOcrProjectPayload({
+      documentFingerprint: 'doc-1',
+      regions: [{
+        id: 'ocr-region-1',
+        documentFingerprint: 'doc-1',
+        pageIndex: 0,
+        bbox: { x: 12, y: 34, width: 50, height: 60 },
+        mode: 'text',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject,
+    });
+    const active = operation();
+    const staged = await stageStandaloneWriterProject(file, active);
+    await commitStagedWriterProjectImport(staged, active);
+
+    expect(useSessionStore.getState().documentKey).toBe('doc-1');
+    expect(useOcrStore.getState().documentFingerprint).toBe('doc-1');
+    expect(useOcrStore.getState().regions.map((region) => region.id)).toEqual(['ocr-region-1']);
+  });
+
+  it('rejects a foreign-document OCR payload before changing the active project', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject: createOcrProjectPayload({ documentFingerprint: 'foreign-doc' }),
+    });
+    await expect(stageStandaloneWriterProject(file, operation())).rejects.toThrow(/OCR payload/);
+    expect(stateSnapshot()).toEqual(before);
+  });
+
 });
