@@ -678,11 +678,14 @@ async function readBatchReceipts(page: Page): Promise<Array<{ method: string; ou
       request.onerror = () => reject(request.error);
     });
     try {
-      return await new Promise<Array<{ method: string; outputName: string; outputSha256: string }>>((resolve, reject) => {
+      const receipts = await new Promise<Array<{ method: string; sourceInputIndex: number; sourceOutputIndex: number; outputName: string; outputSha256: string }>>((resolve, reject) => {
         const request = db.transaction('receipts', 'readonly').objectStore('receipts').getAll();
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
+      return receipts.sort((a, b) =>
+        a.sourceInputIndex - b.sourceInputIndex || a.sourceOutputIndex - b.sourceOutputIndex,
+      );
     } finally {
       db.close();
     }
@@ -782,6 +785,7 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
   await expect(page.getByTestId('batch-custody-blocked')).toHaveCount(0);
   const journal = await readBatchReceipts(page);
   expect(journal).toHaveLength(2);
+  await expect(page.getByTestId('batch-receipt-ledger')).toContainText('2 durable record(s)');
   expect(journal.map((receipt) => receipt.method)).toEqual([
     'browser-user-confirmed', 'browser-user-confirmed',
   ]);
@@ -824,6 +828,7 @@ test('WP07 Stage2: Clear requires confirmation and journals every discarded PDF 
   await expect(page.getByTestId('macro-output-queue')).toHaveCount(0, { timeout: 12_000 });
   const tombstones = await readBatchReceipts(page);
   expect(tombstones).toHaveLength(2);
+  await expect(page.getByTestId('batch-receipt-ledger')).toContainText('discarded-without-receipt');
   expect(tombstones.every((record) => record.method === 'discarded-without-receipt')).toBe(true);
 
   await page.reload();
