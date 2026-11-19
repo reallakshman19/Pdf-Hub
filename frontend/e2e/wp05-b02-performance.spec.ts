@@ -51,7 +51,12 @@ async function downloadBytes(page: Page, controlName: string) {
 
 async function assertExtractedText(bytes: Uint8Array) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const task = pdfjs.getDocument({ data: bytes, useSystemFonts: true });
+  // PDF.js may transfer/detach the ArrayBuffer supplied to getDocument.
+  // Passing the caller's actual native bytes here previously made the
+  // later Playwright reopen silently upload a zero-byte file.
+  const independentPdfJsCopy = Uint8Array.from(bytes);
+  const originalLength = bytes.byteLength;
+  const task = pdfjs.getDocument({ data: independentPdfJsCopy, useSystemFonts: true });
   const pdf = await task.promise;
   try {
     expect(pdf.numPages).toBe(3);
@@ -64,6 +69,9 @@ async function assertExtractedText(bytes: Uint8Array) {
   } finally {
     await pdf.destroy();
   }
+  expect(bytes.byteLength, 'Independent PDF.js validation must not detach the native extraction bytes')
+    .toBe(originalLength);
+  expect(bytes.subarray(0, 5)).toEqual(new Uint8Array([37, 80, 68, 70, 45]));
 }
 
 async function oneB02Trial(browser: Browser, source: Uint8Array, count: number, index: number): Promise<Sample> {
