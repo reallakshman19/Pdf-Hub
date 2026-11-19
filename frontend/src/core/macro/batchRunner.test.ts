@@ -48,7 +48,12 @@ function successResult(outputSize = 16, logs: string[] = []): MacroExecutionResu
     success: true,
     outputFiles: [],
     stepResults: [],
-    finalBytes: new Uint8Array(outputSize),
+    finalBytes: (() => {
+      const bytes = new Uint8Array(outputSize);
+      const header = new TextEncoder().encode('%PDF-1.7\n');
+      bytes.set(header.subarray(0, Math.min(header.byteLength, bytes.byteLength)));
+      return bytes;
+    })(),
     logs,
     selectedPages: [],
   };
@@ -728,7 +733,7 @@ describe('runMacroBatch', () => {
   });
 
   it('keeps report structure independent of input and output payload size', async () => {
-    macroMocks.executeMacroRecipe.mockResolvedValueOnce(successResult(4));
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(successResult(16));
     const small = await runMacroBatch({
       sources: [createSource('small.pdf', pdfBytes(4))],
       recipe: RECIPE,
