@@ -21,6 +21,7 @@ async function outputGroup(): Promise<BatchOutputArtifact[]> {
   ];
   return Promise.all(bytes.map(async (value, index) => ({
     outputIndex: index,
+    outputPageCount: index === 0 ? 3 : 1,
     outputKind: index === 0 ? 'working-copy' as const : 'auxiliary' as const,
     originalOutputName: index ? 'one-page.pdf' : undefined,
     fileName: name,
