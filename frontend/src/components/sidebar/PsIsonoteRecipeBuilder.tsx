@@ -432,10 +432,10 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
         expectedMarkers: built.callouts,
       });
       if (!verification.verified) {
-        // Marker verification is non-blocking — callouts are placed correctly
-        // but invisible audit markers may not be detectable through compressed
-        // PDF content streams. Log the diagnostic but don't block the output.
-        console.warn('[PS-ISONOTE] Verification diagnostic:', verificationFailureMessage(verification));
+        // Fail closed: a readable PDF with a missing/duplicate marker is not a
+        // verified engineering artifact. Retain mutated bytes for diagnosis,
+        // but record a failed audit instead of promoting it to verified.
+        throw new Error(verificationFailureMessage(verification));
       }
 
       await recordAudit({
