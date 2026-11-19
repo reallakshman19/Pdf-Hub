@@ -1,5 +1,4 @@
 import React from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import {
   Copy,
   Download,
@@ -41,10 +40,8 @@ import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
 import { MacroBatchRunPanel } from '@/components/macro/advanced/MacroBatchRunPanel';
 import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
 import { AutomateHeaderFooterQuickAction } from './automate/AutomateHeaderFooterQuickAction';
-import {
-  MacroOutputQueue,
-  type MacroOutputQueueItem,
-} from '@/components/macro/advanced/MacroOutputQueue';
+import { MacroOutputQueue } from '@/components/macro/advanced/MacroOutputQueue';
+import { useMacroOutputQueueStore } from '@/core/macro/outputQueueStore';
 
 type AutomateTab = 'quick' | 'workflows' | 'build';
 
@@ -102,7 +99,9 @@ export const AutomateSidebar: React.FC = () => {
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
   const [generationBusy, setGenerationBusy] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
-  const [generatedOutputs, setGeneratedOutputs] = React.useState<MacroOutputQueueItem[]>([]);
+  const generatedOutputs = useMacroOutputQueueStore((state) => state.outputs);
+  const setGeneratedOutputs = useMacroOutputQueueStore((state) => state.setOutputs);
+  const enqueueGeneratedOutputs = useMacroOutputQueueStore((state) => state.enqueueOutputs);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(
@@ -223,7 +222,9 @@ export const AutomateSidebar: React.FC = () => {
       addToast({
         type: 'success',
         title: 'Workflow Complete',
-        message: `${recipe.name} completed successfully.`,
+        message: result.outputFiles.length > 0
+          ? `${recipe.name} completed. ${result.outputFiles.length} PDF(s) are queued for saving.`
+          : `${recipe.name} completed successfully.`,
       });
     } catch (runError) {
       if (controller.signal.aborted) return;
@@ -353,19 +354,11 @@ export const AutomateSidebar: React.FC = () => {
                 || batchBusy
                 || specializedOpen
               }
-              outputs={generatedOutputs}
               onToggle={() => setGeneratorOpen((value) => !value)}
               onBusyChange={setGenerationBusy}
               onOutputsProduced={(outputs) => {
-                setGeneratedOutputs((current) => [
-                  ...current,
-                  ...outputs.map((output) => ({
-                    id: uuidv4(),
-                    ...output,
-                  })),
-                ]);
+                enqueueGeneratedOutputs(outputs, { sourceKind: 'generated' });
               }}
-              onOutputsChange={setGeneratedOutputs}
             />
 
             <MacroBatchRunPanel
@@ -423,6 +416,16 @@ export const AutomateSidebar: React.FC = () => {
           <BuildWorkflowHome
             onCreate={() => openBuilder('new')}
           />
+        ) : null}
+
+        {generatedOutputs.length > 0 ? (
+          <section aria-label="Generated PDF save queue" className="mt-4 space-y-2">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Generated PDFs are held in this browser session, not permanently saved.
+              Save or confirm receipt before reloading or closing this tab.
+            </p>
+            <MacroOutputQueue outputs={generatedOutputs} onChange={setGeneratedOutputs} />
+          </section>
         ) : null}
 
         <details
@@ -507,19 +510,15 @@ function PageLabelsQuickAction({
 function GenerateDocumentQuickAction({
   open,
   disabled,
-  outputs,
   onToggle,
   onBusyChange,
   onOutputsProduced,
-  onOutputsChange,
 }: {
   open: boolean;
   disabled: boolean;
-  outputs: MacroOutputQueueItem[];
   onToggle: () => void;
   onBusyChange: (busy: boolean) => void;
   onOutputsProduced: (outputs: MacroOutputFile[]) => void;
-  onOutputsChange: React.Dispatch<React.SetStateAction<MacroOutputQueueItem[]>>;
 }) {
   return (
     <section
@@ -558,10 +557,6 @@ function GenerateDocumentQuickAction({
             disabled={disabled}
             onBusyChange={onBusyChange}
             onOutputsProduced={onOutputsProduced}
-          />
-          <MacroOutputQueue
-            outputs={outputs}
-            onChange={onOutputsChange}
           />
         </div>
       ) : null}
