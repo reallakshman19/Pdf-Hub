@@ -12,6 +12,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -229,7 +230,49 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
     expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().regions).toEqual([]);
+    expect(useOcrStore.getState().corrections).toEqual([]);
+    expect(beforeOcr.documentFingerprint).toBe('old-ocr-doc');
+  });
+
+  it('restores matching OCR regions from the authenticated project ZIP and never retains old-document OCR', async () => {
+    seedExistingState();
+    const source = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assets: [asset()],
+      ocrProject: createOcrProjectPayload({
+        documentFingerprint: 'doc-1',
+        regions: [{
+          id: 'source-region',
+          documentFingerprint: 'doc-1',
+          pageId: 'doc-1::page::1',
+          pageIndex: 0,
+          bbox: { x: 80, y: 180, width: 110, height: 45 },
+          mode: 'text',
+          geometryProvenance: 'pdf-user-space-v2',
+          createdAt: '2026-11-19T00:00:00.000Z',
+          updatedAt: '2026-11-19T00:00:00.000Z',
+        }],
+      }),
+    });
+    const activeOperation = operation();
+    const staged = await stageStandaloneWriterProject(source, activeOperation);
+    await commitStagedWriterProjectImport(staged, activeOperation);
+
+    const ocr = useOcrStore.getState();
+    expect(ocr.documentFingerprint).toBe('doc-1');
+    expect(ocr.regions).toHaveLength(1);
+    expect(ocr.regions[0]).toMatchObject({
+      id: 'source-region',
+      pageId: 'doc-1::page::1',
+      pageIndex: 0,
+      geometryProvenance: 'pdf-user-space-v2',
+      bbox: { x: 80, y: 180, width: 110, height: 45 },
+    });
+    expect(ocr.regions.some((region) => region.documentFingerprint === 'old-ocr-doc')).toBe(false);
   });
 
   it('commits a blank Writer project by clearing the previous PDF atomically', async () => {
@@ -248,7 +291,10 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().documentMeta?.mode).toBe('blankDocument');
     expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(2);
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().regions).toEqual([]);
+    expect(useOcrStore.getState().corrections).toEqual([]);
+    expect(beforeOcr.documentFingerprint).toBe('old-ocr-doc');
   });
 
   it('rolls back session, Writer, and editor state after an injected commit failure', async () => {
