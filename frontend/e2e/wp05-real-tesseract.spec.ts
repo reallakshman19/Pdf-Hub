@@ -108,8 +108,17 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   const run = page.getByTestId('run-ocr-button');
   await expect(run).toBeEnabled();
   await run.click();
+  // The review shell can appear before the async Tesseract worker finishes.
+  // Only the completed workflow and a nonzero source-word count authorize
+  // export/search assertions; otherwise the test reads a transient empty job.
+  await expect(page.getByTestId('ocr-run-status')).toContainText('OCR complete.', {
+    timeout: 150_000,
+  });
   const review = page.getByTestId('ocr-review-workspace');
-  await expect(review).toBeVisible({ timeout: 150_000 });
+  await expect(review).toBeVisible();
+  await expect(page.getByTestId('ocr-result-summary')).toContainText(/Words\\s*[1-9][0-9]*/, {
+    timeout: 10_000,
+  });
   const summaryBeforeExport = await page.getByTestId('ocr-result-summary').textContent();
   console.log('WP05_REAL_OCR_UI_SUMMARY_BEFORE_PROJECT_EXPORT', summaryBeforeExport);
   const transcribed = await readRecognizedWordsFromEditableProject(page);
