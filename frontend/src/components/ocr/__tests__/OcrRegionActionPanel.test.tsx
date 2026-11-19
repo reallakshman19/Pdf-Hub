@@ -12,7 +12,8 @@ import {
 } from '@testing-library/react';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import { createOcrRegion } from '@/core/ocr/ocrRegionModel';
+import { createOcrRegion, type OcrRegion } from '@/core/ocr/ocrRegionModel';
+import { useSessionStore } from '@/core/session/store';
 import { OcrRegionActionPanel } from '../OcrRegionActionPanel';
 
 describe('OcrRegionActionPanel', () => {
@@ -34,7 +35,7 @@ describe('OcrRegionActionPanel', () => {
   it('runs region OCR and shows result preview', async () => {
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -59,7 +60,7 @@ describe('OcrRegionActionPanel', () => {
 
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -100,7 +101,7 @@ describe('OcrRegionActionPanel', () => {
 
     render(
       <OcrRegionActionPanel
-        region={makeTableRegion()}
+        region={registerRegion(makeTableRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -132,7 +133,7 @@ describe('OcrRegionActionPanel', () => {
   it('shows message when no page input is available', () => {
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={null}
       />,
     );
@@ -145,7 +146,7 @@ describe('OcrRegionActionPanel', () => {
 
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={null}
         resolvePageInput={async (region) => {
           resolverCalled = true;
@@ -182,6 +183,14 @@ describe('OcrRegionActionPanel', () => {
     expect(screen.getByText(/Synthetic async region rasterization completed/)).toBeTruthy();
   });
 });
+
+function registerRegion(region: OcrRegion): OcrRegion {
+  // An OCR Area is only executable while its exact source document owns it.
+  // Keep the selected region in the same store used by the live UI.
+  useSessionStore.setState({ documentKey: null, pageGraph: null, activeRevisionId: null });
+  useOcrStore.getState().upsertOcrRegion(region);
+  return region;
+}
 
 function makeTextRegion() {
   return createOcrRegion({
