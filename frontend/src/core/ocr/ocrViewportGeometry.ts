@@ -8,8 +8,8 @@ import type { PdfRect } from '../writer-v2/types';
 export interface OcrPdfViewport {
   width: number;
   height: number;
-  convertToPdfPoint(x: number, y: number): [number, number];
-  convertToViewportRectangle(rect: [number, number, number, number]): [number, number, number, number];
+  convertToPdfPoint(x: number, y: number): number[];
+  convertToViewportRectangle(rect: number[]): number[];
 }
 
 export function viewportSelectionToPdfRect(
@@ -35,7 +35,7 @@ export function pdfRectToViewportSelection(
   return boundsOfPoints([[points[0], points[1]], [points[2], points[3]]]);
 }
 
-function boundsOfPoints(points: ReadonlyArray<readonly [number, number]>): PdfRect {
+function boundsOfPoints(points: ReadonlyArray<readonly number[]>): PdfRect {
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
   const x = Math.min(...xs);
