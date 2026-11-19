@@ -72,6 +72,7 @@ export async function simulateMacroDryRun(
     depth = 0,
     branchSelection?: number[],
     pendingSelections?: number[][],
+    alreadyExpanded = false,
   ): void => {
     if (depth > 16) {
       errors.push('Conditional nesting exceeds dry-run safety depth.');
@@ -79,7 +80,8 @@ export async function simulateMacroDryRun(
     }
 
     for (let i = 0; i < rawSteps.length; i += 1) {
-      const step = templateVarEngine.expandStep(rawSteps[i], templateVars);
+      // Real execution expands the entire conditional step before running its branch.
+      const step = alreadyExpanded ? rawSteps[i] : templateVarEngine.expandStep(rawSteps[i], templateVars);
       const op = step.op;
       const selection = branchSelection ?? finalSelectedPages;
       logs.push(`${depth > 0 ? '  '.repeat(depth) : ''}Step ${i + 1}: ${op}`);
@@ -149,7 +151,7 @@ export async function simulateMacroDryRun(
           logs.push(`  → conditional: ${matched ? 'then' : 'else'} branch (${selectedBranch.length} step(s))`);
           const selectedAtBranchStart = [...selection];
           const branchPending: number[][] = [];
-          simulateSteps(selectedBranch, depth + 1, selectedAtBranchStart, branchPending);
+          simulateSteps(selectedBranch, depth + 1, selectedAtBranchStart, branchPending, true);
           if (pendingSelections) pendingSelections.push(...branchPending);
           else for (const nextSelection of branchPending) finalSelectedPages = nextSelection;
         } else if (op === 'apply_template_vars') {
