@@ -802,3 +802,197 @@ test('WP07 R4 FSA: mismatched external file readback leaves durable output queue
   await expect(queue).toContainText('PDF #2 (auxiliary)');
   console.log('WP07_R4_FSA_READBACK corrupted_readback_rejected=true durable_output_retained=true verified_retry_acknowledged=true');
 });
+
+test('WP07 R5: repository-native engineering PDF corpus with invalid and encrypted inputs', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+
+  // These are committed repository-native PDFs. Their original authorship is
+  // not independently proven, so this is an engineering fixture challenge,
+  // NOT a claim of customer-provided archival corpus acceptance.
+  const cases = [
+    { name: 'bm2_benchmark_annotated.pdf', bytes: await readFile('../bm2_benchmark_annotated.pdf'), valid: true },
+    { name: 'poisoned.pdf', bytes: Buffer.from('%PDF-1.7\\n% malicious but no PDF objects'), valid: false },
+    { name: 'navis_tag_isonote_sample_annotated.pdf', bytes: await readFile('../navis_tag_isonote_sample_annotated.pdf'), valid: true },
+    { name: 'encrypted-with-images.pdf', bytes: await readFile('fidelity/phase9/retained/encrypted-with-images.pdf'), valid: false },
+  ];
+  const sourceDigests = cases.map(({ bytes }) => createHash('sha256').update(bytes).digest('hex'));
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles(cases.map(({ name, bytes }) => ({
+    name, mimeType: 'application/pdf', buffer: Buffer.from(bytes),
+  })));
+
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(4, { timeout: 45_000 });
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    summary: { succeeded: number; failed: number; outputsHandedOff: number };
+    records: Array<{
+      status: string; inputIndex: number; sourceSha256?: string;
+      outputs?: Array<{
+        outputIndex: number; outputName: string; outputSha256: string;
+        outputPageCount: number; outputBytes: number;
+      }>;
+    }>;
+  };
+  expect(report.records.map((r) => r.status)).toEqual(['success', 'failed', 'success', 'failed']);
+  expect(report.summary).toMatchObject({ succeeded: 2, failed: 2, outputsHandedOff: 4 });
+  const inspections: Array<{
+    inputIndex: number; sourceDigest: string; sourcePages: number;
+    nativePages: number[]; sha256: string[]; sourceFirstAnnotations: number;
+    outputFirstAnnotations: number[]; sourceFirstRotation: number; outputFirstRotation: number[];
+  }> = [];
+  for (const inputIndex of [0, 2]) {
+    const item = cases[inputIndex];
+    const row = report.records[inputIndex];
+    expect(row.sourceSha256).toBe(`sha256:${sourceDigests[inputIndex]}`);
+    expect(row.outputs).toHaveLength(2);
+    const sourceDoc = await getDocument({ data: new Uint8Array(item.bytes) }).promise;
+    const sourceFirst = await sourceDoc.getPage(1);
+    const sourceFirstAnnotations = (await sourceFirst.getAnnotations()).length;
+    const sourceRotation = sourceFirst.rotate;
+    const sourceText = (await sourceFirst.getTextContent()).items
+      .map((value) => ('str' in value ? value.str : '')).join(' ').replace(/\\s+/g, '');
+    const sourcePages = sourceDoc.numPages;
+    const nativePages: number[] = [];
+    const nativeDigests: string[] = [];
+    const nativeAnnotations: number[] = [];
+    const nativeRotation: number[] = [];
+    for (let outputIndex = 0; outputIndex < 2; outputIndex += 1) {
+      const expected = row.outputs?.[outputIndex];
+      expect(expected).toBeTruthy();
+      const [download] = await Promise.all([
+        page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+        queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+      ]);
+      const bytes = await readFile(await download.path() as string);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      expect(download.suggestedFilename()).toBe(expected?.outputName);
+      expect(`sha256:${digest}`).toBe(expected?.outputSha256);
+      expect(bytes.byteLength).toBe(expected?.outputBytes);
+      const nativeDoc = await getDocument({ data: new Uint8Array(bytes) }).promise;
+      const nativeFirst = await nativeDoc.getPage(1);
+      const nativeText = (await nativeFirst.getTextContent()).items
+        .map((value) => ('str' in value ? value.str : '')).join(' ').replace(/\\s+/g, '');
+      expect(nativeText).toBe(sourceText);
+      const numPages = nativeDoc.numPages;
+      expect(numPages).toBe(expected?.outputPageCount);
+      expect(numPages).toBe(outputIndex === 0 ? sourcePages : 1);
+      nativePages.push(numPages);
+      nativeDigests.push(digest);
+      nativeAnnotations.push((await nativeFirst.getAnnotations()).length);
+      nativeRotation.push(nativeFirst.rotate);
+      expect(nativeFirst.rotate).toBe(sourceRotation);
+      await nativeDoc.destroy();
+      await persistPublicSyntheticEvidence(`repo-native-export-${digest}.pdf`, bytes);
+      await expect(queue).toContainText('Download initiated — receipt unverified');
+      await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+    }
+    await sourceDoc.destroy();
+    inspections.push({
+      inputIndex, sourceDigest: sourceDigests[inputIndex], sourcePages,
+      nativePages, sha256: nativeDigests,
+      sourceFirstAnnotations, outputFirstAnnotations: nativeAnnotations,
+      sourceFirstRotation: sourceRotation, outputFirstRotation: nativeRotation,
+    });
+  }
+  await expect(queue).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `repo-native-corpus-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify({
+      provenance: 'PUBLIC_REPOSITORY_FIXTURE__ORIGINAL_AUTHORSHIP_NOT_VERIFIED',
+      report, inspections,
+      sourceDigests: cases.map((item, i) => ({
+        name: item.name, sha256: sourceDigests[i], expectedValid: item.valid,
+      })),
+    }, null, 2)),
+  );
+  console.log('WP07_R5_REPO_CORPUS valid=2 rejected=2 generated=4 SHA_verified=true native_pdf_page_counts_verified=true rotations_verified=true');
+});
+
+test('WP07 R5: cancellation during input read preserves prior native PDFs and never processes the next input', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+  const original = Buffer.from(await createThreePageSource());
+  await page.evaluate(() => {
+    const win = window as Window & { __wp07SlowReadStarted?: boolean; __wp07LaterReadStarted?: boolean };
+    const originalRead = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      if (this.name === 'slow-read.pdf') {
+        win.__wp07SlowReadStarted = true;
+        return new Promise<ArrayBuffer>(() => undefined);
+      }
+      if (this.name === 'later-unread.pdf') win.__wp07LaterReadStarted = true;
+      return originalRead.call(this);
+    };
+  });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([
+    { name: 'completed-first.pdf', mimeType: 'application/pdf', buffer: original },
+    { name: 'slow-read.pdf', mimeType: 'application/pdf', buffer: original },
+    { name: 'later-unread.pdf', mimeType: 'application/pdf', buffer: original },
+  ]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  await page.waitForFunction(() =>
+    (window as Window & { __wp07SlowReadStarted?: boolean }).__wp07SlowReadStarted === true,
+  );
+  await batch.getByRole('button', { name: 'Cancel Batch' }).click();
+  await expect(batch.getByRole('button', { name: 'Choose Workflow' })).toBeVisible({ timeout: 12_000 });
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2);
+  expect(await page.evaluate(() =>
+    (window as Window & { __wp07LaterReadStarted?: boolean }).__wp07LaterReadStarted ?? false,
+  )).toBe(false);
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    cancelled: boolean;
+    records: Array<{ status: string; inputIndex: number; outputs?: Array<{ outputName: string }> }>;
+  };
+  expect(report.cancelled).toBe(true);
+  expect(report.records.map((row) => row.status)).toEqual(['success', 'cancelled', 'not-run']);
+  expect(report.records[0].outputs).toHaveLength(2);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Browse Files' })).toBeVisible();
+  const [sourcePicker] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Browse Files' }).click(),
+  ]);
+  await sourcePicker.setFiles({
+    name: 'reload-after-cancel.pdf', mimeType: 'application/pdf', buffer: original,
+  });
+  await expect(page.locator('[data-page="1"]')).toBeVisible({ timeout: 15_000 });
+  await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  await expect(page.getByTestId('macro-output-queue')
+    .getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 20_000 });
+  await persistPublicSyntheticEvidence(
+    `cancel-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log('WP07_R5_CANCEL first_outputs=2 cancelled_input=1 later_unread=true reload_retained=2');
+});

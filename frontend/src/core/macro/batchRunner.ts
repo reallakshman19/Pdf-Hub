@@ -1,4 +1,5 @@
 import { FileAdapter, type PickedPdfFileSource } from '@/adapters/file/FileAdapter';
+import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { v4 as uuidv4 } from 'uuid';
 import {
   createBatchPdfAdmissionEvidence,
@@ -29,6 +30,7 @@ export interface BatchOutputManifestEntry {
   readonly outputName: string;
   readonly outputBytes: number;
   readonly outputSha256: string;
+  readonly outputPageCount: number;
   readonly outputDisposition: 'handoff-completed-unverified' | 'handoff-failed-unverified' | 'not-requested';
 }
 
@@ -43,6 +45,7 @@ export interface BatchOutputArtifact {
   readonly inputPageCount: number;
   readonly sourceSha256: string;
   readonly outputSha256: string;
+  readonly outputPageCount: number;
   readonly outputName: string;
   readonly batchRunId: string;
   readonly recipeId: string;
@@ -404,6 +407,23 @@ async function executeValidatedBatchPdf(
   // never enqueue the working copy while a later auxiliary is unaccounted for.
   const output = new Uint8Array(execution.finalBytes);
   const outputBytes = output.byteLength;
+  // A digest witnesses bytes but does not establish they are a readable PDF.
+  // Verify the complete primary before any child is considered for custody.
+  const primaryValidation = await validateEmittedBatchPdf(
+    output, 0, options.abortSignal,
+  );
+  if (!primaryValidation.valid) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      status: 'failed',
+      error: primaryValidation.error,
+      logs,
+    });
+  }
   const outputSha256 = await FileAdapter.hashBytes(output);
   const outputName = buildBatchOutputName(
     input.inputIndex, input.fileName, options.recipe.id, sourceSha256,
@@ -421,6 +441,7 @@ async function executeValidatedBatchPdf(
     ...commonIdentity,
     outputIndex: 0,
     outputKind: 'working-copy',
+    outputPageCount: primaryValidation.pageCount,
     outputSha256,
     outputName,
     bytes: output,
@@ -428,11 +449,7 @@ async function executeValidatedBatchPdf(
   for (let index = 0; index < execution.outputFiles.length; index += 1) {
     throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before auxiliary ${index + 1}`);
     const sourceOutput = execution.outputFiles[index];
-    if (
-      !sourceOutput
-      || !(sourceOutput.bytes instanceof Uint8Array)
-      || !hasBatchPdfSignature(sourceOutput.bytes)
-    ) {
+    if (!sourceOutput || !(sourceOutput.bytes instanceof Uint8Array)) {
       return freezeRecord({
         inputIndex: input.inputIndex,
         fileName: input.fileName,
@@ -440,15 +457,31 @@ async function executeValidatedBatchPdf(
         pageCount: input.pageCount,
         sourceSha256,
         status: 'failed',
-        error: `BATCH_AUXILIARY_PDF_INVALID: output ${index + 1} has no valid PDF signature; no files were handed off.`,
+        error: `BATCH_AUXILIARY_PDF_INVALID: output ${index + 1} has no PDF bytes; no files were handed off.`,
         logs,
       });
     }
     const bytes = new Uint8Array(sourceOutput.bytes);
+    const auxiliaryValidation = await validateEmittedBatchPdf(
+      bytes, index + 1, options.abortSignal,
+    );
+    if (!auxiliaryValidation.valid) {
+      return freezeRecord({
+        inputIndex: input.inputIndex,
+        fileName: input.fileName,
+        inputBytes: input.sourceBytes,
+        pageCount: input.pageCount,
+        sourceSha256,
+        status: 'failed',
+        error: auxiliaryValidation.error,
+        logs,
+      });
+    }
     artifacts.push({
       ...commonIdentity,
       outputIndex: index + 1,
       outputKind: 'auxiliary',
+      outputPageCount: auxiliaryValidation.pageCount,
       originalOutputName: sourceOutput.name,
       outputSha256: await FileAdapter.hashBytes(bytes),
       outputName: buildBatchAuxiliaryOutputName(
@@ -469,6 +502,7 @@ async function executeValidatedBatchPdf(
       outputName: item.outputName,
       outputBytes: item.bytes.byteLength,
       outputSha256: item.outputSha256,
+      outputPageCount: item.outputPageCount,
       outputDisposition: disposition,
     }),
   ));
@@ -755,6 +789,49 @@ export function buildBatchAuxiliaryOutputName(
   const parent = buildBatchOutputName(inputIndex, fileName, recipeId, sourceSha256)
     .replace(/\.pdf$/i, '');
   return `${parent}-aux-${String(outputIndex).padStart(3, '0')}-${safeLeaf}.pdf`;
+}
+
+type EmittedPdfValidation =
+  | { valid: true; pageCount: number }
+  | { valid: false; error: string };
+
+/**
+ * A `%PDF-` prefix is not proof that emitted bytes are parseable. Use the
+ * exact PDF parsing adapter already required by source admission, then
+ * enforce a positive integer page count before *any* output is handed off.
+ * Cancellation is propagated rather than mislabeled as corruption.
+ */
+async function validateEmittedBatchPdf(
+  bytes: Uint8Array,
+  outputIndex: number,
+  abortSignal?: AbortSignal,
+): Promise<EmittedPdfValidation> {
+  const kind = outputIndex === 0 ? 'PRIMARY' : 'AUXILIARY';
+  if (!hasBatchPdfSignature(bytes)) {
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} lacks a PDF header; no files were handed off.`,
+    };
+  }
+  throwIfAborted(abortSignal, `batch output ${outputIndex}: before native PDF parse`);
+  let pageCount: number;
+  try {
+    pageCount = await PdfEditAdapter.countPages(bytes, { signal: abortSignal });
+  } catch (error) {
+    if (isOperationCancelledError(error)) throw error;
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} cannot be parsed as a PDF; no files were handed off.`,
+    };
+  }
+  throwIfAborted(abortSignal, `batch output ${outputIndex}: after native PDF parse`);
+  if (!Number.isInteger(pageCount) || pageCount < 1) {
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} has no valid PDF pages; no files were handed off.`,
+    };
+  }
+  return { valid: true, pageCount };
 }
 
 function hasBatchPdfSignature(bytes: Uint8Array): boolean {

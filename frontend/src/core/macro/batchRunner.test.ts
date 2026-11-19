@@ -48,7 +48,12 @@ function successResult(outputSize = 16, logs: string[] = []): MacroExecutionResu
     success: true,
     outputFiles: [],
     stepResults: [],
-    finalBytes: new Uint8Array(outputSize),
+    finalBytes: (() => {
+      const bytes = new Uint8Array(outputSize);
+      const header = new TextEncoder().encode('%PDF-1.7\n');
+      bytes.set(header.subarray(0, Math.min(header.byteLength, bytes.byteLength)));
+      return bytes;
+    })(),
     logs,
     selectedPages: [],
   };
@@ -594,6 +599,89 @@ describe('runMacroBatch', () => {
     expect(containsBinary(report)).toBe(false);
   });
 
+  it('rejects a malformed working copy even when macro execution reports success', async () => {
+    const result = successResult(42);
+    result.finalBytes.set(new Uint8Array(9).fill(0), 0);
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    const onOutputs = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('valid-input.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs,
+    });
+    expect(onOutputs).not.toHaveBeenCalled();
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('BATCH_PRIMARY_PDF_INVALID'),
+    });
+    expect(report.summary.outputsHandedOff).toBe(0);
+  });
+
+  it('rejects a fake %PDF auxiliary whose native PDF parser throws, without queuing its primary', async () => {
+    const result = successResult(100);
+    result.outputFiles.push({ name: 'fake.pdf', bytes: pdfBytes(42) });
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    // Call 1 source valid, call 2 working copy valid, call 3 auxiliary unreadable.
+    pdfMocks.countPages.mockResolvedValueOnce(3).mockResolvedValueOnce(3)
+      .mockRejectedValueOnce(new Error('Missing PDF catalog'));
+    const onOutputs = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('document.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs,
+    });
+    expect(onOutputs).not.toHaveBeenCalled();
+    expect(report.records[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('BATCH_AUXILIARY_PDF_INVALID'),
+    });
+    expect(report.summary.outputsHandedOff).toBe(0);
+  });
+
+  it('rejects a primary with zero parsed pages and does not emit a PDF report success', async () => {
+    pdfMocks.countPages.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
+    const onOutput = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('has-pages.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutput,
+    });
+    expect(onOutput).not.toHaveBeenCalled();
+    expect(report.records[0]).toMatchObject({
+      status: 'failed', error: expect.stringContaining('BATCH_PRIMARY_PDF_INVALID'),
+    });
+    expect(report.summary.succeeded).toBe(0);
+  });
+
+  it('binds actual parsed page counts to every output manifest, rather than copying the input count', async () => {
+    const result = successResult(123);
+    result.outputFiles.push({ name: 'extract.pdf', bytes: pdfBytes(72) });
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(result);
+    pdfMocks.countPages.mockResolvedValueOnce(5)
+      .mockResolvedValueOnce(3).mockResolvedValueOnce(1);
+    const seen = vi.fn();
+    const report = await runMacroBatch({
+      sources: [createSource('five-pages.pdf')],
+      recipe: RECIPE,
+      continueOnError: true,
+      onOutputs: seen,
+    });
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(seen.mock.calls[0][0].map((o: { outputPageCount: number }) => o.outputPageCount)).toEqual([3, 1]);
+    expect(report.records[0]).toMatchObject({
+      status: 'success',
+      pageCount: 5,
+      outputCount: 2,
+      outputs: [
+        expect.objectContaining({ outputIndex: 0, outputPageCount: 3 }),
+        expect.objectContaining({ outputIndex: 1, outputPageCount: 1 }),
+      ],
+    });
+  });
+
   it('continues after macro failure when continueOnError is true', async () => {
     macroMocks.executeMacroRecipe
       .mockResolvedValueOnce(failureResult('first failed'))
@@ -728,7 +816,7 @@ describe('runMacroBatch', () => {
   });
 
   it('keeps report structure independent of input and output payload size', async () => {
-    macroMocks.executeMacroRecipe.mockResolvedValueOnce(successResult(4));
+    macroMocks.executeMacroRecipe.mockResolvedValueOnce(successResult(16));
     const small = await runMacroBatch({
       sources: [createSource('small.pdf', pdfBytes(4))],
       recipe: RECIPE,
