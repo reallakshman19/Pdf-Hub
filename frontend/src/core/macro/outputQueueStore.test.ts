@@ -18,6 +18,7 @@ async function batchGroup(): Promise<BatchOutputArtifact[]> {
     recipeSha256: 'sha256:' + 'b'.repeat(64),
     batchRunId: 'run-prove',
     outputIndex: i,
+    outputPageCount: i === 0 ? 3 : 1,
     outputKind: i === 0 ? 'working-copy' as const : 'auxiliary' as const,
     ...(i === 0 ? {} : { originalOutputName: '../repeat.pdf' }),
     outputName: `003-repeat-${i}.pdf`,
