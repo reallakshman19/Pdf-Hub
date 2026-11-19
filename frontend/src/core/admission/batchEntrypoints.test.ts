@@ -19,8 +19,9 @@ describe('batch PDF source boundaries', () => {
     expect(batchSection).toContain('FileAdapter.pickPdfFileSources(true)');
     expect(batchSection).toContain('runMacroBatch({');
     expect(batchSection).toContain('sources,');
-    expect(batchSection).toContain('onOutput:');
-    expect(batchSection).toContain('useMacroOutputQueueStore.getState().enqueueOutputs');
+    expect(batchSection).toContain('onOutputs:');
+    expect(batchSection).toContain('useMacroOutputQueueStore.getState().enqueueBatchOutputs');
+    expect(batchSection).not.toContain('onOutput:');
     expect(batchSection).toContain('sourceSha256');
     expect(batchSection).toContain('outputSha256');
     expect(batchSection).not.toContain('FileAdapter.downloadBytes');
@@ -42,6 +43,7 @@ describe('batch PDF source boundaries', () => {
     expect(options).toContain('sources: readonly PickedPdfFileSource[]');
     expect(options).not.toContain('files:');
     expect(options).toContain('onOutput?:');
+    expect(options).toContain('onOutputs?:');
     expect(result).not.toContain('Uint8Array');
     expect(result).not.toContain('ArrayBuffer');
     expect(source).not.toContain('Promise.all');
@@ -51,5 +53,7 @@ describe('batch PDF source boundaries', () => {
     expect(source).toContain('outputSha256');
     expect(source).toContain('bytes: output');
     expect(source).toContain('await options.onOutput?.');
+    expect(source).toContain('await options.onOutputs(artifacts)');
+    expect(source).toContain('artifacts.length > 1 && !options.onOutputs');
   });
 });

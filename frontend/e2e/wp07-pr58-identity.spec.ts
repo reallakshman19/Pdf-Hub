@@ -549,3 +549,98 @@ test('WP07 B02: a corrupt middle input does not steal custody or ordinal from la
   );
   console.log(`WP07_BATCH_MIXED run=${report.metadata.runId} status=success,failed,success picker_indices=0,1,2 queued=2 saved=2`);
 });
+
+test('WP07 B03: extracted current-page PDF and working copy are both hashed, queued, saved and receipt-confirmed', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  const batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+
+  const input = Buffer.from(await createThreePageSource());
+  const inputSha256 = createHash('sha256').update(input).digest('hex');
+  await persistPublicSyntheticEvidence(`multi-source-${inputSha256}.pdf`, input);
+  const initiated: string[] = [];
+  page.on('download', (item) => initiated.push(item.suggestedFilename()));
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([{ name: 'multi-source.pdf', mimeType: 'application/pdf', buffer: input }]);
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  await expect(queue).toContainText('PDF #1 (working-copy)');
+  await expect(queue).toContainText('PDF #2 (auxiliary)');
+  expect(initiated.filter((name) => name.endsWith('.pdf'))).toEqual([]);
+
+  const [downloadReport] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await downloadReport.path() as string, 'utf8')) as {
+    metadata: { runId: string; recipeSha256: string };
+    summary: { succeeded: number; outputsPrepared: number; outputsHandedOff: number };
+    records: Array<{
+      inputIndex: number; sourceSha256: string; outputCount: number;
+      outputDisposition: string; outputs: Array<{
+        outputIndex: number; outputKind: string; outputBytes: number;
+        outputName: string; outputSha256: string; outputDisposition: string;
+        originalOutputName?: string;
+      }>;
+    }>;
+    evidence: { inputs: Array<{ outputs: unknown[] }> };
+  };
+  expect(report.summary).toMatchObject({
+    succeeded: 1, outputsPrepared: 2, outputsHandedOff: 2,
+  });
+  expect(report.records[0].sourceSha256).toBe(`sha256:${inputSha256}`);
+  expect(report.records[0].outputCount).toBe(2);
+  const manifest = report.records[0].outputs;
+  expect(manifest.map((o) => [o.outputIndex, o.outputKind])).toEqual([
+    [0, 'working-copy'], [1, 'auxiliary'],
+  ]);
+  expect(manifest[1].originalOutputName).toBe('current-page.pdf');
+  expect(new Set(manifest.map((o) => o.outputName)).size).toBe(2);
+  expect(manifest.every((o) => o.outputDisposition === 'handoff-completed-unverified')).toBe(true);
+  expect(report.evidence.inputs[0].outputs).toHaveLength(2);
+  const sourceSequences: string[][] = [];
+
+  for (let i = 0; i < manifest.length; i += 1) {
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+      queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+    ]);
+    const saved = await readFile(await download.path() as string);
+    const sha256 = createHash('sha256').update(saved).digest('hex');
+    expect(download.suggestedFilename()).toBe(manifest[i].outputName);
+    expect(`sha256:${sha256}`).toBe(manifest[i].outputSha256);
+    expect(saved.byteLength).toBe(manifest[i].outputBytes);
+    const doc = await getDocument({ data: new Uint8Array(saved) }).promise;
+    const order: string[] = [];
+    try {
+      for (let pageno = 1; pageno <= doc.numPages; pageno += 1) {
+        const native = await doc.getPage(pageno);
+        const content = (await native.getTextContent()).items
+          .map((item) => ('str' in item ? item.str : '')).join(' ');
+        order.push(content.match(/WP07 NATIVE SOURCE PAGE ([ABC])/)?.[1] ?? 'MISSING');
+      }
+    } finally {
+      await doc.destroy();
+    }
+    sourceSequences.push(order);
+    await persistPublicSyntheticEvidence(`multi-export-${sha256}.pdf`, saved);
+    await expect(queue).toContainText('Download initiated — receipt unverified');
+    await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+  }
+
+  expect(sourceSequences).toEqual([['A', 'B', 'C'], ['A']]);
+  await expect(queue).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `multi-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log(`WP07_BATCH_MULTI run=${report.metadata.runId} manifests=2 working=ABC auxiliary=A atomic_queued=true sha256_verified=true receipts_explicit=true`);
+});

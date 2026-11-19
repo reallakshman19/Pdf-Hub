@@ -9,6 +9,7 @@ import type { BatchOutputArtifact } from '@/core/macro/batchRunner';
 const fileMocks = vi.hoisted(() => ({
   pickPdfFileSources: vi.fn(),
   downloadBytes: vi.fn(),
+  hashBytes: vi.fn(async () => 'sha256:' + 'b'.repeat(64)),
 }));
 
 const batchMocks = vi.hoisted(() => ({
@@ -27,6 +28,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
   FileAdapter: {
     pickPdfFileSources: fileMocks.pickPdfFileSources,
     downloadBytes: fileMocks.downloadBytes,
+    hashBytes: fileMocks.hashBytes,
   },
 }));
 
@@ -95,6 +97,8 @@ function completedReport() {
       selected: 1,
       processed: 1,
       succeeded: 1,
+      outputsPrepared: 1,
+      outputsHandedOff: 1,
       failed: 0,
       cancelled: 0,
       notRun: 0,
@@ -130,9 +134,11 @@ describe('MacroBatchRunPanel', () => {
 
     batchMocks.runMacroBatch.mockImplementation(
       async (options: {
-        onOutput?: (output: BatchOutputArtifact) => void | Promise<void>;
+        onOutputs?: (outputs: readonly BatchOutputArtifact[]) => void | Promise<void>;
       }) => {
-        await options.onOutput?.({
+        await options.onOutputs?.([{
+          outputIndex: 0,
+          outputKind: 'working-copy',
           inputIndex: 0,
           fileName: 'drawing.pdf',
           inputPageCount: 1,
@@ -143,7 +149,7 @@ describe('MacroBatchRunPanel', () => {
           recipeId: 'review-current-page',
           recipeSha256: 'sha256:' + 'c'.repeat(64),
           bytes: new Uint8Array([9, 8, 7]),
-        });
+        }]);
         return completedReport();
       },
     );
@@ -199,9 +205,11 @@ describe('MacroBatchRunPanel', () => {
   it('preserves queued PDF bytes if the user later edits the macro output buffer', async () => {
     const sourceBytes = new Uint8Array([1, 2, 3]);
     batchMocks.runMacroBatch.mockImplementationOnce(async (options: {
-      onOutput?: (output: BatchOutputArtifact) => void | Promise<void>;
+      onOutputs?: (outputs: readonly BatchOutputArtifact[]) => void | Promise<void>;
     }) => {
-      await options.onOutput?.({
+      await options.onOutputs?.([{
+        outputIndex: 0,
+        outputKind: 'working-copy',
         inputIndex: 0,
         fileName: 'mutable.pdf',
         inputPageCount: 1,
@@ -212,7 +220,7 @@ describe('MacroBatchRunPanel', () => {
         recipeId: 'fixture',
         recipeSha256: 'sha256:' + '3'.repeat(64),
         bytes: sourceBytes,
-      });
+      }]);
       sourceBytes[0] = 99;
       return completedReport();
     });
