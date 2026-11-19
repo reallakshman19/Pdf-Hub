@@ -410,4 +410,89 @@ describe('macro executor', () => {
     expect(result.finalBytes).toEqual(new Uint8Array([4, 4, 4]));
   });
 
+  it('previews a two-step selected-page duplication with the same page count as execution', async () => {
+    const recipe: MacroRecipe = {
+      id: 'selected-duplication-parity',
+      name: 'Select 1 and 3, duplicate',
+      steps: [
+        { op: 'select_pages', selector: { mode: 'list', pages: [3, 1, 3] } },
+        { op: 'duplicate_pages', selector: { mode: 'selected' } },
+      ],
+    };
+    const context = { ...baseContext, pageCount: 3, selectedPages: [] };
+
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, context);
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(5);
+    expect(preview.dryRunDiff?.selectedPagesAfter).toEqual([1, 3]);
+    expect(pdfMocks.duplicatePages).not.toHaveBeenCalled();
+
+    pdfMocks.countPages.mockResolvedValueOnce(5);
+    const executed = await executeMacroRecipe(recipe, context);
+    expect(executed.success).toBe(true);
+    expect(pdfMocks.duplicatePages).toHaveBeenCalledWith(
+      context.workingBytes, [0, 2],
+    );
+    expect(executed.stepResults.flatMap((step) => step.sideEffects)
+      .filter((effect) => effect.type === 'page_count_changed')
+      .at(-1)).toEqual({ type: 'page_count_changed', newCount: 5 });
+  });
+
+  it('previews conditional branch selection after page-count changes', async () => {
+    const recipe: MacroRecipe = {
+      id: 'conditional-parity',
+      name: 'Duplicate then insert if five pages',
+      steps: [
+        { op: 'duplicate_pages', selector: { mode: 'list', pages: [1, 3] } },
+        {
+          op: 'conditional',
+          condition: { type: 'page_count_gt', value: 4 },
+          then: [
+            { op: 'insert_blank_page', size: 'a4', position: { mode: 'end' } },
+          ],
+          else: [],
+        },
+      ],
+    };
+    const context = { ...baseContext, pageCount: 3, selectedPages: [] };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, context);
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(6);
+    expect(preview.logs.join(' ')).toContain('then branch');
+    expect(pdfMocks.duplicatePages).not.toHaveBeenCalled();
+
+    pdfMocks.countPages.mockResolvedValueOnce(5).mockResolvedValueOnce(6);
+    const executed = await executeMacroRecipe(recipe, context);
+    expect(executed.success).toBe(true);
+    expect(pdfMocks.insertBlankPage).toHaveBeenCalledTimes(1);
+    expect(executed.stepResults.flatMap((step) => step.sideEffects)
+      .filter((effect) => effect.type === 'page_count_changed')
+      .at(-1)).toEqual({ type: 'page_count_changed', newCount: 6 });
+  });
+
+  it('uses current-page fallback and models multi-page remove/duplicate in order', async () => {
+    const recipe: MacroRecipe = {
+      id: 'remove-then-dup',
+      name: 'Remove outer pages then duplicate current',
+      steps: [
+        { op: 'remove_pages', selector: { mode: 'list', pages: [1, 3] } },
+        { op: 'duplicate_pages', selector: { mode: 'selected' } },
+      ],
+    };
+    const context = { ...baseContext, pageCount: 3, selectedPages: [], currentPage: 2 };
+    const preview = await executeMacroRecipe({ ...recipe, dryRun: true }, context);
+    expect(preview.success).toBe(true);
+    expect(preview.dryRunDiff?.finalPageCount).toBe(2);
+    expect(pdfMocks.removePages).not.toHaveBeenCalled();
+
+    pdfMocks.countPages.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    const executed = await executeMacroRecipe(recipe, context);
+    expect(executed.success).toBe(true);
+    expect(pdfMocks.removePages).toHaveBeenCalledWith(context.workingBytes, [0, 2]);
+    // After deletion, current-page selection is clamped by the real page selector.
+    expect(pdfMocks.duplicatePages).toHaveBeenCalledWith(
+      expect.any(Uint8Array), [0],
+    );
+  });
+
 });
