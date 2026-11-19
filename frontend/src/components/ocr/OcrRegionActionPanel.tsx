@@ -127,6 +127,7 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
         && currentRegion?.documentFingerprint === region.documentFingerprint
         && currentRegion.pageIndex === region.pageIndex
         && currentRegion.pageId === region.pageId
+        && currentRegion.geometryProvenance === region.geometryProvenance
         && currentRegion.bbox.x === region.bbox.x
         && currentRegion.bbox.y === region.bbox.y
         && currentRegion.bbox.width === region.bbox.width
