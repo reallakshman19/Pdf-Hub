@@ -9,7 +9,7 @@ import { persistWp05SyntheticEvidence } from './fixtures/wp05Evidence';
 test.use({ viewport: { width: 1440, height: 900 } });
 
 const expectedSha = '658b6536b8edc10931744bd75707155a0e731666c04c6ff46e8591d016f258f7';
-const fixturePath = path.join(__dirname, 'fixtures/wp05-source-f01-f08/F03-scan-only.pdf');
+const fixturePath = path.join(process.cwd(), 'e2e/fixtures/wp05-source-f01-f08/F03-scan-only.pdf');
 
 test('P01-F03: authentic fixture OCR Area uses real Tesseract and decodes exact source phrase', async ({ page }) => {
   test.setTimeout(150_000);
