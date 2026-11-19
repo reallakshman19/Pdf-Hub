@@ -258,6 +258,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       pageIndex: pageNumber - 1,
       bbox: pendingOcrRect,
       mode,
+      geometryProvenance: 'pdf-user-space-v2',
     });
 
     if (!region) {
