@@ -101,7 +101,7 @@ describe('MacroOutputQueue', () => {
 
   it('disables conflicting queue actions while a save is in flight', async () => {
     let completeFirstSave: (() => void) | undefined;
-    saveMock.mockImplementationOnce(() => new Promise((resolve) => {
+    saveMock.mockImplementationOnce(() => new Promise<null>((resolve) => {
       completeFirstSave = () => resolve(null);
     }));
     render(<StatefulQueue />);
