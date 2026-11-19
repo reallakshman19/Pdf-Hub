@@ -108,6 +108,48 @@ function clampPage(
   return Math.max(1, Math.min(page, pageCount));
 }
 
+/**
+ * One-based selectors must follow the original source pages after structural
+ * operations. A preserved numeric index is not stable page identity.
+ * Explicit selection is required to target newly created copies.
+ */
+export function remapSelectionAfterRemoval(
+  selectedPages: readonly number[],
+  removedPages: readonly number[],
+  originalCount: number,
+): number[] {
+  const removed = sanitizeOneBasedPages([...removedPages], originalCount);
+  const removedSet = new Set(removed);
+  return sanitizeOneBasedPages([...selectedPages], originalCount)
+    .filter((page) => !removedSet.has(page))
+    .map((page) => page - removed.filter((removedPage) => removedPage < page).length);
+}
+
+export function remapSelectionAfterDuplication(
+  selectedPages: readonly number[],
+  duplicatedPages: readonly number[],
+  originalCount: number,
+): number[] {
+  const duplicated = sanitizeOneBasedPages([...duplicatedPages], originalCount);
+  return sanitizeOneBasedPages([...selectedPages], originalCount)
+    .map((page) => page + duplicated.filter((duplicate) => duplicate < page).length);
+}
+
+export function remapSelectionAfterReorder(
+  selectedPages: readonly number[],
+  oneBasedOrder: readonly number[],
+): number[] {
+  const indexByOriginalPage = new Map(
+    oneBasedOrder.map((oldPage, index) => [oldPage, index + 1]),
+  );
+  return sanitizeOneBasedPages([...selectedPages], oneBasedOrder.length)
+    .flatMap((page) => {
+      const current = indexByOriginalPage.get(page);
+      return current === undefined ? [] : [current];
+    })
+    .sort((a, b) => a - b);
+}
+
 function getSelectionState(
   ctx: MacroExecutionContext,
   state: MacroMutableState,
@@ -424,12 +466,18 @@ async function executeDuplicatePages(
     );
 
     const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
+    const selectedPages = remapSelectionAfterDuplication(
+      state.selectedPages,
+      pages,
+      state.pageCount,
+    );
 
     return success(
       `Duplicated ${pages.length} page(s)`,
       [
         bytesEffect(updatedBytes),
         pageCountEffect(newPageCount),
+        selectionEffect(selectedPages),
       ],
     );
   } catch (err) {
@@ -460,8 +508,10 @@ async function executeRemovePages(
     );
 
     const newPageCount = await PdfEditAdapter.countPages(updatedBytes, ...operationArgs(ctx.options?.abortSignal));
-    const selectedPages = state.selectedPages.filter(
-      (page) => !pages.includes(page) && page <= newPageCount,
+    const selectedPages = remapSelectionAfterRemoval(
+      state.selectedPages,
+      pages,
+      state.pageCount,
     );
 
     return success(
@@ -490,6 +540,7 @@ async function executeInsertBlankPage(
     const count = Math.max(1, Math.floor(step.count ?? 1));
     let currentBytes = state.workingBytes;
     let currentPageCount = state.pageCount;
+    let selectedPages = [...state.selectedPages];
 
     const size = await resolveBlankPageSize(
       step.size,
@@ -512,6 +563,10 @@ async function executeInsertBlankPage(
         size,
         ...operationArgs(ctx.options?.abortSignal),
       );
+      // Inserting at zero-based index N shifts every existing page > N.
+      selectedPages = selectedPages.map((page) => (
+        page > insertIndex ? page + 1 : page
+      ));
       currentPageCount += 1;
     }
 
@@ -522,6 +577,7 @@ async function executeInsertBlankPage(
       [
         bytesEffect(currentBytes),
         pageCountEffect(newPageCount),
+        selectionEffect(selectedPages),
       ],
     );
   } catch (err) {
@@ -595,9 +651,9 @@ async function executeReorderPages(
       ...operationArgs(ctx.options?.abortSignal),
     );
 
-    const selectedPages = sanitizeOneBasedPages(
+    const selectedPages = remapSelectionAfterReorder(
       state.selectedPages,
-      state.pageCount,
+      step.order,
     );
 
     return success(
