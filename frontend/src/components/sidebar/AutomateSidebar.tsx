@@ -519,7 +519,7 @@ function GenerateDocumentQuickAction({
   onToggle: () => void;
   onBusyChange: (busy: boolean) => void;
   onOutputsProduced: (outputs: MacroOutputFile[]) => void;
-  onOutputsChange: (outputs: MacroOutputQueueItem[]) => void;
+  onOutputsChange: React.Dispatch<React.SetStateAction<MacroOutputQueueItem[]>>;
 }) {
   return (
     <section
