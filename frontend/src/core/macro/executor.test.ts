@@ -205,6 +205,7 @@ describe('macro executor', () => {
       steps: [{ op: 'split_pages', selector: { mode: 'selected' }, outputName: 'split.pdf' }],
     };
 
+    pdfMocks.countPages.mockResolvedValueOnce(4);
     const result = await executeMacroRecipe(recipe, baseContext);
 
     expect(pdfMocks.extractPages).toHaveBeenCalledWith(baseContext.workingBytes, [1, 3]);
@@ -295,6 +296,7 @@ describe('macro executor', () => {
       steps: [{ op: 'insert_pdf', donorFileId: 'donorA', atIndex: 2 }],
     };
 
+    pdfMocks.countPages.mockResolvedValueOnce(7);
     const result = await executeMacroRecipe(
       recipe,
       { ...baseContext, donorFiles: { donorA: new Uint8Array([8, 8]) } },
@@ -310,6 +312,7 @@ describe('macro executor', () => {
       steps: [{ op: 'duplicate_pages', selector: { mode: 'selected' } }],
     };
 
+    pdfMocks.countPages.mockResolvedValueOnce(8);
     await executeMacroRecipe(recipe, baseContext);
     expect(pdfMocks.duplicatePages).toHaveBeenCalledWith(baseContext.workingBytes, [1, 3]);
   });
@@ -321,6 +324,7 @@ describe('macro executor', () => {
       steps: [{ op: 'remove_pages', selector: { mode: 'selected' } }],
     };
 
+    pdfMocks.countPages.mockResolvedValueOnce(4);
     await executeMacroRecipe(recipe, baseContext);
     expect(pdfMocks.removePages).toHaveBeenCalledWith(baseContext.workingBytes, [1, 3]);
     // expect(result.selectedPages).toEqual([]);
@@ -340,6 +344,7 @@ describe('macro executor', () => {
       ],
     };
 
+    pdfMocks.countPages.mockResolvedValueOnce(8);
     await executeMacroRecipe(recipe, baseContext);
     expect(pdfMocks.getPageSize).toHaveBeenCalled();
     expect(pdfMocks.insertBlankPage).toHaveBeenCalledTimes(2);
