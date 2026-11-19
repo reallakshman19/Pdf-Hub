@@ -46,12 +46,31 @@ async function readRecognizedWordsFromEditableProject(page: Page): Promise<strin
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   await download.delete();
-  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const zipBytes = Buffer.concat(chunks);
+  await test.info().attach('wp05-synthetic-tesseract-project.pdfhub.zip', {
+    body: zipBytes,
+    contentType: 'application/zip',
+  });
+  const zip = await JSZip.loadAsync(zipBytes);
+  const manifestFile = zip.file('ocr/manifest.json');
   const file = zip.file('ocr/result.json');
-  if (!file) throw new Error('Editable ZIP has no persisted OCR result for real Tesseract output');
+  if (!file || !manifestFile) {
+    throw new Error('Editable project ZIP omits OCR payload members after real recognition');
+  }
+  const manifest: unknown = JSON.parse(await manifestFile.async('text'));
   const parsed: unknown = JSON.parse(await file.async('text'));
-  const result = parsed as { pages?: Array<{ words?: Array<{ text?: string }> }> };
-  return (result.pages ?? []).flatMap((item) =>
+  const result = parsed as { pages?: Array<{ words?: Array<{ text?: string }> }> } | null;
+  console.log('WP05_REAL_OCR_ARCHIVE_PAYLOAD', JSON.stringify({
+    source: 'native product ZIP',
+    hasResult: result !== null,
+    pageCount: result?.pages?.length ?? 0,
+    wordsPerPage: result?.pages?.map((item) => item.words?.length ?? 0) ?? [],
+    counts: (manifest as { counts?: unknown }).counts ?? null,
+  }));
+  if (!result || !Array.isArray(result.pages)) {
+    throw new Error('Real OCR run did not retain its page result in native project ZIP');
+  }
+  return result.pages.flatMap((item) =>
     (item.words ?? []).map((word) => word.text ?? ''),
   );
 }
@@ -91,6 +110,8 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
   await run.click();
   const review = page.getByTestId('ocr-review-workspace');
   await expect(review).toBeVisible({ timeout: 150_000 });
+  const summaryBeforeExport = await page.getByTestId('ocr-result-summary').textContent();
+  console.log('WP05_REAL_OCR_UI_SUMMARY_BEFORE_PROJECT_EXPORT', summaryBeforeExport);
   const transcribed = await readRecognizedWordsFromEditableProject(page);
   console.log('WP05_REAL_OCR_TRANSCRIBED_WORDS', JSON.stringify(transcribed));
   expect(transcribed.some((word) => /ALPHA/i.test(word)), 'Tesseract must decode the synthetic ALPHA pixels').toBe(true);
