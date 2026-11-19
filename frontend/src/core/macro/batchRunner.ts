@@ -120,9 +120,14 @@ export interface BatchRunResult {
 export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunResult> {
   const startedAt = new Date().toISOString();
   const runId = uuidv4();
-  // Capture recipe identity once. The report never contains PDF binary data.
+  // Snapshot the recipe: edits between inputs must never change what the
+  // report's exact recipe SHA-256 attests was executed.
+  const recipeJson = JSON.stringify(options.recipe);
+  if (!recipeJson) throw new Error('Batch recipe must be a serializable workflow.');
+  const recipeSnapshot = JSON.parse(recipeJson) as MacroRecipe;
+  const runOptions: BatchRunOptions = { ...options, recipe: recipeSnapshot };
   const recipeSha256 = await FileAdapter.hashBytes(
-    new TextEncoder().encode(JSON.stringify(options.recipe)),
+    new TextEncoder().encode(recipeJson),
   );
   const preflightResult = preflightBatchPdfSources(options.sources, options.abortSignal);
   const preflight = preflightResult.value;
@@ -140,7 +145,7 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
       measurements,
       diagnostics,
       preflight,
-      recipeId: options.recipe.id,
+      recipeId: recipeSnapshot.id,
       recipeSha256,
       runId,
       startedAt,
@@ -196,7 +201,7 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
 
       const record = await executeValidatedBatchPdf(
         validation.value,
-        options,
+        runOptions,
         runId,
         recipeSha256,
       );
@@ -304,7 +309,7 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
     measurements,
     diagnostics,
     preflight,
-    recipeId: options.recipe.id,
+    recipeId: recipeSnapshot.id,
     recipeSha256,
     runId,
     startedAt,
