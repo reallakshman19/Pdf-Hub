@@ -69,25 +69,13 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
         recipe,
         continueOnError: true,
         abortSignal: controller.signal,
-        onOutput: (output) => {
+        onOutputs: async (outputs) => {
           throwIfAborted(controller.signal, 'batch PDF custody');
-          // A successful callback means the bytes were staged in the shared
-          // session queue, never that a browser download was received.
-          const ids = useMacroOutputQueueStore.getState().enqueueOutputs(
-            [{ name: output.outputName, bytes: output.bytes }],
-            {
-              sourceKind: 'batch',
-              batchRunId: output.batchRunId,
-              sourceFileName: output.fileName,
-              sourceInputIndex: output.inputIndex,
-              sourceSha256: output.sourceSha256,
-              outputSha256: output.outputSha256,
-              sourceRecipeId: output.recipeId,
-              sourceRecipeSha256: output.recipeSha256,
-            },
-          );
-          if (ids.length !== 1) {
-            throw new Error('Batch PDF output could not be staged for saving.');
+          // All PDFs from one input are verified and added in ONE queue change.
+          // Never publish the primary while an auxiliary remains unaccounted for.
+          const ids = await useMacroOutputQueueStore.getState().enqueueBatchOutputs(outputs);
+          if (ids.length !== outputs.length) {
+            throw new Error('Batch output group could not be staged completely.');
           }
         },
       });
@@ -119,7 +107,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
           `Processed ${report.summary.processed} file(s): `
           + `${report.summary.succeeded} succeeded, `
           + `${report.summary.failed} failed. `
-          + `Outputs are queued for explicit saving; `
+          + `${report.summary.outputsHandedOff} PDFs (including auxiliary files) are queued for explicit saving; `
           + (reportDownloadInitiated
             ? 'report download was initiated but receipt is unverified.'
             : 'report download did not start; use Download JSON Report Again.'),
@@ -161,7 +149,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
               Batch Process PDFs
             </div>
             <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-              Run one workflow across multiple PDFs. Successful outputs are held in the shared Output Queue until saved or receipt-confirmed; the JSON provenance report can be downloaded separately.
+              Run one workflow across multiple PDFs. Every generated PDF, including extracts, is grouped and verified in the Output Queue. Save or confirm each file; the JSON report records per-output provenance.
             </p>
           </div>
         </div>
