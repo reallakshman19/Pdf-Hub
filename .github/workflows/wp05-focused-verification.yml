@@ -89,6 +89,8 @@ jobs:
       - name: P01–P05 plus P06 invalid-admission compiled-browser certification
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
+          # These three tests generate only synthetic PDFs. Never set for owner PDFs.
+          WP05_EVIDENCE_DIR: wp05-evidence
         run: |
           set +e
           pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-native
@@ -103,17 +105,18 @@ jobs:
           if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ]; then
             exit 1
           fi
-      - name: Manifest native browser evidence hashes
+      - name: Manifest native PDF/ZIP evidence hashes
         if: always()
         run: |
-          mkdir -p frontend/test-results
-          find frontend/test-results -type f ! -name 'WP05_ARTIFACT_SHA256SUMS.txt' -print0 | sort -z | xargs -0 -r sha256sum > frontend/test-results/WP05_ARTIFACT_SHA256SUMS.txt
+          mkdir -p frontend/wp05-evidence
+          find frontend/wp05-evidence -type f ! -name 'WP05_ARTIFACT_SHA256SUMS.txt' -print0 | sort -z | xargs -0 -r sha256sum > frontend/wp05-evidence/WP05_ARTIFACT_SHA256SUMS.txt
       - name: Upload synthetic native browser evidence (pass or fail)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: wp05-native-browser-evidence
           path: |
+            frontend/wp05-evidence/
             frontend/test-results/
             /tmp/wp05-preview.log
           if-no-files-found: warn
