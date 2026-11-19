@@ -6,6 +6,7 @@ export interface MacroTransactionSnapshot {
   workingBytes: Uint8Array;
   pageCount: number;
   selectedPages: number[];
+  currentPage?: number;
   outputFiles: { name: string; bytes: Uint8Array }[];
   annotations: ReturnType<typeof useAnnotationStore.getState>['annotations'];
   writerElements: ReturnType<typeof useWriterStore.getState>['elements'];
@@ -18,6 +19,7 @@ export function beginMacroTransaction(
     workingBytes: new Uint8Array(state.workingBytes),
     pageCount: state.pageCount,
     selectedPages: [...state.selectedPages],
+    currentPage: state.currentPage,
     outputFiles: state.outputFiles.map((file) => ({
       name: file.name,
       bytes: new Uint8Array(file.bytes),
@@ -42,6 +44,7 @@ export function rollbackMacroTransaction(
   state.workingBytes = new Uint8Array(snapshot.workingBytes);
   state.pageCount = snapshot.pageCount;
   state.selectedPages = [...snapshot.selectedPages];
+  state.currentPage = snapshot.currentPage;
   state.outputFiles = snapshot.outputFiles.map((file) => ({
     name: file.name,
     bytes: new Uint8Array(file.bytes),
@@ -89,6 +92,11 @@ export function applyMacroSideEffects(
 
     if (effect.type === 'selection_changed') {
       state.selectedPages = effect.selectedPages;
+      continue;
+    }
+
+    if (effect.type === 'current_page_changed') {
+      state.currentPage = effect.currentPage;
       continue;
     }
 
