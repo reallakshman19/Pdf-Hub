@@ -259,3 +259,21 @@ test('P06: malformed PDF admission fails closed without losing the current edita
   expect(verified.getPageCount()).toBe(3);
   expect(nativeStreamBytes(verified, 0)).toEqual(expectedStreams);
 });
+
+test('P06-EMPTY: invalid PDF is visibly rejected on an empty workspace', async ({ page }) => {
+  test.setTimeout(30_000);
+  await stubNativeFilePickers(page);
+  await page.goto('./');
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Browse Files' }).click(),
+  ]);
+  await chooser.setFiles({
+    name: 'wp05-empty-workspace-invalid.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\\nthis is not a usable PDF', 'utf8'),
+  });
+  await expect(page.getByTestId('open-pdf-failure')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('open-pdf-failure')).toContainText('Unable to open PDF');
+  await expect(page.locator('[data-page="1"]')).toHaveCount(0);
+});
