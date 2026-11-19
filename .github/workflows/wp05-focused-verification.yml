@@ -34,6 +34,7 @@ jobs:
             src/core/pages/pageLabels.test.ts \
             src/core/pages/pdfPageLabelWriter.test.ts \
             src/core/pages/pdfPageLabels.test.ts \
+            src/core/ocr/__tests__/ocrProjectCodec.test.ts \
             src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
             src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
             src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
