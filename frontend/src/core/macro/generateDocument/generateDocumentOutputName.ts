@@ -11,6 +11,21 @@ export function slugifyGeneratedDocumentName(value: string): string {
   return slug || 'generated-document';
 }
 
-export function buildGeneratedDocumentOutputName(template: GenerationTemplate): string {
-  return `${slugifyGeneratedDocumentName(template.name)}.pdf`;
+/** Keep fallback download names tied to the entered record, not just the template. */
+export function buildGeneratedDocumentOutputName(
+  template: GenerationTemplate,
+  values: Readonly<Record<string, string>> = {},
+): string {
+  const base = slugifyGeneratedDocumentName(template.name);
+  const identityKeys = [
+    'recordId', 'invoiceNumber', 'transmittalNumber',
+    'candidateName', 'title', 'sectionTitle',
+  ];
+  const identity = identityKeys
+    .map((key) => values[key]?.trim() ?? '')
+    .find((value) => value.length > 0);
+  const suffix = identity
+    ? `-${slugifyGeneratedDocumentName(identity).slice(0, 48)}`
+    : '';
+  return `${base}${suffix}.pdf`;
 }

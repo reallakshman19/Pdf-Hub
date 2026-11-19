@@ -1,17 +1,17 @@
 import React from 'react';
 import { ImageIcon, Sparkles } from 'lucide-react';
-import { useShallow } from 'zustand/react/shallow';
 
 import { Button } from '@/components/ui/Button';
 import { error as logError } from '@/core/logger/service';
 import { buildGenerationRecipe } from '@/core/macro/generateDocument/buildGenerationRecipe';
+import { missingRequiredGenerationFields } from '@/core/macro/generateDocument/generationFieldValidation';
 import { buildGeneratedDocumentOutputName } from '@/core/macro/generateDocument/generateDocumentOutputName';
 import {
   GENERATION_TEMPLATES,
   getGenerationTemplateById,
 } from '@/core/macro/generateDocument/generationRecipes';
 import type { GenerationField } from '@/core/macro/generateDocument/generationTypes';
-import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { runGenerationRecipeOnSnapshot } from '@/core/macro/generateDocument/runIsolatedGeneration';
 import type { MacroOutputFile } from '@/core/macro/types';
 import { useSessionStore } from '@/core/session/store';
 
@@ -26,15 +26,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   onBusyChange,
   onOutputsProduced,
 }) => {
-  const {
-    workingBytes,
-    fileName,
-    pageCount,
-  } = useSessionStore(useShallow((state) => ({
-    workingBytes: state.workingBytes,
-    fileName: state.fileName,
-    pageCount: state.pageCount,
-  })));
+  const workingBytes = useSessionStore((state) => state.workingBytes);
 
   const [brandImageDataUrl, setBrandImageDataUrl] = React.useState('');
   const [selectedGenerationId, setSelectedGenerationId] = React.useState(
@@ -51,6 +43,11 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   const [logs, setLogs] = React.useState<string[]>([]);
   const [runError, setRunError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const generationAbortRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => () => {
+    generationAbortRef.current?.abort('Generate Document panel closed');
+  }, []);
 
   const selectedTemplate = React.useMemo(
     () => getGenerationTemplateById(selectedGenerationId),
@@ -107,37 +104,60 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
   const generate = async () => {
     if (!workingBytes || !selectedTemplate || disabled || isRunning) return;
 
+    const missing = missingRequiredGenerationFields(
+      selectedTemplate,
+      generationValues,
+    );
+    if (missing.length > 0) {
+      setRunError(`Complete required field${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.`);
+      return;
+    }
+
+    const source = useSessionStore.getState();
+    if (!source.documentKey || !source.workingBytes || !source.fileName) {
+      setRunError('No active source PDF is available.');
+      return;
+    }
+    const sourceIdentity = {
+      documentKey: source.documentKey,
+      workingBytes: source.workingBytes,
+      fileName: source.fileName,
+      pageCount: source.pageCount,
+    };
+    const controller = new AbortController();
+    generationAbortRef.current = controller;
     onBusyChange?.(true);
     setIsRunning(true);
     setRunError(null);
     setLogs([]);
 
     try {
+      const now = new Date();
       const finalRecipe = buildGenerationRecipe({
         template: selectedTemplate,
         values: generationValues,
-        fileName: fileName ?? 'document.pdf',
-        pageCount: Math.max(1, pageCount),
-        now: new Date(),
+        fileName: sourceIdentity.fileName,
+        pageCount: Math.max(1, sourceIdentity.pageCount),
+        now,
         brandImageDataUrl: brandImageDataUrl || null,
       });
 
-      const result = await runMacroRecipeAgainstSession(
+      // Do not commit generated pages to the live PDF. Each record receives
+      // an isolated input snapshot and an independent queued output.
+      const result = await runGenerationRecipeOnSnapshot(
+        { ...finalRecipe, dryRun: false },
         {
-          ...finalRecipe,
-          dryRun: false,
+          workingBytes: sourceIdentity.workingBytes,
+          pageCount: sourceIdentity.pageCount,
+          selectedPages: [...source.selectedPages],
+          currentPage: source.viewState.currentPage ?? undefined,
+          fileName: sourceIdentity.fileName,
+          now,
         },
-        {
-          saveOutputs: false,
-        },
+        controller.signal,
       );
 
-      if (result.status === 'failed' || result.success === false) {
-        setRunError(result.logs.at(-1) ?? 'Generate Document failed.');
-        return;
-      }
-
-      if (result.status === 'cancelled') {
+      if (result.status === 'cancelled' || controller.signal.aborted) {
         setRunError('Generate Document was cancelled.');
         return;
       }
@@ -147,25 +167,49 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         return;
       }
 
+      if (result.status === 'failed' || result.success === false) {
+        setRunError(result.logs.at(-1) ?? 'Generate Document failed.');
+        return;
+      }
+
+      // Do not publish a stale result against a changed source or document.
+      const live = useSessionStore.getState();
+      if (
+        live.documentKey !== sourceIdentity.documentKey
+        || live.workingBytes !== sourceIdentity.workingBytes
+        || live.fileName !== sourceIdentity.fileName
+        || live.pageCount !== sourceIdentity.pageCount
+      ) {
+        setRunError('Source PDF changed during generation; output was discarded.');
+        return;
+      }
+
       setLogs(result.logs ?? []);
 
       const outputs: MacroOutputFile[] = result.outputFiles.length > 0
         ? result.outputFiles
         : [
             {
-              name: buildGeneratedDocumentOutputName(selectedTemplate),
+              name: buildGeneratedDocumentOutputName(selectedTemplate, generationValues),
               bytes: result.finalBytes,
             },
           ];
 
       onOutputsProduced?.(outputs);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setRunError(message);
-      logError('macro', 'Failed to generate document', {
-        error: message,
-      });
+      if (controller.signal.aborted) {
+        setRunError('Generate Document was cancelled.');
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        setRunError(message);
+        logError('macro', 'Failed to generate document', {
+          error: message,
+        });
+      }
     } finally {
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+      }
       setIsRunning(false);
       onBusyChange?.(false);
     }
@@ -180,6 +224,10 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         <Sparkles className="h-4 w-4" />
         Generate Document
       </div>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        Generate a separate output from the active source snapshot; the open
+        document is not changed. Outputs appear in the queue below.
+      </p>
 
       <label className="sr-only" htmlFor="generate-document-template">
         Generate Document Template
@@ -287,6 +335,17 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
       >
         {isRunning ? 'Generating…' : 'Generate PDF'}
       </Button>
+
+      {isRunning ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => generationAbortRef.current?.abort('User cancelled generation')}
+          data-testid="macro-generate-cancel"
+        >
+          Cancel Generation
+        </Button>
+      ) : null}
 
       {runError ? (
         <div
