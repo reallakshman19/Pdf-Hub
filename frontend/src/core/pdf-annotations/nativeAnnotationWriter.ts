@@ -26,6 +26,7 @@ import {
 } from './nativeStampProvenance';
 import { BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY,
   sealGeneratedBoxAppearanceFingerprint, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
+import { fingerprintNativeCloudRotation, rotateCloudInsets, supportsNativeCloudRotation } from './nativeCloudRotation';
 import {
   createMarkupSpace, markupOrMask, pdfPointToView, viewPointToPdf,
   viewRectToPdfRect, type MarkupSpace,
@@ -228,16 +229,21 @@ export async function writeNativePdfAnnotations(
         nativeBoxShapeGenerated: trustedBox,
         ...(trustedBox ? { nativeBoxShapeGeneratedOrientation: sourceBoxOrientation } : {}),
       } };
-      if ((annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse') && annotation.data.nativeBoxShapeTurn) {
+      if ((annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud') && annotation.data.nativeBoxShapeTurn) {
         const source = existingRoot ?? copyOrigin?.dict;
         const expected = annotation.data.nativeBoxShapeTurn.sourceHash;
-        if (source ? (!expected || expected !== await fingerprintStampAppearance(doc, source, lib))
+        const actual = source ? (annotation.type === 'shape-cloud' ? await fingerprintNativeCloudRotation(doc, source, lib)
+          : await fingerprintStampAppearance(doc, source, lib)) : null;
+        if (source ? (!expected || expected !== actual)
           : Boolean(expected || annotation.data.nativeBoxShapeImported)) {
           throw new Error('Cannot safely rotate this shape: its source appearance or identity changed.');
         }
+        if (annotation.type === 'shape-cloud' && (!source || !supportsNativeCloudRotation(source, lib))) {
+          throw new Error('Cannot safely rotate this cloud without a supported source appearance.');
+        }
       }
       const nativeSubtype = existingRoot ? doc.context.lookup(existingRoot.get(lib.PDFName.of('Subtype'))) : undefined;
-      if (existingRoot && sourceModel && ['shape-rect', 'shape-ellipse'].includes(sourceModel.type)
+      if (existingRoot && sourceModel && ['shape-rect', 'shape-ellipse', 'shape-cloud'].includes(sourceModel.type)
         && annotation.type !== sourceModel.type && existingRoot.get(lib.PDFName.of('AP'))
         && !await verifyGeneratedBoxAppearanceFingerprint(doc, existingRoot, lib)) {
         throw new Error('Cannot safely convert this imported shape while preserving its original artwork.');
@@ -1518,6 +1524,28 @@ function rotatedBoxShapeAppearance(doc: PDFDocument, source: PDFDict, target: PD
   return rotatedCopyAppearance(doc, appearance, before, (360 - turns * 90) % 360, lib);
 }
 
+/** Transform source cloud artwork and its native inner rectangle together. */
+function rotatedCloudAppearance(doc: PDFDocument, source: PDFDict, target: PDFDict, turns: number, lib: PdfLibModule): PDFObject | undefined {
+  if (!supportsNativeCloudRotation(source, lib)) throw new Error('Cannot safely rotate this cloud with unsupported native geometry or appearance.');
+  const before = readPdfNumberArray(source, 'Rect', lib); const after = readPdfNumberArray(target, 'Rect', lib);
+  if (!before || !after || !boxShapeDimensionsMatch(before, after, turns)
+    || !appearanceFieldsEquivalent(source, target, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Rect' && key !== 'RD'), lib)) return undefined;
+  const rd = readPdfNumberArray(source, 'RD', lib);
+  if (rd) target.set(lib.PDFName.of('RD'), doc.context.obj(rotateCloudInsets(rd, turns)));
+  const appearance = source.get(lib.PDFName.of('AP'));
+  const ap = doc.context.lookup(appearance) as PDFDict;
+  let current = ap.lookupMaybe(lib.PDFName.of('N'), lib.PDFStream);
+  const seen = new Set<PDFObject>();
+  for (let depth = 0; current?.dict.get(lib.PDFName.of('PDFHubWrappedOriginal')); depth += 1) {
+    const original = current.dict.get(lib.PDFName.of('PDFHubWrappedOriginal'))!;
+    if (depth >= 16 || seen.has(original)) throw new Error('Cannot safely rotate this cloud: appearance nesting is too deep.');
+    seen.add(original);
+    current = doc.context.lookupMaybe(original, lib.PDFStream);
+    if (!current) throw new Error('Cannot safely rotate this cloud: invalid appearance nesting.');
+  }
+  return rotatedCopyAppearance(doc, appearance, before, (360 - turns * 90) % 360, lib);
+}
+
 /** Portable normal appearance for a new rectangle or ellipse. */
 function attachCreatedBoxShapeAppearance(doc: PDFDocument, dict: PDFDict, annotation: PdfAnnotation, lib: PdfLibModule, orientation = boxShapePendingTurns(annotation)): void {
   const rect = readPdfNumberArray(dict, 'Rect', lib);
@@ -2005,7 +2033,7 @@ function registerCopiedNativeAnnotation(
   const polygonTurns = annotation.type === 'shape-polygon' ? polygonPendingTurns(annotation) : 0;
   const inkTurns = annotation.type === 'ink' ? inkPendingTurns(annotation) : 0;
   const lineTurns = annotation.type === 'line' || annotation.type === 'arrow' ? linePendingTurns(annotation) : 0;
-  const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' ? boxShapePendingTurns(annotation) : 0;
+  const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? boxShapePendingTurns(annotation) : 0;
   const shapeTurns = polygonTurns || inkTurns || lineTurns || boxTurns;
   const modelRect = (item: PdfAnnotation) => [item.rect.x, item.rect.y, item.rect.x + item.rect.width, item.rect.y + item.rect.height];
   const geometryMatches = polygonTurns ? polygonModelTurn(origin.model, annotation, polygonTurns)
@@ -2108,9 +2136,11 @@ function registerCopiedNativeAnnotation(
     }
     const rotated = polygonTurns ? rotatedPolygonAppearance(doc, dict, candidate, polygonTurns, lib)
       : inkTurns ? rotatedInkAppearance(doc, dict, candidate, inkTurns, lib)
-        : lineTurns ? rotatedLineAppearance(doc, dict, candidate, lineTurns, lib) : rotatedBoxShapeAppearance(doc, dict, candidate, boxTurns, lib);
+        : lineTurns ? rotatedLineAppearance(doc, dict, candidate, lineTurns, lib)
+          : annotation.type === 'shape-cloud' ? rotatedCloudAppearance(doc, dict, candidate, boxTurns, lib) : rotatedBoxShapeAppearance(doc, dict, candidate, boxTurns, lib);
     if (!rotated) throw new Error('Cannot safely rotate this copied annotation: its geometry or appearance also changed.');
     dict.set(lib.PDFName.of('Rect'), candidate.get(lib.PDFName.of('Rect'))!);
+    if (annotation.type === 'shape-cloud' && candidate.get(lib.PDFName.of('RD'))) dict.set(lib.PDFName.of('RD'), candidate.get(lib.PDFName.of('RD'))!);
     if (geometryKey) dict.set(lib.PDFName.of(geometryKey), candidate.get(lib.PDFName.of(geometryKey))!);
     dict.set(lib.PDFName.of('AP'), rotated);
   }
@@ -2209,7 +2239,7 @@ function pdfObjectsEquivalent(
   return semanticValuesEquivalent(pdfSemanticValue(left, lib), pdfSemanticValue(right, lib));
 }
 
-function semanticValuesEquivalent(a: any, b: any): boolean {
+function semanticValuesEquivalent(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || a === undefined || b === undefined) return a === b;
   if (typeof a === 'number' && typeof b === 'number') {
@@ -2222,12 +2252,15 @@ function semanticValuesEquivalent(a: any, b: any): boolean {
     if (!Array.isArray(b) || a.length !== b.length) return false;
     return a.every((item, i) => semanticValuesEquivalent(item, b[i]));
   }
-  if (a.type !== b.type) return false;
-  if (a.type === 'number') {
-    return nearlyEqual(a.value, b.value, 1e-4);
+  if (Array.isArray(b)) return false;
+  const left = a as { type?: unknown; value?: unknown };
+  const right = b as { type?: unknown; value?: unknown };
+  if (left.type !== right.type) return false;
+  if (left.type === 'number' && typeof left.value === 'number' && typeof right.value === 'number') {
+    return nearlyEqual(left.value, right.value, 1e-4);
   }
-  if (a.type === 'string' || a.type === 'name' || a.type === 'boolean' || a.type === 'other') {
-    return a.value === b.value;
+  if (left.type === 'string' || left.type === 'name' || left.type === 'boolean' || left.type === 'other') {
+    return left.value === right.value;
   }
   return false;
 }
@@ -2422,9 +2455,10 @@ async function registerNativeAnnotation(
     if (!rotated) throw new Error('Cannot safely rotate this line: its geometry or appearance also changed.');
     dict.set(lib.PDFName.of('AP'), rotated);
   }
-  const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' ? boxShapePendingTurns(annotation) : 0;
+  const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? boxShapePendingTurns(annotation) : 0;
   if (boxTurns && sourceDict && !regenerateBox) {
-    const rotated = rotatedBoxShapeAppearance(doc, sourceDict, dict, boxTurns, lib, generatedBoxSource);
+    const rotated = annotation.type === 'shape-cloud' ? rotatedCloudAppearance(doc, sourceDict, dict, boxTurns, lib)
+      : rotatedBoxShapeAppearance(doc, sourceDict, dict, boxTurns, lib, generatedBoxSource);
     if (!rotated) throw new Error('Cannot safely rotate this shape: its geometry or appearance also changed.');
     dict.set(lib.PDFName.of('AP'), rotated);
   }
@@ -2439,7 +2473,7 @@ async function registerNativeAnnotation(
     const appearance = sourceDict.get(lib.PDFName.of('AP'));
     if (appearance) dict.set(lib.PDFName.of('AP'), appearance);
   }
-  if (boxType && sourceDict && !generatedBoxSource && !boxTurns && !dict.get(lib.PDFName.of('AP'))
+  if ((boxType || annotation.type === 'shape-cloud') && sourceDict && !generatedBoxSource && !boxTurns && !dict.get(lib.PDFName.of('AP'))
     && appearanceFieldsEquivalent(sourceDict, dict, ROOT_APPEARANCE_KEYS.filter((key) => key !== 'Contents'), lib)) {
     // /Contents on a square or circle is comment metadata. An imported AP may
     // contain arbitrary artwork, so preserve it verbatim: editing the comment
@@ -2794,7 +2828,7 @@ function addSubtypeFields(
       return;
 
     case 'line':
-    case 'arrow':
+    case 'arrow': {
       target.L = lineCoordinates(annotation, geometry, sourceDict, lib);
       if (sourceDict?.get(lib.PDFName.of('IC'))) target.IC = sourceDict.get(lib.PDFName.of('IC'))!;
       if (sourceDict?.get(lib.PDFName.of('IT'))) target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
@@ -2818,6 +2852,7 @@ function addSubtypeFields(
         target.CA = opacity;
       }
       return;
+    }
 
     case 'ink':
       target.InkList = inkLists(annotation, geometry);

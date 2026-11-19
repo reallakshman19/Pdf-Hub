@@ -41,7 +41,7 @@ export function isImportedStampArtworkReadOnly(annotation: PdfAnnotation): boole
 }
 
 export function isImportedBoxArtworkReadOnly(annotation: PdfAnnotation): boolean {
-  return (annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse')
+  return (annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud')
     && Boolean(annotation.data.nativeBoxShapeImported && annotation.data.nativeBoxShapeHasAppearance)
     && !annotation.data.nativeBoxShapeGenerated;
 }
