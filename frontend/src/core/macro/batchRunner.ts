@@ -20,7 +20,23 @@ import { log } from '@/core/logger/service';
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
 
+export type BatchOutputKind = 'working-copy' | 'auxiliary';
+
+export interface BatchOutputManifestEntry {
+  readonly outputIndex: number;
+  readonly outputKind: BatchOutputKind;
+  readonly originalOutputName?: string;
+  readonly outputName: string;
+  readonly outputBytes: number;
+  readonly outputSha256: string;
+  readonly outputDisposition: 'handoff-completed-unverified' | 'handoff-failed-unverified' | 'not-requested';
+}
+
 export interface BatchOutputArtifact {
+  /** Unique ordinal within one source PDF: 0 is working copy, 1+ auxiliary. */
+  readonly outputIndex: number;
+  readonly outputKind: BatchOutputKind;
+  readonly originalOutputName?: string;
   /** Exact picker ordinal. Duplicate input names remain distinct. */
   readonly inputIndex: number;
   readonly fileName: string;
@@ -41,8 +57,13 @@ export interface BatchRunOptions {
   readonly continueOnError: boolean;
   readonly donorFiles?: Record<string, Uint8Array>;
   readonly abortSignal?: AbortSignal;
+  /** Legacy one-output handoff. Multi-output runs require onOutputs. */
   readonly onOutput?: (
     output: BatchOutputArtifact,
+  ) => void | Promise<void>;
+  /** One atomic handoff for the complete set emitted by a single source PDF. */
+  readonly onOutputs?: (
+    outputs: readonly BatchOutputArtifact[],
   ) => void | Promise<void>;
 }
 
@@ -63,6 +84,8 @@ export interface BatchFileSuccessRecord extends BatchFileRecordBase {
   readonly outputBytes: number;
   readonly outputSha256: string;
   readonly outputName: string;
+  readonly outputCount: number;
+  readonly outputs: readonly BatchOutputManifestEntry[];
   /** Source processing succeeded; this is never evidence of a completed download. */
   readonly outputDisposition: 'handoff-completed-unverified' | 'not-requested';
 }
@@ -74,6 +97,7 @@ export interface BatchFileFailureRecord extends BatchFileRecordBase {
   readonly outputName?: string;
   readonly outputSha256?: string;
   readonly outputDisposition?: 'handoff-failed-unverified';
+  readonly outputs?: readonly BatchOutputManifestEntry[];
 }
 
 export interface BatchFileCancelledRecord extends BatchFileRecordBase {
@@ -103,6 +127,8 @@ export interface BatchRunResult {
     readonly selected: number;
     readonly processed: number;
     readonly succeeded: number;
+    readonly outputsPrepared: number;
+    readonly outputsHandedOff: number;
     readonly failed: number;
     readonly cancelled: number;
     readonly notRun: number;
