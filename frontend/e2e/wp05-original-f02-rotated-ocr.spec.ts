@@ -36,7 +36,9 @@ test('P05 F02: rotated source page 2 OCR Area recognizes ANCHOR from the real ra
   await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('menuitem', { name: /OCR Area/ }).click();
 
-  const capture = page.getByTestId('writer-overlay-capture').first();
+  // Scope the gesture to physical page 2; the virtualized viewer can render
+  // both pages and a global .first() incorrectly targets page 1.
+  const capture = page.locator('[data-page="2"]').getByTestId('writer-overlay-capture');
   await expect(capture).toBeVisible();
   const box = await capture.boundingBox();
   if (!box) throw new Error('Rotated F02 page has no selectable OCR viewport');
