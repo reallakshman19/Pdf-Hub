@@ -13,6 +13,9 @@ import {
   remapSelectionAfterRemoval,
   remapSelectionAfterDuplication,
   remapSelectionAfterReorder,
+  remapCurrentAfterRemoval,
+  remapCurrentAfterDuplication,
+  remapCurrentAfterReorder,
 } from './steps/page-ops';
 import { templateVarEngine } from './template-vars';
 
@@ -30,7 +33,8 @@ export async function simulateMacroDryRun(
   const sessionState = useSessionStore.getState();
   const initialPageCount = ctx.pageCount ?? sessionState.pageCount ?? 0;
   const initialSelectedPages = ctx.selectedPages ?? sessionState.selectedPages ?? [];
-  const currentPage = ctx.currentPage ?? sessionState.viewState.currentPage;
+  const initialCurrentPage = ctx.currentPage ?? sessionState.viewState.currentPage;
+  let currentPage = initialCurrentPage;
   const fileName = ctx.fileName ?? sessionState.fileName ?? '';
   const templateVars = templateVarEngine.buildDefaultVars({
     fileName,
@@ -81,9 +85,7 @@ export async function simulateMacroDryRun(
     }
   };
 
-  // A conditional operation applies its nested page-count effects immediately,
-  // but its selection side-effects are delivered to the parent after the branch.
-  // Keep the branch selection snapshot until that delivery to match the executor.
+  // Nested conditional branches observe immediate page and selector effects.
   const simulateSteps = (
     rawSteps: MacroStep[],
     depth = 0,
@@ -112,6 +114,7 @@ export async function simulateMacroDryRun(
             nextSelection = nextSelection.map((page) => (
               page > insertedAt ? page + 1 : page
             ));
+            if (currentPage > insertedAt) currentPage += 1;
             finalPageCount += 1;
           }
           if (pendingSelections) pendingSelections.push(nextSelection);
@@ -122,6 +125,7 @@ export async function simulateMacroDryRun(
           const originalCount = finalPageCount;
           finalPageCount += pages.length;
           modifiedBytes ||= pages.length > 0;
+          currentPage = remapCurrentAfterDuplication(currentPage, pages, originalCount);
           const nextSelection = remapSelectionAfterDuplication(selection, pages, originalCount);
           if (pendingSelections) pendingSelections.push(nextSelection);
           else finalSelectedPages = nextSelection;
@@ -140,8 +144,10 @@ export async function simulateMacroDryRun(
               logs.push(`  → ERROR: ${op}: Cannot remove all pages from the document.`);
               return;
             }
+            const originalCount = finalPageCount;
             finalPageCount = resultingCount;
             modifiedBytes = true;
+            currentPage = remapCurrentAfterRemoval(currentPage, pages, originalCount);
             const nextSelection = op === 'split_pages'
               ? []
               : remapSelectionAfterRemoval(selection, pages, finalPageCount + pages.length);
@@ -188,11 +194,9 @@ export async function simulateMacroDryRun(
           const matched = conditionMatches(step.condition);
           const selectedBranch = matched ? step.then : step.else ?? [];
           logs.push(`  → conditional: ${matched ? 'then' : 'else'} branch (${selectedBranch.length} step(s))`);
-          const selectedAtBranchStart = [...selection];
-          const branchPending: number[][] = [];
-          simulateSteps(selectedBranch, depth + 1, selectedAtBranchStart, branchPending, true);
-          if (pendingSelections) pendingSelections.push(...branchPending);
-          else for (const nextSelection of branchPending) finalSelectedPages = nextSelection;
+          // Nested execution now commits selector/current-page effects between
+          // substeps; apply the same semantics during preflight.
+          simulateSteps(selectedBranch, depth + 1, undefined, undefined, true);
         } else if (op === 'apply_template_vars') {
           Object.assign(templateVars, step.vars);
         } else if (op === 'replace_page') {
@@ -202,6 +206,7 @@ export async function simulateMacroDryRun(
             errors.push(`reorder_pages: expected ${finalPageCount} page indices, received ${step.order.length}.`);
           } else {
             modifiedBytes = true;
+            currentPage = remapCurrentAfterReorder(currentPage, step.order);
             const nextSelection = remapSelectionAfterReorder(selection, step.order);
             if (pendingSelections) pendingSelections.push(nextSelection);
             else finalSelectedPages = nextSelection;
@@ -234,6 +239,8 @@ export async function simulateMacroDryRun(
     modifiedBytes,
     selectedPagesBefore: initialSelectedPages,
     selectedPagesAfter: finalSelectedPages,
+    currentPageBefore: initialCurrentPage,
+    currentPageAfter: currentPage,
     outputFiles,
     annotationChanges: { added: 0, updated: 0, deleted: 0 },
     // Rich text, tables and callouts are committed into PDF bytes, not Writer state.
