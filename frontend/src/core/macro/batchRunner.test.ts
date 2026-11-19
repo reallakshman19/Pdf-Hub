@@ -466,7 +466,7 @@ describe('runMacroBatch', () => {
       .toThrow(/valid source ordinal/);
   });
 
-  it('fails closed when a macro emits extra PDFs that the one-output batch contract cannot stage', async () => {
+  it('fails closed when a legacy one-output callback cannot stage auxiliary PDFs', async () => {
     const withAuxiliary = successResult(25);
     withAuxiliary.outputFiles.push({
       name: 'split-other.pdf',
@@ -484,7 +484,7 @@ describe('runMacroBatch', () => {
     expect(report.records[0]).toMatchObject({
       status: 'failed',
       sourceSha256: expect.stringMatching(/^sha256:/),
-      error: expect.stringContaining('BATCH_AUXILIARY_OUTPUTS_NOT_SUPPORTED'),
+      error: expect.stringContaining('BATCH_MULTI_OUTPUT_HANDOFF_REQUIRED'),
     });
     expect(report.summary.succeeded).toBe(0);
     expect(report.summary.failed).toBe(1);
