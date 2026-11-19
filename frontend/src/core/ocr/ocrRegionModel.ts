@@ -15,6 +15,12 @@ export type OcrRegionMode =
 
 export interface OcrRegion {
   id: string;
+  /**
+   * Proves the producer intentionally stored unrotated PDF user-space
+   * coordinates. Historical v1 files omit this field: their top/bottom
+   * origin cannot be reconstructed from numeric bbox values alone.
+   */
+  geometryProvenance?: 'pdf-user-space-v2';
   documentFingerprint: string;
   pageId?: PageId;
   pageIndex: number;
@@ -26,6 +32,7 @@ export interface OcrRegion {
 
 export interface CreateOcrRegionInput {
   id: string;
+  geometryProvenance?: 'pdf-user-space-v2';
   documentFingerprint: string;
   pageId?: PageId;
   pageIndex: number;
@@ -55,6 +62,7 @@ export function createOcrRegion(
 
   return {
     id: input.id,
+    ...(input.geometryProvenance ? { geometryProvenance: input.geometryProvenance } : {}),
     documentFingerprint: input.documentFingerprint,
     ...(input.pageId ? { pageId: input.pageId } : {}),
     pageIndex: input.pageIndex,
