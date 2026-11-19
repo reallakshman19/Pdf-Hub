@@ -239,7 +239,7 @@ describe('runMacroBatch', () => {
     expect(report.records.map((record) => record.fileName)).toEqual(['first.pdf', 'second.pdf']);
   });
 
-  it('reports a missing signature without page parsing and continues', async () => {
+  it('rejects missing source signature without parsing that input and validates next source and output', async () => {
     const invalid = createSource('invalid.pdf', new Uint8Array([1, 2, 3]));
     const valid = createSource('valid.pdf');
 
@@ -250,7 +250,8 @@ describe('runMacroBatch', () => {
     });
 
     expect(report.records.map((record) => record.status)).toEqual(['failed', 'success']);
-    expect(pdfMocks.countPages).toHaveBeenCalledTimes(1);
+    // Invalid source was never parsed; valid B was parsed twice (source + emitted PDF).
+    expect(pdfMocks.countPages).toHaveBeenCalledTimes(2);
     expect(macroMocks.executeMacroRecipe).toHaveBeenCalledTimes(1);
   });
 
