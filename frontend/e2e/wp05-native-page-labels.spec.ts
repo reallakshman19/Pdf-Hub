@@ -4,6 +4,7 @@ import {
   PDFName, PDFNumber, PDFStream, StandardFonts,
 } from 'pdf-lib';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
+import { persistWp05SyntheticEvidence } from './fixtures/wp05Evidence';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -92,6 +93,7 @@ test('P02/P04: native PageLabels survive browser rotate, PDF Save and fresh-cont
   await page.getByRole('button', { name: 'Rotate selected or current pages' }).click();
 
   const firstSave = await saveNativePdf(page);
+  await persistWp05SyntheticEvidence('wp05-rotate-native-output.pdf', firstSave);
   await test.info().attach('wp05-rotate-native-output.pdf', {
     body: Buffer.from(firstSave),
     contentType: 'application/pdf',
@@ -130,6 +132,7 @@ test('P04: native range starts reanchor on browser Delete, survive Save and reop
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
 
   const saved = await saveNativePdf(page);
+  await persistWp05SyntheticEvidence('wp05-delete-native-output.pdf', saved);
   await test.info().attach('wp05-delete-native-output.pdf', {
     body: Buffer.from(saved),
     contentType: 'application/pdf',
@@ -187,6 +190,7 @@ test('P03: browser Extract emits one native PDF page with original content and k
   for await (const chunk of stream) buffers.push(Buffer.from(chunk));
   await download.delete();
   const extractedBytes = new Uint8Array(Buffer.concat(buffers));
+  await persistWp05SyntheticEvidence('wp05-extract-native-output.pdf', extractedBytes);
   await test.info().attach('wp05-extract-native-output.pdf', {
     body: Buffer.from(extractedBytes),
     contentType: 'application/pdf',
@@ -242,6 +246,7 @@ test('P06: malformed PDF admission fails closed without losing the current edita
   await expect(page.locator('[data-page="1"] canvas')).toBeVisible();
 
   const saved = await saveNativePdf(page);
+  await persistWp05SyntheticEvidence('wp05-after-malformed-input-native-output.pdf', saved);
   await test.info().attach('wp05-after-malformed-input-native-output.pdf', {
     body: Buffer.from(saved),
     contentType: 'application/pdf',
