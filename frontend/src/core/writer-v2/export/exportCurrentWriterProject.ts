@@ -1,4 +1,6 @@
 import { useWriterV2Store } from '../writerV2Store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayloadFromStore } from '@/core/ocr/ocrHydrationBridge';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -38,12 +40,25 @@ export async function exportCurrentWriterProject(
     throw new Error('Cannot export PDF overlay project without originalPdfBytes.');
   }
 
+  const ocr = useOcrStore.getState();
+  const includesOcr =
+    ocr.documentFingerprint === documentFingerprint
+    && Boolean(
+      ocr.result || ocr.regions.length > 0 || ocr.corrections.length > 0,
+    );
+
   const packInput: ExportPdfHubProjectInput = {
     originalPdfBytes: input.originalPdfBytes,
     documentFingerprint,
     documentMeta: state.documentMeta,
     elements: state.elements,
     assets: state.assetRecords,
+    ...(includesOcr ? {
+      ocrProject: createOcrProjectPayloadFromStore({
+        store: ocr,
+        documentFingerprint,
+      }),
+    } : {}),
   };
 
   const shouldUseWorker = input.useWorker ?? typeof Worker !== 'undefined';
