@@ -22,8 +22,10 @@ describe('batch PDF source boundaries', () => {
     expect(batchSection).toContain('onOutputs:');
     expect(batchSection).toContain('useMacroOutputQueueStore.getState().enqueueBatchOutputs');
     expect(batchSection).not.toContain('onOutput:');
-    expect(batchSection).toContain('sourceSha256');
-    expect(batchSection).toContain('outputSha256');
+    const custodySource = readSource('core/macro/outputQueueStore.ts');
+    expect(custodySource).toContain('sourceSha256');
+    expect(custodySource).toContain('outputSha256');
+    expect(custodySource).toContain('await FileAdapter.hashBytes(item.bytes)');
     expect(batchSection).not.toContain('FileAdapter.downloadBytes');
     expect(batchSection).not.toContain('FileAdapter.pickPdfFiles(true)');
     expect(batchSection).not.toMatch(/\.arrayBuffer\s*\(/);
@@ -52,7 +54,7 @@ describe('batch PDF source boundaries', () => {
     expect(source).toContain('sourceSha256');
     expect(source).toContain('outputSha256');
     expect(source).toContain('bytes: output');
-    expect(source).toContain('await options.onOutput?.');
+    expect(source).toContain('await options.onOutput(artifacts[0])');
     expect(source).toContain('await options.onOutputs(artifacts)');
     expect(source).toContain('artifacts.length > 1 && !options.onOutputs');
   });
