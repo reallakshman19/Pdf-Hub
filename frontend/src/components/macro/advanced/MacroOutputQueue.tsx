@@ -173,6 +173,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
                 {output.sourceKind === 'batch' ? (
                   <div className="text-[11px] text-slate-500" data-testid="batch-output-provenance">
                     Input #{(output.sourceInputIndex ?? 0) + 1}: {output.sourceFileName ?? '(unknown)'}
+                    {' · '}PDF #{(output.sourceOutputIndex ?? 0) + 1} ({output.sourceOutputKind ?? 'working-copy'})
                     {' · '}source {output.sourceSha256?.slice(7, 19) ?? 'unverified'}
                     {' · '}output {output.outputSha256?.slice(7, 19) ?? 'unverified'}
                   </div>
