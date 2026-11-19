@@ -7,6 +7,17 @@ import { useOcrStore } from '@/core/ocr/ocrStore';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterStore } from '@/core/writer/store';
 
+const viewport = {
+  width: 300,
+  height: 400,
+  convertToPdfPoint(x: number, y: number) {
+    return [x, 400 - y];
+  },
+  convertToViewportRectangle([x0, y0, x1, y1]: number[]) {
+    return [x0, 400 - y0, x1, 400 - y1];
+  },
+};
+
 describe('WriterOverlay OCR area selection', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
@@ -32,6 +43,7 @@ describe('WriterOverlay OCR area selection', () => {
         pageNumber={1}
         scale={1}
         pageDimensions={{ width: 300, height: 400 }}
+        ocrViewport={viewport}
       />,
     );
 
@@ -67,7 +79,7 @@ describe('WriterOverlay OCR area selection', () => {
       mode: 'text',
       bbox: {
         x: 20,
-        y: 30,
+        y: 310,
         width: 120,
         height: 60,
       },
@@ -88,6 +100,7 @@ describe('WriterOverlay OCR area selection', () => {
         pageNumber={2}
         scale={1}
         pageDimensions={{ width: 300, height: 400 }}
+        ocrViewport={viewport}
       />,
     );
 
