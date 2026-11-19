@@ -55,7 +55,7 @@ describe('MacroOutputQueue delivery and retry contract', () => {
 
   it('removes only the acknowledged single saved item', async () => {
     render(<StatefulQueue />);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save', exact: true })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Save$/ })[0]);
     await waitFor(() => expect(screen.queryByText('one.pdf')).not.toBeInTheDocument());
     expect(screen.getByText('two.pdf')).toBeInTheDocument();
     expect(saveMock).toHaveBeenCalledWith(originals[0].bytes, 'one.pdf', null);
