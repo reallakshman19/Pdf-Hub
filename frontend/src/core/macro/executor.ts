@@ -41,6 +41,7 @@ export interface MacroExecutionResult {
   finalBytes: Uint8Array;
   logs: string[];
   selectedPages: number[];
+  currentPage?: number;
   rolledBack?: boolean;
   cancelled?: boolean;
   timedOut?: boolean;
@@ -173,6 +174,7 @@ export async function executeMacroRecipe(
     workingBytes: ctx.workingBytes,
     pageCount: ctx.pageCount,
     selectedPages: ctx.selectedPages ?? [],
+    currentPage: ctx.currentPage ?? 1,
     templateVars: defaultVars,
     logs: [],
     outputFiles: [],
@@ -254,6 +256,7 @@ export async function executeMacroRecipe(
     finalBytes: state.workingBytes,
     logs: state.logs,
     selectedPages: state.selectedPages,
+    currentPage: state.currentPage,
     rolledBack,
     cancelled: status === 'cancelled',
     timedOut: status === 'timed-out',
