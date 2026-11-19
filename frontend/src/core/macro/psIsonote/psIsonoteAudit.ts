@@ -340,7 +340,11 @@ export function buildPsIsonoteAuditReport(
   scan: PsIsonoteScanResult,
   options: BuildPsIsonoteAuditOptions,
 ): PsIsonoteAuditReport {
-  const phase = options.phase ?? 'preview';
+  // Never promote a failed or absent verifier to an authoritative audit phase,
+  // even if a caller mistakenly requests "verified".
+  const phase: PsIsonoteAuditPhase = options.phase === 'verified' && options.verification?.verified !== true
+    ? 'failed'
+    : options.phase ?? 'preview';
   const diagnostics = warningDiagnostics(mappings, options.parseWarnings ?? []);
   const occurrences: PsIsonoteOccurrenceAudit[] = [];
   const detectedReferences = scan.detectedReferences ?? scan.references;
