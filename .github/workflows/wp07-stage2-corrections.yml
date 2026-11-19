@@ -1,0 +1,64 @@
+name: WP07 Stage-2 corrective proof (isolated)
+
+on:
+  push:
+    branches: ['fix/wp07-stage2-custody-verification-20261119']
+
+permissions:
+  contents: read
+
+jobs:
+  focused-wp07:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.23.0 --activate
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Typecheck
+        run: pnpm run typecheck
+        working-directory: frontend
+      - name: Stage-2 focused tests
+        run: >-
+          pnpm exec vitest run
+          src/core/macro/psIsonote/psIsonoteAudit.test.ts
+          src/core/macro/psIsonote/psIsonoteVerification.test.ts
+          src/core/macro/psIsonote/psIsonoteEvidencePackage.test.ts
+          src/core/macro/outputQueueStore.test.ts
+          src/core/macro/durableBatchCustody.test.ts
+          src/components/macro/advanced/MacroOutputQueue.test.tsx
+          src/components/macro/advanced/MacroBatchRunPanel.test.tsx
+          src/core/macro/batchRunner.test.ts
+          src/core/macro/nativeEmittedPdfValidation.test.ts
+          --pool=forks --maxWorkers=1
+        working-directory: frontend
+      - name: Production build
+        run: pnpm run build
+        working-directory: frontend
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Browser native PDF and PS→ISONOTE journeys
+        env:
+          WP07_EVIDENCE_DIR: artifacts/wp07-stage2
+        run: >-
+          pnpm exec playwright test
+          e2e/wp07-pr58-identity.spec.ts
+          e2e/ps-isonote-evidence-package.spec.ts
+          --project=chromium --retries=0 --reporter=line
+        working-directory: frontend
+      - name: Upload browser native-file evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp07-stage2-correction-evidence
+          path: |
+            frontend/artifacts/wp07-stage2/
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: warn
