@@ -118,6 +118,24 @@ describe('OCR PageId anchors', () => {
     });
   });
 
+  it('drops an explicit stale PageId instead of rebinding by physical index', () => {
+    const stale = state(0);
+    stale.regions = [{ ...stale.regions[0], pageId: 'deleted-page' }];
+    stale.corrections = [{ ...stale.corrections[0], pageId: 'deleted-page' }];
+    stale.reviewFocus = { ...stale.reviewFocus!, pageId: 'deleted-page' };
+    stale.result!.pages = [{ ...stale.result!.pages[0], pageId: 'deleted-page' }];
+
+    const normalized = normalizeOcrPageAnchoredState(stale, graph(['replacement', 'survivor']));
+    expect(normalized.regions).toEqual([]);
+    expect(normalized.corrections).toEqual([]);
+    expect(normalized.reviewFocus).toBeNull();
+    expect(normalized.result?.pages).toEqual([]);
+
+    // A truly legacy record with no PageId may still be upgraded by index.
+    const legacy = normalizeOcrPageAnchoredState(state(0), graph(['replacement']));
+    expect(legacy.regions[0].pageId).toBe('replacement');
+  });
+
   it('derives physical pageIndex from stable PageId after reorder', () => {
     const before = graph(['p1', 'p2', 'p3']);
     const after = graph(['p3', 'p2', 'p1']);
