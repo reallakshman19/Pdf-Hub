@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "frontend/src/core/ocr/**"
+      - "frontend/src/core/pages/**"
       - "frontend/src/components/ocr/**"
       - "frontend/src/components/writer/WriterOverlay.tsx"
       - "frontend/src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx"
@@ -28,6 +29,10 @@ jobs:
       - name: WP-05 source-level regression set
         run: |
           pnpm -C frontend exec vitest run \
+            src/core/pages/pdfPageLabelNativeReader.test.ts \
+            src/core/pages/pageLabels.test.ts \
+            src/core/pages/pdfPageLabelWriter.test.ts \
+            src/core/pages/pdfPageLabels.test.ts \
             src/core/ocr/__tests__/ocrViewportGeometry.test.ts \
             src/core/ocr/__tests__/pdfPageRasterizer.test.ts \
             src/core/ocr/__tests__/ocrRegionRasterBridge.test.ts \
