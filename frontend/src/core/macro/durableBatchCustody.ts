@@ -62,8 +62,11 @@ function assertBatchRows(rows: readonly MacroOutputQueueItem[]): void {
 export class IndexedDbBatchCustodyAdapter implements BatchCustodyAdapter {
   readonly persistent = true;
   private dbPromise: Promise<IDBPDatabase<BatchCustodyDb>> | null = null;
+  private readonly dbName: string;
 
-  constructor(private readonly dbName = DEFAULT_DB_NAME) {}
+  constructor(dbName = DEFAULT_DB_NAME) {
+    this.dbName = dbName;
+  }
 
   private db(): Promise<IDBPDatabase<BatchCustodyDb>> {
     if (!this.dbPromise) {
