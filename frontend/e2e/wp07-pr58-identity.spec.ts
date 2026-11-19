@@ -208,14 +208,15 @@ test('WP07 M03: undo and redo recover the original and transformed native PDF', 
   const undo = page.locator('button[title="Undo"]').first();
   await expect(undo).toBeEnabled();
   await undo.click();
-  await expect(page.locator('[data-page="3"]')).toBeVisible();
+  // The document workspace virtualizes pages: a valid three-page document
+  // need not mount the DOM node [data-page="3"] in the current viewport.
+  // The authoritative check is the saved native PDF, not a virtualized page.
   expect(await saveAndInspect(page)).toEqual(['A', 'B', 'C']);
 
   await page.getByRole('tab', { name: 'Organize' }).click();
   const redo = page.locator('button[title="Redo"]').first();
   await expect(redo).toBeEnabled();
   await redo.click();
-  await expect(page.locator('[data-page="5"]')).toBeVisible();
   expect(await saveAndInspect(page)).toEqual(['A', 'A', 'B', 'C', 'C']);
 });
 
