@@ -218,3 +218,44 @@ test('WP07 M03: undo and redo recover the original and transformed native PDF', 
   await expect(page.locator('[data-page="5"]')).toBeVisible();
   expect(await saveAndInspect(page)).toEqual(['A', 'A', 'B', 'C', 'C']);
 });
+
+
+test('WP07 M05: generated PDF stays in the session queue until browser receipt is confirmed', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await importRecipe(page, [
+    { op: 'extract_pages', selector: { mode: 'current' }, outputName: 'wp07-extract.pdf' },
+  ]);
+  const downloads: string[] = [];
+  page.on('download', (download) => downloads.push(download.suggestedFilename()));
+  const builder = page.locator('[data-macro-builder="true"]');
+  await builder.getByTestId('macro-builder-run').click();
+  await expect(builder.getByText('Workflow complete.', { exact: false })).toContainText('queued');
+  expect(downloads).toHaveLength(0);
+
+  await builder.getByRole('button', { name: 'Close', exact: true }).click();
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue).toContainText('wp07-extract.pdf');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    queue.getByRole('button', { name: 'Save', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('wp07-extract.pdf');
+  const output = await readFile(await download.path() as string);
+  const digest = createHash('sha256').update(output).digest('hex');
+  await persistPublicSyntheticEvidence(`extract-${digest}.pdf`, output);
+  const native = await getDocument({ data: new Uint8Array(output) }).promise;
+  try {
+    expect(native.numPages).toBe(1);
+    const pageOne = await native.getPage(1);
+    const text = (await pageOne.getTextContent()).items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ');
+    expect(text).toContain('WP07 NATIVE SOURCE PAGE A');
+  } finally {
+    await native.destroy();
+  }
+  await expect(queue).toContainText('Download initiated — receipt unverified');
+  await queue.getByRole('button', { name: 'Confirm received' }).click();
+  await expect(queue).toHaveCount(0);
+  console.log(`WP07_OUTPUT_CUSTODY sha256=${digest} queued_before_confirm=true pages=1`);
+});
