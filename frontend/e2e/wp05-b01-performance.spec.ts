@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { execFileSync } from 'node:child_process';
 import { expect, test, type Page, type Browser } from '@playwright/test';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
@@ -94,7 +95,7 @@ test('B01: original F03 real region OCR 2 warmups plus 10 measured runs per fres
       engine: 'tesseract-js',
       conditions: ['fresh-browser-context', 'reused-browser-context'],
       warming_note: 'This Tesseract adapter terminates its worker after every region call; reused browser context is not a warmed persistent OCR model.',
-      environment: { commit: process.env.GITHUB_SHA ?? null, browser: browserName, browser_version: browser.version(), os: os.platform(), cpu: os.cpus()[0]?.model ?? null },
+      environment: { checkout_sha: execFileSync('git', ['rev-parse','HEAD'], { encoding: 'utf8' }).trim(), github_event_sha: process.env.GITHUB_SHA ?? null, browser: browserName, browser_version: browser.version(), os: os.platform(), cpu: os.cpus()[0]?.model ?? null },
       warmups_required: WARMUPS, measured_required: MEASURED,
       samples, stats, failure,
       certification_note: 'Measured original F03 region recognition only. Correction/cancellation workload metrics require separate cases. No p95 budget authorized.',
