@@ -221,7 +221,7 @@ for (const pageCount of [100, 500] as const) {
         try {
           const sample = await oneB02Trial(browser, source, pageCount, i);
           samples.push(sample);
-          console.log('WP05_B02_SAMPLE', JSON.stringify({ fixture: pageCount, ...sample }));
+          process.stdout.write(`WP05_B02_SAMPLE ${JSON.stringify({ fixture: pageCount, ...sample })}\n`);
         } catch (error) {
           failure = { ordinal: i + 1, message: String(error) };
           throw error;
@@ -247,7 +247,7 @@ for (const pageCount of [100, 500] as const) {
         }
       }
     } finally {
-      console.log('WP05_B02_OUTPUT', outFile);
+      process.stdout.write(`WP05_B02_OUTPUT ${outFile}\n`);
     }
     expect(samples.filter((s) => s.phase === 'measured')).toHaveLength(10);
   });

@@ -2,8 +2,7 @@ import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import type { WriterDocumentMetaV2, WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
-import { useOcrStore } from '@/core/ocr/ocrStore';
-import { hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
+import { snapshotOcrImportState, commitOcrImportState, restoreOcrImportState } from '@/core/ocr/ocrHydrationBridge';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
@@ -369,7 +368,7 @@ export async function commitStagedWriterProjectImport(
 
   const sessionSnapshot = useSessionStore.getState();
   const writerSnapshot = useWriterV2Store.getState();
-  const ocrSnapshot = useOcrStore.getState();
+  const ocrSnapshot = snapshotOcrImportState();
   const editorSnapshot = useEditorStore.getState();
 
   try {
@@ -407,20 +406,7 @@ export async function commitStagedWriterProjectImport(
     // The ZIP admits OCR files alongside Writer assets. Hydrate them within
     // the same protected commit or discard old-document OCR state; otherwise
     // reopened projects lose regions and can show stale review results.
-    if (project.ocrProject) {
-      const hydrated = hydrateOcrStoreFromProjectPayload({
-        payload: project.ocrProject,
-        expectedDocumentFingerprint: project.manifest.documentFingerprint,
-      });
-      if (!hydrated.restored) {
-        throw new Error(
-          hydrated.diagnostics[0]?.message
-          ?? 'OCR project state could not be restored.',
-        );
-      }
-    } else {
-      useOcrStore.getState().clearOcr();
-    }
+    commitOcrImportState(project.ocrProject, project.manifest.documentFingerprint);
 
     useEditorStore.getState().setActiveMode('write');
     assertOperationCurrent(operation, 'standalone Writer project after commit');
@@ -435,7 +421,7 @@ export async function commitStagedWriterProjectImport(
   } catch (error) {
     useSessionStore.setState(sessionSnapshot, true);
     useWriterV2Store.setState(writerSnapshot, true);
-    useOcrStore.setState(ocrSnapshot, true);
+    restoreOcrImportState(ocrSnapshot);
     useEditorStore.setState(editorSnapshot, true);
     throw error;
   } finally {

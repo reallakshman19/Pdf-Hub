@@ -230,6 +230,8 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   upsertOcrCorrection: (correction) => {
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+    if (activeDocumentKey && correction.documentFingerprint !== activeDocumentKey) return;
     const previous = get();
     const correctionState: OcrCorrectionState = createOcrCorrectionState(
       previous.corrections,
@@ -311,8 +313,9 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   addOcrRegion: (input) => {
     const documentFingerprint = input.documentFingerprint ?? get().documentFingerprint;
+    const activeDocumentKey = useSessionStore.getState().documentKey;
 
-    if (!documentFingerprint) {
+    if (!documentFingerprint || (activeDocumentKey && documentFingerprint !== activeDocumentKey)) {
       return null;
     }
 
@@ -337,6 +340,8 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   upsertOcrRegion: (region) => {
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+    if (activeDocumentKey && region.documentFingerprint !== activeDocumentKey) return;
     const previous = get();
 
     const nextState: OcrStoreState = {
@@ -385,6 +390,10 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   focusOcrTarget: (focus) => {
+    const session = useSessionStore.getState();
+    if (session.documentKey && focus.documentFingerprint !== session.documentKey) return;
+    if (focus.pageId && session.pageGraph
+      && session.pageGraph.pages[focus.pageIndex]?.pageId !== focus.pageId) return;
     const pageId =
       focus.pageId
       ?? pageIdForOcrPageIndex(

@@ -62,13 +62,13 @@ async function readRecognizedWordsFromEditableProject(page: Page): Promise<strin
   const manifest: unknown = JSON.parse(await manifestFile.async('text'));
   const parsed: unknown = JSON.parse(await file.async('text'));
   const result = parsed as { pages?: Array<{ words?: Array<{ text?: string }> }> } | null;
-  console.log('WP05_REAL_OCR_ARCHIVE_PAYLOAD', JSON.stringify({
+  process.stdout.write('WP05_REAL_OCR_ARCHIVE_PAYLOAD ' + JSON.stringify({
     source: 'native product ZIP',
     hasResult: result !== null,
     pageCount: result?.pages?.length ?? 0,
     wordsPerPage: result?.pages?.map((item) => item.words?.length ?? 0) ?? [],
     counts: (manifest as { counts?: unknown }).counts ?? null,
-  }));
+  }) + '\n');
   if (!result || !Array.isArray(result.pages)) {
     throw new Error('Real OCR run did not retain its page result in native project ZIP');
   }
@@ -127,9 +127,9 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
     timeout: 10_000,
   });
   const summaryBeforeExport = await page.getByTestId('ocr-result-summary').textContent();
-  console.log('WP05_REAL_OCR_UI_SUMMARY_BEFORE_PROJECT_EXPORT', summaryBeforeExport);
+  process.stdout.write(`WP05_REAL_OCR_UI_SUMMARY_BEFORE_PROJECT_EXPORT ${summaryBeforeExport}\n`);
   const transcribed = await readRecognizedWordsFromEditableProject(page);
-  console.log('WP05_REAL_OCR_TRANSCRIBED_WORDS', JSON.stringify(transcribed));
+  process.stdout.write(`WP05_REAL_OCR_TRANSCRIBED_WORDS ${JSON.stringify(transcribed)}\n`);
   expect(transcribed.some((word) => /ALPHA/i.test(word)), 'Tesseract must decode the synthetic ALPHA pixels').toBe(true);
   expect(transcribed.some((word) => /VALVE/i.test(word)), 'Tesseract must decode the synthetic VALVE pixels').toBe(true);
   const search = page.getByPlaceholder('Search OCR result');
@@ -141,7 +141,7 @@ test('P01: real Tesseract.js recognizes a raster-only PDF using the compiled app
     await expect.poll(async () => page.getByTestId('ocr-search-mini-panel').count()).toBe(1);
     probes[query] = await page.getByTestId('ocr-search-match').allTextContents();
   }
-  console.log('WP05_REAL_OCR_SEARCH_PROBES', JSON.stringify(probes));
+  process.stdout.write(`WP05_REAL_OCR_SEARCH_PROBES ${JSON.stringify(probes)}\n`);
   expect(probes.ALPHA.some((value) => /ALPHA/i.test(value)), 'independent scanned source must yield searchable ALPHA').toBe(true);
   expect(probes.VALVE.some((value) => /VALVE/i.test(value)), 'independent scanned source must yield searchable VALVE').toBe(true);
 });
