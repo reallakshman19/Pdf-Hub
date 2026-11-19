@@ -143,6 +143,7 @@ async function runMacroRecipeAgainstSessionNow(
             },
             selectedPages: result.selectedPages,
             nextCurrentPage: result.currentPage,
+            pageLineage: result.pageLineage,
           },
         },
         'macro-runner',
