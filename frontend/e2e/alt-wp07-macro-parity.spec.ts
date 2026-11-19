@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
 /**
@@ -30,6 +31,13 @@ async function openDocumentAndBuilder(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Browse Files' })).toBeVisible();
 
   const bytes = await createThreePageSource();
+  const sourceFile = Buffer.from(bytes);
+  const sourceSha256 = createHash('sha256').update(sourceFile).digest('hex');
+  await test.info().attach('ALT-WP07_native-source.pdf', {
+    body: sourceFile,
+    contentType: 'application/pdf',
+  });
+  console.log(`ALT_WP07_SOURCE sha256=${sourceSha256} pages=3`);
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.getByRole('button', { name: 'Browse Files' }).click(),
@@ -76,6 +84,11 @@ async function saveAndInspect(page: Page): Promise<string[]> {
   expect(path).toBeTruthy();
 
   const file = await readFile(path as string);
+  const outputSha256 = createHash('sha256').update(file).digest('hex');
+  await test.info().attach('ALT-WP07_native-export.pdf', {
+    body: file,
+    contentType: 'application/pdf',
+  });
   const native = await getDocument({ data: new Uint8Array(file).slice() }).promise;
   const markers: string[] = [];
   try {
@@ -92,6 +105,19 @@ async function saveAndInspect(page: Page): Promise<string[]> {
   } finally {
     await native.destroy();
   }
+  const witness = {
+    origin: 'PDF_HUB_REAL_BROWSER_EXPORT',
+    source_kind: 'PUBLIC_SYNTHETIC',
+    output_sha256: outputSha256,
+    page_count: markers.length,
+    source_identity_order: markers,
+    check: 'pdfjs-dist independent native PDF readback',
+  };
+  await test.info().attach('ALT-WP07_native-inspection.json', {
+    body: Buffer.from(JSON.stringify(witness, null, 2)),
+    contentType: 'application/json',
+  });
+  console.log(`ALT_WP07_EXPORT sha256=${outputSha256} pages=${markers.length} source_order=${markers.join(',')}`);
   return markers;
 }
 
