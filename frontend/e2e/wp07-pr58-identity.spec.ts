@@ -644,3 +644,96 @@ test('WP07 B03: extracted current-page PDF and working copy are both hashed, que
   );
   console.log(`WP07_BATCH_MULTI run=${report.metadata.runId} manifests=2 working=ABC auxiliary=A atomic_queued=true sha256_verified=true receipts_explicit=true`);
 });
+
+test('WP07 R4: batch queue and report recover after reload; receipt deletion stays deleted', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  await page.locator('[data-macro-builder="true"]')
+    .getByRole('button', { name: 'Close', exact: true }).click();
+  let sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  let batch = page.getByTestId('automate-batch-run');
+  await batch.getByRole('button', { name: 'Choose Workflow' }).click();
+  await page.getByLabel('Batch workflow').selectOption('batch-extract-current');
+  const input = Buffer.from(await createThreePageSource());
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles([{ name: 'restart-test.pdf', mimeType: 'application/pdf', buffer: input }]);
+  let queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 30_000 });
+  await expect(batch.getByRole('button', { name: 'Download JSON Report Again' })).toBeVisible();
+
+  const reopenWorkspace = async () => {
+    await page.reload();
+    await page.getByRole('button', { name: 'Browse Files' }).waitFor();
+    const [sourcePicker] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Browse Files' }).click(),
+    ]);
+    await sourcePicker.setFiles({
+      name: 'restart-test.pdf', mimeType: 'application/pdf', buffer: input,
+    });
+    await expect(page.locator('[data-page="1"]')).toBeVisible({ timeout: 15_000 });
+    await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+    const restoredSidebar = page.getByTestId('automate-sidebar');
+    await expect(restoredSidebar).toBeVisible();
+    return restoredSidebar;
+  };
+
+  sidebar = await reopenWorkspace();
+  queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(2, { timeout: 20_000 });
+  expect(await queue.textContent()).toContain('PDF #2 (auxiliary)');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  batch = page.getByTestId('automate-batch-run');
+  await expect(batch.getByRole('button', { name: 'Download JSON Report Again' })).toBeVisible();
+  const [reportDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.json') }),
+    batch.getByRole('button', { name: 'Download JSON Report Again' }).click(),
+  ]);
+  const report = JSON.parse(await readFile(await reportDownload.path() as string, 'utf8')) as {
+    metadata: { runId: string };
+    records: Array<{ outputs: Array<{ outputSha256: string; outputName: string }> }>;
+  };
+  expect(report.records[0].outputs).toHaveLength(2);
+
+  const [firstDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+    queue.getByRole('button', { name: 'Save', exact: true }).first().click(),
+  ]);
+  const primary = await readFile(await firstDownload.path() as string);
+  expect(`sha256:${createHash('sha256').update(primary).digest('hex')}`)
+    .toBe(report.records[0].outputs[0].outputSha256);
+  await queue.getByRole('button', { name: 'Confirm received' }).first().click();
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1);
+  await persistPublicSyntheticEvidence(
+    `recovered-primary-${createHash('sha256').update(primary).digest('hex')}.pdf`, primary,
+  );
+
+  await reopenWorkspace();
+  queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1, { timeout: 20_000 });
+  await expect(queue).toContainText('PDF #2 (auxiliary)');
+  const [secondDownload] = await Promise.all([
+    page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.pdf') }),
+    queue.getByRole('button', { name: 'Save', exact: true }).click(),
+  ]);
+  const auxiliary = await readFile(await secondDownload.path() as string);
+  expect(`sha256:${createHash('sha256').update(auxiliary).digest('hex')}`)
+    .toBe(report.records[0].outputs[1].outputSha256);
+  await persistPublicSyntheticEvidence(
+    `recovered-auxiliary-${createHash('sha256').update(auxiliary).digest('hex')}.pdf`, auxiliary,
+  );
+  await queue.getByRole('button', { name: 'Confirm received' }).click();
+  await expect(queue).toHaveCount(0);
+
+  await reopenWorkspace();
+  await expect(page.getByTestId('macro-output-queue')).toHaveCount(0);
+  await expect(page.getByTestId('batch-custody-blocked')).toHaveCount(0);
+  await persistPublicSyntheticEvidence(
+    `recovered-report-${report.metadata.runId}.json`,
+    Buffer.from(JSON.stringify(report, null, 2)),
+  );
+  console.log(`WP07_R4_RECOVERY run=${report.metadata.runId} reloads=3 outputs_restored=2 partial_receipt_retained=true completed_receipts_removed=true`);
+});
