@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "frontend/e2e/wp05-native-page-labels.spec.ts"
+      - "frontend/e2e/wp05-real-tesseract.spec.ts"
       - "frontend/src/core/ocr/**"
       - "frontend/src/core/pages/**"
       - "frontend/src/components/ocr/**"
@@ -78,6 +79,10 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
         run: pnpm -C frontend exec playwright test e2e/wp05-native-page-labels.spec.ts --project=chromium --reporter=line --retries=0
+      - name: P01 real Tesseract.js on a genuine scanned PDF
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
+        run: pnpm -C frontend exec playwright test e2e/wp05-real-tesseract.spec.ts --project=chromium --reporter=line --retries=0
       - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
