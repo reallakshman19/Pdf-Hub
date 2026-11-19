@@ -1,21 +1,36 @@
-import type { MacroDryRunDiff, MacroDryRunReport, MacroRecipe } from './types';
-import { useAnnotationStore } from '@/core/annotations/store';
-import { useWriterStore } from '@/core/writer/store';
+import type {
+  MacroCondition,
+  MacroDryRunDiff,
+  MacroDryRunReport,
+  MacroRecipe,
+  MacroStep,
+  PageSelector,
+} from './types';
 import { useSessionStore } from '@/core/session/store';
+import { resolvePageSelector } from './steps/page-ops';
+import { templateVarEngine } from './template-vars';
 
 export async function simulateMacroDryRun(
   recipe: MacroRecipe,
-  ctx: { workingBytes?: Uint8Array; pageCount?: number; selectedPages?: number[]; fileName?: string },
+  ctx: {
+    workingBytes?: Uint8Array;
+    pageCount?: number;
+    selectedPages?: number[];
+    currentPage?: number;
+    fileName?: string;
+    now?: Date;
+  },
 ): Promise<MacroDryRunReport> {
   const sessionState = useSessionStore.getState();
-  const annotationState = useAnnotationStore.getState();
-  const writerState = useWriterStore.getState();
-
   const initialPageCount = ctx.pageCount ?? sessionState.pageCount ?? 0;
   const initialSelectedPages = ctx.selectedPages ?? sessionState.selectedPages ?? [];
-  void annotationState.annotations.length;
-  const initialWriterElementCount = writerState.elements.length;
-  void initialWriterElementCount;
+  const currentPage = ctx.currentPage ?? sessionState.viewState.currentPage;
+  const fileName = ctx.fileName ?? sessionState.fileName ?? '';
+  const templateVars = templateVarEngine.buildDefaultVars({
+    fileName,
+    pageCount: initialPageCount,
+    now: ctx.now,
+  });
 
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -25,96 +40,149 @@ export async function simulateMacroDryRun(
   let finalPageCount = initialPageCount;
   let modifiedBytes = false;
   let finalSelectedPages = [...initialSelectedPages];
-  let addedWriterElements = 0;
+  let uncertainPageCount = false;
 
-  const steps = recipe.steps ?? [];
+  const resolvePages = (selector: PageSelector, selection: number[]): number[] =>
+    resolvePageSelector(selector, {
+      pageCount: finalPageCount,
+      selectedPages: selection,
+      currentPage,
+    });
 
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const op = step.op ?? 'unknown';
-    logs.push(`Step ${i + 1}: ${op}`);
-
-    try {
-      if (op === 'insert_blank_page') {
-        const s = step as Extract<typeof step, { op: 'insert_blank_page' }>;
-        finalPageCount += s.count ?? 1;
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'remove_pages') {
-        finalPageCount = Math.max(1, finalPageCount - 1);
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'duplicate_pages') {
-        finalPageCount += 1;
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'insert_pdf') {
-        finalPageCount += 1;
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'merge_files') {
-        finalPageCount += 1;
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'replace_page') {
-        modifiedBytes = true;
-        logs.push(`  → page replaced`);
-      } else if (op === 'extract_pages') {
-        const s = step as Extract<typeof step, { op: 'extract_pages' }>;
-        const outName = s.outputName ?? `extract-${i + 1}.pdf`;
-        outputFiles.push({ name: outName, reason: 'extract_pages' });
-        logs.push(`  → output file: ${outName}`);
-      } else if (op === 'split_pages') {
-        const s = step as Extract<typeof step, { op: 'split_pages' }>;
-        const outName = s.outputName ?? `split-part-${i + 1}.pdf`;
-        outputFiles.push({ name: outName, reason: 'split_pages' });
-        logs.push(`  → output file: ${outName}`);
-      } else if (op === 'select_pages') {
-        const s = step as Extract<typeof step, { op: 'select_pages' }>;
-        if (s.selector.mode === 'list') {
-          finalSelectedPages = s.selector.pages;
-        }
-        logs.push(`  → pages selected`);
-      } else if (op === 'reorder_pages' || op === 'rotate_pages') {
-        modifiedBytes = true;
-        logs.push(`  → bytes modified`);
-      } else if (
-        op === 'draw_text_on_pages' ||
-        op === 'inject_rich_text' ||
-        op === 'header_footer_text'
-      ) {
-        modifiedBytes = true;
-        logs.push(`  → text drawn on PDF bytes`);
-      } else if (op === 'insert_image' || op === 'adjust_image') {
-        modifiedBytes = true;
-        logs.push(`  → image embedded in PDF bytes`);
-      } else if (op === 'place_rich_textbox') {
-        addedWriterElements += 1;
-        logs.push(`  → +1 writer text element`);
-      } else if (op === 'place_professional_callout') {
-        modifiedBytes = true;
-        addedWriterElements += 1;
-        logs.push(`  → +1 professional vector callout`);
-      } else if (op === 'place_table') {
-        addedWriterElements += 1;
-        logs.push(`  → +1 writer table element`);
-      } else if (op === 'add_content_page' || op === 'add_image_header_page') {
-        finalPageCount += 1;
-        modifiedBytes = true;
-        logs.push(`  → page count: ${finalPageCount}`);
-      } else if (op === 'conditional') {
-        logs.push(`  → conditional branch (dry-run: evaluating always-true branch)`);
-      } else if (op === 'apply_template_vars') {
-        logs.push(`  → template vars applied`);
-      } else {
-        warnings.push(`Unknown step op: ${op} (step ${i + 1}) — skipped in dry-run`);
-        logs.push(`  → unknown op, skipped`);
-      }
-    } catch (err) {
-      errors.push(`Step ${i + 1} (${op}): ${String(err)}`);
-      logs.push(`  → ERROR: ${String(err)}`);
+  const conditionMatches = (condition: MacroCondition): boolean => {
+    switch (condition.type) {
+      case 'page_count_gt':
+        return finalPageCount > condition.value;
+      case 'page_count_lt':
+        return finalPageCount < condition.value;
+      case 'filename_contains':
+        return fileName.includes(condition.value);
+      case 'custom_var_equals':
+        return templateVars[condition.key] === condition.value;
+      default:
+        return false;
     }
-  }
+  };
+
+  // A conditional operation applies its nested page-count effects immediately,
+  // but its selection side-effects are delivered to the parent after the branch.
+  // Keep the branch selection snapshot until that delivery to match the executor.
+  const simulateSteps = (
+    rawSteps: MacroStep[],
+    depth = 0,
+    branchSelection?: number[],
+    pendingSelections?: number[][],
+  ): void => {
+    if (depth > 16) {
+      errors.push('Conditional nesting exceeds dry-run safety depth.');
+      return;
+    }
+
+    for (let i = 0; i < rawSteps.length; i += 1) {
+      const step = templateVarEngine.expandStep(rawSteps[i], templateVars);
+      const op = step.op;
+      const selection = branchSelection ?? finalSelectedPages;
+      logs.push(`${depth > 0 ? '  '.repeat(depth) : ''}Step ${i + 1}: ${op}`);
+
+      try {
+        if (op === 'insert_blank_page') {
+          finalPageCount += Math.max(1, Math.floor(step.count ?? 1));
+          modifiedBytes = true;
+        } else if (op === 'duplicate_pages') {
+          const pages = resolvePages(step.selector, selection);
+          finalPageCount += pages.length;
+          modifiedBytes ||= pages.length > 0;
+        } else if (op === 'remove_pages' || op === 'split_pages') {
+          const pages = resolvePages(step.selector, selection);
+          if (pages.length > 0) {
+            const resultingCount = finalPageCount - pages.length;
+            if (resultingCount < 1) {
+              warnings.push(`${op}: removal of all pages may be rejected by the PDF engine.`);
+            }
+            finalPageCount = Math.max(1, resultingCount);
+            modifiedBytes = true;
+            const nextSelection = op === 'split_pages'
+              ? []
+              : selection.filter((page) => !pages.includes(page) && page <= finalPageCount);
+            if (pendingSelections) pendingSelections.push(nextSelection);
+            else finalSelectedPages = nextSelection;
+            if (op === 'split_pages') {
+              outputFiles.push({
+                name: step.outputName?.trim() || `split-${fileName}`,
+                reason: op,
+                pageCount: pages.length,
+              });
+            }
+          }
+        } else if (op === 'select_pages') {
+          const pages = resolvePages(step.selector, selection);
+          if (pendingSelections) pendingSelections.push(pages);
+          else finalSelectedPages = pages;
+        } else if (op === 'insert_pdf' || op === 'merge_files') {
+          // Donor page counts cannot be derived from the recipe alone.
+          uncertainPageCount = true;
+          warnings.push(`${op}: donor page count is unknown; final page count is only an estimate.`);
+          finalPageCount += 1;
+          modifiedBytes = true;
+        } else if (op === 'extract_pages') {
+          const pages = resolvePages(step.selector, selection);
+          if (pages.length > 0) {
+            outputFiles.push({
+              name: step.outputName?.trim() || `extracted-${fileName}`,
+              reason: op,
+              pageCount: pages.length,
+            });
+          }
+        } else if (op === 'add_content_page' || op === 'add_image_header_page') {
+          finalPageCount += 1;
+          modifiedBytes = true;
+        } else if (op === 'conditional') {
+          if (
+            uncertainPageCount
+            && (step.condition.type === 'page_count_gt' || step.condition.type === 'page_count_lt')
+          ) {
+            errors.push('Conditional page-count branch cannot be predicted after an unknown donor page count.');
+            continue;
+          }
+          const matched = conditionMatches(step.condition);
+          const selectedBranch = matched ? step.then : step.else ?? [];
+          logs.push(`  → conditional: ${matched ? 'then' : 'else'} branch (${selectedBranch.length} step(s))`);
+          const selectedAtBranchStart = [...selection];
+          const branchPending: number[][] = [];
+          simulateSteps(selectedBranch, depth + 1, selectedAtBranchStart, branchPending);
+          if (pendingSelections) pendingSelections.push(...branchPending);
+          else for (const nextSelection of branchPending) finalSelectedPages = nextSelection;
+        } else if (op === 'apply_template_vars') {
+          Object.assign(templateVars, step.vars);
+        } else if (op === 'replace_page') {
+          modifiedBytes = true;
+        } else if (op === 'reorder_pages') {
+          if (step.order.length !== finalPageCount) {
+            errors.push(`reorder_pages: expected ${finalPageCount} page indices, received ${step.order.length}.`);
+          } else {
+            modifiedBytes = true;
+          }
+        } else if (
+          op === 'rotate_pages' || op === 'draw_text_on_pages'
+          || op === 'header_footer_text' || op === 'inject_rich_text'
+          || op === 'insert_image' || op === 'adjust_image'
+          || op === 'draw_redaction_box' || op === 'place_rich_textbox'
+          || op === 'place_professional_callout' || op === 'place_table'
+        ) {
+          modifiedBytes = true;
+        } else {
+          warnings.push(`Unknown step op: ${op} (step ${i + 1}) — skipped in dry-run`);
+        }
+
+        logs.push(`  → page count: ${finalPageCount}`);
+      } catch (error) {
+        errors.push(`Step ${i + 1} (${op}): ${String(error)}`);
+        logs.push(`  → ERROR: ${String(error)}`);
+      }
+    }
+  };
+
+  simulateSteps(recipe.steps ?? []);
 
   const diff: MacroDryRunDiff = {
     initialPageCount,
@@ -124,7 +192,8 @@ export async function simulateMacroDryRun(
     selectedPagesAfter: finalSelectedPages,
     outputFiles,
     annotationChanges: { added: 0, updated: 0, deleted: 0 },
-    writerChanges: { added: addedWriterElements, updated: 0, deleted: 0 },
+    // Rich text, tables and callouts are committed into PDF bytes, not Writer state.
+    writerChanges: { added: 0, updated: 0, deleted: 0 },
     warnings,
     logs,
   };
