@@ -4,6 +4,7 @@ import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import { useWriterV2Store } from '../writerV2Store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { validateOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
   importPdfHubWriterProjectFromReader,
@@ -349,11 +350,20 @@ export function revokeStagedWriterProjectImport(stage: StagedWriterProjectImport
   registered.project = null;
 }
 
+interface PreparedOcrProjectRestore {
+  apply(): void;
+  rollback(): void;
+}
+
 export async function commitStagedWriterProjectImport(
   stage: StagedWriterProjectImport,
   operation: StandaloneWriterProjectOperation,
   hooks?: {
     readonly afterSessionMutation?: () => void;
+    readonly prepareOcrRestore?: (
+      payload: NonNullable<ImportPdfHubProjectResult['ocrProject']>,
+      documentFingerprint: string,
+    ) => PreparedOcrProjectRestore;
   },
 ): Promise<ImportedProjectSession> {
   const registered = assertUsableStage(stage, operation);
@@ -368,8 +378,18 @@ export async function commitStagedWriterProjectImport(
   const sessionSnapshot = useSessionStore.getState();
   const writerSnapshot = useWriterV2Store.getState();
   const editorSnapshot = useEditorStore.getState();
+  let ocrRestore: PreparedOcrProjectRestore | null = null;
 
   try {
+    if (project.ocrProject) {
+      if (!hooks?.prepareOcrRestore) {
+        throw new Error('OCR-bearing Writer project requires a restoration adapter.');
+      }
+      ocrRestore = hooks.prepareOcrRestore(
+        project.ocrProject,
+        project.manifest.documentFingerprint,
+      );
+    }
     const mode = project.documentMeta?.mode ?? inferredModeFromProject(project);
     if (mode === 'pdfOverlay') {
       const pageGraph = await buildPageGraphFromPdfBytes(
@@ -402,6 +422,7 @@ export async function commitStagedWriterProjectImport(
       documentMeta: project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null,
     });
     useEditorStore.getState().setActiveMode('write');
+    ocrRestore?.apply();
     assertOperationCurrent(operation, 'standalone Writer project after commit');
 
     return {
@@ -412,9 +433,13 @@ export async function commitStagedWriterProjectImport(
       assetCount: project.assets.length,
     };
   } catch (error) {
-    useSessionStore.setState(sessionSnapshot, true);
-    useWriterV2Store.setState(writerSnapshot, true);
-    useEditorStore.setState(editorSnapshot, true);
+    try {
+      ocrRestore?.rollback();
+    } finally {
+      useSessionStore.setState(sessionSnapshot, true);
+      useWriterV2Store.setState(writerSnapshot, true);
+      useEditorStore.setState(editorSnapshot, true);
+    }
     throw error;
   } finally {
     registered.revoked = true;
@@ -446,6 +471,14 @@ async function reconcileImportedProject(
   }
   if (!manifest.documentFingerprint.trim()) {
     throw new Error('Writer project manifest is missing documentFingerprint.');
+  }
+  if (imported.ocrProject) {
+    if (!validateOcrProjectPayload(imported.ocrProject).valid) {
+      throw new Error('Writer project OCR payload is invalid.');
+    }
+    if (imported.ocrProject.manifest.documentFingerprint !== manifest.documentFingerprint) {
+      throw new Error('Writer project OCR payload belongs to a different document.');
+    }
   }
   if (manifest.counts.writerElements !== imported.elements.length) {
     throw new Error('Writer project element count does not match its manifest.');
