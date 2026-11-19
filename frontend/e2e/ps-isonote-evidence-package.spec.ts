@@ -58,13 +58,6 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   // real scan result, not a mocked one.
   await expect(recipeBuilder).toContainText(/target occurrence/i, { timeout: 20_000 });
   await expect(recipeBuilder).not.toContainText(/no mapped ps numbers were found/i);
-  // A valid marker alone must not be promoted. The reopened native PDF must
-  // include the expected engineering note text before the audit is verified.
-  await expect(recipeBuilder).toContainText(
-    /Verified 1 of 1 PS marker\(s\) and expected ISONOTE text/i,
-    { timeout: 20_000 },
-  );
-
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     recipeBuilder.getByRole('button', { name: 'Evidence ZIP' }).click(),
@@ -105,4 +98,11 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   const audit = JSON.parse(manifestText as string) as { phase?: string; verification?: { verified?: boolean } };
   expect(audit.phase).toBe('verified');
   expect(audit.verification?.verified).toBe(true);
+  // Assert the visible result after capturing the native PDF, so a negative
+  // control has analyzable bytes even when certification correctly fails.
+  await expect(recipeBuilder).toContainText(
+    /Verified 1 of 1 PS marker\(s\) and expected ISONOTE text/i,
+    { timeout: 20_000 },
+  );
+  console.log(`WP07_PS_ISONOTE_NATIVE phase=${audit.phase} verified=${audit.verification?.verified} output_sha256=${annotatedSha256}`);
 });
