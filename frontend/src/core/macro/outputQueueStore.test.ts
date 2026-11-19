@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useMacroOutputQueueStore } from './outputQueueStore';
+import { configureBatchCustodyAdapter, useMacroOutputQueueStore } from './outputQueueStore';
+import { createVolatileBatchCustodyAdapter } from './durableBatchCustody';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import type { BatchOutputArtifact } from './batchRunner';
 
@@ -26,7 +27,7 @@ async function batchGroup(): Promise<BatchOutputArtifact[]> {
 }
 
 describe('WP07 pending PDF output custody', () => {
-  beforeEach(() => useMacroOutputQueueStore.getState().clearOutputs());
+  beforeEach(() => configureBatchCustodyAdapter(createVolatileBatchCustodyAdapter()));
 
   it('preserves duplicate filenames as distinct output occurrences', () => {
     const source = new Uint8Array([1, 2]);
