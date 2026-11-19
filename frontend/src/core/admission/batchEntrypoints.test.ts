@@ -20,7 +20,10 @@ describe('batch PDF source boundaries', () => {
     expect(batchSection).toContain('runMacroBatch({');
     expect(batchSection).toContain('sources,');
     expect(batchSection).toContain('onOutput:');
-    expect(batchSection).toContain('FileAdapter.downloadBytes');
+    expect(batchSection).toContain('useMacroOutputQueueStore.getState().enqueueOutputs');
+    expect(batchSection).toContain('sourceSha256');
+    expect(batchSection).toContain('outputSha256');
+    expect(batchSection).not.toContain('FileAdapter.downloadBytes');
     expect(batchSection).not.toContain('FileAdapter.pickPdfFiles(true)');
     expect(batchSection).not.toMatch(/\.arrayBuffer\s*\(/);
   });
@@ -43,7 +46,10 @@ describe('batch PDF source boundaries', () => {
     expect(result).not.toContain('ArrayBuffer');
     expect(source).not.toContain('Promise.all');
     expect(source).not.toContain('successes:');
-    expect(source).toContain('bytes: execution.finalBytes');
+    expect(source).toContain('new Uint8Array(execution.finalBytes)');
+    expect(source).toContain('sourceSha256');
+    expect(source).toContain('outputSha256');
+    expect(source).toContain('bytes: output');
     expect(source).toContain('await options.onOutput?.');
   });
 });
