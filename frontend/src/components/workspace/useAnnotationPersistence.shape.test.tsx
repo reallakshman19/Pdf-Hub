@@ -66,4 +66,20 @@ describe('native shape sidecar source binding', () => {
     expect(rotateBoxShapeQuarterTurn(restored)).toBeNull();
     unmount();
   });
+
+  it.each(['verified-markup', undefined])('restores markup preview orientation only from its native source %s', async (sourceHash) => {
+    const stale: PdfAnnotation = { ...shape(), type: 'underline', data: { nativeMarkupRotationSourceHash: 'old',
+      nativeMarkupPreviewOffset: 3, nativeMarkupTurn: { turns: 1, sourceHash: 'old' } } };
+    const source: PdfAnnotation = { ...shape(), type: 'underline', data: sourceHash
+      ? { nativeMarkupRotationSourceHash: sourceHash, nativeMarkupPreviewOffset: 2 } : {} };
+    mocks.load.mockResolvedValue([stale]); mocks.read.mockResolvedValue({ annotations: [source] });
+    const { unmount } = renderHook(() => useAnnotationPersistence({ documentKey: 'shape-doc', workingBytes: bytes, pdfDoc: null,
+      annotations: useAnnotationStore.getState().annotations, setAnnotations: useAnnotationStore.getState().setAnnotations, setRestoredCount: vi.fn() }));
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe('shape-doc'));
+    const restored = useAnnotationStore.getState().annotations[0];
+    expect(restored.data.nativeMarkupRotationSourceHash).toBe(sourceHash);
+    expect(restored.data.nativeMarkupPreviewOffset).toBe(sourceHash ? 2 : undefined);
+    expect(restored.data.nativeMarkupTurn?.sourceHash).toBe('old');
+    unmount();
+  });
 });

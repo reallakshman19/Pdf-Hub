@@ -12,6 +12,7 @@ import { calloutBodyRect } from './freeTextGeometry';
 import { fingerprintStampAppearance, verifyStampAppearanceFingerprint, verifyStampRotationFingerprint } from './nativeStampProvenance';
 import { BOX_GENERATED_AP_ORIENTATION_KEY, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
 import { fingerprintNativeCloudRotation, supportsNativeCloudRotation } from './nativeCloudRotation';
+import { fingerprintNativeMarkupRotation, readNativeMarkupPreviewOffset } from './nativeMarkupRotation';
 import { orderNativeReviewStates } from './nativeReviewStateOrder';
 import {
   createMarkupSpace, pdfPointToView,
@@ -78,6 +79,19 @@ export async function readNativePdfAnnotations(
       if (!parsed) {
         skippedCount += 1;
         continue;
+      }
+
+      // Never authorize a turn from persisted sidecar data. Derive the
+      // capability from the native appearance and its actual ordered quads.
+      delete parsed.data.nativeMarkupRotationSourceHash;
+      delete parsed.data.nativeMarkupTurn;
+      delete parsed.data.nativeMarkupPreviewOffset;
+      if (['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(parsed.type)) {
+        const hash = await fingerprintNativeMarkupRotation(doc, record.dict, lib);
+        if (hash) {
+          parsed.data.nativeMarkupRotationSourceHash = hash;
+          parsed.data.nativeMarkupPreviewOffset = readNativeMarkupPreviewOffset(record.dict, lib);
+        }
       }
 
       if (parsed.type === 'stamp') {

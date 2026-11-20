@@ -145,6 +145,11 @@ export interface AnnotationData extends Record<string, unknown> {
   /** Derived from verified source AP; never trust persisted sidecar values. */
   nativeBoxShapeGenerated?: boolean;
   nativeBoxShapeGeneratedOrientation?: number;
+  /** Ephemeral capability derived from the current native markup appearance. */
+  nativeMarkupRotationSourceHash?: string;
+  nativeMarkupTurn?: { turns: number; sourceHash: string };
+  /** Verified quarter-turn offset relative to the page for a saved markup. */
+  nativeMarkupPreviewOffset?: number;
   /** Rotation needed to retain a copied text annotation's visual orientation. */
   nativeOrientationAdjustment?: number;
   /** Origin used to clone native appearance and popup graphs within a PDF. */

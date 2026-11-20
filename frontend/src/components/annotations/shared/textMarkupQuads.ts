@@ -5,6 +5,24 @@ export interface TextMarkupQuadRect { x: number; y: number; width: number; heigh
 export interface OrientedTextMarkupQuad extends TextMarkupQuadRect { angle: number }
 
 /**
+ * A native source's durable turn and the current unsaved turn are relative to
+ * the displayed page. Only source-backed, integral quarter turns are usable.
+ */
+export function textMarkupPreviewRotation(
+  pageRotation: number | undefined,
+  sourceHash: string | undefined,
+  persistedTurns: number | undefined,
+  pendingTurn: { turns: number; sourceHash: string } | undefined,
+): number | undefined {
+  if (pageRotation === undefined || !Number.isFinite(pageRotation)) return undefined;
+  const validHash = typeof sourceHash === 'string' && sourceHash.length > 0;
+  if (persistedTurns !== undefined && (!validHash || !Number.isInteger(persistedTurns) || persistedTurns < 0 || persistedTurns > 3)) return undefined;
+  if (pendingTurn !== undefined && (!pendingTurn || !validHash || pendingTurn.sourceHash !== sourceHash
+    || !Number.isInteger(pendingTurn.turns) || pendingTurn.turns < 1 || pendingTurn.turns > 3)) return undefined;
+  return ((pageRotation + ((persistedTurns ?? 0) + (pendingTurn?.turns ?? 0)) * 90) % 360 + 360) % 360;
+}
+
+/**
  * Preview a limited subset of native quads: rectangular, top-edge-first text
  * whose orientation follows the page. Other orders and directions are
  * ambiguous and must use the existing approximate fallback.

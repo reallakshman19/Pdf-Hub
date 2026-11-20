@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
-import { rotateBoxShapeQuarterTurn, rotateInkQuarterTurn, rotateLineQuarterTurn, rotatePolygonQuarterTurn } from '@/core/annotations/geometryTransform';
+import { rotateBoxShapeQuarterTurn, rotateInkQuarterTurn, rotateLineQuarterTurn, rotateMarkupQuarterTurn, rotatePolygonQuarterTurn } from '@/core/annotations/geometryTransform';
 import {
   hasNativeRichTextSemantics,
   isImportedBoxArtworkReadOnly,
@@ -429,6 +429,7 @@ const PropertiesTab: React.FC<{
   const shapeRotation = annotation.type === 'ink' ? rotateInkQuarterTurn(annotation)
     : annotation.type === 'shape-polygon' ? rotatePolygonQuarterTurn(annotation)
     : annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? rotateBoxShapeQuarterTurn(annotation)
+    : annotation.type === 'highlight' || annotation.type === 'underline' || annotation.type === 'strikeout' || annotation.type === 'squiggly' || annotation.type === 'redaction' ? rotateMarkupQuarterTurn(annotation)
     : annotation.type === 'line' || annotation.type === 'arrow' ? rotateLineQuarterTurn(annotation) : null;
 
   const updateRect = (key: 'x' | 'y' | 'width' | 'height', value: string) => {
@@ -489,7 +490,7 @@ const PropertiesTab: React.FC<{
         <LabeledSelect label="Rotation" value={String(annotation.data.rotation ?? 0)}
           onChange={(value) => updateAnnotation(annotation.id, { data: { ...annotation.data, rotation: Number(value) } })}
           options={[0, 90, 180, 270].map((angle) => ({ label: `${angle}°`, value: String(angle) }))} />
-      ) : annotation.type === 'shape-polygon' || annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' || annotation.type === 'ink' || annotation.type === 'line' || annotation.type === 'arrow' ? (
+      ) : annotation.type === 'shape-polygon' || annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' || annotation.type === 'ink' || annotation.type === 'line' || annotation.type === 'arrow' || annotation.type === 'highlight' || annotation.type === 'underline' || annotation.type === 'strikeout' || annotation.type === 'squiggly' || annotation.type === 'redaction' ? (
         <div>
           <Button variant="secondary" size="sm" disabled={!shapeRotation} onClick={() => {
             if (shapeRotation) updateAnnotation(annotation.id, shapeRotation);

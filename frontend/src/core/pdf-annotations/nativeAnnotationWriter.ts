@@ -27,6 +27,7 @@ import {
 import { BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY,
   sealGeneratedBoxAppearanceFingerprint, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
 import { fingerprintNativeCloudRotation, rotateCloudInsets, supportsNativeCloudRotation } from './nativeCloudRotation';
+import { fingerprintNativeMarkupRotation, readNativeMarkupPreviewOffset, sealNativeMarkupPreview } from './nativeMarkupRotation';
 import {
   createMarkupSpace, markupOrMask, pdfPointToView, viewPointToPdf,
   viewRectToPdfRect, type MarkupSpace,
@@ -281,6 +282,14 @@ export async function writeNativePdfAnnotations(
       const sourceRef = sourceModel?.data.nativeSourceRef;
       const existingRoot = findManagedRootDict(annots, nativeName, lib, sourceRef);
       const copyOrigin = existingRoot ? undefined : copyOrigins.get(candidate);
+      if (annotation.data.nativeMarkupTurn) {
+        const { turns, sourceHash } = annotation.data.nativeMarkupTurn;
+        const source = existingRoot ?? copyOrigin?.dict;
+        if (!markupOrMask(annotation.type) || !Number.isInteger(turns) || turns < 1 || turns > 3
+          || !source || !sourceHash || sourceHash !== await fingerprintNativeMarkupRotation(doc, source, lib)) {
+          throw new Error('Cannot safely rotate this markup: its source appearance or geometry is unsupported or changed.');
+        }
+      }
       const isBox = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse';
       const boxSource = isBox ? existingRoot ?? copyOrigin?.dict : undefined;
       const trustedBox = isBox && (boxSource ? await verifyGeneratedBoxAppearanceFingerprint(doc, boxSource, lib) : !annotation.data.nativeBoxShapeImported);
@@ -493,6 +502,15 @@ export async function writeNativePdfAnnotations(
         const outputMarkup = doc.context.lookup(rootRef, lib.PDFDict);
         if (outputMarkup.get(lib.PDFName.of('AP')) && !await sealGeneratedMarkupAppearance(doc, outputMarkup, lib)) {
           throw new Error('Cannot safely preserve editable markup appearance provenance.');
+        }
+      }
+      if (copyOrigin && markupOrMask(annotation.type) && await fingerprintNativeMarkupRotation(doc, copyOrigin.dict, lib)) {
+        const copy = doc.context.lookup(rootRef, lib.PDFDict);
+        const from = doc.getPage(copyOrigin.model.pageNumber - 1).getRotation().angle;
+        const to = page.getRotation().angle;
+        const offset = readNativeMarkupPreviewOffset(copyOrigin.dict, lib) + (from - to) / 90 + (annotation.data.nativeMarkupTurn?.turns ?? 0);
+        if (!Number.isInteger(offset) || !await sealNativeMarkupPreview(doc, copy, ((offset % 4) + 4) % 4, lib)) {
+          throw new Error('Cannot safely preserve copied markup preview orientation.');
         }
       }
       annots.push(rootRef);
@@ -1539,6 +1557,31 @@ function rotatedCopyAppearance(doc: PDFDocument, appearance: PDFObject | undefin
   return doc.context.obj({ N: doc.context.register(wrapper) });
 }
 
+/** Preserve source artwork while rotating its native rectangle and ordered quads. */
+function rotatedMarkupAppearance(doc: PDFDocument, source: PDFDict, target: PDFDict, turns: number, mask: boolean, lib: PdfLibModule): PDFObject | undefined {
+  const beforeRect = readPdfNumberArray(source, 'Rect', lib);
+  const afterRect = readPdfNumberArray(target, 'Rect', lib);
+  if (!beforeRect || !afterRect || !boxShapeDimensionsMatch(beforeRect, afterRect, turns)
+    || !appearanceFieldsEquivalent(source, target, ROOT_APPEARANCE_KEYS.filter((key) =>
+      key !== 'Rect' && key !== 'QuadPoints' && key !== 'Contents'), lib)) return undefined;
+  const before = readPdfNumberArray(source, 'QuadPoints', lib);
+  const after = readPdfNumberArray(target, 'QuadPoints', lib);
+  const angle = (360 - turns * 90) % 360;
+  if (mask ? Boolean(before || after) : !before || !after || !polygonQuarterTurn(beforeRect, before, afterRect, after, angle, 8)) return undefined;
+  const appearance = source.get(lib.PDFName.of('AP'));
+  const ap = source.lookupMaybe(lib.PDFName.of('AP'), lib.PDFDict);
+  let current = ap?.lookupMaybe(lib.PDFName.of('N'), lib.PDFStream);
+  const seen = new Set<PDFObject>();
+  for (let depth = 0; current?.dict.get(lib.PDFName.of('PDFHubWrappedOriginal')); depth++) {
+    const original = current.dict.get(lib.PDFName.of('PDFHubWrappedOriginal'))!;
+    if (depth >= 16 || seen.has(original)) throw new Error('Cannot safely rotate this markup: appearance nesting is too deep.');
+    seen.add(original);
+    current = doc.context.lookupMaybe(original, lib.PDFStream);
+    if (!current) throw new Error('Cannot safely rotate this markup: invalid appearance nesting.');
+  }
+  return rotatedCopyAppearance(doc, appearance, beforeRect, angle, lib);
+}
+
 /** Returns the rigid quarter-turn taking one rectangle and its ordered vertices to the other. */
 function polygonQuarterTurn(beforeRect: readonly number[], before: readonly number[], afterRect: readonly number[], after: readonly number[], angle: number, minimumCoordinates = 6): boolean {
   if (beforeRect.length !== 4 || afterRect.length !== 4 || before.length < minimumCoordinates || before.length % 2
@@ -1689,6 +1732,15 @@ function lineModelTurn(before: PdfAnnotation, after: PdfAnnotation, turns: numbe
   const rect = (item: PdfAnnotation) => [item.rect.x, item.rect.y, item.rect.x + item.rect.width, item.rect.y + item.rect.height];
   const points = (item: PdfAnnotation) => (item.data.points ?? []).map((value, i) => value + (i % 2 ? item.rect.y : item.rect.x));
   return points(before).length === 4 && polygonQuarterTurn(rect(before), points(before), rect(after), points(after), turns * 90, 4);
+}
+
+function markupModelTurn(before: PdfAnnotation, after: PdfAnnotation, turns: number): boolean {
+  if (!markupOrMask(before.type) || before.type !== after.type || !turns) return false;
+  const rect = (item: PdfAnnotation) => [item.rect.x, item.rect.y, item.rect.x + item.rect.width, item.rect.y + item.rect.height];
+  if (before.type === 'redaction') return boxShapeDimensionsMatch(rect(before), rect(after), turns);
+  const points = (item: PdfAnnotation) => (item.data.textMarkupQuads ?? []).map((value, i) =>
+    i % 2 ? item.rect.y + value * item.rect.height : item.rect.x + value * item.rect.width);
+  return polygonQuarterTurn(rect(before), points(before), rect(after), points(after), turns * 90, 8);
 }
 
 function rotatedLineAppearance(doc: PDFDocument, source: PDFDict, target: PDFDict, turns: number, lib: PdfLibModule): PDFObject | undefined {
@@ -2111,11 +2163,13 @@ function registerCopiedNativeAnnotation(
   const inkTurns = annotation.type === 'ink' ? inkPendingTurns(annotation) : 0;
   const lineTurns = annotation.type === 'line' || annotation.type === 'arrow' ? linePendingTurns(annotation) : 0;
   const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? boxShapePendingTurns(annotation) : 0;
-  const shapeTurns = polygonTurns || inkTurns || lineTurns || boxTurns;
+  const markupTurns = markupOrMask(annotation.type) ? annotation.data.nativeMarkupTurn?.turns ?? 0 : 0;
+  const shapeTurns = polygonTurns || inkTurns || lineTurns || boxTurns || markupTurns;
   const modelRect = (item: PdfAnnotation) => [item.rect.x, item.rect.y, item.rect.x + item.rect.width, item.rect.y + item.rect.height];
   const geometryMatches = polygonTurns ? polygonModelTurn(origin.model, annotation, polygonTurns)
     : inkTurns ? inkModelTurn(origin.model, annotation, inkTurns) : lineTurns ? lineModelTurn(origin.model, annotation, lineTurns)
       : boxTurns ? boxShapeDimensionsMatch(modelRect(origin.model), modelRect(annotation), boxTurns)
+        : markupTurns ? markupModelTurn(origin.model, annotation, markupTurns)
       : copiedGeometryMatchesSource(annotation, origin.model);
   if (!geometryMatches
     || (!['stamp', 'textbox', 'callout'].includes(annotation.type) && annotation.data.rotation !== origin.model.data.rotation)
@@ -2154,7 +2208,7 @@ function registerCopiedNativeAnnotation(
   const dict = doc.context.obj({}) as PDFDict;
   for (const key of sourceDict.keys()) {
     const name = key.decodeText();
-    if (['P', 'NM', 'Rect', 'Popup', 'Parent', 'IRT', 'RT', 'State', 'StateModel', 'PDFHubData', 'PDFHubType', 'PDFHubVersion', 'AP', STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY, MARKUP_GENERATED_AP_KEY].includes(name)
+    if (['P', 'NM', 'Rect', 'Popup', 'Parent', 'IRT', 'RT', 'State', 'StateModel', 'PDFHubData', 'PDFHubType', 'PDFHubVersion', 'AP', STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY, MARKUP_GENERATED_AP_KEY, 'PDFHubMarkupPreviewOffset', 'PDFHubMarkupPreviewFingerprint'].includes(name)
       || (['stamp', 'textbox', 'callout'].includes(annotation.type) && ['PDFHubBaseAP', 'PDFHubBaseRect', 'PDFHubBaseRD', 'PDFHubBaseCL', 'PDFHubRotation'].includes(name))) continue;
     const value = sourceDict.get(key);
     if (value) dict.set(key, value);
@@ -2205,15 +2259,18 @@ function registerCopiedNativeAnnotation(
       if (value) candidate.set(key, value);
     }
     candidate.set(lib.PDFName.of('Rect'), doc.context.obj(targetBody));
-    const geometryKey = polygonTurns ? 'Vertices' : inkTurns ? 'InkList' : lineTurns ? 'L' : null;
+    const geometryKey = polygonTurns ? 'Vertices' : inkTurns ? 'InkList' : lineTurns ? 'L'
+      : markupTurns && annotation.type !== 'redaction' ? 'QuadPoints' : null;
     if (geometryKey) {
       const geometry = toPdfGeometry(annotation, page);
       candidate.set(lib.PDFName.of(geometryKey), doc.context.obj(polygonTurns ? polygonVertices(annotation, geometry)
-        : inkTurns ? inkLists(annotation, geometry) : lineCoordinates(annotation, geometry, null, lib) as number[]));
+        : inkTurns ? inkLists(annotation, geometry) : lineTurns ? lineCoordinates(annotation, geometry, null, lib) as number[]
+          : textMarkupQuadPoints(annotation, geometry, null, lib) as number[]));
     }
     const rotated = polygonTurns ? rotatedPolygonAppearance(doc, dict, candidate, polygonTurns, lib)
       : inkTurns ? rotatedInkAppearance(doc, dict, candidate, inkTurns, lib)
         : lineTurns ? rotatedLineAppearance(doc, dict, candidate, lineTurns, lib)
+          : markupTurns ? rotatedMarkupAppearance(doc, dict, candidate, markupTurns, annotation.type === 'redaction', lib)
           : annotation.type === 'shape-cloud' ? rotatedCloudAppearance(doc, dict, candidate, boxTurns, lib) : rotatedBoxShapeAppearance(doc, dict, candidate, boxTurns, lib);
     if (!rotated) throw new Error('Cannot safely rotate this copied annotation: its geometry or appearance also changed.');
     dict.set(lib.PDFName.of('Rect'), candidate.get(lib.PDFName.of('Rect'))!);
@@ -2534,6 +2591,12 @@ async function registerNativeAnnotation(
     if (!rotated) throw new Error('Cannot safely rotate this line: its geometry or appearance also changed.');
     dict.set(lib.PDFName.of('AP'), rotated);
   }
+  const markupTurns = annotation.data.nativeMarkupTurn?.turns ?? 0;
+  if (markupTurns && sourceDict && markupOrMask(annotation.type)) {
+    const rotated = rotatedMarkupAppearance(doc, sourceDict, dict, markupTurns, annotation.type === 'redaction', lib);
+    if (!rotated) throw new Error('Cannot safely rotate this markup: its geometry or appearance also changed.');
+    dict.set(lib.PDFName.of('AP'), rotated);
+  }
   const boxTurns = annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? boxShapePendingTurns(annotation) : 0;
   if (boxTurns && sourceDict && !regenerateBox) {
     const rotated = annotation.type === 'shape-cloud' ? rotatedCloudAppearance(doc, sourceDict, dict, boxTurns, lib)
@@ -2665,6 +2728,13 @@ async function registerNativeAnnotation(
       if ((!hasSourceAppearance || trustedGeneratedMarkup)
         && !await sealGeneratedMarkupAppearance(doc, dict, lib)) {
         throw new Error('Cannot safely preserve editable markup appearance provenance.');
+      }
+      if (sourceDict && (markupTurns || sourceDict.get(lib.PDFName.of('PDFHubMarkupPreviewOffset')))
+        && await fingerprintNativeMarkupRotation(doc, sourceDict, lib)) {
+        const offset = (readNativeMarkupPreviewOffset(sourceDict, lib) + markupTurns) % 4;
+        if (!await sealNativeMarkupPreview(doc, dict, offset, lib)) {
+          throw new Error('Cannot safely preserve markup preview orientation.');
+        }
       }
     }
   }
@@ -4040,6 +4110,9 @@ function serializableAnnotationData(annotation: PdfAnnotation): Record<string, u
   delete data.nativeBoxShapeTurn;
   delete data.nativeBoxShapeGenerated;
   delete data.nativeBoxShapeGeneratedOrientation;
+  delete data.nativeMarkupRotationSourceHash;
+  delete data.nativeMarkupTurn;
+  delete data.nativeMarkupPreviewOffset;
   delete (data as typeof data & { nativePolygonQuarterTurns?: number }).nativePolygonQuarterTurns;
   delete (data as typeof data & { nativeInkQuarterTurns?: number }).nativeInkQuarterTurns;
   delete (data as typeof data & { nativeLineQuarterTurns?: number }).nativeLineQuarterTurns;

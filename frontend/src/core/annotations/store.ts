@@ -648,6 +648,10 @@ export const useAnnotationStore =
           const destination = targetPage ?? annotation.pageNumber;
           const sourceRotation = targetGraph?.pages[annotation.pageNumber - 1]?.rotation;
           const targetRotation = targetGraph?.pages[destination - 1]?.rotation;
+          if (annotation.data.nativeMarkupRotationSourceHash && sourceRotation !== undefined && targetRotation !== undefined) {
+            const offset = (annotation.data.nativeMarkupPreviewOffset ?? 0) + (sourceRotation - targetRotation) / 90;
+            if (Number.isInteger(offset)) data.nativeMarkupPreviewOffset = ((offset % 4) + 4) % 4;
+          }
           const basis = annotation.data.nativeStampBasisRotation;
           if (annotation.type === 'stamp' && annotation.data.nativeStampAppearanceKind !== 'imported'
             && typeof basis === 'number' && sourceRotation !== undefined && targetRotation !== undefined) {

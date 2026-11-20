@@ -1,12 +1,14 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
-import { orientedTextMarkupQuads, pointOnTextMarkupQuad } from './shared/textMarkupQuads';
+import { orientedTextMarkupQuads, pointOnTextMarkupQuad, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 
 export const StrikeoutNode: React.FC<AnnotationNodeProps<'strikeout'>> = ({
   annotation, rect, isSelected, pageRotation, onSelect, onTransformStart,
 }) => {
   const color = annotation.data?.borderColor ?? '#000000';
-  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, pageRotation)
+  const orientation = textMarkupPreviewRotation(pageRotation, annotation.data.nativeMarkupRotationSourceHash,
+    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn);
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation)
     ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
 
   return (

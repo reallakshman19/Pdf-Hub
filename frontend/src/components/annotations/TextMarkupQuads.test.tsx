@@ -7,14 +7,84 @@ import { HighlightNode } from './HighlightNode';
 import { UnderlineNode } from './UnderlineNode';
 import { StrikeoutNode } from './StrikeoutNode';
 import { SquigglyNode } from './SquigglyNode';
-import { axisAlignedTextMarkupQuads, orientedTextMarkupQuads } from './shared/textMarkupQuads';
+import { axisAlignedTextMarkupQuads, orientedTextMarkupQuads, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 import { remapAfterRotate } from '@/core/annotations/pageRemapper';
+import { rotateMarkupQuarterTurn } from '@/core/annotations/geometryTransform';
 
 // The two quads use Z and perimeter ordering, respectively.
 const quads = [0, 0, 0.8, 0, 0, 0.2, 0.8, 0.2,
   0.1, 0.6, 0.7, 0.6, 0.7, 0.8, 0.1, 0.8];
 
 describe('native multi-quad text-markup previews', () => {
+  it('only accepts valid, source-bound saved and pending preview turns', () => {
+    expect(textMarkupPreviewRotation(90, undefined, undefined, undefined)).toBe(90);
+    expect(textMarkupPreviewRotation(270, 'source', 2, { turns: 1, sourceHash: 'source' })).toBe(180);
+    expect(textMarkupPreviewRotation(0, undefined, 1, undefined)).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, undefined, 0, undefined)).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, 'source', 4, undefined)).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, 'source', 1.5, undefined)).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, 'source', undefined, { turns: 1, sourceHash: 'stale' })).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, 'source', undefined, { turns: 0, sourceHash: 'source' })).toBeUndefined();
+    expect(textMarkupPreviewRotation(undefined, 'source', 1, undefined)).toBeUndefined();
+  });
+
+  it('combines a reopened annotation turn with a further unsaved turn', () => {
+    const model: PdfAnnotation = { id: 'synthetic', type: 'underline', pageNumber: 1,
+      rect: { x: 20, y: 30, width: 40, height: 100 }, createdAt: 1, updatedAt: 1,
+      data: { nativeMarkupRotationSourceHash: 'source', nativeMarkupPreviewOffset: 1,
+        textMarkupQuads: [1, 0, 1, 1, 0, 0, 0, 1] } };
+    const patch = rotateMarkupQuarterTurn(model);
+    expect(patch).not.toBeNull();
+    const rotated = { ...model, ...patch };
+    const view = render(<UnderlineNode annotation={{ ...rotated, type: 'underline' }} rect={rotated.rect} scale={1} isSelected={false}
+      pageRotation={0} onSelect={vi.fn()} onTransformStart={vi.fn()} />);
+    const line = view.container.querySelector('svg line')!;
+    ['x1', 'y1', 'x2', 'y2'].forEach((key, index) =>
+      expect(Number(line.getAttribute(key))).toBeCloseTo([100, 6.8, 0, 6.8][index]));
+  });
+
+  it.each([0, 90, 180, 270])('orients individual line-markup turns and reopened previews on a %s-degree page', (pageRotation) => {
+    const base: PdfAnnotation = { id: 'synthetic', type: 'underline', pageNumber: 1,
+      rect: { x: 30, y: 10, width: 200, height: 50 },
+      data: { nativeMarkupRotationSourceHash: 'source', textMarkupQuads: quads }, createdAt: 1, updatedAt: 1 };
+    const pageModel = pageRotation === 0 ? base
+      : remapAfterRotate([base], [{ pageIndex: 0, angle: pageRotation, width: 400, height: 500 }])[0];
+    const point = (x: number, y: number, angle: number) => angle === 0 ? [x, y]
+      : angle === 90 ? [50 - y, x] : angle === 180 ? [200 - x, 50 - y] : [y, 200 - x];
+    let rotated = pageModel;
+    for (let turns = 1; turns <= 3; turns++) {
+      const patch = rotateMarkupQuarterTurn(rotated);
+      expect(patch).not.toBeNull();
+      rotated = { ...rotated, ...patch };
+      const angle = (pageRotation + turns * 90) % 360;
+      const variants = [rotated, { ...rotated, data: { ...rotated.data,
+        nativeMarkupPreviewOffset: turns, nativeMarkupTurn: undefined } }];
+      for (const model of variants) {
+        const props = { rect: model.rect, scale: 1, isSelected: false, pageRotation,
+          onSelect: vi.fn(), onTransformStart: vi.fn() };
+        for (const [kind, fraction] of [['underline', 0.83], ['strikeout', 0.55]] as const) {
+          const view = kind === 'underline'
+            ? render(<UnderlineNode {...props} annotation={{ ...model, type: 'underline' }} />)
+            : render(<StrikeoutNode {...props} annotation={{ ...model, type: 'strikeout' }} />);
+          const lines = view.container.querySelectorAll('svg line');
+          expect(lines).toHaveLength(2);
+          const start = point(0, 10 * fraction, angle); const end = point(160, 10 * fraction, angle);
+          ['x1', 'y1', 'x2', 'y2'].forEach((key, index) =>
+            expect(Number(lines[0].getAttribute(key))).toBeCloseTo([...start, ...end][index]));
+          view.unmount();
+        }
+        const wave = render(<SquigglyNode {...props} annotation={{ ...model, type: 'squiggly' }} />);
+        const paths = wave.container.querySelectorAll('svg path');
+        expect(paths).toHaveLength(2);
+        const origin = point(0, 0, angle);
+        expect(paths[0].getAttribute('transform')).toBe(`translate(${origin[0]} ${origin[1]})${angle ? ` rotate(${angle})` : ''}`);
+        const initial = /^M 0 ([\d.]+) /.exec(paths[0].getAttribute('d') ?? '');
+        expect(initial).not.toBeNull();
+        expect(Number(initial![1])).toBeCloseTo(8.3);
+        wave.unmount();
+      }
+    }
+  });
   it('keeps quad preview geometry correct when the user rotates a page', () => {
     const annotation = { id: 'q', type: 'underline', pageNumber: 1, rect: { x: 30, y: 10, width: 200, height: 50 },
       data: { textMarkupQuads: [0, 0, 0.8, 0, 0, 0.2, 0.8, 0.2] }, createdAt: 1, updatedAt: 1 } satisfies PdfAnnotation;

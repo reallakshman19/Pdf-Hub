@@ -1,5 +1,58 @@
 import type { AnnotationData, PdfAnnotation, Rect } from './types';
 
+type NativeMarkupRotationData = AnnotationData & {
+  nativeMarkupRotationSourceHash?: string;
+  nativeMarkupTurn?: { turns: number; sourceHash: string };
+};
+
+/**
+ * Rotate supported native markup in displayed page coordinates. Authorization
+ * here is only a UI hint; the writer must revalidate the actual source PDF.
+ */
+export function rotateMarkupQuarterTurn(annotation: PdfAnnotation): Partial<PdfAnnotation> | null {
+  if (!['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(annotation.type)) return null;
+  const sourceData = annotation.data as NativeMarkupRotationData;
+  const hash = sourceData.nativeMarkupRotationSourceHash;
+  // A copied, not-yet-materialized native graph needs separate writer handling.
+  if (!hash || sourceData.nativeCopySource || sourceData.nativeIdentityAmbiguous) return null;
+  const prior = sourceData.nativeMarkupTurn;
+  if (prior && (prior.sourceHash !== hash || !Number.isInteger(prior.turns) || prior.turns < 1 || prior.turns > 3)) return null;
+  const { x, y, width, height } = annotation.rect;
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+  const rect = { x: x + (width - height) / 2, y: y + (height - width) / 2, width: height, height: width };
+  if (!Object.values(rect).every(Number.isFinite)) return null;
+
+  const quads = sourceData.textMarkupQuads;
+  if (annotation.type === 'redaction') {
+    if (quads !== undefined) return null;
+  } else {
+    if (!Array.isArray(quads) || quads.length < 8 || quads.length > 256 * 8 || quads.length % 8
+      || quads.some((value) => !Number.isFinite(value) || value < -1e-6 || value > 1 + 1e-6)) return null;
+    // Support both common PDF point orders, but do not enable rotation for a
+    // collapsed or concave quad with unknown semantics.
+    for (let i = 0; i < quads.length; i += 8) {
+      const points = Array.from({ length: 4 }, (_, j) => ({ x: quads[i + j * 2], y: quads[i + j * 2 + 1] }));
+      const convex = (indices: number[]) => {
+        const cross = indices.map((index, j) => {
+          const a = points[index]; const b = points[indices[(j + 1) % 4]]; const c = points[indices[(j + 2) % 4]];
+          return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+        });
+        return cross.every((v) => v > 1e-12) || cross.every((v) => v < -1e-12);
+      };
+      if (!convex([0, 1, 2, 3]) && !convex([0, 1, 3, 2])) return null;
+    }
+  }
+
+  const data: NativeMarkupRotationData = { ...sourceData };
+  if (quads) data.textMarkupQuads = quads.map((_value, index) => index % 2 === 0 ? 1 - quads[index + 1] : quads[index - 1]);
+  const turns = ((prior?.turns ?? 0) + 1) % 4;
+  if (turns) data.nativeMarkupTurn = { turns, sourceHash: hash };
+  else delete data.nativeMarkupTurn;
+  delete data.normalizedGeometry;
+  delete data.geometryVersion;
+  return { rect, data };
+}
+
 /** Rotate a square/circle annotation and its selection box as one undoable edit. */
 export function rotateBoxShapeQuarterTurn(annotation: PdfAnnotation): Partial<PdfAnnotation> | null {
   if (annotation.type !== 'shape-rect' && annotation.type !== 'shape-ellipse' && annotation.type !== 'shape-cloud') return null;

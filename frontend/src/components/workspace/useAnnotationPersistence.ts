@@ -57,6 +57,8 @@ export function useAnnotationPersistence({
         delete data.nativeBoxShapeSourceHash;
         delete data.nativeBoxShapeGenerated;
         delete data.nativeBoxShapeGeneratedOrientation;
+        delete data.nativeMarkupRotationSourceHash;
+        delete data.nativeMarkupPreviewOffset;
         if (source) {
           // Classify from the native source, never a potentially stale
           // editable/generated flag restored from a sidecar.
@@ -89,6 +91,14 @@ export function useAnnotationPersistence({
               data.nativeBoxShapeGenerated = true;
               data.nativeBoxShapeGeneratedOrientation = source.data.nativeBoxShapeGeneratedOrientation;
             }
+          }
+          if (source.data.nativeMarkupRotationSourceHash) {
+            data.nativeMarkupRotationSourceHash = source.data.nativeMarkupRotationSourceHash;
+            const graph = useSessionStore.getState().pageGraph;
+            const from = graph?.pages[(origin?.pageNumber ?? source.pageNumber) - 1]?.rotation;
+            const to = graph?.pages[item.pageNumber - 1]?.rotation;
+            const offset = (source.data.nativeMarkupPreviewOffset ?? 0) + (origin && from !== undefined && to !== undefined ? (from - to) / 90 : 0);
+            if (Number.isInteger(offset)) data.nativeMarkupPreviewOffset = ((offset % 4) + 4) % 4;
           }
           if (!origin && source.data.nativeSourceRef) data.nativeSourceRef = source.data.nativeSourceRef;
           if (source.data.nativeAppearanceRef) data.nativeAppearanceRef = source.data.nativeAppearanceRef;
