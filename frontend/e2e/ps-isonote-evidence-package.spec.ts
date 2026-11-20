@@ -66,6 +66,7 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
     { timeout: 30_000 },
   );
   await expect(recipeBuilder).toContainText(/verified · 0 warning\(s\) · 0 error\(s\)/i);
+  await expect(recipeBuilder.getByRole('button', { name: 'Evidence ZIP' })).toBeEnabled();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     recipeBuilder.getByRole('button', { name: 'Evidence ZIP' }).click(),
@@ -106,10 +107,12 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   const audit = JSON.parse(manifestText as string) as { phase?: string; verification?: { verified?: boolean } };
   expect(audit.phase).toBe('verified');
   expect(audit.verification?.verified).toBe(true);
-  // Assert the visible result after capturing the native PDF, so a negative
-  // control has analyzable bytes even when certification correctly fails.
+  // Assert durable audit semantics from the downloaded manifest and UI,
+  // and assert package-created status after the evidence export completes.
+  await expect(recipeBuilder).toContainText(/verified · 0 warning\(s\) · 0 error\(s\)/i);
+  await expect(recipeBuilder).toContainText(/Markers 1\/1/i);
   await expect(recipeBuilder).toContainText(
-    /Verified 1 of 1 PS marker\(s\) and expected ISONOTE text/i,
+    /Created checksummed evidence package with \d+ bound artifact\(s\)/i,
     { timeout: 20_000 },
   );
   console.log(`WP07_PS_ISONOTE_NATIVE phase=${audit.phase} verified=${audit.verification?.verified} output_sha256=${annotatedSha256}`);

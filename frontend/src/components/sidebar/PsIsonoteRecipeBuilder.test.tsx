@@ -39,4 +39,9 @@ describe('PsIsonoteRecipeBuilder admission', () => {
     expect(textarea.value).toBe('');
     expect(screen.getByText(/PS\/ISONOTE admission rejected/i)).toBeTruthy();
   });
+
+  it('does not expose Evidence ZIP export before an audit report exists', () => {
+    render(<PsIsonoteRecipeBuilder />);
+    expect(screen.queryByRole('button', { name: /Evidence ZIP/i })).toBeNull();
+  });
 });
