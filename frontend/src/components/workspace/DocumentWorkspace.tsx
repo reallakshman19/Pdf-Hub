@@ -1610,8 +1610,9 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const currentPathRef = React.useRef<number[]>([]);
 
   const startMarquee = (event: React.MouseEvent<HTMLDivElement>) => {
-    cancelGestureRef.current?.();
     if (activeTool === 'ink') {
+      if (event.target instanceof Element && event.target.closest('[data-annotation-type]')) return;
+      cancelGestureRef.current?.();
       const hostRect = event.currentTarget.getBoundingClientRect();
       const x = (event.clientX - hostRect.left) / scale;
       const y = (event.clientY - hostRect.top) / scale;
@@ -1677,6 +1678,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
 
     if (activeTool !== 'select') return;
     if (event.target !== event.currentTarget) return;
+    cancelGestureRef.current?.();
 
     clearTextSelectionDraft();
     const hostRect = event.currentTarget.getBoundingClientRect();
@@ -1722,6 +1724,9 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
    * from buildAnnotation so placing by click still works.
    */
   const startShapeDraw = (event: React.MouseEvent<HTMLDivElement>) => {
+    // A note's pointerdown is followed by a bubbling compatibility mousedown.
+    // Do not cancel its transform unless this is a new placement gesture.
+    if (!isPlacementOnlyTool || event.target !== event.currentTarget) return;
     cancelGestureRef.current?.();
     onActivate();
 

@@ -561,6 +561,29 @@ describe('PageSurface gesture consistency', () => {
     expect(props.onCreateAnnotation).not.toHaveBeenCalled();
   });
 
+  it.each(['select', 'squiggly'])('keeps a note drag active through the browser compatibility mousedown (%s tool)', async (activeTool) => {
+    const props = { ...makeProps(makeDoc(makePage(0))), activeTool };
+    const note = { id: 'note', type: 'comment' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[note]} />);
+    await act(async () => {});
+    const element = view.container.querySelector('[data-annotation-type="comment"]');
+    expect(element).not.toBeNull();
+    act(() => {
+      fireEvent.pointerDown(element!, { clientX: 65, clientY: 85 });
+      fireEvent.mouseDown(element!, { clientX: 65, clientY: 85, buttons: 1 });
+      fireEvent.mouseMove(window, { clientX: 75, clientY: 90, buttons: 1 });
+      fireEvent.mouseUp(window, { clientX: 85, clientY: 97 });
+    });
+    expect(props.onCommitManyAnnotations).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'note', data: expect.objectContaining({
+        rect: expect.objectContaining({ x: 80, y: 92 }),
+      }) }),
+    ]);
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+  });
+
   it('commits the final fast drag even when React effects have not run', async () => {
     const props = makeProps(makeDoc(makePage(180)));
     const note = { id: 'note', type: 'comment' as const, pageNumber: 1,

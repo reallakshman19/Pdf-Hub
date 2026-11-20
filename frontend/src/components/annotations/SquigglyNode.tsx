@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { squiggleSegmentBudget, squiggleWave } from '../../core/annotations/squigglyGeometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { hasKnownMarkupOrientation, orientedTextMarkupQuads, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 
@@ -20,14 +21,25 @@ function squigglyPath(width: number, height: number, amplitude = 2, segmentBudge
   return d;
 }
 
+function generatedSquigglyPath(width: number, height: number, scale: number, budget: number): string {
+  if (![width, height, scale].every(Number.isFinite) || width <= 0 || height <= 0 || scale <= 0) return '';
+  const wave = squiggleWave(width / scale, height / scale, budget);
+  return wave.map(({ fraction, displacement }, index) =>
+    `${index ? 'L' : 'M'} ${width * fraction} ${height * 0.84 - displacement * Math.min(1, height / scale) * scale}`,
+  ).join(' ');
+}
+
 export const SquigglyNode: React.FC<AnnotationNodeProps<'squiggly'>> = ({
   annotation, rect, scale, isSelected, pageRotation, onSelect, onTransformStart,
 }) => {
-  const color = annotation.data?.borderColor ?? '#ef4444';
-  const width = annotation.data?.borderWidth ?? 1.5;
+  const knownGenerated = hasKnownMarkupOrientation(annotation.data);
+  const color = annotation.data?.borderColor ?? (knownGenerated ? '#405980' : '#ef4444');
+  const width = knownGenerated ? Math.min(5, Math.max(0.5, annotation.data?.borderWidth ?? 1)) * scale
+    : annotation.data?.borderWidth ?? 1.5;
+  const opacity = knownGenerated ? Math.min(1, Math.max(0, annotation.data?.opacity ?? 1)) : 1;
   const orientation = textMarkupPreviewRotation(pageRotation, annotation.data.nativeMarkupRotationSourceHash,
     annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn, annotation.data.nativeMarkupDraft);
-  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation, hasKnownMarkupOrientation(annotation.data))
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation, knownGenerated)
     ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
   const segmentBudget = Math.max(3, Math.floor(4096 / quads.length));
 
@@ -42,13 +54,16 @@ export const SquigglyNode: React.FC<AnnotationNodeProps<'squiggly'>> = ({
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >
-      <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+      <svg width="100%" height="100%" style={{ overflow: knownGenerated ? 'hidden' : 'visible' }}>
         {quads.map((quad, index) => <path key={index}
-          d={squigglyPath(quad.width, quad.height, 2 * scale, segmentBudget)}
+          d={knownGenerated ? generatedSquigglyPath(quad.width, quad.height, scale, squiggleSegmentBudget(quads.length))
+            : squigglyPath(quad.width, quad.height, 2 * scale, segmentBudget)}
           transform={`translate(${quad.x} ${quad.y})${quad.angle ? ` rotate(${quad.angle})` : ''}`}
           fill="none"
           stroke={color}
           strokeWidth={width}
+          strokeLinecap={knownGenerated ? 'round' : undefined}
+          opacity={opacity}
         />)}
       </svg>
       {isSelected && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}

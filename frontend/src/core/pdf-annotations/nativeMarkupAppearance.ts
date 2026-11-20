@@ -1,6 +1,8 @@
-import type { PDFDict, PDFDocument } from 'pdf-lib';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { MAX_PREVIEW_MARKUP_QUADS, squiggleSegmentBudget, squiggleWave } from '@/core/annotations/squigglyGeometry';
 
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
 type Lib = typeof import('pdf-lib');
 interface Color { r: number; g: number; b: number }
 
@@ -42,6 +44,9 @@ export function attachNativeMarkupAppearance(
     || !quads.every(Number.isFinite))) {
     throw new Error('INVALID_MARKUP_APPEARANCE_QUADS');
   }
+  if (type === 'squiggly' && quads.length > MAX_PREVIEW_MARKUP_QUADS * 8) {
+    throw new Error(`Cannot generate a squiggly appearance with more than ${MAX_PREVIEW_MARKUP_QUADS} text regions.`);
+  }
 
   const f = (value: number) => String(Number(value.toFixed(5)));
   const local = (x: number, y: number) => [f(x - left), f(y - bottom)].join(' ');
@@ -78,18 +83,15 @@ export function attachNativeMarkupAppearance(
       // Squiggly: alternating native line segments along the rotated
       // baseline, deflected in the actual top-versus-bottom direction.
       const length = Math.hypot(ex - sx, ey - sy);
-      const steps = Math.max(4, Math.min(256, Math.ceil(length / 4)));
       const textHeight = Math.max(1, Math.hypot(tlx - blx, tly - bly));
-      const amplitude = Math.min(1.8, textHeight * 0.10);
       const nx = (tlx - blx) / textHeight;
       const ny = (tly - bly) / textHeight;
       commands.push(local(sx, sy) + ' m');
-      for (let step = 1; step <= steps; step += 1) {
-        const fractionAlong = step / steps;
-        const displacement = step === steps ? 0 : (step % 2 === 0 ? -1 : 1) * amplitude;
+      const wave = squiggleWave(length, textHeight, squiggleSegmentBudget(quads.length / 8));
+      for (const { fraction, displacement } of wave.slice(1)) {
         commands.push(local(
-          sx + (ex - sx) * fractionAlong + nx * displacement,
-          sy + (ey - sy) * fractionAlong + ny * displacement,
+          sx + (ex - sx) * fraction + nx * displacement,
+          sy + (ey - sy) * fraction + ny * displacement,
         ) + ' l');
       }
       commands.push('S');

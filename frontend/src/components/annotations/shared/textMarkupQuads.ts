@@ -1,3 +1,5 @@
+import { MAX_PREVIEW_MARKUP_QUADS } from '../../../core/annotations/squigglyGeometry';
+
 /** A supported, axis-aligned text-markup quadrilateral in local pixels. */
 export interface TextMarkupQuadRect { x: number; y: number; width: number; height: number }
 
@@ -115,7 +117,7 @@ export function axisAlignedTextMarkupQuads(
   // whose first edge runs left-to-right along the displayed top.
   if (lineOrientation && (lineOrientation.pageRotation === undefined
     || ((lineOrientation.pageRotation % 360) + 360) % 360 !== 0)) return null;
-  if (!Array.isArray(values) || values.length < 8 || values.length > 256 * 8 || values.length % 8 || !Number.isFinite(width)
+  if (!Array.isArray(values) || values.length < 8 || values.length > MAX_PREVIEW_MARKUP_QUADS * 8 || values.length % 8 || !Number.isFinite(width)
     || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
   const result: TextMarkupQuadRect[] = [];
   for (let i = 0; i < values.length; i += 8) {
