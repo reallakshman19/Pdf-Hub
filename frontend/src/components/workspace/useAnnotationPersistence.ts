@@ -81,7 +81,7 @@ export function useAnnotationPersistence({
             else delete data.hasCustomAppearance;
             if (source.data.nativeStampRotationReadOnly) data.nativeStampRotationReadOnly = true;
           }
-          if (item.type === 'shape-rect' || item.type === 'shape-ellipse') {
+          if (item.type === 'shape-rect' || item.type === 'shape-ellipse' || item.type === 'shape-cloud') {
             data.nativeBoxShapeImported = true;
             data.nativeBoxShapeHasAppearance = Boolean(source.data.nativeBoxShapeHasAppearance);
             if (source.data.nativeBoxShapeSourceHash) data.nativeBoxShapeSourceHash = source.data.nativeBoxShapeSourceHash;

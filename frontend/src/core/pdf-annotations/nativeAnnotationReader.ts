@@ -11,6 +11,7 @@ import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { calloutBodyRect } from './freeTextGeometry';
 import { fingerprintStampAppearance, verifyStampAppearanceFingerprint, verifyStampRotationFingerprint } from './nativeStampProvenance';
 import { BOX_GENERATED_AP_ORIENTATION_KEY, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
+import { fingerprintNativeCloudRotation, supportsNativeCloudRotation } from './nativeCloudRotation';
 import { orderNativeReviewStates } from './nativeReviewStateOrder';
 import {
   createMarkupSpace, pdfPointToView,
@@ -91,7 +92,7 @@ export async function readNativePdfAnnotations(
           && !await verifyStampRotationFingerprint(doc, record.dict, lib);
       }
 
-      if (parsed.type === 'shape-rect' || parsed.type === 'shape-ellipse') {
+      if (parsed.type === 'shape-rect' || parsed.type === 'shape-ellipse' || parsed.type === 'shape-cloud') {
         // This is derived only from the actual source graph. A stored sidecar or
         // PDFHubData value must never authorize replacing an arbitrary AP.
         delete parsed.data.nativeBoxShapeTurn;
@@ -101,12 +102,14 @@ export async function readNativePdfAnnotations(
         parsed.data.nativeBoxShapeImported = true;
         parsed.data.nativeBoxShapeHasAppearance = Boolean(record.dict.get(lib.PDFName.of('AP')));
         const flags = record.dict.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0;
-        const unsupported = ['RD', 'BE', 'IT', 'Measure', 'Vertices', 'InkList', 'L', 'CL', 'QuadPoints', 'Rotate', 'PDFHubBaseAP']
-          .some((key) => record.dict.get(lib.PDFName.of(key))) || (Math.trunc(flags) & 16) !== 0;
+        const unsupported = parsed.type === 'shape-cloud' ? !supportsNativeCloudRotation(record.dict, lib)
+          : ['RD', 'BE', 'IT', 'Measure', 'Vertices', 'InkList', 'L', 'CL', 'QuadPoints', 'Rotate', 'PDFHubBaseAP']
+            .some((key) => record.dict.get(lib.PDFName.of(key))) || (Math.trunc(flags) & 16) !== 0;
         if (!unsupported) {
-          const hash = await fingerprintStampAppearance(doc, record.dict, lib);
+          const hash = parsed.type === 'shape-cloud' ? await fingerprintNativeCloudRotation(doc, record.dict, lib)
+            : await fingerprintStampAppearance(doc, record.dict, lib);
           if (hash) parsed.data.nativeBoxShapeSourceHash = hash;
-          if (await verifyGeneratedBoxAppearanceFingerprint(doc, record.dict, lib)) {
+          if (parsed.type !== 'shape-cloud' && await verifyGeneratedBoxAppearanceFingerprint(doc, record.dict, lib)) {
             parsed.data.nativeBoxShapeGenerated = true;
             parsed.data.nativeBoxShapeGeneratedOrientation = record.dict.lookup(lib.PDFName.of(BOX_GENERATED_AP_ORIENTATION_KEY), lib.PDFNumber).asNumber();
           }

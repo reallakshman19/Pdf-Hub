@@ -28,12 +28,18 @@ async function open(page: Page, bytes: Uint8Array) {
 async function save(page: Page) {
   await page.getByRole('tab', { name: 'File' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
+  const failure = await download.failure();
+  if (failure) throw new Error(`Synthetic PDF download failed: ${failure}`);
   const stream = await download.createReadStream();
   if (!stream) throw new Error('Download unavailable');
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   await download.delete();
-  return new Uint8Array(Buffer.concat(chunks));
+  const result = Buffer.concat(chunks);
+  if (result.subarray(0, 5).toString('ascii') !== '%PDF-') {
+    throw new Error(`Invalid PDF download: name=${download.suggestedFilename()}, bytes=${result.length}, prefix=${result.subarray(0, 16).toString('hex')}`);
+  }
+  return new Uint8Array(result);
 }
 
 async function nativeGeometry(bytes: Uint8Array) {
@@ -47,9 +53,11 @@ async function nativeGeometry(bytes: Uint8Array) {
 test('rotates an imported polygon, preserves undo and redo, then rotates again after reopen', async ({ page, browser }) => {
   test.setTimeout(120_000);
   await open(page, await fixture());
-  const polygon = page.locator('[data-page="1"] svg polygon').first();
-  await polygon.click({ force: true });
-  await page.getByRole('button', { name: 'Rotate 90° clockwise' }).click();
+  const polygon = page.locator('[data-page="1"] svg polygon').first().locator('xpath=../..');
+  await polygon.click();
+  const rotate = page.getByRole('button', { name: 'Rotate 90° clockwise' });
+  await expect(rotate).toBeVisible();
+  await rotate.click();
   const first = await save(page);
   expect(await nativeGeometry(first)).toEqual({
     rect: [120, 80, 180, 180], vertices: [130, 170, 140, 95, 170, 120, 160, 160], wrapped: true,
@@ -67,9 +75,11 @@ test('rotates an imported polygon, preserves undo and redo, then rotates again a
   try {
     const reopened = await fresh.newPage();
     await open(reopened, first);
-    const restored = reopened.locator('[data-page="1"] svg polygon').first();
-    await restored.click({ force: true });
-    await reopened.getByRole('button', { name: 'Rotate 90° clockwise' }).click();
+    const restored = reopened.locator('[data-page="1"] svg polygon').first().locator('xpath=../..');
+    await restored.click();
+    const rotateAgain = reopened.getByRole('button', { name: 'Rotate 90° clockwise' });
+    await expect(rotateAgain).toBeVisible();
+    await rotateAgain.click();
     expect(await nativeGeometry(await save(reopened))).toEqual({
       rect: [100, 100, 200, 160], vertices: [190, 150, 115, 140, 140, 110, 180, 120], wrapped: true,
     });
