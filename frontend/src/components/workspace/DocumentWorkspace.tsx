@@ -1078,13 +1078,18 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const startTransform = (
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.PointerEvent<HTMLDivElement>,
     annotation: PdfAnnotation,
     mode: 'move' | 'resize',
   ) => {
     if (annotation.data.locked === true) return;
+    // Preserve editable text controls inside an annotation; all other
+    // pointerdowns on a movable annotation begin an actual pointer drag.
+    if (event.target instanceof Element && event.target.closest('textarea, input, [contenteditable="true"]')) return;
 
+    event.preventDefault();
     event.stopPropagation();
+    const activePointerId = event.pointerId;
     clearTextSelectionDraft();
 
     const selectedOnPage = pageAnnotations
@@ -1135,7 +1140,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       pageHeight: size.height / scale,
     };
 
-    const onMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== activePointerId) return;
       const current = transformRef.current;
       if (!current) return;
 
@@ -1208,7 +1214,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
     };
 
-    const onUp = () => {
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== activePointerId) return;
       const current = transformRef.current;
       if (!current) return;
 
@@ -1281,12 +1288,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       });
 
       transformRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    // onPointerDown must be paired with pointer events, not compatibility
+    // mouse events, which browsers can suppress during selection/touch drag.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const startAnchorDrag = (
