@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "frontend/e2e/wp05-native-page-labels.spec.ts"
+      - "frontend/e2e/native-*.spec.ts"
+      - "frontend/src/components/annotations/**"
+      - "frontend/src/core/pdf-annotations/**"
+      - "frontend/src/components/workspace/useAnnotationPersistence*"
       - "frontend/e2e/wp05-ocr-area-project.spec.ts"
       - "frontend/e2e/wp05-real-tesseract.spec.ts"
       - "frontend/e2e/wp05-original-f03-region.spec.ts"
@@ -49,7 +53,7 @@ jobs:
       - run: pnpm -C frontend install --frozen-lockfile
       - name: Typecheck
         run: pnpm -C frontend run typecheck
-      - name: WP-05 source-level regression set
+      - name: Combined WP-01 and WP-05 source-level regression set
         run: |
           WP05_DISPATCH_DIAG=1 pnpm -C frontend exec vitest run \
             src/core/writer-v2/export/projectImportController.test.ts \
@@ -74,6 +78,10 @@ jobs:
             src/components/ocr/__tests__/OcrRegionTool.test.tsx \
             src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
             src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
+            src/components/annotations/TextMarkupQuads.test.tsx \
+            src/core/pdf-annotations/nativeMarkupCustomAppearance.test.ts \
+            src/core/pdf-annotations/nativeCloudRotation.test.ts \
+            src/components/workspace/useAnnotationPersistence.shape.test.tsx \
             --pool=forks --maxWorkers=1
       - name: Production build
         run: VITE_BASE_PATH=/Pdf-Hub/ pnpm -C frontend run build
@@ -119,7 +127,7 @@ jobs:
           done
           cat /tmp/wp05-preview.log
           exit 1
-      - name: P01–P05 plus P06 invalid-admission compiled-browser certification
+      - name: Combined WP-05 P01–P06 and WP-01 native annotations compiled-browser certification
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173/Pdf-Hub/
           # These three tests generate only synthetic PDFs. Never set for owner PDFs.
@@ -138,13 +146,22 @@ jobs:
           project_status=$?
           pnpm -C frontend exec playwright test e2e/wp05-ocr-cancel-swap.spec.ts --project=chromium --reporter=line --retries=0 --output=test-results/wp05-race
           race_status=$?
+          pnpm -C frontend exec playwright test \
+            e2e/native-cloud-rotation.synthetic.spec.ts \
+            e2e/native-markup-custom-appearance.synthetic.spec.ts \
+            e2e/native-markup-page-preview.synthetic.spec.ts \
+            e2e/native-note-drag.synthetic.spec.ts \
+            e2e/native-polygon-rotation.spec.ts \
+            --project=chromium --reporter=line --retries=0 --output=test-results/wp01-native-integration
+          wp01_status=$?
+          echo "WP01_NATIVE_INTEGRATION_EXIT=${wp01_status}"
           echo "WP05_P06_CANCEL_SWAP_EXIT=${race_status}"
           echo "WP05_ORIGINAL_F03_REGION_EXIT=${f03_status}"
           echo "WP05_ORIGINAL_F02_ROTATED_REGION_EXIT=${f02_status}"
           echo "WP05_NATIVE_P02_P04_EXIT=${native_status}"
           echo "WP05_REAL_OCR_P01_EXIT=${ocr_status}"
           echo "WP05_PROJECT_P05_EXIT=${project_status}"
-          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ] || [ "${race_status}" -ne 0 ] || [ "${f03_status}" -ne 0 ] || [ "${f02_status}" -ne 0 ]; then
+          if [ "${native_status}" -ne 0 ] || [ "${ocr_status}" -ne 0 ] || [ "${project_status}" -ne 0 ] || [ "${race_status}" -ne 0 ] || [ "${f03_status}" -ne 0 ] || [ "${f02_status}" -ne 0 ] || [ "${wp01_status}" -ne 0 ]; then
             exit 1
           fi
       - name: Manifest native PDF/ZIP evidence hashes
