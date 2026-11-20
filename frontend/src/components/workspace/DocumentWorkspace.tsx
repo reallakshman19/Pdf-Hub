@@ -1178,9 +1178,18 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             : null;
         });
 
-        setDraftRects((state) => ({ ...state, ...nextRects }));
-        setDraftAnchors((state) => ({ ...state, ...nextAnchors }));
-        setDraftKnees((state) => ({ ...state, ...nextKnees }));
+        // React state/effect propagation may lag the final pointerup. The
+        // native commit must read the latest actual pointer geometry, not
+        // a draft ref that will only update in a later effect.
+        const updatedRects = { ...draftRectsRef.current, ...nextRects };
+        const updatedAnchors = { ...draftAnchorsRef.current, ...nextAnchors };
+        const updatedKnees = { ...draftKneesRef.current, ...nextKnees };
+        draftRectsRef.current = updatedRects;
+        draftAnchorsRef.current = updatedAnchors;
+        draftKneesRef.current = updatedKnees;
+        setDraftRects(updatedRects);
+        setDraftAnchors(updatedAnchors);
+        setDraftKnees(updatedKnees);
       } else {
         const baseRect = current.startRects[current.targetId];
         const target = pageAnnotations.find((item) => item.id === current.targetId);
@@ -1200,17 +1209,21 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         if (target.type === 'line' || target.type === 'arrow') {
           const linePoints = scaled.points;
           if (Array.isArray(linePoints)) {
-            setDraftLinePoints((state) => ({
-              ...state,
+            const updatedPoints = {
+              ...draftLinePointsRef.current,
               [current.targetId]: linePoints,
-            }));
+            };
+            draftLinePointsRef.current = updatedPoints;
+            setDraftLinePoints(updatedPoints);
           }
         }
 
-        setDraftRects((state) => ({
-          ...state,
+        const updatedRects = {
+          ...draftRectsRef.current,
           [current.targetId]: scaled.rect,
-        }));
+        };
+        draftRectsRef.current = updatedRects;
+        setDraftRects(updatedRects);
       }
     };
 
@@ -1258,34 +1271,26 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         }
       }
 
-      setDraftRects((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
+      // Clear authoritative drafts at the same transaction boundary as the
+      // native annotation store commit; do not defer the ref reset to effects.
+      const nextRects = { ...draftRectsRef.current };
+      const nextAnchors = { ...draftAnchorsRef.current };
+      const nextKnees = { ...draftKneesRef.current };
+      const nextPoints = { ...draftLinePointsRef.current };
+      current.ids.forEach((id) => {
+        delete nextRects[id];
+        delete nextAnchors[id];
+        delete nextKnees[id];
+        delete nextPoints[id];
       });
-      setDraftAnchors((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
-      setDraftKnees((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
-      setDraftLinePoints((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
+      draftRectsRef.current = nextRects;
+      draftAnchorsRef.current = nextAnchors;
+      draftKneesRef.current = nextKnees;
+      draftLinePointsRef.current = nextPoints;
+      setDraftRects(nextRects);
+      setDraftAnchors(nextAnchors);
+      setDraftKnees(nextKnees);
+      setDraftLinePoints(nextPoints);
 
       transformRef.current = null;
       window.removeEventListener('pointermove', onMove);
