@@ -58,6 +58,14 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   // real scan result, not a mocked one.
   await expect(recipeBuilder).toContainText(/target occurrence/i, { timeout: 20_000 });
   await expect(recipeBuilder).not.toContainText(/no mapped ps numbers were found/i);
+  // Scan hits create a PREVIEW audit before annotation finishes.
+  // Export only after the real reopened-PDF verification has finished;
+  // otherwise Evidence ZIP correctly contains input.pdf, not annotated.pdf.
+  await expect(recipeBuilder).toContainText(
+    /Verified 1 of 1 PS marker\(s\) and expected ISONOTE text/i,
+    { timeout: 30_000 },
+  );
+  await expect(recipeBuilder).toContainText(/verified · 0 warning\(s\) · 0 error\(s\)/i);
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     recipeBuilder.getByRole('button', { name: 'Evidence ZIP' }).click(),
