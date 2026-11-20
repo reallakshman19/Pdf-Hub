@@ -1,12 +1,3 @@
-import type {
-  PDFArray,
-  PDFDict,
-  PDFDocument,
-  PDFObject,
-  PDFPage,
-  PDFRef,
-} from 'pdf-lib';
-
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import type { ReviewMetadata, ReviewReply } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
@@ -33,6 +24,12 @@ import {
   viewRectToPdfRect, type MarkupSpace,
 } from './markupGeometry';
 
+type PDFArray = import('pdf-lib').PDFArray;
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFDocument = import('pdf-lib').PDFDocument;
+type PDFObject = import('pdf-lib').PDFObject;
+type PDFPage = import('pdf-lib').PDFPage;
+type PDFRef = import('pdf-lib').PDFRef;
 type PdfLibModule = typeof import('pdf-lib');
 
 // Mirrors the recursive input accepted by PDFContext.obj; native PDF objects

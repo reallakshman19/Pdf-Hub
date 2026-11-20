@@ -1,9 +1,3 @@
-import type {
-  PDFArray,
-  PDFDict,
-  PDFPage,
-} from 'pdf-lib';
-
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
@@ -19,6 +13,9 @@ import {
   pdfRectToViewRect, type MarkupSpace,
 } from './markupGeometry';
 
+type PDFArray = import('pdf-lib').PDFArray;
+type PDFDict = import('pdf-lib').PDFDict;
+type PDFPage = import('pdf-lib').PDFPage;
 type PdfLibModule = typeof import('pdf-lib');
 
 export interface NativeAnnotationReadResult {
