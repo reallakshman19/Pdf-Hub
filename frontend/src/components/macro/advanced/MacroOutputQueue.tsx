@@ -27,6 +27,8 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
   const [notice, setNotice] = React.useState<string | null>(null);
   const [downloadPendingIds, setDownloadPendingIds] = React.useState<string[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [confirmClear, setConfirmClear] = React.useState(false);
+  const batchReceipts = useMacroOutputQueueStore((state) => state.batchReceipts);
   const savingRef = React.useRef(false);
 
   const markDownloadPending = (id: string, pending: boolean) => {
@@ -35,21 +37,31 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       : current.filter((value) => value !== id));
   };
 
-  const saveAcknowledged = async (id: string) => {
+  const saveAcknowledged = async (
+    id: string,
+    method: 'native-readback-verified' | 'browser-user-confirmed',
+    externalFileName?: string,
+    readbackSha256?: string,
+  ) => {
     const output = outputs.find((item) => item.id === id);
     if (!output) return;
     // Remove the IDB record BEFORE hiding a batch output. A failed delete is
     // visible and recoverable after reload; it must not appear acknowledged.
     if (output.sourceKind === 'batch') {
-      await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(id);
+      await useMacroOutputQueueStore.getState().acknowledgeBatchOutput(
+        id, method, externalFileName, readbackSha256,
+      );
     } else {
       onChange((current) => current.filter((item) => item.id !== id));
     }
     markDownloadPending(id, false);
   };
 
-  const verifyBatchSave = async (output: MacroOutputQueueItem, handle?: FileSystemFileHandle | null) => {
-    if (output.sourceKind !== 'batch') return;
+  const verifyBatchSave = async (
+    output: MacroOutputQueueItem,
+    handle?: FileSystemFileHandle | null,
+  ): Promise<{ externalFileName: string; readbackSha256: string } | null> => {
+    if (output.sourceKind !== 'batch') return null;
     if (!output.outputSha256) throw new Error('Missing batch output digest.');
     const memoryHash = await FileAdapter.hashBytes(output.bytes);
     if (memoryHash !== output.outputSha256) {
@@ -60,10 +72,13 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       // assuming a successful close establishes file contents.
       const persistedFile = await handle.getFile();
       const savedBytes = new Uint8Array(await persistedFile.arrayBuffer());
-      if (await FileAdapter.hashBytes(savedBytes) !== output.outputSha256) {
+      const readbackSha256 = await FileAdapter.hashBytes(savedBytes);
+      if (readbackSha256 !== output.outputSha256) {
         throw new Error('OUTPUT_EXTERNAL_READBACK_MISMATCH: saved PDF hash differs.');
       }
+      return { externalFileName: persistedFile.name, readbackSha256 };
     }
+    return null;
   };
 
   const reportFailure = (output: MacroOutputQueueItem, failure: unknown) => {
@@ -90,8 +105,8 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
       if (output.sourceKind === 'batch') await verifyBatchSave(output);
       const handle = await FileAdapter.savePdfBytes(output.bytes, output.name, null);
       if (handle) {
-        await verifyBatchSave(output, handle);
-        await saveAcknowledged(id);
+        const witness = await verifyBatchSave(output, handle);
+        await saveAcknowledged(id, 'native-readback-verified', witness?.externalFileName, witness?.readbackSha256);
       } else {
         markDownloadPending(id, true);
         setNotice('Browser download started. Confirm you received the file before removing it from the queue.');
@@ -126,8 +141,8 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             setNotice('Browser download started. Confirm receipt before saving the remaining files.');
             return;
           }
-          await verifyBatchSave(output, handle);
-          await saveAcknowledged(output.id);
+          const witness = await verifyBatchSave(output, handle);
+          await saveAcknowledged(output.id, 'native-readback-verified', witness?.externalFileName, witness?.readbackSha256);
         } catch (failure) {
           reportFailure(output, failure);
           return;
@@ -147,8 +162,8 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
     setIsSaving(true);
     try {
       await verifyBatchSave(output);
-      await saveAcknowledged(id);
-      setNotice('Receipt confirmed by you. Other queued outputs remain available.');
+      await saveAcknowledged(id, 'browser-user-confirmed');
+      setNotice('Browser download receipt recorded as your confirmation, not native file readback.');
     } catch (failure) {
       reportFailure(output, failure);
     } finally {
@@ -180,25 +195,7 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (outputs.some((item) => item.sourceKind === 'batch')) {
-                savingRef.current = true;
-                setIsSaving(true);
-                void useMacroOutputQueueStore.getState().clearAllOutputs()
-                  .then(() => {
-                    setDownloadPendingIds([]);
-                    setNotice(null);
-                    onChange([]);
-                  })
-                  .catch((failure) => reportFailure(outputs[0], failure))
-                  .finally(() => {
-                    savingRef.current = false;
-                    setIsSaving(false);
-                  });
-              } else {
-                setDownloadPendingIds([]);
-                setNotice(null);
-                onChange([]);
-              }
+              setConfirmClear(true);
             }}
             disabled={isSaving || outputs.length === 0}
           >
@@ -210,6 +207,37 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
 
       {outputs.length === 0 ? (
         <div className="text-xs text-slate-500">No generated output files.</div>
+      ) : null}
+      {confirmClear ? (
+        <div role="alert" className="space-y-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
+          <p>
+            Discard {outputs.length} queued PDF(s)? This permanently removes their
+            unsaved browser-local copies. It does not save or export the files.
+            Batch deletions will be recorded as discarded without receipt.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" disabled={isSaving}
+              onClick={() => setConfirmClear(false)}>Keep PDFs</Button>
+            <Button size="sm" variant="secondary" disabled={isSaving}
+              onClick={() => {
+                if (savingRef.current) return;
+                savingRef.current = true;
+                setIsSaving(true);
+                void useMacroOutputQueueStore.getState().clearAllOutputs()
+                  .then(() => {
+                    setDownloadPendingIds([]);
+                    setNotice('Queued PDFs discarded with an explicit user action; batch tombstones are retained.');
+                    setConfirmClear(false);
+                    onChange([]);
+                  })
+                  .catch((failure) => reportFailure(outputs[0], failure))
+                  .finally(() => {
+                    savingRef.current = false;
+                    setIsSaving(false);
+                  });
+              }}>Discard queued PDFs</Button>
+          </div>
+        </div>
       ) : null}
       {saveError ? (
         <div className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700" role="alert">
@@ -252,6 +280,22 @@ export const MacroOutputQueue: React.FC<MacroOutputQueueProps> = ({
           );
         })}
       </div>
+      {batchReceipts.length > 0 ? (
+        <details data-testid="batch-receipt-ledger" className="text-xs text-slate-600 dark:text-slate-300">
+          <summary className="cursor-pointer">
+            Batch delivery/discard ledger — {batchReceipts.length} durable record(s)
+          </summary>
+          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+            {batchReceipts.map((receipt) => (
+              <li key={receipt.id} className="rounded border border-slate-200 p-2 dark:border-slate-700">
+                <div>{receipt.outputName} · {receipt.method}</div>
+                <div>{receipt.recordedAt} · SHA-256 {receipt.outputSha256}</div>
+                {receipt.externalFileName ? <div>External filename: {receipt.externalFileName}</div> : null}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </section>
   );
 };

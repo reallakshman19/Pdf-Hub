@@ -67,6 +67,32 @@ describe('WP07 R5 native emitted PDF validation (real parser)', () => {
     });
   });
 
+  it('demonstrates known limitation: accepts valid PDF with tampered note /NM and /Contents (structural check only)', async () => {
+    const document = await PDFDocument.create();
+    document.addPage([612, 792]);
+    const cleanBytes = new Uint8Array(await document.save());
+
+    // Inject a valid annotation dictionary with tampered /NM and /Contents
+    const tamperedPdf = await PDFDocument.load(cleanBytes);
+    const firstPage = tamperedPdf.getPage(0);
+    const { PDFName, PDFString } = await import('pdf-lib');
+    const annotDict = tamperedPdf.context.obj({
+      Type: 'Annot',
+      Subtype: 'Text',
+      Rect: [100, 100, 200, 200],
+      NM: PDFString.of('TAMPERED_NM_IDENTITY'),
+      Contents: PDFString.of('TAMPERED_CRITICAL_NOTE_TEXT'),
+    });
+    const annotRef = tamperedPdf.context.register(annotDict);
+    firstPage.node.set(PDFName.of('Annots'), tamperedPdf.context.obj([annotRef]));
+    const tamperedBytes = new Uint8Array(await tamperedPdf.save());
+
+    // Product-level structural validator checks parseability and page count;
+    // it accepts this semantically compromised PDF because page count is intact.
+    const validation = await validateEmittedBatchPdf(tamperedBytes, 0);
+    expect(validation).toEqual({ valid: true, pageCount: 1 });
+  });
+
   it('honors pre-aborted cancellation without reclassifying as PDF corruption', async () => {
     const controller = new AbortController();
     controller.abort('Canceled for R5 negative control');

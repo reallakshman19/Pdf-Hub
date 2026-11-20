@@ -100,6 +100,7 @@ export const AutomateSidebar: React.FC = () => {
   const [generationBusy, setGenerationBusy] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
   const generatedOutputs = useMacroOutputQueueStore((state) => state.outputs);
+  const batchReceipts = useMacroOutputQueueStore((state) => state.batchReceipts);
   const batchCustodyStatus = useMacroOutputQueueStore((state) => state.batchCustodyStatus);
   const batchCustodyError = useMacroOutputQueueStore((state) => state.batchCustodyError);
   const hydrateBatchCustody = useMacroOutputQueueStore((state) => state.hydrateBatchCustody);
@@ -437,6 +438,22 @@ export const AutomateSidebar: React.FC = () => {
         ) : null}
         {batchCustodyStatus === 'loading' ? (
           <p role="status" className="mt-4 text-xs text-slate-500">Checking saved PDF output custody…</p>
+        ) : null}
+        {generatedOutputs.length === 0 && batchReceipts.length > 0 ? (
+          <details data-testid="batch-receipt-ledger" className="mt-4 rounded border border-slate-200 p-3 text-xs dark:border-slate-700">
+            <summary className="cursor-pointer">
+              Batch delivery/discard ledger — {batchReceipts.length} durable record(s)
+            </summary>
+            <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+              {batchReceipts.map((receipt) => (
+                <li key={receipt.id} className="border-t border-slate-200 py-2 dark:border-slate-700">
+                  <div>{receipt.outputName} · {receipt.method}</div>
+                  <div>{receipt.recordedAt} · SHA-256 {receipt.outputSha256}</div>
+                  {receipt.externalFileName ? <div>External filename: {receipt.externalFileName}</div> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : null}
         {generatedOutputs.length > 0 ? (
           <section aria-label="Generated PDF save queue" className="mt-4 space-y-2">
