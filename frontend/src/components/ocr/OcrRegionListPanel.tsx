@@ -84,7 +84,9 @@ export const OcrRegionListPanel: React.FC<OcrRegionListPanelProps> = ({
                   </div>
 
                   <div className="mt-0.5 text-[11px] text-slate-500">
-                    Selected area on document
+                    {region.geometryProvenance === 'pdf-user-space-v2'
+                      ? 'Selected area on document'
+                      : 'Review Required — legacy OCR area origin unverified'}
                   </div>
                 </button>
 

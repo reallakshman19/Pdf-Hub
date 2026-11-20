@@ -200,6 +200,7 @@ export const DocumentWorkspace: React.FC = () => {
   } | null>(null);
 
   const handleBrowse = async () => {
+    setLoadError(null);
     try {
       const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
@@ -608,6 +609,11 @@ export const DocumentWorkspace: React.FC = () => {
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
             Supports PDF up to 100 MB.
           </p>
+          {loadError ? (
+            <p role="alert" data-testid="open-pdf-failure" className="mb-4 max-w-sm text-sm text-red-700 dark:text-red-300">
+              Unable to open PDF: {loadError}
+            </p>
+          ) : null}
           <button
             className={[
               "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
@@ -949,7 +955,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
 
-  const { size: renderSize } = usePageRenderer({
+  const { size: renderSize, ocrViewport } = usePageRenderer({
     doc,
     pageNumber,
     scale,
@@ -1072,13 +1078,18 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const startTransform = (
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.PointerEvent<HTMLDivElement>,
     annotation: PdfAnnotation,
     mode: 'move' | 'resize',
   ) => {
     if (annotation.data.locked === true) return;
+    // Preserve editable text controls inside an annotation; all other
+    // pointerdowns on a movable annotation begin an actual pointer drag.
+    if (event.target instanceof Element && event.target.closest('textarea, input, [contenteditable="true"]')) return;
 
+    event.preventDefault();
     event.stopPropagation();
+    const activePointerId = event.pointerId;
     clearTextSelectionDraft();
 
     const selectedOnPage = pageAnnotations
@@ -1129,7 +1140,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       pageHeight: size.height / scale,
     };
 
-    const onMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== activePointerId) return;
       const current = transformRef.current;
       if (!current) return;
 
@@ -1166,9 +1178,18 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             : null;
         });
 
-        setDraftRects((state) => ({ ...state, ...nextRects }));
-        setDraftAnchors((state) => ({ ...state, ...nextAnchors }));
-        setDraftKnees((state) => ({ ...state, ...nextKnees }));
+        // React state/effect propagation may lag the final pointerup. The
+        // native commit must read the latest actual pointer geometry, not
+        // a draft ref that will only update in a later effect.
+        const updatedRects = { ...draftRectsRef.current, ...nextRects };
+        const updatedAnchors = { ...draftAnchorsRef.current, ...nextAnchors };
+        const updatedKnees = { ...draftKneesRef.current, ...nextKnees };
+        draftRectsRef.current = updatedRects;
+        draftAnchorsRef.current = updatedAnchors;
+        draftKneesRef.current = updatedKnees;
+        setDraftRects(updatedRects);
+        setDraftAnchors(updatedAnchors);
+        setDraftKnees(updatedKnees);
       } else {
         const baseRect = current.startRects[current.targetId];
         const target = pageAnnotations.find((item) => item.id === current.targetId);
@@ -1188,21 +1209,26 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         if (target.type === 'line' || target.type === 'arrow') {
           const linePoints = scaled.points;
           if (Array.isArray(linePoints)) {
-            setDraftLinePoints((state) => ({
-              ...state,
+            const updatedPoints = {
+              ...draftLinePointsRef.current,
               [current.targetId]: linePoints,
-            }));
+            };
+            draftLinePointsRef.current = updatedPoints;
+            setDraftLinePoints(updatedPoints);
           }
         }
 
-        setDraftRects((state) => ({
-          ...state,
+        const updatedRects = {
+          ...draftRectsRef.current,
           [current.targetId]: scaled.rect,
-        }));
+        };
+        draftRectsRef.current = updatedRects;
+        setDraftRects(updatedRects);
       }
     };
 
-    const onUp = () => {
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== activePointerId) return;
       const current = transformRef.current;
       if (!current) return;
 
@@ -1245,42 +1271,36 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         }
       }
 
-      setDraftRects((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
+      // Clear authoritative drafts at the same transaction boundary as the
+      // native annotation store commit; do not defer the ref reset to effects.
+      const nextRects = { ...draftRectsRef.current };
+      const nextAnchors = { ...draftAnchorsRef.current };
+      const nextKnees = { ...draftKneesRef.current };
+      const nextPoints = { ...draftLinePointsRef.current };
+      current.ids.forEach((id) => {
+        delete nextRects[id];
+        delete nextAnchors[id];
+        delete nextKnees[id];
+        delete nextPoints[id];
       });
-      setDraftAnchors((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
-      setDraftKnees((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
-      setDraftLinePoints((state) => {
-        const next = { ...state };
-        current.ids.forEach((id) => {
-          delete next[id];
-        });
-        return next;
-      });
+      draftRectsRef.current = nextRects;
+      draftAnchorsRef.current = nextAnchors;
+      draftKneesRef.current = nextKnees;
+      draftLinePointsRef.current = nextPoints;
+      setDraftRects(nextRects);
+      setDraftAnchors(nextAnchors);
+      setDraftKnees(nextKnees);
+      setDraftLinePoints(nextPoints);
 
       transformRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    // onPointerDown must be paired with pointer events, not compatibility
+    // mouse events, which browsers can suppress during selection/touch drag.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const startAnchorDrag = (
@@ -2144,6 +2164,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         pageNumber={pageNumber}
         scale={scale}
         pageDimensions={renderSize || size}
+        ocrViewport={ocrViewport}
       />
 
       <WriterOverlayLayer

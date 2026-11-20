@@ -25,6 +25,23 @@ test(`dragging a note at page rotation ${rotation} persists its native location`
   // coordinates rather than treating workspace movement as note movement.
   await element.click({ position: { x: 5, y: 5 } });
   await element.hover({ position: { x: 5, y: 5 } });
+  // Native interaction evidence: record actual pointer and compatibility mouse
+  // events without mocking application movement or mutating annotation state.
+  await page.evaluate(() => {
+    const trace: Array<{ type: string; x: number; y: number; annotation: string | null }> = [];
+    (window as Window & { __wp01NoteDragTrace?: typeof trace }).__wp01NoteDragTrace = trace;
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'mousemove', 'mouseup']) {
+      window.addEventListener(type, (event) => {
+        if (trace.length >= 60) return;
+        const target = event.target instanceof Element ? event.target.closest('[data-annotation-type]') : null;
+        const mouse = event as MouseEvent;
+        trace.push({
+          type, x: mouse.clientX, y: mouse.clientY,
+          annotation: target?.getAttribute('data-annotation-type') ?? null,
+        });
+      }, { capture: true });
+    }
+  });
   const before = await element.boundingBox();
   const canvasBefore = await canvasElement.boundingBox();
   if (!before || !canvasBefore) throw new Error('Note or page has no display bounds');
@@ -37,6 +54,16 @@ test(`dragging a note at page rotation ${rotation} persists its native location`
   if (!after || !canvasAfter) throw new Error('Note or page disappeared after dragging');
   const viewDeltaX = (after.x - canvasAfter.x) - (before.x - canvasBefore.x);
   const viewDeltaY = (after.y - canvasAfter.y) - (before.y - canvasBefore.y);
+  const trace = await page.evaluate(() =>
+    (window as Window & { __wp01NoteDragTrace?: Array<{
+      type: string; x: number; y: number; annotation: string | null;
+    }> }).__wp01NoteDragTrace ?? [],
+  );
+  process.stdout.write('WP01_NOTE_DRAG_TRACE ' + JSON.stringify({
+    rotation, viewDeltaX, viewDeltaY,
+    before, after, canvasBefore, canvasAfter,
+    trace,
+  }) + '\n');
   expect(Math.abs(viewDeltaX - 20)).toBeLessThan(2);
   expect(Math.abs(viewDeltaY - 12)).toBeLessThan(2);
   const scale = canvasAfter.width / (rotation % 180 === 0 ? 400 : 500);

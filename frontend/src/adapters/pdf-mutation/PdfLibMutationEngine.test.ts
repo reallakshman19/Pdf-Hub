@@ -4,6 +4,7 @@ import {
   PDFArray,
   PDFDict,
   PDFDocument,
+  PDFHexString,
   PDFName,
   PDFNumber,
   StandardFonts,
@@ -318,6 +319,51 @@ describe('PdfLibMutationEngine', () => {
 
     loadSpy.mockRestore();
     session.dispose();
+  });
+
+  it('preserves unrelated native catalog entries when deleting pages and writing new PageLabels', async () => {
+    const source = await PDFDocument.load(await createPdf());
+    source.catalog.set(
+      PDFName.of('WP05NativeSentinel'),
+      PDFHexString.fromText('retain-source-metadata'),
+    );
+    source.catalog.set(
+      PDFName.of('PageLabels'),
+      source.context.obj({
+        Nums: [0, { P: PDFHexString.fromText('Cover') }, 1, { S: PDFName.of('r') }],
+      }),
+    );
+    const before = new Uint8Array(await source.save());
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes: before });
+    await session.removePages([0]);
+    session.setPageLabels([
+      { startPageIndex: 0, style: 'roman-lower' },
+    ]);
+    const committed = await session.commit();
+    const reopened = await PDFDocument.load(committed.bytes);
+
+    expect(committed.pageCount).toBe(2);
+    expect(reopened.getPageCount()).toBe(2);
+    expect(
+      reopened.catalog.lookupMaybe(
+        PDFName.of('WP05NativeSentinel'),
+        PDFHexString,
+      )?.decodeText(),
+    ).toBe('retain-source-metadata');
+    const labels = reopened.catalog.lookupMaybe(PDFName.of('PageLabels'), PDFDict);
+    const nums = labels?.lookupMaybe(PDFName.of('Nums'), PDFArray);
+    expect(nums?.size()).toBe(2);
+    expect(nums?.lookupMaybe(0, PDFNumber)?.asNumber()).toBe(0);
+    expect(
+      nums?.lookupMaybe(1, PDFDict)?.lookupMaybe(PDFName.of('S'), PDFName)?.asString(),
+    ).toBe('/r');
+
+    // A native mutation may not alter the source byte buffer in place.
+    expect(before.byteLength).toBeGreaterThan(0);
+    const originallyParsed = await PDFDocument.load(before);
+    expect(originallyParsed.getPageCount()).toBe(3);
   });
 
   it('validates structural mutations before committing', async () => {

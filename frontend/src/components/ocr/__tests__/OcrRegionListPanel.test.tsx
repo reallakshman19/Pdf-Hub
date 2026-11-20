@@ -74,6 +74,7 @@ function makeRegions(): OcrRegion[] {
   return [
     {
       id: 'region-1',
+      geometryProvenance: 'pdf-user-space-v2',
       documentFingerprint: 'doc-region-list',
       pageIndex: 0,
       mode: 'text',
@@ -88,6 +89,7 @@ function makeRegions(): OcrRegion[] {
     },
     {
       id: 'region-2',
+      geometryProvenance: 'pdf-user-space-v2',
       documentFingerprint: 'doc-region-list',
       pageIndex: 1,
       mode: 'table',

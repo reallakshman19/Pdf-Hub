@@ -118,6 +118,24 @@ describe('OCR PageId anchors', () => {
     });
   });
 
+  it('drops an explicit stale PageId instead of rebinding by physical index', () => {
+    const stale = state(0);
+    stale.regions = [{ ...stale.regions[0], pageId: 'deleted-page' }];
+    stale.corrections = [{ ...stale.corrections[0], pageId: 'deleted-page' }];
+    stale.reviewFocus = { ...stale.reviewFocus!, pageId: 'deleted-page' };
+    stale.result!.pages = [{ ...stale.result!.pages[0], pageId: 'deleted-page' }];
+
+    const normalized = normalizeOcrPageAnchoredState(stale, graph(['replacement', 'survivor']));
+    expect(normalized.regions).toEqual([]);
+    expect(normalized.corrections).toEqual([]);
+    expect(normalized.reviewFocus).toBeNull();
+    expect(normalized.result?.pages).toEqual([]);
+
+    // A truly legacy record with no PageId may still be upgraded by index.
+    const legacy = normalizeOcrPageAnchoredState(state(0), graph(['replacement']));
+    expect(legacy.regions[0].pageId).toBe('replacement');
+  });
+
   it('derives physical pageIndex from stable PageId after reorder', () => {
     const before = graph(['p1', 'p2', 'p3']);
     const after = graph(['p3', 'p2', 'p1']);
@@ -197,6 +215,46 @@ describe('OCR PageId anchors', () => {
     });
   });
 
+  it('does not double-rotate native PDF-space OCR words, regions, corrections or focus', () => {
+    const before = graph(['p1']);
+    const native = state(0);
+    native.result!.pages[0].geometryProvenance = 'pdf-user-space-v2';
+    native.regions[0].geometryProvenance = 'pdf-user-space-v2';
+    const after = rotatePagesInGraph(before, ['p1'], 90);
+
+    const remapped = reanchorOcrPageStateAfterPageGraphChange(
+      normalizeOcrPageAnchoredState(native, before),
+      before,
+      after,
+    );
+
+    expect(remapped.result?.pages[0]).toMatchObject({
+      pageId: 'p1', pageIndex: 0, width: 600, height: 800,
+      geometryProvenance: 'pdf-user-space-v2',
+    });
+    expect(remapped.result?.pages[0]?.words?.[0].bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    expect(remapped.regions[0].bbox).toEqual({
+      x: 80, y: 180, width: 120, height: 60,
+    });
+    expect(remapped.corrections[0].bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    expect(remapped.reviewFocus?.bbox).toEqual({
+      x: 100, y: 200, width: 50, height: 20,
+    });
+    // Existing untagged coordinates retain the historical rotation rule,
+    // never silently upgraded to the verified native-space convention.
+    const legacy = reanchorOcrPageStateAfterPageGraphChange(
+      normalizeOcrPageAnchoredState(state(0), before),
+      before,
+      after,
+    );
+    expect(legacy.result?.pages[0]?.words?.[0].bbox.x).toBe(200);
+    expect(legacy.regions[0].geometryProvenance).toBeUndefined();
+  });
+
   it('invalidates OCR when page content is replaced despite PageId surviving', () => {
     const before = graph(['p1', 'p2']);
     const after = graph(['p1', 'p2']);
@@ -237,25 +295,24 @@ describe('OCR PageId anchors', () => {
     ).toBe(false);
   });
 
-  it('can rebind opaque same-count output by physical page index', () => {
+  it('rejects silent same-index ownership replacement after all original PageIds vanish', () => {
     const anchored = normalizeOcrPageAnchoredState(
       state(1),
       graph(['old-1', 'old-2']),
     );
+    expect(anchored.result?.pages[0].pageId).toBe('old-2');
 
-    const rebound = normalizeOcrPageAnchoredState(
+    const replacement = normalizeOcrPageAnchoredState(
       anchored,
       graph(['new-1', 'new-2']),
     );
 
-    expect(rebound.result?.pages[0]).toMatchObject({
-      pageId: 'new-2',
-      pageIndex: 1,
-    });
-    expect(rebound.corrections[0]).toMatchObject({
-      pageId: 'new-2',
-      pageIndex: 1,
-    });
+    // Opaque equal-page-count output is NOT identity evidence: it could be a
+    // completely different document with similar pagination.
+    expect(replacement.result?.pages).toEqual([]);
+    expect(replacement.corrections).toEqual([]);
+    expect(replacement.regions).toEqual([]);
+    expect(replacement.reviewFocus).toBeNull();
   });
 
   it('rekeys OCR state to the committed document revision', () => {

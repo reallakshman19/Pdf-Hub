@@ -35,6 +35,7 @@ export interface RasterizeOcrRegionToPageInputInput {
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
   canvasFactory?: PdfPageRasterizerOptions['canvasFactory'];
+  signal?: AbortSignal;
 }
 
 export async function resolveOcrRegionPageInput(
@@ -79,6 +80,7 @@ export async function rasterizeOcrRegionToPageInput(
     mimeType: input.mimeType ?? 'image/png',
     quality: input.quality ?? 0.92,
     canvasFactory: input.canvasFactory,
+    signal: input.signal,
   });
 
   const pageInput = rasterizedPdfPageToOcrEnginePageInput(rasterizedPage);

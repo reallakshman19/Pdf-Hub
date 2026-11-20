@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PDFDocument } from 'pdf-lib';
+
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import {
   buildPageGraphFromPdfBytes,
   createInitialPageId,
 } from './pageGraphAdmission';
-import { rekeyPageGraph } from './pageGraph';
+import { createPageGraph, rekeyPageGraph, reorderPageGraph } from './pageGraph';
+import { reanchorPageLabelRangesAfterGraphChange } from './pageLabels';
+import { writePdfPageLabels } from './pdfPageLabelWriter';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -69,6 +73,63 @@ describe('PageGraph PDF admission', () => {
     expect(first.cleanup).toHaveBeenCalledTimes(1);
     expect(second.cleanup).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('admits actual native prefix, roman and restarted body label rules for later structural mutation', async () => {
+    const nativeDoc = await PDFDocument.create();
+    for (let i = 0; i < 5; i += 1) nativeDoc.addPage([595, 842]);
+    const sourceGraph = createPageGraph(
+      Array.from({ length: 5 }, (_, i) => ({
+        pageId: 'raw-' + i,
+        documentKey: 'raw',
+        originalPageNumber: i + 1,
+        currentIndex: i,
+        width: 595,
+        height: 842,
+        rotation: 0 as const,
+      })),
+    );
+    const ranges = [
+      { startPageId: 'raw-0', prefix: 'Cover' },
+      { startPageId: 'raw-1', style: 'roman-lower' as const },
+      { startPageId: 'raw-3', style: 'decimal' as const, prefix: 'Body-', startNumber: 7 },
+    ];
+    const labeled = await writePdfPageLabels(
+      new Uint8Array(await nativeDoc.save()),
+      sourceGraph,
+      ranges,
+    );
+    const labels = ['Cover', 'i', 'ii', 'Body-7', 'Body-8'];
+    vi.spyOn(PdfRendererAdapter, 'acquireDocument').mockResolvedValue({
+      doc: {
+        numPages: 5,
+        getPageLabels: vi.fn().mockResolvedValue(labels),
+        getPage: vi.fn(async (index: number) => page(index, 595, 842, 0)),
+      },
+      cacheKey: 'native-label-fixture',
+      release: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const admitted = await buildPageGraphFromPdfBytes(labeled.bytes, 'sha256:native');
+    expect(admitted.pageLabelRanges).toEqual([
+      { startPageId: 'sha256:native::page::1', prefix: 'Cover' },
+      { startPageId: 'sha256:native::page::2', style: 'roman-lower' },
+      {
+        startPageId: 'sha256:native::page::4',
+        style: 'decimal',
+        prefix: 'Body-',
+        startNumber: 7,
+      },
+    ]);
+    const reordered = reorderPageGraph(
+      admitted,
+      ['sha256:native::page::4', 'sha256:native::page::5'],
+      0,
+    );
+    const after = reanchorPageLabelRangesAfterGraphChange(admitted, reordered);
+    expect(after.pages.map((item) => item.logicalLabel)).toEqual([
+      'Body-7', 'Body-8', 'Cover', 'i', 'ii',
+    ]);
   });
 
   it('normalizes unsupported PDF rotations without changing metrics', async () => {
