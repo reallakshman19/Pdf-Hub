@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PdfAnnotation } from './types';
-import { rotateMarkupQuarterTurn } from './geometryTransform';
+import { initializeMarkupDraft, rotateMarkupQuarterTurn } from './geometryTransform';
 import { useAnnotationStore } from './store';
 import { useSessionStore } from '../session/store';
 import { useHistoryStore } from '../document-history/store';
@@ -19,6 +19,22 @@ function turn(value: PdfAnnotation): PdfAnnotation {
 }
 
 describe('native text markup rotation geometry', () => {
+  it.each(['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'] as const)(
+    'initializes and rotates a newly created %s before it has a native appearance', (type) => {
+      const original = { ...item(type), data: {} };
+      const draft = initializeMarkupDraft(original, 90);
+      expect(draft.data.nativeMarkupDraft).toEqual({ basisRotation: 90, turns: 0 });
+      if (type !== 'redaction') expect(draft.data.textMarkupQuads).toEqual([0, 0, 1, 0, 0, 1, 1, 1]);
+      const once = turn(draft);
+      expect(once.rect).toEqual({ x: 50, y: 0, width: 40, height: 100 });
+      expect(once.data.nativeMarkupDraft).toEqual({ basisRotation: 90, turns: 1 });
+      expect(once.data.nativeMarkupTurn).toBeUndefined();
+      const four = turn(turn(turn(once)));
+      expect(four.rect).toEqual(original.rect);
+      expect(four.data.nativeMarkupDraft).toEqual({ basisRotation: 90, turns: 0 });
+    },
+  );
+
   it.each(['highlight', 'underline', 'strikeout', 'squiggly'] as const)(
     'turns every ordered %s quad around its Rect center and restores it after four turns', (type) => {
       const original = item(type); const once = turn(original);
@@ -69,6 +85,10 @@ describe('native text markup rotation geometry', () => {
     const original = item();
     expect(rotateMarkupQuarterTurn({ ...original, type: 'line' })).toBeNull();
     expect(rotateMarkupQuarterTurn({ ...original, data: { ...original.data, nativeMarkupRotationSourceHash: undefined } })).toBeNull();
+    for (const invalid of [null, false, 0, 'invalid', {}]) {
+      const nativeMarkupDraft = invalid as unknown as NonNullable<PdfAnnotation['data']['nativeMarkupDraft']>;
+      expect(rotateMarkupQuarterTurn({ ...original, data: { ...original.data, nativeMarkupDraft } })).toBeNull();
+    }
     expect(rotateMarkupQuarterTurn({ ...original, data: { ...original.data, nativeIdentityAmbiguous: true } })).toBeNull();
     expect(rotateMarkupQuarterTurn({ ...original, data: { ...original.data, nativeCopySource: { pageNumber: 1, nativeName: 'source' } } })).toBeNull();
     expect(rotateMarkupQuarterTurn({ ...original, data: { ...original.data, nativeMarkupTurn: { turns: 1, sourceHash: 'stale' } } })).toBeNull();

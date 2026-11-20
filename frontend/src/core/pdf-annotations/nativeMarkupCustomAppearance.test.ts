@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream, PDFStream, PDFString, decodePDFRawStream, degrees } from 'pdf-lib';
 import { useAnnotationStore } from '../annotations/store';
+import { useSessionStore } from '../session/store';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
 
 const subtypes = ['Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Square'] as const;
+
+function setTestPages(destinationRotation: number) {
+  useSessionStore.setState({ documentKey: 'synthetic-markup', pageGraph: { pages: [0, destinationRotation].map((rotation, index) => ({
+    pageId: `synthetic-${index}`, documentKey: 'synthetic-markup', originalPageNumber: index + 1,
+    currentIndex: index, width: 300, height: 400, rotation: rotation as 0 | 90 | 180 | 270,
+  })) } });
+}
 
 describe('imported markup with absent optional fields', () => {
   it.each([true, false])('preserves absent fields on save and comment edit (appearance: %s)', async (withAppearance) => {
@@ -159,6 +167,7 @@ describe('native markup custom appearances', () => {
   it.each([0, 90, 180, 270])('preserves generated appearance provenance after copying to page rotation %s and editing after reopen', async (rotation) => {
     const created = await generatedFixture('Highlight', rotation);
     const source = (await readNativePdfAnnotations(created)).annotations[0];
+    setTestPages(rotation);
     useAnnotationStore.getState().setAnnotations([source]);
     useAnnotationStore.getState().setSelection([source.id]);
     useAnnotationStore.getState().copySelection();
@@ -182,6 +191,7 @@ describe('native markup custom appearances', () => {
     input.addPage([300, 400]);
     const bytes = await input.save();
     const original = (await readNativePdfAnnotations(bytes)).annotations[0];
+    setTestPages(0);
     useAnnotationStore.getState().setAnnotations([original]);
     useAnnotationStore.getState().setSelection([original.id]);
     useAnnotationStore.getState().copySelection();
@@ -238,6 +248,7 @@ describe('native markup custom appearances', () => {
     doc.addPage([300, 400]).setRotation(degrees(90));
     const bytes = await doc.save();
     const source = (await readNativePdfAnnotations(bytes)).annotations[0];
+    setTestPages(90);
     useAnnotationStore.getState().setAnnotations([source]);
     useAnnotationStore.getState().setSelection([source.id]);
     useAnnotationStore.getState().copySelection();

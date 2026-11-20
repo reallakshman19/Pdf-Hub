@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { useAnnotationStore } from '@/core/annotations/store';
-import { remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
+import { initializeMarkupDraft, remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
@@ -875,7 +875,7 @@ interface PageSurfaceProps {
   setDrawingLineCurrent: (val: { x: number; y: number } | null) => void;
 }
 
-const PageSurface: React.FC<PageSurfaceProps> = ({
+export const PageSurface: React.FC<PageSurfaceProps> = ({
   doc,
   pageNumber,
   scale,
@@ -886,8 +886,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   selectedExistingTextSourceIndex,
   onActivate,
   onSelectExistingText,
-  onCreateAnnotation,
-  onCreateManyAnnotations,
+  onCreateAnnotation: createAnnotation,
+  onCreateManyAnnotations: createManyAnnotations,
   onSetSingleSelection,
   onToggleSelection,
   onSetSelection,
@@ -931,12 +931,35 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     activeTool === 'comment';
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
-  const [rotation, setRotation] = React.useState(0);
+  const pageIdentity = React.useMemo(() => ({ doc, pageNumber }), [doc, pageNumber]);
+  const [viewportBasis, setViewportBasis] = React.useState<{
+    identity: typeof pageIdentity; rotation: number | null;
+  } | null>(null);
+  // A gesture may outlive a render; a new identity also invalidates it when
+  // the view switches away and later back to the same document and page.
+  const currentPageIdentity = React.useRef(pageIdentity);
+  React.useLayoutEffect(() => { currentPageIdentity.current = pageIdentity; }, [pageIdentity]);
+  const viewportReady = viewportBasis?.identity === pageIdentity && viewportBasis.rotation !== null;
+  const viewportInvalid = viewportBasis?.identity === pageIdentity && viewportBasis.rotation === null;
+  const hasViewportBasis = () => viewportReady && currentPageIdentity.current === pageIdentity;
+  const rotation = viewportReady && viewportBasis ? (viewportBasis.rotation ?? 0) : 0;
+  const needsViewportBasis = (annotation: PdfAnnotation) =>
+    annotation.type === 'highlight' || annotation.type === 'underline' ||
+    annotation.type === 'strikeout' || annotation.type === 'squiggly' ||
+    annotation.type === 'redaction' || annotation.type === 'stamp';
+  const onCreateAnnotation = (annotation: PdfAnnotation) => {
+    if (needsViewportBasis(annotation) && !hasViewportBasis()) return;
+    createAnnotation(initializeMarkupDraft(annotation, rotation));
+  };
+  const onCreateManyAnnotations = (annotations: PdfAnnotation[]) => {
+    if (annotations.some(needsViewportBasis) && !hasViewportBasis()) return;
+    createManyAnnotations(annotations.map((annotation) => initializeMarkupDraft(annotation, rotation)));
+  };
   const [textItems, setTextItems] = React.useState<TextLayerItem[]>([]);
   const [draftRects, setDraftRects] = React.useState<Record<string, Rect>>({});
   const [draftAnchors, setDraftAnchors] = React.useState<Record<string, Point2D | null>>({});
   const [draftKnees, setDraftKnees] = React.useState<Record<string, Point2D | null>>({});
-  const [draftLinePoints, setDraftLinePoints] = React.useState<Record<string, number[]>>({});
+  const [, setDraftLinePoints] = React.useState<Record<string, number[]>>({});
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingValue, setEditingValue] = React.useState('');
   const [marquee, setMarquee] = React.useState<Rect | null>(null);
@@ -948,6 +971,37 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftAnchorsRef = React.useRef<Record<string, Point2D | null>>({});
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
+
+  // A page can be replaced or unmounted while a window-level gesture is in
+  // progress. Only one gesture may own these listeners; cancelling never
+  // invokes the completion callback.
+  const cancelGestureRef = React.useRef<(() => void) | null>(null);
+  React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [pageIdentity]);
+  const listenForGesture = (
+    onMove: (event: MouseEvent) => void,
+    onUp: (event: MouseEvent) => void,
+    onCancel: () => void,
+  ) => {
+    cancelGestureRef.current?.();
+    const detach = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', finish);
+      if (cancelGestureRef.current === cancel) cancelGestureRef.current = null;
+    };
+    const cancel = () => { detach(); onCancel(); };
+    const move = (event: MouseEvent) => {
+      if (currentPageIdentity.current !== pageIdentity) { cancel(); return; }
+      onMove(event);
+    };
+    const finish = (event: MouseEvent) => {
+      if (currentPageIdentity.current !== pageIdentity) { cancel(); return; }
+      detach();
+      onUp(event);
+    };
+    cancelGestureRef.current = cancel;
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', finish);
+  };
 
   const { size: renderSize } = usePageRenderer({
     doc,
@@ -961,11 +1015,22 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     let cancelled = false;
 
     const render = async () => {
-      const page = await doc.getPage(pageNumber);
-      if (!cancelled) {
+      let page: Awaited<ReturnType<PDFDocumentProxy['getPage']>>;
+      try {
+        page = await doc.getPage(pageNumber);
+        if (cancelled) return;
         const viewport = page.getViewport({ scale });
         setSize({ width: viewport.width, height: viewport.height });
-        setRotation(viewport.rotation || 0);
+        const rawRotation = viewport.rotation === undefined ? 0 : viewport.rotation;
+        const viewportRotation = ((rawRotation % 360) + 360) % 360;
+        if (Number.isFinite(rawRotation) && [0, 90, 180, 270].includes(viewportRotation)) {
+          setViewportBasis({ identity: pageIdentity, rotation: viewportRotation });
+        } else {
+          setViewportBasis({ identity: pageIdentity, rotation: null });
+        }
+      } catch {
+        if (!cancelled) setViewportBasis({ identity: pageIdentity, rotation: null });
+        return;
       }
 
       const items = await PdfRendererAdapter.getPageTextItems(page, scale);
@@ -979,23 +1044,30 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [doc, pageNumber, scale]);
+  }, [doc, pageNumber, scale, pageIdentity]);
 
-  React.useEffect(() => {
-    draftRectsRef.current = draftRects;
-  }, [draftRects]);
-
-  React.useEffect(() => {
-    draftAnchorsRef.current = draftAnchors;
-  }, [draftAnchors]);
-
-  React.useEffect(() => {
-    draftKneesRef.current = draftKnees;
-  }, [draftKnees]);
-
-  React.useEffect(() => {
-    draftLinePointsRef.current = draftLinePoints;
-  }, [draftLinePoints]);
+  // Mouseup can follow mousemove before React commits an effect. Keep the
+  // authoritative gesture state synchronous so fast drags cannot lose edits.
+  const updateDraftRects = (update: (state: Record<string, Rect>) => Record<string, Rect>) => {
+    const next = update(draftRectsRef.current);
+    draftRectsRef.current = next;
+    setDraftRects(next);
+  };
+  const updateDraftAnchors = (update: (state: Record<string, Point2D | null>) => Record<string, Point2D | null>) => {
+    const next = update(draftAnchorsRef.current);
+    draftAnchorsRef.current = next;
+    setDraftAnchors(next);
+  };
+  const updateDraftKnees = (update: (state: Record<string, Point2D | null>) => Record<string, Point2D | null>) => {
+    const next = update(draftKneesRef.current);
+    draftKneesRef.current = next;
+    setDraftKnees(next);
+  };
+  const updateDraftLinePoints = (update: (state: Record<string, number[]>) => Record<string, number[]>) => {
+    const next = update(draftLinePointsRef.current);
+    draftLinePointsRef.current = next;
+    setDraftLinePoints(next);
+  };
 
   React.useEffect(() => {
     if (activeHitId) {
@@ -1077,6 +1149,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     mode: 'move' | 'resize',
   ) => {
     if (annotation.data.locked === true) return;
+    cancelGestureRef.current?.();
 
     event.stopPropagation();
     clearTextSelectionDraft();
@@ -1129,9 +1202,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       pageHeight: size.height / scale,
     };
 
+    let moved = false;
     const onMove = (moveEvent: MouseEvent) => {
       const current = transformRef.current;
       if (!current) return;
+      // Pointer and mouse events may round coordinates differently. A click
+      // must not dirty native geometry or regenerate its appearance.
+      if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
+      moved = true;
 
       const dx = (moveEvent.clientX - current.startClientX) / scale;
       const dy = (moveEvent.clientY - current.startClientY) / scale;
@@ -1166,9 +1244,9 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             : null;
         });
 
-        setDraftRects((state) => ({ ...state, ...nextRects }));
-        setDraftAnchors((state) => ({ ...state, ...nextAnchors }));
-        setDraftKnees((state) => ({ ...state, ...nextKnees }));
+        updateDraftRects((state) => ({ ...state, ...nextRects }));
+        updateDraftAnchors((state) => ({ ...state, ...nextAnchors }));
+        updateDraftKnees((state) => ({ ...state, ...nextKnees }));
       } else {
         const baseRect = current.startRects[current.targetId];
         const target = pageAnnotations.find((item) => item.id === current.targetId);
@@ -1188,25 +1266,27 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         if (target.type === 'line' || target.type === 'arrow') {
           const linePoints = scaled.points;
           if (Array.isArray(linePoints)) {
-            setDraftLinePoints((state) => ({
+            updateDraftLinePoints((state) => ({
               ...state,
               [current.targetId]: linePoints,
             }));
           }
         }
 
-        setDraftRects((state) => ({
+        updateDraftRects((state) => ({
           ...state,
           [current.targetId]: scaled.rect,
         }));
       }
     };
 
-    const onUp = () => {
+    const onUp = (upEvent: MouseEvent) => {
+      const gesture = transformRef.current;
+      if (gesture && (moved || Math.hypot(upEvent.clientX - gesture.startClientX, upEvent.clientY - gesture.startClientY) >= 1)) onMove(upEvent);
       const current = transformRef.current;
       if (!current) return;
 
-      if (current.mode === 'move') {
+      if (moved && current.mode === 'move') {
         const liveRects = draftRectsRef.current;
         const liveAnchors = draftAnchorsRef.current;
         const liveKnees = draftKneesRef.current;
@@ -1227,7 +1307,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
             } as Partial<PdfAnnotation>,
           })),
         );
-      } else {
+      } else if (moved) {
         const item = pageAnnotations.find((value) => value.id === current.targetId);
         if (item) {
           const liveRects = draftRectsRef.current;
@@ -1245,28 +1325,28 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         }
       }
 
-      setDraftRects((state) => {
+      updateDraftRects((state) => {
         const next = { ...state };
         current.ids.forEach((id) => {
           delete next[id];
         });
         return next;
       });
-      setDraftAnchors((state) => {
+      updateDraftAnchors((state) => {
         const next = { ...state };
         current.ids.forEach((id) => {
           delete next[id];
         });
         return next;
       });
-      setDraftKnees((state) => {
+      updateDraftKnees((state) => {
         const next = { ...state };
         current.ids.forEach((id) => {
           delete next[id];
         });
         return next;
       });
-      setDraftLinePoints((state) => {
+      updateDraftLinePoints((state) => {
         const next = { ...state };
         current.ids.forEach((id) => {
           delete next[id];
@@ -1275,12 +1355,15 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       });
 
       transformRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    listenForGesture(onMove, onUp, () => {
+      transformRef.current = null;
+      updateDraftRects(() => ({}));
+      updateDraftAnchors(() => ({}));
+      updateDraftKnees(() => ({}));
+      updateDraftLinePoints(() => ({}));
+    });
   };
 
   const startAnchorDrag = (
@@ -1288,13 +1371,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     annotation: PdfAnnotation,
   ) => {
     if (annotation.data.locked === true) return;
+    cancelGestureRef.current?.();
 
-    const anchor = readAnchor(annotation, draftAnchors[annotation.id] ?? null);
+    const anchor = readAnchor(annotation, draftAnchorsRef.current[annotation.id] ?? null);
     if (!anchor) return;
     const rect = draftRectsRef.current[annotation.id] ?? annotation.rect;
     const knee = readKnee(
       annotation,
-      draftKnees[annotation.id] ?? null,
+      draftKneesRef.current[annotation.id] ?? null,
       anchor,
       rect,
     );
@@ -1313,9 +1397,12 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       pageHeight,
     };
 
+    let moved = false;
     const onMove = (moveEvent: MouseEvent) => {
       const current = anchorDragRef.current;
       if (!current) return;
+      if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
+      moved = true;
 
       const screenDx = (moveEvent.clientX - current.startClientX) / scale;
       const screenDy = (moveEvent.clientY - current.startClientY) / scale;
@@ -1326,7 +1413,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         ? { x: current.startAnchor.x + dx, y: current.startAnchor.y + dy }
         : { x: clamp(current.startAnchor.x + dx, 0, current.pageWidth), y: clamp(current.startAnchor.y + dy, 0, current.pageHeight) };
 
-      setDraftAnchors((state) => ({
+      updateDraftAnchors((state) => ({
         ...state,
         [current.id]: nextAnchor,
       }));
@@ -1339,7 +1426,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         const style = source.data.leaderStyle === 'straight' ? 'straight' : 'elbow';
         if (style === 'elbow') {
           const nextKnee = computeDefaultCalloutKnee(sourceRect, nextAnchor);
-          setDraftKnees((state) => ({
+          updateDraftKnees((state) => ({
             ...state,
             [current.id]: nextKnee,
           }));
@@ -1347,12 +1434,14 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       }
     };
 
-    const onUp = () => {
+    const onUp = (upEvent: MouseEvent) => {
+      const gesture = anchorDragRef.current;
+      if (gesture && (moved || Math.hypot(upEvent.clientX - gesture.startClientX, upEvent.clientY - gesture.startClientY) >= 1)) onMove(upEvent);
       const current = anchorDragRef.current;
       if (!current) return;
 
       const item = pageAnnotations.find((value) => value.id === current.id);
-      if (item) {
+      if (item && moved) {
         const liveAnchors = draftAnchorsRef.current;
         const liveKnees = draftKneesRef.current;
         const nextData = {
@@ -1371,28 +1460,30 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
         });
       }
 
-      setDraftAnchors((state) => {
+      updateDraftAnchors((state) => {
         const next = { ...state };
         delete next[current.id];
         return next;
       });
-      setDraftKnees((state) => {
+      updateDraftKnees((state) => {
         const next = { ...state };
         delete next[current.id];
         return next;
       });
 
       anchorDragRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    listenForGesture(onMove, onUp, () => {
+      anchorDragRef.current = null;
+      updateDraftAnchors(() => ({}));
+      updateDraftKnees(() => ({}));
+    });
   };
 
   const handleTextSelectionMouseUp = () => {
     if (!(isSelectTool || isTextMarkTool || isNoteTool) || !pageRef.current) return;
+    if (isTextMarkTool && !hasViewportBasis()) return;
 
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
@@ -1515,37 +1606,44 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     clearTextSelectionDraft();
   };
 
-  const marqueeRef = React.useRef<Rect | null>(null);
-  React.useEffect(() => {
-    marqueeRef.current = marquee;
-  }, [marquee]);
-
   const [inkPaths, setInkPaths] = React.useState<number[][]>([]);
   const currentPathRef = React.useRef<number[]>([]);
 
   const startMarquee = (event: React.MouseEvent<HTMLDivElement>) => {
+    cancelGestureRef.current?.();
     if (activeTool === 'ink') {
       const hostRect = event.currentTarget.getBoundingClientRect();
       const x = (event.clientX - hostRect.left) / scale;
       const y = (event.clientY - hostRect.top) / scale;
       currentPathRef.current = [x, y];
 
-      const onMove = (moveEvent: MouseEvent) => {
-        if (!moveEvent.buttons) return;
-        const moveX = (moveEvent.clientX - hostRect.left) / scale;
-        const moveY = (moveEvent.clientY - hostRect.top) / scale;
-        currentPathRef.current = [...currentPathRef.current, moveX, moveY];
+      const appendPoint = (pointerEvent: MouseEvent) => {
+        const pointX = (pointerEvent.clientX - hostRect.left) / scale;
+        const pointY = (pointerEvent.clientY - hostRect.top) / scale;
+        const path = currentPathRef.current;
+        const lastX = path[path.length - 2];
+        const lastY = path[path.length - 1];
+        if (path.length === 2 && Math.hypot((pointX - x) * scale, (pointY - y) * scale) < 1) return;
+        if (pointX === lastX && pointY === lastY) return;
+        const nextPath = [...path, pointX, pointY];
+        currentPathRef.current = nextPath;
         setInkPaths(prev => {
           const newPaths = [...prev];
-          newPaths[newPaths.length - 1] = currentPathRef.current;
+          newPaths[newPaths.length - 1] = nextPath;
           return newPaths;
         });
       };
+      const onMove = (moveEvent: MouseEvent) => {
+        if (moveEvent.buttons) appendPoint(moveEvent);
+      };
 
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-        if (currentPathRef.current.length < 4) return;
+      const onUp = (upEvent: MouseEvent) => {
+        appendPoint(upEvent);
+        if (currentPathRef.current.length < 4) {
+          setInkPaths([]);
+          currentPathRef.current = [];
+          return;
+        }
 
         const path = currentPathRef.current;
         const xs = path.filter((_, i) => i % 2 === 0);
@@ -1570,8 +1668,10 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       };
 
       setInkPaths(prev => [...prev, currentPathRef.current]);
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
+      listenForGesture(onMove, onUp, () => {
+        currentPathRef.current = [];
+        setInkPaths([]);
+      });
       return;
     }
 
@@ -1582,44 +1682,36 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
     const hostRect = event.currentTarget.getBoundingClientRect();
     const startX = (event.clientX - hostRect.left) / scale;
     const startY = (event.clientY - hostRect.top) / scale;
-    let latestMarquee: Rect = { x: startX, y: startY, width: 0, height: 0 };
-    setMarquee(latestMarquee);
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const x = (moveEvent.clientX - hostRect.left) / scale;
-      const y = (moveEvent.clientY - hostRect.top) / scale;
-      latestMarquee = {
+    setMarquee({ x: startX, y: startY, width: 0, height: 0 });
+    const marqueeAt = (pointerEvent: MouseEvent): Rect => {
+      const x = (pointerEvent.clientX - hostRect.left) / scale;
+      const y = (pointerEvent.clientY - hostRect.top) / scale;
+      return {
         x: Math.min(startX, x),
         y: Math.min(startY, y),
         width: Math.abs(x - startX),
         height: Math.abs(y - startY),
       };
-      setMarquee(latestMarquee);
     };
+    const onMove = (moveEvent: MouseEvent) => { setMarquee(marqueeAt(moveEvent)); };
 
-    const onUp = () => {
-      const currentMarquee = marqueeRef.current ?? latestMarquee;
-      if (currentMarquee) {
-        const hitIds = pageAnnotations
-          .filter((annotation) => intersects(annotation.rect, currentMarquee))
-          .map((annotation) => annotation.id);
+    const onUp = (upEvent: MouseEvent) => {
+      const currentMarquee = marqueeAt(upEvent);
+      const hitIds = pageAnnotations
+        .filter((annotation) => intersects(annotation.rect, currentMarquee))
+        .map((annotation) => annotation.id);
 
-        if (event.metaKey || event.ctrlKey) {
-          hitIds.forEach((id) => onToggleSelection(id));
-        } else if (hitIds.length > 0) {
-          onSetSelection(hitIds);
-        } else {
-          onClearSelection();
-        }
+      if (event.metaKey || event.ctrlKey) {
+        hitIds.forEach((id) => onToggleSelection(id));
+      } else if (hitIds.length > 0) {
+        onSetSelection(hitIds);
+      } else {
+        onClearSelection();
       }
-
       setMarquee(null);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    listenForGesture(onMove, onUp, () => { setMarquee(null); });
   };
 
   /**
@@ -1630,6 +1722,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
    * from buildAnnotation so placing by click still works.
    */
   const startShapeDraw = (event: React.MouseEvent<HTMLDivElement>) => {
+    cancelGestureRef.current?.();
     onActivate();
 
     const hostRect = event.currentTarget.getBoundingClientRect();
@@ -1638,6 +1731,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
 
     if (!isAnnotationType(activeTool)) return;
     const tool = activeTool;
+    if (['highlight', 'underline', 'strikeout', 'squiggly', 'redaction', 'stamp'].includes(tool) && !hasViewportBasis()) return;
 
     // Line and arrow are placed via exactly two clicks.
     if (tool === 'line' || tool === 'arrow') {
@@ -1662,19 +1756,8 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
           y2 - rectY
         ];
 
-        const annotation: PdfAnnotation = {
-          id: uuidv4(),
-          type: tool,
-          pageNumber,
-          rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight },
-          data: {
-            borderColor: '#111827',
-            points,
-            ...(tool === 'arrow' ? { lineEndCap: 'arrow' } : {}),
-          },
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
+        const annotation = buildLineAnnotation(tool, pageNumber,
+          { x: rectX, y: rectY, width: rectWidth, height: rectHeight }, points);
 
         onCreateAnnotation(annotation);
         setDrawingLineStart(null);
@@ -1699,8 +1782,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
 
     setShapeDraft(latestDraft);
 
-    const onMove = (moveEvent: MouseEvent) => {
-      if (!moveEvent.buttons) return;
+    const updatePlacement = (moveEvent: MouseEvent) => {
       rawEndX = (moveEvent.clientX - hostRect.left) / scale;
       rawEndY = (moveEvent.clientY - hostRect.top) / scale;
       latestDraft = {
@@ -1712,10 +1794,12 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       if (latestDraft.width > 5 || latestDraft.height > 5) isDrag = true;
       setShapeDraft({ ...latestDraft });
     };
+    const onMove = (moveEvent: MouseEvent) => {
+      if (moveEvent.buttons) updatePlacement(moveEvent);
+    };
 
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+    const onUp = (upEvent: MouseEvent) => {
+      updatePlacement(upEvent);
       setShapeDraft(null);
       clearTextSelectionDraft();
 
@@ -1736,8 +1820,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       resetInteractionState();
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    listenForGesture(onMove, onUp, () => { setShapeDraft(null); });
   };
 
   return (
@@ -1749,6 +1832,12 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       onClick={onActivate}
     >
       <canvas ref={canvasRef} className="block" />
+
+      {!viewportReady && (isTextMarkTool || ['squiggly', 'redaction', 'stamp'].includes(activeTool)) && (
+        <div role="status" className="absolute top-2 left-2 z-50 rounded bg-slate-900 px-2 py-1 text-xs text-white pointer-events-none">
+          {viewportInvalid ? 'Unable to determine page rotation.' : 'Loading page…'}
+        </div>
+      )}
 
       {pageOcrFocus ? (
         <div
@@ -1771,6 +1860,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       ) : null}
 
       <div
+        data-testid="annotation-interaction-layer"
         className="absolute inset-0"
         style={{
           pointerEvents: isSelectTool || isTextMarkTool || isNoteTool || activeTool === 'ink' ? 'auto' : 'none',
@@ -1993,6 +2083,7 @@ const PageSurface: React.FC<PageSurfaceProps> = ({
       )}
 
       <div
+        data-testid="annotation-placement-layer"
         className={`absolute inset-0 ${
           activeTool !== 'select' ? 'cursor-crosshair' : ''
         }`}
@@ -2197,6 +2288,15 @@ const PageSurfaceMemo = React.memo(
 
 
 
+
+function buildLineAnnotation(type: 'line' | 'arrow', pageNumber: number, rect: Rect, points: number[]): PdfAnnotation {
+  const timestamp = Date.now();
+  return {
+    id: uuidv4(), type, pageNumber, rect,
+    data: { borderColor: '#111827', points, ...(type === 'arrow' ? { lineEndCap: 'arrow' } : {}) },
+    createdAt: timestamp, updatedAt: timestamp,
+  };
+}
 
 function buildAnnotation(
   tool: AnnotationType,

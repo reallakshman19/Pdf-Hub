@@ -125,3 +125,50 @@ for (const destinationRotation of [0, 90]) {
     } finally { await fresh.close(); }
   });
 }
+
+test('creates, turns and copies a squiggly before its first save on differently rotated pages', async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  const doc = await PDFDocument.create();
+  const first = doc.addPage([400, 500]); first.setCropBox(25, 30, 300, 400); first.setRotation(degrees(90));
+  const second = doc.addPage([400, 500]); second.setCropBox(25, 30, 300, 400);
+  await open(page, await doc.save()); await zoom125(page);
+  await page.getByRole('tab', { name: 'Annotate' }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: /^Squiggly/ }).click();
+  const canvas = page.locator('[data-page="1"] canvas'); await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox(); if (!box) throw new Error('Synthetic page is not visible');
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.36, { steps: 8 });
+  await page.mouse.up();
+  const squiggle = (number: number) => page.locator(`[data-page="${number}"] [data-annotation-type="squiggly"]`).first();
+  await expect(squiggle(1)).toBeVisible();
+  await page.getByRole('button', { name: 'Rotate 90° clockwise' }).click();
+  await expect(squiggle(1).locator('svg path').first()).toHaveAttribute('transform', /rotate\(90\)/);
+  await page.keyboard.press('Control+c');
+  await page.getByRole('button', { name: /^Page 2\b/ }).click();
+  await page.keyboard.press('Control+v');
+  await expect(squiggle(2)).toBeVisible();
+  await expect(squiggle(2).locator('svg path').first()).toHaveAttribute('transform', /rotate\(90\)/);
+  const output = await save(page);
+  const saved = await PDFDocument.load(output);
+  for (const index of [0, 1]) {
+    const annotation = saved.getPage(index).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
+    expect(annotation.get(PDFName.of('Subtype'))?.toString()).toBe('/Squiggly');
+    expect(annotation.lookup(PDFName.of('AP'), PDFDict).lookup(PDFName.of('N'), PDFStream)).toBeDefined();
+  }
+  const proofDir = process.env.WP01_SYNTHETIC_MARKUP_PROOF_DIR;
+  if (proofDir) {
+    await fs.mkdir(proofDir, { recursive: true });
+    await fs.writeFile(path.join(proofDir, 'synthetic-new-squiggle-copy.pdf'), output);
+  }
+  const fresh = await browser.newContext();
+  try {
+    const reopened = await fresh.newPage(); await open(reopened, output); await zoom125(reopened);
+    await expect(reopened.locator('[data-page="1"] [data-annotation-type="squiggly"] svg path').first())
+      .toHaveAttribute('transform', /rotate\(90\)/);
+    await reopened.getByRole('button', { name: /^Page 2\b/ }).click();
+    await expect(reopened.locator('[data-page="2"] [data-annotation-type="squiggly"] svg path').first())
+      .toHaveAttribute('transform', /rotate\(90\)/);
+  } finally { await fresh.close(); }
+});

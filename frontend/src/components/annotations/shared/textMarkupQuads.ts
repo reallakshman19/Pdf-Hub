@@ -13,8 +13,15 @@ export function textMarkupPreviewRotation(
   sourceHash: string | undefined,
   persistedTurns: number | undefined,
   pendingTurn: { turns: number; sourceHash: string } | undefined,
+  draft?: { basisRotation: number; turns: number },
 ): number | undefined {
   if (pageRotation === undefined || !Number.isFinite(pageRotation)) return undefined;
+  if (draft !== undefined) {
+    if (!draft || typeof draft !== 'object' || sourceHash || persistedTurns !== undefined || pendingTurn !== undefined
+      || ![0, 90, 180, 270].includes(draft.basisRotation)
+      || !Number.isInteger(draft.turns) || draft.turns < 0 || draft.turns > 3) return undefined;
+    return ((pageRotation - draft.basisRotation + draft.turns * 90) % 360 + 360) % 360;
+  }
   const validHash = typeof sourceHash === 'string' && sourceHash.length > 0;
   if (persistedTurns !== undefined && (!validHash || !Number.isInteger(persistedTurns) || persistedTurns < 0 || persistedTurns > 3)) return undefined;
   if (pendingTurn !== undefined && (!pendingTurn || !validHash || pendingTurn.sourceHash !== sourceHash
@@ -32,6 +39,7 @@ export function orientedTextMarkupQuads(
   width: number,
   height: number,
   pageRotation: number | undefined,
+  knownGenerated = false,
 ): OrientedTextMarkupQuad[] | null {
   if (pageRotation === undefined || !Number.isFinite(pageRotation)) return null;
   const angle = ((pageRotation % 360) + 360) % 360;
@@ -54,10 +62,32 @@ export function orientedTextMarkupQuads(
       Math.abs(n - expected[index]) > (index % 2 === 0 ? epsilonX : epsilonY))) return null;
     const along = angle % 180 === 0 ? rect.width : rect.height;
     const across = angle % 180 === 0 ? rect.height : rect.width;
-    if (along <= across) return null;
+    if (!knownGenerated && along <= across) return null;
     result.push({ x: first.x, y: first.y, width: along, height: across, angle });
   }
   return result;
+}
+
+/** Drafts have no source appearance. Saved state must be rederived from the PDF. */
+export function hasKnownMarkupOrientation(data: {
+  nativeMarkupDraft?: { basisRotation: number; turns: number };
+  nativeMarkupGeneratedAppearance?: boolean;
+  nativeMarkupRotationSourceHash?: string;
+  nativeMarkupTurn?: { turns: number; sourceHash: string };
+  nativeMarkupPreviewOffset?: number;
+  nativeSourceRef?: string;
+  nativeOriginalName?: string;
+  nativeCopySource?: { requiresSource?: boolean };
+}): boolean {
+  const draft = data.nativeMarkupDraft;
+  const fresh = Boolean(draft && typeof draft === 'object'
+    && !data.nativeSourceRef && !data.nativeOriginalName && !data.nativeCopySource?.requiresSource
+    && !data.nativeMarkupRotationSourceHash && !data.nativeMarkupTurn
+    && data.nativeMarkupPreviewOffset === undefined
+    && [0, 90, 180, 270].includes(draft.basisRotation)
+    && Number.isInteger(draft.turns) && draft.turns >= 0 && draft.turns <= 3);
+  return fresh || (data.nativeMarkupGeneratedAppearance === true
+    && typeof data.nativeMarkupRotationSourceHash === 'string' && data.nativeMarkupRotationSourceHash.length > 0);
 }
 
 /** Transform local upright quad coordinates into displayed page coordinates. */

@@ -59,7 +59,10 @@ export function useAnnotationPersistence({
         delete data.nativeBoxShapeGeneratedOrientation;
         delete data.nativeMarkupRotationSourceHash;
         delete data.nativeMarkupPreviewOffset;
+        delete data.nativeMarkupGeneratedAppearance;
         if (source) {
+          // Draft state cannot authorize changes to artwork already in the PDF.
+          delete data.nativeMarkupDraft;
           // Classify from the native source, never a potentially stale
           // editable/generated flag restored from a sidecar.
           if (item.type === 'stamp') {
@@ -94,6 +97,7 @@ export function useAnnotationPersistence({
           }
           if (source.data.nativeMarkupRotationSourceHash) {
             data.nativeMarkupRotationSourceHash = source.data.nativeMarkupRotationSourceHash;
+            if (source.data.nativeMarkupGeneratedAppearance) data.nativeMarkupGeneratedAppearance = true;
             const graph = useSessionStore.getState().pageGraph;
             const from = graph?.pages[(origin?.pageNumber ?? source.pageNumber) - 1]?.rotation;
             const to = graph?.pages[item.pageNumber - 1]?.rotation;

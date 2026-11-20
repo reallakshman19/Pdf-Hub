@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFStream, PDFString, decodePDFRawStream, degrees } from 'pdf-lib';
 import type { PdfAnnotation } from '../annotations/types';
 import { useAnnotationStore } from '../annotations/store';
+import { useSessionStore } from '../session/store';
+import { initializeMarkupDraft, rotateMarkupQuarterTurn } from '../annotations/geometryTransform';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
 
@@ -40,7 +42,47 @@ async function first(bytes: Uint8Array) {
   return doc.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
 }
 
+function setTestPages(from: number, to: number) {
+  useSessionStore.setState({ documentKey: 'synthetic-markup', pageGraph: { pages: [from, to].map((rotation, index) => ({
+    pageId: `synthetic-${index}`, documentKey: 'synthetic-markup', originalPageNumber: index + 1,
+    currentIndex: index, width: 400, height: 500, rotation: rotation as 0 | 90 | 180 | 270,
+  })) } });
+}
+
 describe('source-bound native markup rotation', () => {
+  it.each([0, 90, 180, 270])('creates, turns and reopens a new underline on a %s-degree page', async (rotation) => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([400, 500]);
+    page.setCropBox(20, 30, 360, 450); page.setRotation(degrees(rotation));
+    const bytes = await doc.save();
+    const draft = initializeMarkupDraft({ id: 'new-synthetic', type: 'underline', pageNumber: 1,
+      rect: { x: 60, y: 90, width: 120, height: 20 }, data: { borderColor: '#123456' }, createdAt: 1, updatedAt: 1 }, rotation);
+    const patch = rotateMarkupQuarterTurn(draft);
+    expect(patch).not.toBeNull();
+    const saved = await writeNativePdfAnnotations(bytes, [{ ...draft, ...patch }]);
+    const reopened = (await readNativePdfAnnotations(saved.bytes)).annotations[0];
+    expect(reopened.data.nativeMarkupDraft).toBeUndefined();
+    expect(reopened.data.nativeMarkupRotationSourceHash).toBeDefined();
+    expect(reopened.data.nativeMarkupPreviewOffset).toBe(((1 - rotation / 90) % 4 + 4) % 4);
+    expect(rotateMarkupQuarterTurn(reopened)).not.toBeNull();
+  });
+
+  it('rejects a forged draft marker when a native source already exists', async () => {
+    const bytes = await fixture();
+    const source = (await readNativePdfAnnotations(bytes)).annotations[0];
+    const forged = { ...source, data: { ...source.data, nativeMarkupRotationSourceHash: undefined,
+      nativeMarkupDraft: { basisRotation: 0, turns: 1 } } };
+    await expect(writeNativePdfAnnotations(bytes, [forged])).rejects.toThrow(/safely/i);
+  });
+
+  it.each([null, false, 0, 'invalid', {}])('refuses to save malformed markup draft state %s', async (value) => {
+    const doc = await PDFDocument.create(); doc.addPage([400, 500]);
+    const draft = initializeMarkupDraft({ id: 'new-synthetic', type: 'underline', pageNumber: 1,
+      rect: { x: 60, y: 90, width: 120, height: 20 }, data: {}, createdAt: 1, updatedAt: 1 }, 0);
+    draft.data.nativeMarkupDraft = value as unknown as NonNullable<PdfAnnotation['data']['nativeMarkupDraft']>;
+    await expect(writeNativePdfAnnotations(await doc.save(), [draft])).rejects.toThrow(/safely/i);
+  });
+
   it.each([0, 90, 180, 270])('turns imported markup on a cropped page at %s degrees, saves and can turn after reopening', async (rotation) => {
     const bytes = await fixture(rotation);
     const item = (await readNativePdfAnnotations(bytes)).annotations[0];
@@ -137,6 +179,7 @@ describe('source-bound native markup rotation', () => {
     const item = (await readNativePdfAnnotations(source)).annotations[0];
     const saved = await writeNativePdfAnnotations(source, [turned(item)]);
     const rotated = (await readNativePdfAnnotations(saved.bytes)).annotations[0];
+    setTestPages(from, to);
     useAnnotationStore.getState().setAnnotations([rotated]);
     useAnnotationStore.getState().setSelection([rotated.id]);
     useAnnotationStore.getState().copySelection();
@@ -170,6 +213,7 @@ describe('source-bound native markup rotation', () => {
       doc.addPage([400, 500]).setRotation(degrees(to));
       const bytes = await doc.save();
       const original = (await readNativePdfAnnotations(bytes)).annotations[0];
+      setTestPages(from, to);
       useAnnotationStore.getState().setAnnotations([turned(original)]);
       useAnnotationStore.getState().setSelection([original.id]);
       useAnnotationStore.getState().copySelection();

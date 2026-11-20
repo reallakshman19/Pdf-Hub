@@ -19,6 +19,7 @@ import { BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY,
   sealGeneratedBoxAppearanceFingerprint, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
 import { fingerprintNativeCloudRotation, rotateCloudInsets, supportsNativeCloudRotation } from './nativeCloudRotation';
 import { fingerprintNativeMarkupRotation, readNativeMarkupPreviewOffset, sealNativeMarkupPreview } from './nativeMarkupRotation';
+import { MARKUP_GENERATED_AP_KEY, verifyGeneratedMarkupAppearance, sealGeneratedMarkupAppearance } from './nativeMarkupProvenance';
 import {
   createMarkupSpace, markupOrMask, pdfPointToView, viewPointToPdf,
   viewRectToPdfRect, type MarkupSpace,
@@ -99,8 +100,6 @@ interface NativeCopyOrigin {
 
 const DEFAULT_STROKE: PdfColor = { r: 0.25, g: 0.35, b: 0.5 };
 const DEFAULT_FILL: PdfColor = { r: 1, g: 0.95, b: 0.3 };
-const MARKUP_GENERATED_AP_KEY = 'PDFHubGeneratedMarkupAPFingerprint';
-const MARKUP_GENERATED_AP_VERSION = 'pdfhub-generated-markup-ap-v1:';
 
 const ROOT_OWNED_KEYS = new Set([
   'Type', 'Subtype', 'Rect', 'P', 'NM', 'M', 'CreationDate', 'T', 'F',
@@ -125,51 +124,6 @@ const REPLY_OWNED_KEYS = new Set([
 ]);
 
 const REPLY_APPEARANCE_KEYS = ['Subtype', 'Contents'] as const;
-
-/** Bind application-generated artwork to the actual PDF geometry, not sidecar flags. */
-async function fingerprintGeneratedMarkupAppearance(doc: PDFDocument, source: PDFDict, lib: PdfLibModule): Promise<string | null> {
-  try {
-    const name = source.lookupMaybe(lib.PDFName.of('Subtype'), lib.PDFName)?.decodeText();
-    if (!name || !['Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Square'].includes(name)) return null;
-    if (name === 'Square' && readTextObject(source, 'PDFHubType', lib) !== 'redaction') return null;
-    if (name === 'Square' && source.get(lib.PDFName.of('QuadPoints'))) return null;
-    if (['IT', 'Measure', 'Vertices', 'L', 'CL', 'InkList', 'RD', 'BE', 'Rotate', 'PDFHubBaseAP', 'MK', 'AS', 'OC']
-      .some((key) => source.get(lib.PDFName.of(key)))) return null;
-    const rect = readPdfNumberArray(source, 'Rect', lib);
-    if (!rect || rect.length !== 4 || !rect.every(Number.isFinite) || rect[2] <= rect[0] || rect[3] <= rect[1]) return null;
-    const quads = name === 'Square' ? [] : readPdfNumberArray(source, 'QuadPoints', lib);
-    if (!quads || (name !== 'Square' && (quads.length < 8 || quads.length % 8 || !quads.every(Number.isFinite)))) return null;
-    const ap = source.get(lib.PDFName.of('AP'));
-    if (!ap) return null;
-    const root = doc.context.obj({}) as PDFDict;
-    root.set(lib.PDFName.of('Subtype'), lib.PDFName.of(name));
-    root.set(lib.PDFName.of('Rect'), doc.context.obj(rect));
-    root.set(lib.PDFName.of('AP'), ap);
-    root.set(lib.PDFName.of('PDFHubData'), lib.PDFString.of(JSON.stringify(quads)));
-    for (const key of ['F', 'C', 'CA', 'IC', 'Border', 'BS']) {
-      const value = source.get(lib.PDFName.of(key));
-      if (value) root.set(lib.PDFName.of(key), value);
-    }
-    const fingerprint = await fingerprintStampAppearance(doc, root, lib);
-    return fingerprint?.startsWith('pdfhub-stamp-ap-v1:')
-      ? MARKUP_GENERATED_AP_VERSION + fingerprint.slice('pdfhub-stamp-ap-v1:'.length) : null;
-  } catch { return null; }
-}
-
-async function verifyGeneratedMarkupAppearance(doc: PDFDocument, source: PDFDict, lib: PdfLibModule): Promise<boolean> {
-  try {
-    const stored = source.lookupMaybe(lib.PDFName.of(MARKUP_GENERATED_AP_KEY), lib.PDFString, lib.PDFHexString)?.decodeText();
-    return Boolean(stored && /^pdfhub-generated-markup-ap-v1:[0-9a-f]{64}$/.test(stored)
-      && stored === await fingerprintGeneratedMarkupAppearance(doc, source, lib));
-  } catch { return false; }
-}
-
-async function sealGeneratedMarkupAppearance(doc: PDFDocument, target: PDFDict, lib: PdfLibModule): Promise<boolean> {
-  const digest = await fingerprintGeneratedMarkupAppearance(doc, target, lib);
-  if (!digest) { target.delete(lib.PDFName.of(MARKUP_GENERATED_AP_KEY)); return false; }
-  target.set(lib.PDFName.of(MARKUP_GENERATED_AP_KEY), lib.PDFString.of(digest));
-  return true;
-}
 
 /** The appearance builder consumes paired top/bottom edges, not perimeter order. */
 function supportsMarkupAppearanceQuads(values: number[]): boolean {
@@ -279,6 +233,15 @@ export async function writeNativePdfAnnotations(
       const sourceRef = sourceModel?.data.nativeSourceRef;
       const existingRoot = findManagedRootDict(annots, nativeName, lib, sourceRef);
       const copyOrigin = existingRoot ? undefined : copyOrigins.get(candidate);
+      const markupDraft = annotation.data.nativeMarkupDraft;
+      if (markupDraft !== undefined && (!markupDraft || typeof markupDraft !== 'object'
+        || !markupOrMask(annotation.type) || existingRoot || copyOrigin
+        || annotation.data.nativeMarkupRotationSourceHash || annotation.data.nativeMarkupTurn
+        || annotation.data.nativeMarkupPreviewOffset !== undefined
+        || ![0, 90, 180, 270].includes(markupDraft.basisRotation)
+        || !Number.isInteger(markupDraft.turns) || markupDraft.turns < 0 || markupDraft.turns > 3)) {
+        throw new Error('Cannot safely save this markup draft over native artwork or with an invalid orientation.');
+      }
       if (annotation.data.nativeMarkupTurn) {
         const { turns, sourceHash } = annotation.data.nativeMarkupTurn;
         const source = existingRoot ?? copyOrigin?.dict;
@@ -2726,6 +2689,13 @@ async function registerNativeAnnotation(
         && !await sealGeneratedMarkupAppearance(doc, dict, lib)) {
         throw new Error('Cannot safely preserve editable markup appearance provenance.');
       }
+      if (!sourceDict && annotation.data.nativeMarkupDraft) {
+        const draft = annotation.data.nativeMarkupDraft;
+        const offset = ((draft.turns - draft.basisRotation / 90) % 4 + 4) % 4;
+        if (!await sealNativeMarkupPreview(doc, dict, offset, lib)) {
+          throw new Error('Cannot safely preserve new markup preview orientation.');
+        }
+      }
       if (sourceDict && (markupTurns || sourceDict.get(lib.PDFName.of('PDFHubMarkupPreviewOffset')))
         && await fingerprintNativeMarkupRotation(doc, sourceDict, lib)) {
         const offset = (readNativeMarkupPreviewOffset(sourceDict, lib) + markupTurns) % 4;
@@ -4110,6 +4080,8 @@ function serializableAnnotationData(annotation: PdfAnnotation): Record<string, u
   delete data.nativeMarkupRotationSourceHash;
   delete data.nativeMarkupTurn;
   delete data.nativeMarkupPreviewOffset;
+  delete data.nativeMarkupGeneratedAppearance;
+  delete data.nativeMarkupDraft;
   delete (data as typeof data & { nativePolygonQuarterTurns?: number }).nativePolygonQuarterTurns;
   delete (data as typeof data & { nativeInkQuarterTurns?: number }).nativeInkQuarterTurns;
   delete (data as typeof data & { nativeLineQuarterTurns?: number }).nativeLineQuarterTurns;

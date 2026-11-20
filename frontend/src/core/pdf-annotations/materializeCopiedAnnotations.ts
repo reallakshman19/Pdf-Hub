@@ -47,6 +47,8 @@ export async function materializeCopiedAnnotations(
     delete data.nativeMarkupRotationSourceHash;
     delete data.nativeMarkupTurn;
     delete data.nativeMarkupPreviewOffset;
+    delete data.nativeMarkupGeneratedAppearance;
+    delete data.nativeMarkupDraft;
     delete data.nativeInterop;
     delete data.review;
     return { ...item, rect: saved.rect, data: { ...data, ...saved.data } };

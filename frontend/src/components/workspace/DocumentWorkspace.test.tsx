@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
-import { DocumentWorkspace } from './DocumentWorkspace';
+import { DocumentWorkspace, PageSurface } from './DocumentWorkspace';
+import '@/core/annotations/register-all';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
@@ -390,5 +391,238 @@ describe('DocumentWorkspace', () => {
     await vi.waitFor(() => {
       expect(setZoom).toHaveBeenCalled();
     });
+  });
+});
+
+
+describe('PageSurface gesture consistency', () => {
+  const makePage = (rotation: number) => ({
+    getViewport: vi.fn().mockReturnValue({ width: 400, height: 500, rotation }),
+    render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+    getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+    cleanup: vi.fn(),
+  });
+  const makeDoc = (page: ReturnType<typeof makePage> | Promise<ReturnType<typeof makePage>>) => ({
+    getPage: vi.fn().mockImplementation(() => Promise.resolve(page)),
+    numPages: 2,
+  }) as unknown as PDFDocumentProxy;
+  const makeProps = (doc: PDFDocumentProxy) => ({
+    doc, pageNumber: 1, scale: 1, activeTool: 'select', pageAnnotations: [],
+    selectedAnnotationIds: [], existingTextPageId: null, selectedExistingTextSourceIndex: null,
+    onActivate: vi.fn(), onSelectExistingText: vi.fn(), onCreateAnnotation: vi.fn(),
+    onCreateManyAnnotations: vi.fn(), onSetSingleSelection: vi.fn(), onToggleSelection: vi.fn(),
+    onSetSelection: vi.fn(), onClearSelection: vi.fn(), onCommitAnnotation: vi.fn(),
+    onCommitManyAnnotations: vi.fn(), drawingLineStart: null, drawingLineCurrent: null,
+    setDrawingLineStart: vi.fn(), setDrawingLineCurrent: vi.fn(),
+  });
+
+  it.each(['comment', 'underline'] as const)('keeps a %s click as selection without committing geometry', async (type) => {
+    const props = makeProps(makeDoc(makePage(0)));
+    const annotation = { id: 'clicked', type, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[annotation]} />);
+    await act(async () => {});
+    const element = view.container.querySelector(`[data-annotation-type="${type}"]`);
+    expect(element).not.toBeNull();
+    act(() => {
+      fireEvent.pointerDown(element!, { clientX: 65.4, clientY: 85.4 });
+      fireEvent.mouseMove(window, { clientX: 65, clientY: 85, buttons: 1 });
+      fireEvent.mouseUp(window, { clientX: 65, clientY: 85 });
+    });
+    expect(props.onSetSingleSelection).toHaveBeenCalledWith('clicked');
+    expect(props.onCommitManyAnnotations).not.toHaveBeenCalled();
+    expect(props.onCommitAnnotation).not.toHaveBeenCalled();
+  });
+
+  it('commits a drag even if the browser coalesces the move before mouseup', async () => {
+    const props = makeProps(makeDoc(makePage(0)));
+    const note = { id: 'note', type: 'comment' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[note]} />);
+    await act(async () => {});
+    const element = view.container.querySelector('[data-annotation-type="comment"]');
+    expect(element).not.toBeNull();
+    act(() => {
+      fireEvent.pointerDown(element!, { clientX: 65, clientY: 85 });
+      fireEvent.mouseUp(window, { clientX: 85, clientY: 97 });
+    });
+    expect(props.onCommitManyAnnotations).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'note', data: expect.objectContaining({
+        rect: expect.objectContaining({ x: 80, y: 92 }),
+      }) }),
+    ]);
+  });
+
+  it('cancels an in-flight transform when the document changes', async () => {
+    const props = makeProps(makeDoc(makePage(0)));
+    const note = { id: 'note', type: 'comment' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[note]} />);
+    await act(async () => {});
+    const element = view.container.querySelector('[data-annotation-type="comment"]');
+    expect(element).not.toBeNull();
+    fireEvent.pointerDown(element!, { clientX: 65, clientY: 85 });
+    fireEvent.mouseMove(window, { clientX: 75, clientY: 90, buttons: 1 });
+    view.rerender(<PageSurface {...props} doc={makeDoc(makePage(90))} pageAnnotations={[note]} />);
+    fireEvent.mouseUp(window, { clientX: 85, clientY: 97 });
+    expect(props.onCommitManyAnnotations).not.toHaveBeenCalled();
+  });
+
+  it('commits the final callout anchor position and cancels on page change', async () => {
+    const doc = makeDoc(makePage(0));
+    const props = makeProps(doc);
+    const callout = { id: 'callout', type: 'callout' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note', anchor: { x: 10, y: 20 } },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[callout]} />);
+    await act(async () => {});
+    const handle = view.container.querySelector('[data-annotation-type="callout"] circle');
+    expect(handle).not.toBeNull();
+    fireEvent.pointerDown(handle!, { clientX: 10, clientY: 20 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 32 });
+    expect(props.onCommitAnnotation).toHaveBeenCalledWith('callout', expect.objectContaining({
+      data: expect.objectContaining({ anchor: { x: 30, y: 32 } }),
+    }));
+    props.onCommitAnnotation.mockClear();
+    fireEvent.pointerDown(handle!, { clientX: 10, clientY: 20 });
+    fireEvent.mouseMove(window, { clientX: 20, clientY: 25, buttons: 1 });
+    view.rerender(<PageSurface {...props} pageNumber={2} pageAnnotations={[callout]} />);
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 32 });
+    expect(props.onCommitAnnotation).not.toHaveBeenCalled();
+  });
+
+  it('uses the final placement endpoint and cancels an unmounted placement', async () => {
+    const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'squiggly' };
+    const view = render(<PageSurface {...props} />);
+    await act(async () => {});
+    const placement = view.getByTestId('annotation-placement-layer');
+    fireEvent.mouseDown(placement, { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 80, clientY: 100 });
+    expect(props.onCreateAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      rect: { x: 30, y: 40, width: 50, height: 60 },
+    }));
+    props.onCreateAnnotation.mockClear();
+    fireEvent.mouseDown(placement, { clientX: 30, clientY: 40, buttons: 1 });
+    view.unmount();
+    fireEvent.mouseUp(window, { clientX: 80, clientY: 100 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+  });
+
+  it('does not authorize markup creation from a non-finite viewport rotation', async () => {
+    const props = { ...makeProps(makeDoc(makePage(Number.NaN))), activeTool: 'squiggly' };
+    const view = render(<PageSurface {...props} />);
+    await act(async () => {});
+    expect(view.getByRole('status')).toHaveTextContent('Unable to determine page rotation');
+    fireEvent.mouseDown(view.getByTestId('annotation-placement-layer'), { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 80, clientY: 100 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('selects the release rectangle without stale marquee state (mousemove: %s)', async (withMove) => {
+    const props = makeProps(makeDoc(makePage(0)));
+    const note = { id: 'note', type: 'comment' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 30, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[note]} />);
+    await act(async () => {});
+    fireEvent.mouseDown(view.getByTestId('annotation-interaction-layer'), { clientX: 10, clientY: 10, buttons: 1 });
+    act(() => {
+      if (withMove) fireEvent.mouseMove(window, { clientX: 20, clientY: 20, buttons: 1 });
+      fireEvent.mouseUp(window, { clientX: 100, clientY: 110 });
+    });
+    expect(props.onSetSelection).toHaveBeenCalledWith(['note']);
+    expect(props.onClearSelection).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('preserves the ink release point (mousemove: %s)', async (withMove) => {
+    const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'ink' };
+    const view = render(<PageSurface {...props} />);
+    await act(async () => {});
+    fireEvent.mouseDown(view.getByTestId('annotation-interaction-layer'), { clientX: 10, clientY: 15, buttons: 1 });
+    act(() => {
+      if (withMove) fireEvent.mouseMove(window, { clientX: 30, clientY: 35, buttons: 1 });
+      fireEvent.mouseUp(window, { clientX: 60, clientY: 75 });
+    });
+    expect(props.onCreateAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'ink', rect: { x: 10, y: 15, width: 50, height: 60 },
+      data: expect.objectContaining({ paths: [withMove ? [10, 15, 30, 35, 60, 75] : [10, 15, 60, 75]] }),
+    }));
+  });
+
+  it('does not create ink from a click with fractional pointer jitter', async () => {
+    const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'ink' };
+    const view = render(<PageSurface {...props} />);
+    await act(async () => {});
+    fireEvent.mouseDown(view.getByTestId('annotation-interaction-layer'), { clientX: 10.4, clientY: 15.4, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 10, clientY: 15 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+  });
+
+  it('commits the final fast drag even when React effects have not run', async () => {
+    const props = makeProps(makeDoc(makePage(180)));
+    const note = { id: 'note', type: 'comment' as const, pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 }, data: { text: 'note' },
+      createdAt: 1, updatedAt: 1 };
+    const view = render(<PageSurface {...props} pageAnnotations={[note]} />);
+    await act(async () => {});
+    const element = view.container.querySelector('[data-annotation-type="comment"]');
+    expect(element).not.toBeNull();
+    act(() => {
+      fireEvent.pointerDown(element!, { clientX: 65, clientY: 85 });
+      fireEvent.mouseMove(window, { clientX: 75, clientY: 90, buttons: 1 });
+      fireEvent.mouseUp(window, { clientX: 85, clientY: 97 });
+    });
+    expect(props.onCommitManyAnnotations).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'note', data: expect.objectContaining({
+        rect: expect.objectContaining({ x: 80, y: 92 }),
+      }) }),
+    ]);
+  });
+
+  it('blocks placement until the matching viewport resolves and cancels a gesture across documents', async () => {
+    let resolvePage!: (page: ReturnType<typeof makePage>) => void;
+    const delayed = new Promise<ReturnType<typeof makePage>>((resolve) => { resolvePage = resolve; });
+    const firstDoc = makeDoc(makePage(90));
+    const nextDoc = makeDoc(delayed);
+    const props = { ...makeProps(firstDoc), activeTool: 'squiggly' };
+    const view = render(<PageSurface {...props} />);
+    await act(async () => {});
+    const placement = () => view.getByTestId('annotation-placement-layer');
+    fireEvent.mouseDown(placement(), { clientX: 30, clientY: 40, buttons: 1 });
+    view.rerender(<PageSurface {...props} doc={nextDoc} />);
+    expect(view.getByRole('status')).toHaveTextContent('Loading page');
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 40 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+    fireEvent.mouseDown(placement(), { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 40 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+    await act(async () => { resolvePage(makePage(180)); await delayed; });
+    fireEvent.mouseDown(placement(), { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 40 });
+    expect(props.onCreateAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'squiggly', data: expect.objectContaining({
+        nativeMarkupDraft: expect.objectContaining({ basisRotation: 180, turns: 0 }),
+      }),
+    }));
+
+    props.onCreateAnnotation.mockClear();
+    let resolveSecondPage!: (page: ReturnType<typeof makePage>) => void;
+    const secondPage = new Promise<ReturnType<typeof makePage>>((resolve) => { resolveSecondPage = resolve; });
+    vi.mocked(nextDoc.getPage).mockImplementation(() => secondPage as unknown as ReturnType<PDFDocumentProxy['getPage']>);
+    view.rerender(<PageSurface {...props} doc={nextDoc} pageNumber={2} />);
+    fireEvent.mouseDown(placement(), { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 40 });
+    expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+    await act(async () => { resolveSecondPage(makePage(270)); await secondPage; });
+    fireEvent.mouseDown(placement(), { clientX: 30, clientY: 40, buttons: 1 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 40 });
+    expect(props.onCreateAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      pageNumber: 2, data: expect.objectContaining({
+        nativeMarkupDraft: expect.objectContaining({ basisRotation: 270 }),
+      }),
+    }));
   });
 });

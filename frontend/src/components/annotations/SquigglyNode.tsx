@@ -1,7 +1,7 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
-import { orientedTextMarkupQuads, textMarkupPreviewRotation } from './shared/textMarkupQuads';
+import { hasKnownMarkupOrientation, orientedTextMarkupQuads, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 
 function squigglyPath(width: number, height: number, amplitude = 2, segmentBudget = 1024): string {
   if (![width, height, amplitude].every(Number.isFinite) || width <= 0 || height <= 0) return '';
@@ -26,8 +26,8 @@ export const SquigglyNode: React.FC<AnnotationNodeProps<'squiggly'>> = ({
   const color = annotation.data?.borderColor ?? '#ef4444';
   const width = annotation.data?.borderWidth ?? 1.5;
   const orientation = textMarkupPreviewRotation(pageRotation, annotation.data.nativeMarkupRotationSourceHash,
-    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn);
-  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation)
+    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn, annotation.data.nativeMarkupDraft);
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation, hasKnownMarkupOrientation(annotation.data))
     ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
   const segmentBudget = Math.max(3, Math.floor(4096 / quads.length));
 

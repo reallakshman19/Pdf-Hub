@@ -9,6 +9,8 @@ import {
   commitDurableStateMutation,
 } from '../document-history/durableStateTransaction';
 import { useSessionStore } from '../session/store';
+import { useToastStore } from '../toast/store';
+import type { PageGraph, PageNode } from '../pages/types';
 import { remapAnnotationGeometry } from './geometryTransform';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
 import { error as logError } from '../logger/service';
@@ -55,6 +57,28 @@ interface AnnotationState {
   clipboard: PdfAnnotation[];
   /** Native appearance references are valid only in their source document. */
   clipboardDocumentKey: string | null;
+  /** Page identities and geometry at the moment markup was copied. */
+  clipboardPageSnapshot: string | null;
+}
+
+function markupNeedsStableClipboardPage(annotation: PdfAnnotation): boolean {
+  return ['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(annotation.type)
+    && (annotation.data.nativeMarkupDraft !== undefined || Boolean(annotation.data.nativeMarkupRotationSourceHash
+      || annotation.data.nativeOriginalName || annotation.data.nativeSourceRef || annotation.data.nativeCopySource));
+}
+
+function clipboardPageSnapshot(graph: PageGraph<PageNode> | null): string | null {
+  if (!graph || !graph.pages.length) return null;
+  const ids = new Set<string>();
+  const pages: Array<[string, number, number, number]> = [];
+  for (const [index, page] of graph.pages.entries()) {
+    if (!page.pageId || ids.has(page.pageId) || page.currentIndex !== index
+      || ![0, 90, 180, 270].includes(page.rotation)
+      || !Number.isFinite(page.width) || page.width <= 0 || !Number.isFinite(page.height) || page.height <= 0) return null;
+    ids.add(page.pageId);
+    pages.push([page.pageId, page.rotation, page.width, page.height]);
+  }
+  return JSON.stringify(pages);
 }
 
 interface AnnotationActions {
@@ -262,6 +286,7 @@ function annotationStateSnapshot(
     ],
     clipboard: [...state.clipboard],
     clipboardDocumentKey: state.clipboardDocumentKey,
+    clipboardPageSnapshot: state.clipboardPageSnapshot,
   };
 }
 
@@ -408,6 +433,7 @@ export const useAnnotationStore =
   selectedAnnotationIds: [],
   clipboard: [],
   clipboardDocumentKey: null,
+  clipboardPageSnapshot: null,
 
   addAnnotation: (annotation) =>
     runMutation((state) => {
@@ -622,11 +648,30 @@ export const useAnnotationStore =
         }),
       );
 
-      return { clipboard: copied, clipboardDocumentKey: useSessionStore.getState().documentKey };
+      const session = useSessionStore.getState();
+      return { clipboard: copied, clipboardDocumentKey: session.documentKey,
+        clipboardPageSnapshot: clipboardPageSnapshot(session.pageGraph) };
     }),
 
   pasteClipboard: (targetPage) => {
-    if (get().clipboardDocumentKey !== useSessionStore.getState().documentKey) return;
+    const current = get();
+    const session = useSessionStore.getState();
+    const documentChanged = current.clipboardDocumentKey !== session.documentKey;
+    if (current.clipboard.some(markupNeedsStableClipboardPage)) {
+      const currentSnapshot = clipboardPageSnapshot(session.pageGraph);
+      const pagesValid = current.clipboard.every((annotation) => {
+        const destination = targetPage ?? annotation.pageNumber;
+        return Number.isInteger(destination) && destination >= 1 && destination <= (session.pageGraph?.pages.length ?? 0)
+          && Number.isInteger(annotation.pageNumber) && annotation.pageNumber >= 1
+          && annotation.pageNumber <= (session.pageGraph?.pages.length ?? 0);
+      });
+      if (documentChanged || !session.documentKey || !current.clipboardPageSnapshot
+        || current.clipboardPageSnapshot !== currentSnapshot || !pagesValid) {
+        useToastStore.getState().addToast({ type: 'error', title: 'Copy markup again',
+          message: 'The document or page layout changed, or page information is unavailable. Copy the markup again before pasting.', duration: 6000 });
+        return;
+      }
+    } else if (documentChanged) return;
     const sourceClipboard = get().clipboard.map(
       (annotation) => ({
         ...annotation,
@@ -651,6 +696,13 @@ export const useAnnotationStore =
           if (annotation.data.nativeMarkupRotationSourceHash && sourceRotation !== undefined && targetRotation !== undefined) {
             const offset = (annotation.data.nativeMarkupPreviewOffset ?? 0) + (sourceRotation - targetRotation) / 90;
             if (Number.isInteger(offset)) data.nativeMarkupPreviewOffset = ((offset % 4) + 4) % 4;
+          }
+          const draft = annotation.data.nativeMarkupDraft;
+          if (draft && destination !== annotation.pageNumber) {
+            const validRotations = sourceRotation !== undefined && targetRotation !== undefined
+              && [0, 90, 180, 270].includes(sourceRotation) && [0, 90, 180, 270].includes(targetRotation);
+            data.nativeMarkupDraft = { ...draft, basisRotation: validRotations
+              ? ((draft.basisRotation + targetRotation! - sourceRotation!) % 360 + 360) % 360 : -1 };
           }
           const basis = annotation.data.nativeStampBasisRotation;
           if (annotation.type === 'stamp' && annotation.data.nativeStampAppearanceKind !== 'imported'

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
-import { orientedTextMarkupQuads, pointOnTextMarkupQuad, textMarkupPreviewRotation } from './shared/textMarkupQuads';
+import { hasKnownMarkupOrientation, orientedTextMarkupQuads, pointOnTextMarkupQuad, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 
 /**
  * Renders a 2px line at the bottom edge of the annotation rect.
@@ -11,8 +11,8 @@ export const UnderlineNode: React.FC<AnnotationNodeProps<'underline'>> = ({
 }) => {
   const color = annotation.data?.borderColor ?? '#000000';
   const orientation = textMarkupPreviewRotation(pageRotation, annotation.data.nativeMarkupRotationSourceHash,
-    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn);
-  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation)
+    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn, annotation.data.nativeMarkupDraft);
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation, hasKnownMarkupOrientation(annotation.data))
     ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
 
   return (

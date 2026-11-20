@@ -7,6 +7,7 @@ import { fingerprintStampAppearance, verifyStampAppearanceFingerprint, verifySta
 import { BOX_GENERATED_AP_ORIENTATION_KEY, verifyGeneratedBoxAppearanceFingerprint } from './nativeBoxShapeProvenance';
 import { fingerprintNativeCloudRotation, supportsNativeCloudRotation } from './nativeCloudRotation';
 import { fingerprintNativeMarkupRotation, readNativeMarkupPreviewOffset } from './nativeMarkupRotation';
+import { verifyGeneratedMarkupAppearance } from './nativeMarkupProvenance';
 import { orderNativeReviewStates } from './nativeReviewStateOrder';
 import {
   createMarkupSpace, pdfPointToView,
@@ -83,11 +84,14 @@ export async function readNativePdfAnnotations(
       delete parsed.data.nativeMarkupRotationSourceHash;
       delete parsed.data.nativeMarkupTurn;
       delete parsed.data.nativeMarkupPreviewOffset;
+      delete parsed.data.nativeMarkupGeneratedAppearance;
+      delete parsed.data.nativeMarkupDraft;
       if (['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(parsed.type)) {
         const hash = await fingerprintNativeMarkupRotation(doc, record.dict, lib);
         if (hash) {
           parsed.data.nativeMarkupRotationSourceHash = hash;
           parsed.data.nativeMarkupPreviewOffset = readNativeMarkupPreviewOffset(record.dict, lib);
+          if (await verifyGeneratedMarkupAppearance(doc, record.dict, lib)) parsed.data.nativeMarkupGeneratedAppearance = true;
         }
       }
 

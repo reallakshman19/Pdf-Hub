@@ -5,6 +5,15 @@ type NativeMarkupRotationData = AnnotationData & {
   nativeMarkupTurn?: { turns: number; sourceHash: string };
 };
 
+/** Initialize geometry only when the application creates a fresh markup. */
+export function initializeMarkupDraft(annotation: PdfAnnotation, pageRotation: number): PdfAnnotation {
+  if (!['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(annotation.type)
+    || ![0, 90, 180, 270].includes(pageRotation)) return annotation;
+  const data: AnnotationData = { ...annotation.data, nativeMarkupDraft: { basisRotation: pageRotation, turns: 0 } };
+  if (annotation.type !== 'redaction' && !data.textMarkupQuads) data.textMarkupQuads = [0, 0, 1, 0, 0, 1, 1, 1];
+  return { ...annotation, data };
+}
+
 /**
  * Rotate supported native markup in displayed page coordinates. Authorization
  * here is only a UI hint; the writer must revalidate the actual source PDF.
@@ -13,9 +22,13 @@ export function rotateMarkupQuarterTurn(annotation: PdfAnnotation): Partial<PdfA
   if (!['highlight', 'underline', 'strikeout', 'squiggly', 'redaction'].includes(annotation.type)) return null;
   const sourceData = annotation.data as NativeMarkupRotationData;
   const hash = sourceData.nativeMarkupRotationSourceHash;
-  // A copied, not-yet-materialized native graph needs separate writer handling.
-  if (!hash || sourceData.nativeCopySource || sourceData.nativeIdentityAmbiguous) return null;
   const prior = sourceData.nativeMarkupTurn;
+  const draft = sourceData.nativeMarkupDraft;
+  const validDraft = Boolean(draft && !hash && !prior && !sourceData.nativeSourceRef && !sourceData.nativeOriginalName
+    && !sourceData.nativeCopySource?.requiresSource && [0, 90, 180, 270].includes(draft.basisRotation)
+    && Number.isInteger(draft.turns) && draft.turns >= 0 && draft.turns <= 3);
+  // An unresolved copy of native artwork needs separate writer handling.
+  if (sourceData.nativeIdentityAmbiguous || (!validDraft && (!hash || draft !== undefined || sourceData.nativeCopySource))) return null;
   if (prior && (prior.sourceHash !== hash || !Number.isInteger(prior.turns) || prior.turns < 1 || prior.turns > 3)) return null;
   const { x, y, width, height } = annotation.rect;
   if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
@@ -45,9 +58,13 @@ export function rotateMarkupQuarterTurn(annotation: PdfAnnotation): Partial<PdfA
 
   const data: NativeMarkupRotationData = { ...sourceData };
   if (quads) data.textMarkupQuads = quads.map((_value, index) => index % 2 === 0 ? 1 - quads[index + 1] : quads[index - 1]);
-  const turns = ((prior?.turns ?? 0) + 1) % 4;
-  if (turns) data.nativeMarkupTurn = { turns, sourceHash: hash };
-  else delete data.nativeMarkupTurn;
+  if (validDraft && draft) {
+    data.nativeMarkupDraft = { ...draft, turns: (draft.turns + 1) % 4 };
+  } else {
+    const turns = ((prior?.turns ?? 0) + 1) % 4;
+    if (turns && hash) data.nativeMarkupTurn = { turns, sourceHash: hash };
+    else delete data.nativeMarkupTurn;
+  }
   delete data.normalizedGeometry;
   delete data.geometryVersion;
   return { rect, data };

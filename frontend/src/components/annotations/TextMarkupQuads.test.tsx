@@ -28,6 +28,18 @@ describe('native multi-quad text-markup previews', () => {
     expect(textMarkupPreviewRotation(undefined, 'source', 1, undefined)).toBeUndefined();
   });
 
+  it('tracks the page basis and individual turn of a newly created markup', () => {
+    expect(textMarkupPreviewRotation(90, undefined, undefined, undefined, { basisRotation: 90, turns: 0 })).toBe(0);
+    expect(textMarkupPreviewRotation(180, undefined, undefined, undefined, { basisRotation: 90, turns: 1 })).toBe(180);
+    expect(textMarkupPreviewRotation(0, undefined, undefined, undefined, { basisRotation: 45, turns: 1 })).toBeUndefined();
+    expect(textMarkupPreviewRotation(0, 'source', undefined, undefined, { basisRotation: 0, turns: 1 })).toBeUndefined();
+  });
+
+  it.each([null, false, 0, 'invalid', {}])('rejects malformed draft preview state %s without throwing', (draft) => {
+    expect(textMarkupPreviewRotation(0, undefined, undefined, undefined,
+      draft as unknown as { basisRotation: number; turns: number })).toBeUndefined();
+  });
+
   it('combines a reopened annotation turn with a further unsaved turn', () => {
     const model: PdfAnnotation = { id: 'synthetic', type: 'underline', pageNumber: 1,
       rect: { x: 20, y: 30, width: 40, height: 100 }, createdAt: 1, updatedAt: 1,
