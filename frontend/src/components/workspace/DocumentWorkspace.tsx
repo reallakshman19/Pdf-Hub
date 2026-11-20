@@ -911,10 +911,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     ocrReviewFocus?.pageIndex === pageNumber - 1
       ? ocrReviewFocus
       : null;
-  const isSelectTool = activeTool === 'select';
-  const isTextMarkTool = isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
-  const isNoteTool = activeTool === 'comment';
-  const isPlacementOnlyTool =
+  const activeMode = useEditorStore((state) => state.activeMode);
+  const annotationMode = activeMode === 'annotate' || activeMode === 'draw';
+  const isSelectTool = activeTool === 'select' || !annotationMode;
+  const isTextMarkTool = annotationMode && isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
+  const isNoteTool = annotationMode && activeTool === 'comment';
+  const isPlacementOnlyTool = annotationMode && (
     activeTool === 'textbox' ||
     activeTool === 'shape-rect' ||
     activeTool === 'shape-ellipse' ||
@@ -928,7 +930,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     activeTool === 'arrow' ||
     activeTool === 'stamp' ||
     activeTool === 'callout' ||
-    activeTool === 'comment';
+    activeTool === 'comment');
+  const isInkTool = annotationMode && activeTool === 'ink';
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
   const pageIdentity = React.useMemo(() => ({ doc, pageNumber }), [doc, pageNumber]);
@@ -938,7 +941,13 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   // A gesture may outlive a render; a new identity also invalidates it when
   // the view switches away and later back to the same document and page.
   const currentPageIdentity = React.useRef(pageIdentity);
+  const mountedPage = React.useRef(false);
+  React.useLayoutEffect(() => {
+    mountedPage.current = true;
+    return () => { mountedPage.current = false; };
+  }, []);
   React.useLayoutEffect(() => { currentPageIdentity.current = pageIdentity; }, [pageIdentity]);
+  const isCurrentPage = () => mountedPage.current && currentPageIdentity.current === pageIdentity;
   const viewportReady = viewportBasis?.identity === pageIdentity && viewportBasis.rotation !== null;
   const viewportInvalid = viewportBasis?.identity === pageIdentity && viewportBasis.rotation === null;
   const hasViewportBasis = () => viewportReady && currentPageIdentity.current === pageIdentity;
@@ -948,23 +957,35 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     annotation.type === 'strikeout' || annotation.type === 'squiggly' ||
     annotation.type === 'redaction' || annotation.type === 'stamp';
   const onCreateAnnotation = (annotation: PdfAnnotation) => {
+    if (!isCurrentPage()) return;
     if (needsViewportBasis(annotation) && !hasViewportBasis()) return;
     createAnnotation(initializeMarkupDraft(annotation, rotation));
   };
   const onCreateManyAnnotations = (annotations: PdfAnnotation[]) => {
+    if (!isCurrentPage()) return;
     if (annotations.some(needsViewportBasis) && !hasViewportBasis()) return;
     createManyAnnotations(annotations.map((annotation) => initializeMarkupDraft(annotation, rotation)));
   };
-  const [textItems, setTextItems] = React.useState<TextLayerItem[]>([]);
+  const [textLayer, setTextLayer] = React.useState<{
+    identity: typeof pageIdentity; scale: number; items: TextLayerItem[];
+  } | null>(null);
+  const textItems = textLayer?.identity === pageIdentity && textLayer.scale === scale ? textLayer.items : [];
   const [draftRects, setDraftRects] = React.useState<Record<string, Rect>>({});
   const [draftAnchors, setDraftAnchors] = React.useState<Record<string, Point2D | null>>({});
   const [draftKnees, setDraftKnees] = React.useState<Record<string, Point2D | null>>({});
   const [, setDraftLinePoints] = React.useState<Record<string, number[]>>({});
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [editingValue, setEditingValue] = React.useState('');
+  const [editingState, setEditingState] = React.useState<{
+    identity: typeof pageIdentity; id: string; value: string;
+  } | null>(null);
+  const editingRef = React.useRef<typeof editingState>(null);
+  const activeEdit = editingState?.identity === pageIdentity ? editingState : null;
+  React.useLayoutEffect(() => () => { editingRef.current = null; }, [pageIdentity]);
   const [marquee, setMarquee] = React.useState<Rect | null>(null);
   const [shapeDraft, setShapeDraft] = React.useState<Rect | null>(null);
-  const [textSelectionDraft, setTextSelectionDraft] = React.useState<TextSelectionDraft | null>(null);
+  const [selectionState, setTextSelectionDraft] = React.useState<{
+    identity: typeof pageIdentity; draft: TextSelectionDraft;
+  } | null>(null);
+  const textSelectionDraft = selectionState?.identity === pageIdentity ? selectionState.draft : null;
   const transformRef = React.useRef<TransformState>(null);
   const anchorDragRef = React.useRef<AnchorDragState>(null);
   const draftRectsRef = React.useRef<Record<string, Rect>>({});
@@ -977,6 +998,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   // invokes the completion callback.
   const cancelGestureRef = React.useRef<(() => void) | null>(null);
   React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [pageIdentity]);
+  React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [activeTool, activeMode]);
+  React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [scale]);
   const listenForGesture = (
     onMove: (event: MouseEvent) => void,
     onUp: (event: MouseEvent) => void,
@@ -994,6 +1017,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       onMove(event);
     };
     const finish = (event: MouseEvent) => {
+      if (event.button !== 0) return;
       if (currentPageIdentity.current !== pageIdentity) { cancel(); return; }
       detach();
       onUp(event);
@@ -1035,7 +1059,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
 
       const items = await PdfRendererAdapter.getPageTextItems(page, scale);
       if (!cancelled) {
-        setTextItems(items);
+        setTextLayer({ identity: pageIdentity, scale, items });
       }
     };
 
@@ -1112,7 +1136,10 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     }
   }, []);
 
-  const commitTextEdit = (annotation: PdfAnnotation, value: string) => {
+  const commitTextEdit = (annotation: PdfAnnotation, value: string, edit: typeof activeEdit) => {
+    if (!isCurrentPage() || !edit || editingRef.current !== edit || edit.id !== annotation.id) return;
+    editingRef.current = null;
+    setEditingState(null);
     const currentRect = draftRectsRef.current[annotation.id];
     const nextRect =
       !isNativeRichTextReadOnly(annotation) && annotation.data.autoSize !== false && isTextLike(annotation.type)
@@ -1140,7 +1167,6 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       rect: nextRect,
       data: nextData,
     });
-    setEditingId(null);
   };
 
   const startTransform = (
@@ -1481,7 +1507,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     });
   };
 
-  const handleTextSelectionMouseUp = () => {
+  const handleTextSelectionMouseUp = (event: Pick<MouseEvent, 'button'>) => {
+    if (event.button !== 0 || !isCurrentPage()) return;
     if (!(isSelectTool || isTextMarkTool || isNoteTool) || !pageRef.current) return;
     if (isTextMarkTool && !hasViewportBasis()) return;
 
@@ -1547,12 +1574,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       clearTextSelectionDraft();
       resetInteractionState();
     } else {
-      setTextSelectionDraft(draft);
+      setTextSelectionDraft({ identity: pageIdentity, draft });
     }
   };
 
   const createHighlightsFromSelection = () => {
-    if (!textSelectionDraft) return;
+    if (!textSelectionDraft || !isCurrentPage()) return;
     const items = textSelectionDraft.rects.map((rect) =>
       buildHighlightAnnotation(pageNumber, rect),
     );
@@ -1561,7 +1588,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const createUnderlineFromSelection = () => {
-    if (!textSelectionDraft) return;
+    if (!textSelectionDraft || !isCurrentPage()) return;
     const items = textSelectionDraft.rects.map((rect) =>
       buildUnderlineAnnotation(pageNumber, rect),
     );
@@ -1570,7 +1597,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const createStrikeoutFromSelection = () => {
-    if (!textSelectionDraft) return;
+    if (!textSelectionDraft || !isCurrentPage()) return;
     const items = textSelectionDraft.rects.map((rect) =>
       buildStrikeoutAnnotation(pageNumber, rect),
     );
@@ -1579,7 +1606,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const createSquigglyFromSelection = () => {
-    if (!textSelectionDraft) return;
+    if (!textSelectionDraft || !isCurrentPage()) return;
     const items = textSelectionDraft.rects.map((rect) =>
       buildSquigglyAnnotation(pageNumber, rect),
     );
@@ -1588,7 +1615,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const createNoteFromSelection = (type: 'comment' | 'callout' = 'comment') => {
-    if (!textSelectionDraft) return;
+    if (!textSelectionDraft || !isCurrentPage()) return;
     const item = buildCalloutFromSelection(
       pageNumber,
       textSelectionDraft.unionRect,
@@ -1610,7 +1637,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const currentPathRef = React.useRef<number[]>([]);
 
   const startMarquee = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (activeTool === 'ink') {
+    if (event.button !== 0) return;
+    if (isInkTool) {
       if (event.target instanceof Element && event.target.closest('[data-annotation-type]')) return;
       cancelGestureRef.current?.();
       const hostRect = event.currentTarget.getBoundingClientRect();
@@ -1724,9 +1752,9 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
    * from buildAnnotation so placing by click still works.
    */
   const startShapeDraw = (event: React.MouseEvent<HTMLDivElement>) => {
-    // A note's pointerdown is followed by a bubbling compatibility mousedown.
-    // Do not cancel its transform unless this is a new placement gesture.
-    if (!isPlacementOnlyTool || event.target !== event.currentTarget) return;
+    // Only the creation hit surface may start a placement gesture.
+    if (event.button !== 0 || !isPlacementOnlyTool) return;
+    if (event.target !== event.currentTarget && !(isNoteTool && event.target instanceof Element && event.target.closest('[data-text-item]'))) return;
     cancelGestureRef.current?.();
     onActivate();
 
@@ -1769,6 +1797,23 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         setDrawingLineCurrent(null);
         resetInteractionState();
       }
+      return;
+    }
+
+    // A comment can either be placed with a click or attached to selected text.
+    if (tool === 'comment') {
+      listenForGesture(() => {}, (upEvent) => {
+        if (window.getSelection()?.toString().trim()) {
+          handleTextSelectionMouseUp(upEvent);
+          return;
+        }
+        const endX = (upEvent.clientX - hostRect.left) / scale;
+        const endY = (upEvent.clientY - hostRect.top) / scale;
+        if (Math.hypot(upEvent.clientX - event.clientX, upEvent.clientY - event.clientY) >= 3 ||
+            endX < 0 || endY < 0 || endX > pageWidth || endY > pageHeight) return;
+        onCreateAnnotation(buildAnnotation('comment', pageNumber, startX, startY));
+        resetInteractionState();
+      }, () => {});
       return;
     }
 
@@ -1868,7 +1913,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         data-testid="annotation-interaction-layer"
         className="absolute inset-0"
         style={{
-          pointerEvents: isSelectTool || isTextMarkTool || isNoteTool || activeTool === 'ink' ? 'auto' : 'none',
+          pointerEvents: isSelectTool || isTextMarkTool || isNoteTool || isInkTool ? 'auto' : 'none',
           userSelect: isSelectTool || isTextMarkTool || isNoteTool ? 'text' : 'none',
         }}
         onMouseDown={startMarquee}
@@ -2092,8 +2137,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         className={`absolute inset-0 ${
           activeTool !== 'select' ? 'cursor-crosshair' : ''
         }`}
-        style={{ pointerEvents: isPlacementOnlyTool ? 'auto' : 'none' }}
-        onMouseDown={startShapeDraw}
+        style={{ pointerEvents: isPlacementOnlyTool ? 'auto' : 'none', zIndex: isPlacementOnlyTool || isInkTool ? 13 : 0 }}
       >
         {/* Rubber-band preview while dragging to draw */}
         {shapeDraft && (
@@ -2195,8 +2239,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
               rect={scaledRect}
               scale={scale}
               isSelected={selected}
-              isEditing={editingId === annotation.id}
-              editingValue={editingValue}
+              isEditing={activeEdit?.id === annotation.id}
+              editingValue={activeEdit?.value ?? ''}
               pageRotation={rotation}
               nativeAppearanceUrl={annotation.data.nativeAppearanceRef ? nativeStampAppearances[annotation.data.nativeAppearanceRef] : undefined}
               onSelect={(event: React.PointerEvent<HTMLDivElement>) => {
@@ -2210,11 +2254,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
               }}
               onTransformStart={(event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => startTransform(event, annotation, mode)}
               onDoubleClick={() => {
-                if (annotation.data?.locked === true) return;
-                setEditingId(annotation.id);
-                setEditingValue(readText(annotation));
+                if (!isCurrentPage() || annotation.data?.locked === true) return;
+                const edit = { identity: pageIdentity, id: annotation.id, value: readText(annotation) };
+                editingRef.current = edit;
+                setEditingState(edit);
               }}
-              onCommitEdit={(v: string) => commitTextEdit(annotation, v)}
+              onCommitEdit={(v: string) => commitTextEdit(annotation, v, activeEdit)}
               {...(annotation.type === 'callout' ? {
                 anchorPoint: anchor,
                 kneePoint: knee,
@@ -2233,6 +2278,29 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
               height: marquee.height * scale,
             }}
           />
+        )}
+        {(isPlacementOnlyTool || isInkTool) && (
+          <div
+            data-testid="annotation-creation-hit-target"
+            className="absolute inset-0"
+            style={{ pointerEvents: 'auto', zIndex: 100 }}
+            onMouseDown={isInkTool ? startMarquee : startShapeDraw}
+          >
+            {isNoteTool && textItems.map((item) => (
+              <span
+                key={item.id}
+                data-text-item="true"
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', left: item.x, top: item.y,
+                  width: item.width, height: item.height, fontSize: item.fontSize,
+                  lineHeight: `${item.height}px`, fontFamily: 'sans-serif',
+                  whiteSpace: 'pre', color: 'transparent', userSelect: 'text',
+                  WebkitUserSelect: 'text',
+                }}
+              >{item.text}</span>
+            ))}
+          </div>
         )}
       </div>
 
