@@ -481,7 +481,9 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
   };
 
   const handleEvidencePackage = async () => {
-    if (!auditReport || !auditArtifact || !parsedState.result) return;
+    // A preview report is created before the annotation macro finishes.
+    // Never expose a transient preview snapshot as the completed-run ZIP.
+    if (isRunning || isScanning || isPackaging || !auditReport || !auditArtifact || !parsedState.result) return;
     onBusyChange?.(true);
     setIsPackaging(true);
     setError(null);
@@ -782,7 +784,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-audit.csv`,
                   'text/csv;charset=utf-8',
                 )}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <Download className="mr-1 h-3 w-3" />CSV
               </Button>
@@ -796,7 +798,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-manifest.json`,
                   'application/json;charset=utf-8',
                 )}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <FileJson className="mr-1 h-3 w-3" />Manifest
               </Button>
@@ -806,7 +808,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                 size="sm"
                 className="h-7 justify-center px-2 text-[10px]"
                 onClick={() => void handleEvidencePackage()}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <Archive className="mr-1 h-3 w-3" />
                 {isPackaging ? 'Building...' : 'Evidence ZIP'}
