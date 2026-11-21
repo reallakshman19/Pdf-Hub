@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { WriterElementV2, WriterPageViewport } from '@/core/writer-v2/types';
+import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { WriterOverlayLayer } from './WriterOverlayLayer';
 import { createTextCalloutElement } from '@/core/writer-v2/writerElementFactory';
@@ -46,6 +47,7 @@ describe('WriterOverlayLayer', () => {
   beforeEach(() => {
     localStorage.clear();
     useWriterV2Store.getState().clearWriterV2();
+    useSessionStore.getState().clearDocument();
   });
 
   it('renders visible writer elements for a page', () => {
@@ -164,9 +166,16 @@ describe('WriterOverlayLayer', () => {
   });
 
   it('opens inline editor on double-click and saves writer text', async () => {
-    useWriterV2Store.getState().hydrateWriterElements([
-      element('writer-1'),
-    ]);
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-1',
+      fileName: 'sample.pdf',
+      bytes: new Uint8Array([0, 1, 2]),
+      pageCount: 1,
+    });
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+    });
 
     render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
 
@@ -185,7 +194,7 @@ describe('WriterOverlayLayer', () => {
     expect(useWriterV2Store.getState().elements[0].editorStateJson).toContain('"root"');
   });
 
-  it('places a rich text box when Writer V2 text tool is active', () => {
+  it('places a rich text box when Writer V2 text tool is active', async () => {
     localStorage.setItem('writer-v2-enable-legacy-placement', '1');
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
@@ -202,14 +211,15 @@ describe('WriterOverlayLayer', () => {
       pointerId: 10,
     });
 
-    const state = useWriterV2Store.getState();
-
-    expect(state.elements).toHaveLength(1);
-    expect(state.elements[0].type).toBe('richTextBox');
-    expect(state.activeWriterTool).toBe('select');
+    await waitFor(() => {
+      const state = useWriterV2Store.getState();
+      expect(state.elements).toHaveLength(1);
+      expect(state.elements[0].type).toBe('richTextBox');
+      expect(state.activeWriterTool).toBe('select');
+    });
   });
 
-  it('places a text callout when Writer V2 callout tool is active', () => {
+  it('places a text callout when Writer V2 callout tool is active', async () => {
     localStorage.setItem('writer-v2-enable-legacy-placement', '1');
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
@@ -226,15 +236,23 @@ describe('WriterOverlayLayer', () => {
       pointerId: 11,
     });
 
-    const state = useWriterV2Store.getState();
-
-    expect(state.elements).toHaveLength(1);
-    expect(state.elements[0].type).toBe('textCallout');
-    expect(state.elements[0].callout?.anchorPoint).toBeTruthy();
-    expect(state.activeWriterTool).toBe('select');
+    await waitFor(() => {
+      const state = useWriterV2Store.getState();
+      expect(state.elements).toHaveLength(1);
+      expect(state.elements[0].type).toBe('textCallout');
+      expect(state.elements[0].callout?.anchorPoint).toBeTruthy();
+      expect(state.activeWriterTool).toBe('select');
+    });
   });
 
   it('renders and supports editing textCallout variant', async () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-1',
+      fileName: 'sample.pdf',
+      bytes: new Uint8Array([0, 1, 2]),
+      pageCount: 1,
+    });
+
     const callout = createTextCalloutElement({
       documentFingerprint: 'doc-1',
       pageIndex: 0,
@@ -243,7 +261,10 @@ describe('WriterOverlayLayer', () => {
       anchorPoint: { x: 50, y: 50 },
     });
 
-    useWriterV2Store.getState().hydrateWriterElements([callout]);
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [callout],
+    });
 
     render(<WriterOverlayLayer pageNumber={1} viewport={viewport} />);
 

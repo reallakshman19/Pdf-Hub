@@ -22,9 +22,9 @@ export function isWriterPersistenceOwnerCurrent(owner: WriterPersistenceOwner): 
 /** PDF loads may start before Writer is hydrated; blank documents never borrow a PDF key. */
 export function mayLoadWriterDocument(owner: WriterPersistenceOwner, fingerprint: string): boolean {
   const { writer, document } = owner;
-  if (writer.documentMeta?.mode === 'blankDocument') return writer.currentDocumentFingerprint === fingerprint;
+  if (writer.documentMeta?.mode === 'blankDocument') return !writer.currentDocumentFingerprint || writer.currentDocumentFingerprint === fingerprint;
   const key = document.session.documentKey;
-  return key ? key === fingerprint : !writer.currentDocumentFingerprint || writer.currentDocumentFingerprint === fingerprint;
+  return key ? key === fingerprint : true;
 }
 
 export function ownsWriterSnapshot(
@@ -33,11 +33,8 @@ export function ownsWriterSnapshot(
   snapshot: Pick<WriterV2StoreState, 'elements' | 'assetRecords'>,
 ): boolean {
   return mayLoadWriterDocument(owner, fingerprint)
-    && owner.writer.currentDocumentFingerprint === fingerprint
     && snapshot.elements === owner.writer.elements
-    && snapshot.assetRecords === owner.writer.assetRecords
-    && snapshot.elements.every((element) => element.documentFingerprint === fingerprint)
-    && snapshot.assetRecords.every((asset) => asset.documentFingerprint === fingerprint);
+    && snapshot.assetRecords === owner.writer.assetRecords;
 }
 
 /** Serialize writes for a document so an older write cannot finish after its successor. */

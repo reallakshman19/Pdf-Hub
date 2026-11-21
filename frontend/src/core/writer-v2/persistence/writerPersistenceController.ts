@@ -89,12 +89,17 @@ export async function saveWriterSessionToPersistence(
     throw new Error('Writer save rejected: snapshot does not belong to the active document.');
   }
   const session = useSessionStore.getState();
-  const elements =
+  const elements = (
     writerState.documentMeta?.mode === 'pdfOverlay'
       ? normalizeWriterPageAnchors(state.elements, session.pageGraph)
-      : cloneElements(state.elements);
+      : cloneElements(state.elements)
+  ).map((element) => ({
+    ...element,
+    documentFingerprint,
+  }));
   const assetRecords = state.assetRecords.map((asset) => ({
     ...asset,
+    documentFingerprint,
     updatedAt: savedAt,
   }));
 
