@@ -596,6 +596,7 @@ export const ToolbarOrganize: React.FC = () => {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            aria-label="Delete selected or current pages"
             onClick={handleDeletePages}
             disabled={!workingBytes || activeIndices.length >= pageCount}
           >
@@ -610,7 +611,7 @@ export const ToolbarOrganize: React.FC = () => {
         </Tooltip>
 
         <Tooltip content="Rotate selected/current pages">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRotatePages} disabled={!workingBytes}>
+          <Button variant="ghost" size="icon" aria-label="Rotate selected or current pages" className="h-8 w-8" onClick={handleRotatePages} disabled={!workingBytes}>
             <RotateCw className="w-4 h-4" />
           </Button>
         </Tooltip>

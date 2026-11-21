@@ -1,7 +1,8 @@
 import React from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { loadAnnotations, saveAnnotations } from '@/core/annotations/persistence';
+import { loadAnnotationsOrNull, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
 import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
@@ -25,38 +26,105 @@ export function useAnnotationPersistence({
   setAnnotations,
   setRestoredCount,
 }: UseAnnotationPersistenceArgs): void {
+  const hydratedDocumentKey = useAnnotationStore((state) => state.hydratedDocumentKey);
   React.useEffect(() => {
+    let cancelled = false;
     const loadStored = async () => {
-      if (!documentKey) return;
+      if (!documentKey || !workingBytes) return;
       setRestoredCount(0);
-      const stored = await loadAnnotations(documentKey);
-      if (stored.length > 0) {
-        setAnnotations(stored);
-        const hydrated = useAnnotationStore.getState().annotations;
-        setRestoredCount(hydrated.length);
-        await saveAnnotations(documentKey, hydrated);
-        return;
-      }
-
-      if (!workingBytes) {
-        setAnnotations([]);
-        return;
-      }
-
+      const before = useAnnotationStore.getState().annotations;
+      const stored = await loadAnnotationsOrNull(documentKey);
       const imported = await readNativePdfAnnotations(workingBytes);
-      setAnnotations(imported.annotations);
-      const hydrated = useAnnotationStore.getState().annotations;
-      setRestoredCount(hydrated.length);
-
-      if (hydrated.length > 0) {
-        await saveAnnotations(documentKey, hydrated);
+      if (cancelled || useSessionStore.getState().documentKey !== documentKey
+        || useSessionStore.getState().workingBytes !== workingBytes) return;
+      if (useAnnotationStore.getState().annotations !== before) {
+        throw new Error('Annotations changed before the native document finished loading.');
       }
+      const sourceByKey = new Map(imported.annotations.map((item) => [
+        `${item.pageNumber}\u0000${item.data.nativeOriginalName ?? item.id}`, item,
+      ]));
+      const model = stored === null ? imported.annotations : stored.map((item) => {
+        const origin = item.data.nativeCopySource;
+        const source = sourceByKey.get(`${origin?.pageNumber ?? item.pageNumber}\u0000${origin?.nativeName ?? item.data.nativeOriginalName ?? item.id}`);
+        const data = { ...item.data };
+        delete data.nativeSourceRef;
+        delete data.nativeAppearanceRef;
+        delete data.nativeAppearanceRotation;
+        delete data.nativeAppearancePageRotation;
+        delete data.nativeStampRotationReadOnly;
+        delete data.nativeBoxShapeImported;
+        delete data.nativeBoxShapeHasAppearance;
+        delete data.nativeBoxShapeSourceHash;
+        delete data.nativeBoxShapeGenerated;
+        delete data.nativeBoxShapeGeneratedOrientation;
+        delete data.nativeMarkupRotationSourceHash;
+        delete data.nativeMarkupPreviewOffset;
+        delete data.nativeMarkupGeneratedAppearance;
+        if (source) {
+          // Draft state cannot authorize changes to artwork already in the PDF.
+          delete data.nativeMarkupDraft;
+          // Classify from the native source, never a potentially stale
+          // editable/generated flag restored from a sidecar.
+          if (item.type === 'stamp') {
+            if (source.data.nativeStampAppearanceKind) data.nativeStampAppearanceKind = source.data.nativeStampAppearanceKind;
+            else delete data.nativeStampAppearanceKind;
+            if (source.data.nativeStampAppearanceKind === 'generated') {
+              const sourceBasis = source.data.nativeStampBasisRotation ?? 0;
+              const graph = useSessionStore.getState().pageGraph;
+              const sourceRotation = graph?.pages[(origin?.pageNumber ?? source.pageNumber) - 1]?.rotation
+                ?? source.data.nativeAppearancePageRotation;
+              const targetRotation = graph?.pages[item.pageNumber - 1]?.rotation;
+              data.nativeStampBasisRotation = origin && sourceRotation !== undefined && targetRotation !== undefined
+                ? ((sourceBasis + targetRotation - sourceRotation) % 360 + 360) % 360 : sourceBasis;
+              if (origin) data.nativeStampCopySourceBasisRotation = sourceBasis;
+              else delete data.nativeStampCopySourceBasisRotation;
+            } else {
+              delete data.nativeStampBasisRotation;
+              delete data.nativeStampCopySourceBasisRotation;
+            }
+            if (source.data.hasCustomAppearance) data.hasCustomAppearance = true;
+            else delete data.hasCustomAppearance;
+            if (source.data.nativeStampRotationReadOnly) data.nativeStampRotationReadOnly = true;
+          }
+          if (item.type === 'shape-rect' || item.type === 'shape-ellipse' || item.type === 'shape-cloud') {
+            data.nativeBoxShapeImported = true;
+            data.nativeBoxShapeHasAppearance = Boolean(source.data.nativeBoxShapeHasAppearance);
+            if (source.data.nativeBoxShapeSourceHash) data.nativeBoxShapeSourceHash = source.data.nativeBoxShapeSourceHash;
+            if (source.data.nativeBoxShapeGenerated) {
+              data.nativeBoxShapeGenerated = true;
+              data.nativeBoxShapeGeneratedOrientation = source.data.nativeBoxShapeGeneratedOrientation;
+            }
+          }
+          if (source.data.nativeMarkupRotationSourceHash) {
+            data.nativeMarkupRotationSourceHash = source.data.nativeMarkupRotationSourceHash;
+            if (source.data.nativeMarkupGeneratedAppearance) data.nativeMarkupGeneratedAppearance = true;
+            const graph = useSessionStore.getState().pageGraph;
+            const from = graph?.pages[(origin?.pageNumber ?? source.pageNumber) - 1]?.rotation;
+            const to = graph?.pages[item.pageNumber - 1]?.rotation;
+            const offset = (source.data.nativeMarkupPreviewOffset ?? 0) + (origin && from !== undefined && to !== undefined ? (from - to) / 90 : 0);
+            if (Number.isInteger(offset)) data.nativeMarkupPreviewOffset = ((offset % 4) + 4) % 4;
+          }
+          if (!origin && source.data.nativeSourceRef) data.nativeSourceRef = source.data.nativeSourceRef;
+          if (source.data.nativeAppearanceRef) data.nativeAppearanceRef = source.data.nativeAppearanceRef;
+          if (source.data.nativeAppearanceRotation !== undefined) data.nativeAppearanceRotation = source.data.nativeAppearanceRotation;
+          if (source.data.nativeAppearancePageRotation !== undefined) data.nativeAppearancePageRotation = source.data.nativeAppearancePageRotation;
+        }
+        return { ...item, data };
+      });
+      setAnnotations(model);
+      const hydrated = useAnnotationStore.getState().annotations;
+      useAnnotationStore.setState({ hydratedDocumentKey: documentKey });
+      setRestoredCount(hydrated.length);
     };
-    void loadStored();
+    void loadStored().catch((err) => {
+      if (!cancelled) logError('annotation', 'Failed to load native annotations', { error: String(err), documentKey });
+    });
+    return () => { cancelled = true; };
   }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
 
   React.useEffect(() => {
-    if (!documentKey || !pdfDoc) return;
+    if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey) return;
+    let cancelled = false;
 
     const run = async () => {
       const current = useAnnotationStore.getState().annotations;
@@ -78,7 +146,9 @@ export function useAnnotationPersistence({
         return ensureAnnotationHasNormalizedGeometry(annotation, dims);
       });
 
-      if (JSON.stringify(migrated) !== JSON.stringify(current)) {
+      if (!cancelled && useSessionStore.getState().documentKey === documentKey
+        && useAnnotationStore.getState().annotations === current
+        && JSON.stringify(migrated) !== JSON.stringify(current)) {
         setAnnotations(migrated);
         void saveAnnotations(documentKey, migrated).catch((err) => {
           logError('annotation', 'Failed to persist normalized geometry migration', {
@@ -90,10 +160,11 @@ export function useAnnotationPersistence({
     };
 
     void run();
-  }, [documentKey, pdfDoc, setAnnotations]);
+    return () => { cancelled = true; };
+  }, [documentKey, pdfDoc, setAnnotations, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey) return;
 
     const timer = window.setTimeout(() => {
       void saveAnnotations(documentKey, annotations).catch(err => {
@@ -107,10 +178,10 @@ export function useAnnotationPersistence({
     return () => {
       clearTimeout(timer);
     };
-  }, [annotations, documentKey]);
+  }, [annotations, documentKey, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey) return;
 
     const flushNow = () => {
       void saveAnnotations(documentKey, useAnnotationStore.getState().annotations).catch(err => {
@@ -126,5 +197,5 @@ export function useAnnotationPersistence({
     return () => {
       window.removeEventListener('pagehide', flushNow);
     };
-  }, [documentKey]);
+  }, [documentKey, hydratedDocumentKey]);
 }

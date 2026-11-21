@@ -7,8 +7,11 @@ export interface ReviewMessage {
   author: string;
   content: string;
   createdAt: number;
+  updatedAt?: number;
   /** Logical parent reply when this message is nested below another reply. */
   parentReplyId?: string;
+  /** Original reply identity while copying its native appearance graph. */
+  nativeCopySourceId?: string;
   nativeInterop?: {
     fidelityClass: 'NATIVE_PRESERVED_READ_ONLY';
     reason: 'RICH_TEXT';

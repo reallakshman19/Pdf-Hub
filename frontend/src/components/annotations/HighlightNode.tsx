@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { axisAlignedTextMarkupQuads } from './shared/textMarkupQuads';
 
 /**
  * Highlight annotation — semi-transparent rect over text.
@@ -19,6 +20,7 @@ export const HighlightNode: React.FC<AnnotationNodeProps<'highlight'>> = ({
 }) => {
   const color   = annotation.data?.backgroundColor ?? '#FFFF00';
   const opacity = annotation.data?.opacity ?? 0.35;
+  const quads = axisAlignedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height);
 
   return (
     <div
@@ -28,7 +30,7 @@ export const HighlightNode: React.FC<AnnotationNodeProps<'highlight'>> = ({
         top:             rect.y,
         width:           rect.width,
         height:          rect.height,
-        backgroundColor: color,
+        backgroundColor: quads ? 'transparent' : color,
         opacity,
         mixBlendMode:    'multiply',
         cursor:          'pointer',
@@ -36,6 +38,10 @@ export const HighlightNode: React.FC<AnnotationNodeProps<'highlight'>> = ({
         pointerEvents:   'all',
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
-    />
+    >
+      {quads && <svg width={rect.width} height={rect.height} style={{ overflow: 'visible' }}>
+        {quads.map((quad, index) => <rect key={index} {...quad} fill={color} />)}
+      </svg>}
+    </div>
   );
 };

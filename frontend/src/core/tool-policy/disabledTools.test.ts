@@ -8,18 +8,7 @@ import {
 import type { ActiveTool } from '@/core/editor/types';
 
 describe('disabled tool policy', () => {
-  // Only two V2-replaced legacy tools remain disabled (callout re-enabled for annotate mode)
-  it.each([
-    'textbox',
-    'stamp',
-  ] as ActiveTool[])('disables V2-replaced legacy tool %s', (tool) => {
-    expect(isToolDisabled(tool)).toBe(true);
-    expect(getToolDisabledReason(tool)).toBeTruthy();
-    expect(normalizeActiveTool(tool)).toBe('select');
-    expect(() => assertToolAllowed(tool)).toThrow(/disabled/);
-  });
-
-  // All annotation tools including callout are enabled
+  // All native annotation tools including textbox and stamp are enabled
   it.each([
     'select',
     'hand',
@@ -31,6 +20,8 @@ describe('disabled tool policy', () => {
     'comment',
     'callout',
     'sticky-note',
+    'textbox',
+    'stamp',
     'shape-rect',
     'shape-ellipse',
     'shape-cloud',

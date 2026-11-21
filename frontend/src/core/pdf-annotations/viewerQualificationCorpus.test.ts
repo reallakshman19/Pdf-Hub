@@ -163,7 +163,7 @@ async function inspectRichTextJourney(bytes: Uint8Array) {
   expect(readText(dict, 'DS')).toBe(
     'font: 14pt Helvetica; color: #000000',
   );
-  expect(dict.has(PDFName.of('AP'))).toBe(false);
+  expect(dict.has(PDFName.of('AP'))).toBe(true);
 
   const imported = await readNativePdfAnnotations(bytes);
   expect(imported.annotations).toHaveLength(1);
@@ -329,8 +329,11 @@ describe('Phase 10 viewer appearance qualification corpus', () => {
       expect(actual.nm).toBe(annotation.id);
       expect(actual.subtype).toBe(expected.pdfSubtype);
       const mustHaveAp = type === 'highlight' || type === 'underline'
-        || type === 'strikeout' || type === 'squiggly' || type === 'redaction';
-      expect(actual.hasAppearance).toBe(mustHaveAp);
+        || type === 'strikeout' || type === 'squiggly' || type === 'redaction'
+        || type === 'stamp' || type === 'textbox' || type === 'callout'
+        || type === 'shape-rect' || type === 'shape-ellipse' || type === 'shape-polygon'
+        || type === 'ink' || type === 'line' || type === 'arrow';
+      expect(actual.hasAppearance, `native appearance for ${type}`).toBe(mustHaveAp);
 
       entries.push({
         type,

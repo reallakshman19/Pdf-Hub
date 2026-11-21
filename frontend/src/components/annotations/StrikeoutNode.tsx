@@ -1,13 +1,19 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { hasKnownMarkupOrientation, orientedTextMarkupQuads, pointOnTextMarkupQuad, textMarkupPreviewRotation } from './shared/textMarkupQuads';
 
 export const StrikeoutNode: React.FC<AnnotationNodeProps<'strikeout'>> = ({
-  annotation, rect, isSelected, onSelect, onTransformStart,
+  annotation, rect, isSelected, pageRotation, onSelect, onTransformStart,
 }) => {
   const color = annotation.data?.borderColor ?? '#000000';
+  const orientation = textMarkupPreviewRotation(pageRotation, annotation.data.nativeMarkupRotationSourceHash,
+    annotation.data.nativeMarkupPreviewOffset, annotation.data.nativeMarkupTurn, annotation.data.nativeMarkupDraft);
+  const quads = orientedTextMarkupQuads(annotation.data?.textMarkupQuads, rect.width, rect.height, orientation, hasKnownMarkupOrientation(annotation.data))
+    ?? [{ x: 0, y: 0, width: rect.width, height: rect.height, angle: 0 }];
 
   return (
     <div
+      data-annotation-type="strikeout"
       style={{
         position: 'absolute',
         left: rect.x, top: rect.y,
@@ -17,13 +23,16 @@ export const StrikeoutNode: React.FC<AnnotationNodeProps<'strikeout'>> = ({
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >
       <svg width={rect.width} height={rect.height} style={{ overflow: 'visible' }}>
-        <line
-          x1={0} y1={rect.height * 0.55}
-          x2={rect.width} y2={rect.height * 0.55}
+        {quads.map((quad, index) => {
+          const start = pointOnTextMarkupQuad(quad, 0, quad.height * 0.55);
+          const end = pointOnTextMarkupQuad(quad, quad.width, quad.height * 0.55);
+          return <line key={index}
+          x1={start.x} y1={start.y}
+          x2={end.x} y2={end.y}
           stroke={color}
           strokeWidth={isSelected ? 2.5 : 2}
           strokeLinecap="round"
-        />
+        />; })}
       </svg>
     </div>
   );

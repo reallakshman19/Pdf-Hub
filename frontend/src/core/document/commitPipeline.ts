@@ -9,6 +9,8 @@ export interface ComposeCommittedPdfInput {
   baseBytes: Uint8Array;
   annotations: PdfAnnotation[];
   writerElements: PlacedElement[];
+  /** Caller has loaded the complete managed annotation model for these bytes. */
+  replaceManagedAnnotations?: boolean;
 }
 
 export interface ComposeCommittedPdfResult {
@@ -94,8 +96,8 @@ export async function composeEditablePdf(
     );
   }
 
-  if (annotations.length > 0) {
-    const native = await writeNativePdfAnnotations(nextBytes, annotations);
+  if (annotations.length > 0 || input.replaceManagedAnnotations) {
+    const native = await writeNativePdfAnnotations(nextBytes, annotations, { replaceManagedAnnotations: input.replaceManagedAnnotations });
     nextBytes = new Uint8Array(native.bytes);
   }
 

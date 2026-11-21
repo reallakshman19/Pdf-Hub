@@ -16,6 +16,9 @@ export interface PdfMutationPageMetrics {
   width: number;
   height: number;
   rotation: number;
+  /** Dimensions of the visible crop after page rotation. */
+  displayWidth?: number;
+  displayHeight?: number;
 }
 
 export type PdfMutationPageLabelStyle =

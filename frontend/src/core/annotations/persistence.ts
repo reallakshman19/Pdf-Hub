@@ -8,6 +8,9 @@ const DB_NAME = 'DocCraftAnnotations';
 const STORE_NAME = 'annotations';
 const DB_VERSION = 1;
 const ANNOTATION_SCHEMA_VERSION = 3;
+// Opening IndexedDB is asynchronous, so transactions requested in order can
+// otherwise start in the opposite order and replace newer recovery data.
+const pendingWrites = new Map<string, Promise<void>>();
 
 interface AnnotationRecord {
   id: string;
@@ -49,10 +52,21 @@ export const getDb = async (): Promise<IDBPDatabase<AnnotationDbSchema>> => {
   });
 };
 
-export const saveAnnotations = async (
+export const saveAnnotations = (
   documentKey: string,
   annotations: PdfAnnotation[],
 ): Promise<void> => {
+  const previous = pendingWrites.get(documentKey) ?? Promise.resolve();
+  const write = previous.catch(() => undefined).then(() => writeAnnotations(documentKey, annotations));
+  pendingWrites.set(documentKey, write);
+  void write.then(
+    () => { if (pendingWrites.get(documentKey) === write) pendingWrites.delete(documentKey); },
+    () => { if (pendingWrites.get(documentKey) === write) pendingWrites.delete(documentKey); },
+  );
+  return write;
+};
+
+const writeAnnotations = async (documentKey: string, annotations: PdfAnnotation[]): Promise<void> => {
   try {
     const db = await getDb();
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -85,10 +99,11 @@ export const saveAnnotations = async (
   }
 };
 
-export const loadAnnotations = async (
+export const loadAnnotationsOrNull = async (
   documentKey: string,
-): Promise<PdfAnnotation[]> => {
+): Promise<PdfAnnotation[] | null> => {
   try {
+    await pendingWrites.get(documentKey);
     const db = await getDb();
     const result = await db.get(STORE_NAME, documentKey);
 
@@ -103,7 +118,7 @@ export const loadAnnotations = async (
       schemaVersion,
     });
 
-    return normalizeAnnotationReviews(annotations);
+    return result ? normalizeAnnotationReviews(annotations) : null;
   } catch (err) {
     error('annotation', 'Failed to load annotations from IndexedDB', {
       error: String(err),
@@ -117,6 +132,9 @@ export const loadAnnotations = async (
     );
   }
 };
+
+export const loadAnnotations = async (documentKey: string): Promise<PdfAnnotation[]> =>
+  (await loadAnnotationsOrNull(documentKey)) ?? [];
 
 export function isAnnotationPersistenceError(
   err: unknown,

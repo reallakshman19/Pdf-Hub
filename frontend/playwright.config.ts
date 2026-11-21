@@ -1,15 +1,25 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Private owner-PDF runs may generate failure diagnostics containing document
+// text even when screenshots and attachments are disabled. Require an
+// explicitly chosen private output directory and avoid the HTML reporter.
+const privateOwnerRun = Boolean(process.env.WP01_PRIVATE_PDF_PATH);
+const privateOutputDir = process.env.WP01_PRIVATE_TEST_OUTPUT_DIR;
+if (privateOwnerRun && !privateOutputDir) {
+  throw new Error('Set WP01_PRIVATE_TEST_OUTPUT_DIR for private owner-PDF tests');
+}
+
 export default defineConfig({
   testDir: './e2e',
+  ...(privateOwnerRun ? { outputDir: privateOutputDir } : {}),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  reporter: privateOwnerRun ? 'line' : 'html',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173/Pdf-Hub/',
-    trace: 'on-first-retry',
+    trace: privateOwnerRun ? 'off' : 'on-first-retry',
   },
   projects: [
     {

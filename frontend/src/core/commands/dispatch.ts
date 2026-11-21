@@ -45,6 +45,7 @@ import type { PageGraph, PageNode } from '@/core/pages/types';
 import { reanchorPageLabelRangesAfterGraphChange } from '@/core/pages/pageLabels';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { remapAfterRotate } from '@/core/annotations/pageRemapper';
+import { materializeCopiedAnnotations } from '@/core/pdf-annotations/materializeCopiedAnnotations';
 import {
   duplicateAnnotationsByPageGraph,
   normalizeAnnotationPageAnchors,
@@ -488,8 +489,20 @@ async function executeRotatePagesCommand(
     throw new Error('Rotation handler received a non-rotation command.');
   }
 
+  const annotationState = useAnnotationStore.getState();
+  const annotationsBeforeRotation = annotationState.annotations;
+  const hasCopies = annotationsBeforeRotation.some((annotation) => annotation.data.nativeCopySource);
+  if (hasCopies && annotationState.hydratedDocumentKey !== context.documentKey) {
+    throw new Error('Wait for annotations to finish loading before rotating this page.');
+  }
+  const prepared = await materializeCopiedAnnotations(context.workingBytes, annotationsBeforeRotation);
+  assertDocumentMutationOwner(input.owner);
+  if (useAnnotationStore.getState().annotations !== annotationsBeforeRotation) {
+    throw new Error('Annotations changed while preparing the page rotation. Try again.');
+  }
+
   const mutationSession = await pdfLibMutationEngine.open({
-    bytes: context.workingBytes,
+    bytes: prepared.bytes,
     signal: input.signal,
   });
 
@@ -543,8 +556,8 @@ async function executeRotatePagesCommand(
       return {
         pageIndex,
         angle,
-        width: metrics.width,
-        height: metrics.height,
+        width: metrics.displayWidth ?? (metrics.rotation % 180 ? metrics.height : metrics.width),
+        height: metrics.displayHeight ?? (metrics.rotation % 180 ? metrics.width : metrics.height),
       };
     });
 
@@ -555,7 +568,7 @@ async function executeRotatePagesCommand(
     );
     const anchoredAnnotations =
       normalizeAnnotationPageAnchors(
-        useAnnotationStore.getState().annotations,
+        prepared.annotations,
         pageGraph,
       );
     const nextAnnotations =
@@ -703,9 +716,30 @@ export async function dispatchPdfCommand(
       );
     }
 
+    const annotationState = useAnnotationStore.getState();
+    const originalAnnotations = annotationState.annotations;
+    let commandAnnotations = originalAnnotations;
+    let mutationBytes = context.workingBytes;
+    const altersPages = [
+      'REORDER_PAGES', 'REORDER_PAGES_BY_ORDER', 'DELETE_PAGES', 'INSERT_BLANK_PAGE',
+      'DUPLICATE_PAGES', 'INSERT_PAGES', 'REPLACE_PAGE', 'MERGE_PDF', 'SPLIT_PAGES',
+    ].includes(command.type);
+    if (altersPages && originalAnnotations.some((annotation) => annotation.data.nativeCopySource)) {
+      if (annotationState.hydratedDocumentKey !== context.documentKey) {
+        throw new Error('Wait for annotations to finish loading before changing pages.');
+      }
+      const prepared = await materializeCopiedAnnotations(context.workingBytes, originalAnnotations);
+      assertDocumentMutationOwner(owner);
+      if (useAnnotationStore.getState().annotations !== originalAnnotations) {
+        throw new Error('Annotations changed while preparing the page operation. Try again.');
+      }
+      mutationBytes = prepared.bytes;
+      commandAnnotations = prepared.annotations;
+    }
+
     if (usesPersistentMutationSession(command.type)) {
       commandMutationSession = await pdfLibMutationEngine.open({
-        bytes: context.workingBytes,
+        bytes: mutationBytes,
         signal: input.signal,
       });
 
@@ -746,7 +780,7 @@ export async function dispatchPdfCommand(
         );
         const order = orderFromGraphs(pageGraph, nextPageGraph);
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -795,7 +829,7 @@ export async function dispatchPdfCommand(
           reorderPageGraphByOrder(pageGraph, order),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -864,7 +898,7 @@ export async function dispatchPdfCommand(
           ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -925,7 +959,7 @@ export async function dispatchPdfCommand(
           ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -997,7 +1031,7 @@ export async function dispatchPdfCommand(
           ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -1056,7 +1090,7 @@ export async function dispatchPdfCommand(
           ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -1141,13 +1175,13 @@ export async function dispatchPdfCommand(
         const targetPageId = pageGraph.pages[atIndex]?.pageId;
         const nextAnnotations = targetPageId
           ? removeAnnotationsAnchoredToPageIds(
-              useAnnotationStore.getState().annotations,
+              commandAnnotations,
               pageGraph,
               nextPageGraph,
               [targetPageId],
             )
           : reanchorAnnotationsAfterPageGraphChange(
-              useAnnotationStore.getState().annotations,
+              commandAnnotations,
               pageGraph,
               nextPageGraph,
             );
@@ -1220,7 +1254,7 @@ export async function dispatchPdfCommand(
         );
         let annotationDuplicateOrdinal = 0;
         const nextAnnotations = duplicateAnnotationsByPageGraph(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
           pageIdsAtIndices(pageGraph, pageIndices),
@@ -1317,7 +1351,7 @@ export async function dispatchPdfCommand(
           ),
         );
         const nextAnnotations = reanchorAnnotationsAfterPageGraphChange(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           pageGraph,
           nextPageGraph,
         );
@@ -1787,7 +1821,7 @@ export async function dispatchPdfCommand(
         );
         assertDocumentMutationOwner(owner);
         const nextAnnotations = rebindAnnotationsByPageNumber(
-          useAnnotationStore.getState().annotations,
+          commandAnnotations,
           rebuiltPageGraph,
         );
         const writerElements = activePdfOverlayWriterElements();

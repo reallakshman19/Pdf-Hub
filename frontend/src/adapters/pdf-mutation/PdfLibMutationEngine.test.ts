@@ -182,12 +182,12 @@ describe('PdfLibMutationEngine', () => {
 
     expect(loadSpy).toHaveBeenCalledTimes(1);
     expect(session.pageCount).toBe(3);
-    expect(session.getPageMetrics(0)).toEqual({
+    expect(session.getPageMetrics(0)).toMatchObject({
       width: 595,
       height: 842,
       rotation: 0,
     });
-    expect(session.getPageMetrics(1)).toEqual({
+    expect(session.getPageMetrics(1)).toMatchObject({
       width: 612,
       height: 792,
       rotation: 90,

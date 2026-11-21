@@ -32,13 +32,14 @@ export interface Point2D {
 export type NativeInteropFidelityClass =
   | 'NATIVE_SUPPORTED'
   | 'NATIVE_PRESERVED_READ_ONLY'
+  | 'MUTATED_USER_EDIT'
   | 'NATIVE_DEGRADED'
   | 'VISUAL_ONLY'
   | 'UNKNOWN';
 
 export interface AnnotationNativeInteropState {
   fidelityClass: NativeInteropFidelityClass;
-  reason?: 'RICH_TEXT';
+  reason?: 'RICH_TEXT' | 'USER_EDITED';
   /** Native /RC rich-text semantics are present and must not be flattened silently. */
   richText?: boolean;
   /** FreeText /DS default style is present and preserved with /RC. */
@@ -105,6 +106,11 @@ export interface AnnotationData extends Record<string, unknown> {
   stampLabel?: string;
   stampImageDataUrl?: string;
   stampStyle?: 'approved' | 'rejected' | 'draft' | 'confidential' | 'custom';
+  nativeStampAppearanceKind?: 'generated' | 'imported';
+  /** Page rotation against which generated artwork was laid out. */
+  nativeStampBasisRotation?: number;
+  /** Session-only basis of the original source of a copied generated stamp. */
+  nativeStampCopySourceBasisRotation?: number;
 
   // ── sticky note ───────────────────────────────────────
   isCollapsed?: boolean;
@@ -119,6 +125,39 @@ export interface AnnotationData extends Record<string, unknown> {
   geometryVersion?: number;
   normalizedGeometry?: unknown;
   nativeInterop?: AnnotationNativeInteropState;
+  /** Page-scoped native /NM when the application ID was disambiguated. */
+  nativeOriginalName?: string;
+  /** A same-page /NM collision cannot be safely addressed by name alone. */
+  nativeIdentityAmbiguous?: boolean;
+  /** Original object reference for unnamed native annotations in this revision. */
+  nativeSourceRef?: string;
+  /** Explicitly removed native reply identities; other opaque replies stay intact. */
+  nativeDeletedReplyIds?: string[];
+  /** Ephemeral PDF.js identity for the native appearance in the loaded revision. */
+  nativeAppearanceRef?: string;
+  nativeAppearanceRotation?: number;
+  nativeAppearancePageRotation?: number;
+  /** Ephemeral source validation for native square/circle appearance rotation. */
+  nativeBoxShapeImported?: boolean;
+  nativeBoxShapeHasAppearance?: boolean;
+  nativeBoxShapeSourceHash?: string;
+  nativeBoxShapeTurn?: { turns: number; sourceHash?: string };
+  /** Derived from verified source AP; never trust persisted sidecar values. */
+  nativeBoxShapeGenerated?: boolean;
+  nativeBoxShapeGeneratedOrientation?: number;
+  /** Ephemeral capability derived from the current native markup appearance. */
+  nativeMarkupRotationSourceHash?: string;
+  nativeMarkupTurn?: { turns: number; sourceHash: string };
+  /** Verified quarter-turn offset relative to the page for a saved markup. */
+  nativeMarkupPreviewOffset?: number;
+  /** Derived from the verified native PDF appearance, never trusted from stored data. */
+  nativeMarkupGeneratedAppearance?: boolean;
+  /** Local creation state; the writer must reject it for an existing native source. */
+  nativeMarkupDraft?: { basisRotation: number; turns: number };
+  /** Rotation needed to retain a copied text annotation's visual orientation. */
+  nativeOrientationAdjustment?: number;
+  /** Origin used to clone native appearance and popup graphs within a PDF. */
+  nativeCopySource?: { pageNumber: number; nativeName: string; ambiguous?: boolean; requiresSource?: boolean };
 }
 
 export interface PdfAnnotation {
@@ -151,6 +190,7 @@ export interface AnnotationNodeProps<T extends AnnotationType = AnnotationType> 
   isEditing?: boolean;
   editingValue?: string;
   pageRotation?: number;
+  nativeAppearanceUrl?: string;
   onSelect: (e: React.PointerEvent<HTMLDivElement>) => void;
   onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => void;
   onDoubleClick?: () => void;

@@ -54,11 +54,16 @@ class PdfLibMutationSession implements PdfMutationSession {
     this.assertOpen('read page metrics');
     this.assertPageIndex(pageIndex);
     const page = this.document.getPage(pageIndex);
+    const crop = page.getCropBox();
+    const rotation = normalizeDegrees(page.getRotation().angle);
+    const sideways = rotation === 90 || rotation === 270;
 
     return {
       width: page.getWidth(),
       height: page.getHeight(),
-      rotation: normalizeDegrees(page.getRotation().angle),
+      rotation,
+      displayWidth: sideways ? crop.height : crop.width,
+      displayHeight: sideways ? crop.width : crop.height,
     };
   }
 

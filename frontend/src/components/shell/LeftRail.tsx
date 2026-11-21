@@ -37,6 +37,7 @@ export const LeftRail: React.FC = () => {
         return (
           <Tooltip key={id} content={label} position="right">
             <button
+              aria-label={label}
               onClick={() => {
                 setSidebarTab(id);
                 if (id === 'macros') setActiveMode('generate');

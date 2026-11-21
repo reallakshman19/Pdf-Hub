@@ -190,6 +190,7 @@ export const ToolbarComment: React.FC = () => {
           variant={getToolVariant('sticky-note')}
           size="icon"
           title={disabledTitle('sticky-note', 'Sticky Note')}
+          aria-label="Sticky Note"
           aria-disabled={isToolDisabled('sticky-note')}
           className={disabledClass('sticky-note')}
           onClick={() => handleToolClick('sticky-note')}
@@ -340,17 +341,17 @@ export const ToolbarComment: React.FC = () => {
       <Separator orientation="vertical" className="h-6" />
 
       <Tooltip content="Copy">
-        <Button variant="ghost" size="icon" onClick={copySelection} disabled={!hasSelection}>
+        <Button variant="ghost" size="icon" aria-label="Copy annotation" onClick={copySelection} disabled={!hasSelection}>
           <Copy className="w-4 h-4" />
         </Button>
       </Tooltip>
       <Tooltip content="Paste">
-        <Button variant="ghost" size="icon" onClick={() => pasteClipboard(viewState.currentPage)}>
+        <Button variant="ghost" size="icon" aria-label="Paste annotation" onClick={() => pasteClipboard(viewState.currentPage)}>
           <ClipboardPaste className="w-4 h-4" />
         </Button>
       </Tooltip>
       <Tooltip content="Duplicate">
-        <Button variant="ghost" size="icon" onClick={duplicateSelection} disabled={!hasSelection}>
+        <Button variant="ghost" size="icon" aria-label="Duplicate annotation" onClick={duplicateSelection} disabled={!hasSelection}>
           <CopyPlus className="w-4 h-4" />
         </Button>
       </Tooltip>
@@ -394,13 +395,13 @@ export const ToolbarComment: React.FC = () => {
       <Separator orientation="vertical" className="h-6" />
 
       <Tooltip content="Undo">
-        <Button variant="ghost" size="icon" onClick={() => void applyUndo()} disabled={undoStack.length === 0}>
+        <Button variant="ghost" size="icon" aria-label="Undo" onClick={() => void applyUndo()} disabled={undoStack.length === 0}>
           <Undo className="w-4 h-4" />
         </Button>
       </Tooltip>
 
       <Tooltip content="Redo">
-        <Button variant="ghost" size="icon" onClick={() => void applyRedo()} disabled={redoStack.length === 0}>
+        <Button variant="ghost" size="icon" aria-label="Redo" onClick={() => void applyRedo()} disabled={redoStack.length === 0}>
           <Redo className="w-4 h-4" />
         </Button>
       </Tooltip>

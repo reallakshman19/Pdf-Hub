@@ -1,6 +1,7 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { nativeTextDisplayRect } from './shared/nativeTextAnchor';
 
 /** Returns a slightly darker shade of a hex color for the header strip */
 function darken(hex: string, amount = 0.18): string {
@@ -23,6 +24,7 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
   const text = annotation.data?.text ?? '';
   const isLocked = annotation.data?.locked === true;
   const collapsed = annotation.data?.isCollapsed !== false;
+  const displayRect = nativeTextDisplayRect(rect, pageRotation);
 
   /* ── Collapsed: post-it note shape ── */
   if (collapsed) {
@@ -32,8 +34,9 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
 
     return (
       <div
+        data-annotation-type="sticky-note"
         className="absolute pointer-events-auto cursor-pointer select-none"
-        style={{ left: rect.x, top: rect.y, zIndex: 10 }}
+        style={{ left: displayRect.x, top: displayRect.y, zIndex: 10 }}
         onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
         onDoubleClick={onDoubleClick}
       >
@@ -43,7 +46,6 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
             borderRadius: 3,
             outline: isSelected ? '2px solid #3b82f6' : 'none',
             outlineOffset: 2,
-            transform: `rotate(${pageRotation - 1.8}deg)`,
             transition: 'transform 120ms ease, box-shadow 120ms ease',
             boxShadow: '2px 5px 12px rgba(0,0,0,0.28)',
           }}
@@ -118,12 +120,13 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
   /* ── Expanded: full sticky note card ── */
   return (
     <div
+      data-annotation-type="sticky-note"
       className="absolute pointer-events-auto flex flex-col"
       style={{
-        left: rect.x,
-        top: rect.y,
-        width: rect.width,
-        height: rect.height,
+        left: displayRect.x,
+        top: displayRect.y,
+        width: displayRect.width,
+        height: displayRect.height,
         background: bg,
         border: `1.5px solid ${darken(bg, 0.25)}`,
         borderRadius: 6,
@@ -131,7 +134,6 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
           ? '0 0 0 2px #3b82f6, 3px 6px 18px rgba(0,0,0,0.30)'
           : '3px 6px 16px rgba(0,0,0,0.22)',
         overflow: 'hidden',
-        transform: `rotate(${pageRotation}deg)`,
       }}
       onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
     >
