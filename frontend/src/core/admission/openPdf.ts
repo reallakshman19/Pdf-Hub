@@ -8,6 +8,7 @@ import {
 } from '@/adapters/history-journal/browserHistoryJournalStore';
 import {
   isOperationCancelledError,
+  OperationCancelledError,
   raceWithAbort,
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
@@ -50,6 +51,8 @@ import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import type { PageGraph, PageNode } from '@/core/pages/types';
 import type { OpenDocumentPayload } from '@/core/session/store';
 import { useSessionStore } from '@/core/session/store';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
+import { beginDocumentOpenIntent, isDocumentOpenIntentCurrent } from '@/core/session/documentOpenIntent';
 import { sortAdmissionDiagnostics } from './diagnostics';
 import { assertAdmissionCommitAllowed } from './operation';
 import { createAdmissionPolicy, evaluateAdmissionMetric } from './policy';
@@ -86,6 +89,15 @@ export interface OpenedPdfDocument {
 
 export interface OpenPdfFileOptions {
   readonly signal?: AbortSignal;
+  /** Shared intent for a staged project or an ordinary user Open. */
+  readonly openIntent?: number;
+  /** Only actual user Open routes opt in; inner source admission never recurses. */
+  readonly recoverEditableWriter?: boolean;
+  /** Editable projects must have durable history metadata before publication. */
+  readonly requireHistoryJournal?: boolean;
+  /** Prepare all destination models synchronously before replacing session resources. */
+  readonly preparePublication?: (payload: OpenDocumentPayload) => () => void;
+  readonly assertSourceCurrent?: () => void;
   readonly saveHandle?: FileSystemFileHandle | null;
   readonly commit?: (payload: OpenDocumentPayload) => void;
   readonly buildPageGraph?: typeof buildPageGraphFromPdfBytes;
@@ -118,7 +130,16 @@ export async function admitAndOpenPdfFile(
   source: PrimaryPdfInputSource,
   options: OpenPdfFileOptions = {},
 ): Promise<AdmissionResult<OpenedPdfDocument>> {
+  const intent = options.openIntent ?? beginDocumentOpenIntent();
+  const sourceOwner = captureDocumentMutationOwner();
   const generation = ++latestOpenGeneration;
+  const current = () => generation === latestOpenGeneration
+    && isDocumentOpenIntentCurrent(intent)
+    && isDocumentMutationOwnerCurrent(sourceOwner);
+  const assertCurrent = () => {
+    if (!current()) throw new OperationCancelledError('PDF open superseded by another document operation');
+    options.assertSourceCurrent?.();
+  };
   const measurements: AdmissionMeasuredValue[] = [
     {
       metric: 'SOURCE_BYTES',
@@ -214,6 +235,23 @@ export async function admitAndOpenPdfFile(
       },
     );
 
+    // The outer PDF has passed the same bounded source and signature checks as
+    // ordinary PDF admission. Stage any reserved attachment before publication.
+    if (options.recoverEditableWriter && !options.commit) {
+      assertCurrent();
+      const { tryOpenEmbeddedWriterPdf } = await import('@/core/writer-v2/export/projectImportController');
+      const editable = await tryOpenEmbeddedWriterPdf(bytes, file.name, source, {
+        signal: options.signal, openIntent: intent, assertSourceCurrent: () => {
+          if (!isDocumentOpenIntentCurrent(intent) || !isDocumentMutationOwnerCurrent(sourceOwner)) {
+            throw new OperationCancelledError('PDF open superseded by another document operation');
+          }
+          options.assertSourceCurrent?.();
+        },
+      });
+      if (editable) return editable;
+      assertCurrent();
+    }
+
     const documentKey = await raceWithAbort(
       FileAdapter.hashBytes(bytes),
       options.signal,
@@ -252,7 +290,7 @@ export async function admitAndOpenPdfFile(
     }
 
     assertAdmissionCommitAllowed(options.signal, 'open admitted PDF');
-    if (generation !== latestOpenGeneration) {
+    if (!current()) {
       diagnostics.push({
         severity: 'info',
         code: 'ADMISSION_STALE_OPERATION',
@@ -289,7 +327,7 @@ export async function admitAndOpenPdfFile(
       options.signal,
       'open admitted PDF after working revision publish',
     );
-    if (generation !== latestOpenGeneration) {
+    if (!current()) {
       diagnostics.push({
         severity: 'info',
         code: 'ADMISSION_STALE_OPERATION',
@@ -329,6 +367,7 @@ export async function admitAndOpenPdfFile(
         revisionId: initialRevision.revisionId,
         fileName: file.name,
       });
+      provisionalJournal = { store: journalStore, journalId };
       await raceWithAbort(
         journalStore.save(manifest),
         options.signal,
@@ -344,8 +383,12 @@ export async function admitAndOpenPdfFile(
         journalId,
       };
     } catch (journalError) {
-      if (isOperationCancelledError(journalError)) {
+      if (isOperationCancelledError(journalError) || options.requireHistoryJournal) {
         throw journalError;
+      }
+      if (provisionalJournal) {
+        try { await provisionalJournal.store.remove(provisionalJournal.journalId); } catch { /* best-effort cleanup */ }
+        provisionalJournal = null;
       }
       warn(
         'history',
@@ -371,7 +414,7 @@ export async function admitAndOpenPdfFile(
       options.signal,
       'open admitted PDF after history journal initialization',
     );
-    if (generation !== latestOpenGeneration) {
+    if (!current()) {
       if (provisionalJournal) {
         try {
           await provisionalJournal.store.remove(
@@ -425,6 +468,19 @@ export async function admitAndOpenPdfFile(
       pageGraph,
       saveHandle,
     };
+    assertCurrent();
+    if (options.requireHistoryJournal && (!historyJournalStoreId || !historyJournalId)) {
+      throw new Error('Editable Writer project requires an initialized history journal.');
+    }
+    let prepare = options.preparePublication;
+    if (options.recoverEditableWriter && !options.commit && !prepare) {
+      const { preparePlainWriterPdfPublication } = await import('@/core/writer-v2/export/projectImportController');
+      assertCurrent();
+      prepare = preparePlainWriterPdfPublication;
+    }
+    const publish = prepare?.(payload);
+    assertAdmissionCommitAllowed(options.signal, 'publish admitted PDF');
+    assertCurrent();
     const commitsToSession =
       options.commit === undefined;
     const commit =
@@ -443,6 +499,9 @@ export async function admitAndOpenPdfFile(
       provisionalRevisionGcBlocker?.release();
     }
     provisionalRevisionGcBlocker = null;
+    // No asynchronous gap between canonical session admission and model publication.
+    // Never restore references to the already released previous session on failure.
+    publish?.();
 
     const value: OpenedPdfDocument = Object.freeze({
       source,

@@ -20,6 +20,9 @@ export type WriterTableResizeDrag =
       columnIndex: number;
       startX: number;
       initialWidths: number[];
+      /** Raw model weights, distinct from zoom-normalized visual widths. */
+      initialColumnWeights?: (number | undefined)[];
+      viewportScale?: number;
     }
   | {
       type: 'resize-row';
@@ -28,6 +31,8 @@ export type WriterTableResizeDrag =
       rowIndex: number;
       startY: number;
       initialHeight: number;
+      initialRowHeight?: number;
+      viewportScale?: number;
     };
 
 export function buildWriterTableDragResizeCommand(
@@ -61,11 +66,16 @@ export function buildWriterTableDragResizeCommand(
     };
   }
 
+  const viewportScale = input.drag.viewportScale ?? 1;
+  if (!Number.isFinite(viewportScale) || viewportScale <= 0 || !Number.isFinite(input.point.x) || !Number.isFinite(input.point.y)) {
+    return { command: null, changed: false, message: 'Writer table resize coordinates are invalid.' };
+  }
   if (input.drag.type === 'resize-column') {
     const columns = element.tableData.columns;
     const index = input.drag.columnIndex;
     const capturedColumnIds = input.drag.columnIds;
     const capturedWidths = input.drag.initialWidths;
+    const capturedWeights = input.drag.initialColumnWeights ?? capturedWidths;
     // A drag moves the common boundary between two columns. Never admit
     // only the left-hand update: it changes the entire table width and
     // invalidates the pointer's observed geometry.
@@ -73,6 +83,8 @@ export function buildWriterTableDragResizeCommand(
       index < 0
       || index + 1 >= columns.length
       || capturedWidths.length !== columns.length
+      || capturedWeights.length !== columns.length
+      || columns.some((column, i) => column.width !== capturedWeights[i])
       || (
         capturedColumnIds
         && (
@@ -88,7 +100,7 @@ export function buildWriterTableDragResizeCommand(
       };
     }
 
-    const delta = input.point.x - input.drag.startX;
+    const delta = (input.point.x - input.drag.startX) / viewportScale;
     const nextWidths = computeResizedColumnWidths({
       currentWidths: capturedWidths,
       columnIndex: index,
@@ -138,8 +150,12 @@ export function buildWriterTableDragResizeCommand(
     };
   }
 
+  const row = element.tableData.rows[input.drag.rowIndex];
+  if (!row || (input.drag.initialRowHeight !== undefined && row.height !== input.drag.initialRowHeight)) {
+    return { command: null, changed: false, message: 'Writer table row geometry changed during resize.' };
+  }
   const delta =
-    input.drag.startY - input.point.y;
+    (input.drag.startY - input.point.y) / viewportScale;
   const nextHeight = Math.max(
     8,
     input.drag.initialHeight + delta,

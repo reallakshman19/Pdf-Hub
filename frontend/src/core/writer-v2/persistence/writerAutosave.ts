@@ -1,12 +1,14 @@
 import { useSessionStore } from '@/core/session/store';
+import { hasPublishedWriterProjectForSession } from './writerProjectPublication';
 import { useWriterV2Store } from '../writerV2Store';
-import { normalizeWriterPageAnchors } from '../writerPageAnchor';
+import { saveWriterSessionToPersistence } from './writerPersistenceController';
+import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent, mayLoadWriterDocument, runWriterPersistenceMutation, waitForWriterPersistenceMutations } from './writerPersistenceOwner';
 import {
-  createBestAvailableWriterPersistence,
   createWriterDocumentRecord,
   type WriterDocumentRecordV2,
   type WriterPersistenceAdapterV2,
 } from './indexedDbWriterStore';
+import { resolveWriterPersistenceAdapter } from './writerPersistenceRuntime';
 
 export interface WriterAutosaveResult {
   changed: boolean;
@@ -38,7 +40,7 @@ export async function autosaveCurrentWriterDraft(
     force?: boolean;
   },
 ): Promise<WriterAutosaveResult> {
-  const persistence = adapter ?? createBestAvailableWriterPersistence();
+  const persistence = adapter ?? resolveWriterPersistenceAdapter();
   const writer = useWriterV2Store.getState();
   const documentFingerprint = resolveCurrentWriterFingerprint();
 
@@ -62,31 +64,7 @@ export async function autosaveCurrentWriterDraft(
 
   const persistedAt = new Date().toISOString();
 
-  const elements =
-    writer.documentMeta?.mode === 'pdfOverlay'
-      ? normalizeWriterPageAnchors(
-          writer.elements,
-          useSessionStore.getState().pageGraph,
-        )
-      : writer.elements;
-
-  await persistence.saveDocument(
-    createWriterDocumentRecord(
-      documentFingerprint,
-      elements,
-      persistedAt,
-    ),
-  );
-
-  for (const asset of writer.assetRecords) {
-    await persistence.saveAsset({
-      ...asset,
-      documentFingerprint,
-      updatedAt: persistedAt,
-    });
-  }
-
-  useWriterV2Store.getState().markWriterPersisted(persistedAt);
+  await saveWriterSessionToPersistence(documentFingerprint, persistence, writer, persistedAt);
 
   return {
     changed: true,
@@ -99,15 +77,20 @@ export async function autosaveCurrentWriterDraft(
 export async function loadWriterDraftForCurrentDocument(
   adapter?: WriterPersistenceAdapterV2,
 ): Promise<WriterDraftLoadResult | null> {
-  const persistence = adapter ?? createBestAvailableWriterPersistence();
+  const persistence = adapter ?? resolveWriterPersistenceAdapter();
   const documentFingerprint = resolveCurrentWriterFingerprint();
 
-  if (!documentFingerprint) {
+  if (!documentFingerprint || hasPublishedWriterProjectForSession(documentFingerprint)) {
     return null;
   }
 
+  const owner = captureWriterPersistenceOwner();
+  if (!mayLoadWriterDocument(owner, documentFingerprint)) return null;
+  await waitForWriterPersistenceMutations(documentFingerprint);
+  if (!isWriterPersistenceOwnerCurrent(owner)) return null;
   const document = await persistence.loadDocument(documentFingerprint);
   const assets = await persistence.listAssets(documentFingerprint);
+  if (!isWriterPersistenceOwnerCurrent(owner)) return null;
 
   return {
     found: Boolean(document),
@@ -120,7 +103,7 @@ export async function loadWriterDraftForCurrentDocument(
 export async function recoverWriterDraftForCurrentDocument(
   adapter?: WriterPersistenceAdapterV2,
 ): Promise<WriterRecoverResult> {
-  const persistence = adapter ?? createBestAvailableWriterPersistence();
+  const persistence = adapter ?? resolveWriterPersistenceAdapter();
   const documentFingerprint = resolveCurrentWriterFingerprint();
 
   if (!documentFingerprint) {
@@ -130,6 +113,12 @@ export async function recoverWriterDraftForCurrentDocument(
     };
   }
 
+  if (hasPublishedWriterProjectForSession(documentFingerprint)) return { changed: false, message: 'Explicit Writer project already opened; older browser recovery is not applied.' };
+  const owner = captureWriterPersistenceOwner();
+  const stale = (): WriterRecoverResult => ({ changed: false, message: 'Writer recovery cancelled: document or draft changed.' });
+  if (!mayLoadWriterDocument(owner, documentFingerprint)) return stale();
+  await waitForWriterPersistenceMutations(documentFingerprint);
+  if (!isWriterPersistenceOwnerCurrent(owner)) return stale();
   const document = await persistence.loadDocument(documentFingerprint);
 
   if (!document) {
@@ -140,12 +129,19 @@ export async function recoverWriterDraftForCurrentDocument(
   }
 
   const assets = await persistence.listAssets(documentFingerprint);
+  if (!isWriterPersistenceOwnerCurrent(owner)) return stale();
+  if (document.documentFingerprint !== documentFingerprint
+    || document.elements.some((element) => element.documentFingerprint !== documentFingerprint)
+    || assets.some((asset) => asset.documentFingerprint !== documentFingerprint)) {
+    return { changed: false, message: 'Writer recovery rejected: foreign document content.' };
+  }
 
   useWriterV2Store.getState().hydrateWriterSession({
     documentFingerprint,
     elements: document.elements,
     assetRecords: assets,
     persistedAt: document.updatedAt,
+    documentMeta: owner.writer.documentMeta?.mode === 'blankDocument' ? owner.writer.documentMeta : null,
   });
 
   const hydratedElements = useWriterV2Store.getState().elements;
@@ -156,13 +152,11 @@ export async function recoverWriterDraftForCurrentDocument(
       || element.pageIndex !== document.elements[index]?.pageIndex
     );
   if (anchorsChanged) {
-    await persistence.saveDocument(
-      createWriterDocumentRecord(
-        documentFingerprint,
-        hydratedElements,
-        document.updatedAt,
-      ),
-    );
+    const hydratedOwner = captureWriterPersistenceOwner();
+    await runWriterPersistenceMutation(documentFingerprint, async () => {
+      if (!isWriterPersistenceOwnerCurrent(hydratedOwner)) return;
+      await persistence.saveDocument(createWriterDocumentRecord(documentFingerprint, hydratedElements, document.updatedAt));
+    });
   }
 
   return {
@@ -174,7 +168,7 @@ export async function recoverWriterDraftForCurrentDocument(
 export async function discardWriterDraftForCurrentDocument(
   adapter?: WriterPersistenceAdapterV2,
 ): Promise<WriterRecoverResult> {
-  const persistence = adapter ?? createBestAvailableWriterPersistence();
+  const persistence = adapter ?? resolveWriterPersistenceAdapter();
   const documentFingerprint = resolveCurrentWriterFingerprint();
 
   if (!documentFingerprint) {
@@ -184,13 +178,21 @@ export async function discardWriterDraftForCurrentDocument(
     };
   }
 
-  const assets = await persistence.listAssets(documentFingerprint);
-
-  await persistence.deleteDocument(documentFingerprint);
-
-  for (const asset of assets) {
-    await persistence.deleteAsset(asset.id);
+  const owner = captureWriterPersistenceOwner();
+  if (!mayLoadWriterDocument(owner, documentFingerprint)) {
+    return { changed: false, message: 'Writer discard rejected: document changed.' };
   }
+  const changed = await runWriterPersistenceMutation(documentFingerprint, async () => {
+    if (!isWriterPersistenceOwnerCurrent(owner)) return false;
+    const assets = await persistence.listAssets(documentFingerprint);
+    if (!isWriterPersistenceOwnerCurrent(owner)) return false;
+    await persistence.deleteDocument(documentFingerprint);
+    for (const asset of assets) {
+      if (asset.documentFingerprint === documentFingerprint) await persistence.deleteAsset(asset.id, documentFingerprint);
+    }
+    return true;
+  });
+  if (!changed) return { changed: false, message: 'Writer discard cancelled: document or draft changed.' };
 
   return {
     changed: true,

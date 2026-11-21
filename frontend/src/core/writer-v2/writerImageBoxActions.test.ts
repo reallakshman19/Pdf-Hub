@@ -7,7 +7,7 @@ import {
 } from 'vitest';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
-import { clearActiveImageBoxAsset, replaceActiveImageBoxAsset } from './writerImageBoxActions';
+import { clearActiveImageBoxAsset, insertBlankWriterImage, replaceActiveImageBoxAsset } from './writerImageBoxActions';
 
 const ONE_BY_ONE_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -82,7 +82,7 @@ describe('writerImageBoxActions', () => {
     const dispatchSpy = vi
       .spyOn(
         useWriterV2Store.getState(),
-        'dispatchWriterCommandDurable',
+        'dispatchWriterCommandDurableLatest',
       )
       .mockRejectedValueOnce(
         new Error('journal write failed'),
@@ -104,6 +104,7 @@ describe('writerImageBoxActions', () => {
       useWriterV2Store.getState().dirty,
     ).toBe(beforeDirty);
 
+    expect(dispatchSpy).toHaveBeenCalledOnce();
     dispatchSpy.mockRestore();
   });
 
@@ -116,4 +117,49 @@ describe('writerImageBoxActions', () => {
     expect(result.changed).toBe(false);
     expect(useWriterV2Store.getState().elements[0].imageAssetId).toBe(before);
   });
+
+  it('does not publish an old image read into a new document with the same element ID', async () => {
+    const file = pngFile();
+    const read = file.arrayBuffer.bind(file);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    vi.spyOn(file, 'arrayBuffer').mockImplementation(async () => { await gate; return read(); });
+    const pending = replaceActiveImageBoxAsset(file);
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-2',
+      elements: [{ ...imageElement(), documentFingerprint: 'doc-2', plainText: 'B newer' }],
+    });
+    useWriterV2Store.setState({ dirty: true });
+    const before = useWriterV2Store.getState();
+    release();
+    expect((await pending).changed).toBe(false);
+    const after = useWriterV2Store.getState();
+    expect(after.elements).toBe(before.elements);
+    expect(after.assetRecords).toBe(before.assetRecords);
+    expect(after.dirty).toBe(true);
+  });
+
+  it('publishes a blank image and its asset together, and keeps the asset available for redo', async () => {
+    useWriterV2Store.getState().createBlankWriterDocument({ documentFingerprint: 'blank-image' });
+    const observed: boolean[] = [];
+    const unsubscribe = useWriterV2Store.subscribe((state) => {
+      observed.push(state.elements.every(element => !element.imageAssetId
+        || state.assetRecords.some(asset => asset.id === element.imageAssetId)));
+    });
+    try {
+      expect((await insertBlankWriterImage(pngFile())).changed).toBe(true);
+      const inserted = useWriterV2Store.getState();
+      expect(inserted.elements).toHaveLength(1);
+      expect(inserted.assetRecords).toHaveLength(1);
+      expect(inserted.undoStack).toHaveLength(1);
+      expect(inserted.elements[0].rect.width).toBe(inserted.elements[0].rect.height);
+      const assetId = inserted.elements[0].imageAssetId;
+      useWriterV2Store.getState().undoWriter();
+      expect(useWriterV2Store.getState().elements).toHaveLength(0);
+      useWriterV2Store.getState().redoWriter();
+      expect(useWriterV2Store.getState().elements[0].imageAssetId).toBe(assetId);
+      expect(observed.every(Boolean)).toBe(true);
+    } finally { unsubscribe(); }
+  });
+
 });

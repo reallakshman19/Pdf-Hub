@@ -301,6 +301,9 @@ async function executeHistoryRecoveryUnqueued(
           requiredWriterAssetIds,
           writerPersistence,
           plan.state.documentKey,
+          [...new Set([plan.originalRevisionId, ...liveManifest.entries
+            .slice(0, liveManifest.entries.findIndex(entry => entry.transactionId === plan.checkpointTransactionId) + 1)
+            .flatMap(entry => [entry.beforeRevision.revisionId, entry.afterRevision.revisionId])])],
         );
     } catch (error) {
       if (
@@ -727,12 +730,25 @@ async function loadRecoveryWriterAssets(
   persistence:
     WriterPersistenceAdapterV2,
   documentFingerprint: string,
+  priorRevisionOwners: readonly string[],
 ): Promise<WriterAssetRecordV2[]> {
   const assets: WriterAssetRecordV2[] = [];
 
   for (const assetId of assetIds) {
-    const asset =
-      await persistence.loadAsset(assetId);
+    const exact = await persistence.loadAsset(assetId, documentFingerprint);
+    let asset = exact?.documentFingerprint === documentFingerprint ? exact : null;
+    if (!asset) {
+      const candidates = (await Promise.all(priorRevisionOwners.filter(owner => owner !== documentFingerprint)
+        .map(async owner => {
+          const record = await persistence.loadAsset(assetId, owner);
+          return record?.documentFingerprint === owner ? record : null;
+        }))).filter((record): record is WriterAssetRecordV2 => record !== null);
+      // Previous revision reuse is valid only in this journal's known lineage.
+      // Divergent candidates require an explicit asset-version provenance.
+      if (candidates.length && candidates.every(record => record.dataUrl === candidates[0].dataUrl
+        && record.mimeType === candidates[0].mimeType && record.width === candidates[0].width
+        && record.height === candidates[0].height)) asset = candidates[0];
+    }
     if (!asset) {
       throw new HistoryRecoveryExecutionError(
         'WRITER_ASSETS_UNAVAILABLE',

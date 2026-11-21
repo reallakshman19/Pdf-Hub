@@ -1,3 +1,4 @@
+import { assertWriterOutputSnapshotCurrent, materializeWriterOutputSource, type WriterOutputSnapshot } from './writerOutputSnapshot';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import {
   exportFlattenedWriterPdf,
@@ -11,6 +12,7 @@ import {
 } from '@/core/export/exportWorkerClient';
 
 export interface ExportCurrentWriterPdfInput {
+  snapshot?: WriterOutputSnapshot;
   pdfBytes?: Uint8Array | null;
   /**
    * Force main-thread (false) or worker (true) execution. Defaults to
@@ -26,12 +28,15 @@ export interface ExportCurrentWriterPdfInput {
 export async function exportCurrentWriterPdf(
   input: ExportCurrentWriterPdfInput = {},
 ): Promise<Uint8Array> {
-  const state = useWriterV2Store.getState();
-  const sourcePdfBytes = input.pdfBytes ?? await createBlankDocumentPdfBytes();
+  const snapshot = input.snapshot;
+  const state = snapshot?.owner.writer ?? useWriterV2Store.getState();
+  if (snapshot) assertWriterOutputSnapshotCurrent(snapshot);
+  const source = snapshot ? await materializeWriterOutputSource(snapshot) : input.pdfBytes;
+  const sourcePdfBytes = source ?? await createBlankDocumentPdfBytes();
 
   const flattenInput: FlattenWriterExportInput = {
     pdfBytes: sourcePdfBytes,
-    elements: state.elements,
+    elements: snapshot?.elements ?? state.elements,
     assets: state.assetRecords,
   };
 
@@ -41,6 +46,7 @@ export async function exportCurrentWriterPdf(
     ? await runFlattenPdfViaWorker(flattenInput, input.workerClient)
     : await exportFlattenedWriterPdf(flattenInput);
 
+  if (snapshot) assertWriterOutputSnapshotCurrent(snapshot);
   return result.bytes;
 }
 

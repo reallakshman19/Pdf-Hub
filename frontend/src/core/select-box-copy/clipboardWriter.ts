@@ -10,6 +10,8 @@ export async function writeSelectBoxCopyToClipboard(
   result: SelectBoxCopyResult,
   mode: SelectBoxCopyMode,
 ): Promise<void> {
+  if (mode !== 'image' && result.partialTextItems) throw new Error('Selection cuts native text runs; use image mode or expand the selection.');
+  if ((mode === 'plain' || mode === 'formatted') && !result.plainText.trim()) throw new Error('No native text to copy.');
   if (mode === 'plain') {
     await writePlainText(result.plainText);
     return;
@@ -22,8 +24,7 @@ export async function writeSelectBoxCopyToClipboard(
 
   if (mode === 'table') {
     if (!result.table) {
-      await writePlainText(result.plainText);
-      return;
+      throw new Error('No table detected in this selection.');
     }
 
     await writeHtmlAndText(result.table.html, result.table.tsv);

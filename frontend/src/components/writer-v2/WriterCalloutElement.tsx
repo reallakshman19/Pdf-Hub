@@ -16,7 +16,7 @@ export interface WriterCalloutElementProps {
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
-  onSave?: (payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => void;
+  onSave?: (payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel?: () => void;
 }
 

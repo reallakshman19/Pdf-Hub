@@ -9,17 +9,20 @@
  *    walking the root and collecting TextNode references.
  *  - `TextNode.spliceText(offset, length, replacement)` handles in-place
  *    replacement while preserving inline styles (bold, italic, etc.).
- *  - Matches are recollected after every replace so indices stay stable.
+ *  - Replace All uses original matches in reverse order, never rescanning replacement text.
  */
 
 import React from 'react';
 import {
   $getRoot,
+  $getNodeByKey,
   $isTextNode,
   $isElementNode,
   type LexicalNode,
 } from 'lexical';
 import { useActiveEditorStore } from '@/core/writer-v2/activeEditorStore';
+import { currentRichEditorBinding } from '@/core/writer-v2/editor/richEditorImageInsertion';
+import { findWriterLiteralMatches } from '@/core/writer-v2/editor/writerFindReplace';
 import { ChevronDown, ChevronUp, X, Replace, ReplaceAll } from 'lucide-react';
 
 interface Match {
@@ -35,19 +38,11 @@ function collectMatches(
 ): Match[] {
   if (!rawSearch) return [];
 
-  const search = caseSensitive ? rawSearch : rawSearch.toLowerCase();
   const results: Match[] = [];
-
   function walk(node: LexicalNode): void {
     if ($isTextNode(node)) {
-      const raw = node.getTextContent();
-      const text = caseSensitive ? raw : raw.toLowerCase();
-      let offset = 0;
-      while (offset < text.length) {
-        const idx = text.indexOf(search, offset);
-        if (idx === -1) break;
-        results.push({ nodeKey: node.getKey(), startOffset: idx, length: search.length });
-        offset = idx + search.length;
+      for (const match of findWriterLiteralMatches(node.getTextContent(), rawSearch, caseSensitive)) {
+        results.push({ nodeKey: node.getKey(), ...match });
       }
     } else if ($isElementNode(node)) {
       for (const child of node.getChildren()) walk(child);
@@ -62,6 +57,13 @@ export const WriterFindReplacePanel: React.FC<{ onClose: () => void }> = ({
   onClose,
 }) => {
   const activeEditor = useActiveEditorStore((s) => s.activeEditor);
+  // The panel is a gesture belonging to its opening editor, not the next editor.
+  const [owner] = React.useState(() => activeEditor ? { editor: activeEditor, binding: currentRichEditorBinding(activeEditor) } : null);
+  const isCurrent = () => !!owner?.binding && useActiveEditorStore.getState().activeEditor === owner.editor
+    && currentRichEditorBinding(owner.editor) === owner.binding;
+  React.useEffect(() => {
+    if (activeEditor !== owner?.editor || !isCurrent()) onClose();
+  }, [activeEditor, owner, onClose]);
 
   const [search, setSearch] = React.useState('');
   const [replacement, setReplacement] = React.useState('');
@@ -70,84 +72,65 @@ export const WriterFindReplacePanel: React.FC<{ onClose: () => void }> = ({
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [lastReplaceAll, setLastReplaceAll] = React.useState<number | null>(null);
 
-  const searchRef = React.useRef(search);
-  const caseRef = React.useRef(caseSensitive);
-
+  // Recount against committed editor state, including edits outside this panel.
   React.useEffect(() => {
-    searchRef.current = search;
-    caseRef.current = caseSensitive;
-  }, [search, caseSensitive]);
-
-  // Recount matches whenever search / case changes
-  React.useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (!activeEditor || !search) {
+    if (!activeEditor || !search || !isCurrent()) {
       setMatchCount(0);
       setCurrentIndex(0);
       return;
     }
-    activeEditor.getEditorState().read(() => {
-      const root = $getRoot();
-      const matches = collectMatches(root, search, caseSensitive);
-      setMatchCount(matches.length);
-      setCurrentIndex((prev) => (matches.length > 0 ? Math.min(prev, matches.length - 1) : 0));
-    });
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [activeEditor, search, caseSensitive]);
+    const recount = () => {
+      if (!isCurrent()) return;
+      activeEditor.getEditorState().read(() => {
+        const count = collectMatches($getRoot(), search, caseSensitive).length;
+        setMatchCount(count);
+        setCurrentIndex(prev => count ? Math.min(prev, count - 1) : 0);
+      });
+    };
+    recount();
+    return activeEditor.registerUpdateListener(recount);
+  }, [activeEditor, owner, search, caseSensitive]);
 
-  // Navigate
   const navigateTo = (delta: 1 | -1) => {
-    if (matchCount === 0) return;
-    setCurrentIndex((prev) => (prev + delta + matchCount) % matchCount);
-  };
-
-  // Replace current match
-  const replaceCurrent = () => {
-    if (!activeEditor || !search || matchCount === 0) return;
-
+    if (!activeEditor || !isCurrent() || !search || !matchCount) return;
+    const index = (currentIndex + delta + matchCount) % matchCount;
     activeEditor.update(() => {
-      const root = $getRoot();
-      const matches = collectMatches(root, searchRef.current, caseRef.current);
-      const safeIndex = Math.min(currentIndex, matches.length - 1);
-      const match = matches[safeIndex];
+      if (!isCurrent()) return;
+      const matches = collectMatches($getRoot(), search, caseSensitive);
+      const match = matches[index % matches.length];
       if (!match) return;
-
-      // Resolve node by key
-      const nodeMap = root.getLatest().__cachedText === null ? root : root;
-      void nodeMap; // unused but keeps TS happy
-      const editorState = activeEditor.getEditorState();
-      const node = editorState._nodeMap.get(match.nodeKey);
-      if (!node || !$isTextNode(node)) return;
-
-      node.spliceText(match.startOffset, match.length, replacement, true);
+      const node = $getNodeByKey(match.nodeKey);
+      if ($isTextNode(node)) node.select(match.startOffset, match.startOffset + match.length);
     });
-
-    // After replace, index stays or wraps if it was the last one
-    setCurrentIndex((prev) => (matchCount - 1 > 0 ? Math.min(prev, matchCount - 2) : 0));
+    setCurrentIndex(index);
   };
 
-  // Replace all
-  const replaceAll = () => {
-    if (!activeEditor || !search) return;
+  const replaceCurrent = () => {
+    if (!activeEditor || !isCurrent() || !search || !matchCount) return;
+    activeEditor.update(() => {
+      if (!isCurrent()) return;
+      const matches = collectMatches($getRoot(), search, caseSensitive);
+      const match = matches[Math.min(currentIndex, matches.length - 1)];
+      if (!match) return;
+      const node = $getNodeByKey(match.nodeKey);
+      if ($isTextNode(node)) node.spliceText(match.startOffset, match.length, replacement, true);
+    }, { discrete: true });
+  };
 
+  const replaceAll = () => {
+    if (!activeEditor || !isCurrent() || !search) return;
     let replaced = 0;
     activeEditor.update(() => {
-      const root = $getRoot();
-      // Collect fresh each iteration because spliceText shifts offsets
-      let matches = collectMatches(root, searchRef.current, caseRef.current);
-
-      while (matches.length > 0) {
-        const match = matches[0];
-        const editorState = activeEditor.getEditorState();
-        const node = editorState._nodeMap.get(match.nodeKey);
-        if (node && $isTextNode(node)) {
-          node.spliceText(match.startOffset, match.length, replacement, false);
-          replaced += 1;
-        }
-        matches = collectMatches(root, searchRef.current, caseRef.current);
+      if (!isCurrent()) return;
+      // Each original match is visited once. Right-to-left preserves UTF-16 offsets.
+      const matches = collectMatches($getRoot(), search, caseSensitive).reverse();
+      for (const match of matches) {
+        const node = $getNodeByKey(match.nodeKey);
+        if (!$isTextNode(node)) continue;
+        node.spliceText(match.startOffset, match.length, replacement, false);
+        replaced += 1;
       }
-    });
-
+    }, { discrete: true });
     setLastReplaceAll(replaced);
     setCurrentIndex(0);
   };

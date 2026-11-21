@@ -80,6 +80,7 @@ describe('writerRichBoxFitActions', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('expands active rich box to fit estimated content', async () => {

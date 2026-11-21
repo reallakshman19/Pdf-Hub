@@ -1,8 +1,6 @@
-import {
-  admitWriterImageFile,
-  encodeWriterImageDataUrl,
-} from '@/core/admission/image/writerImageAdmission';
-import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
+import { createWriterImageAssetFromFile, writerAggregateAssetBytes } from './writerImageAsset';
+import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent } from './persistence/writerPersistenceOwner';
+import { createImageBoxElement } from './writerElementFactory';
 import type { WriterElementV2 } from './types';
 import { useWriterV2Store } from './writerV2Store';
 import {
@@ -36,86 +34,65 @@ export async function replaceActiveImageBoxAsset(
     };
   }
 
-  let admitted;
-  try {
-    admitted = await admitWriterImageFile(file, {
-      existingAggregateAssetBytes: aggregateAssetBytes(store.assetRecords),
-    });
-  } catch (admissionError) {
-    return {
-      changed: false,
-      message: admissionError instanceof Error ? admissionError.message : String(admissionError),
-    };
+  const owner = captureWriterPersistenceOwner();
+  if (!store.currentDocumentFingerprint || element.documentFingerprint !== store.currentDocumentFingerprint) {
+    return { changed: false, message: 'Writer image has no current document owner.' };
   }
-
-  const originalDataUrl = encodeWriterImageDataUrl(admitted);
-  const dataUrl = admitted.format === 'webp'
-    ? await renderImageDataUrlToPng(originalDataUrl)
-    : originalDataUrl;
-  const mimeType = admitted.format === 'webp' ? 'image/png' : admitted.mimeType;
-  const now = new Date().toISOString();
-  const assetId = createWriterAssetId();
-
-  const asset: WriterAssetRecordV2 = {
-    id: assetId,
-    documentFingerprint:
-      store.currentDocumentFingerprint ??
-      element.documentFingerprint,
-    kind: 'image',
-    mimeType,
-    dataUrl,
-    width: admitted.width,
-    height: admitted.height,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const previousDirty = store.dirty;
-  store.addWriterAssets([asset]);
-
   try {
-    const result =
-      await store.dispatchWriterCommandDurable({
-        type: 'UPDATE_WRITER_ELEMENT',
-        id: element.id,
-        patch: {
-          plainText: file.name,
-          imageAssetId: assetId,
-          assetIds: [assetId],
-        },
-      });
-
-    if (!result.changed) {
-      useWriterV2Store.getState().removeWriterAsset(
-        assetId,
-      );
-      useWriterV2Store.setState({
-        dirty: previousDirty,
-      });
-    }
-
-    return {
-      changed: result.changed,
-      message: result.changed
-        ? 'Replaced Writer image asset.'
-        : result.reason,
-    };
+    const asset = await createWriterImageAssetFromFile(file, element.documentFingerprint,
+      new Date().toISOString(), writerAggregateAssetBytes(store.assetRecords));
+    if (!isWriterPersistenceOwnerCurrent(owner)) return staleImage();
+    const result = await useWriterV2Store.getState().dispatchWriterCommandDurableLatest(state => {
+      if (!isWriterPersistenceOwnerCurrent(owner)) return null;
+      const target = state.elements.find(item => item.id === element.id);
+      if (!target || target.type !== 'imageBox' || target.hidden || target.locked) return null;
+      return { type: 'UPDATE_WRITER_ELEMENT', id: target.id, patch: {
+        plainText: file.name, imageAssetId: asset.id, assetIds: [asset.id],
+      } };
+    }, { stagedAssets: [asset] });
+    return { changed: result.changed, message: result.changed ? 'Replaced Writer image asset.' : result.reason };
   } catch (error) {
-    useWriterV2Store.getState().removeWriterAsset(
-      assetId,
-    );
-    useWriterV2Store.setState({
-      dirty: previousDirty,
-    });
-
-    return {
-      changed: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : String(error),
-    };
+    return { changed: false, message: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** The blank-document toolbar uses the same owner-qualified staged asset mutation. */
+export async function insertBlankWriterImage(file: File): Promise<WriterImageReplaceResult> {
+  const owner = captureWriterPersistenceOwner();
+  const store = owner.writer;
+  const meta = store.documentMeta;
+  if (!meta || meta.mode !== 'blankDocument' || meta.documentFingerprint !== store.currentDocumentFingerprint) {
+    return { changed: false, message: 'Open or create a blank Writer document before inserting images.' };
+  }
+  try {
+    const asset = await createWriterImageAssetFromFile(file, meta.documentFingerprint,
+      new Date().toISOString(), writerAggregateAssetBytes(store.assetRecords));
+    if (!isWriterPersistenceOwnerCurrent(owner)) return staleImage();
+    const result = await useWriterV2Store.getState().dispatchWriterCommandDurableLatest(state => {
+      if (!isWriterPersistenceOwnerCurrent(owner)) return null;
+      const setup = meta.pageSetup;
+      const maxWidth = setup.width - setup.marginLeft - setup.marginRight;
+      const maxHeight = setup.height - setup.marginTop - setup.marginBottom;
+      if (maxWidth <= 0 || maxHeight <= 0 || !asset.width || !asset.height) return null;
+      const scale = Math.min(320 / asset.width, 220 / asset.height, maxWidth / asset.width, maxHeight / asset.height);
+      const width = asset.width * scale, height = asset.height * scale;
+      const zIndex = state.elements.reduce((max, element) => Math.max(max, element.style.zIndex), 0) + 1;
+      return { type: 'ADD_WRITER_ELEMENT', element: createImageBoxElement({
+        documentFingerprint: meta.documentFingerprint, pageIndex: 0,
+        imageAssetId: asset.id, assetIds: [asset.id],
+        imageWidth: asset.width, imageHeight: asset.height,
+        rect: { x: setup.marginLeft, y: setup.height - setup.marginTop - height, width, height },
+        text: file.name || 'Image', zIndex,
+      }) };
+    }, { stagedAssets: [asset] });
+    return { changed: result.changed, message: result.changed ? 'Image inserted into blank Writer document.' : result.reason };
+  } catch (error) {
+    return { changed: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function staleImage(): WriterImageReplaceResult {
+  return { changed: false, message: 'Writer document changed before image admission completed.' };
 }
 
 export async function clearActiveImageBoxAsset(): Promise<WriterImageReplaceResult> {
@@ -199,63 +176,4 @@ export function getActiveImageBox(): WriterElementV2 | null {
   }
 
   return element;
-}
-
-function aggregateAssetBytes(assets: readonly WriterAssetRecordV2[]): number {
-  return assets.reduce((sum, asset) => sum + (asset.dataUrl?.length ?? 0), 0);
-}
-
-function measureImageDataUrl(
-  dataUrl: string,
-): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-
-    image.onload = () => {
-      resolve({
-        width: image.naturalWidth || image.width || 1,
-        height: image.naturalHeight || image.height || 1,
-      });
-    };
-
-    image.onerror = () => reject(new Error('Failed to measure imported image.'));
-    image.src = dataUrl;
-  });
-}
-
-async function renderImageDataUrlToPng(dataUrl: string): Promise<string> {
-  const imageSize = await measureImageDataUrl(dataUrl);
-  const image = await loadImageDataUrl(dataUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = imageSize.width;
-  canvas.height = imageSize.height;
-
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    throw new Error('Canvas is not available for WEBP image conversion.');
-  }
-
-  context.drawImage(image, 0, 0, imageSize.width, imageSize.height);
-  return canvas.toDataURL('image/png');
-}
-
-function loadImageDataUrl(dataUrl: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Failed to load imported image.'));
-    image.src = dataUrl;
-  });
-}
-
-function createWriterAssetId(): string {
-  if (globalThis.crypto?.randomUUID) {
-    return `writer-asset-${globalThis.crypto.randomUUID()}`;
-  }
-
-  return `writer-asset-${Date.now().toString(36)}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
 }

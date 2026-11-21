@@ -6,7 +6,8 @@ import {
   raceWithAbort,
 } from '@/core/cancellation/operationCancellation';
 import type { WriterPageViewport } from '@/core/writer-v2/types';
-import { normalizeViewportRect } from './selectionGeometry';
+import { clipViewportRect } from './selectionGeometry';
+import { throwIfAborted } from '@/core/cancellation/operationCancellation';
 import type { SelectBoxViewportRect } from './types';
 
 interface SelectBoxImageGeometryInput {
@@ -53,64 +54,24 @@ export async function renderSelectBoxImageSnapshotFromDocument(
       rotation: input.viewport.rotation,
     });
 
-    const fullCanvas = document.createElement('canvas');
-    const context = fullCanvas.getContext('2d');
-
-    if (!context) {
-      throw new Error(
-        'Canvas 2D context is not available for Select Box Copy.',
-      );
-    }
-
-    fullCanvas.width = Math.floor(viewport.width);
-    fullCanvas.height = Math.floor(viewport.height);
-
-    const renderTask = page.render({
-      canvas: fullCanvas,
-      canvasContext: context,
-      viewport,
-    });
-    await raceWithAbort(
-      renderTask.promise,
-      input.signal,
-      `render PDF page ${input.pageNumber} for Select Box image`,
-      () => renderTask.cancel(),
-    );
-
-    const rect = normalizeViewportRect(
-      input.viewportRect,
-    );
+    const rect = clipViewportRect(input.viewportRect, viewport.width, viewport.height);
+    if (!rect.width || !rect.height) throw new Error('Selection is outside the PDF page.');
+    const left = Math.floor(rect.x), top = Math.floor(rect.y);
+    const width = Math.ceil(rect.x + rect.width) - left;
+    const height = Math.ceil(rect.y + rect.height) - top;
+    // Render only the selected crop. Reject excessive allocations before canvas creation.
+    if (width > 8192 || height > 8192 || width * height > 16_000_000) throw new Error('Selected image is too large; reduce zoom or selection size.');
     const cropCanvas = document.createElement('canvas');
-    const cropContext = cropCanvas.getContext('2d');
-
-    if (!cropContext) {
-      throw new Error(
-        'Canvas 2D context is not available for Select Box crop.',
-      );
-    }
-
-    cropCanvas.width = Math.max(
-      1,
-      Math.floor(rect.width),
-    );
-    cropCanvas.height = Math.max(
-      1,
-      Math.floor(rect.height),
-    );
-
-    cropContext.drawImage(
-      fullCanvas,
-      Math.floor(rect.x),
-      Math.floor(rect.y),
-      cropCanvas.width,
-      cropCanvas.height,
-      0,
-      0,
-      cropCanvas.width,
-      cropCanvas.height,
-    );
-
-    return cropCanvas.toDataURL('image/png');
+    cropCanvas.width = width;
+    cropCanvas.height = height;
+    const context = cropCanvas.getContext('2d');
+    if (!context) throw new Error('Canvas 2D context is not available for Select Box Copy.');
+    const renderTask = page.render({ canvas: cropCanvas, canvasContext: context, viewport, transform: [1, 0, 0, 1, -left, -top] });
+    await raceWithAbort(renderTask.promise, input.signal, `render PDF page ${input.pageNumber} for Select Box image`, () => renderTask.cancel());
+    throwIfAborted(input.signal, 'encode selected PDF image');
+    const dataUrl = cropCanvas.toDataURL('image/png');
+    if (!dataUrl.startsWith('data:image/png;base64,')) throw new Error('Failed to encode selected PDF image.');
+    return dataUrl;
   } finally {
     page.cleanup();
   }

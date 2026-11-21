@@ -36,6 +36,7 @@ export function summarizeSelectBoxCopyResult(
 export function resolveRecommendedMode(
   result: SelectBoxCopyResult,
 ): SelectBoxInsertMode {
+  if (result.partialTextItems) return 'image';
   if (result.table && result.table.confidence >= 0.75) {
     return 'table';
   }
@@ -65,6 +66,7 @@ function messageFor(
   recommendedMode: SelectBoxInsertMode,
   confidenceLabel: SelectBoxCopySummary['confidenceLabel'],
 ): string {
+  if (result.partialTextItems) return 'Selection cuts native text runs. Expand the selection or use image mode; text boundaries are not guessed.';
   if (result.items.length === 0 && !result.plainText.trim()) {
     return 'No selectable text was found. Use Copy Image or Insert as Image.';
   }

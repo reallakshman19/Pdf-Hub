@@ -1,4 +1,5 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { ROUND_TRIP_ATTACHMENT_NAME } from './roundTripPdfExport';
 import {
   importPdfHubWriterProject,
   type ImportPdfHubProjectResult,
@@ -18,23 +19,17 @@ type PDFDictT = import('pdf-lib').PDFDict;
 export async function extractWriterProjectFromPdf(
   pdfBytes: Uint8Array,
 ): Promise<ImportPdfHubProjectResult | null> {
+  const zipBytes = await extractWriterProjectZipFromPdf(pdfBytes);
+  if (!zipBytes) return null;
+  try { return await importPdfHubWriterProject(zipBytes); } catch { return null; }
+}
+
+/** Extract only the reserved attachment; production import then uses bounded ZIP admission. */
+export async function extractWriterProjectZipFromPdf(pdfBytes: Uint8Array): Promise<Uint8Array | null> {
   const lib = await pdfLib();
   let doc: PDFDocumentT;
-  try {
-    doc = await lib.PDFDocument.load(pdfBytes, { throwOnInvalidObject: false });
-  } catch {
-    return null;
-  }
-
-  const zipBytes = findEmbeddedProjectZip(doc, lib);
-  if (!zipBytes) return null;
-
-  try {
-    return await importPdfHubWriterProject(zipBytes);
-  } catch {
-    // Embedded data exists but is not a valid PDF Hub project — treat as absent.
-    return null;
-  }
+  try { doc = await lib.PDFDocument.load(pdfBytes, { throwOnInvalidObject: false }); } catch { return null; }
+  return findEmbeddedProjectZip(doc, lib);
 }
 
 function findEmbeddedProjectZip(doc: PDFDocumentT, lib: PdfLibNs): Uint8Array | null {
@@ -44,43 +39,33 @@ function findEmbeddedProjectZip(doc: PDFDocumentT, lib: PdfLibNs): Uint8Array | 
   const embeddedFiles = names.lookupMaybe(lib.PDFName.of('EmbeddedFiles'), lib.PDFDict);
   if (!embeddedFiles) return null;
 
-  const collected: Uint8Array[] = [];
-  collectFromNameTree(embeddedFiles, collected, 0, lib);
-
-  for (const bytes of collected) {
-    if (looksLikeZip(bytes)) return bytes;
-  }
-  return null;
+  const collected: PDFDictT[] = [];
+  collectFromNameTree(embeddedFiles, collected, new Set(), 0, lib);
+  if (collected.length === 0) return null;
+  if (collected.length !== 1) throw new Error('Editable PDF contains ambiguous Writer attachments.');
+  const bytes = readFileSpecBytes(collected[0], lib);
+  if (!bytes || !looksLikeZip(bytes)) throw new Error('Editable PDF contains an invalid Writer attachment.');
+  return bytes;
 }
 
-/**
- * PDF name trees can either hold a flat `/Names` array or branch via `/Kids`.
- * Walk both, bounded by a depth guard against malformed/cyclic trees.
- */
-function collectFromNameTree(
-  node: PDFDictT,
-  out: Uint8Array[],
-  depth: number,
-  lib: PdfLibNs,
-): void {
-  if (depth > 32) return;
-
+function collectFromNameTree(node: PDFDictT, out: PDFDictT[], visited: Set<PDFDictT>, depth: number, lib: PdfLibNs): void {
+  if (depth > 32 || visited.has(node) || visited.size >= 4096) throw new Error('Invalid embedded file name tree.');
+  visited.add(node);
   const namesArray = node.lookupMaybe(lib.PDFName.of('Names'), lib.PDFArray);
   if (namesArray) {
-    // Entries alternate: name, fileSpec, name, fileSpec, ...
-    for (let index = 1; index < namesArray.size(); index += 2) {
-      const fileSpec = namesArray.lookupMaybe(index, lib.PDFDict);
-      const bytes = readFileSpecBytes(fileSpec, lib);
-      if (bytes) out.push(bytes);
+    if (namesArray.size() % 2 !== 0) throw new Error('Invalid embedded file name array.');
+    for (let index = 0; index < namesArray.size(); index += 2) {
+      const name = namesArray.lookup(index);
+      if (!(name instanceof lib.PDFString || name instanceof lib.PDFHexString) || name.decodeText() !== ROUND_TRIP_ATTACHMENT_NAME) continue;
+      const spec = namesArray.lookupMaybe(index + 1, lib.PDFDict);
+      if (!spec) throw new Error('Invalid Writer attachment file specification.');
+      out.push(spec);
     }
   }
-
   const kids = node.lookupMaybe(lib.PDFName.of('Kids'), lib.PDFArray);
-  if (kids) {
-    for (let index = 0; index < kids.size(); index += 1) {
-      const kid = kids.lookupMaybe(index, lib.PDFDict);
-      if (kid) collectFromNameTree(kid, out, depth + 1, lib);
-    }
+  if (kids) for (let index = 0; index < kids.size(); index += 1) {
+    const kid = kids.lookupMaybe(index, lib.PDFDict);
+    if (kid) collectFromNameTree(kid, out, visited, depth + 1, lib);
   }
 }
 

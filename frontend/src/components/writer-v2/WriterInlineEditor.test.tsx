@@ -49,18 +49,22 @@ describe('WriterInlineEditor', () => {
     })).toBeTruthy();
   });
 
-  it('triggers onCancel when Escape key is pressed', () => {
+  it('triggers onCancel without saving on unmount when Escape is pressed', async () => {
     const onCancel = vi.fn();
-    render(
+    const onSave = vi.fn();
+    const { unmount } = render(
       <WriterInlineEditor
         element={element()}
-        onSave={vi.fn()}
+        onSave={onSave}
         onCancel={onCancel}
       />,
     );
 
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('saves when clicking outside or unmounting', async () => {

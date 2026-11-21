@@ -24,6 +24,7 @@ export type WriterExportPreflightIssueCode =
   | 'EMPTY_IMAGE_OBJECT'
   | 'EMPTY_TABLE_OBJECT'
   | 'TABLE_SHAPE_MISMATCH'
+  | 'RICH_CONTENT_INVALID'
   | 'RICH_IMAGE_EMPTY_SOURCE'
   | 'RICH_IMAGE_UNSUPPORTED_FORMAT'
   | 'RICH_TABLE_EMPTY'
@@ -352,7 +353,9 @@ function collectRichContentIssues(
   element: WriterElementV2,
   issues: WriterExportPreflightIssue[],
 ): void {
-  const blocks = editorStateToPdfBlocks(element.editorStateJson, element.plainText ?? '');
+  let blocks: PdfBlock[];
+  try { blocks = editorStateToPdfBlocks(element.editorStateJson, element.plainText ?? '', { strict: true }); }
+  catch { issues.push({ code: 'RICH_CONTENT_INVALID', severity: 'error', elementId: element.id, pageIndex: element.pageIndex, message: 'Writer rich content is invalid; preserve the editable project before repair.' }); return; }
 
   visitRichBlocks(blocks, (block) => {
     if (block.type === 'image') {
@@ -407,10 +410,10 @@ function collectRichImageIssues(
   if (!supported) {
     issues.push({
       code: 'RICH_IMAGE_UNSUPPORTED_FORMAT',
-      severity: 'warning',
+      severity: 'error',
       elementId: element.id,
       pageIndex: element.pageIndex,
-      message: `Writer rich box ${shortId(element.id)} contains an image format that flattened export may replace with a placeholder.`,
+      message: `Writer rich box ${shortId(element.id)} contains an unsupported image format; PDF export would lose content.`,
     });
   }
 }

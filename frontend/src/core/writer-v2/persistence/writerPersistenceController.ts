@@ -6,6 +6,7 @@ import {
 import type { WriterElementV2 } from '../types';
 import { normalizeWriterPageAnchors } from '../writerPageAnchor';
 import { useSessionStore } from '@/core/session/store';
+import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent, mayLoadWriterDocument, ownsWriterSnapshot, runWriterPersistenceMutation, waitForWriterPersistenceMutations } from './writerPersistenceOwner';
 import {
   useWriterV2Store,
   type WriterV2StoreState,
@@ -29,30 +30,42 @@ export interface WriterPersistenceSaveResult {
 export async function loadWriterSessionFromPersistence(
   documentFingerprint: string,
   adapter: WriterPersistenceAdapterV2,
+  isCancelled: () => boolean = () => false,
 ): Promise<WriterPersistenceLoadResult> {
+  const owner = captureWriterPersistenceOwner();
+  const stale = () => isCancelled() || !mayLoadWriterDocument(owner, documentFingerprint) || !isWriterPersistenceOwnerCurrent(owner);
+  const skipped = (): WriterPersistenceLoadResult => ({ documentFingerprint, elements: [], assetRecords: [], loaded: false, updatedAt: null });
+  if (stale()) return skipped();
+  await waitForWriterPersistenceMutations(documentFingerprint);
+  if (stale()) return skipped();
   const [documentRecord, assetRecords] = await Promise.all([
     adapter.loadDocument(documentFingerprint),
     adapter.listAssets(documentFingerprint),
   ]);
 
   const elements = documentRecord?.elements ?? [];
+  if (stale()) return skipped();
+  if ((documentRecord && documentRecord.documentFingerprint !== documentFingerprint)
+    || elements.some((element) => element.documentFingerprint !== documentFingerprint)
+    || assetRecords.some((asset) => asset.documentFingerprint !== documentFingerprint)) {
+    throw new Error('Writer persistence contains foreign document content.');
+  }
 
   useWriterV2Store.getState().hydrateWriterSession({
     documentFingerprint,
     elements,
     assetRecords,
     persistedAt: documentRecord?.updatedAt ?? null,
+    documentMeta: owner.writer.documentMeta?.mode === 'blankDocument' ? owner.writer.documentMeta : null,
   });
   const hydratedElements = useWriterV2Store.getState().elements;
 
   if (documentRecord && !writerElementsEquivalent(elements, hydratedElements)) {
-    await adapter.saveDocument(
-      createWriterDocumentRecord(
-        documentFingerprint,
-        hydratedElements,
-        documentRecord.updatedAt,
-      ),
-    );
+    const hydratedOwner = captureWriterPersistenceOwner();
+    await runWriterPersistenceMutation(documentFingerprint, async () => {
+      if (!isWriterPersistenceOwnerCurrent(hydratedOwner) || isCancelled()) return;
+      await adapter.saveDocument(createWriterDocumentRecord(documentFingerprint, hydratedElements, documentRecord.updatedAt));
+    });
   }
 
   return {
@@ -70,7 +83,11 @@ export async function saveWriterSessionToPersistence(
   state: Pick<WriterV2StoreState, 'elements' | 'assetRecords'> = useWriterV2Store.getState(),
   savedAt = new Date().toISOString(),
 ): Promise<WriterPersistenceSaveResult> {
-  const writerState = useWriterV2Store.getState();
+  const owner = captureWriterPersistenceOwner();
+  const writerState = owner.writer;
+  if (!ownsWriterSnapshot(owner, documentFingerprint, state)) {
+    throw new Error('Writer save rejected: snapshot does not belong to the active document.');
+  }
   const session = useSessionStore.getState();
   const elements =
     writerState.documentMeta?.mode === 'pdfOverlay'
@@ -78,26 +95,20 @@ export async function saveWriterSessionToPersistence(
       : cloneElements(state.elements);
   const assetRecords = state.assetRecords.map((asset) => ({
     ...asset,
-    documentFingerprint,
     updatedAt: savedAt,
   }));
 
-  await adapter.saveDocument(
-    createWriterDocumentRecord(
-      documentFingerprint,
-      elements.map((element) => ({
-        ...element,
-        documentFingerprint,
-      })),
-      savedAt,
-    ),
-  );
-
-  for (const asset of assetRecords) {
-    await adapter.saveAsset(asset);
-  }
-
-  useWriterV2Store.getState().markWriterPersisted(savedAt);
+  const record = createWriterDocumentRecord(documentFingerprint, elements, savedAt);
+  await runWriterPersistenceMutation(documentFingerprint, async () => {
+    if (!isWriterPersistenceOwnerCurrent(owner)) {
+      throw new Error('Writer save rejected: snapshot changed before persistence began.');
+    }
+    for (const asset of assetRecords) await adapter.saveAsset(asset);
+    await adapter.saveDocument(record);
+    if (isWriterPersistenceOwnerCurrent(owner)) {
+      useWriterV2Store.getState().markWriterPersisted(savedAt);
+    }
+  });
 
   return {
     documentFingerprint,
@@ -130,6 +141,7 @@ function cloneElements(elements: WriterElementV2[]): WriterElementV2[] {
     style: { ...element.style },
     tableData: element.tableData
       ? {
+          ...element.tableData,
           columns: element.tableData.columns.map((column) => ({ ...column })),
           rows: element.tableData.rows.map((row) => ({
             ...row,

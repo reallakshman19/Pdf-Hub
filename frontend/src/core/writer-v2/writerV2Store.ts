@@ -9,6 +9,7 @@ import {
   commitDurableStateMutation,
 } from '../document-history/durableStateTransaction';
 import { useSessionStore } from '../session/store';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '../session/mutationOwner';
 import {
   createInitialWriterV2State,
   executeWriterCommand,
@@ -55,6 +56,11 @@ export type WriterV2Tool =
   | 'tableBox'
   | 'selectBoxCopy';
 
+export interface WriterAssetCommandOptions {
+  /** New immutable asset records published with the referencing command. */
+  stagedAssets?: readonly WriterAssetRecordV2[];
+}
+
 export interface WriterV2StoreState extends WriterV2State {
   activeWriterTool: WriterV2Tool;
   setActiveWriterTool: (tool: WriterV2Tool) => void;
@@ -72,15 +78,18 @@ export interface WriterV2StoreState extends WriterV2State {
     command: WriterCommand,
     options?: {
       allowPdfOverlayMutation?: boolean;
+      stagedAssets?: readonly WriterAssetRecordV2[];
     },
   ) => WriterV2CommandResult;
   dispatchWriterCommandDurable: (
     command: WriterCommand,
+    options?: WriterAssetCommandOptions,
   ) => Promise<WriterV2CommandResult>;
   dispatchWriterCommandDurableLatest: (
     factory: (
       state: WriterV2StoreState,
     ) => WriterCommand | null,
+    options?: WriterAssetCommandOptions,
   ) => Promise<WriterV2CommandResult>;
   undoWriter: () => WriterV2CommandResult;
   redoWriter: () => WriterV2CommandResult;
@@ -185,6 +194,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       command,
       session,
     );
+    const stagedAssets = mergeStagedWriterAssets(beforeStore, command, result, options?.stagedAssets);
     const useGlobalHistory =
       result.changed
       && isMutationCommand(command)
@@ -197,6 +207,8 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
           ? null
           : previousEditingId,
     });
+
+    if (stagedAssets) nextStore.assetRecords = stagedAssets;
 
     if (useGlobalHistory) {
       nextStore.undoStack = [];
@@ -244,7 +256,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     return result;
   },
 
-  dispatchWriterCommandDurable: async (command) => {
+  dispatchWriterCommandDurable: async (command, options) => {
     const initialStore = get();
     const initialSession = useSessionStore.getState();
 
@@ -259,19 +271,21 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         command,
         {
           allowPdfOverlayMutation: true,
+          stagedAssets: options?.stagedAssets,
         },
       );
     }
 
     return get().dispatchWriterCommandDurableLatest(
-      () => command,
+      () => command, options,
     );
   },
 
   dispatchWriterCommandDurableLatest: async (
-    factory,
+    factory, options,
   ) => {
     const initialStore = get();
+    const owner = captureDocumentMutationOwner();
     const initialSession =
       useSessionStore.getState();
 
@@ -296,20 +310,23 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         command,
         {
           allowPdfOverlayMutation: true,
+          stagedAssets: options?.stagedAssets,
         },
       );
     }
 
+    let attemptedMutation = false;
     let committedResult:
       | WriterV2CommandResult
       | null = null;
 
-    await commitDurableStateMutation(async () => {
+    const committed = await commitDurableStateMutation(async () => {
       const beforeStore = get();
       const session = useSessionStore.getState();
 
       if (
-        !usesDurableWriterHistory(beforeStore, session)
+        !isDocumentMutationOwnerCurrent(owner)
+        || !usesDurableWriterHistory(beforeStore, session)
         || beforeStore.currentDocumentFingerprint !== initialStore.currentDocumentFingerprint
       ) {
         throw new Error('Writer durable mutation belongs to a stale document or mode.');
@@ -347,6 +364,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         return null;
       }
 
+      attemptedMutation = true;
       const nextStore =
         applyCommandStateToStore(
           result.state,
@@ -360,6 +378,8 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
                 : previousEditingId,
           },
         );
+      const stagedAssets = mergeStagedWriterAssets(beforeStore, command, result, options?.stagedAssets);
+      if (stagedAssets) nextStore.assetRecords = stagedAssets;
       nextStore.undoStack = [];
       nextStore.redoStack = [];
 
@@ -370,15 +390,14 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       const annotations =
         useAnnotationStore.getState().annotations;
       const label = writerCommandLabel(command);
-      const newlyReferencedAssetIds =
-        collectNewWriterAssetReferences(
-          beforeStore.elements,
-          afterStore.elements,
-        );
+      const referencedAssetIds = [...new Set([
+        ...collectWriterAssetReferences(beforeStore.elements),
+        ...collectWriterAssetReferences(afterStore.elements),
+      ])];
 
       await persistWriterAssetReferences(
         session.documentKey as string,
-        newlyReferencedAssetIds,
+        referencedAssetIds,
         afterStore.assetRecords,
       );
 
@@ -423,6 +442,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       };
     });
 
+    if (attemptedMutation && !committed && committedResult && (committedResult as WriterV2CommandResult).changed) {
+      return { state: writerCommandState(get()), changed: false, reason: 'Writer transaction was not committed.' };
+    }
     return committedResult ?? {
       state: writerCommandState(get()),
       changed: false,
@@ -873,18 +895,28 @@ function usesDurableWriterHistory(
     );
 }
 
-function collectNewWriterAssetReferences(
-  beforeElements: WriterElementV2[],
-  afterElements: WriterElementV2[],
-): string[] {
-  const beforeIds =
-    collectWriterAssetReferences(beforeElements);
-  const afterIds =
-    collectWriterAssetReferences(afterElements);
-
-  return [...afterIds].filter(
-    (assetId) => !beforeIds.has(assetId),
-  );
+/** Validate staged assets against the resulting element model without mutating live state. */
+function mergeStagedWriterAssets(
+  before: WriterV2StoreState,
+  command: WriterCommand,
+  result: WriterV2CommandResult,
+  staged?: readonly WriterAssetRecordV2[],
+): WriterAssetRecordV2[] | undefined {
+  if (!staged?.length || !result.changed) return undefined;
+  if (!isMutationCommand(command) || !before.currentDocumentFingerprint) {
+    throw new Error('Writer assets require an owned mutation.');
+  }
+  const owner = before.currentDocumentFingerprint;
+  const existing = new Set(before.assetRecords.map(asset => asset.id));
+  const references = collectWriterAssetReferences(result.state.elements);
+  for (const asset of staged) {
+    if (!asset.id || existing.has(asset.id) || asset.documentFingerprint !== owner
+      || !references.has(asset.id)) {
+      throw new Error('Writer staged asset is foreign, duplicated or unreferenced.');
+    }
+    existing.add(asset.id);
+  }
+  return [...before.assetRecords, ...staged.map(asset => ({ ...asset }))];
 }
 
 function collectWriterAssetReferences(

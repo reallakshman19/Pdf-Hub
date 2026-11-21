@@ -42,4 +42,6 @@ export interface SelectBoxCopyResult {
   html: string;
   table: SelectBoxTableResult | null;
   imageDataUrl?: string;
+  /** Native text runs clipped by the selection; no fabricated glyph positions. */
+  partialTextItems?: number;
 }
