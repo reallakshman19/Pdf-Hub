@@ -1,0 +1,185 @@
+{
+  "source": "ALT_WP02_ORACLE_valid.pdf",
+  "annotations": [
+    {
+      "page": 1,
+      "nm": "ALT-WP02-root1",
+      "subtype": "/Text",
+      "contents": "ROOT-R01",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        45.0,
+        420.0,
+        75.0,
+        455.0
+      ],
+      "quadpoints": [],
+      "ap": false
+    },
+    {
+      "page": 1,
+      "nm": "ALT-WP02-root2",
+      "subtype": "/Text",
+      "contents": "ROOT-R01",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        45.0,
+        420.0,
+        75.0,
+        455.0
+      ],
+      "quadpoints": [],
+      "ap": false
+    },
+    {
+      "page": 1,
+      "nm": "ALT-WP02-replyA",
+      "subtype": "/Text",
+      "contents": "REPLY-A",
+      "parent_nm": "ALT-WP02-root1",
+      "state": "",
+      "rect": [
+        45.0,
+        420.0,
+        75.0,
+        455.0
+      ],
+      "quadpoints": [],
+      "ap": false
+    },
+    {
+      "page": 1,
+      "nm": "ALT-WP02-replyB",
+      "subtype": "/Text",
+      "contents": "REPLY-B",
+      "parent_nm": "ALT-WP02-root1",
+      "state": "",
+      "rect": [
+        45.0,
+        420.0,
+        75.0,
+        455.0
+      ],
+      "quadpoints": [],
+      "ap": false
+    },
+    {
+      "page": 1,
+      "nm": "ALT-WP02-state1",
+      "subtype": "/Text",
+      "contents": "Completed",
+      "parent_nm": "ALT-WP02-root1",
+      "state": "Completed",
+      "rect": [
+        45.0,
+        420.0,
+        75.0,
+        455.0
+      ],
+      "quadpoints": [],
+      "ap": false
+    },
+    {
+      "page": 2,
+      "nm": "external-highlight",
+      "subtype": "/Highlight",
+      "contents": "external-highlight",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        68.1136,
+        645.3815,
+        157.25838,
+        663.93057
+      ],
+      "quadpoints": [
+        72.0,
+        662.9,
+        153.37198,
+        662.9,
+        72.0,
+        646.412,
+        153.37198,
+        646.412
+      ],
+      "ap": true
+    },
+    {
+      "page": 2,
+      "nm": "external-underline",
+      "subtype": "/Underline",
+      "contents": "external-underline",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        70.9695,
+        621.3815,
+        142.3785,
+        639.93057
+      ],
+      "quadpoints": [
+        72.0,
+        638.9,
+        141.34799,
+        638.9,
+        72.0,
+        622.412,
+        141.34799,
+        622.412
+      ],
+      "ap": true
+    },
+    {
+      "page": 3,
+      "nm": "external-strikeout",
+      "subtype": "/StrikeOut",
+      "contents": "external-strikeout",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        70.9695,
+        475.3815,
+        154.40248,
+        493.93049
+      ],
+      "quadpoints": [
+        72.0,
+        492.9,
+        153.37198,
+        492.9,
+        72.0,
+        476.412,
+        153.37198,
+        476.412
+      ],
+      "ap": true
+    },
+    {
+      "page": 3,
+      "nm": "external-squiggly",
+      "subtype": "/Squiggly",
+      "contents": "external-squiggly",
+      "parent_nm": null,
+      "state": "",
+      "rect": [
+        70.9695,
+        451.3815,
+        142.3785,
+        469.93049
+      ],
+      "quadpoints": [
+        72.0,
+        468.9,
+        141.34799,
+        468.9,
+        72.0,
+        452.412,
+        141.34799,
+        452.412
+      ],
+      "ap": true
+    }
+  ]
+}
