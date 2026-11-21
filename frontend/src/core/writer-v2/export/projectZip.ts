@@ -25,6 +25,8 @@ export interface PdfHubWriterProjectManifestV1 {
   source?: {
     kind: WriterDocumentMode;
     hasOriginalPdf: boolean;
+    /** SHA-256 of the exact packaged original.pdf bytes, distinct from documentFingerprint. */
+    originalPdfSha256?: string;
   };
   files: {
     originalPdf?: 'original.pdf';
@@ -100,6 +102,9 @@ export async function exportPdfHubWriterProject(
   const assets = input.assets ?? [];
   const documentMode = input.documentMeta?.mode ?? 'pdfOverlay';
   const hasOriginalPdf = Boolean(input.originalPdfBytes?.length);
+  const originalPdfSha256 = hasOriginalPdf && input.originalPdfBytes
+    ? await sourcePdfSha256(input.originalPdfBytes)
+    : undefined;
 
   if (documentMode === 'pdfOverlay' && !hasOriginalPdf) {
     throw new Error('PDF overlay projects require originalPdfBytes.');
@@ -133,6 +138,7 @@ export async function exportPdfHubWriterProject(
     source: {
       kind: documentMode,
       hasOriginalPdf,
+      ...(originalPdfSha256 ? { originalPdfSha256 } : {}),
     },
     files,
     counts: {
@@ -246,6 +252,12 @@ export async function importPdfHubWriterProjectFromReader(
   const originalPdfBytes = manifest.files.originalPdf
     ? await readBinaryFile(reader, manifest.files.originalPdf)
     : new Uint8Array();
+  if (manifest.source?.originalPdfSha256) {
+    const actualSourceSha256 = await sourcePdfSha256(originalPdfBytes);
+    if (actualSourceSha256 !== manifest.source.originalPdfSha256) {
+      throw new Error('Writer project original PDF source SHA-256 mismatch.');
+    }
+  }
 
   const documentMeta = manifest.files.writerDocumentMeta
     ? await readJsonFile<WriterDocumentMetaV2>(
@@ -287,6 +299,9 @@ export async function importPdfHubWriterProjectFromReader(
 
   const ocrProject = await readOcrProjectPayloadFromReader(reader);
   const compatibilityWarnings: string[] = [];
+  if (manifest.files.originalPdf && !manifest.source?.originalPdfSha256) {
+    compatibilityWarnings.push('Legacy Writer project source PDF has no SHA-256 integrity record (unverified source bytes).');
+  }
   if (documentMeta && documentMeta.documentFingerprint !== manifest.documentFingerprint) {
     compatibilityWarnings.push('Writer document metadata fingerprint was normalized to the manifest fingerprint.');
   }
@@ -323,6 +338,15 @@ export async function importPdfHubWriterProjectFromReader(
   };
 }
 
+async function sourcePdfSha256(bytes: Uint8Array): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('Writer project source SHA-256 validation is unavailable.');
+  }
+  // Copy only the exact view so shared-buffer offsets cannot change the digest.
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
+  return `sha256:${Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
   if (manifest.schema !== 'pdf-hub-project') {
     throw new Error(`Unsupported project schema: ${manifest.schema}`);
@@ -336,6 +360,13 @@ function validateManifest(manifest: PdfHubWriterProjectManifestV1): void {
 
   if (!manifest.documentFingerprint) {
     throw new Error('Project manifest is missing documentFingerprint.');
+  }
+  if (manifest.source?.originalPdfSha256 !== undefined) {
+    if (typeof manifest.source.originalPdfSha256 !== 'string'
+      || !/^sha256:[a-f0-9]{64}$/.test(manifest.source.originalPdfSha256)
+      || !manifest.files.originalPdf) {
+      throw new Error('Writer project manifest contains invalid source SHA-256 metadata.');
+    }
   }
 
   const isBlankDocument =
