@@ -387,6 +387,28 @@ describe('atomic standalone Writer project import', () => {
       elements: [{ ...element('writer-1'), assetIds: ['missing-asset'] }],
       assets: [],
     });
+    const danglingScalarImageAsset = await projectFile({
+      originalPdfBytes: validPdf,
+      documentFingerprint: 'doc-1',
+      elements: [{
+        ...element('writer-image'),
+        type: 'imageBox',
+        imageAssetId: 'missing-scalar-image',
+        assetIds: [],
+      }],
+      assets: [],
+    });
+    const validScalarImageAsset = await projectFile({
+      originalPdfBytes: validPdf,
+      documentFingerprint: 'doc-1',
+      elements: [{
+        ...element('writer-image-ok'),
+        type: 'imageBox',
+        imageAssetId: 'asset-1',
+        assetIds: [],
+      }],
+      assets: [asset()],
+    });
     const invalidPdf = await projectFile({
       originalPdfBytes: new Uint8Array([37, 80, 68, 70, 45, 1, 2, 3]),
       documentFingerprint: 'doc-1',
@@ -405,6 +427,11 @@ describe('atomic standalone Writer project import', () => {
     await expect(stageStandaloneWriterProject(danglingReference, operation())).rejects.toThrow(
       'missing asset',
     );
+    await expect(stageStandaloneWriterProject(danglingScalarImageAsset, operation())).rejects.toThrow(
+      'missing asset missing-scalar-image',
+    );
+    const validScalarStage = await stageStandaloneWriterProject(validScalarImageAsset, operation());
+    revokeStagedWriterProjectImport(validScalarStage);
     await expect(stageStandaloneWriterProject(contradictoryMode, operation())).rejects.toThrow(
       'contradictory document mode',
     );
