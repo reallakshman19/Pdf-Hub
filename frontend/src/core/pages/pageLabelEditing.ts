@@ -50,6 +50,18 @@ export function buildPageLabelRangesForRestart(
     throw new Error('PageLabel restart requires a numbering style or prefix');
   }
 
+  // A partial restart dialog must not silently discard imported metadata
+  // that has only formatted labels, not verified native numbering rules.
+  if (
+    graph.pageLabelRanges === undefined
+    && graph.pages.some((page) => page.logicalLabel !== undefined)
+  ) {
+    throw new Error(
+      'Imported PageLabels cannot be partially edited until their rules '
+      + 'are recovered; use an explicit complete PageLabels replacement.',
+    );
+  }
+
   const ranges = (graph.pageLabelRanges ?? []).map((range) => ({ ...range }));
 
   if (ranges.length === 0 && startIndex > 0) {

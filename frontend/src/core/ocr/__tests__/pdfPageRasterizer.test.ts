@@ -82,6 +82,72 @@ describe('pdfPageRasterizer', () => {
     expect(new TextDecoder().decode(page.imageBytes)).toContain('PDFHUB_RASTER:1190x1684');
   });
 
+  it('uses PDF.js rotation and displaced CropBox for the OCR crop and inverse transform', async () => {
+    const document: PdfRasterizerDocumentLike = {
+      numPages: 1,
+      async getPage(pageNumber) {
+        return {
+          pageNumber,
+          view: [70, 100, 540, 720],
+          getViewport({ scale }) {
+            return {
+              width: 620 * scale,
+              height: 470 * scale,
+              convertToViewportRectangle([x0, y0, x1, y1]) {
+                return [
+                  (y0 - 100) * scale, (x0 - 70) * scale,
+                  (y1 - 100) * scale, (x1 - 70) * scale,
+                ];
+              },
+              convertToPdfPoint(x, y) {
+                return [70 + y / scale, 100 + x / scale];
+              },
+            };
+          },
+          render() {
+            return { promise: Promise.resolve() };
+          },
+        };
+      },
+    };
+    const page = await rasterizePdfPageForOcr({
+      document,
+      pageIndex: 0,
+      scale: 2,
+      region: { x: 80, y: 145, width: 20, height: 50 },
+      canvasFactory: createMemoryPdfRasterCanvasFactory(),
+    });
+    expect([page.rasterWidth, page.rasterHeight]).toEqual([100, 40]);
+    const m = page.pixelToPdfTransform!;
+    expect(m[0]).toBeCloseTo(0);
+    expect(m[1]).toBeCloseTo(0.5);
+    expect(m[2]).toBeCloseTo(0.5);
+    expect(m[3]).toBeCloseTo(0);
+    expect(m[4]).toBeCloseTo(80);
+    expect(m[5]).toBeCloseTo(145);
+    const pageInput = rasterizedPdfPageToOcrEnginePageInput(page);
+    expect(pageInput.pixelToPdfTransform).toEqual(page.pixelToPdfTransform);
+    expect(new TextDecoder().decode(page.imageBytes)).toContain('PDFHUB_RASTER:100x40');
+
+    await expect(rasterizePdfPageForOcr({
+      document,
+      pageIndex: 0,
+      region: { x: 0, y: 145, width: 20, height: 50 },
+      canvasFactory: createMemoryPdfRasterCanvasFactory(),
+    })).rejects.toThrow('outside PDF page bounds');
+  });
+
+  it('refuses to rasterize after its job has been cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(rasterizePdfPageForOcr({
+      document: createFakeDocument(),
+      pageIndex: 0,
+      signal: controller.signal,
+      canvasFactory: createMemoryPdfRasterCanvasFactory(),
+    })).rejects.toThrow();
+  });
+
   it('rasterizes multiple selected pages in normalized order', async () => {
     const document = createFakeDocument();
 

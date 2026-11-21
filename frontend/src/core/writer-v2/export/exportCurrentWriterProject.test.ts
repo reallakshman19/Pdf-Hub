@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { createOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import { useWriterV2Store } from '../writerV2Store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
 import type { WriterElementV2 } from '../types';
 import {
   exportCurrentWriterProject,
@@ -46,6 +47,7 @@ function element(id: string): WriterElementV2 {
 describe('exportCurrentWriterProject', () => {
   beforeEach(() => {
     useWriterV2Store.getState().clearWriterV2();
+    useOcrStore.getState().clearOcr();
   });
 
   it('exports current active writer store as project ZIP', async () => {
@@ -63,6 +65,68 @@ describe('exportCurrentWriterProject', () => {
 
     expect(imported.manifest.schema).toBe('pdf-hub-project');
     expect(imported.elements[0].plainText).toBe('Current project export');
+  });
+
+  it('includes verified OCR regions and preserves their geometry through a real project ZIP roundtrip', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assetRecords: [],
+    });
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'doc-1',
+      regions: [{
+        id: 'ocr-region-cropbox',
+        documentFingerprint: 'doc-1',
+        pageIndex: 0,
+        bbox: { x: 90, y: 150, width: 60, height: 25 },
+        mode: 'text',
+        geometryProvenance: 'pdf-user-space-v2',
+        createdAt: '2026-11-19T00:00:00.000Z',
+        updatedAt: '2026-11-19T00:00:00.000Z',
+      }],
+    });
+    const input = await blankPdfBytes();
+    const bytes = await exportCurrentWriterProject({
+      originalPdfBytes: input,
+      documentFingerprint: 'doc-1',
+      useWorker: false,
+    });
+    const imported = await importPdfHubWriterProject(bytes);
+    expect(imported.ocrProject?.regions).toHaveLength(1);
+    expect(imported.ocrProject?.regions[0]).toMatchObject({
+      id: 'ocr-region-cropbox',
+      geometryProvenance: 'pdf-user-space-v2',
+      bbox: { x: 90, y: 150, width: 60, height: 25 },
+    });
+    expect(imported.elements[0].id).toBe('writer-1');
+  });
+
+  it('never attaches a stale document OCR payload to a different Writer project', async () => {
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assetRecords: [],
+    });
+    useOcrStore.getState().hydrateOcrSession({
+      documentFingerprint: 'different-document',
+      regions: [{
+        id: 'stale-region',
+        documentFingerprint: 'different-document',
+        pageIndex: 0,
+        bbox: { x: 50, y: 50, width: 90, height: 30 },
+        mode: 'text',
+        createdAt: '2026-11-19T00:00:00.000Z',
+        updatedAt: '2026-11-19T00:00:00.000Z',
+      }],
+    });
+    const bytes = await exportCurrentWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+      documentFingerprint: 'doc-1',
+      useWorker: false,
+    });
+    const imported = await importPdfHubWriterProject(bytes);
+    expect(imported.ocrProject).toBeNull();
   });
 
   it('throws when document fingerprint is missing', async () => {

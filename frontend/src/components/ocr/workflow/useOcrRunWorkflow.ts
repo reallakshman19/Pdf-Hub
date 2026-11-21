@@ -5,6 +5,7 @@ import type {
 } from '@/core/ocr/ocrJobRunner';
 import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { useSessionStore } from '@/core/session/store';
 import {
   createOcrAbortControllerWithTimeout,
   createOcrExecutionPlan,
@@ -25,6 +26,14 @@ import {
 } from '@/core/ocr/ocrPipelineMode';
 
 export type OcrRunWorkflowState = 'idle' | 'ready' | 'running' | 'complete' | 'error';
+
+interface ActiveOcrRunOwner {
+  readonly generation: number;
+  readonly documentFingerprint: string;
+  readonly documentKey: string | null;
+  readonly activeRevisionId: string | null;
+  readonly abort: ReturnType<typeof createOcrAbortControllerWithTimeout>;
+}
 
 export interface UseOcrRunWorkflowInput {
   documentFingerprint?: string | null;
@@ -93,6 +102,56 @@ export function useOcrRunWorkflow({
   const [estimatedMemoryBytes, setEstimatedMemoryBytes] = React.useState(0);
   const [batchSnapshot, setBatchSnapshot] = React.useState<OcrBatchSchedulerSnapshot | null>(null);
   const [lastBatchController, setLastBatchController] = React.useState<AbortController | null>(null);
+  const generationRef = React.useRef(0);
+  const activeRunRef = React.useRef<ActiveOcrRunOwner | null>(null);
+
+  const isCurrentRun = React.useCallback((run: ActiveOcrRunOwner): boolean => {
+    const session = useSessionStore.getState();
+    return activeRunRef.current === run
+      && run.generation === generationRef.current
+      && !run.abort.controller.signal.aborted
+      && session.documentKey === run.documentKey
+      && session.activeRevisionId === run.activeRevisionId
+      && (!session.documentKey || session.documentKey === run.documentFingerprint);
+  }, []);
+
+  // A session revision can be replaced without remounting the left-rail
+  // panel or changing its physical page index. Subscribe to the authoritative
+  // session identity so old callbacks cannot commit during the same render.
+  React.useEffect(() => {
+    const release = useSessionStore.subscribe((session) => {
+      const run = activeRunRef.current;
+      if (!run) return;
+      if (
+        session.documentKey === run.documentKey
+        && session.activeRevisionId === run.activeRevisionId
+      ) return;
+      generationRef.current += 1;
+      activeRunRef.current = null;
+      run.abort.cancel();
+      // This state update is triggered by an external session mutation.
+      setActiveAbort(null);
+      setLastBatchController(null);
+      setIsRunning(false);
+      setErrorMessage(null);
+    });
+    return release;
+  }, []);
+
+  // The left-rail OCR panel may unmount on route changes. Abort on disposal
+  // or fingerprint changes; stale promises cannot publish even if their
+  // underlying Tesseract worker ignores AbortSignal.
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- new document identity invalidates old OCR presentation.
+    setIsRunning(false);
+    setErrorMessage(null);
+    return () => {
+      generationRef.current += 1;
+      const run = activeRunRef.current;
+      activeRunRef.current = null;
+      run?.abort.cancel();
+    };
+  }, [effectiveDocumentFingerprint]);
 
   const selectedPages = React.useMemo(
     () => selectedPageIndexes.length > 0
@@ -129,8 +188,12 @@ export function useOcrRunWorkflow({
   const canCancel = isRunning || Boolean(activeAbort) || Boolean(lastBatchController);
 
   const cancelActiveOcr = React.useCallback(() => {
-    if (!isRunning && !activeAbort && !lastBatchController) return;
+    const run = activeRunRef.current;
+    if (!run && !isRunning && !activeAbort && !lastBatchController) return;
 
+    generationRef.current += 1;
+    activeRunRef.current = null;
+    run?.abort.cancel();
     activeAbort?.cancel();
     lastBatchController?.abort();
     setActiveAbort(null);
@@ -210,7 +273,7 @@ export function useOcrRunWorkflow({
   ]);
 
   const runSelectedOcr = React.useCallback(async () => {
-    if (!canRun) return;
+    if (!canRun || activeRunRef.current) return;
 
     setIsRunning(true);
     setErrorMessage(null);
@@ -235,9 +298,20 @@ export function useOcrRunWorkflow({
     const abort = createOcrAbortControllerWithTimeout({
       timeoutMs: executionPolicy.timeoutMs,
       onTimeout: () => {
-        setErrorMessage('OCR timeout reached.');
+        if (activeRunRef.current?.abort === abort) {
+          setErrorMessage('OCR timeout reached.');
+        }
       },
     });
+    const session = useSessionStore.getState();
+    const run: ActiveOcrRunOwner = {
+      generation: ++generationRef.current,
+      documentFingerprint: effectiveDocumentFingerprint,
+      documentKey: session.documentKey,
+      activeRevisionId: session.activeRevisionId,
+      abort,
+    };
+    activeRunRef.current = run;
 
     setActiveAbort(abort);
     setLastBatchController(abort.controller);
@@ -259,17 +333,21 @@ export function useOcrRunWorkflow({
         batchConcurrency: 1,
         signal: abort.controller.signal,
         onDiagnostic: (diagnostic) => {
+          if (!isCurrentRun(run)) return;
           setPipelineMessages((current) => [
             ...current.slice(-8),
             diagnostic.message,
           ]);
         },
-        onBatchSnapshot: setBatchSnapshot,
+        onBatchSnapshot: (snapshot) => {
+          if (isCurrentRun(run)) setBatchSnapshot(snapshot);
+        },
         onProgress: (snapshot) => {
-          useOcrStore.getState().applyOcrJobSnapshot(snapshot);
+          if (isCurrentRun(run)) useOcrStore.getState().applyOcrJobSnapshot(snapshot);
         },
       });
 
+      if (!isCurrentRun(run)) return;
       useOcrStore.getState().setOcrResult(finalResult.result);
 
       setPipelineMessages((current) => [
@@ -277,20 +355,26 @@ export function useOcrRunWorkflow({
         `OCR completed through ${finalResult.mode}.`,
       ]);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'OCR job failed.',
-      );
+      if (isCurrentRun(run)) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'OCR job failed.',
+        );
+      }
     } finally {
       abort.clear();
-      setActiveAbort(null);
-      setLastBatchController(null);
-      setIsRunning(false);
+      if (activeRunRef.current === run) {
+        activeRunRef.current = null;
+        setActiveAbort(null);
+        setLastBatchController(null);
+        setIsRunning(false);
+      }
     }
   }, [
     canRun,
     effectiveDocumentFingerprint,
+    isCurrentRun,
     executionPolicy,
     pageCount,
     pages,

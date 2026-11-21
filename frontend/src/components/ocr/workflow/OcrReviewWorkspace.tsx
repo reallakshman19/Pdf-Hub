@@ -305,13 +305,14 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
             pageInput={selectedRegionPageInput}
             resolvePageInput={
               selectedRegion && (pdfBytes || selectedRegionPageInput)
-                ? async (region) => {
+                ? async (region, signal) => {
                     const resolved = await resolveOcrRegionPageInput({
                       region,
                       pdfBytes,
                       fallbackPageInput: selectedRegionPageInput,
                       scale: 2,
                       mimeType: 'image/png',
+                      signal,
                     });
                     return {
                       pageInput: resolved.pageInput,

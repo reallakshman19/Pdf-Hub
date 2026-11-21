@@ -50,9 +50,14 @@ export interface TesseractRecognizer {
 export type TesseractWorkerFactory = (language: string) => Promise<TesseractWorkerLike>;
 
 export interface TesseractWorkerLike {
-  recognize(image: TesseractImageSource): Promise<{
+  recognize(
+    image: TesseractImageSource,
+    options?: Record<string, unknown>,
+    output?: { blocks?: boolean },
+  ): Promise<{
     data: TesseractRecognizeData;
   }>;
+  setParameters?(params: Record<string, string>): Promise<unknown>;
   terminate(): Promise<void>;
 }
 
@@ -216,6 +221,9 @@ export function tesseractDataToOcrPageResult(input: {
       ? 'success'
       : 'partial',
     pageType: input.page.region ? 'mixed' : 'scanned',
+    ...(input.page.pixelToPdfTransform
+      ? { geometryProvenance: 'pdf-user-space-v2' as const }
+      : {}),
     orientationDeg: 0,
     languageHints: [input.language],
     width: input.page.width,
@@ -269,7 +277,7 @@ export function createDefaultTesseractRecognizer(input: {
   workerFactory?: TesseractWorkerFactory;
 } = {}): TesseractRecognizer {
   return {
-    async recognize({ image, language, signal }) {
+    async recognize({ image, language, signal, page }) {
       const workerFactory = input.workerFactory ?? createDefaultTesseractWorker;
       let activeWorker: TesseractWorkerLike | null = null;
       let terminationPromise: Promise<void> | null = null;
@@ -296,7 +304,26 @@ export function createDefaultTesseractRecognizer(input: {
       );
 
       try {
-        const recognitionPromise = worker.recognize(image);
+        // Tesseract.js defaults to PSM 6 (one horizontal text block), which
+        // misreads sideways words on native /Rotate 90/270 pages. Rotated
+        // PDF.js crops have off-diagonal pixel-to-PDF affine coefficients.
+        // PSM 3 analyzes image layout without rotating the bitmap, so native
+        // word boxes remain in their original raster coordinate convention.
+        // The existing pixelToPdfTransform then maps them to original PDF
+        // user space without a second rotation or invented rectangles.
+        if (isQuarterTurnPdfRaster(page)) {
+          if (!worker.setParameters) {
+            throw new Error('Tesseract worker cannot configure rotated-page segmentation.');
+          }
+          await raceWithAbort(
+            worker.setParameters({ tessedit_pageseg_mode: '3' }),
+            signal,
+            'configure rotated Tesseract page segmentation',
+            () => { void terminateOnce(); },
+          );
+        }
+        // Request the real Block > Paragraph > Line > Word geometry.
+        const recognitionPromise = worker.recognize(image, {}, { blocks: true });
         const result = await raceWithAbort(
           recognitionPromise,
           signal,
@@ -309,6 +336,19 @@ export function createDefaultTesseractRecognizer(input: {
       }
     },
   };
+}
+
+/** A true quarter-turn PDF.js raster has approximately zero diagonal
+ * coefficients and nonzero off-diagonal coefficients. This is not an
+ * arbitrary tall image: image aspect ratio alone cannot prove rotation. */
+function isQuarterTurnPdfRaster(page: OcrEnginePageInput): boolean {
+  const affine = page.pixelToPdfTransform;
+  if (!affine) return false;
+  const [a, b, c, d] = affine;
+  const cross = Math.max(Math.abs(b), Math.abs(c));
+  return cross > 1e-8
+    && Math.abs(a) < cross * 1e-5
+    && Math.abs(d) < cross * 1e-5;
 }
 
 export async function createDefaultTesseractWorker(
@@ -341,10 +381,16 @@ function collectTesseractWords(
   }
 
   const fromBlocks = flattenNodes(data.blocks, 'words');
+  if (fromBlocks.length > 0) return fromBlocks;
 
-  if (fromBlocks.length > 0) {
-    return fromBlocks;
-  }
+  const fromBlockLines = flattenNodes(flattenNodes(data.blocks, 'lines'), 'words');
+  if (fromBlockLines.length > 0) return fromBlockLines;
+
+  const fromNestedBlocks = flattenNodes(
+    flattenNodes(flattenNodes(data.blocks, 'paragraphs'), 'lines'),
+    'words',
+  );
+  if (fromNestedBlocks.length > 0) return fromNestedBlocks;
 
   return data.text
     ? createFallbackWordNodesFromText(data.text, data.confidence)
@@ -365,10 +411,13 @@ function collectTesseractLines(
   }
 
   const fromBlocks = flattenNodes(data.blocks, 'lines');
+  if (fromBlocks.length > 0) return fromBlocks;
 
-  if (fromBlocks.length > 0) {
-    return fromBlocks;
-  }
+  const fromNestedBlocks = flattenNodes(
+    flattenNodes(data.blocks, 'paragraphs'),
+    'lines',
+  );
+  if (fromNestedBlocks.length > 0) return fromNestedBlocks;
 
   if (data.text) {
     return data.text
@@ -611,7 +660,7 @@ export function normalizeTesseractConfidence(
 
 export function tesseractBboxToPdfRect(
   bbox: TesseractBbox | undefined,
-  page: Pick<OcrEnginePageInput, 'height'>,
+  page: Pick<OcrEnginePageInput, 'height' | 'pixelToPdfTransform'>,
   fallback: PdfRect,
 ): PdfRect {
   if (
@@ -634,6 +683,27 @@ export function tesseractBboxToPdfRect(
   const topFromImage = Math.min(y0, y1);
   const bottomFromImage = Math.max(y0, y1);
 
+  // Tesseract boxes are relative to the *cropped image in pixels*.
+  // Map all four corners through the captured inverse PDF.js transform:
+  // rotation and CropBox offsets make a simple Y-flip or scale invalid.
+  if (page.pixelToPdfTransform) {
+    const [a, b, c, d, e, f] = page.pixelToPdfTransform;
+    const points = [
+      [left, topFromImage],
+      [right, topFromImage],
+      [left, bottomFromImage],
+      [right, bottomFromImage],
+    ].map(([x, y]) => [a * x + c * y + e, b * x + d * y + f]);
+    const minX = Math.min(...points.map(([x]) => x));
+    const maxX = Math.max(...points.map(([x]) => x));
+    const minY = Math.min(...points.map(([, y]) => y));
+    const maxY = Math.max(...points.map(([, y]) => y));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  // Legacy callers supply 1:1 full-page images without transform metadata.
+  // Preserve their established interpretation; rasterized PDF input always
+  // supplies an explicit pixelToPdfTransform.
   return {
     x: left,
     y: Math.max(0, page.height - bottomFromImage),

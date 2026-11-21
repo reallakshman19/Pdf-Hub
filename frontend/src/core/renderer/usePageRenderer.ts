@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { RenderToken } from '../../adapters/pdf-renderer/types';
+import type { OcrPdfViewport } from '../ocr/ocrViewportGeometry';
 import { PdfRendererAdapter } from '../../adapters/pdf-renderer/PdfRendererAdapter';
 import { isOperationCancelledError, raceWithAbort, throwIfAborted } from '@/core/cancellation/operationCancellation';
 import {
@@ -26,6 +27,12 @@ export function usePageRenderer({
 }: UsePageRendererOptions) {
   const tokenRef = useRef<RenderToken | null>(null);
   const [size, setSize] = useState<PageSize | null>(null);
+  const [ocrViewportState, setOcrViewportState] = useState<{
+    doc: PDFDocumentProxy;
+    pageNumber: number;
+    scale: number;
+    viewport: OcrPdfViewport;
+  } | null>(null);
   const [isRendering, setIsRendering] = useState(false);
 
   useLayoutEffect(() => {
@@ -63,6 +70,7 @@ export function usePageRenderer({
               const viewport = page.getViewport({ scale });
               if (!signal.aborted) {
                 setSize({ width: viewport.width, height: viewport.height });
+                setOcrViewportState({ doc, pageNumber, scale, viewport });
               }
               throwIfAborted(signal, `render PDF page ${pageNumber}`);
 
@@ -99,5 +107,13 @@ export function usePageRenderer({
     };
   }, [doc, pageNumber, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { size, isRendering };
+  // A view from a previous page/document/zoom must never own a new OCR area.
+  const ocrViewport =
+    ocrViewportState?.doc === doc
+    && ocrViewportState.pageNumber === pageNumber
+    && ocrViewportState.scale === scale
+      ? ocrViewportState.viewport
+      : null;
+
+  return { size, isRendering, ocrViewport };
 }

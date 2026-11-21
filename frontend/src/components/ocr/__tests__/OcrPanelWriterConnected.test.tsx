@@ -108,6 +108,7 @@ describe('OcrPanelWriterConnected', () => {
   const addAndSelectRegion = async (documentFingerprint: string) => {
     useOcrStore.getState().addOcrRegion({
       id: `region-${documentFingerprint}`,
+      geometryProvenance: 'pdf-user-space-v2',
       documentFingerprint,
       pageIndex: 0,
       mode: 'text',

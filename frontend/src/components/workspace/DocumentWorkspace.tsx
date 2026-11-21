@@ -200,6 +200,7 @@ export const DocumentWorkspace: React.FC = () => {
   } | null>(null);
 
   const handleBrowse = async () => {
+    setLoadError(null);
     try {
       const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
@@ -608,6 +609,11 @@ export const DocumentWorkspace: React.FC = () => {
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
             Supports PDF up to 100 MB.
           </p>
+          {loadError ? (
+            <p role="alert" data-testid="open-pdf-failure" className="mb-4 max-w-sm text-sm text-red-700 dark:text-red-300">
+              Unable to open PDF: {loadError}
+            </p>
+          ) : null}
           <button
             className={[
               "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
@@ -1029,8 +1035,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     window.addEventListener('blur', cancel);
   };
 
-  const { size: renderSize } = usePageRenderer({
-    doc,
+  const { size: renderSize, ocrViewport } = usePageRenderer({    doc,
     pageNumber,
     scale,
     canvasRef,
@@ -1172,14 +1177,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const startTransform = (
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.PointerEvent<HTMLDivElement>,
     annotation: PdfAnnotation,
     mode: 'move' | 'resize',
   ) => {
     if (annotation.data.locked === true) return;
     cancelGestureRef.current?.();
 
+    event.preventDefault();
     event.stopPropagation();
+    const activePointerId = event.pointerId;
     clearTextSelectionDraft();
 
     const selectedOnPage = pageAnnotations
@@ -1297,14 +1304,18 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             updateDraftLinePoints((state) => ({
               ...state,
               [current.targetId]: linePoints,
-            }));
+            };
+            draftLinePointsRef.current = updatedPoints;
+            setDraftLinePoints(updatedPoints);
           }
         }
 
         updateDraftRects((state) => ({
           ...state,
           [current.targetId]: scaled.rect,
-        }));
+        };
+        draftRectsRef.current = updatedRects;
+        setDraftRects(updatedRects);
       }
     };
 
@@ -1381,6 +1392,14 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         });
         return next;
       });
+      draftRectsRef.current = nextRects;
+      draftAnchorsRef.current = nextAnchors;
+      draftKneesRef.current = nextKnees;
+      draftLinePointsRef.current = nextPoints;
+      setDraftRects(nextRects);
+      setDraftAnchors(nextAnchors);
+      setDraftKnees(nextKnees);
+      setDraftLinePoints(nextPoints);
 
       transformRef.current = null;
     };
@@ -2338,6 +2357,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         pageNumber={pageNumber}
         scale={scale}
         pageDimensions={renderSize || size}
+        ocrViewport={ocrViewport}
       />
 
       <WriterOverlayLayer

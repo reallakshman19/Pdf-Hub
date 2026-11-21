@@ -12,6 +12,10 @@ import {
   validateOcrRegion,
 } from '@/core/ocr/ocrRegionModel';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import {
+  pdfRectToViewportSelection,
+  type OcrPdfViewport,
+} from '@/core/ocr/ocrViewportGeometry';
 import { OcrRegionListPanel } from './OcrRegionListPanel';
 
 export interface OcrRegionToolProps {
@@ -21,6 +25,8 @@ export interface OcrRegionToolProps {
   pageHeight: number;
   viewportWidth: number;
   viewportHeight: number;
+  /** Exact rendered PDF.js viewport; absent for legacy approximate editors. */
+  pdfViewport?: OcrPdfViewport | null;
   onCreateRegion: (region: OcrRegion) => void;
 }
 
@@ -62,6 +68,7 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
   pageHeight,
   viewportWidth,
   viewportHeight,
+  pdfViewport,
   onCreateRegion,
 }) => {
   const hasExistingRegions = useOcrStore((state) => state.regions.length > 0);
@@ -113,6 +120,9 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
       pageIndex,
       mode: draft.mode,
       bbox: draft.bbox,
+      // The legacy dimension-ratio helper is not rotation/CropBox aware.
+      // Only a real viewport inverse authorizes verified PDF provenance.
+      ...(pdfViewport ? { geometryProvenance: 'pdf-user-space-v2' as const } : {}),
     });
 
     const validation = validateOcrRegion(region, {
@@ -136,13 +146,21 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
     const point = eventToViewportPoint(event);
     setDragStart(point);
 
-    const pdfPoint = viewportPointToPdfPoint({
-      point,
-      pageWidth,
-      pageHeight,
-      viewportWidth,
-      viewportHeight,
-    });
+    const pdfPoint = pdfViewport
+      ? (() => {
+          const [x, y] = pdfViewport.convertToPdfPoint(
+            point.x * pdfViewport.width / viewportWidth,
+            point.y * pdfViewport.height / viewportHeight,
+          );
+          return { x, y };
+        })()
+      : viewportPointToPdfPoint({
+          point,
+          pageWidth,
+          pageHeight,
+          viewportWidth,
+          viewportHeight,
+        });
 
     setDraft((current) => ({
       ...current,
@@ -162,21 +180,24 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
 
     const current = eventToViewportPoint(event);
 
-    const startPdf = viewportPointToPdfPoint({
-      point: dragStart,
-      pageWidth,
-      pageHeight,
-      viewportWidth,
-      viewportHeight,
-    });
-
-    const currentPdf = viewportPointToPdfPoint({
-      point: current,
-      pageWidth,
-      pageHeight,
-      viewportWidth,
-      viewportHeight,
-    });
+    const toPdf = (point: { x: number; y: number }) => {
+      if (pdfViewport) {
+        const [x, y] = pdfViewport.convertToPdfPoint(
+          point.x * pdfViewport.width / viewportWidth,
+          point.y * pdfViewport.height / viewportHeight,
+        );
+        return { x, y };
+      }
+      return viewportPointToPdfPoint({
+        point,
+        pageWidth,
+        pageHeight,
+        viewportWidth,
+        viewportHeight,
+      });
+    };
+    const startPdf = toPdf(dragStart);
+    const currentPdf = toPdf(current);
 
     setDraft((existing) => ({
       ...existing,
@@ -188,13 +209,23 @@ export const OcrRegionTool: React.FC<OcrRegionToolProps> = ({
     setDragStart(null);
   };
 
-  const draftViewportRect = pdfRectToViewportRect({
-    rect: draft.bbox,
-    pageWidth,
-    pageHeight,
-    viewportWidth,
-    viewportHeight,
-  });
+  const draftViewportRect = pdfViewport
+    ? (() => {
+        const rect = pdfRectToViewportSelection(pdfViewport, draft.bbox);
+        return {
+          left: rect.x * viewportWidth / pdfViewport.width,
+          top: rect.y * viewportHeight / pdfViewport.height,
+          width: rect.width * viewportWidth / pdfViewport.width,
+          height: rect.height * viewportHeight / pdfViewport.height,
+        };
+      })()
+    : pdfRectToViewportRect({
+        rect: draft.bbox,
+        pageWidth,
+        pageHeight,
+        viewportWidth,
+        viewportHeight,
+      });
 
   return (
     <>

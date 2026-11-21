@@ -13,6 +13,19 @@ export interface OcrEnginePageInput {
    * When omitted, engine should OCR the full page image.
    */
   region?: PdfRect;
+
+  /** Actual OCR image pixel width/height, distinct from PDF-point dimensions. */
+  rasterWidth?: number;
+  rasterHeight?: number;
+
+  /**
+   * Affine transform from OCR image pixel coordinates (top-left origin)
+   * to the original PDF user space: [a, b, c, d, e, f].
+   *
+   * pdfX = a * pixelX + c * pixelY + e
+   * pdfY = b * pixelX + d * pixelY + f
+   */
+  pixelToPdfTransform?: readonly [number, number, number, number, number, number];
 }
 
 export interface OcrEngineInput {

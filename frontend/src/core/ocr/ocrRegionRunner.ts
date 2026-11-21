@@ -106,6 +106,7 @@ export async function runOcrRegion(
     documentFingerprint: input.documentFingerprint,
     profile,
     pages: [pageInput],
+    abortSignal: input.signal,
   });
 
   throwIfCancelled(input.signal);

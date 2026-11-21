@@ -126,12 +126,55 @@ describe('OcrRegionTool', () => {
     const regionObj = created as unknown as OcrRegion;
     expect(regionObj.documentFingerprint).toBe('doc-region-tool');
     expect(regionObj.mode).toBe('table');
+    // Dimension-ratio editor alone cannot establish rotation/CropBox provenance.
+    expect(regionObj.geometryProvenance).toBeUndefined();
     expect(regionObj.bbox).toMatchObject({
       x: 50,
       y: 60,
       width: 200,
       height: 100,
     });
+  });
+
+  it('uses a real rotated PDF.js viewport to certify new region geometry', () => {
+    let created: OcrRegion | null = null;
+    const viewport = {
+      width: 1240,
+      height: 940,
+      convertToPdfPoint(x: number, y: number) {
+        return [70 + y / 2, 100 + x / 2];
+      },
+      convertToViewportRectangle([x0, y0, x1, y1]: number[]) {
+        return [(y0 - 100) * 2, (x0 - 70) * 2, (y1 - 100) * 2, (x1 - 70) * 2];
+      },
+    };
+
+    render(
+      <OcrRegionTool
+        documentFingerprint="doc-rotated"
+        pageIndex={0}
+        pageWidth={540}
+        pageHeight={720}
+        viewportWidth={620}
+        viewportHeight={470}
+        pdfViewport={viewport}
+        onCreateRegion={(region) => { created = region; }}
+      />,
+    );
+    const canvas = screen.getByTestId('ocr-region-canvas');
+    canvas.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, top: 0, right: 620, bottom: 470,
+      width: 620, height: 470, toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(canvas, { clientX: 45, clientY: 10 });
+    fireEvent.pointerMove(canvas, { clientX: 95, clientY: 30 });
+    fireEvent.pointerUp(canvas);
+    fireEvent.click(screen.getByTestId('ocr-region-add'));
+
+    expect(created).not.toBeNull();
+    const region = created as unknown as OcrRegion;
+    expect(region.bbox).toEqual({ x: 80, y: 145, width: 20, height: 50 });
+    expect(region.geometryProvenance).toBe('pdf-user-space-v2');
   });
 
   it('shows validation error for out-of-page region', () => {
