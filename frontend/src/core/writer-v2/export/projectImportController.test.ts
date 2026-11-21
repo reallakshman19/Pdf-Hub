@@ -279,7 +279,7 @@ describe('atomic standalone Writer project import', () => {
     });
     const activeOperation = operation();
     const staged = await stageStandaloneWriterProject(source, activeOperation);
-    await commitStagedWriterProjectImport(staged, activeOperation);
+    await commitStagedWriterProjectImport(staged, activeOperation, ocrRestoreHooks());
 
     const ocr = useOcrStore.getState();
     expect(ocr.documentFingerprint).toBe('doc-1');

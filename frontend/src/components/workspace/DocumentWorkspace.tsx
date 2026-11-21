@@ -1186,7 +1186,6 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
 
     event.preventDefault();
     event.stopPropagation();
-    const activePointerId = event.pointerId;
     clearTextSelectionDraft();
 
     const selectedOnPage = pageAnnotations
@@ -1304,18 +1303,14 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             updateDraftLinePoints((state) => ({
               ...state,
               [current.targetId]: linePoints,
-            };
-            draftLinePointsRef.current = updatedPoints;
-            setDraftLinePoints(updatedPoints);
+            }));
           }
         }
 
         updateDraftRects((state) => ({
           ...state,
           [current.targetId]: scaled.rect,
-        };
-        draftRectsRef.current = updatedRects;
-        setDraftRects(updatedRects);
+        }));
       }
     };
 
@@ -1392,14 +1387,6 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         });
         return next;
       });
-      draftRectsRef.current = nextRects;
-      draftAnchorsRef.current = nextAnchors;
-      draftKneesRef.current = nextKnees;
-      draftLinePointsRef.current = nextPoints;
-      setDraftRects(nextRects);
-      setDraftAnchors(nextAnchors);
-      setDraftKnees(nextKnees);
-      setDraftLinePoints(nextPoints);
 
       transformRef.current = null;
     };

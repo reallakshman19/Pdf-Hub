@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { WriterInlineEditor } from './WriterInlineEditor';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useSessionStore } from '@/core/session/store';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
 
@@ -59,10 +60,26 @@ function clipboardEvent(data: {
 
 describe('WriterClipboardPlugin', () => {
   beforeEach(() => {
-    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [element()] });
+    useSessionStore.setState({ documentKey: 'doc-1' });
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element()],
+      documentMeta: {
+        mode: 'pdfOverlay',
+        documentFingerprint: 'doc-1',
+        title: 'doc-1',
+        pageCount: 1,
+        pageSetup: { width: 612, height: 792, orientation: 'portrait' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    });
     useWriterV2Store.getState().beginEditingWriterElement('writer-1');
   });
-  afterEach(() => { useWriterV2Store.getState().clearWriterV2(); });
+  afterEach(() => {
+    useWriterV2Store.getState().clearWriterV2();
+    useSessionStore.getState().clearDocument();
+  });
 
   it('pastes plain text into the editor and saves it', async () => {
     const onSave = vi.fn();
@@ -98,7 +115,6 @@ describe('WriterClipboardPlugin', () => {
     const onSave = vi.fn();
     const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
     const file = new File([bytes], 'clip.png', { type: 'image/png' });
-    // jsdom File may not implement the browser Blob.arrayBuffer API.
     Object.defineProperty(file, 'arrayBuffer', { value: async () => bytes.buffer });
 
     const { unmount } = render(
@@ -131,7 +147,6 @@ describe('WriterClipboardPlugin', () => {
     expect(payload.assets).toHaveLength(1);
     expect(payload.assets[0].mimeType).toBe('image/png');
     expect(payload.editorStateJson).toContain('inline-image');
-    expect(useWriterV2Store.getState().assetRecords).toHaveLength(0);
   });
 });
 

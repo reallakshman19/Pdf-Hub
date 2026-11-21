@@ -8,11 +8,30 @@ import { useEditorStore } from '@/core/editor/store';
 import { validateOcrProjectPayload } from '@/core/ocr/ocrProjectCodec';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import {
+  admitAndOpenPdfFile,
+  firstAdmissionErrorMessage,
+  type OpenedPdfDocument,
+  type PrimaryPdfInputSource,
+} from '@/core/admission/openPdf';
+import type { AcceptedAdmissionResult, AdmissionResult } from '@/core/admission/types';
+import type { OpenDocumentPayload } from '@/core/session/store';
+import { beginDocumentOpenIntent, isDocumentOpenIntentCurrent } from '@/core/session/documentOpenIntent';
+import { useAnnotationStore } from '@/core/annotations/store';
+import { readNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationReader';
+import { useWriterStore } from '@/core/writer/store';
+import { useHistoryStore } from '@/core/document-history/store';
+import { markNativeAnnotationsHydrated } from '@/core/annotations/sessionHydration';
+import { rebindAnnotationsByPageNumber } from '@/core/annotations/pageAnchor';
+import { createPdfOverlayWriterDocumentMeta } from '../writerDocumentMode';
+import {
   importPdfHubWriterProjectFromReader,
   type ImportPdfHubProjectResult,
   type PdfHubWriterProjectManifestV1,
 } from './projectZip';
-import { extractWriterProjectFromPdf } from './roundTripPdfImport';
+import { extractWriterProjectZipFromPdf } from './roundTripPdfImport';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
+import { markWriterProjectPublished } from '../persistence/writerProjectPublication';
+import { rebindWriterElementsByPageIndex } from '../writerPageAnchor';
 import {
   isOperationCancelledError,
   raceWithAbort,
@@ -53,6 +72,8 @@ export interface ImportedProjectSession {
   documentMeta?: WriterDocumentMetaV2 | null;
   elementCount: number;
   assetCount: number;
+  /** Actual canonical admission receipt for PDF-backed projects. */
+  pdfAdmission?: AcceptedAdmissionResult<OpenedPdfDocument>;
 }
 
 export type WriterProjectImportOutcome =
@@ -103,6 +124,7 @@ export interface WriterProjectImportEvidence {
 export interface StandaloneWriterProjectOperation {
   readonly operationId: string;
   readonly generation: number;
+  readonly openIntent?: number;
   readonly signal?: AbortSignal;
   readonly isCurrent: () => boolean;
   readonly isMounted: () => boolean;
@@ -356,10 +378,34 @@ interface PreparedOcrProjectRestore {
   rollback(): void;
 }
 
+/** Normal PDF Open must not inherit a blank or previous Writer model. */
+export function preparePlainWriterPdfPublication(payload: OpenDocumentPayload): () => void {
+  const documentMeta = createPdfOverlayWriterDocumentMeta({
+    documentFingerprint: payload.documentKey,
+    pageCount: payload.pageCount,
+  });
+  return () => {
+    useHistoryStore.getState().clear();
+    useWriterStore.getState().clearElementsAfterCommit();
+    useAnnotationStore.getState().setAnnotations([]);
+    useAnnotationStore.setState({ hydratedDocumentKey: null, clipboard: [], clipboardDocumentKey: null });
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: payload.documentKey,
+      elements: [],
+      assetRecords: [],
+      documentMeta,
+    });
+  };
+}
+
 export async function commitStagedWriterProjectImport(
   stage: StagedWriterProjectImport,
   operation: StandaloneWriterProjectOperation,
   hooks?: {
+    readonly fileName?: string;
+    readonly source?: PrimaryPdfInputSource;
+    readonly beforeSessionMutation?: () => void;
+    /** Postpublication observer; errors do not restore released previous-session resources. */
     readonly afterSessionMutation?: () => void;
     readonly prepareOcrRestore?: (
       payload: NonNullable<ImportPdfHubProjectResult['ocrProject']>,
@@ -376,11 +422,31 @@ export async function commitStagedWriterProjectImport(
   assertOperationCurrent(operation, 'standalone Writer project before commit');
   registered.consumed = true;
 
+  const intent = operation.openIntent ?? beginDocumentOpenIntent();
   const sessionSnapshot = useSessionStore.getState();
   const writerSnapshot = useWriterV2Store.getState();
   const ocrSnapshot = snapshotOcrImportState();
   const editorSnapshot = useEditorStore.getState();
+  const annotationSnapshot = useAnnotationStore.getState().annotations;
+  const legacySnapshot = useWriterStore.getState().elements;
+  const sourceOwner = captureDocumentMutationOwner();
   let ocrRestore: PreparedOcrProjectRestore | null = null;
+
+  const beforeMutation = () => {
+    assertOperationCurrent(operation, 'Writer project before session publication');
+    if (
+      !isDocumentOpenIntentCurrent(intent) ||
+      !isDocumentMutationOwnerCurrent(sourceOwner) ||
+      useWriterV2Store.getState().elements !== writerSnapshot.elements ||
+      useWriterV2Store.getState().assetRecords !== writerSnapshot.assetRecords ||
+      useWriterV2Store.getState().documentMeta !== writerSnapshot.documentMeta ||
+      useAnnotationStore.getState().annotations !== annotationSnapshot ||
+      useWriterStore.getState().elements !== legacySnapshot
+    ) {
+      throw new Error('Writer project import source session changed.');
+    }
+    hooks?.beforeSessionMutation?.();
+  };
 
   try {
     if (project.ocrProject) {
@@ -392,54 +458,134 @@ export async function commitStagedWriterProjectImport(
         project.manifest.documentFingerprint,
       );
     }
+
     const mode = project.documentMeta?.mode ?? inferredModeFromProject(project);
-    if (mode === 'pdfOverlay') {
-      const pageGraph = await buildPageGraphFromPdfBytes(
-        project.originalPdfBytes,
-        project.manifest.documentFingerprint,
-        operation.signal,
-      );
-      if (pageGraph.pages.length !== project.originalPdfPageCount) {
+    let fingerprint = project.manifest.documentFingerprint;
+    let documentMeta = project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null;
+    let pdfAdmission: AcceptedAdmissionResult<OpenedPdfDocument> | undefined;
+
+    const prepare = (
+      payload: OpenDocumentPayload | null,
+      native: Awaited<ReturnType<typeof readNativePdfAnnotations>> | null,
+    ) => {
+      beforeMutation();
+      const key = payload?.documentKey ?? fingerprint;
+      if (payload && (!payload.pageGraph || payload.pageCount !== project.originalPdfPageCount)) {
         throw new Error('Writer project PageGraph count does not match validated PDF page count.');
       }
-      useSessionStore.getState().openDocument({
-        documentKey: project.manifest.documentFingerprint,
-        fileName: 'imported-writer-project.pdf',
-        bytes: project.originalPdfBytes,
-        pageCount: project.originalPdfPageCount,
-        pageGraph,
-      });
+
+      const elements = (payload?.pageGraph
+        ? rebindWriterElementsByPageIndex(project.elements, payload.pageGraph)
+        : project.elements.map(cloneElement)).map((element) => ({ ...element, documentFingerprint: key }));
+      if (elements.length !== project.elements.length) {
+        throw new Error('Writer project page anchor is invalid.');
+      }
+
+      const assets = project.assets.map((asset) => ({ ...cloneAsset(asset), documentFingerprint: key }));
+      const annotations = payload?.pageGraph && native
+        ? rebindAnnotationsByPageNumber(native.annotations, payload.pageGraph)
+        : [];
+      if (native && annotations.length !== native.annotations.length) {
+        throw new Error('Native annotation page anchor is invalid.');
+      }
+
+      const meta = documentMeta
+        ? { ...documentMeta, documentFingerprint: key }
+        : payload
+        ? createPdfOverlayWriterDocumentMeta({ documentFingerprint: key, pageCount: payload.pageCount })
+        : null;
+      fingerprint = key;
+      documentMeta = meta;
+
+      return () => {
+        useHistoryStore.getState().clear();
+        useWriterStore.getState().clearElementsAfterCommit();
+        useWriterV2Store.getState().hydrateWriterSession({
+          documentFingerprint: key,
+          elements,
+          assetRecords: assets,
+          persistedAt: project.manifest.updatedAt,
+          documentMeta: meta,
+        });
+        commitOcrImportState(project.ocrProject, key);
+        useAnnotationStore.getState().setAnnotations(annotations);
+        useAnnotationStore.setState({
+          hydratedDocumentKey: payload ? key : null,
+          clipboard: [],
+          clipboardDocumentKey: null,
+        });
+        if (payload) markNativeAnnotationsHydrated(key, payload.bytes);
+        markWriterProjectPublished(key);
+        useEditorStore.getState().setActiveMode('write');
+        ocrRestore?.apply();
+        hooks?.afterSessionMutation?.();
+      };
+    };
+
+    if (mode === 'pdfOverlay') {
+      if (hooks?.source) {
+        const native = await readNativePdfAnnotations(project.originalPdfBytes);
+        beforeMutation();
+        const sourceFile = new File(
+          [new Uint8Array(project.originalPdfBytes)],
+          hooks.fileName ?? 'imported-writer-project.pdf',
+          { type: 'application/pdf' },
+        );
+        const result = await admitAndOpenPdfFile(sourceFile, hooks.source, {
+          signal: operation.signal,
+          openIntent: intent,
+          requireHistoryJournal: true,
+          saveHandle: null,
+          assertSourceCurrent: beforeMutation,
+          preparePublication: (payload) => prepare(payload, native),
+        });
+        if (result.outcome !== 'ACCEPTED') {
+          throw new Error(firstAdmissionErrorMessage(result) ?? 'Writer project admission cancelled.');
+        }
+        pdfAdmission = result;
+      } else {
+        const pageGraph = await buildPageGraphFromPdfBytes(
+          project.originalPdfBytes,
+          project.manifest.documentFingerprint,
+          operation.signal,
+        );
+        if (pageGraph.pages.length !== project.originalPdfPageCount) {
+          throw new Error('Writer project PageGraph count does not match validated PDF page count.');
+        }
+        const publish = prepare(
+          {
+            documentKey: project.manifest.documentFingerprint,
+            fileName: hooks?.fileName ?? 'imported-writer-project.pdf',
+            bytes: project.originalPdfBytes,
+            pageCount: project.originalPdfPageCount,
+            pageGraph,
+          },
+          null,
+        );
+        useSessionStore.getState().openDocument({
+          documentKey: project.manifest.documentFingerprint,
+          fileName: hooks?.fileName ?? 'imported-writer-project.pdf',
+          bytes: project.originalPdfBytes,
+          pageCount: project.originalPdfPageCount,
+          pageGraph,
+        });
+        publish();
+      }
     } else {
+      const publish = prepare(null, null);
+      beforeMutation();
       useSessionStore.getState().clearDocument();
+      publish();
     }
-
-    hooks?.afterSessionMutation?.();
-    assertOperationCurrent(operation, 'standalone Writer project during commit');
-
-    useWriterV2Store.getState().hydrateWriterSession({
-      documentFingerprint: project.manifest.documentFingerprint,
-      elements: project.elements.map(cloneElement),
-      assetRecords: project.assets.map(cloneAsset),
-      persistedAt: project.manifest.updatedAt,
-      documentMeta: project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null,
-    });
-    // The ZIP admits OCR files alongside Writer assets. Hydrate them within
-    // the same protected commit or discard old-document OCR state; otherwise
-    // reopened projects lose regions and can show stale review results.
-    commitOcrImportState(project.ocrProject, project.manifest.documentFingerprint);
-
-    useEditorStore.getState().setActiveMode('write');
-    ocrRestore?.apply();
-    assertOperationCurrent(operation, 'standalone Writer project after commit');
 
     return {
       originalPdfBytes: new Uint8Array(project.originalPdfBytes),
-      documentFingerprint: project.manifest.documentFingerprint,
-      documentMeta: project.documentMeta ? cloneDocumentMeta(project.documentMeta) : null,
+      documentFingerprint: fingerprint,
+      documentMeta,
       elementCount: project.elements.length,
       assetCount: project.assets.length,
+      pdfAdmission,
     };
-  } catch (error) {
   } catch (error) {
     try {
       ocrRestore?.rollback();
@@ -448,9 +594,9 @@ export async function commitStagedWriterProjectImport(
       useWriterV2Store.setState(writerSnapshot, true);
       restoreOcrImportState(ocrSnapshot);
       useEditorStore.setState(editorSnapshot, true);
+      useAnnotationStore.getState().setAnnotations(annotationSnapshot);
+      useWriterStore.setState({ elements: legacySnapshot });
     }
-    throw error;
-  }
     throw error;
   } finally {
     registered.revoked = true;
@@ -458,17 +604,117 @@ export async function commitStagedWriterProjectImport(
   }
 }
 
-/**
- * Round-trip PDF import remains the compatibility path used by editable PDFs.
- * Its existing hydration semantics are intentionally unchanged in Phase 3A.1.
- */
+/** Called only after ordinary PDF metadata/signature/bounded-read admission. */
+export async function tryOpenEmbeddedWriterPdf(
+  bytes: Uint8Array,
+  fileName: string,
+  source: PrimaryPdfInputSource,
+  options: { signal?: AbortSignal; openIntent: number; assertSourceCurrent: () => void },
+): Promise<AdmissionResult<OpenedPdfDocument> | null> {
+  const owner = captureDocumentMutationOwner();
+  const writer = useWriterV2Store.getState();
+  const annotations = useAnnotationStore.getState().annotations;
+  const legacy = useWriterStore.getState().elements;
+  const current = () =>
+    isDocumentOpenIntentCurrent(options.openIntent) &&
+    isDocumentMutationOwnerCurrent(owner) &&
+    useWriterV2Store.getState().elements === writer.elements &&
+    useWriterV2Store.getState().assetRecords === writer.assetRecords &&
+    useWriterV2Store.getState().documentMeta === writer.documentMeta &&
+    useAnnotationStore.getState().annotations === annotations &&
+    useWriterStore.getState().elements === legacy;
+
+  const assertCurrent = () => {
+    options.assertSourceCurrent();
+    if (!current()) throw new Error('Editable PDF Open was superseded.');
+  };
+
+  const zip = await extractWriterProjectZipFromPdf(bytes);
+  assertCurrent();
+  if (!zip) return null;
+
+  const operation: StandaloneWriterProjectOperation = {
+    operationId: `ordinary-open-${options.openIntent}`,
+    generation: owner.generation,
+    openIntent: options.openIntent,
+    signal: options.signal,
+    isMounted: () => true,
+    isCurrent: current,
+  };
+
+  const stage = await stageStandaloneWriterProject(
+    new File([new Uint8Array(zip)], 'embedded.pdfhub.zip', { type: 'application/zip' }),
+    operation,
+  );
+
+  try {
+    assertCurrent();
+    if (stage.evidence.diagnostics.some((d) => d.code === 'WRITER_PROJECT_FINGERPRINT_NORMALIZED')) {
+      throw new Error('Embedded Writer project contains contradictory ownership.');
+    }
+    if (stage.documentMode === 'blankDocument') {
+      throw new Error('This is a blank editable Writer PDF. Use Writer Open Project to recover its editable document.');
+    }
+    const result = await commitStagedWriterProjectImport(stage, operation, {
+      fileName,
+      source,
+      beforeSessionMutation: assertCurrent,
+    });
+    if (!result.pdfAdmission) {
+      throw new Error('Editable Writer PDF did not publish a PDF admission receipt.');
+    }
+    return result.pdfAdmission;
+  } finally {
+    revokeStagedWriterProjectImport(stage);
+  }
+}
+
+/** Compatibility API: use the same bounded staging and publication as ZIP imports. */
 export async function importRoundTripPdfIntoWriterStore(
   pdfBytes: Uint8Array,
 ): Promise<ImportedProjectSession | null> {
-  const imported = await extractWriterProjectFromPdf(pdfBytes);
-  if (!imported) return null;
-  hydrateImportedProject(imported);
-  return toSession(imported);
+  const openIntent = beginDocumentOpenIntent();
+  const owner = captureDocumentMutationOwner();
+  const writer = useWriterV2Store.getState();
+  const annotations = useAnnotationStore.getState().annotations;
+  const legacy = useWriterStore.getState().elements;
+  const current = () =>
+    isDocumentOpenIntentCurrent(openIntent) &&
+    isDocumentMutationOwnerCurrent(owner) &&
+    useWriterV2Store.getState().elements === writer.elements &&
+    useWriterV2Store.getState().assetRecords === writer.assetRecords &&
+    useWriterV2Store.getState().documentMeta === writer.documentMeta &&
+    useAnnotationStore.getState().annotations === annotations &&
+    useWriterStore.getState().elements === legacy;
+
+  const zip = await extractWriterProjectZipFromPdf(pdfBytes);
+  if (!zip) return null;
+  if (!current()) throw new Error('Writer project import source session changed.');
+
+  const operation: StandaloneWriterProjectOperation = {
+    operationId: 'embedded-writer-project',
+    generation: owner.generation,
+    openIntent,
+    isMounted: () => true,
+    isCurrent: current,
+  };
+
+  const file = new File([new Uint8Array(zip)], 'embedded.pdfhub.zip', { type: 'application/zip' });
+  const staged = await stageStandaloneWriterProject(file, operation);
+  if (!current()) {
+    revokeStagedWriterProjectImport(staged);
+    throw new Error('Writer project import source session changed.');
+  }
+  if (staged.evidence.diagnostics.some((d) => d.code === 'WRITER_PROJECT_FINGERPRINT_NORMALIZED')) {
+    revokeStagedWriterProjectImport(staged);
+    throw new Error('Embedded Writer project contains contradictory ownership.');
+  }
+
+  return commitStagedWriterProjectImport(staged, operation, {
+    beforeSessionMutation: () => {
+      if (!current()) throw new Error('Writer project import source session changed.');
+    },
+  });
 }
 
 async function reconcileImportedProject(
@@ -566,6 +812,11 @@ async function reconcileImportedProject(
     }
   }
 
+  const availablePages = mode === 'pdfOverlay' ? pageCount : imported.documentMeta!.pageCount;
+  if (imported.elements.some((element) => !Number.isInteger(element.pageIndex) || element.pageIndex < 0 || element.pageIndex >= availablePages)) {
+    throw new Error('Writer project contains an out-of-range element page.');
+  }
+
   return deepFreeze({
     manifest: cloneManifest(manifest),
     originalPdfBytes: new Uint8Array(imported.originalPdfBytes),
@@ -606,7 +857,7 @@ function assertOperationCurrent(
   if (!operation.isMounted()) {
     throw new Error('Writer project import component is no longer mounted.');
   }
-  if (!operation.isCurrent()) {
+  if (!operation.isCurrent() || (operation.openIntent !== undefined && !isDocumentOpenIntentCurrent(operation.openIntent))) {
     throw new Error('Writer project import was superseded by a newer operation.');
   }
 }
@@ -686,26 +937,6 @@ function hasPdfSignature(bytes: Uint8Array): boolean {
     if (signature.every((value, offset) => bytes[index + offset] === value)) return true;
   }
   return false;
-}
-
-function toSession(imported: ImportPdfHubProjectResult): ImportedProjectSession {
-  return {
-    originalPdfBytes: imported.originalPdfBytes,
-    documentFingerprint: imported.manifest.documentFingerprint,
-    documentMeta: imported.documentMeta,
-    elementCount: imported.elements.length,
-    assetCount: imported.assets.length,
-  };
-}
-
-function hydrateImportedProject(imported: ImportPdfHubProjectResult): void {
-  useWriterV2Store.getState().hydrateWriterSession({
-    documentFingerprint: imported.manifest.documentFingerprint,
-    elements: imported.elements,
-    assetRecords: imported.assets,
-    persistedAt: imported.manifest.updatedAt,
-    documentMeta: imported.documentMeta,
-  });
 }
 
 function cloneManifest(manifest: PdfHubWriterProjectManifestV1): PdfHubWriterProjectManifestV1 {

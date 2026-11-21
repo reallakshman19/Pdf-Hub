@@ -1,6 +1,7 @@
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { isWriterPersistenceOwnerCurrent, type WriterPersistenceOwner } from '@/core/writer-v2/persistence/writerPersistenceOwner';
 import { createWriterImageAssetFromFile, writerAggregateAssetBytes } from '@/core/writer-v2/writerImageAsset';
+import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { WRITER_IMAGE_ADMISSION_LIMITS } from '@/core/admission/image/writerImageAdmission';
 import { createWriterElementFromSelectBoxCopy } from './insertIntoWriterV2';
 import type { SelectBoxCopyResult } from './types';
@@ -21,7 +22,7 @@ export async function insertSelectBoxCopyIntoWriter(input: {
     || !current() || input.result.pageIndex < 0 || input.result.pageIndex >= session.pageCount) {
     return { changed: false, reason: 'Select Box Copy document or page is no longer current.' };
   }
-  let asset;
+  let asset: WriterAssetRecordV2 | undefined;
   if (input.mode === 'image') {
     const prefix = 'data:image/png;base64,';
     const url = input.imageDataUrl;
