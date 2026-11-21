@@ -582,6 +582,16 @@ function validateAssetReferences(
 ): void {
   const assetIds = new Set(assets.map((asset) => asset.id));
   for (const element of elements) {
+    // imageAssetId is used directly by DOCX and flattened-PDF exporters; validating
+    // assetIds alone allows a valid-looking ZIP with a missing rendered image.
+    if (element.imageAssetId !== undefined) {
+      if (typeof element.imageAssetId !== 'string' || !element.imageAssetId.trim()) {
+        throw new Error(`Writer element ${element.id} contains a malformed image asset reference.`);
+      }
+      if (!assetIds.has(element.imageAssetId)) {
+        throw new Error(`Writer element ${element.id} references missing asset ${element.imageAssetId}.`);
+      }
+    }
     if (element.assetIds === undefined) continue;
     if (!Array.isArray(element.assetIds)) {
       throw new Error(`Writer element ${element.id} contains malformed asset references.`);

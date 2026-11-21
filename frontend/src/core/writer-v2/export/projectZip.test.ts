@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
+import JSZip from 'jszip';
 import type { WriterDocumentMetaV2, WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 import {
@@ -77,6 +78,7 @@ describe('PDF Hub writer project ZIP', () => {
     expect(exported.manifest.source).toEqual({
       kind: 'pdfOverlay',
       hasOriginalPdf: true,
+      originalPdfSha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
     });
     expect(exported.manifest.files).toEqual({
       originalPdf: 'original.pdf',
@@ -175,6 +177,51 @@ describe('PDF Hub writer project ZIP', () => {
     const imported = await importPdfHubWriterProject(exported.bytes);
 
     expect(imported.elements[0].documentFingerprint).toBe('doc-final');
+  });
+
+  it('rejects swapped original PDF bytes despite valid ZIP CRC and preserves legacy warning', async () => {
+    const originalPdfBytes = await blankPdfBytes();
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes,
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+    });
+    const anotherPdf = await PDFDocument.create();
+    anotherPdf.addPage([400, 400]);
+    const alteredPdfBytes = await anotherPdf.save();
+
+    const corruptedZip = await JSZip.loadAsync(exported.bytes);
+    corruptedZip.file('original.pdf', alteredPdfBytes);
+    const corruptedBytes = await corruptedZip.generateAsync({ type: 'uint8array' });
+    await expect(importPdfHubWriterProject(corruptedBytes)).rejects.toThrow('source SHA-256 mismatch');
+
+    const legacyZip = await JSZip.loadAsync(exported.bytes);
+    const manifestFile = legacyZip.file('manifest.json');
+    if (!manifestFile) throw new Error('Missing test manifest');
+    const manifest = JSON.parse(await manifestFile.async('string')) as Record<string, unknown>;
+    const source = manifest.source as Record<string, unknown>;
+    delete source.originalPdfSha256;
+    legacyZip.file('manifest.json', JSON.stringify(manifest));
+    const legacy = await importPdfHubWriterProject(await legacyZip.generateAsync({ type: 'uint8array' }));
+    expect(legacy.compatibilityWarnings).toContain(
+      'Legacy Writer project source PDF has no SHA-256 integrity record (unverified source bytes).',
+    );
+  });
+
+  it('rejects invalid source checksum metadata before importing', async () => {
+    const exported = await exportPdfHubWriterProject({
+      originalPdfBytes: await blankPdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+    });
+    const zip = await JSZip.loadAsync(exported.bytes);
+    const file = zip.file('manifest.json');
+    if (!file) throw new Error('Missing test manifest');
+    const manifest = JSON.parse(await file.async('string'));
+    manifest.source.originalPdfSha256 = 'sha256:invalid';
+    zip.file('manifest.json', JSON.stringify(manifest));
+    await expect(importPdfHubWriterProject(await zip.generateAsync({ type: 'uint8array' }))).rejects.toThrow('invalid source SHA-256');
   });
 
   it('throws on invalid project data', async () => {
