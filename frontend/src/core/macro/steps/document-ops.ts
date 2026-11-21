@@ -73,6 +73,30 @@ function pageCountEffect(newCount: number): SideEffect {
   };
 }
 
+function insertionNavigationEffects(
+  state: MacroMutableState,
+  insertedAt: number,
+  addedCount: number,
+  fallbackCurrent: number | undefined,
+): SideEffect[] {
+  if (addedCount < 0 || !Number.isInteger(addedCount)) {
+    throw new Error('Inserted PDF has inconsistent page count.');
+  }
+  if (addedCount === 0) return [];
+  const current = state.currentPage ?? fallbackCurrent ?? 1;
+  return [
+    {
+      type: 'selection_changed',
+      selectedPages: state.selectedPages.map((page) =>
+        page > insertedAt ? page + addedCount : page),
+    },
+    {
+      type: 'current_page_changed',
+      currentPage: current > insertedAt ? current + addedCount : current,
+    },
+  ];
+}
+
 function resolveInsertIndexForPosition(
   position: Extract<MacroStep, { op: 'add_content_page' }>['position'],
   pageCount: number,
@@ -168,6 +192,12 @@ async function executeInsertPdf(
       [
         bytesEffect(updatedBytes),
         pageCountEffect(newPageCount),
+        ...insertionNavigationEffects(
+          state,
+          Math.max(0, Math.min(step.atIndex, state.pageCount)),
+          newPageCount - state.pageCount,
+          ctx.currentPage,
+        ),
       ],
     );
   } catch (err) {
@@ -194,7 +224,7 @@ async function executeAddContentPage(
     const insertIndex = resolveInsertIndexForPosition(
       step.position,
       state.pageCount,
-      ctx.currentPage,
+      state.currentPage ?? ctx.currentPage,
     );
     const updatedBytes = await PdfEditAdapter.insertAt(
       state.workingBytes,
@@ -210,6 +240,9 @@ async function executeAddContentPage(
       [
         bytesEffect(updatedBytes),
         pageCountEffect(newPageCount),
+        ...insertionNavigationEffects(
+          state, insertIndex, newPageCount - state.pageCount, ctx.currentPage,
+        ),
       ],
     );
   } catch (err) {
@@ -239,7 +272,7 @@ async function executeAddImageHeaderPage(
     const insertIndex = resolveInsertIndexForPosition(
       step.position,
       state.pageCount,
-      ctx.currentPage,
+      state.currentPage ?? ctx.currentPage,
     );
     const updatedBytes = await PdfEditAdapter.insertAt(
       state.workingBytes,
@@ -255,6 +288,9 @@ async function executeAddImageHeaderPage(
       [
         bytesEffect(updatedBytes),
         pageCountEffect(newPageCount),
+        ...insertionNavigationEffects(
+          state, insertIndex, newPageCount - state.pageCount, ctx.currentPage,
+        ),
       ],
     );
   } catch (err) {

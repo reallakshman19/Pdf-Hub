@@ -187,6 +187,69 @@ describe('MacroBuilderExecutionPanel', () => {
     expect(screen.getByTestId('macro-builder-run')).toBeDisabled();
   });
 
+  it('invalidates destructive preview when page selection changes', async () => {
+    const risky: MacroRecipe = {
+      id: 'selection-bound',
+      name: 'Remove selected',
+      steps: [{ op: 'remove_pages', selector: { mode: 'selected' } }],
+    };
+    render(<MacroBuilderExecutionPanel recipe={risky} validationValid />);
+    fireEvent.click(screen.getByTestId('macro-builder-test-run'));
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).not.toBeDisabled());
+    useSessionStore.getState().setSelectedPages([2]);
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).toBeDisabled());
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates preview when the same-key document is reopened with equal bytes', async () => {
+    const risky: MacroRecipe = {
+      id: 'reopen-bound',
+      name: 'Remove selected',
+      steps: [{ op: 'remove_pages', selector: { mode: 'selected' } }],
+    };
+    render(<MacroBuilderExecutionPanel recipe={risky} validationValid />);
+    fireEvent.click(screen.getByTestId('macro-builder-test-run'));
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).not.toBeDisabled());
+    const bytes = useSessionStore.getState().workingBytes;
+    expect(bytes).toBeTruthy();
+    useSessionStore.getState().openDocument({
+      documentKey: 'builder-execution-doc',
+      fileName: 'builder-execution.pdf',
+      bytes: bytes!,
+      pageCount: 2,
+    });
+    await waitFor(() => expect(screen.getByTestId('macro-builder-run')).toBeDisabled());
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves the actual completion message after a successful working-copy commit', async () => {
+    runMock.mockImplementationOnce(async () => {
+      useSessionStore.setState({
+        workingBytes: new Uint8Array([9, 8, 7, 6]),
+        pageCount: 2,
+      });
+      return {
+        success: true,
+        status: 'success' as const,
+        cancelled: false,
+        timedOut: false,
+        rolledBack: false,
+        finalBytes: new Uint8Array([9, 8, 7, 6]),
+        selectedPages: [1],
+        currentPage: 1,
+        outputFiles: [],
+        logs: ['Working copy committed.'],
+        stepResults: [],
+      };
+    });
+    render(<MacroBuilderExecutionPanel recipe={recipe} validationValid />);
+    fireEvent.click(screen.getByTestId('macro-builder-run'));
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Workflow complete');
+    });
+    expect(screen.queryByTestId('macro-builder-preflight')).not.toBeInTheDocument();
+  });
+
   it('blocks Run when preflight reports an error', async () => {
     validateMock.mockResolvedValueOnce({
       isValid: false,

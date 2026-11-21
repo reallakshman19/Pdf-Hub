@@ -1,4 +1,6 @@
 import './register-all';
+import { advanceMacroPageLineage, initialMacroPageLineage } from './pageLineage';
+import type { MacroPageLineageEntry } from './pageLineage';
 import { macroRegistry } from './registry';
 import type { MacroMutableState, StepResult } from './registry';
 import { macroValidator } from './validator';
@@ -41,6 +43,8 @@ export interface MacroExecutionResult {
   finalBytes: Uint8Array;
   logs: string[];
   selectedPages: number[];
+  currentPage?: number;
+  pageLineage?: MacroPageLineageEntry[];
   rolledBack?: boolean;
   cancelled?: boolean;
   timedOut?: boolean;
@@ -138,6 +142,8 @@ export async function executeMacroRecipe(
           workingBytes: ctx.workingBytes,
           pageCount: ctx.pageCount,
           selectedPages: ctx.selectedPages,
+          currentPage: ctx.currentPage,
+          now: ctx.now,
           fileName: ctx.fileName,
         }),
         'dry run',
@@ -171,6 +177,9 @@ export async function executeMacroRecipe(
     workingBytes: ctx.workingBytes,
     pageCount: ctx.pageCount,
     selectedPages: ctx.selectedPages ?? [],
+    currentPage: ctx.currentPage ?? 1,
+    pageLineage: initialMacroPageLineage(ctx.pageCount),
+    lineageOrdinal: 0,
     templateVars: defaultVars,
     logs: [],
     outputFiles: [],
@@ -201,6 +210,7 @@ export async function executeMacroRecipe(
       stepResults.push(result);
 
       budget.afterStep(state, result.sideEffects);
+      advanceMacroPageLineage(state, step, result);
       applyMacroSideEffects(result.sideEffects, state);
 
       if (result.message) {
@@ -252,6 +262,8 @@ export async function executeMacroRecipe(
     finalBytes: state.workingBytes,
     logs: state.logs,
     selectedPages: state.selectedPages,
+    currentPage: state.currentPage,
+    pageLineage: status === 'success' ? state.pageLineage : undefined,
     rolledBack,
     cancelled: status === 'cancelled',
     timedOut: status === 'timed-out',

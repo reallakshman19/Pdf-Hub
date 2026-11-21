@@ -51,6 +51,25 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
     },
   },
   {
+    id: 'batch-extract-current',
+    name: 'Batch Extract Current Page',
+    description: 'For each input PDF, retain the working copy and also generate a separate one-page extract.',
+    category: 'document-control',
+    tags: ['batch', 'extract', 'current', 'multi-output'],
+    requiredOps: ['extract_pages'],
+    recipe: {
+      id: 'batch-extract-current',
+      name: 'Batch Extract Current Page',
+      steps: [
+        {
+          op: 'extract_pages',
+          selector: { mode: 'current' },
+          outputName: 'current-page.pdf',
+        },
+      ],
+    },
+  },
+  {
     id: 'footer-page-numbers',
     name: 'Footer Page Numbers',
     description: 'Add centered page numbers to every page.',

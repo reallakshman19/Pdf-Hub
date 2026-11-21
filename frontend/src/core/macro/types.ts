@@ -236,6 +236,9 @@ export interface MacroDryRunDiff {
   modifiedBytes: boolean;
   selectedPagesBefore: number[];
   selectedPagesAfter: number[];
+  /** One-based current page in the structural preview (when known). */
+  currentPageBefore?: number;
+  currentPageAfter?: number;
   outputFiles: MacroDryRunOutputFile[];
   annotationChanges: MacroDryRunObjectChanges;
   writerChanges: MacroDryRunObjectChanges;
