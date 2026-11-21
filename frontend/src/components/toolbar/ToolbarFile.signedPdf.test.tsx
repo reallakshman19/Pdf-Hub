@@ -237,6 +237,8 @@ describe('ToolbarFile signed PDF Save preflight', () => {
   });
 
   it('continues through the existing editable Save path only after confirmation', async () => {
+    // Emulate an acknowledged file-system write rather than an unverified download.
+    mocks.savePdfBytes.mockResolvedValue({} as FileSystemFileHandle);
     render(<ToolbarFile />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -258,6 +260,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
   });
 
   it('does not mark edits made during an asynchronous save as saved', async () => {
+    mocks.savePdfBytes.mockResolvedValue({} as FileSystemFileHandle);
     mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
     let finish: ((result: unknown) => void) | undefined;
     mocks.composeEditablePdf.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
@@ -270,6 +273,32 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     await waitFor(() => expect(mocks.completeSaveOperation).toHaveBeenCalledWith(expect.stringContaining('newer changes remain unsaved')));
     expect(mocks.saveAnnotations).toHaveBeenCalledWith('sha256:opened', mocks.annotations);
     expect(mocks.setSessionState).not.toHaveBeenCalled();
+  });
+
+  it('does not report an unverified anchor download as a durable Save', async () => {
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({
+      status: 'UNSIGNED', signatureCount: 0, evidence: [],
+    });
+    // No File System Access API receipt: FileAdapter returns null after starting a download.
+    mocks.savePdfBytes.mockResolvedValue(null);
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'info',
+      title: 'Download Started — Save Not Confirmed',
+    })));
+    expect(mocks.completeSaveOperation).not.toHaveBeenCalled();
+    expect(mocks.setSessionState).not.toHaveBeenCalledWith({
+      isDirty: false, isDocumentDirty: false, isReviewDirty: false, isSessionDirty: false,
+    });
+    expect(mocks.setSessionState).toHaveBeenCalledWith(expect.objectContaining({
+      saveState: expect.objectContaining({ status: 'idle' }),
+    }));
+    expect(mocks.recordSaveExportAction).toHaveBeenCalledWith(
+      { type: 'DOWNLOAD_PROCESSED_PDF' }, 'success',
+      expect.stringContaining('cannot be verified'),
+    );
   });
 
   it('does not open Save As after a failed handle write for a previous session', async () => {
