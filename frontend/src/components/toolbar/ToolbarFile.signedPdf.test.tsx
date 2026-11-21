@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   },
   annotations: [] as unknown[],
   hydratedDocumentKey: 'sha256:opened' as string | null,
+  sessionGeneration: 1,
   writerElements: [] as unknown[],
 }));
 
@@ -73,7 +74,7 @@ vi.mock('@/core/session/store', () => {
     failSaveOperation: mocks.failSaveOperation,
   });
   return {
-    getDocumentSessionGeneration: () => 1,
+    getDocumentSessionGeneration: () => mocks.sessionGeneration,
     useSessionStore: Object.assign((selector: (state: unknown) => unknown) => selector(getState()), {
       getState,
       setState: mocks.setSessionState,
@@ -107,6 +108,7 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     mocks.session.workingBytes = new Uint8Array([1, 2, 3]);
     mocks.session.fileName = 'signed.pdf';
     mocks.session.saveHandle = null;
+    mocks.sessionGeneration = 1;
     mocks.annotations = [];
     mocks.hydratedDocumentKey = 'sha256:opened';
     mocks.writerElements = [];
@@ -147,6 +149,30 @@ describe('ToolbarFile signed PDF Save preflight', () => {
 
     expect(screen.queryByText(/may invalidate existing digital signatures/i)).toBeNull();
     expect(mocks.inspectPdfSignatureRisk).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not save a different document when inspection finishes after a session switch', async () => {
+    let finish!: (value: { status: string; signatureCount: number; evidence: never[] }) => void;
+    mocks.inspectPdfSignatureRisk.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(finish).toBeDefined();
+    mocks.sessionGeneration += 1;
+    await act(async () => finish({ status: 'UNSIGNED', signatureCount: 0, evidence: [] }));
+    expect(mocks.beginSaveOperation).not.toHaveBeenCalled();
+    expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
+    expect(mocks.savePdfBytes).not.toHaveBeenCalled();
+  });
+
+  it('does not apply signature warning confirmation to a different document', async () => {
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const confirm = await screen.findByRole('button', { name: 'Save Anyway' });
+    mocks.sessionGeneration += 1;
+    fireEvent.click(confirm);
+    expect(mocks.beginSaveOperation).not.toHaveBeenCalled();
+    expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
+    expect(mocks.savePdfBytes).not.toHaveBeenCalled();
   });
 
   it('does not reconcile an incomplete annotation model while loading a document', async () => {

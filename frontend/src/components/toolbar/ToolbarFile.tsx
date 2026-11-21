@@ -13,7 +13,7 @@ import { saveAnnotations } from '@/core/annotations/persistence';
 import { useWriterStore } from '@/core/writer/store';
 import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
 import { enqueueDocumentOperation } from '@/core/commands/documentOperationQueue';
-import { assertDocumentMutationOwner, captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
+import { assertDocumentMutationOwner, captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useShallow } from 'zustand/react/shallow';
@@ -24,7 +24,9 @@ export const ToolbarFile: React.FC = () => {
   const [signatureWarning, setSignatureWarning] = React.useState<{
     status: Extract<PdfSignatureRiskStatus, 'SIGNED' | 'UNKNOWN'>;
     signatureCount: number;
+    owner: DocumentMutationOwner;
   } | null>(null);
+  const savePreflightSequence = React.useRef(0);
   const {
     workingBytes,
     fileName,
@@ -98,11 +100,10 @@ export const ToolbarFile: React.FC = () => {
     }
   };
 
-  const performEditableSave = async () => {
-    if (!workingBytes || !fileName) {
+  const performEditableSave = async (owner: DocumentMutationOwner) => {
+    if (!isDocumentMutationOwnerCurrent(owner) || !owner.session.workingBytes || !owner.session.fileName) {
       return;
     }
-    const owner = captureDocumentMutationOwner();
     try {
       beginSaveOperation('Saving editable annotations and document content…');
       await enqueueDocumentOperation(async () => {
@@ -152,6 +153,7 @@ export const ToolbarFile: React.FC = () => {
         addToast({ type: 'success', title: 'Saved Successfully', message });
       });
     } catch (err) {
+      if (!isDocumentMutationOwnerCurrent(owner)) return;
       const message = err instanceof Error ? err.message : String(err);
       logError('session', 'Failed to save PDF', { error: message, fileName });
       failSaveOperation(message);
@@ -166,11 +168,14 @@ export const ToolbarFile: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!workingBytes || !fileName) {
+    const owner = captureDocumentMutationOwner();
+    const bytes = owner.session.workingBytes;
+    if (!bytes || !owner.session.fileName) {
       return;
     }
-
-    const risk = await inspectPdfSignatureRisk(workingBytes);
+    const sequence = ++savePreflightSequence.current;
+    const risk = await inspectPdfSignatureRisk(bytes);
+    if (sequence !== savePreflightSequence.current || !isDocumentMutationOwnerCurrent(owner)) return;
     if (risk.status === 'SIGNED' || risk.status === 'UNKNOWN') {
       if (risk.status === 'UNKNOWN') {
         warn('session', 'Unable to determine PDF signature state before Save', {
@@ -182,20 +187,24 @@ export const ToolbarFile: React.FC = () => {
       setSignatureWarning({
         status: risk.status,
         signatureCount: risk.signatureCount,
+        owner,
       });
       return;
     }
 
-    await performEditableSave();
+    await performEditableSave(owner);
   };
 
   const handleSignedSaveCancel = () => {
+    savePreflightSequence.current += 1;
     setSignatureWarning(null);
   };
 
   const handleSignedSaveContinue = () => {
+    const owner = signatureWarning?.owner;
+    savePreflightSequence.current += 1;
     setSignatureWarning(null);
-    void performEditableSave();
+    if (owner && isDocumentMutationOwnerCurrent(owner)) void performEditableSave(owner);
   };
 
   const handleExportReview = async () => {
