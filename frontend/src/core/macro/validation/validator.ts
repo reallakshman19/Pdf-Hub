@@ -56,6 +56,8 @@ export async function validateRecipeBeforeRun(
     const report = await simulateMacroDryRun(recipe, {
       pageCount: ctx.pageCount,
       selectedPages: ctx.selectedPages,
+      currentPage: ctx.currentPage,
+      now: ctx.now,
       fileName: ctx.fileName,
     });
     dryRunDiff = report.diff;

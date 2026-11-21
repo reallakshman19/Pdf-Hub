@@ -2,6 +2,7 @@ import { macroRegistry } from '../registry';
 import type { MacroMutableState, StepResult } from '../registry';
 import type { MacroExecutionContext, MacroCondition, MacroStep } from '../types';
 import { getMacroExecutionBudget } from '../resourceBudget';
+import { advanceMacroPageLineage } from '../pageLineage';
 
 type ConditionalStep = Extract<MacroStep, { op: 'conditional' }>;
 type ApplyTemplateVarsStep = Extract<MacroStep, { op: 'apply_template_vars' }>;
@@ -25,12 +26,17 @@ async function executeConditional(
       : await operation;
     budget?.checkpoint(`${subStep.op} result`);
     budget?.afterStep(state, result.sideEffects);
+    advanceMacroPageLineage(state, subStep, result);
     subResults.push(result);
     mergedSideEffects.push(...result.sideEffects);
 
     for (const effect of result.sideEffects) {
       if (effect.type === 'bytes_updated') state.workingBytes = effect.bytes;
       if (effect.type === 'page_count_changed') state.pageCount = effect.newCount;
+      // Nested operations must observe the side effects of preceding steps.
+      // The same effects are replayed by the enclosing executor on completion.
+      if (effect.type === 'selection_changed') state.selectedPages = effect.selectedPages;
+      if (effect.type === 'current_page_changed') state.currentPage = effect.currentPage;
     }
 
     if (result.status === 'error') break;

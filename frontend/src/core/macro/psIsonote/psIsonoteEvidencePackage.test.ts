@@ -190,6 +190,44 @@ describe('psIsonoteEvidencePackage', () => {
     expect(JSON.parse(jsonl)).toMatchObject({ runId: report.identity.runId });
   });
 
+  it('packages input.pdf for preview audit and annotated.pdf for verified terminal audit', async () => {
+    const report = await verifiedReport();
+    const docHash = await FileAdapter.hashBytes(documentBytes);
+    const previewReport: PsIsonoteAuditReport = {
+      ...report,
+      phase: 'preview',
+      identity: {
+        ...report.identity,
+        inputSha256: docHash,
+        outputSha256: undefined,
+        outputDocumentKey: undefined,
+      },
+      verification: undefined,
+    };
+
+    const previewPackage = await createPsIsonoteEvidencePackage({
+      report: previewReport,
+      mappings: [mapping],
+      sourceText,
+      documentBytes,
+      documentName: 'Drawing 001.pdf',
+    });
+    const previewZip = await JSZip.loadAsync(previewPackage.bytes);
+    expect(previewZip.file('input.pdf')).toBeTruthy();
+    expect(previewZip.file('annotated.pdf')).toBeNull();
+
+    const verifiedPackage = await createPsIsonoteEvidencePackage({
+      report,
+      mappings: [mapping],
+      sourceText,
+      documentBytes,
+      documentName: 'Drawing 001.pdf',
+    });
+    const verifiedZip = await JSZip.loadAsync(verifiedPackage.bytes);
+    expect(verifiedZip.file('annotated.pdf')).toBeTruthy();
+    expect(verifiedZip.file('input.pdf')).toBeNull();
+  });
+
   it('rejects a PDF that is not bound to the report identity', async () => {
     const report = await verifiedReport();
 

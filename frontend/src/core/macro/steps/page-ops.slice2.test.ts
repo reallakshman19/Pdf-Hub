@@ -6,6 +6,12 @@ import {
   resolvePageSelector,
   resolveSelector,
   toZeroBasedPageIndices,
+  remapSelectionAfterRemoval,
+  remapSelectionAfterDuplication,
+  remapSelectionAfterReorder,
+  remapCurrentAfterRemoval,
+  remapCurrentAfterDuplication,
+  remapCurrentAfterReorder,
 } from './page-ops';
 import { PdfEditAdapter } from '../../../adapters/pdf-edit/PdfEditAdapter';
 
@@ -353,5 +359,75 @@ describe('page-ops slice 2', () => {
       expect.any(Uint8Array),
       [2, 0, 1],
     );
+  });
+});
+
+
+describe('WP07 identity-sensitive structural selection remapping', () => {
+  it('retains surviving source page B when page A is deleted', () => {
+    expect(remapSelectionAfterRemoval([2], [1], 3)).toEqual([1]);
+    expect(remapSelectionAfterRemoval([2, 4], [1, 3], 4)).toEqual([1, 2]);
+    expect(remapSelectionAfterRemoval([1, 3], [1, 3], 3)).toEqual([]);
+  });
+
+  it('keeps original selected pages selected when earlier sources are duplicated', () => {
+    expect(remapSelectionAfterDuplication([3], [1, 3], 3)).toEqual([4]);
+    expect(remapSelectionAfterDuplication([1, 3], [1, 3], 3)).toEqual([1, 4]);
+  });
+
+  it('reorders selected source positions instead of retaining stale physical numbers', () => {
+    expect(remapSelectionAfterReorder([1, 3], [3, 2, 1])).toEqual([1, 3]);
+    expect(remapSelectionAfterReorder([2], [3, 1, 2])).toEqual([3]);
+  });
+
+  it('emits the remapped selection from the actual remove_pages runner', async () => {
+    const source = state();
+    source.pageCount = 3;
+    source.selectedPages = [2];
+    vi.mocked(PdfEditAdapter.countPages).mockResolvedValueOnce(2);
+    const result = await macroRegistry.execute(
+      { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+      ctx(),
+      source,
+    );
+    expect(result.status).toBe('success');
+    expect(result.sideEffects).toContainEqual({
+      type: 'selection_changed',
+      selectedPages: [1],
+    });
+  });
+});
+
+describe('WP07 current-source page identity on structural edits', () => {
+  it('keeps the same source after deleting an earlier page', () => {
+    expect(remapCurrentAfterRemoval(2, [1], 3)).toBe(1);
+    expect(remapCurrentAfterRemoval(3, [1], 3)).toBe(2);
+  });
+
+  it('chooses the next surviving source when the active one is removed', () => {
+    expect(remapCurrentAfterRemoval(2, [2], 3)).toBe(2);
+    expect(remapCurrentAfterRemoval(3, [3], 3)).toBe(2);
+    expect(remapCurrentAfterRemoval(1, [1, 2], 3)).toBe(1);
+  });
+
+  it('follows originals rather than duplicated and reordered page positions', () => {
+    expect(remapCurrentAfterDuplication(3, [1, 3], 3)).toBe(4);
+    expect(remapCurrentAfterReorder(2, [3, 1, 2])).toBe(3);
+  });
+
+  it('emits new current page from the remove-pages operation', async () => {
+    vi.mocked(PdfEditAdapter.countPages).mockResolvedValueOnce(2);
+    const source = state();
+    source.currentPage = 2;
+    const result = await macroRegistry.execute(
+      { op: 'remove_pages', selector: { mode: 'list', pages: [1] } },
+      { ...ctx(), currentPage: 2 },
+      source,
+    );
+    expect(result.status).toBe('success');
+    expect(result.sideEffects).toContainEqual({
+      type: 'current_page_changed',
+      currentPage: 1,
+    });
   });
 });

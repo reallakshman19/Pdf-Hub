@@ -101,6 +101,31 @@ describe('verifyPsIsonoteOutput', () => {
     ]));
   });
 
+  it('rejects an internally valid hidden marker with a missing or incorrect visible ISONOTE note', async () => {
+    const marker = versionedMarkerForOccurrence(expectedMarker);
+    installDocument([`PS-1234.5 ${marker} ISO Note: WRONG CLASSIFICATION`]);
+    const result = await verifyPsIsonoteOutput({
+      outputBytes: new Uint8Array([1, 2, 3]),
+      outputDocumentKey: HASH_A,
+      expectedPageCount: 1,
+      expectedMarkers: [{ ...expectedMarker, visibleNoteText: 'ISO Note: REST 12kN' }],
+    });
+    expect(result.verified).toBe(false);
+    expect(result.markerResults[0]).toMatchObject({ foundCount: 1, status: 'missing-callout' });
+    expect(result.diagnostics.map((item) => item.code)).toContain('PS_ISONOTE_CALLOUT_TEXT_MISSING');
+  });
+
+  it('accepts a split text-layer witness when the correct ISONOTE text exists', async () => {
+    installDocument([`ISO Note: REST 12 kN ${versionedMarkerForOccurrence(expectedMarker)}`]);
+    const result = await verifyPsIsonoteOutput({
+      outputBytes: new Uint8Array([1, 2, 3]),
+      outputDocumentKey: HASH_A,
+      expectedPageCount: 1,
+      expectedMarkers: [{ ...expectedMarker, visibleNoteText: 'ISO Note: REST 12kN' }],
+    });
+    expect(result.verified).toBe(true);
+  });
+
   it('rejects duplicate markers and output document-key mismatches', async () => {
     const marker = versionedMarkerForOccurrence(expectedMarker);
     installDocument([`${marker} ${marker}`]);

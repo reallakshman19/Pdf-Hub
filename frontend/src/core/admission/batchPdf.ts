@@ -69,6 +69,12 @@ export interface BatchPdfEvidenceRecord {
   readonly fileName: string;
   readonly sourceBytes: number;
   readonly pageCount?: number;
+  readonly sourceSha256?: string;
+  readonly outputSha256?: string;
+  readonly outputName?: string;
+  readonly outputCount?: number;
+  readonly outputs?: readonly import('../macro/batchRunner').BatchOutputManifestEntry[];
+  readonly outputDisposition?: 'handoff-completed-unverified' | 'handoff-failed-unverified' | 'not-requested';
   readonly status: BatchPdfRecordStatus;
 }
 

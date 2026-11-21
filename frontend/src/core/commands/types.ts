@@ -158,6 +158,10 @@ export type ApplyWorkingCopyCommand = PdfCommandBase<
     reason?: string;
     macro?: MacroCommandMetadata;
     selectedPages?: number[];
+    /** One-based current source page after the macro's structural transforms. */
+    nextCurrentPage?: number;
+    /** Verified source-page ownership after structural macro execution. */
+    pageLineage?: import('@/core/macro/pageLineage').MacroPageLineageEntry[];
   }
 >;
 

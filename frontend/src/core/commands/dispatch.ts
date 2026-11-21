@@ -26,6 +26,7 @@ import {
   StaleDocumentMutationError, type DocumentMutationOwner,
 } from '@/core/session/mutationOwner';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
+import { resolveMacroPageOwnership } from '@/core/macro/pageOwnership';
 import {
   duplicatePagesInGraph,
   insertPagesIntoGraph,
@@ -1820,17 +1821,34 @@ export async function dispatchPdfCommand(
           input.signal,
         );
         assertDocumentMutationOwner(owner);
-        const nextAnnotations = rebindAnnotationsByPageNumber(
-          commandAnnotations,
-          rebuiltPageGraph,
-        );
         const writerElements = activePdfOverlayWriterElements();
-        const nextWriterElements = writerElements
-          ? rebindWriterElementsByPageIndex(
-              writerElements,
-              rebuiltPageGraph,
+        const sourceLineage = command.payload.pageLineage;
+        const sourceGraph = sourceLineage
+          ? await resolveStructuralPageGraph(
+              context,
+              input,
+              await PdfEditAdapter.countPages(context.workingBytes),
             )
-          : undefined;
+          : null;
+        assertDocumentMutationOwner(owner);
+        const ownership = sourceLineage && sourceGraph
+          ? resolveMacroPageOwnership(
+              sourceGraph,
+              rebuiltPageGraph,
+              sourceLineage,
+              command.id,
+              commandAnnotations,
+              writerElements ?? undefined,
+            )
+          : null;
+        const nextPageGraph = ownership?.graph ?? rebuiltPageGraph;
+        const nextAnnotations = ownership?.annotations
+          ?? rebindAnnotationsByPageNumber(commandAnnotations, rebuiltPageGraph);
+        const nextWriterElements = ownership
+          ? ownership.writerElements
+          : writerElements
+            ? rebindWriterElementsByPageIndex(writerElements, rebuiltPageGraph)
+            : undefined;
         const result = await applyMutation(
           input,
           context.workingBytes,
@@ -1838,13 +1856,14 @@ export async function dispatchPdfCommand(
           nextAnnotations,
           nextWriterElements,
           command.payload.selectedPages,
-          undefined,
-          rebuiltPageGraph,
+          command.payload.nextCurrentPage,
+          nextPageGraph,
           {
-            ocrPagePolicy: {
-              rebindByPageIndex: true,
-              clearIfPageCountChanged: true,
-            },
+            // With authoritative PageIds, OCR and review anchors follow source
+            // pages rather than being rebound to unrelated physical indices.
+            ocrPagePolicy: ownership
+              ? { rebindByPageIndex: false, clearIfPageCountChanged: false }
+              : { rebindByPageIndex: true, clearIfPageCountChanged: true },
           },
         );
         documentBus.emit({ type: 'DOCUMENT_REPLACED' });

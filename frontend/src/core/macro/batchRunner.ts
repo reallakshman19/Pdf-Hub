@@ -1,4 +1,6 @@
-import type { PickedPdfFileSource } from '@/adapters/file/FileAdapter';
+import { FileAdapter, type PickedPdfFileSource } from '@/adapters/file/FileAdapter';
+import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { v4 as uuidv4 } from 'uuid';
 import {
   createBatchPdfAdmissionEvidence,
   preflightBatchPdfSources,
@@ -19,9 +21,36 @@ import { log } from '@/core/logger/service';
 import { executeMacroRecipe } from './executor';
 import type { MacroRecipe } from './types';
 
+export type BatchOutputKind = 'working-copy' | 'auxiliary';
+
+export interface BatchOutputManifestEntry {
+  readonly outputIndex: number;
+  readonly outputKind: BatchOutputKind;
+  readonly originalOutputName?: string;
+  readonly outputName: string;
+  readonly outputBytes: number;
+  readonly outputSha256: string;
+  readonly outputPageCount: number;
+  readonly outputDisposition: 'handoff-completed-unverified' | 'handoff-failed-unverified' | 'not-requested';
+}
+
 export interface BatchOutputArtifact {
+  /** Unique ordinal within one source PDF: 0 is working copy, 1+ auxiliary. */
+  readonly outputIndex: number;
+  readonly outputKind: BatchOutputKind;
+  readonly originalOutputName?: string;
+  /** Exact picker ordinal. Duplicate input names remain distinct. */
   readonly inputIndex: number;
   readonly fileName: string;
+  readonly inputPageCount: number;
+  readonly sourceSha256: string;
+  readonly outputSha256: string;
+  readonly outputPageCount: number;
+  readonly outputName: string;
+  readonly batchRunId: string;
+  readonly recipeId: string;
+  readonly recipeSha256: string;
+  /** Byte copy owned by the handoff, never used as proof of disk delivery. */
   readonly bytes: Uint8Array;
 }
 
@@ -31,13 +60,20 @@ export interface BatchRunOptions {
   readonly continueOnError: boolean;
   readonly donorFiles?: Record<string, Uint8Array>;
   readonly abortSignal?: AbortSignal;
+  /** Legacy one-output handoff. Multi-output runs require onOutputs. */
   readonly onOutput?: (
     output: BatchOutputArtifact,
+  ) => void | Promise<void>;
+  /** One atomic handoff for the complete set emitted by a single source PDF. */
+  readonly onOutputs?: (
+    outputs: readonly BatchOutputArtifact[],
   ) => void | Promise<void>;
 }
 
 interface BatchFileRecordBase {
   readonly inputIndex: number;
+  /** Present for validated sources, absent when a source cannot be read. */
+  readonly sourceSha256?: string;
   readonly fileName: string;
   readonly inputBytes: number;
   readonly status: BatchPdfRecordStatus;
@@ -47,13 +83,24 @@ interface BatchFileRecordBase {
 export interface BatchFileSuccessRecord extends BatchFileRecordBase {
   readonly status: 'success';
   readonly pageCount: number;
+  readonly sourceSha256: string;
   readonly outputBytes: number;
+  readonly outputSha256: string;
+  readonly outputName: string;
+  readonly outputCount: number;
+  readonly outputs: readonly BatchOutputManifestEntry[];
+  /** Source processing succeeded; this is never evidence of a completed download. */
+  readonly outputDisposition: 'handoff-completed-unverified' | 'not-requested';
 }
 
 export interface BatchFileFailureRecord extends BatchFileRecordBase {
   readonly status: 'failed';
   readonly pageCount?: number;
   readonly error: string;
+  readonly outputName?: string;
+  readonly outputSha256?: string;
+  readonly outputDisposition?: 'handoff-failed-unverified';
+  readonly outputs?: readonly BatchOutputManifestEntry[];
 }
 
 export interface BatchFileCancelledRecord extends BatchFileRecordBase {
@@ -83,12 +130,18 @@ export interface BatchRunResult {
     readonly selected: number;
     readonly processed: number;
     readonly succeeded: number;
+    /** The sum of complete manifests produced by successful inputs only. */
+    readonly outputsPrepared: number;
+    /** Handoff to a caller, never evidence of an OS or browser file receipt. */
+    readonly outputsHandedOff: number;
     readonly failed: number;
     readonly cancelled: number;
     readonly notRun: number;
   };
   readonly metadata: {
+    readonly runId: string;
     readonly recipeId: string;
+    readonly recipeSha256: string;
     readonly startedAt: string;
     readonly endedAt: string;
   };
@@ -97,6 +150,16 @@ export interface BatchRunResult {
 
 export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunResult> {
   const startedAt = new Date().toISOString();
+  const runId = uuidv4();
+  // Snapshot the recipe: edits between inputs must never change what the
+  // report's exact recipe SHA-256 attests was executed.
+  const recipeJson = JSON.stringify(options.recipe);
+  if (!recipeJson) throw new Error('Batch recipe must be a serializable workflow.');
+  const recipeSnapshot = JSON.parse(recipeJson) as MacroRecipe;
+  const runOptions: BatchRunOptions = { ...options, recipe: recipeSnapshot };
+  const recipeSha256 = await FileAdapter.hashBytes(
+    new TextEncoder().encode(recipeJson),
+  );
   const preflightResult = preflightBatchPdfSources(options.sources, options.abortSignal);
   const preflight = preflightResult.value;
   const measurements: AdmissionMeasuredValue[] = [...preflight.measurements];
@@ -113,7 +176,9 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
       measurements,
       diagnostics,
       preflight,
-      recipeId: options.recipe.id,
+      recipeId: recipeSnapshot.id,
+      recipeSha256,
+      runId,
       startedAt,
     });
   }
@@ -167,7 +232,9 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
 
       const record = await executeValidatedBatchPdf(
         validation.value,
-        options,
+        runOptions,
+        runId,
+        recipeSha256,
       );
       records.push(record);
 
@@ -273,7 +340,9 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
     measurements,
     diagnostics,
     preflight,
-    recipeId: options.recipe.id,
+    recipeId: recipeSnapshot.id,
+    recipeSha256,
+    runId,
     startedAt,
   });
 }
@@ -281,7 +350,11 @@ export async function runMacroBatch(options: BatchRunOptions): Promise<BatchRunR
 async function executeValidatedBatchPdf(
   input: ValidatedBatchPdf,
   options: BatchRunOptions,
+  runId: string,
+  recipeSha256: string,
 ): Promise<BatchFileSuccessRecord | BatchFileFailureRecord | BatchFileCancelledRecord> {
+  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before digest`);
+  const sourceSha256 = await FileAdapter.hashBytes(input.bytes);
   throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before macro execution`);
   const execution = await raceWithAbort(
     executeMacroRecipe(
@@ -311,6 +384,7 @@ async function executeValidatedBatchPdf(
       fileName: input.fileName,
       inputBytes: input.sourceBytes,
       pageCount: input.pageCount,
+      sourceSha256,
       status: 'cancelled',
       error: execution.logs.at(-1) ?? 'Batch macro execution was cancelled.',
       logs,
@@ -322,25 +396,197 @@ async function executeValidatedBatchPdf(
       fileName: input.fileName,
       inputBytes: input.sourceBytes,
       pageCount: input.pageCount,
+      sourceSha256,
       status: 'failed',
       error: execution.logs.at(-1) ?? `Macro ${execution.status ?? 'failed'}.`,
       logs,
     });
   }
 
-  const outputBytes = execution.finalBytes.byteLength;
-  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
-  await options.onOutput?.({
+  // Prepare every PDF and its digest before the first handoff. In particular,
+  // never enqueue the working copy while a later auxiliary is unaccounted for.
+  const output = new Uint8Array(execution.finalBytes);
+  const outputBytes = output.byteLength;
+  // A digest witnesses bytes but does not establish they are a readable PDF.
+  // Verify the complete primary before any child is considered for custody.
+  const primaryValidation = await validateEmittedBatchPdf(
+    output, 0, options.abortSignal,
+  );
+  if (!primaryValidation.valid) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      status: 'failed',
+      error: primaryValidation.error,
+      logs,
+    });
+  }
+  const outputSha256 = await FileAdapter.hashBytes(output);
+  const outputName = buildBatchOutputName(
+    input.inputIndex, input.fileName, options.recipe.id, sourceSha256,
+  );
+  const commonIdentity = {
     inputIndex: input.inputIndex,
     fileName: input.fileName,
-    bytes: execution.finalBytes,
-  });
+    inputPageCount: input.pageCount,
+    sourceSha256,
+    batchRunId: runId,
+    recipeId: options.recipe.id,
+    recipeSha256,
+  };
+  const artifacts: BatchOutputArtifact[] = [{
+    ...commonIdentity,
+    outputIndex: 0,
+    outputKind: 'working-copy',
+    outputPageCount: primaryValidation.pageCount,
+    outputSha256,
+    outputName,
+    bytes: output,
+  }];
+  for (let index = 0; index < execution.outputFiles.length; index += 1) {
+    throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before auxiliary ${index + 1}`);
+    const sourceOutput = execution.outputFiles[index];
+    if (!sourceOutput || !(sourceOutput.bytes instanceof Uint8Array)) {
+      return freezeRecord({
+        inputIndex: input.inputIndex,
+        fileName: input.fileName,
+        inputBytes: input.sourceBytes,
+        pageCount: input.pageCount,
+        sourceSha256,
+        status: 'failed',
+        error: `BATCH_AUXILIARY_PDF_INVALID: output ${index + 1} has no PDF bytes; no files were handed off.`,
+        logs,
+      });
+    }
+    const bytes = new Uint8Array(sourceOutput.bytes);
+    const auxiliaryValidation = await validateEmittedBatchPdf(
+      bytes, index + 1, options.abortSignal,
+    );
+    if (!auxiliaryValidation.valid) {
+      return freezeRecord({
+        inputIndex: input.inputIndex,
+        fileName: input.fileName,
+        inputBytes: input.sourceBytes,
+        pageCount: input.pageCount,
+        sourceSha256,
+        status: 'failed',
+        error: auxiliaryValidation.error,
+        logs,
+      });
+    }
+    artifacts.push({
+      ...commonIdentity,
+      outputIndex: index + 1,
+      outputKind: 'auxiliary',
+      outputPageCount: auxiliaryValidation.pageCount,
+      originalOutputName: sourceOutput.name,
+      outputSha256: await FileAdapter.hashBytes(bytes),
+      outputName: buildBatchAuxiliaryOutputName(
+        input.inputIndex, input.fileName, options.recipe.id, sourceSha256,
+        index + 1, sourceOutput.name,
+      ),
+      bytes,
+    });
+  }
+  const manifest = (
+    disposition: BatchOutputManifestEntry['outputDisposition'],
+  ): readonly BatchOutputManifestEntry[] => Object.freeze(artifacts.map((item) =>
+    Object.freeze({
+      outputIndex: item.outputIndex,
+      outputKind: item.outputKind,
+      ...(item.originalOutputName === undefined
+        ? {} : { originalOutputName: item.originalOutputName }),
+      outputName: item.outputName,
+      outputBytes: item.bytes.byteLength,
+      outputSha256: item.outputSha256,
+      outputPageCount: item.outputPageCount,
+      outputDisposition: disposition,
+    }),
+  ));
+
+  if (options.onOutputs && options.onOutput) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      outputName,
+      outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
+      outputDisposition: 'handoff-failed-unverified',
+      status: 'failed',
+      error: 'BATCH_OUTPUT_CONTRACT_AMBIGUOUS: choose one batch handoff callback.',
+      logs,
+    });
+  }
+  if (artifacts.length > 1 && !options.onOutputs) {
+    return freezeRecord({
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      outputName,
+      outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
+      outputDisposition: 'handoff-failed-unverified',
+      status: 'failed',
+      error: `BATCH_MULTI_OUTPUT_HANDOFF_REQUIRED: ${artifacts.length} PDFs need one atomic onOutputs callback; no files were handed off.`,
+      logs,
+    });
+  }
+
+  throwIfAborted(options.abortSignal, `batch input ${input.inputIndex}: before output handoff`);
+  // A resolved callback establishes in-session custody, NOT durable disk receipt.
+  try {
+    if (options.onOutputs) {
+      await options.onOutputs(artifacts);
+    } else if (options.onOutput) {
+      await options.onOutput(artifacts[0]);
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const details = {
+      inputIndex: input.inputIndex,
+      fileName: input.fileName,
+      inputBytes: input.sourceBytes,
+      pageCount: input.pageCount,
+      sourceSha256,
+      error: reason,
+      logs,
+    };
+    if (isOperationCancelledError(error)) {
+      return freezeRecord({ ...details, status: 'cancelled' as const });
+    }
+    return freezeRecord({
+      ...details,
+      outputName,
+      outputSha256,
+      outputs: manifest('handoff-failed-unverified'),
+      outputDisposition: 'handoff-failed-unverified' as const,
+      status: 'failed' as const,
+    });
+  }
+
+  const disposition = options.onOutputs || options.onOutput
+    ? 'handoff-completed-unverified' as const
+    : 'not-requested' as const;
   return freezeRecord({
     inputIndex: input.inputIndex,
     fileName: input.fileName,
     inputBytes: input.sourceBytes,
     pageCount: input.pageCount,
+    sourceSha256,
     outputBytes,
+    outputSha256,
+    outputName,
+    outputCount: artifacts.length,
+    outputs: manifest(disposition),
+    outputDisposition: disposition,
     status: 'success',
     logs,
   });
@@ -423,6 +669,8 @@ function finishBatchRun(input: {
   readonly diagnostics: readonly AdmissionDiagnostic[];
   readonly preflight: BatchPdfPreflight;
   readonly recipeId: string;
+  readonly recipeSha256: string;
+  readonly runId: string;
   readonly startedAt: string;
 }): BatchRunResult {
   const records = Object.freeze([...input.records]);
@@ -430,6 +678,11 @@ function finishBatchRun(input: {
     selected: input.preflight.selectedFileCount,
     processed: records.filter((record) => record.status !== 'not-run').length,
     succeeded: records.filter((record) => record.status === 'success').length,
+    outputsPrepared: records.reduce((sum, record) =>
+      sum + (record.status === 'success' ? record.outputCount : 0), 0),
+    outputsHandedOff: records.reduce((sum, record) =>
+      sum + (record.status === 'success' && record.outputDisposition === 'handoff-completed-unverified'
+        ? record.outputCount : 0), 0),
     failed: records.filter((record) => record.status === 'failed').length,
     cancelled: records.filter((record) => record.status === 'cancelled').length,
     notRun: records.filter((record) => record.status === 'not-run').length,
@@ -441,6 +694,19 @@ function finishBatchRun(input: {
     ...(record.status !== 'not-run' && 'pageCount' in record && typeof record.pageCount === 'number'
       ? { pageCount: record.pageCount }
       : {}),
+    ...(record.sourceSha256 ? { sourceSha256: record.sourceSha256 } : {}),
+    ...(record.status === 'success' ? {
+      outputSha256: record.outputSha256,
+      outputName: record.outputName,
+      outputDisposition: record.outputDisposition,
+      outputCount: record.outputCount,
+      outputs: record.outputs,
+    } : record.status === 'failed' && record.outputDisposition ? {
+      outputSha256: record.outputSha256,
+      outputName: record.outputName,
+      outputDisposition: record.outputDisposition,
+      ...(record.outputs ? { outputs: record.outputs } : {}),
+    } : {}),
     status: record.status,
   }));
   const evidence = createBatchPdfAdmissionEvidence({
@@ -456,7 +722,9 @@ function finishBatchRun(input: {
     records,
     summary,
     metadata: Object.freeze({
+      runId: input.runId,
       recipeId: input.recipeId,
+      recipeSha256: input.recipeSha256,
       startedAt: input.startedAt,
       endedAt: new Date().toISOString(),
     }),
@@ -472,8 +740,106 @@ function finishBatchRun(input: {
     cancelled: summary.cancelled,
     notRun: summary.notRun,
     aggregateSourceBytes: input.preflight.aggregateSourceBytes,
+    outputsPrepared: summary.outputsPrepared,
+    outputsHandedOff: summary.outputsHandedOff,
   });
   return result;
+}
+
+/**
+ * Stable within the selected batch: picker index plus source digest prevents
+ * ambiguity even for two files with the same name. No filename is an identity.
+ */
+export function buildBatchOutputName(
+  inputIndex: number,
+  fileName: string,
+  recipeId: string,
+  sourceSha256: string,
+): string {
+  const safe = (raw: string, fallback: string) =>
+    raw.trim().toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-|-$/g, '') || fallback;
+  const sourceDigest = sourceSha256.replace(/^sha256:/, '');
+  if (!/^[a-f0-9]{64}$/.test(sourceDigest)) {
+    throw new Error('Batch output naming requires a verified SHA-256 source digest.');
+  }
+  if (!Number.isSafeInteger(inputIndex) || inputIndex < 0) {
+    throw new Error('Batch output naming requires a valid source ordinal.');
+  }
+  return `${String(inputIndex + 1).padStart(3, '0')}-${safe(fileName.replace(/\.pdf$/i, ''), 'document')}-${safe(recipeId, 'workflow')}-${sourceDigest.slice(0,12)}.pdf`;
+}
+
+export function buildBatchAuxiliaryOutputName(
+  inputIndex: number,
+  fileName: string,
+  recipeId: string,
+  sourceSha256: string,
+  outputIndex: number,
+  originalName: string,
+): string {
+  if (!Number.isSafeInteger(outputIndex) || outputIndex < 1) {
+    throw new Error('Auxiliary PDF requires an index greater than zero.');
+  }
+  // A macro-supplied output name is an audit label, never a filesystem path.
+  const leaf = originalName.split(/[\\/]/).at(-1) ?? '';
+  const safeLeaf = leaf.replace(/\.pdf$/i, '')
+    .trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[.\-]+|[.\-]+$/g, '').slice(0, 72) || 'generated';
+  const parent = buildBatchOutputName(inputIndex, fileName, recipeId, sourceSha256)
+    .replace(/\.pdf$/i, '');
+  return `${parent}-aux-${String(outputIndex).padStart(3, '0')}-${safeLeaf}.pdf`;
+}
+
+type EmittedPdfValidation =
+  | { valid: true; pageCount: number }
+  | { valid: false; error: string };
+
+/**
+ * A `%PDF-` prefix is not proof that emitted bytes are parseable. Use the
+ * exact PDF parsing adapter already required by source admission, then
+ * enforce a positive integer page count before *any* output is handed off.
+ * Cancellation is propagated rather than mislabeled as corruption.
+ */
+export async function validateEmittedBatchPdf(
+  bytes: Uint8Array,
+  outputIndex: number,
+  abortSignal?: AbortSignal,
+): Promise<EmittedPdfValidation> {
+  const kind = outputIndex === 0 ? 'PRIMARY' : 'AUXILIARY';
+  if (!hasBatchPdfSignature(bytes)) {
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} lacks a PDF header; no files were handed off.`,
+    };
+  }
+  throwIfAborted(abortSignal, `batch output ${outputIndex}: before native PDF parse`);
+  let pageCount: number;
+  try {
+    pageCount = await PdfEditAdapter.countPages(bytes, { signal: abortSignal });
+  } catch (error) {
+    if (isOperationCancelledError(error)) throw error;
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} cannot be parsed as a PDF; no files were handed off.`,
+    };
+  }
+  throwIfAborted(abortSignal, `batch output ${outputIndex}: after native PDF parse`);
+  if (!Number.isInteger(pageCount) || pageCount < 1) {
+    return {
+      valid: false,
+      error: `BATCH_${kind}_PDF_INVALID: output ${outputIndex} has no valid PDF pages; no files were handed off.`,
+    };
+  }
+  return { valid: true, pageCount };
+}
+
+function hasBatchPdfSignature(bytes: Uint8Array): boolean {
+  const marker = [37, 80, 68, 70, 45]; // %PDF-
+  for (let i = 0; i <= Math.min(bytes.byteLength, 1024) - marker.length; i += 1) {
+    if (marker.every((value, offset) => bytes[i + offset] === value)) return true;
+  }
+  return false;
 }
 
 function firstDiagnosticMessage(

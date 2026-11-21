@@ -9,6 +9,7 @@ import {
   versionedMarkerForOccurrence,
 } from './psIsonoteIdentity';
 import type { PsIsonoteMapping } from './psIsonoteTable';
+import { buildVectorCalloutPlan } from './professional/vectorCalloutPlan';
 
 const INPUT_HASH = `sha256:${'a'.repeat(64)}`;
 const OUTPUT_HASH = `sha256:${'b'.repeat(64)}`;
@@ -82,6 +83,38 @@ describe('psIsonoteIdentity', () => {
       occurrenceId,
     }]);
     expect(hasLegacyPsIsonoteMarker('PDFHUBISONOTE[1234.5]', mapping.psNo)).toBe(true);
+  });
+
+  it('round-trips the actual professional V3 marker with a sha256 occurrence id', async () => {
+    const mappingHash = await computePsIsonoteMappingHash(mapping);
+    const occurrenceId = await computePsIsonoteOccurrenceId({
+      pageNumber: 1,
+      psNo: mapping.psNo,
+      rect: { x: 10, y: 20, width: 60, height: 10 },
+    });
+    const model = buildVectorCalloutPlan(
+      occurrenceId,
+      mapping.psNo,
+      'Tag: PS-1234.5',
+      `ISO Note: ${mapping.isonote}`,
+      'HIGH',
+      { x: 40, y: 25 },
+      { x: 100, y: 60, width: 220, height: 60 },
+    );
+    const marker = versionedMarkerForOccurrence({
+      psNo: mapping.psNo,
+      mappingHash,
+      occurrenceId,
+      professionalModel: model,
+    });
+    expect(marker).toContain(`|${occurrenceId}|`);
+    const parsed = parseVersionedPsIsonoteMarkers(marker.replaceAll('|', ' | '));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({
+      psNo: mapping.psNo,
+      mappingHash,
+      occurrenceId,
+    });
   });
 
   it('builds a stable run id and accepts a preverified output hash', async () => {

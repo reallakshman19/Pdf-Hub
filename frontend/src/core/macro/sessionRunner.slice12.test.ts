@@ -3,8 +3,10 @@ import type { MacroRecipe } from './types';
 import { runMacroRecipeAgainstSession } from './sessionRunner';
 import { useSessionStore } from '@/core/session/store';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
+import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { useMacroOutputQueueStore } from './outputQueueStore';
 
-const commandExecute = vi.fn();
+const { commandExecute } = vi.hoisted(() => ({ commandExecute: vi.fn() }));
 
 vi.mock('@/core/commands/bus', () => ({
   commandBus: {
@@ -21,6 +23,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 vi.mock('@/adapters/pdf-edit/PdfEditAdapter', () => ({
   PdfEditAdapter: {
     rotatePages: vi.fn(async () => new Uint8Array([9, 9, 9])),
+    extractPages: vi.fn(async () => new Uint8Array([7, 7])),
   },
 }));
 
@@ -41,6 +44,7 @@ const recipe: MacroRecipe = {
 describe('sessionRunner slice 12', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useMacroOutputQueueStore.getState().clearOutputs();
 
     useSessionStore.setState({
       workingBytes: new Uint8Array([1, 2, 3]),
@@ -100,6 +104,47 @@ describe('sessionRunner slice 12', () => {
         },
       },
     }));
+  });
+
+
+  it('queues every auxiliary PDF after commit without unsafe auto-save', async () => {
+    commandExecute.mockResolvedValueOnce({ success: true, mutated: true, message: 'ok' });
+    const extract: MacroRecipe = {
+      id: 'extract-one',
+      name: 'Extract current',
+      steps: [{ op: 'extract_pages', selector: { mode: 'current' } }],
+    };
+    const result = await runMacroRecipeAgainstSession(extract, { saveOutputs: true });
+
+    expect(result.success).toBe(true);
+    expect(commandExecute).toHaveBeenCalledTimes(1);
+    expect(FileAdapter.savePdfBytes).not.toHaveBeenCalled();
+    const pending = useMacroOutputQueueStore.getState().outputs;
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      sourceKind: 'macro',
+      sourceDocumentKey: 'sample-doc',
+      sourceRecipeId: 'extract-one',
+      name: 'extracted-sample.pdf',
+      bytes: new Uint8Array([7, 7]),
+    });
+  });
+
+  it('does not publish output PDFs when the working-copy commit fails', async () => {
+    commandExecute.mockResolvedValueOnce({
+      success: false,
+      mutated: false,
+      error: { code: 'STALE_DOCUMENT', message: 'Source changed.' },
+    });
+    const extract: MacroRecipe = {
+      id: 'extract-commit-failed',
+      name: 'Extract on stale session',
+      steps: [{ op: 'extract_pages', selector: { mode: 'current' } }],
+    };
+    const result = await runMacroRecipeAgainstSession(extract, { saveOutputs: true });
+    expect(result.success).toBe(false);
+    expect(useMacroOutputQueueStore.getState().outputs).toEqual([]);
+    expect(FileAdapter.savePdfBytes).not.toHaveBeenCalled();
   });
 
   it('does not dispatch failed macro result', async () => {
