@@ -1009,11 +1009,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     const detach = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', finish);
+      window.removeEventListener('blur', cancel);
       if (cancelGestureRef.current === cancel) cancelGestureRef.current = null;
     };
     const cancel = () => { detach(); onCancel(); };
     const move = (event: MouseEvent) => {
-      if (currentPageIdentity.current !== pageIdentity) { cancel(); return; }
+      if (currentPageIdentity.current !== pageIdentity || (event.buttons & 1) === 0) { cancel(); return; }
       onMove(event);
     };
     const finish = (event: MouseEvent) => {
@@ -1025,6 +1026,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     cancelGestureRef.current = cancel;
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', finish);
+    window.addEventListener('blur', cancel);
   };
 
   const { size: renderSize } = usePageRenderer({
@@ -1554,6 +1556,9 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       } else if (activeTool === 'strikeout') {
         const items = draft.rects.map((rect) => buildStrikeoutAnnotation(pageNumber, rect));
         onCreateManyAnnotations(items);
+      } else if (activeTool === 'squiggly') {
+        const items = draft.rects.map((rect) => buildSquigglyAnnotation(pageNumber, rect));
+        onCreateManyAnnotations(items);
       } else if (activeTool === 'comment') {
         const item = buildCalloutFromSelection(
           pageNumber,
@@ -1754,7 +1759,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const startShapeDraw = (event: React.MouseEvent<HTMLDivElement>) => {
     // Only the creation hit surface may start a placement gesture.
     if (event.button !== 0 || !isPlacementOnlyTool) return;
-    if (event.target !== event.currentTarget && !(isNoteTool && event.target instanceof Element && event.target.closest('[data-text-item]'))) return;
+    const isTextTarget = event.target instanceof Element && !!event.target.closest('[data-text-item]');
+    if (event.target !== event.currentTarget && !((isNoteTool || activeTool === 'squiggly') && isTextTarget)) return;
     cancelGestureRef.current?.();
     onActivate();
 
@@ -1765,6 +1771,24 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     if (!isAnnotationType(activeTool)) return;
     const tool = activeTool;
     if (['highlight', 'underline', 'strikeout', 'squiggly', 'redaction', 'stamp'].includes(tool) && !hasViewportBasis()) return;
+
+    if (tool === 'squiggly' && isTextTarget && !event.altKey) {
+      const surface = event.currentTarget;
+      // A selection from an earlier gesture must never create a new annotation.
+      window.getSelection()?.removeAllRanges();
+      listenForGesture(() => {}, (upEvent) => {
+        const selection = window.getSelection();
+        if (!(upEvent.target instanceof Node) || !surface.contains(upEvent.target) ||
+            !selection?.anchorNode || !selection.focusNode ||
+            !surface.contains(selection.anchorNode) || !surface.contains(selection.focusNode)) {
+          selection?.removeAllRanges();
+          return;
+        }
+        handleTextSelectionMouseUp(upEvent);
+      }, () => { window.getSelection()?.removeAllRanges(); });
+      return;
+    }
+    if (tool === 'squiggly' && event.altKey) event.preventDefault();
 
     // Line and arrow are placed via exactly two clicks.
     if (tool === 'line' || tool === 'arrow') {
@@ -1886,6 +1910,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       {!viewportReady && (isTextMarkTool || ['squiggly', 'redaction', 'stamp'].includes(activeTool)) && (
         <div role="status" className="absolute top-2 left-2 z-50 rounded bg-slate-900 px-2 py-1 text-xs text-white pointer-events-none">
           {viewportInvalid ? 'Unable to determine page rotation.' : 'Loading page…'}
+        </div>
+      )}
+
+      {annotationMode && activeTool === 'squiggly' && viewportReady && (
+        <div className="absolute top-2 left-2 z-50 rounded bg-slate-900 px-2 py-1 text-xs text-white pointer-events-none">
+          Drag over text to mark it. Hold Alt and drag to draw freely.
         </div>
       )}
 
@@ -2286,7 +2316,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             style={{ pointerEvents: 'auto', zIndex: 100 }}
             onMouseDown={isInkTool ? startMarquee : startShapeDraw}
           >
-            {isNoteTool && textItems.map((item) => (
+            {(isNoteTool || activeTool === 'squiggly') && textItems.map((item) => (
               <span
                 key={item.id}
                 data-text-item="true"

@@ -590,6 +590,112 @@ describe('PageSurface gesture consistency', () => {
     expect(props.onCreateAnnotation).not.toHaveBeenCalled();
   });
 
+  it.each([0, 90])('creates squigglies from selected text on a %s degree page', async (rotation) => {
+    const rects = [{ x: 25, y: 30, width: 35, height: 20 }, { x: 20, y: 55, width: 55, height: 20 }];
+    const geometry = vi.spyOn(textSelectionGeometry, 'selectedMarkupTextRects').mockReturnValue(rects);
+    vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([textItem('synthetic squiggly text')]);
+    try {
+      const props = { ...makeProps(makeDoc(makePage(rotation))), activeTool: 'squiggly' };
+      const view = render(<PageSurface {...props} />);
+      await act(async () => {});
+      expect(view.getByText(/Hold Alt and drag to draw freely/)).toBeInTheDocument();
+      const surface = view.getByTestId('annotation-creation-hit-target');
+      const span = surface.querySelector('[data-text-item]')!;
+      fireEvent.mouseDown(span, { button: 0, clientX: 25, clientY: 35 });
+      selectText(span);
+      fireEvent.mouseUp(span, { button: 2 });
+      expect(props.onCreateManyAnnotations).not.toHaveBeenCalled();
+      fireEvent.mouseUp(span, { button: 0 });
+      expect(props.onCreateManyAnnotations).toHaveBeenCalledTimes(1);
+      expect(props.onCreateManyAnnotations).toHaveBeenCalledWith(rects.map((rect) => expect.objectContaining({
+        type: 'squiggly', rect, data: expect.objectContaining({
+          nativeMarkupDraft: expect.objectContaining({ basisRotation: rotation, turns: 0 }),
+        }),
+      })));
+      expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      geometry.mockRestore();
+      vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([]);
+    }
+  });
+
+  it('allows Alt-drag over text to draw a squiggly rectangle', async () => {
+    vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([textItem('synthetic squiggly text')]);
+    try {
+      const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'squiggly' };
+      const view = render(<PageSurface {...props} />);
+      await act(async () => {});
+      const span = view.getByTestId('annotation-creation-hit-target').querySelector('[data-text-item]')!;
+      fireEvent.mouseDown(span, { button: 0, altKey: true, clientX: 30, clientY: 40 });
+      fireEvent.mouseUp(span, { button: 0, altKey: true, clientX: 80, clientY: 100 });
+      expect(props.onCreateAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'squiggly', rect: { x: 30, y: 40, width: 50, height: 60 },
+      }));
+      expect(props.onCreateManyAnnotations).not.toHaveBeenCalled();
+    } finally {
+      vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([]);
+    }
+  });
+
+  it.each(['empty', 'outside', 'zoom', 'tool', 'document'] as const)(
+    'does not create a squiggly from a %s selection gesture', async (interruption) => {
+      const geometry = vi.spyOn(textSelectionGeometry, 'selectedMarkupTextRects').mockReturnValue([{ x: 20, y: 30, width: 80, height: 20 }]);
+      vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([textItem('synthetic squiggly text')]);
+      try {
+        const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'squiggly' };
+        const view = render(<PageSurface {...props} />);
+        await act(async () => {});
+        const span = view.getByTestId('annotation-creation-hit-target').querySelector('[data-text-item]')!;
+        // A previous selection is cleared before this gesture begins.
+        selectText(span);
+        fireEvent.mouseDown(span, { button: 0 });
+        expect(window.getSelection()?.toString()).toBe('');
+        if (interruption !== 'empty') selectText(span);
+        if (interruption === 'zoom') view.rerender(<PageSurface {...props} scale={2} />);
+        if (interruption === 'tool') view.rerender(<PageSurface {...props} activeTool="stamp" />);
+        if (interruption === 'document') view.rerender(<PageSurface {...props} doc={makeDoc(makePage(0))} />);
+        fireEvent.mouseUp(interruption === 'outside' ? document.body : span, { button: 0 });
+        expect(props.onCreateManyAnnotations).not.toHaveBeenCalled();
+        expect(props.onCreateAnnotation).not.toHaveBeenCalled();
+      } finally {
+        window.getSelection()?.removeAllRanges();
+        geometry.mockRestore();
+        vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([]);
+      }
+    },
+  );
+
+  it.each(['blur', 'lost primary button'] as const)(
+    'cancels a squiggly selection after %s and accepts the next gesture', async (interruption) => {
+      const geometry = vi.spyOn(textSelectionGeometry, 'selectedMarkupTextRects').mockReturnValue([{ x: 20, y: 30, width: 80, height: 20 }]);
+      vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([textItem('synthetic squiggly text')]);
+      try {
+        const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'squiggly' };
+        const view = render(<PageSurface {...props} />);
+        await act(async () => {});
+        const span = view.getByTestId('annotation-creation-hit-target').querySelector('[data-text-item]')!;
+        fireEvent.mouseDown(span, { button: 0 });
+        selectText(span);
+        if (interruption === 'blur') fireEvent.blur(window);
+        else fireEvent.mouseMove(window, { buttons: 0 });
+        expect(window.getSelection()?.toString()).toBe('');
+        // A later release in the page must not complete the cancelled gesture.
+        fireEvent.mouseUp(span, { button: 0 });
+        expect(props.onCreateManyAnnotations).not.toHaveBeenCalled();
+        fireEvent.mouseDown(span, { button: 0 });
+        selectText(span);
+        fireEvent.mouseMove(window, { buttons: 1 });
+        fireEvent.mouseUp(span, { button: 0 });
+        expect(props.onCreateManyAnnotations).toHaveBeenCalledTimes(1);
+      } finally {
+        window.getSelection()?.removeAllRanges();
+        geometry.mockRestore();
+        vi.mocked(PdfRendererAdapter.getPageTextItems).mockResolvedValue([]);
+      }
+    },
+  );
+
   it('does not authorize markup creation from a non-finite viewport rotation', async () => {
     const props = { ...makeProps(makeDoc(makePage(Number.NaN))), activeTool: 'squiggly' };
     const view = render(<PageSurface {...props} />);
