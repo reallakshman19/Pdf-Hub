@@ -142,7 +142,18 @@ export const ToolbarFile: React.FC = () => {
           nextHandle = await FileAdapter.savePdfBytes(bytes, session.fileName, null);
         }
         if (!isDocumentMutationOwnerCurrent(owner)) return;
-        if (nextHandle) setSaveHandle(nextHandle);
+        if (!nextHandle) {
+          // The anchor-download fallback has no durable receipt. Do not publish
+          // Saved, change the file handle, or clear any dirty-state flags.
+          const message = `Download started for ${session.fileName}; browser file receipt cannot be verified. Edits remain unsaved.`;
+          useSessionStore.setState({
+            saveState: { status: 'idle', completedAt: Date.now(), message },
+          });
+          recordSaveExportAction({ type: 'DOWNLOAD_PROCESSED_PDF' }, 'success', message);
+          addToast({ type: 'info', title: 'Download Started — Save Not Confirmed', message });
+          return;
+        }
+        setSaveHandle(nextHandle);
         const unchanged = useAnnotationStore.getState().annotations === currentAnnotations
           && useWriterStore.getState().elements === currentWriterElements;
         if (unchanged) {
