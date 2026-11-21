@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { WriterInlineEditor } from './WriterInlineEditor';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { createPdfOverlayWriterDocumentMeta } from '@/core/writer-v2/writerDocumentMode';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
 
@@ -64,15 +65,10 @@ describe('WriterClipboardPlugin', () => {
     useWriterV2Store.getState().hydrateWriterSession({
       documentFingerprint: 'doc-1',
       elements: [element()],
-      documentMeta: {
-        mode: 'pdfOverlay',
+      documentMeta: createPdfOverlayWriterDocumentMeta({
         documentFingerprint: 'doc-1',
-        title: 'doc-1',
         pageCount: 1,
-        pageSetup: { width: 612, height: 792, orientation: 'portrait' },
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-      },
+      }),
     });
     useWriterV2Store.getState().beginEditingWriterElement('writer-1');
   });
