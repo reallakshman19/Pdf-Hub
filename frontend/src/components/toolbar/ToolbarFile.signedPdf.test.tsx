@@ -272,6 +272,20 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.setSessionState).not.toHaveBeenCalled();
   });
 
+  it('does not open Save As after a failed handle write for a previous session', async () => {
+    mocks.session.saveHandle = {} as FileSystemFileHandle;
+    mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
+    let rejectWrite!: (error: Error) => void;
+    mocks.savePdfBytes.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(rejectWrite).toBeDefined());
+    mocks.sessionGeneration += 1;
+    await act(async () => rejectWrite(new DOMException('stale handle', 'NotReadableError')));
+    expect(mocks.savePdfBytes).toHaveBeenCalledTimes(1);
+    expect(mocks.failSaveOperation).not.toHaveBeenCalled();
+  });
+
   it('does not re-prompt when the confirmed Save falls back to Save As', async () => {
     const staleHandle = {} as FileSystemFileHandle;
     mocks.session.saveHandle = staleHandle;

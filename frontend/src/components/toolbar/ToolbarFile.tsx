@@ -138,6 +138,7 @@ export const ToolbarFile: React.FC = () => {
         } catch (error) {
           if (!session.saveHandle || !isHandleAccessError(error)) throw error;
           warn('session', 'Existing save handle became invalid, retrying with Save As flow', { error: String(error) });
+          assertDocumentMutationOwner(owner);
           nextHandle = await FileAdapter.savePdfBytes(bytes, session.fileName, null);
         }
         if (!isDocumentMutationOwnerCurrent(owner)) return;
