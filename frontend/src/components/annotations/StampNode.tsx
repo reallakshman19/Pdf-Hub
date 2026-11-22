@@ -42,6 +42,9 @@ export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
   return (
     <div
       data-annotation-type="stamp"
+      data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       style={{
         position: 'absolute',
         left: rect.x + (rect.width - baseWidth) / 2,
