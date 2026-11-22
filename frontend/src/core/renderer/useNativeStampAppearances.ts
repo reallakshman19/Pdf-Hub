@@ -21,7 +21,7 @@ async function sourcePageAppearances(doc: PDFDocumentProxy, pageNumber: number):
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const context = canvas.getContext('2d');
-      if (!context) throw new Error('Cannot render native stamp appearance.');
+      if (!context) throw new Error('Cannot render native annotation appearance.');
       const separate = new Map<string, HTMLCanvasElement>();
       await page.render({ canvas, canvasContext: context, viewport, annotationMode: AnnotationMode.ENABLE, isEditing: true, annotationCanvasMap: separate }).promise;
       const images = new Map<string, string>();
@@ -62,10 +62,13 @@ async function sourcePageAppearances(doc: PDFDocumentProxy, pageNumber: number):
   return request;
 }
 
-/** Render native appearances separately, so editable overlays never duplicate page content. */
-export function useNativeStampAppearances(doc: PDFDocumentProxy, annotations: PdfAnnotation[]): Record<string, string> {
+/** Collect native /AP images without drawing them onto the background page canvas.
+ * Retain the stamp API name as an alias for existing callers.
+ */
+export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotations: PdfAnnotation[]): Record<string, string> {
   const requests = annotations
-    .filter((item) => item.type === 'stamp' && typeof item.data.nativeAppearanceRef === 'string')
+    .filter((item) => typeof item.data.nativeAppearanceRef === 'string'
+      && (item.type === 'stamp' || item.data.nativeAppearanceImported === true))
     .map((item) => ({ ref: item.data.nativeAppearanceRef!, page: item.data.nativeCopySource?.pageNumber ?? item.pageNumber }));
   const requestKey = JSON.stringify(requests.sort((a, b) => a.page - b.page || a.ref.localeCompare(b.ref)));
   const [images, setImages] = useState<Record<string, string>>({});
@@ -91,3 +94,6 @@ export function useNativeStampAppearances(doc: PDFDocumentProxy, annotations: Pd
   }, [doc, requestKey]);
   return images;
 }
+
+/** @deprecated Use the generic native annotation preview hook. */
+export const useNativeStampAppearances = useNativeAnnotationAppearances;
