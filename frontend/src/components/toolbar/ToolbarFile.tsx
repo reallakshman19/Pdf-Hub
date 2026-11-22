@@ -49,14 +49,11 @@ export const ToolbarFile: React.FC = () => {
     failSaveOperation: state.failSaveOperation,
   })));
 
-  const { annotations, nativeIntegrity, hydratedDocumentKey } = useAnnotationStore(useShallow((state) => ({
-    annotations: state.annotations,
+  const { nativeIntegrity, hydratedDocumentKey } = useAnnotationStore(useShallow((state) => ({
     nativeIntegrity: state.nativeIntegrity,
     hydratedDocumentKey: state.hydratedDocumentKey,
   })));
   const addToast = useToastStore((state) => state.addToast);
-
-  const writerElements = useWriterStore((state) => state.elements);
 
   const requireWorkingPdf = () => {
     if (!workingBytes) {
