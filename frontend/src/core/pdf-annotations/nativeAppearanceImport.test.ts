@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { degrees, PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
+import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
 
 async function fixture(rotation: 0 | 90 = 0, authoredInPdfHub = false) {
   const doc = await PDFDocument.create();
@@ -64,6 +65,19 @@ describe('imported native annotation /AP preview metadata', () => {
     expect(callout.data.nativeAppearanceRect?.width).toBe(40);
     expect(callout.data.nativeAppearanceRect?.height).toBe(150);
     expect(callout.data.nativeAppearanceBodyRect).toEqual(callout.rect);
+  });
+
+  it('preserves imported AP preview provenance after editable Save/reopen', async () => {
+    const bytes = await fixture();
+    const imported = (await readNativePdfAnnotations(bytes)).annotations;
+    const saved = await writeNativePdfAnnotations(bytes, imported);
+    const reopened = (await readNativePdfAnnotations(saved.bytes)).annotations;
+    const callout = reopened.find((item) => item.type === 'callout')!;
+    expect(callout.data.nativeAppearanceImported).toBe(true);
+    expect(callout.data.nativeAppearanceRef).toBeDefined();
+    expect(callout.data.nativeAppearanceRect).toEqual({
+      x: 20, y: 260, width: 150, height: 40,
+    });
   });
 
   it('does not freeze Pdf-Hub authored annotation previews', async () => {
