@@ -7,9 +7,16 @@ test.use({ viewport: { width: 1440, height: 900 }, trace: 'off', screenshot: 'of
 async function source() {
   const pdf = await PDFDocument.create();
   const sheet = pdf.addPage([612, 792]);
+  // Editable foreign FreeText contains both its original vector graphics
+  // and text operators. A form containing graphics *only* cannot safely
+  // undergo rich-text substitution: the writer rightly rejects it.
+  const font = pdf.context.register(pdf.context.obj({
+    Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica',
+  }));
   const appearance = pdf.context.register(pdf.context.flateStream(
-    'q 0 0.7 0 rg 0 0 150 40 re f Q',
-    { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 150, 40], Resources: {} },
+    'q 0 0.7 0 rg 0 0 150 40 re f Q q BT /F1 9 Tf 4 4 Td (Imported rich callout) Tj ET Q',
+    { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 150, 40],
+      Resources: { Font: { F1: font } } },
   ));
   const callout = pdf.context.register(pdf.context.obj({
     Type: 'Annot', Subtype: 'FreeText', IT: 'FreeTextCallout',
