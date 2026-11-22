@@ -4,7 +4,8 @@ import { loadAnnotationSnapshotOrNull, saveAnnotations } from '@/core/annotation
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
-import { error as logError } from '@/core/logger/service';
+import { debug as logDebug, error as logError, warn as logWarn } from '@/core/logger/service';
+import { summarizeNativeAnnotationCoverage } from '@/core/pdf-annotations/nativeCoverageAudit';
 import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import type { PdfAnnotation } from '@/core/annotations/types';
@@ -250,6 +251,26 @@ export function useAnnotationPersistence({
       const model = [...restored, ...missingSource];
       setAnnotations(model);
       const hydrated = useAnnotationStore.getState().annotations;
+      const coverage = summarizeNativeAnnotationCoverage(
+        imported.sourceRoots ?? [],
+        imported.annotations,
+        hydrated,
+        snapshot?.nativeSourceKeys ?? null,
+      );
+      logDebug('annotation', 'Native annotation source → parser → model coverage', {
+        documentKey,
+        ...coverage,
+      });
+      if (coverage.missingFromParser.length
+        || coverage.missingFromModel.length
+        || coverage.duplicateInModel.length) {
+        logWarn('annotation', 'Native annotation coverage is incomplete', {
+          documentKey,
+          missingFromParser: coverage.missingFromParser,
+          missingFromModel: coverage.missingFromModel,
+          duplicateInModel: coverage.duplicateInModel,
+        });
+      }
       useAnnotationStore.setState({ hydratedDocumentKey: documentKey });
       setRestoredCount(hydrated.length);
       // Persist the source baseline even if the visible annotations do not
