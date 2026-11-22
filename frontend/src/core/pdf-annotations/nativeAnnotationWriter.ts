@@ -301,7 +301,11 @@ export async function writeNativePdfAnnotations(
       const sourceModel = sourceModels.find((item) => item.pageNumber === pageNumber
         && (item.data.nativeOriginalName ?? item.id) === nativeName);
       const sourceRef = sourceModel?.data.nativeSourceRef;
-      if (sourceModel && !annotation.data.nativeCopySource) {
+      if (sourceModel && !annotation.data.nativeCopySource
+        && options.nativeDeletionAuthorization) {
+        // The authenticated application Save/Writer routes carry revision
+        // authorization. Low-level writer callers without that boundary are
+        // legacy conversion helpers, not evidence of verified user edits.
         if (sourceRef && annotation.data.nativeSourceRef !== sourceRef) {
           throw new Error('Cannot safely edit native annotation without its original source identity.');
         }
