@@ -8,6 +8,8 @@ import { debug as logDebug, error as logError, warn as logWarn } from '@/core/lo
 import { summarizeNativeAnnotationCoverage } from '@/core/pdf-annotations/nativeCoverageAudit';
 import {
   authorizedEditFields,
+  nativeEditableFields,
+  unprovenNativeEditFields,
   isValidNativeDeletionTombstone,
   type NativeDeletionTombstone,
   type NativeIntegrityState,
@@ -221,12 +223,7 @@ export function useAnnotationPersistence({
           // per-field user edit provenance. Source fields win by default.
           const edited = origin ? new Set<string>() : authorizedEditFields(item, source, documentKey);
           if (!origin && item.data.nativeSourceRef) {
-            const unproven = (['rect', 'text', 'anchor', 'knee', 'leaderStyle', 'arrowHead'] as const)
-              .some((field) => !edited.has(field) && (
-                field === 'rect'
-                  ? JSON.stringify(item.rect) !== JSON.stringify(source.rect)
-                  : JSON.stringify(item.data[field]) !== JSON.stringify(source.data[field])
-              ));
+            const unproven = unprovenNativeEditFields(item, source, documentKey).length > 0;
             if (unproven) unresolvedCachedEdits.push(nativeSourceKey(source));
           }
           if (!edited.size) delete data.nativeEditProvenance;
@@ -237,20 +234,13 @@ export function useAnnotationPersistence({
           // original on refresh or Undo (including when the page was rotated).
           if (!origin) {
             if (!edited.has('rect')) effectiveRect = source.rect;
-            for (const key of ['anchor', 'knee', 'leaderStyle', 'arrowHead', 'text'] as const) {
-              if (edited.has(key)) continue;
+            for (const key of nativeEditableFields) {
+              if (key === 'rect' || edited.has(key)) continue;
               if (source.data[key] !== undefined) {
                 (data as Record<string, unknown>)[key] = source.data[key];
               } else {
                 delete data[key];
               }
-            }
-            if (resolvedType === 'callout' || resolvedType === 'textbox') {
-              if (source.data.borderColor) data.borderColor = source.data.borderColor;
-              if (source.data.backgroundColor) data.backgroundColor = source.data.backgroundColor;
-              if (typeof source.data.textColor === 'string') data.textColor = source.data.textColor;
-              if (typeof source.data.fontFamily === 'string') data.fontFamily = source.data.fontFamily;
-              if (typeof source.data.borderWidth === 'number') data.borderWidth = source.data.borderWidth;
             }
           }
           // Classify from the native source, never a potentially stale
