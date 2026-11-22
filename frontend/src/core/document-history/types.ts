@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from '../annotations/types';
+import type { NativeDeletionTombstone } from '../annotations/nativeIntegrity';
 import type { WriterDocumentMode, WriterElementV2 } from '../writer-v2/types';
 import type { PdfCommand } from '../commands/types';
 import type { PageGraph, PageId, PageNode } from '../pages/types';
@@ -35,6 +36,8 @@ export interface HistoryState {
   currentPageId: PageId | null;
   currentPage: number;
   annotations: PdfAnnotation[];
+  /** Explicit native deletion events captured with this history state. */
+  nativeDeletionTombstones?: NativeDeletionTombstone[];
   writer?: WriterHistoryState;
   ocr?: OcrPageAnchoredState;
 }
