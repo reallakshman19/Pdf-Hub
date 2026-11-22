@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFString,
+  PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFStream, PDFString,
   decodePDFRawStream, rgb,
 } from 'pdf-lib';
 import { flattenNativePdfAnnotations } from './flattenNativePdfAnnotations';
@@ -51,16 +51,16 @@ describe('native /AP vector flattened export', () => {
     const forms = resources.lookup(PDFName.of('XObject'), PDFDict);
     expect(forms.keys()).toHaveLength(2);
 
-    const embeddedStreams = forms.keys().map((name) => forms.lookup(name, PDFRawStream));
+    const embeddedStreams = forms.keys().map((name) => forms.lookup(name, PDFStream));
     const decoded = embeddedStreams.map((stream) =>
-      new TextDecoder().decode(decodePDFRawStream(stream).decode()),
+      new TextDecoder().decode(decodePDFRawStream(stream as PDFRawStream).decode()),
     );
     expect(decoded).toContain('q 0 0.8 0 rg 0 0 80 30 re f Q');
     expect(decoded).toContain('q BT /F1 12 Tf 0 0 Td (Original) Tj ET Q');
 
     const contents = page.node.lookup(PDFName.of('Contents'), PDFArray);
     const commands = Array.from({ length: contents.size() }, (_, index) =>
-      new TextDecoder().decode(decodePDFRawStream(contents.lookup(index, PDFRawStream)).decode()),
+      new TextDecoder().decode(decodePDFRawStream(contents.lookup(index, PDFStream) as PDFRawStream).decode()),
     ).join('\n');
     expect(commands).toContain(' re');
     expect(commands).toContain(' Do');
