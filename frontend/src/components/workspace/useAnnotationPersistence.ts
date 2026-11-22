@@ -17,6 +17,21 @@ function nativeSourceKey(annotation: PdfAnnotation): string {
   ]);
 }
 
+function addUniqueSourceMatch(
+  matches: Map<string, PdfAnnotation>,
+  ambiguous: Set<string>,
+  key: string,
+  item: PdfAnnotation,
+): void {
+  if (ambiguous.has(key)) return;
+  if (matches.has(key)) {
+    matches.delete(key);
+    ambiguous.add(key);
+    return;
+  }
+  matches.set(key, item);
+}
+
 interface UseAnnotationPersistenceArgs {
   documentKey: string | null;
   pdfDoc: PDFDocumentProxy | null;
@@ -53,6 +68,8 @@ export function useAnnotationPersistence({
       const sourceByRef = new Map<string, PdfAnnotation>();
       const sourceByText = new Map<string, PdfAnnotation>();
       const sourceByPos = new Map<string, PdfAnnotation>();
+      const ambiguousText = new Set<string>();
+      const ambiguousPos = new Set<string>();
       for (const item of imported.annotations) {
         if (item.data.nativeSourceRef) {
           sourceByRef.set(`${item.pageNumber}\u0000${item.data.nativeSourceRef}`, item);
@@ -65,9 +82,9 @@ export function useAnnotationPersistence({
         sourceByKey.set(`${item.pageNumber}\u0000${strippedId}`, item);
         if (item.data.text) {
           const normText = item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-          sourceByText.set(`${item.pageNumber}\u0000${normText}`, item);
+          addUniqueSourceMatch(sourceByText, ambiguousText, `${item.pageNumber}\u0000${normText}`, item);
         }
-        sourceByPos.set(`${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
+        addUniqueSourceMatch(sourceByPos, ambiguousPos, `${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
       }
       const matchedSourceKeys = new Set<string>();
       const restored = stored === null ? imported.annotations : stored.map((item) => {
@@ -77,14 +94,24 @@ export function useAnnotationPersistence({
         const normItemText = item.data.text
           ? item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
           : '';
+        // Do not identify an application-created overlay as a PDF native
+        // object solely because its text or coordinates happen to overlap.
+        const canMatchByAppearance = Boolean(
+          origin || item.data.nativeSourceRef || item.data.nativeOriginalName
+          || item.id.startsWith('native:p') || item.id.startsWith('pdfhub-native-p'),
+        );
         const source = (item.data.nativeSourceRef
           ? sourceByRef.get(`${pageNum}\u0000${item.data.nativeSourceRef}`)
           : undefined)
           ?? sourceByKey.get(`${pageNum}\u0000${rawKey}`)
           ?? sourceByKey.get(`${pageNum}\u0000${rawKey.replace(/^pdfhub-native-p\d+:/, '')}`)
           ?? sourceByKey.get(`${pageNum}\u0000${item.id}`)
-          ?? (normItemText ? sourceByText.get(`${pageNum}\u0000${normItemText}`) : undefined)
-          ?? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`);
+          ?? (canMatchByAppearance && normItemText
+            ? sourceByText.get(`${pageNum}\u0000${normItemText}`)
+            : undefined)
+          ?? (canMatchByAppearance
+            ? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`)
+            : undefined);
         // A copied overlay can reference its original source without
         // representing that native object on the source page.
         if (source && !origin) matchedSourceKeys.add(nativeSourceKey(source));
