@@ -169,6 +169,45 @@ describe('native PDF annotation source coverage', () => {
     unmount();
   });
 
+  it('revokes a stale deletion command when Undo restored the native cache entry', async () => {
+    useSessionStore.setState({
+      pageGraph: {
+        pages: [{
+          pageId: 'page-original', documentKey,
+          originalPageNumber: 1, currentIndex: 0,
+          width: 300, height: 400, rotation: 0,
+        }],
+      },
+    });
+    const source = native('restored-source', '11 0 R');
+    const staleCommand = {
+      sourceRevision: documentKey,
+      sourceRef: '11 0 R',
+      sourceName: 'restored-source',
+      pageNumber: 1,
+      pageId: 'page-original',
+      commandId: 'old-delete-before-undo',
+    };
+    mocks.load.mockResolvedValue({
+      annotations: [source],
+      nativeSourceKeys: [key(source)],
+      nativeDeletionTombstones: [staleCommand],
+    });
+    mocks.read.mockResolvedValue({ annotations: [source] });
+
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['restored-source']);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('COMPLETE');
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(
+      documentKey,
+      expect.arrayContaining([expect.objectContaining({ id: 'restored-source' })]),
+      expect.objectContaining({ nativeDeletionTombstones: [] }),
+    ));
+    unmount();
+  });
+
   it('restores the source and blocks native Save on a stale deletion command', async () => {
     const a = native('a', '10 0 R');
     const b = native('b', '11 0 R');
