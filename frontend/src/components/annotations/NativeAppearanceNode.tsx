@@ -42,8 +42,16 @@ export const NativeAppearanceNode: React.FC<Props> = ({
     && originalBody.width > 0 && originalBody.height > 0;
   // The logical body can be moved or resized without losing the correct
   // original AP-to-body offset. Derived geometry is in screen pixels.
-  const widthRatio = validSource ? rect.width / (originalBody.width * scale) : 1;
-  const heightRatio = validSource ? rect.height / (originalBody.height * scale) : 1;
+  // The source /AP describes the entire callout (including its leader).
+  // A foreign /RD can report a text-body rectangle that PDF.js/layout
+  // normalizes differently; fitting the AP into that body deforms the leader.
+  // Callout visual edits invalidate the source preview, so an unedited callout
+  // must always render its /AP at its actual page scale.
+  const isNativeCallout = annotation.type === 'callout';
+  const widthRatio = isNativeCallout ? 1
+    : validSource ? rect.width / (originalBody.width * scale) : 1;
+  const heightRatio = isNativeCallout ? 1
+    : validSource ? rect.height / (originalBody.height * scale) : 1;
   const appearance: Rect = validSource
     ? {
         x: rect.x + (full.x - originalBody.x) * scale * widthRatio,
