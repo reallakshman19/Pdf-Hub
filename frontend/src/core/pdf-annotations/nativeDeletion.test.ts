@@ -4,6 +4,7 @@ import { readNativePdfAnnotations } from './nativeAnnotationReader';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { withNativeEditProvenance } from '@/core/annotations/nativeIntegrity';
 
 async function authorize(bytes: Uint8Array, deleted: PdfAnnotation[]) {
   const sourceRevision = await FileAdapter.hashBytes(bytes);
@@ -127,14 +128,30 @@ describe('managed native annotation deletion', () => {
     )).rejects.toThrow('duplicate native source identities');
   });
 
+  it('rejects direct source stamp mutation with no recorded user edit provenance', async () => {
+    const bytes = await fixture();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    const original = loaded.find((item) => item.id !== 'named')!;
+    const forged = { ...original, rect: { ...original.rect, x: original.rect.x + 10 } };
+    await expect(writeNativePdfAnnotations(bytes, loaded.map((item) =>
+      item.id === original.id ? forged : item), { replaceManagedAnnotations: true }))
+      .rejects.toThrow(/without user provenance for: rect/);
+  });
+
   it('edits an unnamed native stamp without leaving a second original behind', async () => {
     const bytes = await fixture();
     const loaded = (await readNativePdfAnnotations(bytes)).annotations;
     const unnamed = loaded.find((a) => a.id !== 'named')!;
-    unnamed.rect = { ...unnamed.rect, x: unnamed.rect.x + 10 };
-    const output = await writeNativePdfAnnotations(bytes, loaded, { replaceManagedAnnotations: true });
+    const edited = withNativeEditProvenance(
+      unnamed,
+      { ...unnamed, rect: { ...unnamed.rect, x: unnamed.rect.x + 10 } },
+      await FileAdapter.hashBytes(bytes),
+      'user-move-unnamed-stamp',
+    );
+    const output = await writeNativePdfAnnotations(bytes, loaded.map((item) =>
+      item.id === unnamed.id ? edited : item), { replaceManagedAnnotations: true });
     expect(await types(output.bytes)).toEqual(['/Link', '/Popup', '/Stamp', '/Stamp']);
     const reopened = (await readNativePdfAnnotations(output.bytes)).annotations;
-    expect(reopened.find((a) => a.id === unnamed.id)?.rect.x).toBe(unnamed.rect.x);
+    expect(reopened.find((a) => a.id === unnamed.id)?.rect.x).toBe(edited.rect.x);
   });
 });
