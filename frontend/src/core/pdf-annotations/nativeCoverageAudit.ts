@@ -98,7 +98,8 @@ export function summarizeNativeAnnotationCoverage(
       const annotation = modelByKey.get(key)!;
       const proof = annotation.data.nativeEditProvenance;
       status = proof && proof.sourceRef === annotation.data.nativeSourceRef
-        && proof.fields.length > 0 ? 'EDITED' : 'RETAINED';
+        && Array.isArray(proof.fields) && proof.fields.length > 0
+        ? 'EDITED' : 'RETAINED';
     }
     return { sourceKey: key, status };
   });
