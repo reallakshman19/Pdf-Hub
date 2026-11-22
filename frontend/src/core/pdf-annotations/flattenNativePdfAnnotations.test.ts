@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFStream, PDFString,
-  decodePDFRawStream, rgb,
+  decodePDFRawStream, rgb, degrees,
 } from 'pdf-lib';
-import { flattenNativePdfAnnotations } from './flattenNativePdfAnnotations';
+import { flattenNativePdfAnnotations, noRotateCompensation } from './flattenNativePdfAnnotations';
 
 async function nativeFixture() {
   const pdf = await PDFDocument.create();
@@ -64,6 +64,59 @@ describe('native /AP vector flattened export', () => {
     ).join('\n');
     expect(commands).toContain('180 70 l');
     expect(commands).toContain(' Do');
+  });
+
+  it('compensates /NoRotate at the annotation upper-left on a 90° rotated page', async () => {
+    const source = await nativeFixture();
+    const doc = await PDFDocument.load(source);
+    const page = doc.getPage(0);
+    page.setRotation(degrees(90));
+    const annots = page.node.lookup(PDFName.of('Annots'), PDFArray);
+    const stamp = annots.lookup(0, PDFDict);
+    stamp.set(PDFName.of('F'), doc.context.obj(16));
+    const output = await PDFDocument.load(await flattenNativePdfAnnotations(await doc.save()));
+    expect(output.getPage(0).node.get(PDFName.of('Annots'))).toBeUndefined();
+    const content = output.getPage(0).node.lookup(PDFName.of('Contents'), PDFArray);
+    const operators = Array.from({ length: content.size() }, (_, index) =>
+      new TextDecoder().decode(decodePDFRawStream(content.lookup(index, PDFStream) as PDFRawStream).decode()),
+    ).join('\n');
+    // Anchor is (20,210); the compensating CCW 90° matrix fixes this pivot
+    // even though the native original annotation itself does not rotate.
+    expect(noRotateCompensation([20, 180, 100, 210], 90)).toEqual([0, 1, -1, 0, 230, 190]);
+    expect(operators).toContain('0 1 -1 0 230 190 cm');
+    expect(operators).toContain(' Do');
+  });
+
+  it('preserves interactive hyperlinks while removing appearance-bearing review markup', async () => {
+    const source = await nativeFixture();
+    const doc = await PDFDocument.load(source);
+    const page = doc.getPage(0);
+    const annots = page.node.lookup(PDFName.of('Annots'), PDFArray);
+    const link = doc.context.register(doc.context.obj({
+      Type: 'Annot', Subtype: 'Link', P: page.ref,
+      Rect: [50, 70, 170, 90],
+      A: { S: 'URI', URI: PDFString.of('https://example.org/reference') },
+    }));
+    annots.push(link);
+    const output = await PDFDocument.load(await flattenNativePdfAnnotations(await doc.save()));
+    const remaining = output.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
+    expect(remaining.size()).toBe(1);
+    const nativeLink = remaining.lookup(0, PDFDict);
+    expect(nativeLink.get(PDFName.of('Subtype'))?.toString()).toBe('/Link');
+    expect(nativeLink.lookup(PDFName.of('A'), PDFDict).get(PDFName.of('URI'))?.toString())
+      .toBe(PDFString.of('https://example.org/reference').toString());
+  });
+
+  it('fails closed rather than picking an arbitrary /AP/N when several states have no /AS', async () => {
+    const source = await nativeFixture();
+    const doc = await PDFDocument.load(source);
+    const stamp = doc.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
+    const form = stamp.lookup(PDFName.of('AP'), PDFDict).get(PDFName.of('N'));
+    stamp.set(PDFName.of('AP'), doc.context.obj({
+      N: { Approved: form, Rejected: form, Off: form },
+    }));
+    await expect(flattenNativePdfAnnotations(await doc.save()))
+      .rejects.toThrow('ambiguous native normal appearance state');
   });
 
   it('keeps the visible appearance state of a stamp without retaining a clickable /Annot', async () => {
