@@ -220,6 +220,18 @@ function selectedAnnotations(
   return annotations.filter((annotation) => idSet.has(annotation.id));
 }
 
+function dropRestoredNativeDeletionCommands(
+  tombstones: NativeDeletionTombstone[],
+  annotations: readonly PdfAnnotation[],
+): NativeDeletionTombstone[] {
+  const restored = new Set(annotations
+    .filter((item) => item.data.nativeSourceRef && !item.data.nativeCopySource)
+    .map((item) => JSON.stringify([item.pageNumber, item.data.nativeSourceRef])));
+  return tombstones.some((item) => restored.has(JSON.stringify([item.pageNumber, item.sourceRef])))
+    ? tombstones.filter((item) => !restored.has(JSON.stringify([item.pageNumber, item.sourceRef])))
+    : tombstones;
+}
+
 function annotationSnapshot(
   state: AnnotationState,
   nextAnnotations: PdfAnnotation[],
@@ -234,6 +246,11 @@ function annotationSnapshot(
 
   return {
     annotations: anchoredAnnotations,
+    // Undo / restored source roots revoke the deletion command. A later cache
+    // omission must not revive an already undone deletion.
+    nativeDeletionTombstones: dropRestoredNativeDeletionCommands(
+      state.nativeDeletionTombstones, anchoredAnnotations,
+    ),
     selectedAnnotationIds: normalizeIds(
       nextSelectedIds ?? state.selectedAnnotationIds,
       anchoredAnnotations,
@@ -690,13 +707,19 @@ export const useAnnotationStore =
     }),
 
   setAnnotations: (annotations) =>
-    set({
-      annotations: normalizeAnnotationPageAnchors(
+    set((state) => {
+      const normalized = normalizeAnnotationPageAnchors(
         normalizeAnnotationReviews(annotations),
         useSessionStore.getState().pageGraph,
-      ),
-      selectedAnnotationIds: [],
-      activeAnnotationId: null,
+      );
+      return {
+        annotations: normalized,
+        nativeDeletionTombstones: dropRestoredNativeDeletionCommands(
+          state.nativeDeletionTombstones, normalized,
+        ),
+        selectedAnnotationIds: [],
+        activeAnnotationId: null,
+      };
     }),
 
   applyPageRemap: (annotations) =>
