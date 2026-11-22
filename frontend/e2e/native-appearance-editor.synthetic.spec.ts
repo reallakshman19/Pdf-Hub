@@ -172,4 +172,14 @@ test('editing imported rich FreeText survives refresh, drops stale preview and s
   expect(calloutDict.lookupMaybe(PDFName.of('Contents'), PDFString, PDFHexString)?.decodeText()).toBe('Updated native callout');
   expect(calloutDict.get(PDFName.of('RC'))).toBeDefined();
   expect(calloutDict.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
+  // Re-entering the editor after refresh must not silently auto-size a
+  // source-native rich text body or rebase its appearance/leader geometry.
+  const sourcePdf = await PDFDocument.load(bytes);
+  const sourceAnnot = sourcePdf.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray)
+    .lookup(0, PDFDict);
+  for (const field of ['Rect', 'RD', 'CL', 'DA', 'IT']) {
+    expect(calloutDict.get(PDFName.of(field))?.toString(),
+      `Native ${field} was changed by a text-only edit`)
+      .toBe(sourceAnnot.get(PDFName.of(field))?.toString());
+  }
 });

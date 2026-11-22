@@ -1177,9 +1177,13 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     if (!isCurrentPage() || !edit || editingRef.current !== edit || edit.id !== annotation.id) return;
     editingRef.current = null;
     setEditingState(null);
+    // An imported native /RC remains geometry-bound after the first user
+    // text edit. Its MUTATED_USER_EDIT state must not make it eligible for
+    // HTML auto-sizing on a later refresh/edit confirmation.
+    const hasNativeRichTextRoot = annotation.data.nativeInterop?.richText === true;
     const currentRect = draftRectsRef.current[annotation.id];
     const nextRect =
-      !isNativeRichTextReadOnly(annotation) && annotation.data.autoSize !== false && isTextLike(annotation.type)
+      !hasNativeRichTextRoot && annotation.data.autoSize !== false && isTextLike(annotation.type)
         ? autoSizeRectForText(
             value,
             readFontSize(annotation),
@@ -1192,7 +1196,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       text: value,
     };
 
-    if (isNativeRichTextReadOnly(annotation) && value !== (annotation.data.text ?? '')) {
+    if (hasNativeRichTextRoot && value !== (annotation.data.text ?? '')) {
       nextData.nativeInterop = {
         fidelityClass: 'MUTATED_USER_EDIT',
         reason: 'USER_EDITED',
