@@ -348,7 +348,7 @@ export async function commitDocumentMutation(
     && annotationState.nativeDeletionTombstones.length > 0) {
     throw new DocumentMutationTransactionError(
       'prepare',
-      'Cannot safely change PDF pages with pending native annotation deletions. Save the current PDF first.',
+      'Cannot safely change PDF pages with pending native annotation deletions. Save and reopen the resulting PDF first.',
     );
   }
   const annotationsToPersist = normalizeAnnotationPageAnchors(
