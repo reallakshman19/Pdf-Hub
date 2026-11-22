@@ -76,7 +76,7 @@ export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotation
   const requests = annotations
     .filter((item) => typeof item.data.nativeAppearanceRef === 'string'
       && (item.type === 'stamp' || (item.data.nativeAppearanceImported === true
-        && ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud', 'shape-polygon', 'ink'].includes(item.type))))
+        && ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud'].includes(item.type))))
     .map((item) => ({ ref: item.data.nativeAppearanceRef!, page: item.data.nativeCopySource?.pageNumber ?? item.pageNumber }));
   const requestKey = JSON.stringify(requests.sort((a, b) => a.page - b.page || a.ref.localeCompare(b.ref)));
   const [result, setResult] = useState<{
