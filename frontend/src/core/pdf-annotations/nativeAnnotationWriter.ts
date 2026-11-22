@@ -2568,6 +2568,38 @@ async function registerNativeAnnotation(
     sourceModel,
   );
 
+  // Imported FreeText has two coordinate spaces: /Rect encloses its /AP,
+  // while /RD describes the editor's text body. Source-derived defaults
+  // (notably DA/BS/CA) can also differ from literal PDF dictionary values.
+  // When the ONLY user change is text, do not mistake those recomputed
+  // defaults for a simultaneous style/geometry edit. Restore the original
+  // portable non-text fields verbatim before comparing/rebuilding its /AP.
+  const sourceStyles = [
+    'fontSize', 'fontWeight', 'fontStyle', 'fontFamily', 'textColor',
+    'textAlign', 'borderWidth', 'borderStyle', 'borderColor',
+    'backgroundColor', 'opacity', 'rotation', 'autoSize', 'lineHeight',
+    'anchor', 'knee', 'leaderStyle', 'arrowHead',
+  ] as const;
+  const textOnlyFromSource = Boolean(
+    isUserEdited && sourceDict && sourceModel && hasNativeRichText(sourceDict, lib)
+    && (annotation.type === 'callout' || annotation.type === 'textbox')
+    && annotation.type === sourceModel.type
+    && JSON.stringify(annotation.rect) === JSON.stringify(sourceModel.rect)
+    && sourceStyles.every((key) =>
+      JSON.stringify(annotation.data[key]) === JSON.stringify(sourceModel.data[key]))
+    && annotation.data.nativeEditProvenance?.sourceRef === sourceModel.data.nativeSourceRef
+    && annotation.data.nativeEditProvenance?.fields.includes('text')
+    && typeof annotation.data.nativeEditProvenance.commandId === 'string'
+  );
+  if (textOnlyFromSource && sourceDict) {
+    for (const key of ROOT_APPEARANCE_KEYS) {
+      if (key === 'Contents') continue;
+      const original = sourceDict.get(lib.PDFName.of(key));
+      if (original) base[key] = original;
+      else delete base[key];
+    }
+  }
+
   const dict = doc.context.obj(base) as PDFDict;
   preservePassiveAnnotationEntries(
     sourceDict,
