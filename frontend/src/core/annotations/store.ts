@@ -121,6 +121,7 @@ function createAnnotationTransactionInput(
   state: AnnotationState,
   nextAnnotations: PdfAnnotation[],
   label = 'Edit annotations',
+  nextTombstones: NativeDeletionTombstone[] = state.nativeDeletionTombstones,
 ): RecordStateTransactionInput | null {
   const session = useSessionStore.getState();
   const hasDurableRevision = Boolean(
@@ -181,10 +182,12 @@ function createAnnotationTransactionInput(
     label,
     before: {
       annotations: state.annotations,
+      nativeDeletionTombstones: state.nativeDeletionTombstones,
       writer: writerHistoryState(writer),
     },
     after: {
       annotations: nextAnnotations,
+      nativeDeletionTombstones: nextTombstones,
       writer: writerHistoryState(writer),
     },
   };
@@ -194,11 +197,13 @@ function recordAnnotationMutation(
   state: AnnotationState,
   nextAnnotations: PdfAnnotation[],
   label = 'Edit annotations',
+  nextTombstones: NativeDeletionTombstone[] = state.nativeDeletionTombstones,
 ): void {
   const input = createAnnotationTransactionInput(
     state,
     nextAnnotations,
     label,
+    nextTombstones,
   );
   if (input) recordStateTransaction(input);
 }
@@ -450,6 +455,7 @@ export const useAnnotationStore =
             state,
             nextAnnotations,
             label,
+            next.nativeDeletionTombstones ?? state.nativeDeletionTombstones,
           );
           return next;
         });
@@ -472,6 +478,7 @@ export const useAnnotationStore =
             state,
             nextAnnotations,
             label,
+            next.nativeDeletionTombstones ?? state.nativeDeletionTombstones,
           );
         if (!transaction) return null;
 
