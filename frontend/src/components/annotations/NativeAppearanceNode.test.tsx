@@ -38,6 +38,11 @@ describe('native appearance visual with interactive overlay', () => {
     );
     const image = container.querySelector('[data-native-annotation-appearance]') as HTMLImageElement;
     const body = container.querySelector('[data-native-annotation-hit-target]') as HTMLDivElement;
+    const accessibleText = screen.getByText('Engineering callout');
+    expect(accessibleText).toHaveAttribute('data-native-annotation-text');
+    expect(accessibleText).toHaveStyle({ opacity: '0' });
+    fireEvent.doubleClick(accessibleText);
+    expect(handlers.onDoubleClick).toHaveBeenCalledOnce();
     expect(image).toBeTruthy();
     const root = container.querySelector('[data-annotation-type="callout"]') as HTMLDivElement;
     expect(root.style.left).toBe('50px');
@@ -54,7 +59,7 @@ describe('native appearance visual with interactive overlay', () => {
     expect(handlers.onTransformStart).toHaveBeenCalledWith(expect.anything(), 'move');
 
     fireEvent.doubleClick(body);
-    expect(handlers.onDoubleClick).toHaveBeenCalledOnce();
+    expect(handlers.onDoubleClick).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the visible AP aligned when an unmodified annotation is translated', () => {
