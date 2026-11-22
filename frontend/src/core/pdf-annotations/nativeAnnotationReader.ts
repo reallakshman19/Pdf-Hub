@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
+import type { NativeSourceRootEvidence } from './nativeCoverageAudit';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
@@ -23,6 +24,8 @@ export interface NativeAnnotationReadResult {
   annotations: PdfAnnotation[];
   importedCount: number;
   skippedCount: number;
+  /** Raw, un-reconciled PDF /Annots root evidence, including parser failures. */
+  sourceRoots?: NativeSourceRootEvidence[];
 }
 
 interface NativeRecord {
@@ -45,6 +48,7 @@ export async function readNativePdfAnnotations(
   const doc = await lib.PDFDocument.load(bytes);
 
   const annotations: PdfAnnotation[] = [];
+  const sourceRoots: NativeSourceRootEvidence[] = [];
   let skippedCount = 0;
 
   for (let pageIndex = 0; pageIndex < doc.getPageCount(); pageIndex += 1) {
@@ -66,6 +70,30 @@ export async function readNativePdfAnnotations(
     );
 
     for (const record of roots) {
+      const subtype = readName(record.dict, 'Subtype', lib) ?? 'Unknown';
+      // /Popup and reply/state nodes are not independent annotation roots.
+      // Keep unsupported types in the audit, but do not count them as lost
+      // parser results for Pdf-Hub's supported native subtype set.
+      const isPopup = subtype === 'Popup';
+      const flags = record.dict.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0;
+      const nativeType = readText(record.dict, 'PDFHubType', lib);
+      const evidence: NativeSourceRootEvidence = {
+        pageNumber: pageIndex + 1,
+        sourceRef: record.refKey ?? `direct:${record.index}`,
+        subtype,
+        visible: (Math.trunc(flags) & (1 | 2 | 32)) === 0,
+        supported: [
+          'Text', 'FreeText', 'Line', 'Stamp', 'Square', 'Circle',
+          'Polygon', 'PolyLine', 'Ink', 'Highlight', 'Underline',
+          'StrikeOut', 'Squiggly', 'Redact',
+        ].includes(subtype) || Boolean(nativeType && isAnnotationType(nativeType)),
+        hasAppearance: Boolean(
+          record.dict.lookupMaybe(lib.PDFName.of('AP'), lib.PDFDict)
+            ?.get(lib.PDFName.of('N')),
+        ),
+      };
+      if (!isPopup) sourceRoots.push(evidence);
+
       const parsed = parseRootAnnotation(
         record.dict,
         page,
@@ -160,6 +188,7 @@ export async function readNativePdfAnnotations(
         }
       }
 
+      evidence.parsedId = parsed.id;
       annotations.push(parsed);
       if (record.refKey) {
         rootByRef.set(record.refKey, parsed);
@@ -300,6 +329,7 @@ export async function readNativePdfAnnotations(
     annotations,
     importedCount: annotations.length,
     skippedCount,
+    sourceRoots,
   };
 }
 
