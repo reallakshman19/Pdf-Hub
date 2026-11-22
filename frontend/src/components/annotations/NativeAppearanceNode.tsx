@@ -77,6 +77,8 @@ export const NativeAppearanceNode: React.FC<Props> = ({
   return (
     <div
       data-native-annotation-id={annotation.id}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       style={{
         position: 'absolute',
         left: rect.x,
