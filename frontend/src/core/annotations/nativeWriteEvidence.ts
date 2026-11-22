@@ -5,15 +5,8 @@ import type { PdfAnnotation } from './types';
 import {
   issuedNativeMutations, nativeEditableFields,
   type NativeDeletionTombstone,
-  type NativeHistoryMutation, type NativeEditableField,
+  type NativeHistoryMutation, type NativeEditableField, type VerifiedNativeEditField,
 } from './nativeIntegrity';
-
-export interface VerifiedNativeEditField {
-  sourceRef: string;
-  pageNumber: number;
-  field: NativeEditableField;
-  value?: unknown;
-}
 
 export interface NativeWriteEvidence {
   verifiedCommandIds: string[];

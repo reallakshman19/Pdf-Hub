@@ -9,8 +9,7 @@ import {
 } from '@/core/admission/openPdf';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
-import { confirmedNativeDeletionCommandIds } from '@/core/annotations/nativeIntegrity';
-import { useHistoryStore } from '@/core/document-history/store';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useWriterStore } from '@/core/writer/store';
 import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
@@ -64,7 +63,7 @@ export const ToolbarFile: React.FC = () => {
     return workingBytes;
   };
 
-  const verifiedNativeAuthorization = () => {
+  const verifiedNativeAuthorization = async () => {
     const session = useSessionStore.getState();
     const state = useAnnotationStore.getState();
     if (!session.documentKey || state.hydratedDocumentKey !== session.documentKey
@@ -72,17 +71,26 @@ export const ToolbarFile: React.FC = () => {
       || state.nativeIntegrity.status !== 'COMPLETE') {
       throw new Error('Cannot safely save: native annotation import integrity is incomplete.');
     }
+    const sourceAnnotations = state.annotations;
+    const tombstones = state.nativeDeletionTombstones;
+    const evidence = await verifiedNativeWriteEvidence({
+      sourceRevision: session.documentKey,
+      baseBytes: requireWorkingPdf(),
+      annotations: sourceAnnotations,
+      tombstones,
+      journalStoreId: session.historyJournalStoreId,
+    });
+    if (useSessionStore.getState().documentKey !== session.documentKey
+      || useAnnotationStore.getState().annotations !== sourceAnnotations
+      || useAnnotationStore.getState().nativeDeletionTombstones !== tombstones
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') {
+      throw new Error('Native source or annotations changed during Save authorization.');
+    }
     return {
       sourceRevision: session.documentKey,
       sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
-      tombstones: state.nativeDeletionTombstones,
-      ...(state.nativeDeletionTombstones.length ? {
-        verifiedCommandIds: confirmedNativeDeletionCommandIds(
-          state.nativeDeletionTombstones,
-          useHistoryStore.getState().undoStack,
-          session.documentKey,
-        ),
-      } : {}),
+      tombstones,
+      ...evidence,
     };
   };
   const canRewriteNative = Boolean(workingBytes && hydratedDocumentKey
@@ -90,14 +98,16 @@ export const ToolbarFile: React.FC = () => {
     && nativeIntegrity.documentKey === hydratedDocumentKey
     && nativeIntegrity.status === 'COMPLETE');
 
-  const buildFlattenedPdf = async () =>
-    composeCommittedPdf({
+  const buildFlattenedPdf = async () => {
+    const nativeDeletionAuthorization = await verifiedNativeAuthorization();
+    return composeCommittedPdf({
       baseBytes: requireWorkingPdf(),
       annotations: useAnnotationStore.getState().annotations,
       writerElements: useWriterStore.getState().elements,
       replaceManagedAnnotations: true,
-      nativeDeletionAuthorization: verifiedNativeAuthorization(),
+      nativeDeletionAuthorization,
     });
+  };
 
   const handleOpen = async () => {
     try {
@@ -141,7 +151,7 @@ export const ToolbarFile: React.FC = () => {
         if (!session.workingBytes || !session.documentKey || !session.fileName) {
           throw new Error('No working PDF is loaded');
         }
-        const nativeDeletionAuthorization = verifiedNativeAuthorization();
+        const nativeDeletionAuthorization = await verifiedNativeAuthorization();
         const currentAnnotations = useAnnotationStore.getState().annotations;
         const currentWriterElements = useWriterStore.getState().elements;
         const { bytes } = await composeEditablePdf({

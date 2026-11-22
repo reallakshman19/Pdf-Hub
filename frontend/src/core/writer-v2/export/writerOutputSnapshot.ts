@@ -1,6 +1,5 @@
 import { useAnnotationStore } from '@/core/annotations/store';
-import { confirmedNativeDeletionCommandIds } from '@/core/annotations/nativeIntegrity';
-import { useHistoryStore } from '@/core/document-history/store';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import { isNativeAnnotationHydrationCurrent } from '@/core/annotations/sessionHydration';
 import { useWriterStore } from '@/core/writer/store';
 import { composeEditablePdf } from '@/core/document/commitPipeline';
@@ -68,6 +67,14 @@ export async function materializeWriterOutputSource(snapshot: WriterOutputSnapsh
   const baseBytes = snapshot.owner.document.session.workingBytes;
   if (!baseBytes) throw new Error('Cannot safely export without working PDF bytes.');
   const session = snapshot.owner.document.session;
+  const evidence = await verifiedNativeWriteEvidence({
+    sourceRevision: snapshot.fingerprint,
+    baseBytes,
+    annotations: snapshot.annotations,
+    tombstones: snapshot.nativeDeletionTombstones,
+    journalStoreId: session.historyJournalStoreId,
+  });
+  assertWriterOutputSnapshotCurrent(snapshot);
   const result = await composeEditablePdf({
     baseBytes,
     annotations: snapshot.annotations,
@@ -77,13 +84,7 @@ export async function materializeWriterOutputSource(snapshot: WriterOutputSnapsh
       sourceRevision: snapshot.fingerprint,
       sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
       tombstones: snapshot.nativeDeletionTombstones,
-      ...(snapshot.nativeDeletionTombstones.length ? {
-        verifiedCommandIds: confirmedNativeDeletionCommandIds(
-          snapshot.nativeDeletionTombstones,
-          useHistoryStore.getState().undoStack,
-          snapshot.fingerprint,
-        ),
-      } : {}),
+      ...evidence,
     },
   });
   assertWriterOutputSnapshotCurrent(snapshot);

@@ -162,6 +162,10 @@ describe('managed native annotation deletion', () => {
         sourceRevision: await FileAdapter.hashBytes(bytes),
         sourcePageIds: ['source-page-1'],
         tombstones: [],
+        verifiedEditFields: [{
+          pageNumber: unnamed.pageNumber, sourceRef: unnamed.data.nativeSourceRef!,
+          field: 'rect', value: edited.rect,
+        }],
       },
     });
     expect(await types(output.bytes)).toEqual(['/Link', '/Popup', '/Stamp', '/Stamp']);

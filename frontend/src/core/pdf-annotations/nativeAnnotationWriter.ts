@@ -2,7 +2,7 @@ import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   deletionKey, isValidNativeDeletionTombstone,
-  unprovenNativeEditFields,
+  nativeEditableFields,
   type NativeDeletionAuthorization,
 } from '@/core/annotations/nativeIntegrity';
 import type { ReviewMetadata, ReviewReply } from '@/core/review/types';
@@ -314,9 +314,21 @@ export async function writeNativePdfAnnotations(
           && options.nativeDeletionAuthorization.sourceRevision !== actualRevision) {
           throw new Error('Cannot safely edit native annotation from a different PDF revision.');
         }
-        const unproven = unprovenNativeEditFields(annotation, sourceModel, actualRevision);
+        // An annotation's own nativeEditProvenance is mutable cache metadata.
+        // Only issued before/after field transitions, verified independently
+        // from the canonical history, may change an imported PDF object.
+        const verified = options.nativeDeletionAuthorization.verifiedEditFields ?? [];
+        const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+        const unproven = nativeEditableFields.filter((field) => {
+          const original = field === 'rect' ? sourceModel.rect : sourceModel.data[field];
+          const changed = field === 'rect' ? annotation.rect : annotation.data[field];
+          return !equal(original, changed) && !verified.some((proof) =>
+            proof.pageNumber === annotation.pageNumber
+            && proof.sourceRef === sourceRef && proof.field === field
+            && equal(proof.value, changed));
+        });
         if (unproven.length) {
-          throw new Error(`Cannot safely edit native annotation without user provenance for: ${unproven.join(', ')}.`);
+          throw new Error(`Cannot safely edit native annotation without issued user history for: ${unproven.join(', ')}.`);
         }
       }
       const existingRoot = findManagedRootDict(annots, nativeName, lib, sourceRef);

@@ -35,6 +35,13 @@ export interface NativeEditProvenance {
   fields: NativeEditableField[];
 }
 
+export interface VerifiedNativeEditField {
+  sourceRef: string;
+  pageNumber: number;
+  field: NativeEditableField;
+  value?: unknown;
+}
+
 export interface NativeDeletionAuthorization {
   /** The source document fingerprint, before Writer element baking. */
   sourceRevision: string;
@@ -45,6 +52,8 @@ export interface NativeDeletionAuthorization {
    * recovery-sidecar tombstones. Required for destructive native deletion.
    */
   verifiedCommandIds?: readonly string[];
+  /** Source-field transitions certified against issued history, not sidecar provenance. */
+  verifiedEditFields?: readonly VerifiedNativeEditField[];
 }
 
 export const nativeEditableFields: readonly NativeEditableField[] = [
