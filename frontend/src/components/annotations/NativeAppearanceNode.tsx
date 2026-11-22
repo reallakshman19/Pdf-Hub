@@ -68,7 +68,6 @@ export const NativeAppearanceNode: React.FC<Props> = ({
 
   return (
     <div
-      data-annotation-type={annotation.type}
       data-native-annotation-id={annotation.id}
       style={{
         position: 'absolute',
@@ -135,6 +134,7 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         </svg>
       )}
       <div
+        data-annotation-type={annotation.type}
         data-native-annotation-hit-target
         style={{
           position: 'absolute',
