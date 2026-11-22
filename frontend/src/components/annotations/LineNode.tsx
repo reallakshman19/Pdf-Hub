@@ -22,6 +22,10 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
 
   return (
     <div
+      data-annotation-type="line"
+      data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       style={{
         position: 'absolute',
         left: rect.x,
