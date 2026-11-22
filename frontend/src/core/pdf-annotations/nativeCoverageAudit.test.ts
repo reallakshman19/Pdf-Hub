@@ -61,6 +61,10 @@ describe('native source → parser → IndexedDB/model coverage', () => {
     expect(report.sourceCount).toBe(2);
     expect(report.missingFromModel).toEqual([nativeAnnotationIdentity(b)]);
     expect(report.intentionalDeletions).toBe(0);
+    expect(report.ownership).toEqual([
+      { sourceKey: nativeAnnotationIdentity(a), status: 'RETAINED' },
+      { sourceKey: nativeAnnotationIdentity(b), status: 'UNRESOLVED' },
+    ]);
   });
 
   it('recognizes only an explicit command tombstone, not a legacy key baseline', () => {
@@ -78,6 +82,7 @@ describe('native source → parser → IndexedDB/model coverage', () => {
     );
     expect(report.missingFromModel).toEqual([]);
     expect(report.intentionalDeletions).toBe(1);
+    expect(report.ownership[1].status).toBe('EXPLICITLY_DELETED');
   });
 
   it('does not mistake a legacy nativeSourceKeys list for deletion authorization', () => {
@@ -86,6 +91,25 @@ describe('native source → parser → IndexedDB/model coverage', () => {
     const report = summarizeNativeAnnotationCoverage([], [a, b], [a], null);
     expect(report.missingFromModel).toEqual([nativeAnnotationIdentity(b)]);
     expect(report.intentionalDeletions).toBe(0);
+  });
+
+  it('classifies a revision-bound native text edit as EDITED rather than a missing root', () => {
+    const source = native('original', '17 0 R');
+    const edited: PdfAnnotation = {
+      ...source,
+      data: {
+        ...source.data,
+        text: 'Updated',
+        nativeEditProvenance: {
+          sourceRevision: 'sha256:source', sourceRef: '17 0 R',
+          commandId: 'edit-command', fields: ['text'],
+        },
+      },
+    };
+    const result = summarizeNativeAnnotationCoverage([], [source], [edited], null);
+    expect(result.ownership).toEqual([{
+      sourceKey: nativeAnnotationIdentity(source), status: 'EDITED',
+    }]);
   });
 
   it('never counts a copied overlay as the original source object', () => {
