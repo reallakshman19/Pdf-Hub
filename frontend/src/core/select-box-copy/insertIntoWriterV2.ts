@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createRichTextBoxElement } from '@/core/writer-v2/writerElementFactory';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
-import type { SelectBoxInsertMode } from './selectBoxCopyMode';
+import { resolveRecommendedMode, type SelectBoxInsertMode } from './selectBoxCopyMode';
 import type { SelectBoxCopyResult } from './types';
 
 export function createWriterElementFromSelectBoxCopy(input: {
@@ -13,7 +13,11 @@ export function createWriterElementFromSelectBoxCopy(input: {
   imageAssetId?: string;
 }): WriterElementV2 {
   const { result } = input;
-  const mode = input.mode ?? 'auto';
+  const requested = input.mode ?? 'auto';
+  const mode = requested === 'auto' ? resolveRecommendedMode(result) : requested;
+  if (mode !== 'image' && result.partialTextItems) throw new Error('Selection cuts native text runs. Expand selection or use image mode.');
+  if (mode === 'text' && !result.plainText.trim()) throw new Error('No native text to insert. Use image mode.');
+  if (mode === 'table' && !result.table) throw new Error('No table detected in this selection.');
 
   if (mode === 'image') {
     if (!input.imageAssetId) {
@@ -29,8 +33,7 @@ export function createWriterElementFromSelectBoxCopy(input: {
   }
 
   if (
-    (mode === 'auto' && result.table && result.table.confidence >= 0.75) ||
-    (mode === 'table' && result.table)
+    mode === 'table' && result.table
   ) {
     return createTableBoxFromSelection(input);
   }
@@ -39,7 +42,7 @@ export function createWriterElementFromSelectBoxCopy(input: {
     documentFingerprint: input.documentFingerprint,
     pageIndex: result.pageIndex,
     rect: result.pdfRect,
-    text: result.plainText || 'Copied selection',
+    text: result.plainText,
     zIndex: input.zIndex,
   });
 }

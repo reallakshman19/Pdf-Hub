@@ -6,8 +6,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import { createImageBoxElement } from '@/core/writer-v2/writerElementFactory';
-import { createWriterImageAssetFromFile } from '@/core/writer-v2/writerImageAsset';
+import { insertBlankWriterImage } from '@/core/writer-v2/writerImageBoxActions';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
 
 export interface WriterBlankImageInsertButtonProps {
   disabled?: boolean;
@@ -18,9 +18,6 @@ export const WriterBlankImageInsertButton: React.FC<WriterBlankImageInsertButton
 }) => {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const isMobile = useIsMobile();
-  const documentMeta = useWriterV2Store((state) => state.documentMeta);
-  const addWriterAssets = useWriterV2Store((state) => state.addWriterAssets);
-  const dispatchWriterCommand = useWriterV2Store((state) => state.dispatchWriterCommand);
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
   const setActiveMode = useEditorStore((state) => state.setActiveMode);
   const beginExportOperation = useSessionStore((state) => state.beginExportOperation);
@@ -28,63 +25,24 @@ export const WriterBlankImageInsertButton: React.FC<WriterBlankImageInsertButton
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
 
   const insertImage = async (file: File) => {
-    if (!documentMeta || documentMeta.mode !== 'blankDocument') {
-      failSaveOperation('Open or create a blank Writer document before inserting images.');
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      failSaveOperation('Only image files can be inserted into a blank Writer document.');
-      return;
-    }
-
+    const owner = captureDocumentMutationOwner();
+    const initialWriter = useWriterV2Store.getState();
+    const current = () => isDocumentMutationOwnerCurrent(owner)
+      && useWriterV2Store.getState().currentDocumentFingerprint === initialWriter.currentDocumentFingerprint
+      && useWriterV2Store.getState().documentMeta === initialWriter.documentMeta;
     try {
       beginExportOperation('Inserting image into blank Writer document...');
-
-      const now = new Date().toISOString();
-      const asset = await createWriterImageAssetFromFile(
-        file,
-        documentMeta.documentFingerprint,
-        now,
-      );
-      const currentState = useWriterV2Store.getState();
-      const maxZIndex = currentState.elements.reduce(
-        (max, element) => Math.max(max, element.style.zIndex),
-        0,
-      );
-      const usableWidth = documentMeta.pageSetup.width
-        - documentMeta.pageSetup.marginLeft
-        - documentMeta.pageSetup.marginRight;
-      const usableHeight = documentMeta.pageSetup.height
-        - documentMeta.pageSetup.marginTop
-        - documentMeta.pageSetup.marginBottom;
-      const width = Math.max(72, Math.min(320, usableWidth));
-      const height = Math.max(72, Math.min(220, usableHeight));
-      const element = createImageBoxElement({
-        documentFingerprint: documentMeta.documentFingerprint,
-        pageIndex: 0,
-        imageAssetId: asset.id,
-        assetIds: [asset.id],
-        rect: {
-          x: documentMeta.pageSetup.marginLeft,
-          y: documentMeta.pageSetup.height - documentMeta.pageSetup.marginTop - height,
-          width,
-          height,
-        },
-        text: file.name || 'Image',
-        zIndex: maxZIndex + 1,
-      });
-
-      addWriterAssets([asset]);
-      dispatchWriterCommand({
-        type: 'ADD_WRITER_ELEMENT',
-        element,
-      });
+      const result = await insertBlankWriterImage(file);
+      if (!current()) return;
+      if (!result.changed) {
+        failSaveOperation(result.message);
+        return;
+      }
       setActiveMode('write');
       setActiveWriterTool('select');
-      completeSaveOperation('Image inserted into blank Writer document.');
+      completeSaveOperation(result.message);
     } catch (error) {
-      failSaveOperation(error instanceof Error ? error.message : String(error));
+      if (current()) failSaveOperation(error instanceof Error ? error.message : String(error));
     } finally {
       if (inputRef.current) {
         inputRef.current.value = '';

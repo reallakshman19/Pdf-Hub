@@ -52,6 +52,7 @@ describe('writerRichBoxStyleActions', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('patches selected rich box style', async () => {

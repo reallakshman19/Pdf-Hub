@@ -43,6 +43,9 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   // "sparkles" icon also appears, at a different size, on the Generate mode
   // tab, so the class selector must disambiguate by size).
   await page.locator('button:has(svg.lucide-sparkles[class*="w-[17px]"])').click();
+  // Specialized workflows are intentionally collapsed in the integrated
+  // Automate UI; interact through the real user-visible entrypoint.
+  await page.getByText('Specialized workflows', { exact: true }).click();
 
   const recipeBuilder = page.getByTestId('ps-isonote-recipe-builder');
   await expect(recipeBuilder).toBeVisible({ timeout: 15_000 });
@@ -55,7 +58,15 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   // real scan result, not a mocked one.
   await expect(recipeBuilder).toContainText(/target occurrence/i, { timeout: 20_000 });
   await expect(recipeBuilder).not.toContainText(/no mapped ps numbers were found/i);
-
+  // Scan hits create a PREVIEW audit before annotation finishes.
+  // Export only after the real reopened-PDF verification has finished;
+  // otherwise Evidence ZIP correctly contains input.pdf, not annotated.pdf.
+  await expect(recipeBuilder).toContainText(
+    /Verified 1 of 1 PS marker\(s\) and expected ISONOTE text/i,
+    { timeout: 30_000 },
+  );
+  await expect(recipeBuilder).toContainText(/verified · 0 warning\(s\) · 0 error\(s\)/i);
+  await expect(recipeBuilder.getByRole('button', { name: 'Evidence ZIP' })).toBeEnabled();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     recipeBuilder.getByRole('button', { name: 'Evidence ZIP' }).click(),
@@ -68,6 +79,20 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   const zipBytes = await fs.readFile(zipPath as string);
   const zip = await JSZip.loadAsync(zipBytes);
 
+  // Preserve exact native output + evidence archive for an external parser.
+  const annotatedEntry = zip.file('annotated.pdf');
+  expect(annotatedEntry).toBeTruthy();
+  const annotatedBytes = await annotatedEntry!.async('uint8array');
+  const { createHash } = await import('node:crypto');
+  const annotatedSha256 = createHash('sha256').update(annotatedBytes).digest('hex');
+  expect(annotatedSha256).toMatch(/^[a-f0-9]{64}$/);
+  const evidenceDir = process.env.WP07_EVIDENCE_DIR;
+  if (evidenceDir) {
+    await fs.mkdir(evidenceDir, { recursive: true });
+    await fs.writeFile(`${evidenceDir}/ps-isonote-verified-${annotatedSha256}.pdf`, annotatedBytes);
+    await fs.writeFile(`${evidenceDir}/ps-isonote-evidence-${annotatedSha256}.zip`, zipBytes);
+  }
+
   // The evidence package must be a real, non-empty ZIP with at least one
   // audit/manifest entry describing the run.
   const fileNames = Object.keys(zip.files).filter((name) => !zip.files[name].dir);
@@ -79,4 +104,16 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
   const manifestText = await zip.file(manifestName as string)?.async('string');
   expect(manifestText).toBeTruthy();
   expect(manifestText).toContain('11167');
+  const audit = JSON.parse(manifestText as string) as { phase?: string; verification?: { verified?: boolean } };
+  expect(audit.phase).toBe('verified');
+  expect(audit.verification?.verified).toBe(true);
+  // Assert durable audit semantics from the downloaded manifest and UI,
+  // and assert package-created status after the evidence export completes.
+  await expect(recipeBuilder).toContainText(/verified · 0 warning\(s\) · 0 error\(s\)/i);
+  await expect(recipeBuilder).toContainText(/Markers 1\/1/i);
+  await expect(recipeBuilder).toContainText(
+    /Created checksummed evidence package with \d+ bound artifact\(s\)/i,
+    { timeout: 20_000 },
+  );
+  console.log(`WP07_PS_ISONOTE_NATIVE phase=${audit.phase} verified=${audit.verification?.verified} output_sha256=${annotatedSha256}`);
 });

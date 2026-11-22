@@ -21,6 +21,7 @@ describe('writerRichToolbarActions', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('opens main rich authoring box', async () => {
@@ -38,7 +39,7 @@ describe('writerRichToolbarActions', () => {
   it('inserts stamp snippet into rich box', async () => {
     const result = await runWriterRichToolbarAction('stampSnippet');
     const state = useWriterV2Store.getState();
-    const pending = useRichEditorCommandQueue.getState().pending;
+    const pending = useRichEditorCommandQueue.getState().pending.map(item => item.command);
 
     expect(result.changed).toBe(true);
     expect(state.elements).toHaveLength(1);
@@ -69,7 +70,7 @@ describe('writerRichToolbarActions', () => {
 
   it('inserts note snippet into rich box', async () => {
     const result = await runWriterRichToolbarAction('noteSnippet');
-    const pending = useRichEditorCommandQueue.getState().pending;
+    const pending = useRichEditorCommandQueue.getState().pending.map(item => item.command);
 
     expect(result.changed).toBe(true);
     expect(pending[0]).toMatchObject({

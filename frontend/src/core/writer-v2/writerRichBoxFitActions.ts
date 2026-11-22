@@ -1,5 +1,6 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { useSessionStore } from '@/core/session/store';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
 import { editorStateToPdfBlocks } from './export/richTextRenderer';
 import { estimateRichContentMetrics } from './export/richContentMetrics';
 import { getActiveRichBoxStyleTarget } from './writerRichBoxStyleActions';
@@ -35,10 +36,11 @@ const FITTABLE_TYPES = new Set<WriterElementV2['type']>([
 ]);
 
 export async function fitActiveRichBoxToContent(): Promise<WriterRichBoxFitResult> {
+  const owner = captureDocumentMutationOwner();
   const target = getActiveRichBoxStyleTarget();
   const id = target?.id ?? await ensureRichTextEditing();
 
-  if (!id) {
+  if (!id || !isDocumentMutationOwnerCurrent(owner)) {
     return {
       changed: false,
       id: null,
@@ -66,6 +68,7 @@ export async function fitActiveRichBoxToContent(): Promise<WriterRichBoxFitResul
     element,
     fit.nextY,
     fit.nextHeight,
+    owner,
   );
 
   return {
@@ -82,6 +85,7 @@ export async function fitActiveRichBoxToContent(): Promise<WriterRichBoxFitResul
 export async function fitRichBoxToContentById(
   id: string,
 ): Promise<WriterRichBoxFitResult> {
+  const owner = captureDocumentMutationOwner();
   const store = useWriterV2Store.getState();
   const session = useSessionStore.getState();
   const sourceBytes = session.workingBytes ?? session.originalBytes;
@@ -110,6 +114,7 @@ export async function fitRichBoxToContentById(
     element,
     fit.nextY,
     fit.nextHeight,
+    owner,
   );
 
   return {
@@ -127,7 +132,9 @@ export async function fitRichBoxesToContentByIds(
   ids: string[],
 ): Promise<WriterRichBoxBulkFitResult> {
   const uniqueIds = [...new Set(ids.filter(Boolean))];
-  const session = useSessionStore.getState();
+  const owner = captureDocumentMutationOwner();
+  const targets = new Map(useWriterV2Store.getState().elements.filter(item => uniqueIds.includes(item.id)).map(item => [item.id, item]));
+  const session = owner.session;
   const sourceBytes = session.workingBytes ?? session.originalBytes;
 
   if (uniqueIds.length === 0) {
@@ -156,10 +163,9 @@ export async function fitRichBoxesToContentByIds(
   let skippedCount = 0;
 
   for (const id of uniqueIds) {
-    const latest = useWriterV2Store.getState();
-    const element = latest.elements.find((item) => item.id === id);
+    const element = targets.get(id);
 
-    if (!element || !isFittableRichBox(element)) {
+    if (!isDocumentMutationOwnerCurrent(owner) || !element || !isFittableRichBox(element)) {
       skippedCount += 1;
       continue;
     }
@@ -169,6 +175,7 @@ export async function fitRichBoxesToContentByIds(
       element,
       fit.nextY,
       fit.nextHeight,
+      owner,
     );
 
     if (result.changed) {
@@ -236,20 +243,16 @@ async function applyRichBoxFit(
   element: WriterElementV2,
   nextY: number,
   nextHeight: number,
+  owner: DocumentMutationOwner,
 ) {
-  return useWriterV2Store
-    .getState()
-    .dispatchWriterCommandDurable({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id: element.id,
-      patch: {
-        rect: {
-          ...element.rect,
-          y: nextY,
-          height: nextHeight,
-        },
-      },
-    });
+  return useWriterV2Store.getState().dispatchWriterCommandDurableLatest(state => {
+    const current = state.elements.find(item => item.id === element.id);
+    // Fitting is based on content, style, page and geometry captured before PDF admission.
+    // Reject changed targets rather than overwriting newer geometry with stale metrics.
+    if (!isDocumentMutationOwnerCurrent(owner) || state.currentDocumentFingerprint !== element.documentFingerprint
+      || !current || !isFittableRichBox(current) || JSON.stringify(current) !== JSON.stringify(element)) return null;
+    return { type: 'UPDATE_WRITER_ELEMENT', id: element.id, patch: { rect: { ...element.rect, y: nextY, height: nextHeight } } };
+  });
 }
 
 function isFittableRichBox(element: WriterElementV2): boolean {

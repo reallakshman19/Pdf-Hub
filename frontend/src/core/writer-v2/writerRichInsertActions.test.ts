@@ -46,6 +46,7 @@ describe('writerRichInsertActions', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('inserts table command into a newly opened rich box', async () => {
@@ -56,7 +57,7 @@ describe('writerRichInsertActions', () => {
     expect(state.elements).toHaveLength(1);
     expect(state.elements[0].type).toBe('richTextBox');
     expect(state.editingId).toBe(state.elements[0].id);
-    expect(useRichEditorCommandQueue.getState().pending).toEqual([
+    expect(useRichEditorCommandQueue.getState().pending.map(item => item.command)).toEqual([
       {
         type: 'insertTable',
         rows: 2,
@@ -68,7 +69,7 @@ describe('writerRichInsertActions', () => {
   it('clamps table dimensions', async () => {
     await insertRichTableIntoActiveBox(200, 100);
 
-    expect(useRichEditorCommandQueue.getState().pending).toEqual([
+    expect(useRichEditorCommandQueue.getState().pending.map(item => item.command)).toEqual([
       {
         type: 'insertTable',
         rows: 50,
@@ -77,7 +78,7 @@ describe('writerRichInsertActions', () => {
     ]);
   });
 
-  it('inserts image command and stores asset', async () => {
+  it('queues admitted image without publishing the asset before editor save', async () => {
     const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
     const file = new File([bytes], 'tiny.png', {
       type: 'image/png',
@@ -85,10 +86,10 @@ describe('writerRichInsertActions', () => {
 
     const result = await insertImageFileIntoRichBox(file);
     const state = useWriterV2Store.getState();
-    const pending = useRichEditorCommandQueue.getState().pending;
+    const pending = useRichEditorCommandQueue.getState().pending.map(item => item.command);
 
     expect(result.changed).toBe(true);
-    expect(state.assetRecords).toHaveLength(1);
+    expect(state.assetRecords).toHaveLength(0);
     expect(state.elements).toHaveLength(1);
     expect(state.elements[0].type).toBe('richTextBox');
     expect(pending).toHaveLength(1);
@@ -96,6 +97,7 @@ describe('writerRichInsertActions', () => {
       type: 'insertImage',
       altText: 'tiny.png',
       caption: 'tiny.png',
+      asset: expect.objectContaining({ documentFingerprint: 'doc-1', dataUrl: expect.stringContaining('data:image/png;base64,') }),
     });
   });
 
@@ -106,6 +108,6 @@ describe('writerRichInsertActions', () => {
 
     expect(result.changed).toBe(false);
     expect(result.message).toMatch(/open a pdf/i);
-    expect(useRichEditorCommandQueue.getState().pending).toEqual([]);
+    expect(useRichEditorCommandQueue.getState().pending.map(item => item.command)).toEqual([]);
   });
 });

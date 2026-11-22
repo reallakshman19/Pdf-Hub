@@ -42,3 +42,19 @@ export function itemToRect(item: {
     height: item.height,
   };
 }
+
+/** Clip to the visible page, never fabricate a region beyond its edges. */
+export function clipViewportRect(rect: SelectBoxViewportRect, width: number, height: number): SelectBoxViewportRect {
+  if (![rect.x, rect.y, rect.width, rect.height, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+    throw new Error('Invalid Select Box Copy geometry.');
+  }
+  const r = normalizeViewportRect(rect);
+  const x = Math.max(0, Math.min(width, r.x));
+  const y = Math.max(0, Math.min(height, r.y));
+  return { x, y, width: Math.max(0, Math.min(width, r.x + r.width) - x), height: Math.max(0, Math.min(height, r.y + r.height) - y) };
+}
+
+export function rectContains(outer: SelectBoxViewportRect, inner: SelectBoxViewportRect): boolean {
+  const a = normalizeViewportRect(outer), b = normalizeViewportRect(inner);
+  return b.x >= a.x && b.y >= a.y && b.x + b.width <= a.x + a.width && b.y + b.height <= a.y + a.height;
+}

@@ -1,5 +1,6 @@
 import React from 'react';
-import { useSessionStore } from '@/core/session/store';
+import { getDocumentSessionGeneration, useSessionStore } from '@/core/session/store';
+import { hasPublishedWriterProjectForSession } from '@/core/writer-v2/persistence/writerProjectPublication';
 import {
   discardWriterDraftForCurrentDocument,
   loadWriterDraftForCurrentDocument,
@@ -13,6 +14,7 @@ import {
 export const WriterRecoveryBanner: React.FC = () => {
   const documentKey = useSessionStore((state) => state.documentKey);
   const fileName = useSessionStore((state) => state.fileName);
+  const generation = useSessionStore(() => getDocumentSessionGeneration());
 
   const [draft, setDraft] = React.useState<{
     documentFingerprint: string;
@@ -27,7 +29,7 @@ export const WriterRecoveryBanner: React.FC = () => {
     let cancelled = false;
 
     async function checkDraft() {
-      if (!documentKey) {
+      if (!documentKey || hasPublishedWriterProjectForSession(documentKey)) {
         setDraft(null);
         return;
       }
@@ -58,9 +60,9 @@ export const WriterRecoveryBanner: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [documentKey, dismissedForKey]);
+  }, [documentKey, generation, dismissedForKey]);
 
-  if (!draft || !documentKey) {
+  if (!draft || !documentKey || draft.documentFingerprint !== documentKey || hasPublishedWriterProjectForSession(documentKey)) {
     return null;
   }
 

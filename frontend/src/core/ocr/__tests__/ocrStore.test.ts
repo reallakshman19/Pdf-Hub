@@ -40,7 +40,7 @@ describe('ocrStore', () => {
     const state = useOcrStore.getState();
 
     expect(state.documentFingerprint).toBe(document.documentFingerprint);
-    expect(state.result).toBe(document);
+    expect(state.result).toEqual(document);
     expect(state.correctedResult).not.toBeNull();
     expect(state.searchIndex).not.toBeNull();
     expect(state.confidenceSummary?.totalWords).toBeGreaterThan(0);

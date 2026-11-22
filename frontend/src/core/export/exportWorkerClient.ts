@@ -367,9 +367,10 @@ export function createDefaultExportWorkerClient(
   } = {},
 ): ExportWorkerClient {
   return new ExportWorkerClient({
-    workerFactory: createBrowserExportWorkerFactory(
+    workerFactory: () => new Worker(
       new URL('./exportWorkerEntrypoint.ts', import.meta.url),
-    ),
+      { type: 'module' },
+    ) as unknown as ExportWorkerLike,
     requestTimeoutMs: options.requestTimeoutMs,
   });
 }

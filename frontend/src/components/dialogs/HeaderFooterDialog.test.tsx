@@ -10,9 +10,15 @@ import { createPageGraph } from '@/core/pages/pageGraph';
 import { withPageLabelRanges } from '@/core/pages/pageLabels';
 import type { PageNode } from '@/core/pages/types';
 import { HeaderFooterDialog } from './HeaderFooterDialog';
+import { useSessionStore } from '@/core/session/store';
+import { renderHeaderFooterNativePreview } from '@/core/header-footer/nativePreview';
 
 const imageAdmissionMocks = vi.hoisted(() => ({
   admitHeaderFooterImageFile: vi.fn(),
+}));
+
+vi.mock('@/core/header-footer/nativePreview', () => ({
+  renderHeaderFooterNativePreview: vi.fn(),
 }));
 
 vi.mock('@/core/header-footer/imageAdmission', () => ({
@@ -50,6 +56,7 @@ function graph() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useSessionStore.getState().clearDocument();
 });
 
 describe('HeaderFooterDialog', () => {
@@ -328,6 +335,77 @@ describe('HeaderFooterDialog', () => {
     expect(
       screen.getByRole('textbox', { name: 'Footer center' }),
     ).toHaveValue('');
+  });
+
+  it('renders actual native pixels on demand and clears stale pixels on edit', async () => {
+    const pageGraph = graph();
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc',
+      fileName: 'report.pdf',
+      bytes: new Uint8Array([1, 2, 3]),
+      pageCount: 4,
+      pageGraph,
+    });
+    vi.mocked(renderHeaderFooterNativePreview).mockResolvedValue({
+      dataUrl: 'data:image/png;base64,ABC', warnings: [],
+    });
+    render(<HeaderFooterDialog isOpen pageGraph={pageGraph}
+      currentPageId="body-1" selectedPageIds={[]} fileName="report.pdf"
+      onClose={vi.fn()} onApply={vi.fn().mockResolvedValue(true)} />);
+    expect(screen.queryByTestId('header-footer-native-image')).toBeNull();
+    fireEvent.click(screen.getByTestId('header-footer-render-native'));
+    await waitFor(() => {
+      expect(renderHeaderFooterNativePreview).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('header-footer-native-image'))
+        .toHaveAttribute('src', 'data:image/png;base64,ABC');
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Footer right' }), {
+      target: { value: 'Updated footer' },
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId('header-footer-native-image')).toBeNull();
+    });
+    expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('applies the preview date and time while keeping page tokens dynamic', async () => {
+    vi.setSystemTime(new Date('2026-11-19T23:59:59Z'));
+    const onApply = vi.fn().mockResolvedValue(true);
+    try {
+      render(<HeaderFooterDialog isOpen pageGraph={graph()}
+        currentPageId="body-1" selectedPageIds={[]} fileName="report.pdf"
+        onClose={vi.fn()} onApply={onApply} />);
+      fireEvent.change(screen.getByRole('textbox', { name: 'Footer right' }), {
+        target: { value: '{{ date }} {{time}} - {{physicalPage}}' },
+      });
+      vi.setSystemTime(new Date('2026-11-20T00:00:01Z'));
+      fireEvent.click(screen.getByRole('button', { name: 'Apply header & footer' }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledWith(expect.objectContaining({
+        rules: [expect.objectContaining({
+          footer: { right: { kind: 'text', template: '2026-11-19 23:59:59Z - {{physicalPage}}' } },
+        })],
+      }), undefined));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows native writer errors rather than misleading schematic output', async () => {
+    const pageGraph = graph();
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc', fileName: 'report.pdf',
+      bytes: new Uint8Array([1, 2, 3]), pageCount: 4, pageGraph,
+    });
+    vi.mocked(renderHeaderFooterNativePreview).mockRejectedValueOnce(
+      new Error('Header/footer header slots overlap'),
+    );
+    render(<HeaderFooterDialog isOpen pageGraph={pageGraph}
+      currentPageId="body-1" selectedPageIds={[]} fileName="report.pdf"
+      onClose={vi.fn()} onApply={vi.fn().mockResolvedValue(true)} />);
+    fireEvent.click(screen.getByTestId('header-footer-render-native'));
+    expect(await screen.findByText('Header/footer header slots overlap')).toBeTruthy();
+    expect(screen.queryByTestId('header-footer-native-image')).toBeNull();
   });
 
 });

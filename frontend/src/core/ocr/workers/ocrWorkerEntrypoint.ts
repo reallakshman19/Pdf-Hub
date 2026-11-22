@@ -4,8 +4,10 @@ import type {
   OcrEngineRegistry,
 } from '../engines/ocrEngineContract';
 import {
+  createOcrEngineRegistry,
   defaultOcrEngineRegistry,
 } from '../engines/ocrEngineRegistry';
+import { runOcrJob } from '../ocrJobRunner';
 import {
   getOcrProfile,
 } from '../ocrProfiles';
@@ -239,6 +241,7 @@ export async function recognizePagesWithProgress(input: {
   postProgress: (progress: OcrWorkerProgressPayload) => void;
 }): Promise<OcrDocumentResult> {
   const profile = getOcrProfile(input.payload.profileId);
+  const registry = createOcrEngineRegistry([input.engine]);
   const pages: OcrPageResult[] = [];
 
   input.postProgress({
@@ -259,12 +262,23 @@ export async function recognizePagesWithProgress(input: {
       message: `Recognizing page ${page.pageIndex + 1}.`,
     });
 
-    const pageResult = await input.engine.recognize({
-      documentFingerprint: input.payload.documentFingerprint,
-      profile,
-      pages: [page],
-      forceOcr: input.payload.forceOcr,
-    } as OcrEngineInput);
+    const pageResult = page.nativePageResult && !input.payload.forceOcr
+      ? (await runOcrJob({
+          id: `worker-page-${page.pageIndex}`,
+          documentFingerprint: input.payload.documentFingerprint,
+          engineId: input.engine.id,
+          requestedProfileId: input.payload.profileId,
+          pages: [page],
+          registry,
+          signal: input.signal,
+        })).result
+      : await input.engine.recognize({
+          documentFingerprint: input.payload.documentFingerprint,
+          profile,
+          pages: [page],
+          abortSignal: input.signal,
+          forceOcr: input.payload.forceOcr,
+        } as OcrEngineInput);
 
     throwIfAborted(input.signal);
 

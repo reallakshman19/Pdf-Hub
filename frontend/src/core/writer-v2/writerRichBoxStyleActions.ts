@@ -1,6 +1,7 @@
 import type { WriterElementV2 } from './types';
 import { ensureRichTextEditing } from './ensureRichTextEditing';
 import { useWriterV2Store } from './writerV2Store';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
 
 export type WriterRichBoxStylePresetId =
   | 'plainWhite'
@@ -100,9 +101,15 @@ export interface WriterRichBoxStyleResult {
 export async function patchActiveRichBoxStyle(
   stylePatch: Partial<WriterElementV2['style']>,
 ): Promise<WriterRichBoxStyleResult> {
+  const owner = captureDocumentMutationOwner();
+  const initial = useWriterV2Store.getState();
+  if (initial.documentMeta?.mode === 'blankDocument' ? !!owner.session.documentKey
+    : !owner.session.documentKey || initial.currentDocumentFingerprint !== owner.session.documentKey) {
+    return { changed: false, id: null, message: 'Writer style target is not owned by the active document.' };
+  }
   const id = await ensureRichBoxStyleTarget();
 
-  if (!id) {
+  if (!id || !isDocumentMutationOwnerCurrent(owner)) {
     return {
       changed: false,
       id: null,
@@ -122,15 +129,11 @@ export async function patchActiveRichBoxStyle(
   }
 
   const result =
-    await store.dispatchWriterCommandDurable({
-      type: 'UPDATE_WRITER_ELEMENT',
-      id,
-      patch: {
-        style: {
-          ...element.style,
-          ...stylePatch,
-        },
-      },
+    await store.dispatchWriterCommandDurableLatest(state => {
+      const current = state.elements.find(item => item.id === id);
+      if (!isDocumentMutationOwnerCurrent(owner) || state.currentDocumentFingerprint !== element.documentFingerprint
+        || !current || current.createdAt !== element.createdAt || current.locked || current.hidden) return null;
+      return { type: 'UPDATE_WRITER_ELEMENT', id, patch: { style: { ...current.style, ...stylePatch } } };
     });
 
   return {

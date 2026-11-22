@@ -324,9 +324,10 @@ export function createDefaultOcrWorkerClient(
   } = {},
 ): OcrWorkerClient {
   return new OcrWorkerClient({
-    workerFactory: createBrowserOcrWorkerFactory(
+    workerFactory: () => new Worker(
       new URL('./ocrWorkerEntrypoint.ts', import.meta.url),
-    ),
+      { type: 'module' },
+    ) as unknown as OcrWorkerLike,
     requestTimeoutMs: options.requestTimeoutMs,
   });
 }

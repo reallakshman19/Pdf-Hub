@@ -95,6 +95,33 @@ describe('ocrFinalIntegration', () => {
     expect(batchStatuses.length).toBeGreaterThan(0);
   });
 
+  it('recognizes all requested pages using the ten-page batch policy without a caller override', async () => {
+    const pageIndexes = Array.from({ length: 11 }, (_, index) => index);
+    const result = await runFinalOcrIntegrationJob({
+      id: 'final-ten-page-batch',
+      documentFingerprint: 'doc-final-batch',
+      engineId: 'mock',
+      requestedProfileId: 'clean-scan',
+      mode: 'worker-ocr',
+      capabilities: {
+        workerSupported: true,
+        ocrWorkerSupported: true,
+        rasterWorkerSupported: true,
+      },
+      explicitPages: createPlaceholderOcrPageInputs(pageIndexes),
+      requestedPageIndexes: pageIndexes,
+      totalPages: pageIndexes.length,
+      policy: createOcrExecutionPolicy({ preset: 'ten-page-batch' }),
+      workerClient: makeWorkerClient(),
+    });
+
+    expect(result.batchPlan.batchTasks.map((task) => task.pageIndexes)).toEqual([
+      pageIndexes.slice(0, 10),
+      [10],
+    ]);
+    expect(result.result.pages.map((page) => page.pageIndex)).toEqual(pageIndexes);
+  });
+
   it('runs final integration job with worker raster and worker OCR', async () => {
     const rasterClient = {
       async rasterizePages(payload) {

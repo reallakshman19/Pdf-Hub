@@ -14,6 +14,9 @@ import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import {
   dispatchDurableWriterUiCommand,
 } from '@/core/writer-v2/durableWriterUiDispatch';
+import { saveRichEditorPayload } from '@/core/writer-v2/editor/richEditorOwnership';
+import { isDocumentSessionOwnerCurrent } from '@/core/session/mutationOwner';
+import { useSessionStore } from '@/core/session/store';
 import { WriterCalloutElement } from './WriterCalloutElement';
 import { WriterRichElementBox } from './WriterRichElementBox';
 import type { ResizeHandle } from './WriterSelectionHandles';
@@ -280,66 +283,22 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
   const handleSave = React.useCallback(async (
     payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload,
   ) => {
-    const store = useWriterV2Store.getState();
-    const previousDirty = store.dirty;
-    const addedAssetIds =
-      payload.assets?.map((asset) => asset.id)
-      ?? [];
-
-    if (payload.assets?.length) {
-      store.addWriterAssets(payload.assets);
-    }
-
+    const owner = payload.editOwner;
+    if (!owner || owner.target.id !== element.id) return false;
+    const current = () => isDocumentSessionOwnerCurrent(owner.document)
+      && useWriterV2Store.getState().currentDocumentFingerprint === owner.target.documentFingerprint;
     try {
-      const result =
-        await dispatchDurableWriterUiCommand(
-          {
-            type: 'UPDATE_WRITER_ELEMENT',
-            id: element.id,
-            now: new Date().toISOString(),
-            patch: {
-              editorStateJson:
-                payload.editorStateJson,
-              plainText: payload.plainText,
-              assetIds:
-                payload.assets?.length
-                  ? [
-                      ...(element.assetIds ?? []),
-                      ...addedAssetIds,
-                    ]
-                  : element.assetIds,
-            },
-          },
-          'WriterElementBox editor save',
-        );
-
-      if (!result.changed && addedAssetIds.length > 0) {
-        for (const assetId of addedAssetIds) {
-          useWriterV2Store
-            .getState()
-            .removeWriterAsset(assetId);
-        }
-        useWriterV2Store.setState({
-          dirty: previousDirty,
-        });
+      const result = await saveRichEditorPayload(owner, payload);
+      if (current()) {
+        if (result.accepted && useWriterV2Store.getState().editingId === element.id) endEditingWriterElement();
+        else if (!result.accepted) useSessionStore.getState().failSaveOperation(result.reason);
       }
-
-      endEditingWriterElement();
-    } catch {
-      for (const assetId of addedAssetIds) {
-        useWriterV2Store
-          .getState()
-          .removeWriterAsset(assetId);
-      }
-      useWriterV2Store.setState({
-        dirty: previousDirty,
-      });
+      return result.accepted;
+    } catch (error) {
+      if (current()) useSessionStore.getState().failSaveOperation(error instanceof Error ? error.message : String(error));
+      return false;
     }
-  }, [
-    element.id,
-    element.assetIds,
-    endEditingWriterElement,
-  ]);
+  }, [element.id, endEditingWriterElement]);
 
   const commonProps = {
     element,

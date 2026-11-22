@@ -7,9 +7,19 @@ import {
 } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import type { WriterElementV2 } from './types';
+import { useHistoryStore } from '@/core/document-history/store';
+import { applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from './writerV2Store';
 import { consolidateCurrentPageLegacyWriterObjects } from './writerLegacyObjectConsolidation';
+
+const persistenceMocks = vi.hoisted(() => ({
+  saveAnnotations: vi.fn(),
+}));
+
+vi.mock('@/core/annotations/persistence', () => ({
+  saveAnnotations: persistenceMocks.saveAnnotations,
+}));
 
 async function samplePdf(): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -51,6 +61,7 @@ function legacyElement(
 describe('writerLegacyObjectConsolidation', () => {
   beforeEach(async () => {
     useWriterV2Store.getState().clearWriterV2();
+    useHistoryStore.setState({ undoStack: [], redoStack: [] });
     useSessionStore.getState().openDocument({
       documentKey: 'doc-1',
       fileName: 'sample.pdf',
@@ -90,11 +101,11 @@ describe('writerLegacyObjectConsolidation', () => {
     expect(rich?.review?.category).toBe('engineering');
     expect(state.elements.filter((element) => element.id.startsWith('legacy-')).every((element) => element.hidden)).toBe(true);
     expect(state.editingId).toBe(rich?.id);
-    expect(state.undoStack).toHaveLength(1);
+    expect(useHistoryStore.getState().undoStack).toHaveLength(1);
 
-    const undo = state.undoWriter();
+    const undoOk = await applyUndo();
 
-    expect(undo.changed).toBe(true);
+    expect(undoOk).toBe(true);
     expect(
       useWriterV2Store
         .getState()

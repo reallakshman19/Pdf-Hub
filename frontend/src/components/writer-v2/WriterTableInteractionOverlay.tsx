@@ -15,9 +15,9 @@ import {
 import {
   buildWriterTableDragResizeCommand,
 } from '@/core/writer-v2/table-pro/writerTableDragResize';
-import {
-  dispatchDurableWriterUiCommand,
-} from '@/core/writer-v2/durableWriterUiDispatch';
+import { dispatchDurableWriterHelperLatest } from '@/core/writer-v2/durableWriterHelperDispatch';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
+import type { WriterV2StoreState } from '@/core/writer-v2/writerV2Store';
 
 export interface WriterTableInteractionOverlayProps {
   element: WriterElementV2;
@@ -52,20 +52,30 @@ type DragState =
       type: 'resize-column';
       pointerId: number;
       documentFingerprint: string;
+      owner: DocumentMutationOwner;
+      initialElement: WriterElementV2;
+      initialMeta: WriterV2StoreState['documentMeta'];
       columnIds: string[];
       columnIndex: number;
       startX: number;
       initialWidths: number[];
+      initialColumnWeights: (number | undefined)[];
+      viewportScale: number;
       previewX: number;
     }
   | {
       type: 'resize-row';
       pointerId: number;
       documentFingerprint: string;
+      owner: DocumentMutationOwner;
+      initialElement: WriterElementV2;
+      initialMeta: WriterV2StoreState['documentMeta'];
       rowId: string | undefined;
       rowIndex: number;
       startY: number;
       initialHeight: number;
+      initialRowHeight?: number;
+      viewportScale: number;
       previewY: number;
     };
 
@@ -114,11 +124,16 @@ export const WriterTableInteractionOverlay: React.FC<
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    useWriterV2Store.getState().dispatchWriterCommand({
+    const before = useWriterV2Store.getState();
+    if (!before.elements.includes(element) || before.currentDocumentFingerprint !== element.documentFingerprint) return;
+    before.dispatchWriterCommand({
       type: 'SET_ACTIVE_WRITER_ELEMENT',
       id: element.id,
     });
 
+    const selectedState = useWriterV2Store.getState();
+    const selectedElement = selectedState.elements.find((item) => item.id === element.id);
+    if (!selectedElement || selectedElement.documentFingerprint !== element.documentFingerprint) return;
     const point = getLocalPoint(event);
     const resizeHit = hitTestWriterTableResizeHandle(layout, point);
 
@@ -129,10 +144,15 @@ export const WriterTableInteractionOverlay: React.FC<
         type: 'resize-column',
         pointerId: event.pointerId,
         documentFingerprint: element.documentFingerprint,
+        owner: captureDocumentMutationOwner(),
+        initialElement: selectedElement,
+        initialMeta: selectedState.documentMeta,
         columnIds: element.tableData?.columns.map((column) => column.id) ?? [],
         columnIndex: resizeHit.index,
         startX: point.x,
-        initialWidths: [...layout.columnWidths],
+        initialWidths: layout.columnWidths.map((width) => width / (rect.width / selectedElement.rect.width)),
+        viewportScale: rect.width / selectedElement.rect.width,
+        initialColumnWeights: element.tableData?.columns.map((column) => column.width) ?? [],
         previewX: point.x,
       });
       return;
@@ -145,10 +165,15 @@ export const WriterTableInteractionOverlay: React.FC<
         type: 'resize-row',
         pointerId: event.pointerId,
         documentFingerprint: element.documentFingerprint,
+        owner: captureDocumentMutationOwner(),
+        initialElement: selectedElement,
+        initialMeta: selectedState.documentMeta,
         rowId: row?.id,
         rowIndex: resizeHit.index,
         startY: point.y,
-        initialHeight: row?.height ?? layout.rowHeight,
+        initialHeight: row?.height ?? layout.rowHeight / (rect.height / selectedElement.rect.height),
+        viewportScale: rect.height / selectedElement.rect.height,
+        initialRowHeight: row?.height,
         previewY: point.y,
       });
       return;
@@ -260,23 +285,27 @@ export const WriterTableInteractionOverlay: React.FC<
       drag.type === 'resize-column'
       || drag.type === 'resize-row'
     ) {
+      const currentScale = drag.type === 'resize-column'
+        ? rect.width / drag.initialElement.rect.width
+        : rect.height / drag.initialElement.rect.height;
+      if (!Number.isFinite(currentScale) || Math.abs(currentScale - drag.viewportScale) > 0.000001) {
+        releasePointer(event);
+        return;
+      }
       const point = getLocalPoint(event);
-      const result =
-        buildWriterTableDragResizeCommand({
+      const buildLatest = (state: WriterV2StoreState) => {
+        if (!isDocumentMutationOwnerCurrent(drag.owner)
+          || state.documentMeta !== drag.initialMeta
+          || !state.elements.includes(drag.initialElement)) return null;
+        return buildWriterTableDragResizeCommand({
           drag,
           point,
-          elements:
-            useWriterV2Store.getState().elements,
-          elementId: element.id,
-        });
-
-      if (result.command) {
-        void dispatchDurableWriterUiCommand(
-          result.command,
-          drag.type === 'resize-column'
-            ? 'WriterTableInteractionOverlay column resize'
-            : 'WriterTableInteractionOverlay row resize',
-        ).catch(() => undefined);
+          elements: state.elements,
+          elementId: drag.initialElement.id,
+        }).command;
+      };
+      if (buildLatest(useWriterV2Store.getState())) {
+        void dispatchDurableWriterHelperLatest('Writer table resize', buildLatest);
       }
     }
 

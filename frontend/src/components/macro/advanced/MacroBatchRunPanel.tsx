@@ -5,8 +5,9 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { BatchRunDialog } from '@/components/dialogs/BatchRunDialog';
 import { Button } from '@/components/ui/Button';
 import { downloadBlob } from '@/core/document/download';
-import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
-import { runMacroBatch } from '@/core/macro/batchRunner';
+import { isOperationCancelledError, throwIfAborted } from '@/core/cancellation/operationCancellation';
+import { runMacroBatch, type BatchRunResult } from '@/core/macro/batchRunner';
+import { useMacroOutputQueueStore } from '@/core/macro/outputQueueStore';
 import type { MacroRecipe } from '@/core/macro/types';
 import { useToastStore } from '@/core/toast/store';
 
@@ -23,6 +24,8 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [isRunning, setIsRunning] = React.useState(false);
   const [activeRecipeName, setActiveRecipeName] = React.useState<string | null>(null);
+  const lastReport = useMacroOutputQueueStore((state) => state.lastBatchReport);
+  const saveBatchReport = useMacroOutputQueueStore((state) => state.saveBatchReport);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
@@ -36,6 +39,16 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
     abortRef.current?.abort('Batch workflow panel unmounted');
   }, []);
 
+  const downloadReport = (report: BatchRunResult) => {
+    downloadBlob(
+      new Blob(
+        [JSON.stringify(report, null, 2)],
+        { type: 'application/json;charset=utf-8' },
+      ),
+      `batch-report-${report.metadata.runId}.json`,
+    );
+  };
+
   const runBatch = async (recipe: MacroRecipe) => {
     if (disabled || isRunning) return;
 
@@ -45,7 +58,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
     onBusyChange?.(true);
     setIsRunning(true);
     setActiveRecipeName(recipe.name);
-
+    // Preserve the previous durable report until a complete replacement is saved.
     try {
       const sources = await FileAdapter.pickPdfFileSources(true);
       if (sources.length === 0 || controller.signal.aborted) return;
@@ -55,31 +68,36 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
         recipe,
         continueOnError: true,
         abortSignal: controller.signal,
-        onOutput: ({ inputIndex, fileName, bytes }) => {
-          if (controller.signal.aborted) return;
-          FileAdapter.downloadBytes(
-            bytes,
-            buildBatchOutputName(inputIndex, fileName, recipe.id),
-          );
+        onOutputs: async (outputs) => {
+          throwIfAborted(controller.signal, 'batch PDF custody');
+          // All PDFs from one input are verified and added in ONE queue change.
+          // Never publish the primary while an auxiliary remains unaccounted for.
+          const ids = await useMacroOutputQueueStore.getState().enqueueBatchOutputs(outputs);
+          if (ids.length !== outputs.length) {
+            throw new Error('Batch output group could not be staged completely.');
+          }
         },
       });
+
+      await saveBatchReport(report);
+      // The report's browser download is unverified; retain it in this panel
+      // for retry, even after partial cancellation.
+      let reportDownloadInitiated = false;
+      try {
+        downloadReport(report);
+        reportDownloadInitiated = true;
+      } catch {
+        // Retained report remains available through explicit retry.
+      }
 
       if (controller.signal.aborted || report.cancelled) {
         addToast({
           type: 'info',
           title: 'Batch Run Cancelled',
-          message: 'Remaining PDFs were not processed.',
+          message: 'Processed outputs already queued remain available. The remaining PDFs were not processed.',
         });
         return;
       }
-
-      downloadBlob(
-        new Blob(
-          [JSON.stringify(report, null, 2)],
-          { type: 'application/json;charset=utf-8' },
-        ),
-        `batch-report-${Date.now()}.json`,
-      );
 
       addToast({
         type: report.summary.failed > 0 ? 'info' : 'success',
@@ -87,7 +105,11 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
         message:
           `Processed ${report.summary.processed} file(s): `
           + `${report.summary.succeeded} succeeded, `
-          + `${report.summary.failed} failed.`,
+          + `${report.summary.failed} failed. `
+          + `${report.summary.outputsHandedOff} PDFs (including auxiliary files) are queued for explicit saving; `
+          + (reportDownloadInitiated
+            ? 'report download was initiated but receipt is unverified.'
+            : 'report download did not start; use Download JSON Report Again.'),
       });
     } catch (error) {
       if (
@@ -126,7 +148,7 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
               Batch Process PDFs
             </div>
             <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-              Run one workflow across multiple PDFs. Each processed PDF downloads as it completes, followed by a JSON report.
+              Run one workflow across multiple PDFs. Every generated PDF, including extracts, is grouped and verified in the Output Queue. Save or confirm each file; the JSON report records per-output provenance.
             </p>
           </div>
         </div>
@@ -158,6 +180,25 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
           )}
         </div>
 
+        {lastReport ? (
+          <div className="mt-2 space-y-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-7 text-xs"
+              onClick={() => downloadReport(lastReport)}
+            >
+              Download JSON Report Again
+            </Button>
+            <p className="text-[11px] text-amber-700 dark:text-amber-300">
+              Batch PDFs and this metadata report can recover from this browser's
+              IndexedDB when available. Browser storage can be cleared or unavailable.
+              Download initiation does not prove external receipt; save and verify files.
+            </p>
+          </div>
+        ) : null}
+
         {isRunning && activeRecipeName ? (
           <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
             Running {activeRecipeName}…
@@ -177,23 +218,3 @@ export const MacroBatchRunPanel: React.FC<MacroBatchRunPanelProps> = ({
   );
 };
 
-function buildBatchOutputName(
-  inputIndex: number,
-  fileName: string,
-  recipeId: string,
-): string {
-  const rawBase = fileName.replace(/\.pdf$/i, '') || 'document';
-  const base = rawBase
-    .trim()
-    .replace(/[^a-z0-9._-]+/gi, '-')
-    .replace(/^-|-$/g, '')
-    || 'document';
-  const safeRecipe = recipeId
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'workflow';
-  const order = String(inputIndex + 1).padStart(3, '0');
-  return `${order}-${base}-${safeRecipe}.pdf`;
-}

@@ -11,6 +11,9 @@ export interface OcrPageClassificationInput {
    */
   embeddedTextLength?: number;
 
+  /** The PDF text was extracted and its page operators contain no raster images. */
+  nativeTextOnly?: boolean;
+
   /**
    * Number of image XObjects or rendered images detected on the page.
    */
@@ -81,8 +84,10 @@ export function classifyOcrPage(
     };
   }
 
-  if (embeddedTextLength >= 120 && imageCount === 0) {
-    reasons.push('Page has substantial embedded text and no image-heavy signals.');
+  if (imageCount === 0 && (embeddedTextLength >= 120 || (input.nativeTextOnly && embeddedTextLength > 0))) {
+    reasons.push(input.nativeTextOnly
+      ? 'Page contains verified native PDF text with no raster images.'
+      : 'Page has substantial embedded text and no image-heavy signals.');
     return {
       pageIndex: input.pageIndex,
       pageType: 'bornDigital',

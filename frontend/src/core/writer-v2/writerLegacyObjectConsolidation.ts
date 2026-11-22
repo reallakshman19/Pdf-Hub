@@ -226,13 +226,16 @@ export async function consolidateLegacyWriterObjectsOnPage(
     !result.changed
     || !consolidatedId
   ) {
+    const defaultMessage = 'No legacy Writer objects found on this page.';
+    const message =
+      result.reason && result.reason !== 'Writer command factory produced no command.'
+        ? result.reason
+        : defaultMessage;
+
     return {
       changed: false,
       convertedCount: 0,
-      message:
-        convertedCount === 0
-          ? 'No legacy Writer objects found on this page.'
-          : result.reason,
+      message,
     };
   }
 

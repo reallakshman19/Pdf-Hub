@@ -1,0 +1,75 @@
+{
+  "origin": "Original frozen synthetic fixtures and independent PyMuPDF-added external markup, not PDF Hub outputs",
+  "files": [
+    {
+      "path": "ALT_WP02_ORACLE_misparent_negative.pdf",
+      "bytes": 3339,
+      "sha256": "2d9378aa5152ba6609e1d645086dfeae75a7b5ce3e50431e2d9a7a99fdf57c5a"
+    },
+    {
+      "path": "ALT_WP02_ORACLE_orphan_negative.pdf",
+      "bytes": 3330,
+      "sha256": "ef5bafda759741ca231e00170a48267087d8bb6c975f4824402e39ea1cd39973"
+    },
+    {
+      "path": "ALT_WP02_ORACLE_parent_policy.json",
+      "bytes": 178,
+      "sha256": "7bf4b030f446ec2d6b4951b134b6957e9e63a4f849139c0e291c3f3e624516da"
+    },
+    {
+      "path": "ALT_WP02_ORACLE_valid.pdf",
+      "bytes": 3339,
+      "sha256": "cd05df6335dcde54ffe8774474346205dd304cd1265579399dbf03bf9ae3f621"
+    },
+    {
+      "path": "F01-text-mixed-3p.pdf",
+      "bytes": 2787,
+      "sha256": "b07ffb38f3495c410b47779b2508732f3aa7092c29d73b843191753c3da9b1f5"
+    },
+    {
+      "path": "F02-rotated-2p.pdf",
+      "bytes": 1887,
+      "sha256": "e9a40be14d253dd6916ff0d6a8ecbf1ccb36c4ca51452b98cddf6e345b812ddd"
+    },
+    {
+      "path": "F03-scan-only.pdf",
+      "bytes": 26786,
+      "sha256": "658b6536b8edc10931744bd75707155a0e731666c04c6ff46e8591d016f258f7"
+    },
+    {
+      "path": "F03-scan.png",
+      "bytes": 30812,
+      "sha256": "404b901fd0a6eab5bb35d99a89af49277d696ceebec043ea6e6fabd755872a48"
+    },
+    {
+      "path": "F04-logo-transparent.png",
+      "bytes": 383,
+      "sha256": "3309a860b612253e9187347eaa20c576b60f730fd19f537c5e7a28391822381b"
+    },
+    {
+      "path": "F05-benchmark-100p.pdf",
+      "bytes": 64018,
+      "sha256": "3199e92b935991f31d3b134fa8c907f059bcda243158390f81c681be25883de0"
+    },
+    {
+      "path": "F06-benchmark-500p.pdf",
+      "bytes": 317184,
+      "sha256": "dc42b78cbd6db7c5b90b09a005875ad848d28b19632d47675499adbeb329e078"
+    },
+    {
+      "path": "F08-invalid.pdf",
+      "bytes": 44,
+      "sha256": "4b5d13574199bf3aaa8d6f6059073f4101de89e4b878ab2b59ea32a25026a874"
+    },
+    {
+      "path": "F09-existing-commented-marked.pdf",
+      "bytes": 5616,
+      "sha256": "4a8d002e7576268958bd200a3a1fbdb3b0398400b1bb3435d0d0b70d19293d72"
+    },
+    {
+      "path": "F09-native-input-inventory.json",
+      "bytes": 3341,
+      "sha256": "0c99073f91b37ade6350676e810cbc6f614f1e476fbf85a25a572af78ad1cb58"
+    }
+  ]
+}

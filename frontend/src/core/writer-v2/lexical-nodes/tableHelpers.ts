@@ -70,13 +70,16 @@ export function insertTableFromData(
   editor: LexicalEditor,
   data: string[][],
 ): void {
-  if (data.length === 0) return;
+  if (data.length === 0 || data.length > 50) return;
   const cols = Math.max(...data.map((r) => r.length));
-  if (cols === 0) return;
+  if (cols === 0 || cols > 20) return;
 
   editor.update(() => {
-    const selection = $getSelection();
-    if (!$isRangeSelection(selection)) return;
+    let selection = $getSelection();
+    if (!$isRangeSelection(selection)) {
+      $getRoot().getLastChild()?.selectEnd();
+      selection = $getSelection();
+    }
 
     const tableNode = $createTableNodeWithDimensions(
       data.length,
@@ -102,8 +105,12 @@ export function insertTableFromData(
       }
     }
 
-    selection.insertNodes([tableNode]);
-  });
+    if ($isRangeSelection(selection)) selection.insertNodes([tableNode]);
+    else $getRoot().append(tableNode);
+    const paragraph = $createParagraphNode();
+    tableNode.insertAfter(paragraph);
+    paragraph.selectStart();
+  }, { discrete: true });
 }
 
 /** Re-export for editor config registration */

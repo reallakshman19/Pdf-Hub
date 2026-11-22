@@ -429,13 +429,16 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
         outputBytes,
         outputDocumentKey: outputDocumentKey ?? null,
         expectedPageCount: inputPageCount,
-        expectedMarkers: built.callouts,
+        expectedMarkers: built.callouts.map((callout) => ({
+          ...callout,
+          visibleNoteText: `ISO Note: ${callout.mapping.isonote}`,
+        })),
       });
       if (!verification.verified) {
-        // Marker verification is non-blocking — callouts are placed correctly
-        // but invisible audit markers may not be detectable through compressed
-        // PDF content streams. Log the diagnostic but don't block the output.
-        console.warn('[PS-ISONOTE] Verification diagnostic:', verificationFailureMessage(verification));
+        // Fail closed: a readable PDF with a missing/duplicate marker is not a
+        // verified engineering artifact. Retain mutated bytes for diagnosis,
+        // but record a failed audit instead of promoting it to verified.
+        throw new Error(verificationFailureMessage(verification));
       }
 
       await recordAudit({
@@ -449,7 +452,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
         verification,
       });
       setMessage(
-        `Verified ${verification.verifiedMarkerCount} of ${verification.expectedMarkerCount} PS occurrence marker(s) in the reopened output PDF.`,
+        `Verified ${verification.verifiedMarkerCount} of ${verification.expectedMarkerCount} PS marker(s) and expected ISONOTE text in the reopened output PDF (visual geometry requires separate review).`,
       );
     } catch (runError) {
       const failureMessage = runError instanceof Error ? runError.message : String(runError);
@@ -478,7 +481,9 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
   };
 
   const handleEvidencePackage = async () => {
-    if (!auditReport || !auditArtifact || !parsedState.result) return;
+    // A preview report is created before the annotation macro finishes.
+    // Never expose a transient preview snapshot as the completed-run ZIP.
+    if (isRunning || isScanning || isPackaging || !auditReport || !auditArtifact || !parsedState.result) return;
     onBusyChange?.(true);
     setIsPackaging(true);
     setError(null);
@@ -779,7 +784,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-audit.csv`,
                   'text/csv;charset=utf-8',
                 )}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <Download className="mr-1 h-3 w-3" />CSV
               </Button>
@@ -793,7 +798,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                   `${artifactStem(auditArtifact.documentName)}-ps-isonote-manifest.json`,
                   'application/json;charset=utf-8',
                 )}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <FileJson className="mr-1 h-3 w-3" />Manifest
               </Button>
@@ -803,7 +808,7 @@ export const PsIsonoteRecipeBuilder: React.FC<PsIsonoteRecipeBuilderProps> = ({
                 size="sm"
                 className="h-7 justify-center px-2 text-[10px]"
                 onClick={() => void handleEvidencePackage()}
-                disabled={isPackaging}
+                disabled={isPackaging || isRunning || isScanning}
               >
                 <Archive className="mr-1 h-3 w-3" />
                 {isPackaging ? 'Building...' : 'Evidence ZIP'}

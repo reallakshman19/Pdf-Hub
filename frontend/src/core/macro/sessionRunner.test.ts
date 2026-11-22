@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runMacroRecipeAgainstSession } from './sessionRunner';
 import { useSessionStore } from '@/core/session/store';
+import { useMacroOutputQueueStore } from './outputQueueStore';
 
 const mockExecuteMacroRecipe = vi.hoisted(() => vi.fn());
 const mockCommandExecute = vi.hoisted(() => vi.fn());
@@ -25,6 +26,7 @@ vi.mock('@/adapters/file/FileAdapter', () => ({
 describe('runMacroRecipeAgainstSession', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useMacroOutputQueueStore.getState().clearOutputs();
     useSessionStore.getState().openDocument({
       documentKey: 'macro-doc',
       fileName: 'macro.pdf',
@@ -72,7 +74,7 @@ describe('runMacroRecipeAgainstSession', () => {
     );
   });
 
-  it('saves extracted outputs when saveOutputs is true', async () => {
+  it('keeps extracted outputs in the session queue for explicit saving', async () => {
     mockExecuteMacroRecipe.mockResolvedValue({
       finalBytes: new Uint8Array([4, 5, 6]),
       pageCount: 3,
@@ -83,7 +85,14 @@ describe('runMacroRecipeAgainstSession', () => {
     });
 
     await runMacroRecipeAgainstSession({ id: 'r4', name: 'R4', steps: [] }, { saveOutputs: true });
-    expect(mockSavePdfBytes).toHaveBeenCalledWith(new Uint8Array([9]), 'out.pdf', null);
+    expect(mockSavePdfBytes).not.toHaveBeenCalled();
+    expect(useMacroOutputQueueStore.getState().outputs).toMatchObject([{
+      name: 'out.pdf',
+      bytes: new Uint8Array([9]),
+      sourceKind: 'macro',
+      sourceDocumentKey: 'macro-doc',
+      sourceRecipeId: 'r4',
+    }]);
   });
   it('queues concurrent macro runs against the session', async () => {
     let releaseFirst!: () => void;

@@ -42,6 +42,12 @@ function viewport(scale: number, rotation: WriterRotation): WriterPageViewport {
 }
 
 describe('writer-v2 coordinateTransform', () => {
+  it('matches the absolute PDF.js rotation convention, not only its own inverse', () => {
+    const point = { x: 123, y: 456 };
+    expect(pdfToViewportPoint(point, viewport(2, 90))).toEqual({ x: 912, y: 246 });
+    expect(pdfToViewportPoint(point, viewport(2, 270))).toEqual({ x: 672, y: 978 });
+  });
+
   it.each([0.5, 1, 2, 4])(
     'roundtrips PDF point at zoom scale %s',
     (scale) => {

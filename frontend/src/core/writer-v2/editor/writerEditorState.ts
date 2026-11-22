@@ -4,6 +4,7 @@ export interface WriterEditorSavePayload {
   editorStateJson: string;
   plainText: string;
   assets?: WriterAssetRecordV2[];
+  editOwner?: import('./richEditorOwnership').RichEditorOwner;
 }
 
 export const EMPTY_WRITER_EDITOR_STATE_JSON = JSON.stringify({
@@ -94,7 +95,7 @@ export function plainTextFromSerializedEditorState(editorStateJson: string): str
 
     collectText(parsed?.root, chunks);
 
-    return chunks.join('').trim();
+    return chunks.join('');
   } catch {
     return '';
   }

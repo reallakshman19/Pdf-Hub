@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import JSZip from 'jszip';
+import { PDFDocument } from 'pdf-lib';
+import { readFile } from 'node:fs/promises';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 import { buildTestPdf } from './fixtures/testPdf';
 
@@ -72,6 +74,37 @@ test('Writer V2: create, export project ZIP, reimport, element/asset counts matc
 
   expect(secondCounts.elementCount).toBe(firstCounts.elementCount);
   expect(secondCounts.assetCount).toBe(firstCounts.assetCount);
+});
+
+test('Writer V2: export a blank two-page document without a source PDF', async ({ page }) => {
+  await stubNativeFilePickers(page);
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Write' }).click();
+  await page.getByRole('button', { name: 'Blank Doc' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Create blank Writer document' });
+  await dialog.getByLabel('Title').fill('Blank export check');
+  await dialog.getByLabel('Initial pages').fill('2');
+  await dialog.getByRole('button', { name: 'Create document' }).click();
+
+  const [projectDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save Project' }).click(),
+  ]);
+  const zip = await JSZip.loadAsync(await readFile(await projectDownload.path()));
+  const meta = zip.file('writer-document-meta.json');
+  expect(meta).not.toBeNull();
+  expect(JSON.parse(await meta!.async('text'))).toMatchObject({
+    mode: 'blankDocument', title: 'Blank export check', pageCount: 2,
+  });
+  expect(zip.file('original.pdf')).toBeNull();
+
+  const [pdfDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Flatten', exact: true }).click(),
+  ]);
+  const pdf = await PDFDocument.load(await readFile(await pdfDownload.path()));
+  expect(pdf.getPageCount()).toBe(2);
 });
 
 async function readProjectCounts(zipBytes: Buffer): Promise<{ elementCount: number; assetCount: number }> {

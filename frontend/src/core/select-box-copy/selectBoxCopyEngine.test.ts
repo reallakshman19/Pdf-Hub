@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import {
+  buildSelectBoxCopyFromTextItems,
   extractSelectBoxCopyFromDocument,
   extractSelectBoxCopyFromPdf,
 } from './selectBoxCopyEngine';
@@ -20,6 +21,17 @@ function pageFixture() {
 }
 
 describe('Select Box Copy renderer ownership', () => {
+  it('does not present a clipped PDF text run as exact selected text', () => {
+    const result = buildSelectBoxCopyFromTextItems({
+      pageNumber: 1, viewport,
+      viewportRect: { x: 0, y: 0, width: 30, height: 100 },
+      textItems: [{ id: 'run', text: 'Alpha Beta', x: 10, y: 20, width: 60, height: 12, fontSize: 10 }],
+    });
+    expect(result.partialTextItems).toBe(1);
+    expect(result.plainText).toBe('');
+    expect(result.table).toBeNull();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });

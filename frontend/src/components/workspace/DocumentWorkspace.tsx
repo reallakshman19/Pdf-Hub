@@ -35,6 +35,7 @@ import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { ocrStore } from '@/core/ocr/store';
 import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
+import { pdfRectToViewportSelection } from '@/core/ocr/ocrViewportGeometry';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
@@ -200,6 +201,7 @@ export const DocumentWorkspace: React.FC = () => {
   } | null>(null);
 
   const handleBrowse = async () => {
+    setLoadError(null);
     try {
       const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
@@ -608,6 +610,11 @@ export const DocumentWorkspace: React.FC = () => {
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-8">
             Supports PDF up to 100 MB.
           </p>
+          {loadError ? (
+            <p role="alert" data-testid="open-pdf-failure" className="mb-4 max-w-sm text-sm text-red-700 dark:text-red-300">
+              Unable to open PDF: {loadError}
+            </p>
+          ) : null}
           <button
             className={[
               "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
@@ -1029,8 +1036,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     window.addEventListener('blur', cancel);
   };
 
-  const { size: renderSize } = usePageRenderer({
-    doc,
+  const { size: renderSize, ocrViewport } = usePageRenderer({    doc,
     pageNumber,
     scale,
     canvasRef,
@@ -1107,15 +1113,28 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   React.useEffect(() => {
     if (!pageOcrFocus || !ocrFocusRef.current) return;
 
-    ocrFocusRef.current.scrollIntoView({
+    ocrFocusRef.current.scrollIntoView?.({
       behavior: 'smooth',
-      block: 'center',
-      inline: 'center',
+      block: 'nearest',
+      inline: 'nearest',
     });
   }, [pageOcrFocus]);
 
   const pageWidth = (renderSize?.width || size.width) / scale;
   const pageHeight = (renderSize?.height || size.height) / scale;
+
+  const pageOcrFocusRect = React.useMemo(() => {
+    if (!pageOcrFocus) return null;
+    if (ocrViewport && typeof ocrViewport.convertToViewportRectangle === 'function') {
+      return pdfRectToViewportSelection(ocrViewport, pageOcrFocus.bbox);
+    }
+    return {
+      x: pageOcrFocus.bbox.x * scale,
+      y: (pageHeight - pageOcrFocus.bbox.y - pageOcrFocus.bbox.height) * scale,
+      width: Math.max(2, pageOcrFocus.bbox.width * scale),
+      height: Math.max(2, pageOcrFocus.bbox.height * scale),
+    };
+  }, [pageOcrFocus, ocrViewport, pageHeight, scale]);
 
   const clampRect = React.useCallback(
     (rect: Rect): Rect => {
@@ -1172,13 +1191,14 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   const startTransform = (
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.PointerEvent<HTMLDivElement>,
     annotation: PdfAnnotation,
     mode: 'move' | 'resize',
   ) => {
     if (annotation.data.locked === true) return;
     cancelGestureRef.current?.();
 
+    event.preventDefault();
     event.stopPropagation();
     clearTextSelectionDraft();
 
@@ -1919,16 +1939,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         </div>
       )}
 
-      {pageOcrFocus ? (
+      {pageOcrFocus && pageOcrFocusRect ? (
         <div
           ref={ocrFocusRef}
           data-testid="ocr-review-focus-target"
           className="absolute z-[19] pointer-events-none rounded-sm border-2 border-blue-500 bg-blue-400/15 shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
           style={{
-            left: pageOcrFocus.bbox.x * scale,
-            top: pageOcrFocus.bbox.y * scale,
-            width: Math.max(2, pageOcrFocus.bbox.width * scale),
-            height: Math.max(2, pageOcrFocus.bbox.height * scale),
+            left: pageOcrFocusRect.x,
+            top: pageOcrFocusRect.y,
+            width: Math.max(2, pageOcrFocusRect.width),
+            height: Math.max(2, pageOcrFocusRect.height),
           }}
         >
           {pageOcrFocus.label ? (
@@ -2338,6 +2358,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         pageNumber={pageNumber}
         scale={scale}
         pageDimensions={renderSize || size}
+        ocrViewport={ocrViewport}
       />
 
       <WriterOverlayLayer

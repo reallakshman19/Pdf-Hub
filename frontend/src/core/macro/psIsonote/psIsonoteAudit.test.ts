@@ -169,6 +169,27 @@ describe('psIsonoteAudit', () => {
     expect(report.verification?.verified).toBe(true);
   });
 
+  it('never records a verified audit when its verifier reports failure', () => {
+    const result = scan([reference(guideMapping)]);
+    result.missingPsNumbers = [];
+    const rejected = verification({
+      verified: false,
+      diagnostics: [{
+        code: 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH',
+        severity: 'error',
+        message: 'Output page count is wrong',
+      }],
+    });
+    const report = buildPsIsonoteAuditReport([guideMapping], result, {
+      identity,
+      phase: 'verified',
+      verification: rejected,
+    });
+    expect(report.phase).toBe('failed');
+    expect(report.occurrences[0].status).toBe('verification-failed');
+    expect(report.summaryRows[0].verified).toBe(0);
+  });
+
   it('fails the occurrence audit when post-write marker verification fails', () => {
     const result = scan([reference(guideMapping)]);
     result.missingPsNumbers = [];

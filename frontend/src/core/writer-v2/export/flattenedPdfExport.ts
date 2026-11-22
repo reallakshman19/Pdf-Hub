@@ -78,9 +78,12 @@ interface DrawContext {
   fontCache: Map<StandardFontsT, PDFFontT>;
   /** Fallback element-level font family (from element.style.fontFamily). */
   elementFontFamily: string | undefined;
+  elementTextColor: string | undefined;
   assetsById: Map<string, WriterAssetRecordV2>;
   embeddedAssetIds: Set<string>;
   pendingLinks: PendingLinkAnnotation[];
+  elementEmbeddedAssetIds: Set<string>;
+  measuring?: boolean;
 }
 
 const DEFAULT_FONT_SIZE = 11;
@@ -95,7 +98,7 @@ export async function exportFlattenedWriterPdf(
   const fontCache = new Map<StandardFontsT, PDFFontT>();
 
   const pages = doc.getPages();
-  const assetsById = new Map((input.assets ?? []).map((asset) => [asset.id, asset]));
+  const assets = input.assets ?? [];
   const embeddedAssetIds = new Set<string>();
   const pendingLinks: PendingLinkAnnotation[] = [];
 
@@ -114,9 +117,11 @@ export async function exportFlattenedWriterPdf(
       page,
       fontCache,
       elementFontFamily: element.style.fontFamily,
-      assetsById,
+      elementTextColor: element.style.textColor,
+      assetsById: new Map(assets.filter(asset => asset.documentFingerprint === element.documentFingerprint).map(asset => [asset.id, asset])),
       embeddedAssetIds,
       pendingLinks,
+      elementEmbeddedAssetIds: new Set(),
     }, element);
   }
 
@@ -156,46 +161,46 @@ async function drawWriterElement(
   drawBoxBackground(context.page, element, rect);
 
   const padding = element.style.padding ?? 8;
-  const blocks = editorStateToPdfBlocks(element.editorStateJson, element.plainText ?? '');
+  const blocks = editorStateToPdfBlocks(element.editorStateJson, element.plainText ?? '', { strict: true });
 
-  const startY = rect.y + rect.height - padding - DEFAULT_FONT_SIZE;
-  await drawRichBlocks(context, blocks, rect, padding, DEFAULT_FONT_SIZE, startY);
+  const fontSize = element.style.fontSize ?? DEFAULT_FONT_SIZE;
+  const startY = rect.y + rect.height - padding;
+  const remainingY = await drawRichBlocks(context, blocks, rect, padding, fontSize, startY);
 
   // Draw any standalone attached assets that weren't embedded in rich text blocks
   const assetIds = [
     ...(element.imageAssetId ? [element.imageAssetId] : []),
     ...(element.assetIds ?? []),
   ];
-  let imageY = rect.y + padding;
-  for (const assetId of assetIds) {
-    if (context.embeddedAssetIds.has(assetId)) continue;
+  let imageY = remainingY;
+  for (const assetId of new Set(assetIds)) {
+    if (context.elementEmbeddedAssetIds.has(assetId)) continue;
     const asset = context.assetsById.get(assetId);
-    if (!asset || !asset.dataUrl.startsWith('data:image/')) continue;
-    try {
-      const imageBytes = dataUrlToBytes(asset.dataUrl);
-      const isPng = asset.mimeType.includes('png');
-      const image = isPng
-        ? await context.doc.embedPng(imageBytes)
-        : await context.doc.embedJpg(imageBytes);
+    if (!asset || asset.documentFingerprint !== element.documentFingerprint) throw new Error(`Missing or foreign Writer image asset: ${assetId}`);
+    const imageBytes = dataUrlToBytes(asset.dataUrl);
+    if (!/^data:image\/(?:png|jpe?g);base64,/i.test(asset.dataUrl)) throw new Error('Writer image asset has an unsupported format.');
+    const isPng = /^data:image\/png;/i.test(asset.dataUrl);
+    const image = isPng
+      ? await context.doc.embedPng(imageBytes)
+      : await context.doc.embedJpg(imageBytes);
 
-      const maxWidth = Math.max(1, rect.width - padding * 2);
-      const maxHeight = Math.max(1, rect.height / 2);
-      const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-      const width = image.width * scale;
-      const height = image.height * scale;
+    const maxWidth = Math.max(1, rect.width - padding * 2);
+    const maxHeight = imageY - rect.y - padding;
+    if (maxHeight <= 0) throw new Error('Writer attached image does not fit in its box.');
+    const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+    const width = image.width * scale;
+    const height = image.height * scale;
 
-      context.page.drawImage(image, {
-        x: rect.x + padding,
-        y: imageY,
-        width,
-        height,
-      });
+    context.page.drawImage(image, {
+      x: rect.x + padding,
+      y: imageY - height,
+      width,
+      height,
+    });
 
-      imageY += height + 4;
-      context.embeddedAssetIds.add(asset.id);
-    } catch {
-      // ignore
-    }
+    imageY -= height + 4;
+    context.embeddedAssetIds.add(asset.id);
+    context.elementEmbeddedAssetIds.add(asset.id);
   }
 }
 
@@ -208,16 +213,16 @@ async function drawImageBox(
 
   const assetId = element.imageAssetId ?? element.assetIds?.[0];
 
-  if (!assetId) return;
+  if (!assetId) throw new Error('Writer image box has no asset.');
 
   const asset = context.assetsById.get(assetId);
 
-  if (!asset || !asset.dataUrl.startsWith('data:image/')) {
-    return;
+  if (!asset || asset.documentFingerprint !== element.documentFingerprint || !/^data:image\/(?:png|jpe?g);base64,/i.test(asset.dataUrl)) {
+    throw new Error('Writer image box has a missing or foreign asset.');
   }
 
   const imageBytes = dataUrlToBytes(asset.dataUrl);
-  const image = asset.mimeType.includes('png') || asset.dataUrl.startsWith('data:image/png')
+  const image = /^data:image\/png;/i.test(asset.dataUrl)
     ? await context.doc.embedPng(imageBytes)
     : await context.doc.embedJpg(imageBytes);
 
@@ -424,6 +429,11 @@ async function getFontForStyle(
   return embedded;
 }
 
+function measureText(font: PDFFontT, text: string, size: number): number {
+  try { return font.widthOfTextAtSize(text, size); }
+  catch { throw new Error('Writer PDF font cannot encode this text. Save the editable project to preserve it; PDF export needs a font with the required glyphs.'); }
+}
+
 interface StyledWord {
   text: string;
   style: PdfTextStyle;
@@ -445,7 +455,7 @@ async function wrapStyledText(
 ): Promise<StyledLine[]> {
   const words: StyledWord[] = [];
   for (const child of children) {
-    const text = child.text;
+    const text = child.text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
     const style = child.style;
     const href = child.href;
     let currentWord = '';
@@ -456,7 +466,7 @@ async function wrapStyledText(
           words.push({ text: currentWord, style, isWhitespace: false, href });
           currentWord = '';
         }
-        words.push({ text: char, style, isWhitespace: true });
+        words.push({ text: char, style, isWhitespace: true, href: char === ' ' ? href : undefined });
       } else {
         currentWord += char;
       }
@@ -472,10 +482,18 @@ async function wrapStyledText(
   let currentLineHeight = defaultFontSize * 1.25;
 
   for (const word of words) {
+    if (word.text === '\n') {
+      lines.push({ words: currentLineWords, width: currentLineWidth, height: currentLineHeight });
+      currentLineWords = [];
+      currentLineWidth = 0;
+      currentLineHeight = defaultFontSize * 1.25;
+      continue;
+    }
     const font = await getFontForStyle(context, word.style);
     const size = word.style.fontSize ?? defaultFontSize;
-    const wordWidth = font.widthOfTextAtSize(word.text, size);
+    const wordWidth = measureText(font, word.text, size);
     const wordHeight = size * 1.25;
+    if (wordWidth > maxWidth) throw new Error('Writer text run is wider than its box. Resize the box before PDF export.');
 
     if (currentLineWidth + wordWidth > maxWidth && currentLineWords.length > 0) {
       lines.push({
@@ -499,7 +517,7 @@ async function wrapStyledText(
     }
   }
 
-  if (currentLineWords.length > 0) {
+  if (currentLineWords.length > 0 || words.at(-1)?.text === '\n' || !words.length) {
     lines.push({
       words: currentLineWords,
       width: currentLineWidth,
@@ -522,7 +540,7 @@ async function drawRichBlocks(
   const maxWidth = Math.max(1, rect.width - padding * 2);
 
   for (const block of blocks) {
-    if (y < rect.y + padding) break;
+    if (y < rect.y + padding) throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
 
     if (block.type === 'paragraph' || block.type === 'heading') {
       const isHeading = block.type === 'heading';
@@ -542,26 +560,28 @@ async function drawRichBlocks(
           return {
             ...child,
             style: {
-              bold: true,
-              fontSize: headingSize,
               ...child.style,
+              bold: true,
+              fontSize: child.style.fontSize ?? headingSize,
             },
           };
         }
         return child;
       });
 
+      const indentWidth = block.type === 'paragraph' ? (block.indent ?? 0) * 12 : 0;
+      const lineWidth = Math.max(1, maxWidth - indentWidth);
       const lines = await wrapStyledText(
         context,
         childrenWithHeadingOverrides,
-        maxWidth,
+        lineWidth,
         headingSize,
       );
 
       for (const line of lines) {
+        const baselineY = y - line.height / 1.25;
         if (y - line.height < rect.y + padding) {
-          y = rect.y;
-          break;
+          throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
         }
 
         let startX = rect.x + padding;
@@ -572,31 +592,31 @@ async function drawRichBlocks(
         if (block.alignment === 'right') {
           startX = rect.x + rect.width - padding - line.width;
         } else if (block.alignment === 'center') {
-          startX = rect.x + padding + (maxWidth - line.width) / 2;
+          startX = rect.x + padding + indentWidth + (lineWidth - line.width) / 2;
         }
 
         let currentX = startX;
         for (const word of line.words) {
           const font = await getFontForStyle(context, word.style);
           const size = word.style.fontSize ?? headingSize;
-          const wordWidth = font.widthOfTextAtSize(word.text, size);
+          const wordWidth = measureText(font, word.text, size);
 
           if (word.style.backgroundColor && word.style.backgroundColor !== 'transparent') {
             const bg = parseCssColor(word.style.backgroundColor, { r: 1, g: 1, b: 0 });
             context.page.drawRectangle({
               x: currentX,
-              y: y - line.height * 0.15,
+              y: baselineY - line.height * 0.15,
               width: wordWidth,
               height: size * 1.25,
               color: rgb(bg.r, bg.g, bg.b),
             });
           }
 
-          const textColor = parseCssColor(word.style.color, { r: 0.07, g: 0.09, b: 0.15 });
+          const textColor = parseCssColor(word.style.color ?? context.elementTextColor, { r: 0.07, g: 0.09, b: 0.15 });
 
           context.page.drawText(word.text, {
             x: currentX,
-            y: y,
+            y: baselineY,
             size,
             font,
             color: rgb(textColor.r, textColor.g, textColor.b),
@@ -604,8 +624,8 @@ async function drawRichBlocks(
 
           if (word.style.underline) {
             context.page.drawLine({
-              start: { x: currentX, y: y - 1 },
-              end: { x: currentX + wordWidth, y: y - 1 },
+              start: { x: currentX, y: baselineY - 1 },
+              end: { x: currentX + wordWidth, y: baselineY - 1 },
               thickness: size * 0.07,
               color: rgb(textColor.r, textColor.g, textColor.b),
             });
@@ -613,18 +633,18 @@ async function drawRichBlocks(
 
           if (word.style.strikethrough) {
             context.page.drawLine({
-              start: { x: currentX, y: y + size * 0.35 },
-              end: { x: currentX + wordWidth, y: y + size * 0.35 },
+              start: { x: currentX, y: baselineY + size * 0.35 },
+              end: { x: currentX + wordWidth, y: baselineY + size * 0.35 },
               thickness: size * 0.07,
               color: rgb(textColor.r, textColor.g, textColor.b),
             });
           }
 
-          if (word.href) {
+          if (word.href && !context.measuring && wordWidth > 0) {
             context.pendingLinks.push({
               page: context.page,
               x: currentX,
-              y: y - size * 0.2,
+              y: baselineY - size * 0.2,
               width: wordWidth,
               height: size * 1.3,
               url: word.href,
@@ -640,68 +660,67 @@ async function drawRichBlocks(
       y -= 4;
     } else if (block.type === 'list') {
       for (const [index, item] of block.items.entries()) {
-        if (y < rect.y + padding) break;
+        if (y < rect.y + padding) throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
 
         const indentLevel = item.indent ?? 1;
         const listIndent = indentLevel * 15;
-        const itemMaxWidth = maxWidth - listIndent;
+        const itemMaxWidth = Math.max(1, maxWidth - listIndent);
 
         const lines = await wrapStyledText(context, item.children, itemMaxWidth, defaultFontSize);
         if (lines.length === 0) continue;
 
         const prefix =
           block.listType === 'number'
-            ? `${index + 1}. `
+            ? `${(block.start ?? 1) + index}. `
             : block.listType === 'check'
             ? item.checked
-              ? '☑ '
-              : '☐ '
+              ? '[x] '
+              : '[ ] '
             : '• ';
         const prefixFont = await getFontForStyle(context, { bold: true });
-        const prefixWidth = prefixFont.widthOfTextAtSize(prefix, defaultFontSize);
+        const prefixWidth = measureText(prefixFont, prefix, defaultFontSize);
         const prefixX = rect.x + padding + listIndent - prefixWidth - 4;
 
         if (y - lines[0].height < rect.y + padding) {
-          y = rect.y;
-          break;
+          throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
         }
 
         context.page.drawText(prefix, {
           x: prefixX,
-          y: y,
+          y: y - lines[0].height / 1.25,
           size: defaultFontSize,
           font: prefixFont,
           color: rgb(0.07, 0.09, 0.15),
         });
 
         for (const line of lines) {
+          const baselineY = y - line.height / 1.25;
           if (y - line.height < rect.y + padding) {
-            y = rect.y;
-            break;
+            throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
           }
 
           let currentX = rect.x + padding + listIndent;
           for (const word of line.words) {
             const font = await getFontForStyle(context, word.style);
             const size = word.style.fontSize ?? defaultFontSize;
-            const wordWidth = font.widthOfTextAtSize(word.text, size);
+            const wordWidth = measureText(font, word.text, size);
 
             if (word.style.backgroundColor && word.style.backgroundColor !== 'transparent') {
               const bg = parseCssColor(word.style.backgroundColor, { r: 1, g: 1, b: 0 });
               context.page.drawRectangle({
                 x: currentX,
-                y: y - line.height * 0.15,
+                y: baselineY - line.height * 0.15,
                 width: wordWidth,
                 height: size * 1.25,
                 color: rgb(bg.r, bg.g, bg.b),
               });
             }
 
-            const textColor = parseCssColor(word.style.color, { r: 0.07, g: 0.09, b: 0.15 });
+            const textColor = parseCssColor(word.style.color ?? context.elementTextColor, { r: 0.07, g: 0.09, b: 0.15 });
 
             context.page.drawText(word.text, {
               x: currentX,
-              y: y,
+              y: baselineY,
               size,
               font,
               color: rgb(textColor.r, textColor.g, textColor.b),
@@ -709,8 +728,8 @@ async function drawRichBlocks(
 
             if (word.style.underline) {
               context.page.drawLine({
-                start: { x: currentX, y: y - 1 },
-                end: { x: currentX + wordWidth, y: y - 1 },
+                start: { x: currentX, y: baselineY - 1 },
+                end: { x: currentX + wordWidth, y: baselineY - 1 },
                 thickness: size * 0.07,
                 color: rgb(textColor.r, textColor.g, textColor.b),
               });
@@ -718,18 +737,18 @@ async function drawRichBlocks(
 
             if (word.style.strikethrough) {
               context.page.drawLine({
-                start: { x: currentX, y: y + size * 0.35 },
-                end: { x: currentX + wordWidth, y: y + size * 0.35 },
+                start: { x: currentX, y: baselineY + size * 0.35 },
+                end: { x: currentX + wordWidth, y: baselineY + size * 0.35 },
                 thickness: size * 0.07,
                 color: rgb(textColor.r, textColor.g, textColor.b),
               });
             }
 
-            if (word.href) {
+            if (word.href && !context.measuring && wordWidth > 0) {
               context.pendingLinks.push({
                 page: context.page,
                 x: currentX,
-                y: y - size * 0.2,
+                y: baselineY - size * 0.2,
                 width: wordWidth,
                 height: size * 1.3,
                 url: word.href,
@@ -750,27 +769,31 @@ async function drawRichBlocks(
                     context.assetsById.get(block.src);
 
       const src = asset ? asset.dataUrl : block.src;
-      if (src && src.startsWith('data:image/')) {
-        try {
+      if (!/^data:image\/(?:png|jpe?g);base64,/i.test(src)) throw new Error('Writer inline image is missing or has an unsupported format.');
+      {
           const imageBytes = dataUrlToBytes(src);
-          const isPng = src.includes('image/png') || src.includes('png');
+          const isPng = /^data:image\/png;/i.test(src);
           const image = isPng
             ? await context.doc.embedPng(imageBytes)
             : await context.doc.embedJpg(imageBytes);
 
           let imgWidth = block.width === 'inherit' ? image.width : block.width;
           let imgHeight = block.height === 'inherit' ? image.height : block.height;
+          if (block.width === 'inherit' && block.height !== 'inherit') imgWidth = image.width * imgHeight / image.height;
+          if (block.height === 'inherit' && block.width !== 'inherit') imgHeight = image.height * imgWidth / image.width;
+          if (![imgWidth, imgHeight].every(v => Number.isFinite(v) && v > 0)) throw new Error('Writer inline image dimensions are invalid.');
 
           const maxImgWidth = maxWidth;
-          const maxImgHeight = Math.max(20, y - rect.y - padding - 15);
+          const captionHeight = block.caption ? 15 : 0;
+          const maxImgHeight = y - rect.y - padding - captionHeight - 4;
+          if (maxImgHeight <= 0) throw new Error('Writer inline image does not fit in its box.');
           const scale = Math.min(maxImgWidth / imgWidth, maxImgHeight / imgHeight, 1);
 
           imgWidth = imgWidth * scale;
           imgHeight = imgHeight * scale;
 
           if (y - imgHeight < rect.y + padding) {
-            y = rect.y;
-            break;
+            throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
           }
 
           context.page.drawImage(image, {
@@ -780,8 +803,9 @@ async function drawRichBlocks(
             height: imgHeight,
           });
 
-          if (asset) {
+          if (asset && !context.measuring) {
             context.embeddedAssetIds.add(asset.id);
+            context.elementEmbeddedAssetIds.add(asset.id);
           }
 
           y -= imgHeight + 4;
@@ -789,7 +813,8 @@ async function drawRichBlocks(
           if (block.caption) {
             const captionFont = await getFontForStyle(context, { italic: true });
             const captionSize = 9;
-            const captionWidth = captionFont.widthOfTextAtSize(block.caption, captionSize);
+            const captionWidth = measureText(captionFont, block.caption, captionSize);
+            if (captionWidth > maxWidth) throw new Error('Writer image caption does not fit in its box.');
             const captionX = rect.x + padding + (maxWidth - captionWidth) / 2;
 
             context.page.drawText(block.caption, {
@@ -801,9 +826,6 @@ async function drawRichBlocks(
             });
             y -= captionSize + 6;
           }
-        } catch {
-          // ignore
-        }
       }
     } else if (block.type === 'table') {
       if (block.rows.length === 0) continue;
@@ -815,10 +837,10 @@ async function drawRichBlocks(
       const minCellRowHeight = 18;
 
       for (const row of block.rows) {
-        if (y < rect.y + padding) break;
+        if (y < rect.y + padding) throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
 
         let rowHeight = minCellRowHeight;
-        const measuredCellHeights: number[] = [];
+
 
         for (const cell of row.cells) {
           const measureRect: PdfRect = {
@@ -828,21 +850,19 @@ async function drawRichBlocks(
             height: 9999,
           };
           const finalY = await drawRichBlocks(
-            { ...context, page: { ...context.page, drawText() {}, drawRectangle() {}, drawLine() {}, drawImage() {} } as unknown as PDFPageT },
+            { ...context, measuring: true, pendingLinks: [], embeddedAssetIds: new Set(), elementEmbeddedAssetIds: new Set(), page: { ...context.page, drawText() {}, drawRectangle() {}, drawLine() {}, drawImage() {} } as unknown as PDFPageT },
             cell.children,
             measureRect,
             cellPadding,
-            defaultFontSize - 1,
+            Math.max(1, defaultFontSize - 1),
             9999 - cellPadding,
           );
           const cellConsumedHeight = 9999 - finalY + cellPadding;
-          measuredCellHeights.push(cellConsumedHeight);
           rowHeight = Math.max(rowHeight, cellConsumedHeight);
         }
 
         if (y - rowHeight < rect.y + padding) {
-          y = rect.y;
-          break;
+          throw new Error('Writer rich content does not fit in its box. Resize the box before PDF export.');
         }
 
         for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
@@ -871,8 +891,8 @@ async function drawRichBlocks(
             cell.children,
             cellRect,
             cellPadding,
-            defaultFontSize - 1,
-            cellY + rowHeight - cellPadding - (defaultFontSize - 1),
+            Math.max(1, defaultFontSize - 1),
+            cellY + rowHeight - cellPadding,
           );
         }
 
@@ -1057,12 +1077,15 @@ function registerLinkAnnotation(
   doc: PDFDocumentT,
   link: PendingLinkAnnotation,
 ): void {
-  const { PDFString, PDFName, PDFArray } = lib();
-  try {
+  const { PDFHexString, PDFName, PDFArray } = lib();
+  {
+    const parsed = new URL(link.url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('Writer PDF link must use HTTP or HTTPS.');
+    if (![link.x, link.y, link.width, link.height].every(Number.isFinite) || link.width <= 0 || link.height <= 0) throw new Error('Writer PDF link has invalid bounds.');
     const actionDict = doc.context.obj({
       Type: 'Action',
       S: 'URI',
-      URI: PDFString.of(link.url),
+      URI: PDFHexString.of(Array.from(new TextEncoder().encode(parsed.href), byte => byte.toString(16).padStart(2, '0')).join('')),
     });
 
     const annotRef = doc.context.register(
@@ -1082,8 +1105,6 @@ function registerLinkAnnotation(
       doc.context.obj([]);
     existing.push(annotRef);
     pageDict.set(PDFName.of('Annots'), existing);
-  } catch {
-    // Non-fatal — skip unregisterable annotations rather than failing the export.
   }
 }
 
@@ -1159,7 +1180,7 @@ async function drawStyledTableCell(
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
-    const textWidth = font.widthOfTextAtSize(line, fontSize);
+    const textWidth = measureText(font, line, fontSize);
 
     const x = computeFlattenedTableTextX({
       cellRect,
@@ -1592,7 +1613,7 @@ function wrapPlainTextForPdf(input: {
   fontSize: number;
   maxWidth: number;
 }): string[] {
-  const paragraphs = input.text.split(/\r?\n/);
+  const paragraphs = input.text.replace(/\t/g, '    ').split(/\r\n?|\n/);
   const lines: string[] = [];
 
   for (const paragraph of paragraphs) {
@@ -1602,7 +1623,7 @@ function wrapPlainTextForPdf(input: {
 
     for (const word of words) {
       const candidate = current ? `${current}${word}` : word;
-      const candidateWidth = input.font.widthOfTextAtSize(candidate, input.fontSize);
+      const candidateWidth = measureText(input.font, candidate, input.fontSize);
 
       if (candidateWidth <= input.maxWidth || current.length === 0) {
         current = candidate;

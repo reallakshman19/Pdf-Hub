@@ -1,16 +1,23 @@
 import {
   getDocument,
   GlobalWorkerOptions,
+  OPS,
 } from 'pdfjs-dist';
 import type {
   OcrDiagnostic,
+  OcrPageResult,
 } from './types';
+import { raceWithAbort, throwIfAborted } from '../cancellation/operationCancellation';
 import type {
   OcrEnginePageInput,
 } from './engines/ocrEngineContract';
 import type {
   PdfRect,
 } from '../writer-v2/types';
+import {
+  convertTextContentToOcrPageResult,
+  type PdfNativeTextItem,
+} from './ocrPdfSourceBridge';
 
 export type PdfRasterImageMimeType =
   | 'image/png'
@@ -20,6 +27,8 @@ export type PdfRasterImageMimeType =
 export interface PdfRasterizerViewport {
   width: number;
   height: number;
+  convertToPdfPoint?: (x: number, y: number) => number[];
+  convertToViewportRectangle?: (rect: number[]) => number[];
 }
 
 export interface PdfRasterizerRenderTask {
@@ -29,12 +38,16 @@ export interface PdfRasterizerRenderTask {
 
 export interface PdfRasterizerPageLike {
   pageNumber: number;
+  /** PDF.js source user-space bounds, including CropBox offsets. */
+  view?: number[];
   getViewport: (input: { scale: number }) => PdfRasterizerViewport;
   render: (input: {
     canvas: unknown;
     canvasContext: unknown;
     viewport: PdfRasterizerViewport;
   }) => PdfRasterizerRenderTask;
+  getTextContent?: () => Promise<{ items: unknown[] }>;
+  getOperatorList?: () => Promise<{ fnArray: number[] }>;
 }
 
 export interface PdfRasterizerDocumentLike {
@@ -80,6 +93,7 @@ export interface PdfPageRasterizerOptions {
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
   canvasFactory?: PdfRasterCanvasFactory;
+  signal?: AbortSignal;
 }
 
 export interface RasterizePdfPageInput extends PdfPageRasterizerOptions {
@@ -105,6 +119,9 @@ export interface RasterizedPdfPage {
   rasterHeight: number;
   scale: number;
   region?: PdfRect;
+  pixelToPdfTransform?: readonly [number, number, number, number, number, number];
+  embeddedTextLength?: number;
+  nativePageResult?: OcrPageResult;
   diagnostics: OcrDiagnostic[];
 }
 
@@ -139,7 +156,12 @@ export async function loadPdfDocumentForOcrRasterizer(
 export async function rasterizePdfPageForOcr(
   input: RasterizePdfPageInput,
 ): Promise<RasterizedPdfPage> {
-  const document = await resolvePdfRasterizerDocument(input);
+  throwIfAborted(input.signal, 'begin OCR page rasterization');
+  const document = await raceWithAbort(
+    resolvePdfRasterizerDocument(input),
+    input.signal,
+    'load document for OCR rasterization',
+  );
   const pageNumber = input.pageIndex + 1;
 
   if (pageNumber < 1 || pageNumber > document.numPages) {
@@ -164,7 +186,11 @@ export async function rasterizePdfPageForOcr(
     };
   }
 
-  const page = await document.getPage(pageNumber);
+  const page = await raceWithAbort(
+    document.getPage(pageNumber),
+    input.signal,
+    'load selected OCR page',
+  );
   const baseViewport = page.getViewport({ scale: 1 });
   const requestedScale = input.scale ?? 2;
   const scale = clampScaleForMaxPixels({
@@ -190,41 +216,103 @@ export async function rasterizePdfPageForOcr(
       viewport,
     });
 
-    await renderTask.promise;
+    await raceWithAbort(
+      renderTask.promise,
+      input.signal,
+      'render selected OCR region',
+      () => { renderTask.cancel?.(); },
+    );
 
     const mimeType = input.mimeType ?? 'image/png';
     const quality = input.quality ?? 0.92;
 
-    const imageBytes = input.region
-      ? await canvas.cropToBytes(
-          pdfRectToRasterCropRect({
-            rect: input.region,
-            pageWidth: baseViewport.width,
-            pageHeight: baseViewport.height,
-            rasterWidth: canvas.width,
-            rasterHeight: canvas.height,
-          }),
-          mimeType,
-          quality,
-        )
-      : await canvas.toBytes(mimeType, quality);
+    // OCR regions are stored in unrotated PDF user space, not rendered
+    // viewport coordinates. PDF.js owns rotation and CropBox transforms.
+    const pdfBounds = page.view && page.view.length === 4
+      ? {
+          x: page.view[0],
+          y: page.view[1],
+          width: page.view[2] - page.view[0],
+          height: page.view[3] - page.view[1],
+        }
+      : { x: 0, y: 0, width: baseViewport.width, height: baseViewport.height };
 
     if (input.region) {
-      const validation = validatePdfRegion(input.region, {
-        width: baseViewport.width,
-        height: baseViewport.height,
-      });
-
-      diagnostics.push(...validation);
-
-      if (validation.length === 0) {
-        diagnostics.push({
-          level: 'info',
-          code: 'OCR_REGION_RASTERIZED',
-          pageIndex: input.pageIndex,
-          message: 'PDF page region was rasterized for OCR.',
-        });
+      const validation = validatePdfRegion(input.region, pdfBounds);
+      if (validation.length > 0) {
+        throw new Error(validation[0].message);
       }
+    }
+
+    const crop = input.region
+      ? pdfRectToRasterCropRect({
+          rect: input.region,
+          pageWidth: baseViewport.width,
+          pageHeight: baseViewport.height,
+          rasterWidth: canvas.width,
+          rasterHeight: canvas.height,
+          viewport,
+        })
+      : null;
+    const rasterWidth = crop ? Math.max(1, Math.floor(crop.width)) : canvas.width;
+    const rasterHeight = crop ? Math.max(1, Math.floor(crop.height)) : canvas.height;
+
+    const imageBytes = await raceWithAbort(
+      crop
+        ? canvas.cropToBytes(crop, mimeType, quality)
+        : canvas.toBytes(mimeType, quality),
+      input.signal,
+      'encode selected OCR region',
+    );
+    throwIfAborted(input.signal, 'publish selected OCR raster');
+    const pixelToPdfTransform = derivePixelToPdfTransform({
+      viewport,
+      crop,
+      rasterWidth,
+      rasterHeight,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      fallbackPdfBounds: input.region ?? pdfBounds,
+    });
+
+    let embeddedTextLength = 0;
+    let nativePageResult: OcrPageResult | undefined;
+
+    try {
+      if (!input.region && page.getTextContent && page.getOperatorList) {
+        const textContent = await raceWithAbort(page.getTextContent(), input.signal, 'read native PDF text');
+        if (Array.isArray(textContent.items) && textContent.items.length > 0) {
+          const nativeTextLength = textContent.items.reduce(
+            (acc: number, item: unknown) =>
+              acc + (typeof (item as { str?: unknown })?.str === 'string' ? (item as { str: string }).str.length : 0),
+            0,
+          );
+          const operators = nativeTextLength > 0
+            ? await raceWithAbort(page.getOperatorList(), input.signal, 'inspect PDF page images')
+            : null;
+          if (operators && !containsRasterImage(operators.fnArray)) {
+            embeddedTextLength = nativeTextLength;
+            nativePageResult = convertTextContentToOcrPageResult({
+              pageIndex: input.pageIndex,
+              width: baseViewport.width,
+              height: baseViewport.height,
+              items: textContent.items as PdfNativeTextItem[],
+            });
+          }
+        }
+      }
+    } catch {
+      throwIfAborted(input.signal, 'inspect native OCR page content');
+      // Non-fatal if native text extraction is unavailable
+    }
+
+    if (input.region) {
+      diagnostics.push({
+        level: 'info',
+        code: 'OCR_REGION_RASTERIZED',
+        pageIndex: input.pageIndex,
+        message: 'PDF page region was rasterized for OCR.',
+      });
     }
 
     return {
@@ -233,14 +321,13 @@ export async function rasterizePdfPageForOcr(
       imageBytes,
       width: input.region?.width ?? baseViewport.width,
       height: input.region?.height ?? baseViewport.height,
-      rasterWidth: input.region
-        ? Math.floor(input.region.width * scale)
-        : canvas.width,
-      rasterHeight: input.region
-        ? Math.floor(input.region.height * scale)
-        : canvas.height,
+      rasterWidth,
+      rasterHeight,
       scale,
       region: input.region,
+      pixelToPdfTransform,
+      embeddedTextLength,
+      nativePageResult,
       diagnostics,
     };
   } finally {
@@ -264,6 +351,7 @@ export async function rasterizePdfPagesForOcr(
         mimeType: input.mimeType,
         quality: input.quality,
         canvasFactory: input.canvasFactory,
+        signal: input.signal,
       }),
     );
   }
@@ -283,7 +371,26 @@ export function rasterizedPdfPageToOcrEnginePageInput(
     width: page.width,
     height: page.height,
     region: page.region,
+    rasterWidth: page.rasterWidth,
+    rasterHeight: page.rasterHeight,
+    pixelToPdfTransform: page.pixelToPdfTransform,
+    embeddedTextLength: page.embeddedTextLength,
+    nativePageResult: page.nativePageResult,
   };
+}
+
+function containsRasterImage(operators: number[]): boolean {
+  const rasterImageOperators = new Set([
+    OPS.paintImageMaskXObject,
+    OPS.paintImageMaskXObjectGroup,
+    OPS.paintImageXObject,
+    OPS.paintInlineImageXObject,
+    OPS.paintInlineImageXObjectGroup,
+    OPS.paintImageXObjectRepeat,
+    OPS.paintImageMaskXObjectRepeat,
+    OPS.paintSolidColorImageMask,
+  ]);
+  return operators.some((op) => rasterImageOperators.has(op));
 }
 
 export function rasterizedPdfPagesToOcrEnginePageInputs(
@@ -300,7 +407,28 @@ export function pdfRectToRasterCropRect(input: {
   pageHeight: number;
   rasterWidth: number;
   rasterHeight: number;
+  viewport?: PdfRasterizerViewport;
 }): PdfRasterCropRect {
+  if (input.viewport?.convertToViewportRectangle) {
+    const rectangle = input.viewport.convertToViewportRectangle([
+      input.rect.x,
+      input.rect.y,
+      input.rect.x + input.rect.width,
+      input.rect.y + input.rect.height,
+    ]);
+    const scaleX = input.rasterWidth / input.viewport.width;
+    const scaleY = input.rasterHeight / input.viewport.height;
+    return clampRasterCropRect({
+      x: Math.min(rectangle[0], rectangle[2]) * scaleX,
+      y: Math.min(rectangle[1], rectangle[3]) * scaleY,
+      width: Math.abs(rectangle[2] - rectangle[0]) * scaleX,
+      height: Math.abs(rectangle[3] - rectangle[1]) * scaleY,
+    }, {
+      width: input.rasterWidth,
+      height: input.rasterHeight,
+    });
+  }
+
   const scaleX = input.rasterWidth / Math.max(1, input.pageWidth);
   const scaleY = input.rasterHeight / Math.max(1, input.pageHeight);
 
@@ -458,6 +586,8 @@ function clampScaleForMaxPixels(input: {
 function validatePdfRegion(
   region: PdfRect,
   page: {
+    x: number;
+    y: number;
     width: number;
     height: number;
   },
@@ -471,20 +601,63 @@ function validatePdfRegion(
     && Number.isFinite(region.height)
     && region.width > 0
     && region.height > 0
-    && region.x >= 0
-    && region.y >= 0
-    && region.x + region.width <= page.width
-    && region.y + region.height <= page.height;
+    && region.x >= page.x
+    && region.y >= page.y
+    && region.x + region.width <= page.x + page.width
+    && region.y + region.height <= page.y + page.height;
 
   if (!valid) {
     diagnostics.push({
-      level: 'warning',
+      level: 'error',
       code: 'OUT_OF_PAGE_BBOX',
       message: 'OCR raster region is outside PDF page bounds.',
     });
   }
 
   return diagnostics;
+}
+
+/**
+ * Inverse map from OCR crop pixels to original PDF user-space points.
+ * A rotated/CropBox PDF uses PageViewport.convertToPdfPoint; synthetic
+ * rasterizers lacking PDF.js coordinates get a conservative 0-degree fallback.
+ */
+function derivePixelToPdfTransform(input: {
+  viewport: PdfRasterizerViewport;
+  crop: PdfRasterCropRect | null;
+  rasterWidth: number;
+  rasterHeight: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  fallbackPdfBounds: PdfRect;
+}): readonly [number, number, number, number, number, number] {
+  const { viewport, crop, rasterWidth, rasterHeight } = input;
+  const pdfAt = (pixelX: number, pixelY: number): number[] => {
+    if (viewport.convertToPdfPoint) {
+      const rasterX = (crop?.x ?? 0) + pixelX * (crop?.width ?? input.canvasWidth) / rasterWidth;
+      const rasterY = (crop?.y ?? 0) + pixelY * (crop?.height ?? input.canvasHeight) / rasterHeight;
+      return viewport.convertToPdfPoint(
+        rasterX * viewport.width / input.canvasWidth,
+        rasterY * viewport.height / input.canvasHeight,
+      );
+    }
+    const bounds = input.fallbackPdfBounds;
+    return [
+      bounds.x + pixelX * bounds.width / rasterWidth,
+      bounds.y + bounds.height - pixelY * bounds.height / rasterHeight,
+    ];
+  };
+  const origin = pdfAt(0, 0);
+  const xUnit = pdfAt(1, 0);
+  const yUnit = pdfAt(0, 1);
+  return [
+    xUnit[0] - origin[0],
+    xUnit[1] - origin[1],
+    yUnit[0] - origin[0],
+    yUnit[1] - origin[1],
+    origin[0],
+    origin[1],
+  ];
 }
 
 function clampRasterCropRect(

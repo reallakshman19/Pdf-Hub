@@ -51,7 +51,6 @@ import {
 import { useRichEditorCommandQueue } from '@/core/writer-v2/richEditorCommandQueue';
 import { WriterClipboardPlugin } from './WriterClipboardPlugin';
 import { ImageDropPlugin } from './plugins/ImageDropPlugin';
-import { TablePastePlugin } from './plugins/TablePastePlugin';
 import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
@@ -60,12 +59,16 @@ import {
   normalizeEditorStateJson,
   type WriterEditorSavePayload,
 } from '@/core/writer-v2/editor/writerEditorState';
+import { captureRichEditorOwner, isRichEditorOwnerCurrent } from '@/core/writer-v2/editor/richEditorOwnership';
+import { currentRichEditorBinding, registerRichEditorBinding, richEditorAggregateBytes, type RichEditorBinding } from '@/core/writer-v2/editor/richEditorImageInsertion';
+import { useSessionStore } from '@/core/session/store';
+import { WRITER_IMAGE_ADMISSION_LIMITS } from '@/core/admission/image/writerImageAdmission';
 import { useActiveEditorStore } from '@/core/writer-v2/activeEditorStore';
 import './writerEditorTheme.css';
 
 export interface WriterInlineEditorProps {
   element: WriterElementV2;
-  onSave: (payload: WriterEditorSavePayload) => void;
+  onSave: (payload: WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel: () => void;
 }
 
@@ -79,6 +82,17 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
   const pendingAssetsRef = React.useRef<WriterAssetRecordV2[]>([]);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const hasSavedRef = React.useRef(false);
+  const ownerRef = React.useRef(captureRichEditorOwner(element));
+  const pendingImportsRef = React.useRef(0);
+  const stageAssets = React.useCallback((assets: WriterAssetRecordV2[]) => {
+    pendingAssetsRef.current = [...pendingAssetsRef.current, ...assets];
+  }, []);
+  const bindingRef = React.useRef<RichEditorBinding>({
+    owner: ownerRef.current, isOpen: () => !hasSavedRef.current,
+    assets: () => pendingAssetsRef.current, stage: stageAssets,
+    beginImport: () => { if (pendingImportsRef.current) return false; pendingImportsRef.current = 1; return true; },
+    endImport: () => { pendingImportsRef.current -= 1; },
+  });
 
   const initialEditorStateJson = React.useMemo(
     () => normalizeEditorStateJson(element.editorStateJson, element.plainText ?? ''),
@@ -156,6 +170,10 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
 
   const save = React.useCallback(() => {
     if (hasSavedRef.current) return;
+    if (pendingImportsRef.current) {
+      if (isRichEditorOwnerCurrent(ownerRef.current)) useSessionStore.getState().failSaveOperation('Wait for Writer image admission to complete before saving.');
+      return;
+    }
     const editor = editorRef.current;
     if (!editor) return;
 
@@ -163,23 +181,29 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
     let plainText = '';
 
     editorState.read(() => {
-      plainText = $getRoot().getTextContent().trim();
+      plainText = $getRoot().getTextContent();
     });
 
     hasSavedRef.current = true;
-    onSave({
+    void Promise.resolve(onSave({
       editorStateJson: JSON.stringify(editorState.toJSON()),
       plainText,
       assets: [...pendingAssetsRef.current],
-    });
+      editOwner: ownerRef.current,
+    })).then(accepted => { if (accepted === false) hasSavedRef.current = false; }, () => { hasSavedRef.current = false; });
   }, [onSave]);
 
   // Capture Escape and Ctrl+Enter
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (hasSavedRef.current) return;
         event.preventDefault();
         event.stopPropagation();
+        // Escape is cancellation, not an unmount-triggered save.
+        hasSavedRef.current = true;
+        pendingAssetsRef.current = [];
+        useRichEditorCommandQueue.getState().discard(ownerRef.current);
         onCancel();
       } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
@@ -238,6 +262,10 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
     };
   }, []);
 
+  const registerEditor = React.useCallback((editor: LexicalEditor) => {
+    editorRef.current = editor;
+    requestAnimationFrame(() => { if (editorRef.current === editor) editor.focus(); });
+  }, []);
   return (
     <div
       ref={containerRef}
@@ -251,16 +279,7 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
       }}
     >
       <LexicalComposer key={composerKey} initialConfig={initialConfig}>
-        <ActiveEditorRegisterPlugin
-          onEditor={(editor) => {
-            editorRef.current = editor;
-            // Focus the editor after registration so the user can type immediately
-            // without needing an extra click.
-            requestAnimationFrame(() => {
-              editor.focus();
-            });
-          }}
-        />
+        <ActiveEditorRegisterPlugin onEditor={registerEditor} binding={bindingRef.current} />
         <QueuedRichEditorCommandPlugin />
 
         <OnChangePlugin
@@ -316,32 +335,22 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
         <CheckListPlugin />
         <WriterClipboardPlugin
           documentFingerprint={element.documentFingerprint}
-          onAssetsImported={(assets) => {
-            pendingAssetsRef.current = [
-              ...pendingAssetsRef.current,
-              ...assets,
-            ];
-          }}
+          onAssetsImported={stageAssets}
         />
         <ImageDropPlugin
           documentFingerprint={element.documentFingerprint}
-          onAssetsImported={(assets) => {
-            pendingAssetsRef.current = [
-              ...pendingAssetsRef.current,
-              ...assets,
-            ];
-          }}
+          onAssetsImported={stageAssets}
         />
-        <TablePastePlugin />
       </LexicalComposer>
     </div>
   );
 };
 
 function ActiveEditorRegisterPlugin({
-  onEditor,
+  onEditor, binding,
 }: {
   onEditor: (editor: LexicalEditor) => void;
+  binding: RichEditorBinding;
 }): null {
   const [editor] = useLexicalComposerContext();
   const setActiveEditor = useActiveEditorStore((state) => state.setActiveEditor);
@@ -349,31 +358,32 @@ function ActiveEditorRegisterPlugin({
   React.useEffect(() => {
     onEditor(editor);
     setActiveEditor(editor);
+    const unregister = registerRichEditorBinding(editor, binding);
 
     return () => {
+      unregister();
       if (useActiveEditorStore.getState().activeEditor === editor) {
         setActiveEditor(null);
       }
     };
-  }, [editor, onEditor, setActiveEditor]);
+  }, [editor, onEditor, setActiveEditor, binding]);
 
   return null;
 }
 
 function QueuedRichEditorCommandPlugin(): null {
   const [editor] = useLexicalComposerContext();
-  const pendingCount = useRichEditorCommandQueue((state) => state.pending.length);
+  const pending = useRichEditorCommandQueue((state) => state.pending);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
-      const commands = useRichEditorCommandQueue.getState().drain();
-
-      if (commands.length === 0) {
-        return;
-      }
-
+      const binding = currentRichEditorBinding(editor);
+      if (!binding || !pending.length) return;
       editor.focus(() => {
+        if (currentRichEditorBinding(editor) !== binding) return;
+        const commands = useRichEditorCommandQueue.getState().drain(binding.owner);
         for (const command of commands) {
+          if (currentRichEditorBinding(editor) !== binding) break;
           switch (command.type) {
             case 'insertTable':
               insertTable(editor, command.rows, command.cols);
@@ -381,16 +391,16 @@ function QueuedRichEditorCommandPlugin(): null {
 
             case 'insertImage':
               editor.update(() => {
-                $insertNodes([
-                  $createImageNode(
-                    command.src,
-                    command.altText,
-                    command.width,
-                    command.height,
-                    command.caption,
-                  ),
-                ]);
-              });
+                if (currentRichEditorBinding(editor) !== binding) return;
+                const asset = command.asset;
+                if (asset.documentFingerprint !== binding.owner.target.documentFingerprint || asset.dataUrl !== command.src
+                  || richEditorAggregateBytes(binding) + asset.dataUrl.length > WRITER_IMAGE_ADMISSION_LIMITS.maxAggregateAssetBytes) {
+                  useSessionStore.getState().failSaveOperation('Queued Writer image is foreign or exceeds the asset limit.');
+                  return;
+                }
+                $insertNodes([$createImageNode(command.src, command.altText, command.width, command.height, command.caption)]);
+                binding.stage([asset]);
+              }, { discrete: true });
               break;
 
             case 'applyHeading':
@@ -484,7 +494,7 @@ function QueuedRichEditorCommandPlugin(): null {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [editor, pendingCount]);
+  }, [editor, pending]);
 
   return null;
 }

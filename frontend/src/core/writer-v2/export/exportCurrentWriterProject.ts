@@ -1,4 +1,7 @@
 import { useWriterV2Store } from '../writerV2Store';
+import { validateOcrProjectPayload, type OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayloadFromStore } from '@/core/ocr/ocrHydrationBridge';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -12,6 +15,8 @@ import {
 export interface ExportCurrentWriterProjectInput {
   originalPdfBytes?: Uint8Array | null;
   documentFingerprint?: string;
+  /** Optional same-document OCR snapshot captured by the Save Project caller. */
+  ocrProject?: OcrProjectPayloadV1 | null;
   /**
    * Force main-thread (false) or worker (true) execution. Defaults to
    * `typeof Worker !== 'undefined'` — see exportCurrentWriterPdf.ts for the
@@ -38,12 +43,39 @@ export async function exportCurrentWriterProject(
     throw new Error('Cannot export PDF overlay project without originalPdfBytes.');
   }
 
+  let resolvedOcrProject: OcrProjectPayloadV1 | null = null;
+  if (input.ocrProject !== undefined) {
+    if (input.ocrProject) {
+      if (input.ocrProject.manifest.documentFingerprint !== documentFingerprint) {
+        throw new Error('Cannot export OCR state belonging to a different document.');
+      }
+      if (!validateOcrProjectPayload(input.ocrProject).valid) {
+        throw new Error('Cannot export invalid OCR project data.');
+      }
+    }
+    resolvedOcrProject = input.ocrProject;
+  } else {
+    const ocr = useOcrStore.getState();
+    const includesOcr =
+      ocr.documentFingerprint === documentFingerprint
+      && Boolean(
+        ocr.result || ocr.regions.length > 0 || ocr.corrections.length > 0,
+      );
+    if (includesOcr) {
+      resolvedOcrProject = createOcrProjectPayloadFromStore({
+        store: ocr,
+        documentFingerprint,
+      });
+    }
+  }
+
   const packInput: ExportPdfHubProjectInput = {
     originalPdfBytes: input.originalPdfBytes,
     documentFingerprint,
     documentMeta: state.documentMeta,
     elements: state.elements,
     assets: state.assetRecords,
+    ocrProject: resolvedOcrProject,
   };
 
   const shouldUseWorker = input.useWorker ?? typeof Worker !== 'undefined';

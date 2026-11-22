@@ -1,5 +1,9 @@
 import {
+  decodePDFRawStream,
+  degrees,
+  PDFArray,
   PDFDocument,
+  PDFRawStream,
 } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { getOcrProfile } from '../ocrProfiles';
@@ -168,6 +172,30 @@ describe('ocrSearchablePdfExport', () => {
     });
 
     expect(exported.diagnostics.some((item) => item.code === 'OCR_PAGE_SIZE_SCALED')).toBe(true);
+  });
+
+  it('keeps PDF-user-space text coordinates on rotated pages with a crop box', async () => {
+    const source = await PDFDocument.create();
+    const page = source.addPage([500, 700]);
+    page.setCropBox(32, 20, 400, 500);
+    page.setRotation(degrees(90));
+    const pdfBytes = await source.save();
+    const ocrResult = await createMockOcrResult();
+    const ocrPage = ocrResult.pages[0]!;
+    ocrPage.geometryProvenance = 'pdf-user-space-v2';
+    ocrPage.width = 500;
+    ocrPage.height = 400;
+    ocrPage.words = [{ ...ocrPage.words![0]!, bbox: { x: 210, y: 128, width: 45, height: 10 } }];
+
+    const exported = await exportSearchableOcrPdf({ pdfBytes, ocrResult });
+    const output = await PDFDocument.load(exported.bytes);
+    const contents = output.getPage(0).node.Contents();
+    expect(contents).toBeInstanceOf(PDFArray);
+    const stream = (contents as PDFArray).lookup(0, PDFRawStream);
+    const operators = new TextDecoder().decode(decodePDFRawStream(stream).decode());
+
+    expect(operators).toContain('1 0 0 1 210 128 Tm');
+    expect(exported.diagnostics.some((item) => item.code === 'OCR_PAGE_SIZE_SCALED')).toBe(false);
   });
 
   it('warns when no OCR text is embedded', async () => {

@@ -217,6 +217,20 @@ export function reanchorPageLabelRangesAfterGraphChange<TPage extends PageNode>(
 ): PageGraph<TPage> {
   const sourceRanges = beforeGraph.pageLabelRanges;
   if (!sourceRanges || sourceRanges.length === 0) {
+    // Third-party PDFs may have native /PageLabels that PDF.js could resolve,
+    // but whose original number-tree rules cannot be safely reconstructed.
+    // Clearing them before structural mutation would delete native metadata.
+    // Explicit [] remains the user-owned "remove PageLabels" state.
+    if (
+      beforeGraph.pageLabelRanges === undefined
+      && beforeGraph.pages.some((page) => page.logicalLabel !== undefined)
+    ) {
+      throw new Error(
+        'Cannot safely rewrite imported PageLabels: original numbering rules '
+        + 'are unavailable. Explicitly replace or clear PageLabels before '
+        + 'changing page structure.',
+      );
+    }
     return clearResolvedPageLabels(
       createPageGraph(afterGraph.pages, afterGraph.pageLabelRanges),
     );

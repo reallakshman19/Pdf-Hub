@@ -50,6 +50,25 @@ describe('built-in macro recipes slice 6', () => {
     }
   });
 
+  it.each([
+    ['white-out-redaction', 'White Visual Mask', 'white'],
+    ['black-redaction', 'Black Visual Mask', 'black'],
+  ])('presents %s as a visual mask while keeping the legacy recipe executable', (id, name, color) => {
+    const item = getBuiltInMacroRecipes().find((recipe) => recipe.id === id);
+
+    expect(item).toMatchObject({
+      name,
+      description: `Cover content on the current page with a ${color} rectangle. Underlying PDF text remains searchable and extractable.`,
+      requiredOps: ['draw_redaction_box'],
+      recipe: {
+        id,
+        name,
+        steps: [{ op: 'draw_redaction_box' }],
+      },
+    });
+    expect(findBuiltInMacroRecipe(id)).toEqual(item);
+  });
+
   it('hides legacy header/footer recipes from discovery but keeps explicit compatibility lookup', () => {
     const ids = new Set(getBuiltInMacroRecipes().map((item) => item.id));
 

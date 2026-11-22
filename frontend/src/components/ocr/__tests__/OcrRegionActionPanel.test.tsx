@@ -3,8 +3,10 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,7 +14,8 @@ import {
 } from '@testing-library/react';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import { createOcrRegion } from '@/core/ocr/ocrRegionModel';
+import { createOcrRegion, type OcrRegion } from '@/core/ocr/ocrRegionModel';
+import { useSessionStore } from '@/core/session/store';
 import { OcrRegionActionPanel } from '../OcrRegionActionPanel';
 
 describe('OcrRegionActionPanel', () => {
@@ -34,7 +37,7 @@ describe('OcrRegionActionPanel', () => {
   it('runs region OCR and shows result preview', async () => {
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -59,7 +62,7 @@ describe('OcrRegionActionPanel', () => {
 
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -100,7 +103,7 @@ describe('OcrRegionActionPanel', () => {
 
     render(
       <OcrRegionActionPanel
-        region={makeTableRegion()}
+        region={registerRegion(makeTableRegion())}
         pageInput={{
           pageIndex: 0,
           imageBytes: new Uint8Array([1, 2, 3]),
@@ -129,10 +132,43 @@ describe('OcrRegionActionPanel', () => {
     expect(element.tableData?.columns).toHaveLength(2);
   });
 
+  it('holds older OCR regions whose saved coordinates have no source provenance', () => {
+    const fresh = makeTextRegion();
+    const legacy: OcrRegion = {
+      ...fresh,
+      bbox: { ...fresh.bbox },
+    };
+    delete legacy.geometryProvenance;
+    registerRegion(legacy);
+    const onRegionResult = vi.fn();
+
+    render(
+      <OcrRegionActionPanel
+        region={legacy}
+        pageInput={{
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        }}
+        onRegionResult={onRegionResult}
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-region-geometry-review')).toHaveTextContent(
+      /Review Required/,
+    );
+    expect(screen.getByTestId('ocr-region-run')).toBeDisabled();
+    expect(onRegionResult).not.toHaveBeenCalled();
+    const persisted = useOcrStore.getState().regions[0]!;
+    expect(persisted.bbox).toEqual(legacy.bbox);
+    expect(persisted.geometryProvenance).toBeUndefined();
+  });
+
   it('shows message when no page input is available', () => {
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={null}
       />,
     );
@@ -140,12 +176,67 @@ describe('OcrRegionActionPanel', () => {
     expect(screen.getByTestId('ocr-region-run')).toBeDisabled();
   });
 
+  it('does not publish when the owning document changes while the OCR crop is pending', async () => {
+    const region = registerRegion(makeTextRegion());
+    const onRegionResult = vi.fn();
+    let releaseCrop!: (resolved: {
+      pageInput: {
+        pageIndex: number;
+        imageBytes: Uint8Array;
+        width: number;
+        height: number;
+      };
+      diagnostics: [];
+    }) => void;
+    const resolvePageInput = vi.fn(() => new Promise<{
+      pageInput: {
+        pageIndex: number;
+        imageBytes: Uint8Array;
+        width: number;
+        height: number;
+      };
+      diagnostics: [];
+    }>((resolve) => {
+      releaseCrop = resolve;
+    }));
+
+    render(
+      <OcrRegionActionPanel
+        region={region}
+        pageInput={null}
+        resolvePageInput={resolvePageInput}
+        onRegionResult={onRegionResult}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('ocr-region-run'));
+    await waitFor(() => expect(resolvePageInput).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      useOcrStore.getState().clearOcr();
+      useSessionStore.setState({ documentKey: 'different-document' });
+    });
+    await act(async () => {
+      releaseCrop({
+        pageInput: {
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+        },
+        diagnostics: [],
+      });
+    });
+
+    expect(onRegionResult).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('ocr-region-result-preview')).toBeNull();
+  });
+
   it('uses async page input resolver when supplied', async () => {
     let resolverCalled = false;
 
     render(
       <OcrRegionActionPanel
-        region={makeTextRegion()}
+        region={registerRegion(makeTextRegion())}
         pageInput={null}
         resolvePageInput={async (region) => {
           resolverCalled = true;
@@ -183,9 +274,18 @@ describe('OcrRegionActionPanel', () => {
   });
 });
 
+function registerRegion(region: OcrRegion): OcrRegion {
+  // An OCR Area is only executable while its exact source document owns it.
+  // Keep the selected region in the same store used by the live UI.
+  useSessionStore.setState({ documentKey: null, pageGraph: null, activeRevisionId: null });
+  useOcrStore.getState().upsertOcrRegion(region);
+  return region;
+}
+
 function makeTextRegion() {
   return createOcrRegion({
     id: 'region-text-action',
+    geometryProvenance: 'pdf-user-space-v2',
     documentFingerprint: 'doc-region-action',
     pageIndex: 0,
     mode: 'text',
@@ -202,6 +302,7 @@ function makeTextRegion() {
 function makeTableRegion() {
   return createOcrRegion({
     id: 'region-table-action',
+    geometryProvenance: 'pdf-user-space-v2',
     documentFingerprint: 'doc-region-action',
     pageIndex: 0,
     mode: 'table',

@@ -25,16 +25,18 @@ export interface WriterPersistenceAdapterV2 {
   deleteDocument: (documentFingerprint: string) => Promise<void>;
 
   saveAsset: (asset: WriterAssetRecordV2) => Promise<void>;
-  loadAsset: (id: string) => Promise<WriterAssetRecordV2 | null>;
+  loadAsset: (id: string, documentFingerprint?: string) => Promise<WriterAssetRecordV2 | null>;
   listAssets: (documentFingerprint: string) => Promise<WriterAssetRecordV2[]>;
-  deleteAsset: (id: string) => Promise<void>;
+  deleteAsset: (id: string, documentFingerprint?: string) => Promise<void>;
 }
 
 const DB_NAME = 'pdf-hub-writer-v2';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const DOCUMENT_STORE = 'documents';
-const ASSET_STORE = 'assets';
+const LEGACY_ASSET_STORE = 'assets';
+const ASSET_STORE = 'assets-by-owner';
 const ASSET_DOCUMENT_INDEX = 'by-documentFingerprint';
+const ASSET_ID_INDEX = 'by-id';
 
 export function createWriterDocumentRecord(
   documentFingerprint: string,
@@ -89,11 +91,14 @@ export function createIndexedDbWriterPersistence(): WriterPersistenceAdapterV2 {
       db.close();
     },
 
-    async loadAsset(id) {
+    async loadAsset(id, documentFingerprint) {
       const db = await openWriterDb();
-      const asset = await get<WriterAssetRecordV2>(db, ASSET_STORE, id);
-      db.close();
-      return asset ? { ...asset } : null;
+      try {
+        const asset = documentFingerprint !== undefined
+          ? await get<WriterAssetRecordV2>(db, ASSET_STORE, [documentFingerprint, id])
+          : uniqueAsset(await getAllByIndex<WriterAssetRecordV2>(db, ASSET_STORE, ASSET_ID_INDEX, id));
+        return asset ? { ...asset } : null;
+      } finally { db.close(); }
     },
 
     async listAssets(documentFingerprint) {
@@ -108,10 +113,16 @@ export function createIndexedDbWriterPersistence(): WriterPersistenceAdapterV2 {
       return assets.map((asset) => ({ ...asset }));
     },
 
-    async deleteAsset(id) {
+    async deleteAsset(id, documentFingerprint) {
       const db = await openWriterDb();
-      await del(db, ASSET_STORE, id);
-      db.close();
+      try {
+        if (documentFingerprint !== undefined) await del(db, ASSET_STORE, [documentFingerprint, id]);
+        else {
+          // Compatibility only: unscoped operations cannot choose between owners.
+          const asset = uniqueAsset(await getAllByIndex<WriterAssetRecordV2>(db, ASSET_STORE, ASSET_ID_INDEX, id));
+          if (asset) await del(db, ASSET_STORE, [asset.documentFingerprint, id]);
+        }
+      } finally { db.close(); }
     },
   };
 }
@@ -147,11 +158,13 @@ export function createMemoryWriterPersistence(): WriterPersistenceAdapterV2 {
     },
 
     async saveAsset(asset) {
-      assets.set(asset.id, { ...asset });
+      assets.set(JSON.stringify([asset.documentFingerprint, asset.id]), { ...asset });
     },
 
-    async loadAsset(id) {
-      const asset = assets.get(id);
+    async loadAsset(id, documentFingerprint) {
+      const asset = documentFingerprint !== undefined
+        ? assets.get(JSON.stringify([documentFingerprint, id]))
+        : uniqueAsset([...assets.values()].filter(asset => asset.id === id));
       return asset ? { ...asset } : null;
     },
 
@@ -161,10 +174,16 @@ export function createMemoryWriterPersistence(): WriterPersistenceAdapterV2 {
         .map((asset) => ({ ...asset }));
     },
 
-    async deleteAsset(id) {
-      assets.delete(id);
+    async deleteAsset(id, documentFingerprint) {
+      const owner = documentFingerprint ?? uniqueAsset([...assets.values()].filter(asset => asset.id === id))?.documentFingerprint;
+      if (owner !== undefined) assets.delete(JSON.stringify([owner, id]));
     },
   };
+}
+
+function uniqueAsset(assets: WriterAssetRecordV2[]): WriterAssetRecordV2 | null {
+  if (assets.length > 1) throw new Error('Writer asset ID is ambiguous without its document owner.');
+  return assets[0] ?? null;
 }
 
 export function createBestAvailableWriterPersistence(): WriterPersistenceAdapterV2 {
@@ -196,12 +215,22 @@ function openWriterDb(): Promise<IDBDatabase> {
 
       if (!db.objectStoreNames.contains(ASSET_STORE)) {
         const assetStore = db.createObjectStore(ASSET_STORE, {
-          keyPath: 'id',
+          keyPath: ['documentFingerprint', 'id'],
         });
-
-        assetStore.createIndex(ASSET_DOCUMENT_INDEX, 'documentFingerprint', {
-          unique: false,
-        });
+        assetStore.createIndex(ASSET_DOCUMENT_INDEX, 'documentFingerprint', { unique: false });
+        assetStore.createIndex(ASSET_ID_INDEX, 'id', { unique: false });
+        // IndexedDB upgrade is transactional: a failed migration rolls back the
+        // version and all copied records. Retain the legacy store for recovery.
+        if (db.objectStoreNames.contains(LEGACY_ASSET_STORE)) {
+          const transaction = request.transaction!;
+          const cursor = transaction.objectStore(LEGACY_ASSET_STORE).openCursor();
+          cursor.onsuccess = () => {
+            const record = cursor.result;
+            if (!record) return;
+            assetStore.put(record.value);
+            record.continue();
+          };
+        }
       }
     };
 

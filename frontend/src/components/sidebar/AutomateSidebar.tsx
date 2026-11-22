@@ -1,5 +1,4 @@
 import React from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import {
   Copy,
   Download,
@@ -41,10 +40,8 @@ import { PsIsonoteRecipeBuilder } from './PsIsonoteRecipeBuilder';
 import { MacroBatchRunPanel } from '@/components/macro/advanced/MacroBatchRunPanel';
 import { MacroGenerateDocumentPanel } from '@/components/macro/advanced/MacroGenerateDocumentPanel';
 import { AutomateHeaderFooterQuickAction } from './automate/AutomateHeaderFooterQuickAction';
-import {
-  MacroOutputQueue,
-  type MacroOutputQueueItem,
-} from '@/components/macro/advanced/MacroOutputQueue';
+import { MacroOutputQueue } from '@/components/macro/advanced/MacroOutputQueue';
+import { useMacroOutputQueueStore } from '@/core/macro/outputQueueStore';
 
 type AutomateTab = 'quick' | 'workflows' | 'build';
 
@@ -102,13 +99,27 @@ export const AutomateSidebar: React.FC = () => {
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
   const [generationBusy, setGenerationBusy] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
-  const [generatedOutputs, setGeneratedOutputs] = React.useState<MacroOutputQueueItem[]>([]);
+  const generatedOutputs = useMacroOutputQueueStore((state) => state.outputs);
+  const batchReceipts = useMacroOutputQueueStore((state) => state.batchReceipts);
+  const batchCustodyStatus = useMacroOutputQueueStore((state) => state.batchCustodyStatus);
+  const batchCustodyError = useMacroOutputQueueStore((state) => state.batchCustodyError);
+  const hydrateBatchCustody = useMacroOutputQueueStore((state) => state.hydrateBatchCustody);
+  const setGeneratedOutputs = useMacroOutputQueueStore((state) => state.setOutputs);
+  const enqueueGeneratedOutputs = useMacroOutputQueueStore((state) => state.enqueueOutputs);
   const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(
     () => subscribeCustomMacroRecipeChanges(setCustomRecipes),
     [],
   );
+
+  React.useEffect(() => {
+    void hydrateBatchCustody().catch((cause) => {
+      logError('macro', 'Durable batch output recovery failed', {
+        cause: cause instanceof Error ? cause.message : String(cause),
+      });
+    });
+  }, [hydrateBatchCustody]);
 
   React.useEffect(() => () => {
     abortRef.current?.abort('Automate panel unmounted');
@@ -223,7 +234,9 @@ export const AutomateSidebar: React.FC = () => {
       addToast({
         type: 'success',
         title: 'Workflow Complete',
-        message: `${recipe.name} completed successfully.`,
+        message: result.outputFiles.length > 0
+          ? `${recipe.name} completed. ${result.outputFiles.length} PDF(s) are queued for saving.`
+          : `${recipe.name} completed successfully.`,
       });
     } catch (runError) {
       if (controller.signal.aborted) return;
@@ -353,19 +366,11 @@ export const AutomateSidebar: React.FC = () => {
                 || batchBusy
                 || specializedOpen
               }
-              outputs={generatedOutputs}
               onToggle={() => setGeneratorOpen((value) => !value)}
               onBusyChange={setGenerationBusy}
               onOutputsProduced={(outputs) => {
-                setGeneratedOutputs((current) => [
-                  ...current,
-                  ...outputs.map((output) => ({
-                    id: uuidv4(),
-                    ...output,
-                  })),
-                ]);
+                enqueueGeneratedOutputs(outputs, { sourceKind: 'generated' });
               }}
-              onOutputsChange={setGeneratedOutputs}
             />
 
             <MacroBatchRunPanel
@@ -423,6 +428,42 @@ export const AutomateSidebar: React.FC = () => {
           <BuildWorkflowHome
             onCreate={() => openBuilder('new')}
           />
+        ) : null}
+
+        {batchCustodyStatus === 'blocked' ? (
+          <div role="alert" data-testid="batch-custody-blocked" className="mt-4 rounded border border-red-300 p-2 text-xs text-red-700">
+            Batch recovery blocked: {batchCustodyError ?? 'Stored PDF bytes or provenance failed validation.'}
+            Stored files have not been deleted. Recover the affected files before clearing site data.
+          </div>
+        ) : null}
+        {batchCustodyStatus === 'loading' ? (
+          <p role="status" className="mt-4 text-xs text-slate-500">Checking saved PDF output custody…</p>
+        ) : null}
+        {generatedOutputs.length === 0 && batchReceipts.length > 0 ? (
+          <details data-testid="batch-receipt-ledger" className="mt-4 rounded border border-slate-200 p-3 text-xs dark:border-slate-700">
+            <summary className="cursor-pointer">
+              Batch delivery/discard ledger — {batchReceipts.length} durable record(s)
+            </summary>
+            <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+              {batchReceipts.map((receipt) => (
+                <li key={receipt.id} className="border-t border-slate-200 py-2 dark:border-slate-700">
+                  <div>{receipt.outputName} · {receipt.method}</div>
+                  <div>{receipt.recordedAt} · SHA-256 {receipt.outputSha256}</div>
+                  {receipt.externalFileName ? <div>External filename: {receipt.externalFileName}</div> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {generatedOutputs.length > 0 ? (
+          <section aria-label="Generated PDF save queue" className="mt-4 space-y-2">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Batch PDFs are staged in this browser's IndexedDB when available; other generated PDFs remain session-only.
+              IndexedDB can be cleared by browser privacy controls, so save important files externally.
+              {batchCustodyStatus === 'volatile' ? ' Durable browser storage is unavailable; all outputs are session-only.' : ''}
+            </p>
+            <MacroOutputQueue outputs={generatedOutputs} onChange={setGeneratedOutputs} />
+          </section>
         ) : null}
 
         <details
@@ -507,19 +548,15 @@ function PageLabelsQuickAction({
 function GenerateDocumentQuickAction({
   open,
   disabled,
-  outputs,
   onToggle,
   onBusyChange,
   onOutputsProduced,
-  onOutputsChange,
 }: {
   open: boolean;
   disabled: boolean;
-  outputs: MacroOutputQueueItem[];
   onToggle: () => void;
   onBusyChange: (busy: boolean) => void;
   onOutputsProduced: (outputs: MacroOutputFile[]) => void;
-  onOutputsChange: (outputs: MacroOutputQueueItem[]) => void;
 }) {
   return (
     <section
@@ -558,10 +595,6 @@ function GenerateDocumentQuickAction({
             disabled={disabled}
             onBusyChange={onBusyChange}
             onOutputsProduced={onOutputsProduced}
-          />
-          <MacroOutputQueue
-            outputs={outputs}
-            onChange={onOutputsChange}
           />
         </div>
       ) : null}

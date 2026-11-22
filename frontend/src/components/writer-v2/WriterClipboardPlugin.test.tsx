@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { WriterInlineEditor } from './WriterInlineEditor';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useSessionStore } from '@/core/session/store';
+import { createPdfOverlayWriterDocumentMeta } from '@/core/writer-v2/writerDocumentMode';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { createPlainTextEditorStateJson } from '@/core/writer-v2/editor/writerEditorState';
 
@@ -57,6 +60,23 @@ function clipboardEvent(data: {
 }
 
 describe('WriterClipboardPlugin', () => {
+  beforeEach(() => {
+    useSessionStore.setState({ documentKey: 'doc-1' });
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'doc-1',
+      elements: [element()],
+      documentMeta: createPdfOverlayWriterDocumentMeta({
+        documentFingerprint: 'doc-1',
+        pageCount: 1,
+      }),
+    });
+    useWriterV2Store.getState().beginEditingWriterElement('writer-1');
+  });
+  afterEach(() => {
+    useWriterV2Store.getState().clearWriterV2();
+    useSessionStore.getState().clearDocument();
+  });
+
   it('pastes plain text into the editor and saves it', async () => {
     const onSave = vi.fn();
 
@@ -90,9 +110,8 @@ describe('WriterClipboardPlugin', () => {
   it('captures pasted image assets and saves asset ids', async () => {
     const onSave = vi.fn();
     const bytes = Uint8Array.from(atob(ONE_BY_ONE_PNG), (char) => char.charCodeAt(0));
-    const file = new File([bytes], 'clip.png', {
-      type: 'image/png',
-    });
+    const file = new File([bytes], 'clip.png', { type: 'image/png' });
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => bytes.buffer });
 
     const { unmount } = render(
       <WriterInlineEditor
@@ -110,7 +129,7 @@ describe('WriterClipboardPlugin', () => {
 
     await waitFor(
       () => {
-        expect(editor.textContent).toContain('[Image: writer-asset-');
+        expect(editor.querySelector('img')?.getAttribute('src')).toBe(`data:image/png;base64,${ONE_BY_ONE_PNG}`);
       },
       { timeout: 2000 }
     );
@@ -123,6 +142,7 @@ describe('WriterClipboardPlugin', () => {
 
     expect(payload.assets).toHaveLength(1);
     expect(payload.assets[0].mimeType).toBe('image/png');
+    expect(payload.editorStateJson).toContain('inline-image');
   });
 });
 

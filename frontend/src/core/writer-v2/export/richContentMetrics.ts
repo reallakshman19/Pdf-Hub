@@ -120,7 +120,7 @@ function estimateTableHeight(
       rowHeight = Math.max(rowHeight, nestedHeight + 10);
     }
 
-    height += Math.min(90, rowHeight);
+    height += rowHeight;
   }
 
   return height + 10;

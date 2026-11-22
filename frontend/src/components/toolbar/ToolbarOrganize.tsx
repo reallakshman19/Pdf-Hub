@@ -580,7 +580,7 @@ export const ToolbarOrganize: React.FC = () => {
         </Tooltip>
 
         <Tooltip content={activeIndices.length > 0 ? `Extract ${activeIndices.length} page(s) — copies to a new PDF, this document is unchanged` : 'Extract — select pages in the thumbnail panel first'}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExtract} disabled={!workingBytes || activeIndices.length === 0}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Extract selected or current pages" onClick={handleExtract} disabled={!workingBytes || activeIndices.length === 0}>
             <Scissors className="w-4 h-4" />
           </Button>
         </Tooltip>

@@ -7,6 +7,7 @@ import * as textSelectionGeometry from './textSelectionGeometry';
 import '@/core/annotations/register-all';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import { MemorySource } from '@/adapters/document-source/MemorySource';
 import { MemoryRevisionStore } from '@/adapters/revision-store/MemoryRevisionStore';
@@ -95,6 +96,7 @@ describe('DocumentWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearWorkingRevisionStoreRegistryForTests();
+    useOcrReviewStore.setState({ reviewFocus: null });
     useSessionStore.setState({
       workingBytes: new Uint8Array([1, 2, 3]),
       documentKey: 'test-doc',
@@ -392,6 +394,35 @@ describe('DocumentWorkspace', () => {
     await vi.waitFor(() => {
       expect(setZoom).toHaveBeenCalled();
     });
+  });
+
+  it('renders OCR review focus target with converted top-origin viewport coordinates', async () => {
+    useOcrReviewStore.setState({
+      reviewFocus: {
+        documentFingerprint: 'test-doc',
+        pageIndex: 0,
+        bbox: {
+          x: 20,
+          y: 750,
+          width: 100,
+          height: 50,
+        },
+        targetId: 'target-1',
+        source: 'region',
+        label: 'OCR text area',
+        requestedAt: Date.now(),
+      },
+    });
+
+    await act(async () => {
+      render(<DocumentWorkspace />);
+    });
+
+    const focusTarget = await screen.findByTestId('ocr-review-focus-target');
+    expect(focusTarget).toBeInTheDocument();
+    expect(focusTarget.textContent).toContain('OCR text area');
+    expect(parseFloat(focusTarget.style.top)).toBe(700);
+    useOcrReviewStore.setState({ reviewFocus: null });
   });
 });
 
