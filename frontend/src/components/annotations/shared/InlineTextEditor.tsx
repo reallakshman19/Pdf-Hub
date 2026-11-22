@@ -13,7 +13,7 @@ export interface InlineTextEditorProps {
     textAlign?: 'left' | 'center' | 'right';
     opacity?: number;
   };
-  bounds: { width: number; height: number };
+  bounds: { width: number; height: number; y?: number };
   scale: number;
   rotation?: number;
   allowToolbar?: boolean;
@@ -21,6 +21,8 @@ export interface InlineTextEditorProps {
   onCancel: () => void;
   onChangeStyle?: (stylePatch: Record<string, unknown>) => void;
 }
+
+const normalizeNewlines = (str: string) => (str ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
 export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   defaultValue,
@@ -33,7 +35,7 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   onCancel,
   onChangeStyle,
 }) => {
-  const [text, setText] = useState(defaultValue);
+  const [text, setText] = useState(() => normalizeNewlines(defaultValue));
   const [stylePatch, setStylePatch] = useState<Record<string, unknown>>({});
   const [isUnrotated, setIsUnrotated] = useState(false);
   const [measuredHeight, setMeasuredHeight] = useState(bounds.height);
@@ -58,10 +60,11 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
     if (measureRef.current) {
       const scrollH = measureRef.current.scrollHeight;
       const scrollW = measureRef.current.scrollWidth;
-      // Option A (Adaptive CAD Wrap): Maintain at least bounds width, expand height downward
-      setMeasuredHeight(Math.max(bounds.height, scrollH + 4));
-      // Expand width gracefully if text exceeds single line without wrapping space
-      setMeasuredWidth(Math.max(bounds.width, Math.min(scrollW + 6, Math.max(bounds.width, 420))));
+      const lineCount = text.split('\n').length || 1;
+      const lineH = Math.max(16, Math.round(liveFontSize * scale * 1.25));
+      const minTextH = lineCount * lineH + 6;
+      setMeasuredHeight(Math.max(bounds.height, scrollH + 6, minTextH));
+      setMeasuredWidth(Math.max(bounds.width, Math.min(scrollW + 10, Math.max(bounds.width, 420))));
     }
   }, [text, liveFontSize, bounds.width, bounds.height, scale]);
 
@@ -100,10 +103,11 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   };
 
   const handleCommit = () => {
+    const cleanText = normalizeNewlines(text);
     if (Object.keys(stylePatch).length > 0) {
-      onCommit(text, stylePatch);
+      onCommit(cleanText, stylePatch);
     } else {
-      onCommit(text);
+      onCommit(cleanText);
     }
   };
 
@@ -177,6 +181,7 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
           textAlign={liveTextAlign}
           rotation={rotation}
           isUnrotated={isUnrotated}
+          placement={bounds.y !== undefined && bounds.y < 48 ? 'bottom' : 'top'}
           onToggleUnrotate={() => setIsUnrotated((prev) => !prev)}
           onUpdateStyle={handleUpdateStyle}
           onInsertSymbol={handleInsertSymbol}
@@ -189,8 +194,9 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
       <textarea
         ref={textareaRef}
         autoFocus
+        className="inline-text-editor-textarea"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => setText(normalizeNewlines(e.target.value))}
         onCompositionStart={() => {
           isComposingRef.current = true;
         }}
@@ -205,14 +211,16 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
           boxSizing: 'border-box',
           resize: 'none',
           overflow: 'hidden',
+          overflowX: 'hidden',
+          overflowY: 'hidden',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           border: 'none',
           outline: '1.5px solid #2563eb',
           outlineOffset: '0px',
-          padding: '1px 3px',
+          padding: '2px 4px',
           margin: 0,
-          lineHeight: 1.15,
+          lineHeight: 1.25,
           fontSize: liveFontSize * scale,
           fontFamily: style.fontFamily ?? 'Helvetica, Arial, sans-serif',
           fontWeight: liveFontWeight,

@@ -27,6 +27,8 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
         borderRadius: 6, padding: 4,
         cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'), pointerEvents: 'all',
         touchAction: 'none', userSelect: 'none',
+        overflow: isEditing ? 'visible' : 'hidden',
+        zIndex: isEditing ? 50 : undefined,
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
       onDoubleClick={onDoubleClick}
@@ -40,7 +42,7 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
             color: annotation.data?.textColor ?? '#111827',
             backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#fff7cc'),
           }}
-          bounds={{ width: displayRect.width, height: displayRect.height }}
+          bounds={{ width: displayRect.width, height: displayRect.height, y: displayRect.y }}
           scale={scale}
           onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
           onCancel={() => onCommitEdit?.(editingValue ?? '')}

@@ -88,6 +88,8 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         height: rect.height,
         opacity: annotation.data?.opacity ?? 1,
         pointerEvents: 'none',
+        zIndex: isEditing ? 50 : undefined,
+        overflow: isEditing ? 'visible' : undefined,
       }}
     >
       {!isEditing && nativeAppearanceUrl && (
@@ -171,6 +173,8 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           cursor: isLocked ? 'pointer' : isEditing ? 'text' : isSelected ? 'move' : 'pointer',
           pointerEvents: 'all',
           touchAction: 'none',
+          overflow: isEditing ? 'visible' : 'hidden',
+          zIndex: isEditing ? 50 : undefined,
         }}
         onPointerDown={(event) => {
           onSelect(event);
@@ -211,7 +215,7 @@ export const NativeAppearanceNode: React.FC<Props> = ({
               color: annotation.data?.textColor ?? '#111827',
               backgroundColor: annotation.data?.backgroundColor,
             }}
-            bounds={{ width: rect.width, height: rect.height }}
+            bounds={{ width: rect.width, height: rect.height, y: rect.y }}
             scale={scale}
             rotation={annotation.data?.rotation ?? 0}
             onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}

@@ -164,7 +164,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'),
           pointerEvents: 'all',
           outline: isSelected ? `2px solid ${borderColor}` : 'none',
-          overflow: 'hidden',
+          overflow: isEditing ? 'visible' : 'hidden',
+          zIndex: isEditing ? 50 : undefined,
           boxSizing: 'border-box',
           touchAction: 'none',
           userSelect: 'none',
@@ -190,7 +191,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
               color: annotation.data?.textColor ?? '#111827',
               backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff'),
             }}
-            bounds={{ width: visualBox.width, height: visualBox.height }}
+            bounds={{ width: visualBox.width, height: visualBox.height, y: visualBox.y }}
             scale={scale}
             onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
             onCancel={() => onCommitEdit?.(editingValue ?? '')}

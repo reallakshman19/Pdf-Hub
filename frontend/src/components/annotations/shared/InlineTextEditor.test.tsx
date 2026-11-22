@@ -95,7 +95,7 @@ describe('InlineTextEditor', () => {
     render(
       <InlineTextEditor
         defaultValue="Pipe "
-        style={{ fontSize: 12, textColor: '#111827' }}
+        style={{ fontSize: 12, color: '#111827' }}
         bounds={{ width: 120, height: 30 }}
         scale={1}
         onCommit={onCommit}
@@ -123,5 +123,33 @@ describe('InlineTextEditor', () => {
     fireEvent.click(commitBtn);
 
     expect(onCommit).toHaveBeenCalledWith('Pipe Ø', expect.objectContaining({ fontWeight: 'bold' }));
+  });
+
+  it('normalizes carriage returns (\\r) from native PDF callouts and avoids scrollbars', () => {
+    const onCommit = vi.fn();
+    const onCancel = vi.fn();
+
+    render(
+      <InlineTextEditor
+        defaultValue={'Rest\rAxial Stop- Normal'}
+        style={{ fontSize: 10, color: '#FF0000' }}
+        bounds={{ width: 110, height: 26, y: 30 }}
+        scale={1}
+        onCommit={onCommit}
+        onCancel={onCancel}
+      />,
+    );
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    // Normalized to standard \n newline
+    expect(textarea.value).toBe('Rest\nAxial Stop- Normal');
+    expect(textarea.className).toContain('inline-text-editor-textarea');
+
+    // Bounds.y < 48 places toolbar below
+    const toolbar = screen.getByTestId('floating-format-toolbar');
+    expect(toolbar.className).toContain('top-full');
+
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+    expect(onCommit).toHaveBeenCalledWith('Rest\nAxial Stop- Normal');
   });
 });

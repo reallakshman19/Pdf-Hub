@@ -20,6 +20,7 @@ export interface FloatingFormatToolbarProps {
   textAlign?: 'left' | 'center' | 'right';
   rotation?: number;
   isUnrotated?: boolean;
+  placement?: 'top' | 'bottom';
   onToggleUnrotate?: () => void;
   onUpdateStyle: (patch: Record<string, unknown>) => void;
   onInsertSymbol: (symbol: string) => void;
@@ -64,6 +65,7 @@ export const FloatingFormatToolbar: React.FC<FloatingFormatToolbarProps> = ({
   textAlign = 'left',
   rotation = 0,
   isUnrotated = false,
+  placement = 'top',
   onToggleUnrotate,
   onUpdateStyle,
   onInsertSymbol,
@@ -78,11 +80,15 @@ export const FloatingFormatToolbar: React.FC<FloatingFormatToolbarProps> = ({
   const isTransparentBg = backgroundColor === 'transparent';
   const hasRotation = rotation % 360 !== 0;
 
+  const positionClass = placement === 'bottom'
+    ? 'absolute top-full mt-2 left-0 z-50'
+    : 'absolute -top-11 left-0 z-50';
+
   return (
     <div
       data-testid="floating-format-toolbar"
-      className="absolute -top-11 left-0 z-50 flex items-center gap-1 p-1 rounded-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-xl text-slate-800 dark:text-slate-200 select-none pointer-events-auto"
-      style={{ transform: 'translateY(-4px)' }}
+      className={`${positionClass} flex items-center gap-1 p-1 rounded-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-xl text-slate-800 dark:text-slate-200 select-none pointer-events-auto`}
+      style={{ transform: placement === 'bottom' ? 'none' : 'translateY(-4px)' }}
       onPointerDown={(e) => {
         // Prevent clicking toolbar items from stealing focus / blurring the textarea
         e.preventDefault();

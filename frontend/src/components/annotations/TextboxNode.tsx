@@ -52,6 +52,8 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         userSelect: 'none',
         outline: isSelected ? '2px solid rgba(37, 99, 235, 0.18)' : 'none',
         transform: `rotate(${contentRotation + (annotation.data.rotation ?? 0)}deg)`,
+        overflow: isEditing ? 'visible' : 'hidden',
+        zIndex: isEditing ? 50 : undefined,
       }}
       onPointerDown={e => {
         onSelect(e);
@@ -72,7 +74,7 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
             color: annotation.data?.textColor ?? '#0f172a',
             backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent')),
           }}
-          bounds={{ width: bodyWidth, height: bodyHeight }}
+          bounds={{ width: bodyWidth, height: bodyHeight, y: rect.y }}
           scale={scale}
           rotation={contentRotation + (annotation.data.rotation ?? 0)}
           onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
