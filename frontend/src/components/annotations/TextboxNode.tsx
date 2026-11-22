@@ -3,6 +3,7 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { Lock } from 'lucide-react';
 import { FreeTextPreview } from './shared/FreeTextPreview';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
@@ -60,46 +61,22 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
     >
       {isLocked && <div className="absolute top-1 right-1 opacity-70"><Lock className="w-3.5 h-3.5" /></div>}
       {isEditing ? (
-        <textarea
-          autoFocus
-          ref={(el) => {
-            if (el) {
-              el.selectionStart = el.value.length;
-              el.selectionEnd = el.value.length;
-            }
-          }}
-          defaultValue={editingValue}
+        <InlineTextEditor
+          defaultValue={editingValue ?? ''}
           style={{
-            width: '100%',
-            height: '100%',
-            boxSizing: 'border-box',
-            resize: 'none',
-            overflow: 'hidden',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            border: 'none',
-            outline: 'none',
-            padding: '1px 3px',
-            margin: 0,
-            lineHeight: 1.15,
-            fontSize: 'inherit',
-            fontFamily: 'inherit',
-            fontWeight: 'inherit',
-            fontStyle: 'inherit',
-            textAlign: 'inherit',
-            color: 'inherit',
-            background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
+            fontSize: annotation.data?.fontSize ?? 12,
+            fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+            fontWeight: annotation.data?.fontWeight ?? 'normal',
+            fontStyle: annotation.data?.fontStyle ?? 'normal',
+            textAlign: annotation.data?.textAlign ?? 'left',
+            color: annotation.data?.textColor ?? '#0f172a',
+            backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent')),
           }}
-          onBlur={e => onCommitEdit?.(e.currentTarget.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              onCommitEdit?.(e.currentTarget.value);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              onCommitEdit?.(editingValue ?? '');
-            }
-          }}
+          bounds={{ width: bodyWidth, height: bodyHeight }}
+          scale={scale}
+          rotation={contentRotation + (annotation.data.rotation ?? 0)}
+          onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+          onCancel={() => onCommitEdit?.(editingValue ?? '')}
         />
       ) : (
         <FreeTextPreview

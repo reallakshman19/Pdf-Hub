@@ -346,7 +346,7 @@ export async function attachNativeFreeTextAppearance(
   // The original form already contains its graphics state. Apply the edited
   // annotation opacity only to newly drawn content, not repeatedly to it.
   commands.push('/GS0 gs');
-  if (!underlay && annotation.data.backgroundColor) {
+  if (!underlay && fill) {
     commands.push(`${rgb(fill)} rg`, `${f(body[0])} ${f(body[1])} ${f(body[2] - body[0])} ${f(body[3] - body[1])} re f`);
   }
   if (!underlay && borderWidth > 0) {

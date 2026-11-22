@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnnotationNodeProps, Point2D, Rect } from '@/core/annotations/types';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 type Props = AnnotationNodeProps & {
   anchorPoint?: Point2D | null;
@@ -199,48 +200,22 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           </span>
         )}
         {editableText && isEditing && (
-          <textarea
-            autoFocus
-            ref={(el) => {
-              if (el) {
-                el.selectionStart = el.value.length;
-                el.selectionEnd = el.value.length;
-              }
-            }}
-            defaultValue={editingValue}
+          <InlineTextEditor
+            defaultValue={editingValue ?? ''}
             style={{
-              width: '100%',
-              height: '100%',
-              boxSizing: 'border-box',
-              resize: 'none',
-              overflow: 'hidden',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              border: 'none',
-              outline: '1.5px solid #3b82f6',
-              outlineOffset: '0px',
-              padding: '1px 3px',
-              margin: 0,
-              lineHeight: 1.15,
-              fontSize: (annotation.data?.fontSize ?? 12) * scale,
+              fontSize: annotation.data?.fontSize ?? 12,
               fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
               fontWeight: annotation.data?.fontWeight ?? 'normal',
               fontStyle: annotation.data?.fontStyle ?? 'normal',
               textAlign: annotation.data?.textAlign ?? 'left',
               color: annotation.data?.textColor ?? '#111827',
-              background: 'transparent',
-              borderRadius: 2,
+              backgroundColor: annotation.data?.backgroundColor,
             }}
-            onBlur={(event) => onCommitEdit?.(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                onCommitEdit?.(event.currentTarget.value);
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                onCommitEdit?.(editingValue ?? '');
-              }
-            }}
+            bounds={{ width: rect.width, height: rect.height }}
+            scale={scale}
+            rotation={annotation.data?.rotation ?? 0}
+            onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+            onCancel={() => onCommitEdit?.(editingValue ?? '')}
           />
         )}
         {isSelected && !isLocked && !isEditing && (

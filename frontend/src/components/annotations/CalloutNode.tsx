@@ -3,6 +3,7 @@ import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types'
 import { computeCalloutPath } from '../../core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { FreeTextPreview } from './shared/FreeTextPreview';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 interface CalloutExtras {
   anchorPoint?: Point2D | null;
@@ -178,46 +179,21 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
         onDoubleClick={onDoubleClick}
       >
         {isEditing ? (
-          <textarea
-            autoFocus
-            ref={(el) => {
-              if (el) {
-                el.selectionStart = el.value.length;
-                el.selectionEnd = el.value.length;
-              }
-            }}
-            defaultValue={editingValue}
+          <InlineTextEditor
+            defaultValue={editingValue ?? ''}
             style={{
-              width: '100%',
-              height: '100%',
-              boxSizing: 'border-box',
-              resize: 'none',
-              overflow: 'hidden',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              border: 'none',
-              outline: 'none',
-              padding: 0,
-              margin: 0,
-              lineHeight: 1.15,
-              fontSize: 'inherit',
-              fontFamily: 'inherit',
-              fontWeight: 'inherit',
-              fontStyle: 'inherit',
-              textAlign: 'inherit',
-              color: 'inherit',
-              background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
+              fontSize: annotation.data?.fontSize ?? 10,
+              fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+              fontWeight: annotation.data?.fontWeight ?? 'normal',
+              fontStyle: annotation.data?.fontStyle ?? 'normal',
+              textAlign: annotation.data?.textAlign ?? 'left',
+              color: annotation.data?.textColor ?? '#111827',
+              backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff'),
             }}
-            onBlur={(e) => onCommitEdit?.(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                onCommitEdit?.(e.currentTarget.value);
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                onCommitEdit?.(editingValue ?? '');
-              }
-            }}
+            bounds={{ width: visualBox.width, height: visualBox.height }}
+            scale={scale}
+            onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+            onCancel={() => onCommitEdit?.(editingValue ?? '')}
           />
         ) : (
           <FreeTextPreview

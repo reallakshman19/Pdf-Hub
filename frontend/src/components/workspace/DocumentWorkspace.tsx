@@ -1173,7 +1173,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     }
   }, []);
 
-  const commitTextEdit = (annotation: PdfAnnotation, value: string, edit: typeof activeEdit) => {
+  const commitTextEdit = (
+    annotation: PdfAnnotation,
+    value: string,
+    edit: typeof activeEdit,
+    stylePatch?: Record<string, unknown>,
+  ) => {
     if (!isCurrentPage() || !edit || editingRef.current !== edit || edit.id !== annotation.id) return;
     editingRef.current = null;
     setEditingState(null);
@@ -1182,17 +1187,19 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     // HTML auto-sizing on a later refresh/edit confirmation.
     const hasNativeRichTextRoot = annotation.data.nativeInterop?.richText === true;
     const currentRect = draftRectsRef.current[annotation.id];
+    const effectiveFontSize = typeof stylePatch?.fontSize === 'number' ? stylePatch.fontSize : readFontSize(annotation);
     const nextRect =
       !hasNativeRichTextRoot && annotation.data.autoSize !== false && isTextLike(annotation.type)
         ? autoSizeRectForText(
             value,
-            readFontSize(annotation),
+            effectiveFontSize,
             currentRect ?? annotation.rect,
           )
         : currentRect ?? annotation.rect;
 
     const nextData: Record<string, unknown> = {
       ...annotation.data,
+      ...stylePatch,
       text: value,
     };
 
@@ -2388,7 +2395,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                 editingRef.current = edit;
                 setEditingState(edit);
               }}
-              onCommitEdit={(v: string) => commitTextEdit(annotation, v, activeEdit)}
+              onCommitEdit={(v: string, stylePatch?: Record<string, unknown>) => commitTextEdit(annotation, v, activeEdit, stylePatch)}
               {...(annotation.type === 'callout' ? {
                 anchorPoint: anchor,
                 kneePoint: knee,
@@ -2883,8 +2890,8 @@ function readZIndex(annotation: PdfAnnotation): number {
 function autoSizeRectForText(text: string, fontSize: number, rect: Rect): Rect {
   const lines = text.split('\n');
   const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-  const width = Math.max(120, Math.min(380, longest * (fontSize * 0.62) + 20));
-  const height = Math.max(36, lines.length * (fontSize * 1.5) + 14);
+  const width = Math.max(rect.width, Math.min(600, Math.round(longest * (fontSize * 0.60) + 12)));
+  const height = Math.max(rect.height, Math.round(lines.length * (fontSize * 1.25) + 8));
   return { ...rect, width, height };
 }
 

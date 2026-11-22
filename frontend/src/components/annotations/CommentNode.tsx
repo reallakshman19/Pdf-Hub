@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { nativeTextDisplayRect } from './shared/nativeTextAnchor';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
@@ -31,43 +32,18 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
       onDoubleClick={onDoubleClick}
     >
       {isEditing ? (
-        <textarea
-          autoFocus
-          ref={(el) => {
-            if (el) {
-              el.selectionStart = el.value.length;
-              el.selectionEnd = el.value.length;
-            }
-          }}
-          defaultValue={editingValue}
+        <InlineTextEditor
+          defaultValue={editingValue ?? ''}
           style={{
-            width: '100%',
-            height: '100%',
-            boxSizing: 'border-box',
-            resize: 'none',
-            overflow: 'hidden',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            border: 'none',
-            outline: 'none',
-            padding: 0,
-            margin: 0,
-            lineHeight: 1.2,
-            fontSize: 'inherit',
+            fontSize: annotation.data?.fontSize ?? 12,
             fontFamily: 'inherit',
-            color: 'inherit',
-            background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
+            color: annotation.data?.textColor ?? '#111827',
+            backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#fff7cc'),
           }}
-          onBlur={e => onCommitEdit?.(e.currentTarget.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              onCommitEdit?.(e.currentTarget.value);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              onCommitEdit?.(editingValue ?? '');
-            }
-          }}
+          bounds={{ width: displayRect.width, height: displayRect.height }}
+          scale={scale}
+          onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+          onCancel={() => onCommitEdit?.(editingValue ?? '')}
         />
       ) : (
         <div className="w-full h-full">{annotation.data?.text ?? 'Note'}</div>

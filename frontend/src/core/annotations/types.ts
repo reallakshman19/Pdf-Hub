@@ -204,5 +204,5 @@ export interface AnnotationNodeProps<T extends AnnotationType = AnnotationType> 
   onSelect: (e: React.PointerEvent<HTMLDivElement>) => void;
   onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize' | 'move-all') => void;
   onDoubleClick?: () => void;
-  onCommitEdit?: (value: string) => void;
+  onCommitEdit?: (value: string, stylePatch?: Record<string, unknown>) => void;
 }

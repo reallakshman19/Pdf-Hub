@@ -17,7 +17,7 @@ const callbacks = () => ({
 describe('AnnotationNodes translucency and transparent background', () => {
   it('CalloutNode renders with translucent opacity and transparent background', () => {
     const handlers = callbacks();
-    const annotation: PdfAnnotation = {
+    const annotation: PdfAnnotation & { type: 'callout' } = {
       id: 'callout-trans',
       type: 'callout',
       pageNumber: 1,
@@ -52,7 +52,7 @@ describe('AnnotationNodes translucency and transparent background', () => {
 
   it('CalloutNode editor hides scrollbars and commits on Enter', () => {
     const handlers = callbacks();
-    const annotation: PdfAnnotation = {
+    const annotation: PdfAnnotation & { type: 'callout' } = {
       id: 'callout-edit',
       type: 'callout',
       pageNumber: 1,
@@ -86,7 +86,7 @@ describe('AnnotationNodes translucency and transparent background', () => {
 
   it('TextboxNode renders translucent, respects transparent background, and provides polished editor', () => {
     const handlers = callbacks();
-    const annotation: PdfAnnotation = {
+    const annotation: PdfAnnotation & { type: 'textbox' } = {
       id: 'textbox-trans',
       type: 'textbox',
       pageNumber: 1,
@@ -139,7 +139,7 @@ describe('AnnotationNodes translucency and transparent background', () => {
 
   it('CommentNode, ShapeCloudNode, and StampNode apply opacity and transparent background correctly', () => {
     const handlers = callbacks();
-    const comment: PdfAnnotation = {
+    const comment: PdfAnnotation & { type: 'comment' } = {
       id: 'comment-1',
       type: 'comment',
       pageNumber: 1,
@@ -155,7 +155,7 @@ describe('AnnotationNodes translucency and transparent background', () => {
     expect(commentEl.style.opacity).toBe('0.6');
     expect(commentEl.style.background).toBe('transparent');
 
-    const cloud: PdfAnnotation = {
+    const cloud: PdfAnnotation & { type: 'shape-cloud' } = {
       id: 'cloud-1',
       type: 'shape-cloud',
       pageNumber: 1,
@@ -170,7 +170,7 @@ describe('AnnotationNodes translucency and transparent background', () => {
     const cloudEl = cloudContainer.querySelector('[data-annotation-type="shape-cloud"]') as HTMLDivElement;
     expect(cloudEl.style.opacity).toBe('0.4');
 
-    const stamp: PdfAnnotation = {
+    const stamp: PdfAnnotation & { type: 'stamp' } = {
       id: 'stamp-1',
       type: 'stamp',
       pageNumber: 1,
