@@ -20,6 +20,10 @@ async function authorize(bytes: Uint8Array, deleted: PdfAnnotation[]) {
         pageId: 'source-page-1',
         commandId: 'explicit-native-delete',
       })),
+      // The production caller obtains these IDs only by walking the actual
+      // before/after annotation history. This isolated writer fixture models
+      // the receipt, not the history verifier.
+      verifiedCommandIds: ['explicit-native-delete'],
     },
   };
 }
@@ -74,6 +78,16 @@ describe('managed native annotation deletion', () => {
       { replaceManagedAnnotations: true },
     )).rejects.toThrow('explicit deletion command');
     expect(await types(bytes)).toEqual(['/Link', '/Popup', '/Stamp', '/Stamp']);
+  });
+
+  it('rejects a well-formed forged sidecar tombstone with no matching user command receipt', async () => {
+    const bytes = await fixture();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    const options = await authorize(bytes, loaded.filter((item) => item.id === 'named'));
+    options.nativeDeletionAuthorization.verifiedCommandIds = [];
+    await expect(writeNativePdfAnnotations(
+      bytes, loaded.filter((item) => item.id !== 'named'), options,
+    )).rejects.toThrow(/verified user deletion command/);
   });
 
   it('rejects a source revision mismatch even with an otherwise valid deletion command', async () => {
