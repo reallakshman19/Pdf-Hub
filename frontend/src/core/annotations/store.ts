@@ -27,6 +27,7 @@ import {
 import {
   guardNativeInteropAnnotationPatch,
   guardNativeInteropStylePatch,
+  markNativeAppearanceDirty,
 } from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -476,14 +477,14 @@ export const useAnnotationStore =
           return annotation;
         }
 
-        const updated: PdfAnnotation = {
+        const updated: PdfAnnotation = markNativeAppearanceDirty(annotation, {
           ...annotation,
           ...guardedPatch,
           data: guardedPatch.rect
             ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
             : guardedPatch.data ?? annotation.data,
           updatedAt: Date.now(),
-        };
+        });
 
         return (
           typeof guardedPatch.pageNumber === 'number'
@@ -523,14 +524,14 @@ export const useAnnotationStore =
           return annotation;
         }
 
-        const updated: PdfAnnotation = {
+        const updated: PdfAnnotation = markNativeAppearanceDirty(annotation, {
           ...annotation,
           ...guardedPatch,
           data: guardedPatch.rect
             ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
             : guardedPatch.data ?? annotation.data,
           updatedAt: Date.now(),
-        };
+        });
 
         return (
           typeof guardedPatch.pageNumber === 'number'
@@ -1040,7 +1041,9 @@ export const useAnnotationStore =
         if (Object.keys(patch).length === 0) return annotation;
         const guarded = guardNativeInteropAnnotationPatch(annotation, { data: { ...annotation.data, ...patch } });
         if (!guarded.data) return annotation;
-        return { ...annotation, data: guarded.data, updatedAt: Date.now() };
+        return markNativeAppearanceDirty(annotation, {
+          ...annotation, data: guarded.data, updatedAt: Date.now(),
+        });
       });
 
       if (
