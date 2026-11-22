@@ -89,7 +89,6 @@ export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotation
     let active = true;
     const wanted = JSON.parse(requestKey) as Array<{ ref: string; page: number }>;
     if (!wanted.length) {
-      setResult({ doc, requestKey, images: {} });
       return () => { active = false; };
     }
     const pageNumbers = [...new Set(wanted.map((item) => item.page))];
