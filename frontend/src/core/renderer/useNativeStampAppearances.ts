@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import { AnnotationMode, type PDFDocumentProxy } from 'pdfjs-dist';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { renderIsolatedNativeAppearances } from './nativeAppearanceFallback';
 
 // The cache is scoped to a PDF.js document instance. It is never written into
 // the PDF or any shared store, and falls out of scope with the document.
-const documents = new WeakMap<PDFDocumentProxy, Map<number, Promise<Map<string, string>>>>();
+const documents = new WeakMap<PDFDocumentProxy, Map<string, Promise<Map<string, string>>>>();
 
-async function sourcePageAppearances(doc: PDFDocumentProxy, pageNumber: number): Promise<Map<string, string>> {
+async function sourcePageAppearances(
+  doc: PDFDocumentProxy,
+  pageNumber: number,
+  requestedRefs: readonly string[],
+): Promise<Map<string, string>> {
   let pages = documents.get(doc);
   if (!pages) { pages = new Map(); documents.set(doc, pages); }
-  const existing = pages.get(pageNumber);
+  const cacheKey = `${pageNumber}:${[...requestedRefs].sort().join(',')}`;
+  const existing = pages.get(cacheKey);
   if (existing) return existing;
   const request = (async () => {
     const page = await doc.getPage(pageNumber);
@@ -50,15 +56,32 @@ async function sourcePageAppearances(doc: PDFDocumentProxy, pageNumber: number):
           }
         }
       } catch {
-        // Fall back gracefully to separate map
+        // Fall back gracefully to separate map.
+      }
+
+      // PDF.js normally draws FreeText/Line AP into the page operator list,
+      // not annotationCanvasMap. Rendering/cropping the normal PDF page is
+      // incorrect: it includes CAD artwork and possibly overlapping APs.
+      // Produce transparent, single-annotation previews on temporary blank
+      // PDF pages instead. Imported Stamp images already captured above stay
+      // on their existing fast path.
+      const missing = requestedRefs.filter((ref) => !images.has(ref));
+      if (missing.length > 0) {
+        try {
+          const isolated = await renderIsolatedNativeAppearances(doc, pageNumber, missing);
+          for (const [ref, url] of isolated) images.set(ref, url);
+        } catch {
+          // If the isolated renderer rejects an unsupported appearance,
+          // leave that annotation on its existing interactive SVG/HTML view.
+        }
       }
       return images;
     } finally {
       page.cleanup();
     }
   })();
-  pages.set(pageNumber, request);
-  request.catch(() => { if (pages?.get(pageNumber) === request) pages.delete(pageNumber); });
+  pages.set(cacheKey, request);
+  request.catch(() => { if (pages?.get(cacheKey) === request) pages.delete(cacheKey); });
   return request;
 }
 
@@ -86,7 +109,12 @@ export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotation
       return () => { active = false; };
     }
     const pageNumbers = [...new Set(wanted.map((item) => item.page))];
-    void Promise.all(pageNumbers.map(async (number) => [number, await sourcePageAppearances(doc, number)] as const))
+    void Promise.all(pageNumbers.map(async (number) => [
+      number,
+      await sourcePageAppearances(doc, number, wanted
+        .filter((item) => item.page === number)
+        .map((item) => item.ref)),
+    ] as const))
       .then((entries) => {
         if (!active) return;
         const pages = new Map(entries);
