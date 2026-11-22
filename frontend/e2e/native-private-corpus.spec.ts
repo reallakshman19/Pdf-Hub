@@ -34,7 +34,9 @@ function privateManifest(): CorpusEntry[] {
 
 test.use({ viewport: { width: 1600, height: 900 }, trace: 'off' });
 const corpus = privateManifest();
-test.skip(corpus.length === 0, 'Set PDFHUB_NATIVE_CORPUS_MANIFEST to test private source PDFs without committing them');
+if (corpus.length === 0) {
+  test.skip('private native corpus requires PDFHUB_NATIVE_CORPUS_MANIFEST', () => {});
+}
 
 async function open(page: Page, path: string) {
   await stubNativeFilePickers(page);
