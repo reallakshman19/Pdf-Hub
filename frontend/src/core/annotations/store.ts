@@ -31,6 +31,12 @@ import {
 } from './nativeInteropFidelity';
 
 import { v4 as uuidv4 } from 'uuid';
+import {
+  createNativeDeletionTombstone,
+  withNativeEditProvenance,
+  type NativeDeletionTombstone,
+  type NativeIntegrityState,
+} from './nativeIntegrity';
 import type { ReviewReply } from '../review/types';
 import type {
   AnnotationData,
@@ -53,6 +59,9 @@ interface AnnotationState {
   annotations: PdfAnnotation[];
   /** Document key whose complete native annotation model has been loaded. */
   hydratedDocumentKey: string | null;
+  /** Explicit native source integrity gate, never inferred from hydration alone. */
+  nativeIntegrity: NativeIntegrityState;
+  nativeDeletionTombstones: NativeDeletionTombstone[];
   activeAnnotationId: string | null;
   selectedAnnotationIds: string[];
   clipboard: PdfAnnotation[];
@@ -281,6 +290,8 @@ function annotationStateSnapshot(
   return {
     annotations: [...state.annotations],
     hydratedDocumentKey: state.hydratedDocumentKey,
+    nativeIntegrity: state.nativeIntegrity,
+    nativeDeletionTombstones: [...state.nativeDeletionTombstones],
     activeAnnotationId: state.activeAnnotationId,
     selectedAnnotationIds: [
       ...state.selectedAnnotationIds,
@@ -358,6 +369,48 @@ function cloneAnnotationData(
   }, cleanData);
 }
 
+/**
+ * Only explicit user deletion actions can produce native tombstones. A bad
+ * page anchor or unverified import blocks the action instead of discarding
+ * the underlying PDF object. Undo/redo retain the original command ID, while
+ * the writer considers it only when the native object is absent.
+ */
+function explicitNativeDeletionCommands(
+  state: AnnotationState,
+  removed: readonly PdfAnnotation[],
+): NativeDeletionTombstone[] | null {
+  const session = useSessionStore.getState();
+  const native = removed.filter((item) => item.data.nativeSourceRef && !item.data.nativeCopySource);
+  if (!native.length) return state.nativeDeletionTombstones;
+  if (state.nativeIntegrity.status !== 'COMPLETE'
+    || state.nativeIntegrity.documentKey !== session.documentKey) {
+    logError('annotation', 'Native deletion blocked: source integrity is not verified');
+    useToastStore.getState().addToast({
+      type: 'error', title: 'Native deletion unavailable',
+      message: 'Complete annotation import verification before deleting native PDF objects.',
+    });
+    return null;
+  }
+  const commandId = uuidv4();
+  const additions = native.map((annotation) => createNativeDeletionTombstone(
+    annotation,
+    session.documentKey,
+    annotation.pageId ?? session.pageGraph?.pages[annotation.pageNumber - 1]?.pageId,
+    commandId,
+  ));
+  if (additions.some((item) => item === null)) {
+    logError('annotation', 'Native deletion blocked: source page identity unavailable');
+    return null;
+  }
+  const indexed = new Map(state.nativeDeletionTombstones.map((item) => [
+    JSON.stringify([item.pageNumber, item.sourceRef]), item,
+  ]));
+  for (const item of additions) if (item) {
+    indexed.set(JSON.stringify([item.pageNumber, item.sourceRef]), item);
+  }
+  return [...indexed.values()];
+}
+
 export const useAnnotationStore =
   create<AnnotationStore>((set, get) => {
     const runMutation = (
@@ -430,6 +483,8 @@ export const useAnnotationStore =
     return {
   annotations: [],
   hydratedDocumentKey: null,
+  nativeIntegrity: { status: 'LOADING', documentKey: null },
+  nativeDeletionTombstones: [],
   activeAnnotationId: null,
   selectedAnnotationIds: [],
   clipboard: [],
@@ -477,14 +532,19 @@ export const useAnnotationStore =
           return annotation;
         }
 
-        const updated: PdfAnnotation = markNativeAppearanceDirty(annotation, {
-          ...annotation,
-          ...guardedPatch,
-          data: guardedPatch.rect
-            ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
-            : guardedPatch.data ?? annotation.data,
-          updatedAt: Date.now(),
-        });
+        const updated: PdfAnnotation = withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation,
+            ...guardedPatch,
+            data: guardedPatch.rect
+              ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
+              : guardedPatch.data ?? annotation.data,
+            updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        );
 
         return (
           typeof guardedPatch.pageNumber === 'number'
@@ -524,14 +584,19 @@ export const useAnnotationStore =
           return annotation;
         }
 
-        const updated: PdfAnnotation = markNativeAppearanceDirty(annotation, {
-          ...annotation,
-          ...guardedPatch,
-          data: guardedPatch.rect
-            ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
-            : guardedPatch.data ?? annotation.data,
-          updatedAt: Date.now(),
-        });
+        const updated: PdfAnnotation = withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation,
+            ...guardedPatch,
+            data: guardedPatch.rect
+              ? remapAnnotationGeometry(annotation, guardedPatch.rect, guardedPatch.data ?? annotation.data)
+              : guardedPatch.data ?? annotation.data,
+            updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        );
 
         return (
           typeof guardedPatch.pageNumber === 'number'
@@ -558,26 +623,37 @@ export const useAnnotationStore =
 
   deleteAnnotation: (id) =>
     runMutation((state) => {
+      const removed = state.annotations.filter((annotation) => annotation.id === id);
+      if (!removed.length) return state;
+      const tombstones = explicitNativeDeletionCommands(state, removed);
+      if (!tombstones) return state;
       const nextAnnotations = state.annotations.filter((annotation) => annotation.id !== id);
       const nextSelectedIds = state.selectedAnnotationIds.filter((value) => value !== id);
       const nextActiveId =
         state.activeAnnotationId === id ? nextSelectedIds[0] ?? null : state.activeAnnotationId;
 
-      return annotationSnapshot(state, nextAnnotations, nextSelectedIds, nextActiveId);
-    }),
+      return {
+        ...annotationSnapshot(state, nextAnnotations, nextSelectedIds, nextActiveId),
+        nativeDeletionTombstones: tombstones,
+      };
+    }, 'Delete annotations'),
 
   deleteSelection: () => {
-    const targetIds = [
-      ...get().selectedAnnotationIds,
-    ];
+    const targetIds = [...get().selectedAnnotationIds];
     runMutation((state) => {
-      if (targetIds.length === 0) return state;
+      if (!targetIds.length) return state;
       const selectedSet = new Set(targetIds);
+      const removed = state.annotations.filter((annotation) => selectedSet.has(annotation.id));
+      const tombstones = explicitNativeDeletionCommands(state, removed);
+      if (!tombstones) return state;
       const nextAnnotations = state.annotations.filter(
         (annotation) => !selectedSet.has(annotation.id),
       );
-      return annotationSnapshot(state, nextAnnotations, [], null);
-    });
+      return {
+        ...annotationSnapshot(state, nextAnnotations, [], null),
+        nativeDeletionTombstones: tombstones,
+      };
+    }, 'Delete annotations');
   },
   setActiveAnnotationId: (id) =>
     set((state) => ({
