@@ -74,6 +74,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     <div
       data-annotation-container="callout"
       data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       className="absolute inset-0 w-full h-full pointer-events-none"
     >
       {geometry && (
