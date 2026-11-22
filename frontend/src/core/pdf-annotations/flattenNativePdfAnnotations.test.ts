@@ -107,6 +107,16 @@ describe('native /AP vector flattened export', () => {
       .toBe(PDFString.of('https://example.org/reference').toString());
   });
 
+  it('refuses to turn native /Redact into a misleading visual-only mask', async () => {
+    const source = await nativeFixture();
+    const doc = await PDFDocument.load(source);
+    const page = doc.getPage(0);
+    const native = page.node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
+    native.set(PDFName.of('Subtype'), PDFName.of('Redact'));
+    await expect(flattenNativePdfAnnotations(await doc.save()))
+      .rejects.toThrow('secure content removal is required');
+  });
+
   it('fails closed rather than picking an arbitrary /AP/N when several states have no /AS', async () => {
     const source = await nativeFixture();
     const doc = await PDFDocument.load(source);
