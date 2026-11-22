@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from 'pdf-lib';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
 test.use({ viewport: { width: 1440, height: 900 }, trace: 'off', screenshot: 'off', video: 'off' });
@@ -130,7 +130,7 @@ test('editing imported rich FreeText replaces stale source preview and stays nat
   const annots = saved.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
   const calloutDict = Array.from({ length: annots.size() }, (_, index) => annots.lookup(index, PDFDict))
     .find((dict) => dict.get(PDFName.of('Subtype'))?.toString() === '/FreeText')!;
-  expect(calloutDict.lookupMaybe(PDFName.of('Contents'), PDFString)?.decodeText()).toBe('Updated native callout');
+  expect(calloutDict.lookupMaybe(PDFName.of('Contents'), PDFString, PDFHexString)?.decodeText()).toBe('Updated native callout');
   expect(calloutDict.get(PDFName.of('RC'))).toBeDefined();
   expect(calloutDict.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
 });
