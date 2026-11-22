@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { loadAnnotationSnapshotOrNull, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
+import { useToastStore } from '@/core/toast/store';
 import { error as logError } from '@/core/logger/service';
 import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
@@ -56,7 +57,17 @@ export function useAnnotationPersistence({
       if (!documentKey || !workingBytes) return;
       setRestoredCount(0);
       const before = useAnnotationStore.getState().annotations;
-      const snapshot = await loadAnnotationSnapshotOrNull(documentKey);
+      // Local recovery metadata must never block source-native PDF import.
+      // An unavailable IndexedDB cache is an inconvenience, not a reason to
+      // display genuinely native annotations as an uneditable flat page.
+      let snapshot: Awaited<ReturnType<typeof loadAnnotationSnapshotOrNull>> = null;
+      try {
+        snapshot = await loadAnnotationSnapshotOrNull(documentKey);
+      } catch (err) {
+        if (!cancelled) logError('annotation', 'Native overlay cache unavailable; importing from PDF', {
+          error: String(err), documentKey,
+        });
+      }
       const stored = snapshot?.annotations ?? null;
       const imported = await readNativePdfAnnotations(workingBytes);
       if (cancelled || useSessionStore.getState().documentKey !== documentKey
@@ -237,7 +248,15 @@ export function useAnnotationPersistence({
       });
     };
     void loadStored().catch((err) => {
-      if (!cancelled) logError('annotation', 'Failed to load native annotations', { error: String(err), documentKey });
+      if (cancelled) return;
+      logError('annotation', 'Failed to load native annotations', {
+        error: String(err), documentKey,
+      });
+      useToastStore.getState().addToast({
+        type: 'error',
+        title: 'Native annotations unavailable',
+        message: 'PDF annotation import failed. Source markup may be visible only in another viewer; the PDF was not flattened.',
+      });
     });
     return () => { cancelled = true; };
   }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
