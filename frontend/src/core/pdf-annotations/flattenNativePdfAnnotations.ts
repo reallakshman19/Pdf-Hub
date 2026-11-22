@@ -146,11 +146,11 @@ export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Ui
             }))
           : null;
       page.pushOperators(
-        lib.PDFOperator.of('q'),
-        ...(alphaName ? [lib.PDFOperator.of('gs', [alphaName])] : []),
-        lib.PDFOperator.of('cm', transform.map((value) => lib.PDFNumber.of(value))),
-        lib.PDFOperator.of('Do', [xObjectName]),
-        lib.PDFOperator.of('Q'),
+        lib.pushGraphicsState(),
+        ...(alphaName ? [lib.setGraphicsState(alphaName)] : []),
+        lib.concatTransformationMatrix(...transform),
+        lib.drawObject(xObjectName),
+        lib.popGraphicsState(),
       );
     }
     page.node.delete(lib.PDFName.of('Annots'));
