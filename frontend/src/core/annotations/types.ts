@@ -61,6 +61,8 @@ export interface AnnotationNativeInteropState {
 }
 
 export interface AnnotationData extends Record<string, unknown> {
+  /** Only explicit user update actions may populate this source-bound record. */
+  nativeEditProvenance?: import('./nativeIntegrity').NativeEditProvenance;
   // ── text ──────────────────────────────────────────────
   text?: string;
   title?: string;
