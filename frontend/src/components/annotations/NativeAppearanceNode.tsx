@@ -70,7 +70,14 @@ export const NativeAppearanceNode: React.FC<Props> = ({
     <div
       data-annotation-type={annotation.type}
       data-native-annotation-id={annotation.id}
-      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{
+        position: 'absolute',
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+        pointerEvents: 'none',
+      }}
     >
       {!isEditing && nativeAppearanceUrl && (
         <img
@@ -80,8 +87,8 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           draggable={false}
           style={{
             position: 'absolute',
-            left: appearance.x,
-            top: appearance.y,
+            left: appearance.x - rect.x,
+            top: appearance.y - rect.y,
             width: appearance.width,
             height: appearance.height,
             pointerEvents: 'none',
@@ -91,12 +98,20 @@ export const NativeAppearanceNode: React.FC<Props> = ({
       )}
       {line && !isEditing && (
         <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          width="100%"
-          height="100%"
+          style={{
+            position: 'absolute',
+            left: appearance.x - rect.x,
+            top: appearance.y - rect.y,
+            width: appearance.width,
+            height: appearance.height,
+            overflow: 'visible',
+            pointerEvents: 'none',
+          }}
+          width={appearance.width}
+          height={appearance.height}
         >
           <polyline
-            points={line.points.map((point) => `${point.x},${point.y}`).join(' ')}
+            points={line.points.map((point) => `${point.x - appearance.x},${point.y - appearance.y}`).join(' ')}
             stroke="transparent"
             strokeWidth={Math.max(14, 9 * scale)}
             fill="none"
@@ -109,8 +124,8 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           />
           {isSelected && anchorPoint && onAnchorDragStart && (
             <circle
-              cx={line.anchorPoint.x}
-              cy={line.anchorPoint.y}
+              cx={line.anchorPoint.x - appearance.x}
+              cy={line.anchorPoint.y - appearance.y}
               r={Math.max(5, 3 * scale)}
               fill="#2563eb"
               style={{ pointerEvents: 'all', cursor: 'crosshair', touchAction: 'none' }}
@@ -123,10 +138,10 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         data-native-annotation-hit-target
         style={{
           position: 'absolute',
-          left: rect.x,
-          top: rect.y,
-          width: rect.width,
-          height: rect.height,
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%',
           boxSizing: 'border-box',
           background: isEditing ? '#ffffff' : 'transparent',
           border: isSelected ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
