@@ -2331,7 +2331,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           // annotation renderer for user-authored annotations, edited native
           // artwork or missing/unavailable appearance streams.
           const PreviewComponent: React.FC<AnnotationRendererProps> =
-            ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud', 'shape-polygon', 'ink'].includes(annotation.type)
+            ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud'].includes(annotation.type)
             && annotation.type !== 'stamp'
             && annotation.data.nativeAppearanceImported === true
             && annotation.data.nativeAppearanceDirty !== true
