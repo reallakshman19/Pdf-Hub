@@ -2,9 +2,10 @@ import React from 'react';
 import type { WriterPageViewport } from '@/core/writer-v2/types';
 import { useSessionStore } from '@/core/session/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import {
-  dispatchDurableWriterUiCommand,
-} from '@/core/writer-v2/durableWriterUiDispatch';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, isDocumentSessionOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
+import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent } from '@/core/writer-v2/persistence/writerPersistenceOwner';
+import { insertSelectBoxCopyIntoWriter } from '@/core/select-box-copy/insertSelectBoxCopyIntoWriter';
+import { getViewportSize } from '@/core/writer-v2/coordinateTransform';
 import {
   extractSelectBoxCopyFromDocument,
 } from '@/core/select-box-copy/selectBoxCopyEngine';
@@ -24,12 +25,11 @@ import {
   writeSelectBoxCopyToClipboard,
   type SelectBoxCopyMode,
 } from '@/core/select-box-copy/clipboardWriter';
-import { createWriterElementFromSelectBoxCopy } from '@/core/select-box-copy/insertIntoWriterV2';
 import {
   normalizeViewportRect,
+  clipViewportRect,
 } from '@/core/select-box-copy/selectionGeometry';
-import { createSelectBoxImageAssetFromDataUrl } from '@/core/select-box-copy/selectBoxImageAsset';
-import type { SelectBoxInsertMode } from '@/core/select-box-copy/selectBoxCopyMode';
+import { resolveRecommendedMode, type SelectBoxInsertMode } from '@/core/select-box-copy/selectBoxCopyMode';
 import type {
   SelectBoxCopyResult,
   SelectBoxViewportRect,
@@ -47,13 +47,6 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
 }) => {
   const activeWriterTool = useWriterV2Store((state) => state.activeWriterTool);
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
-  const currentDocumentFingerprint = useWriterV2Store((state) => state.currentDocumentFingerprint);
-  const allElements = useWriterV2Store((state) => state.elements);
-  const addWriterAssets =
-    useWriterV2Store(
-      (state) => state.addWriterAssets,
-    );
-
   const workingBytes = useSessionStore((state) => state.workingBytes);
   const documentKey = useSessionStore((state) => state.documentKey);
   const revisionStoreId = useSessionStore(
@@ -65,7 +58,6 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const activeRevisionId = useSessionStore(
     (state) => state.activeRevisionId,
   );
-  const fileName = useSessionStore((state) => state.fileName);
   const completeSaveOperation = useSessionStore((state) => state.completeSaveOperation);
   const failSaveOperation = useSessionStore((state) => state.failSaveOperation);
 
@@ -75,7 +67,12 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const operationAbortControllerRef =
     React.useRef<AbortController | null>(null);
   const selectionOperationIdRef = React.useRef(0);
-  const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragStartRef = React.useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const selectionOwnerRef = React.useRef<DocumentMutationOwner | null>(null);
+  const isSelectionCurrent = (id: number, owner: DocumentMutationOwner | null, afterCommit = false) =>
+    !!owner && id === selectionOperationIdRef.current
+    && useWriterV2Store.getState().activeWriterTool === 'selectBoxCopy'
+    && (afterCommit ? isDocumentSessionOwnerCurrent(owner) : isDocumentMutationOwnerCurrent(owner));
 
   const [draftRect, setDraftRect] = React.useState<SelectBoxViewportRect | null>(null);
   const [result, setResult] = React.useState<SelectBoxCopyResult | null>(null);
@@ -123,10 +120,16 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     }
   };
 
-  React.useEffect(() => () => {
-    operationAbortControllerRef.current?.abort(
-      'Select Box Copy renderer session changed or layer deactivated',
-    );
+  React.useEffect(() => {
+    setDraftRect(null);
+    setResult(null);
+    setBusy(false);
+    return () => {
+      selectionOperationIdRef.current += 1;
+      selectionOwnerRef.current = null;
+      dragStartRef.current = null;
+      operationAbortControllerRef.current?.abort('Select Box Copy renderer session changed or layer deactivated');
+    };
   }, [
     activeWriterTool,
     documentKey,
@@ -159,7 +162,12 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     const x = event.clientX - bounds.left;
     const y = event.clientY - bounds.top;
 
-    dragStartRef.current = { x, y };
+    if (event.button !== undefined && event.button !== 0) return;
+    operationAbortControllerRef.current?.abort('New Select Box gesture');
+    selectionOperationIdRef.current += 1;
+    selectionOwnerRef.current = captureDocumentMutationOwner();
+    dragStartRef.current = { x, y, pointerId: event.pointerId };
+    setBusy(false);
     setResult(null);
     setDraftRect({
       x,
@@ -174,7 +182,7 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   const updateSelection = (event: React.PointerEvent<HTMLDivElement>) => {
     const start = dragStartRef.current;
 
-    if (!start) return;
+    if (!start || start.pointerId !== event.pointerId) return;
 
     event.stopPropagation();
     event.preventDefault();
@@ -190,27 +198,22 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
   };
 
   const finishSelection = async (event: React.PointerEvent<HTMLDivElement>) => {
-    const rect = draftRect;
-
-    if (!hasActiveDocument || !rect) return;
-
+    const start = dragStartRef.current;
+    const owner = selectionOwnerRef.current;
+    const selectionOperationId = selectionOperationIdRef.current;
+    if (!hasActiveDocument || !start || start.pointerId !== event.pointerId || !isSelectionCurrent(selectionOperationId, owner)) return;
     event.stopPropagation();
     event.preventDefault();
-
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     dragStartRef.current = null;
-
-    const normalized = normalizeViewportRect(rect);
-
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const size = getViewportSize(viewport);
+    const normalized = clipViewportRect({ x: start.x, y: start.y,
+      width: event.clientX - bounds.left - start.x, height: event.clientY - bounds.top - start.y }, size.width, size.height);
     if (normalized.width < 8 || normalized.height < 8) {
       setDraftRect(null);
       return;
     }
-
-    const selectionOperationId =
-      selectionOperationIdRef.current + 1;
-    selectionOperationIdRef.current =
-      selectionOperationId;
     setBusy(true);
 
     try {
@@ -226,172 +229,85 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
           }),
       );
 
+      if (!isSelectionCurrent(selectionOperationId, owner)) return;
       setResult(extracted);
       setDraftRect(normalized);
       completeSaveOperation(
-        extracted.items.length === 0
+        extracted.partialTextItems ? 'Selection cuts native text runs. Expand it or use image mode.' : extracted.items.length === 0
           ? 'Select Box Copy found no text. Copy Image or Insert as Image is available.'
           : extracted.table
             ? `Select Box Copy captured ${extracted.items.length} text items; table confidence ${Math.round(extracted.table.confidence * 100)}%.`
             : `Select Box Copy captured ${extracted.items.length} text items.`,
       );
     } catch (error) {
-      if (isOperationCancelledError(error)) return;
+      if (isOperationCancelledError(error) || !isSelectionCurrent(selectionOperationId, owner)) return;
       failSaveOperation(error instanceof Error ? error.message : String(error));
       setResult(null);
     } finally {
       if (
-        selectionOperationIdRef.current
-        === selectionOperationId
+        isSelectionCurrent(selectionOperationId, owner)
       ) {
         setBusy(false);
       }
     }
   };
 
-  const copySelection = async (
-    mode: SelectBoxCopyMode,
-    effectiveResult: SelectBoxCopyResult,
-  ) => {
+  // Each rendered result is bound to the gesture that produced it. A late
+  // callback from a prior panel may not acquire authority from the new panel.
+  const resultOwner = selectionOwnerRef.current;
+  const resultId = selectionOperationIdRef.current;
+  const resultCurrent = (afterCommit = false) => isSelectionCurrent(resultId, resultOwner, afterCommit);
+  const copySelection = async (mode: SelectBoxCopyMode, effectiveResult: SelectBoxCopyResult) => {
+    if (!resultCurrent()) return;
     try {
       await writeSelectBoxCopyToClipboard(effectiveResult, mode);
-
-      completeSaveOperation(
-        mode === 'table'
-          ? 'Copied selected table.'
-          : mode === 'formatted'
-            ? 'Copied formatted selection.'
-            : 'Copied selected text.',
-      );
+      if (resultCurrent()) completeSaveOperation('Copied selected PDF content.');
     } catch (error) {
-      if (isOperationCancelledError(error)) return;
-      failSaveOperation(error instanceof Error ? error.message : String(error));
+      if (!isOperationCancelledError(error) && resultCurrent()) failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
-
+  const captureImage = () => withActiveDocument('capture image', (doc, signal) =>
+    renderSelectBoxImageSnapshotFromDocument({ doc, pageNumber, viewport, viewportRect: draftRect!, signal }));
   const copyImage = async (effectiveResult: SelectBoxCopyResult) => {
-    if (!hasActiveDocument || !draftRect) return;
-
+    if (!draftRect || !resultCurrent()) return;
     try {
-      const imageDataUrl = await withActiveDocument(
-        'copy image',
-        (doc, signal) =>
-          renderSelectBoxImageSnapshotFromDocument({
-            doc,
-            pageNumber,
-            viewport,
-            viewportRect: draftRect,
-            signal,
-          }),
-      );
-
-      await writeSelectBoxCopyToClipboard({
-        ...effectiveResult,
-        imageDataUrl,
-      }, 'image');
-
-      completeSaveOperation('Selected PDF area copied as image.');
+      const imageDataUrl = await captureImage();
+      if (!resultCurrent()) return;
+      await writeSelectBoxCopyToClipboard({ ...effectiveResult, imageDataUrl }, 'image');
+      if (resultCurrent()) completeSaveOperation('Selected PDF area copied as image.');
     } catch (error) {
-      if (isOperationCancelledError(error)) return;
-      failSaveOperation(error instanceof Error ? error.message : String(error));
+      if (!isOperationCancelledError(error) && resultCurrent()) failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
-
-  const insertIntoWriter = async (
-    mode: SelectBoxInsertMode,
-    effectiveResult: SelectBoxCopyResult,
-  ) => {
-    if (!hasActiveDocument || !draftRect) return;
-
-    let imageAssetId: string | undefined;
-    const previousWriterDirty =
-      useWriterV2Store.getState().dirty;
-
+  const insertIntoWriter = async (mode: SelectBoxInsertMode, effectiveResult: SelectBoxCopyResult) => {
+    if (!draftRect || !resultCurrent()) return;
+    const owner = captureWriterPersistenceOwner();
+    const actualMode = mode === 'auto' ? resolveRecommendedMode(effectiveResult) : mode;
     try {
-      const documentFingerprint =
-        currentDocumentFingerprint ??
-        documentKey ??
-        fileName ??
-        'select-box-copy-document';
-
-      const maxZIndex = allElements.reduce(
-        (max, element) => Math.max(max, element.style.zIndex),
-        0,
-      );
-
-      if (mode === 'image') {
-        const imageDataUrl = await withActiveDocument(
-          'insert image',
-          (doc, signal) =>
-            renderSelectBoxImageSnapshotFromDocument({
-              doc,
-              pageNumber,
-              viewport,
-              viewportRect: draftRect,
-              signal,
-            }),
-        );
-
-        const asset = createSelectBoxImageAssetFromDataUrl({
-          dataUrl: imageDataUrl,
-          documentFingerprint,
-        });
-
-        addWriterAssets([asset]);
-        imageAssetId = asset.id;
-      }
-
-      const element = createWriterElementFromSelectBoxCopy({
-        result: effectiveResult,
-        documentFingerprint,
-        zIndex: maxZIndex + 1,
-        mode,
-        imageAssetId,
-      });
-
-      const insertResult =
-        await dispatchDurableWriterUiCommand(
-          {
-            type: 'ADD_WRITER_ELEMENT',
-            element,
-          },
-          'SelectBoxCopy insert into Writer',
-        );
-
-      if (!insertResult.changed) {
-        throw new Error(
-          insertResult.reason
-          || 'Writer insertion made no change.',
-        );
-      }
-
+      const imageDataUrl = actualMode === 'image' ? await captureImage() : undefined;
+      if (!resultCurrent() || !isWriterPersistenceOwnerCurrent(owner)) return;
+      const insertResult = await insertSelectBoxCopyIntoWriter({ owner, result: effectiveResult, mode: actualMode, imageDataUrl, isSelectionCurrent: resultCurrent });
+      if (!resultCurrent(true)) return;
+      if (!insertResult.changed) throw new Error(insertResult.reason || 'Writer insertion made no change.');
+      completeSaveOperation('Select Box Copy inserted into Writer V2.');
       setActiveWriterTool('select');
       setDraftRect(null);
       setResult(null);
-      completeSaveOperation(
-        'Select Box Copy inserted into Writer V2.',
-      );
     } catch (error) {
-      if (imageAssetId) {
-        useWriterV2Store
-          .getState()
-          .removeWriterAsset(imageAssetId);
-        useWriterV2Store.setState({
-          dirty: previousWriterDirty,
-        });
-      }
-      if (isOperationCancelledError(error)) return;
-      failSaveOperation(
-        error instanceof Error
-          ? error.message
-          : String(error),
-      );
+      if (!isOperationCancelledError(error) && resultCurrent()) failSaveOperation(error instanceof Error ? error.message : String(error));
     }
   };
-
-  const closePanel = () => {
+  const cancelSelection = () => {
+    selectionOperationIdRef.current += 1;
+    selectionOwnerRef.current = null;
+    dragStartRef.current = null;
+    operationAbortControllerRef.current?.abort('Select Box Copy cancelled');
     setDraftRect(null);
     setResult(null);
+    setBusy(false);
+  };
+  const closePanel = () => {
+    cancelSelection();
     setActiveWriterTool('select');
   };
 
@@ -407,7 +323,10 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
         void finishSelection(event);
       }}
       onPointerCancel={(event) => {
-        void finishSelection(event);
+        if (dragStartRef.current?.pointerId === event.pointerId) {
+          event.currentTarget.releasePointerCapture?.(event.pointerId);
+          cancelSelection();
+        }
       }}
       style={{
         position: 'absolute',

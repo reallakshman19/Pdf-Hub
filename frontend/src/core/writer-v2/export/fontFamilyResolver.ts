@@ -25,7 +25,7 @@ function getFamilyMap(): Promise<FamilyMap> {
   if (!familyMapPromise) {
     familyMapPromise = pdfLib().then(({ StandardFonts }) => [
       [
-        /courier|monospace|courier new|lucida console/i,
+        /^(?:courier(?: new)?|monospace|lucida console)$/i,
         {
           regular: StandardFonts.Courier,
           bold: StandardFonts.CourierBold,
@@ -34,7 +34,7 @@ function getFamilyMap(): Promise<FamilyMap> {
         },
       ],
       [
-        /times|georgia|serif|times new roman|garamond/i,
+        /^(?:times(?: new roman)?|georgia|serif|garamond)$/i,
         {
           regular: StandardFonts.TimesRoman,
           bold: StandardFonts.TimesRomanBold,
@@ -64,7 +64,7 @@ function getFamilyMap(): Promise<FamilyMap> {
 export async function resolveStandard14Group(
   fontFamily: string | undefined,
 ): Promise<Standard14FontGroup> {
-  const name = (fontFamily ?? '').replace(/['"]/g, '').trim();
+  const name = (fontFamily ?? '').split(',')[0].replace(/['"]/g, '').trim();
   const familyMap = await getFamilyMap();
 
   for (const [pattern, group] of familyMap) {

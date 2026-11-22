@@ -122,7 +122,11 @@ export async function runFinalOcrIntegrationJob(
     pdfBytes: input.pdfBytes,
     explicitPages: input.explicitPages,
     pageIndexes: executionPlan.allowedPageIndexes,
-    batchSize: input.batchSize ?? Math.max(1, Math.min(5, input.policy.maxPagesPerJob)),
+    batchSize: input.batchSize ?? input.policy.batchChunkSize ?? (
+      input.policy.preset === 'ten-page-batch'
+        ? 10
+        : Math.max(1, Math.min(5, input.policy.maxPagesPerJob))
+    ),
     rasterScale: input.policy.rasterScale,
     maxCanvasPixels: input.policy.maxCanvasPixels,
     rasterWorkerClient: input.rasterWorkerClient,

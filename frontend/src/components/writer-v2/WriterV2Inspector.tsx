@@ -1,5 +1,7 @@
 import React from 'react';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { useSessionStore } from '@/core/session/store';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
 import {
   dispatchDurableWriterUiCommand,
 } from '@/core/writer-v2/durableWriterUiDispatch';
@@ -977,7 +979,14 @@ export const WriterV2Inspector: React.FC = () => {
               const file = event.currentTarget.files?.[0];
 
               if (file) {
-                void replaceActiveImageBoxAsset(file);
+                const owner = captureDocumentMutationOwner();
+                const initial = useWriterV2Store.getState();
+                void replaceActiveImageBoxAsset(file).then(result => {
+                  if (!result.changed && isDocumentMutationOwnerCurrent(owner)
+                    && useWriterV2Store.getState().documentMeta === initial.documentMeta) {
+                    useSessionStore.getState().failSaveOperation(result.message);
+                  }
+                });
               }
 
               event.currentTarget.value = '';

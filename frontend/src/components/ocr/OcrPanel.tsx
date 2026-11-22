@@ -40,6 +40,7 @@ import {
 export interface OcrPanelProps {
   documentFingerprint?: string | null;
   selectedPageIndexes?: number[];
+  initialPageScope?: OcrPageScope;
   pageCount?: number;
   currentPageIndex?: number;
 
@@ -76,6 +77,7 @@ export interface OcrPanelProps {
 export const OcrPanel: React.FC<OcrPanelProps> = ({
   documentFingerprint,
   selectedPageIndexes = [],
+  initialPageScope,
   pageCount = 1,
   currentPageIndex = 0,
   pages,
@@ -99,13 +101,21 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     setOcrProfileId: state.setOcrProfileId,
   })));
   const [pageScope, setPageScope] = React.useState<OcrPageScope>(
-    selectedPageIndexes.length > 0 ? 'selected' : 'all',
+    initialPageScope ?? (selectedPageIndexes.length > 0 ? 'selected' : 'all'),
   );
 
   React.useEffect(() => {
+    // When running in a real browser session, prefer local OCR (tesseract-js) over mock test fixtures
+    const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+    if (!isTest && store.engineId === 'mock' && defaultOcrEngineRegistry.getEngine('tesseract-js')) {
+      store.setOcrEngineId('tesseract-js');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- document changes reset the user-facing page scope to the active selection.
-    setPageScope(selectedPageIndexes.length > 0 ? 'selected' : 'all');
-  }, [documentFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+    setPageScope(initialPageScope ?? (selectedPageIndexes.length > 0 ? 'selected' : 'all'));
+  }, [documentFingerprint, initialPageScope, selectedPageIndexes.length]);
 
   const scopedPageIndexes = React.useMemo(() => {
     const maxPageCount = Math.max(1, pageCount);
@@ -146,6 +156,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
     () => defaultOcrEngineRegistry.listEngines(),
     [],
   );
+  const activeEngineLabel = engines.find((e) => e.id === store.engineId)?.label ?? store.engineId;
 
   const allDiagnostics: OcrDiagnosticsMessage[] = [
     ...runWorkflow.executionDiagnostics.map((message) => ({
@@ -211,6 +222,7 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
       data-testid="ocr-panel"
     >
       <OcrRunSection
+        engineLabel={activeEngineLabel}
         pageScopeControls={
           <OcrPageScopeControl
             value={pageScope}

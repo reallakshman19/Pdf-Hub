@@ -1,7 +1,7 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { exportFlattenedWriterPdf } from './flattenedPdfExport';
 import { exportPdfHubWriterProject } from './projectZip';
-import type { WriterElementV2 } from '../types';
+import type { WriterDocumentMetaV2, WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
 
 /**
@@ -19,6 +19,7 @@ export interface ExportRoundTripWriterPdfInput {
   elements: WriterElementV2[];
   assets?: WriterAssetRecordV2[];
   documentFingerprint: string;
+  documentMeta?: WriterDocumentMetaV2 | null;
 }
 
 export interface ExportRoundTripWriterPdfResult {
@@ -47,6 +48,7 @@ export async function exportRoundTripWriterPdf(
   const project = await exportPdfHubWriterProject({
     originalPdfBytes: input.pdfBytes,
     documentFingerprint: input.documentFingerprint,
+    documentMeta: input.documentMeta,
     elements: input.elements,
     assets: input.assets,
   });

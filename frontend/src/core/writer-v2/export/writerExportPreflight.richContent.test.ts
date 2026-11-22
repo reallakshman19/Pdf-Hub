@@ -100,7 +100,7 @@ describe('writerExportPreflight rich content', () => {
     expect(result.issues.map((issue) => issue.code)).toContain('RICH_IMAGE_EMPTY_SOURCE');
   });
 
-  it('warns for unsupported rich image format', async () => {
+  it('rejects unsupported rich image format rather than losing the image', async () => {
     const result = await runWriterExportPreflight({
       sourceBytes: await samplePdf(),
       pageCount: 1,
@@ -121,7 +121,7 @@ describe('writerExportPreflight rich content', () => {
       assets: [],
     });
 
-    expect(result.hasWarnings).toBe(true);
+    expect(result.hasErrors).toBe(true);
     expect(result.issues.map((issue) => issue.code)).toContain('RICH_IMAGE_UNSUPPORTED_FORMAT');
   });
 

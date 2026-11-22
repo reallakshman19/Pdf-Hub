@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PDFBool, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, PDFString, type PDFObject } from 'pdf-lib';
+import { PDFArray, PDFBool, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, PDFString, type PDFObject } from 'pdf-lib';
 
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
 import {
@@ -613,7 +613,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       if (nm === `${root.id}:reply:phase10-review-reply-1`) {
         firstReplyRef2 = ref;
       }
-      if (nm === `${root.id}:reply:external-nested-reply`) {
+      if (nm === 'external-nested-reply') {
         nestedReplyRef2 = ref;
         expect(dict.get(PDFName.of('IRT')).toString()).toBe(firstReplyRef2?.toString());
         expect(requiredPdfText(dict.lookup(PDFName.of('Subj')))).toBe('External nested subject');
@@ -803,8 +803,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       writeNativePdfAnnotations(save2.bytes, [lossyTypographyEdit]),
     ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
 
-    // Geometry is outside the preserved rich-text semantic surface. It remains
-    // editable; the rich text survives while the now-stale AP is removed.
+    // Geometry edits keep rich text and regenerate the now-stale appearance.
     const safeGeometryEdit = {
       ...returned.annotations[0],
       rect: {
@@ -823,7 +822,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(requiredPdfText(root3.lookup(PDFName.of('RC')))).toBe(richText);
     expect(requiredPdfText(root3.lookup(PDFName.of('DS')))).toBe(defaultStyle);
     expect(requiredPdfText(root3.lookup(PDFName.of('VendorInteropMeta')))).toBe('keep-me');
-    expect(root3.get(PDFName.of('AP'))).toBeUndefined();
+    expect(root3.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
 
     const popup3 = doc3.context.lookup(root3.get(PDFName.of('Popup')) as PDFRef, PDFDict);
     expect((popup3.get(PDFName.of('Parent')) as PDFRef).toString()).toBe(
@@ -837,7 +836,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(read3.annotations[0].data.text).toBe('Rich text baseline');
   });
 
-  it('preserves native rich-text review replies and rejects reply-text downgrade or clone', async () => {
+  it('edits native rich-text replies while guarding untracked removal or cloning', async () => {
     const baseBytes = await createEmptyPdf();
     const root = createDeterministicReviewThreadFixture();
     const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
@@ -907,9 +906,14 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
         },
       },
     };
-    await expect(
-      writeNativePdfAnnotations(save2.bytes, [changedReply]),
-    ).rejects.toThrow('NATIVE_RICH_TEXT_EDIT_UNSUPPORTED');
+    const edited = await writeNativePdfAnnotations(save2.bytes, [changedReply]);
+    const editedRead = await readNativePdfAnnotations(edited.bytes);
+    expect(editedRead.annotations[0].data.review?.replies[0].content).toBe('Lossy edited reply');
+    const editedDoc = await PDFDocument.load(edited.bytes);
+    const editedAnnots = editedDoc.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
+    const editedDict = Array.from({ length: editedAnnots.size() }, (_, i) => editedAnnots.lookup(i, PDFDict))
+      .find((dict) => optionalPdfText(dict.lookup(PDFName.of('PDFHubReplyId'))) === 'phase10-review-reply-1');
+    expect(requiredPdfText(editedDict!.lookup(PDFName.of('RC')))).toContain('Lossy edited reply');
 
     const removedReply = {
       ...returned.annotations[0],
@@ -997,7 +1001,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     expect(da3).toContain('/ExternalFont 23 Tf');
     expect(da3).toContain('1 0 0 rg');
-    expect(dict3.get(PDFName.of('AP'))).toBeUndefined();
+    expect(dict3.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
 
     const read3 = await readNativePdfAnnotations(save3.bytes);
     expect(read3.annotations[0].data.fontSize).toBe(23);
@@ -1382,11 +1386,10 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       },
       updatedAt: stampRead.annotations[0].updatedAt + 1_000,
     };
-    const stampSave3 = await writeNativePdfAnnotations(stampSave2.bytes, [rejectedStamp]);
-    const stampDoc3 = await PDFDocument.load(stampSave3.bytes);
-    const stampDict3 = (stampDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    expect(requiredPdfText(stampDict3.lookup(PDFName.of('Name')))).toBe('Rejected');
+    // The external edit invalidates generated-artwork provenance. Replacing
+    // its appearance on a later style change would risk losing external work.
+    await expect(writeNativePdfAnnotations(stampSave2.bytes, [rejectedStamp]))
+      .rejects.toThrow('Cannot safely replace an imported custom stamp appearance');
   });
 
   it('honors BS over Border and removes stale BS after a supported local border edit', async () => {

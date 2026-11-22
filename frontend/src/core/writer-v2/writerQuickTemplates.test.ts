@@ -27,6 +27,7 @@ describe('writerQuickTemplates', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('has unique template ids', () => {
@@ -49,7 +50,7 @@ describe('writerQuickTemplates', () => {
   it('inserts a reviewed stamp snippet into a rich text box', async () => {
     const result = await insertWriterQuickTemplate('stampReviewed');
     const state = useWriterV2Store.getState();
-    const pending = useRichEditorCommandQueue.getState().pending;
+    const pending = useRichEditorCommandQueue.getState().pending.map(item => item.command);
 
     expect(result.changed).toBe(true);
     expect(state.elements).toHaveLength(1);
@@ -73,7 +74,7 @@ describe('writerQuickTemplates', () => {
   it('inserts a review snippet and applies metadata to the rich text box', async () => {
     const result = await insertWriterQuickTemplate('reviewEngineering');
     const state = useWriterV2Store.getState();
-    const pending = useRichEditorCommandQueue.getState().pending;
+    const pending = useRichEditorCommandQueue.getState().pending.map(item => item.command);
 
     expect(result.changed).toBe(true);
     expect(state.elements[0].type).toBe('richTextBox');

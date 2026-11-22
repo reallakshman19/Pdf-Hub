@@ -54,11 +54,16 @@ class PdfLibMutationSession implements PdfMutationSession {
     this.assertOpen('read page metrics');
     this.assertPageIndex(pageIndex);
     const page = this.document.getPage(pageIndex);
+    const crop = page.getCropBox();
+    const rotation = normalizeDegrees(page.getRotation().angle);
+    const sideways = rotation === 90 || rotation === 270;
 
     return {
       width: page.getWidth(),
       height: page.getHeight(),
-      rotation: normalizeDegrees(page.getRotation().angle),
+      rotation,
+      displayWidth: sideways ? crop.height : crop.width,
+      displayHeight: sideways ? crop.width : crop.height,
     };
   }
 
@@ -117,21 +122,23 @@ class PdfLibMutationSession implements PdfMutationSession {
     pageIndices: readonly number[],
   ): Promise<void> {
     this.assertOpen('remove pages');
-    const toRemove = new Set(normalizePageIndices(pageIndices));
-    const keepIndices = this.document
-      .getPageIndices()
-      .filter((index) => !toRemove.has(index));
-
-    if (keepIndices.length === 0) {
-      throw new Error(
-        'Cannot remove all pages from the document',
-      );
+    const ordered = normalizePageIndices(pageIndices);
+    const originalCount = this.document.getPageCount();
+    if (ordered.some((index) => index >= originalCount)) {
+      throw new Error('Cannot remove page outside the document');
+    }
+    if (ordered.length >= originalCount) {
+      throw new Error('Cannot remove all pages from the document');
     }
 
-    this.document = await this.rebuildFromOrder(
-      keepIndices,
-      'remove pages',
-    );
+    // Rebuilding into PDFDocument.create() copies *only* selected pages and
+    // discards the original catalog, including unrelated native metadata.
+    // pdf-lib's in-place removePage preserves the catalog and all surviving
+    // page objects; delete backwards to avoid index shifts.
+    for (let position = ordered.length - 1; position >= 0; position -= 1) {
+      throwIfAborted(this.signal, 'remove pages');
+      this.document.removePage(ordered[position]!);
+    }
   }
 
   insertBlankPage(

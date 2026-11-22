@@ -1,0 +1,10 @@
+{
+  "require_root": "ROOT-R01",
+  "root_count": 2,
+  "required_replies": [
+    "REPLY-A",
+    "REPLY-B"
+  ],
+  "reply_parent_nm": "ALT-WP02-root1",
+  "forbid_orphan_irt": true
+}

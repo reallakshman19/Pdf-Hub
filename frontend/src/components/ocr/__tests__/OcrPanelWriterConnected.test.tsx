@@ -108,6 +108,7 @@ describe('OcrPanelWriterConnected', () => {
   const addAndSelectRegion = async (documentFingerprint: string) => {
     useOcrStore.getState().addOcrRegion({
       id: `region-${documentFingerprint}`,
+      geometryProvenance: 'pdf-user-space-v2',
       documentFingerprint,
       pageIndex: 0,
       mode: 'text',
@@ -169,7 +170,7 @@ describe('OcrPanelWriterConnected', () => {
     );
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(screen.getByText('browser-smoke.pdf')).toBeTruthy();
+    expect(screen.getAllByText('browser-smoke.pdf').length).toBeGreaterThanOrEqual(1);
     expect(within(summary).getByText('working')).toBeTruthy();
     expect(within(summary).getByText('1 selected')).toBeTruthy();
   });
@@ -353,7 +354,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(screen.getByText('session.pdf')).toBeTruthy();
+    expect(screen.getAllByText('session.pdf').length).toBeGreaterThanOrEqual(1);
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
     expect(within(unifiedSummary).getByText('4')).toBeTruthy();
     expect(within(unifiedSummary).getByText('2 selected')).toBeTruthy();
@@ -374,7 +375,7 @@ describe('OcrPanelWriterConnected', () => {
     const unifiedSummary = screen.getByTestId('ocr-unified-summary');
 
     expect(unifiedSummary).toBeTruthy();
-    expect(screen.getByText('session.pdf')).toBeTruthy();
+    expect(screen.getAllByText('session.pdf').length).toBeGreaterThanOrEqual(1);
     expect(within(unifiedSummary).getByText('working')).toBeTruthy();
   });
 

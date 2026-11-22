@@ -3,7 +3,7 @@ import type {
   SelectBoxTextItem,
   SelectBoxTextRow,
 } from './types';
-import { rowsToPlainText } from './textGrouping';
+import { rowsToPlainText, rowItemSeparator } from './textGrouping';
 import { reconstructTableFromRows } from './tableReconstruction';
 
 export function buildSelectBoxCopyResult(input: {
@@ -14,10 +14,11 @@ export function buildSelectBoxCopyResult(input: {
   items: SelectBoxTextItem[];
   rows: SelectBoxTextRow[];
   imageDataUrl?: string;
+  partialTextItems?: number;
 }): SelectBoxCopyResult {
   const plainText = rowsToPlainText(input.rows);
   const html = rowsToHtml(input.rows);
-  const table = reconstructTableFromRows(input.rows);
+  const table = input.partialTextItems ? null : reconstructTableFromRows(input.rows);
 
   return {
     pageNumber: input.pageNumber,
@@ -30,6 +31,7 @@ export function buildSelectBoxCopyResult(input: {
     html,
     table,
     imageDataUrl: input.imageDataUrl,
+    partialTextItems: input.partialTextItems,
   };
 }
 
@@ -37,10 +39,10 @@ export function rowsToHtml(rows: SelectBoxTextRow[]): string {
   return rows
     .map((row) => {
       const spans = row.items
-        .map((item) => {
+        .map((item, index) => {
           const fontSize = Math.max(6, Math.round(item.fontSize * 10) / 10);
-
-          return `<span style="font-size:${fontSize}px">${escapeHtml(item.text)}</span>`;
+          const separator = index ? rowItemSeparator(row.items, index) : '';
+          return `${separator}<span style="font-size:${fontSize}px">${escapeHtml(item.text)}</span>`;
         })
         .join('');
 

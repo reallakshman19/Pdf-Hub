@@ -51,14 +51,12 @@ import {
 import { WriterFindReplacePanel } from './WriterFindReplacePanel';
 import { WriterRichAuthoringStatus } from './WriterRichAuthoringStatus';
 import { WriterRichBoxStyleControl } from './WriterRichBoxStyleControl';
-import type { WriterAssetRecordV2 } from '@/core/writer-v2/persistence/indexedDbWriterStore';
-import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
-import {
-  dispatchDurableWriterUiCommand,
-} from '@/core/writer-v2/durableWriterUiDispatch';
 import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
-import { $createImageNode } from '@/core/writer-v2/lexical-nodes/ImageNode';
+import { currentRichEditorBinding, insertRichEditorImageFiles } from '@/core/writer-v2/editor/richEditorImageInsertion';
+import { isDocumentSessionOwnerCurrent } from '@/core/session/mutationOwner';
+import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent, type WriterPersistenceOwner } from '@/core/writer-v2/persistence/writerPersistenceOwner';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { ensureRichTextEditing } from '@/core/writer-v2/ensureRichTextEditing';
 import {
   $isTableCellNode,
@@ -69,7 +67,6 @@ import {
 } from '@lexical/table';
 import { $findMatchingParent } from '@lexical/utils';
 import {
-  useRichEditorCommandQueue,
   type PendingRichEditorCommand,
   type PendingElementFormat,
   type PendingListCommand,
@@ -128,6 +125,8 @@ export const WriterRibbon: React.FC = () => {
   const [linkPopover, setLinkPopover] = React.useState(false);
   const [linkUrl, setLinkUrl] = React.useState('');
   const [activeLink, setActiveLink] = React.useState(false);
+  const linkOwnerRef = React.useRef<LexicalEditor | null>(null);
+  React.useEffect(() => { setLinkPopover(false); setLinkUrl(''); linkOwnerRef.current = null; }, [activeEditor]);
 
   // Table insertion inline popover state
   const [tablePopover, setTablePopover] = React.useState(false);
@@ -138,6 +137,13 @@ export const WriterRibbon: React.FC = () => {
   const [spacingPopover, setSpacingPopover] = React.useState(false);
   const [spaceBefore, setSpaceBefore] = React.useState(0);
   const [spaceAfter, setSpaceAfter] = React.useState(0);
+  const dialogOwnerRef = React.useRef<WriterPersistenceOwner | null>(null);
+  const dialogCurrent = () => {
+    const owner = dialogOwnerRef.current;
+    const current = useWriterV2Store.getState();
+    return !!owner && isWriterPersistenceOwnerCurrent(owner) && owner.writer.activeId === current.activeId
+      && owner.writer.editingId === current.editingId && owner.writer.selectedIds === current.selectedIds;
+  };
 
   const documentFingerprint = useSessionStore((state) => state.documentKey) ?? '';
 
@@ -246,7 +252,7 @@ export const WriterRibbon: React.FC = () => {
     operation: (editor: LexicalEditor) => void,
   ): void => {
     const editor = activeEditor;
-    if (!editor) return;
+    if (!editor || useActiveEditorStore.getState().activeEditor !== editor || !currentRichEditorBinding(editor)) return;
 
     try {
       operation(editor);
@@ -265,8 +271,11 @@ export const WriterRibbon: React.FC = () => {
       return;
     }
 
-    useRichEditorCommandQueue.getState().enqueue(command);
-    await ensureRichTextEditing();
+    try {
+      await ensureRichTextEditing({ pendingCommands: [command] });
+    } catch (error) {
+      logError('writer', 'Unable to open Writer editor for queued command', { error: String(error) });
+    }
   }, [activeEditor, runWithFocusedEditor]);
 
   const runSmartTextFormat = React.useCallback((format: TextFormatType) => {
@@ -413,6 +422,7 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const applyParagraphSpacing = () => {
+    if (!dialogCurrent()) { setSpacingPopover(false); return; }
     runSmartBlockStyle({
       'margin-top': spaceBefore > 0 ? `${spaceBefore}px` : '',
       'margin-bottom': spaceAfter > 0 ? `${spaceAfter}px` : '',
@@ -464,7 +474,8 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const openLinkPopover = () => {
-    if (!activeEditor) return;
+    if (!activeEditor || !currentRichEditorBinding(activeEditor)) return;
+    linkOwnerRef.current = activeEditor;
     // Pre-populate with existing link URL if cursor is inside one.
     activeEditor.getEditorState().read(() => {
       const sel = $getSelection();
@@ -479,25 +490,35 @@ export const WriterRibbon: React.FC = () => {
   };
 
   const applyLink = () => {
-    if (!activeEditor) return;
+    if (!activeEditor || linkOwnerRef.current !== activeEditor || !currentRichEditorBinding(activeEditor)) return;
     const url = linkUrl.trim();
-    const safeUrl = /^https?:\/\//i.test(url) ? url : url ? `https://${url}` : null;
-    activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, safeUrl);
+    // Reject unsupported schemes rather than silently rewriting them as https.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:\/\//i.test(url)) return;
+    let safeUrl: string | null = null;
+    if (url) {
+      try {
+        const parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+        if (!parsed.hostname || !['http:', 'https:'].includes(parsed.protocol)) return;
+        safeUrl = parsed.href;
+      } catch { return; }
+    }
+    runWithFocusedEditor('link', editor => editor.dispatchCommand(TOGGLE_LINK_COMMAND, safeUrl));
     setLinkPopover(false);
     setLinkUrl('');
   };
 
   const removeLink = () => {
-    if (!activeEditor) return;
-    activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+    runWithFocusedEditor('removeLink', editor => editor.dispatchCommand(TOGGLE_LINK_COMMAND, null));
     setLinkPopover(false);
   };
 
   const handleInsertTable = () => {
+    dialogOwnerRef.current = captureWriterPersistenceOwner();
     setTablePopover(true);
   };
 
   const confirmInsertTable = () => {
+    if (!dialogCurrent()) { setTablePopover(false); return; }
     const rows = Math.max(1, Math.min(50, tableRows));
     const cols = Math.max(1, Math.min(20, tableCols));
     void runOrQueueRichCommand(
@@ -514,151 +535,19 @@ export const WriterRibbon: React.FC = () => {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      void (async () => {
-        const dataUrl = reader.result as string;
-        const asset: WriterAssetRecordV2 = {
-          id:
-            'asset_'
-            + Math.random()
-              .toString(36)
-              .substring(2, 11),
-          documentFingerprint,
-          kind: 'image',
-          mimeType: file.type,
-          dataUrl,
-          createdAt:
-            new Date().toISOString(),
-          updatedAt:
-            new Date().toISOString(),
-        };
-
-        const writer =
-          useWriterV2Store.getState();
-        const previousDirty = writer.dirty;
-        writer.addWriterAssets([asset]);
-
-        const editingId =
-          useWriterV2Store.getState().editingId;
-        const elements =
-          useWriterV2Store.getState().elements;
-        const editingElement =
-          elements.find(
-            (element) =>
-              element.id === editingId,
-          );
-
-        if (!editingElement) {
-          useWriterV2Store
-            .getState()
-            .removeWriterAsset(asset.id);
-          useWriterV2Store.setState({
-            dirty: previousDirty,
-          });
-          logError(
-            'writer',
-            'Writer image upload has no active editable element',
-            { assetId: asset.id },
-          );
-          return;
-        }
-
-        try {
-          const result =
-            await dispatchDurableWriterUiCommand(
-              {
-                type:
-                  'UPDATE_WRITER_ELEMENT',
-                id: editingElement.id,
-                now:
-                  new Date().toISOString(),
-                patch: {
-                  assetIds: [
-                    ...(editingElement.assetIds
-                      ?? []),
-                    asset.id,
-                  ],
-                },
-              },
-              'WriterRibbon image asset link',
-            );
-
-          if (!result.changed) {
-            useWriterV2Store
-              .getState()
-              .removeWriterAsset(asset.id);
-            useWriterV2Store.setState({
-              dirty: previousDirty,
-            });
-            return;
-          }
-        } catch {
-          useWriterV2Store
-            .getState()
-            .removeWriterAsset(asset.id);
-          useWriterV2Store.setState({
-            dirty: previousDirty,
-          });
-          return;
-        }
-
-        try {
-          await runOrQueueRichCommand(
-            'insertImage',
-            {
-              type: 'insertImage',
-              src: dataUrl,
-              altText: file.name,
-            },
-            (editor) => {
-              editor.focus(() => {
-                editor.update(() => {
-                  const selection =
-                    $getSelection();
-                  const imageNode =
-                    $createImageNode(
-                      dataUrl,
-                      file.name,
-                    );
-                  if (
-                    $isRangeSelection(
-                      selection,
-                    )
-                  ) {
-                    selection.insertNodes([
-                      imageNode,
-                    ]);
-                  } else {
-                    $getRoot().append(
-                      imageNode,
-                    );
-                  }
-                });
-              });
-            },
-          );
-        } catch (error) {
-          logError(
-            'writer',
-            'Writer rich editor image insertion failed after durable asset link',
-            {
-              assetId: asset.id,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : String(error),
-            },
-          );
-        }
-      })();
-    };
-    reader.readAsDataURL(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    const editor = useActiveEditorStore.getState().activeEditor;
+    const binding = editor && currentRichEditorBinding(editor);
+    if (!editor || !binding) {
+      useSessionStore.getState().failSaveOperation('Open a Writer rich box before inserting images.');
+      return;
     }
+    void insertRichEditorImageFiles(editor, [file]).catch(error => {
+      if (isDocumentSessionOwnerCurrent(binding.owner.document) && currentRichEditorBinding(editor) === binding) {
+        useSessionStore.getState().failSaveOperation(error instanceof Error ? error.message : String(error));
+      }
+    });
   };
 
   const hasActive = !!activeEditor;
@@ -703,13 +592,13 @@ export const WriterRibbon: React.FC = () => {
           label="Undo (Ctrl+Z)"
           icon={<Undo2 size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(UNDO_COMMAND, undefined)}
+          onClick={() => runWithFocusedEditor('undo', editor => editor.dispatchCommand(UNDO_COMMAND, undefined))}
         />
         <RibbonBtn
           label="Redo (Ctrl+Y)"
           icon={<Redo2 size={13} />}
           disabled={!hasActive}
-          onClick={() => activeEditor?.dispatchCommand(REDO_COMMAND, undefined)}
+          onClick={() => runWithFocusedEditor('redo', editor => editor.dispatchCommand(REDO_COMMAND, undefined))}
         />
       </div>
 
@@ -948,7 +837,7 @@ export const WriterRibbon: React.FC = () => {
           icon={<span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>¶</span>}
           active={spacingPopover}
           disabled={!documentFingerprint}
-          onClick={() => setSpacingPopover((v) => !v)}
+          onClick={() => { dialogOwnerRef.current = captureWriterPersistenceOwner(); setSpacingPopover(v => !v); }}
         />
 
         {spacingPopover && (

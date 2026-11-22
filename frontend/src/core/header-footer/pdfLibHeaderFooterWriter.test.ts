@@ -199,4 +199,25 @@ describe('pdfLibHeaderFooterWriter', () => {
       }),
     ).rejects.toThrow(/outside the PDF/);
   });
+  it('rejects two individually fitting header slots that overlap each other', async () => {
+    const before = await basePdf();
+    const page = resolvedPages()[0]!;
+    if (!page.header || page.header.left?.kind !== 'text') {
+      throw new Error('Missing header text fixture');
+    }
+    page.header.left.text = 'LEFT SLOT XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+    page.header.center = {
+      kind: 'text',
+      text: 'CENTER SLOT YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY',
+      style: { ...page.header.left.style },
+    };
+
+    await expect(
+      pdfLibHeaderFooterWriter.write({
+        baseBytes: before,
+        pages: compileHeaderFooterMutationPlan([page]),
+        binaryResources: {},
+      }),
+    ).rejects.toThrow(/header slots .* overlap/i);
+  });
 });

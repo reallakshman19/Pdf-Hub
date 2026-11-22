@@ -275,10 +275,11 @@ export class PdfRendererAdapter {
     page: PDFPageProxy,
     scale: number,
     signal?: AbortSignal,
+    options?: { rotation?: number; strict?: boolean },
   ): Promise<TextLayerItem[]> {
     try {
       throwIfAborted(signal, `read text from PDF page ${page.pageNumber}`);
-      const viewport = page.getViewport({ scale });
+      const viewport = page.getViewport({ scale, ...(options?.rotation !== undefined ? { rotation: options.rotation } : {}) });
       const textContent = await raceWithAbort(
         page.getTextContent(),
         signal,
@@ -308,7 +309,7 @@ export class PdfRendererAdapter {
         }];
       });
     } catch (err) {
-      if (isOperationCancelledError(err)) throw err;
+      if (isOperationCancelledError(err) || options?.strict) throw err;
       error('pdf-renderer', 'Failed to build text layer', {
         pageNumber: page.pageNumber,
         error: String(err),

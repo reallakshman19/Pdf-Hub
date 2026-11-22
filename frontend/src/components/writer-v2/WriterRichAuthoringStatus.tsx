@@ -25,6 +25,12 @@ export const WriterRichAuthoringStatus: React.FC = () => {
 
     setBusy(true);
     try {
+      if (!useWriterV2Store.getState().currentDocumentFingerprint && useSessionStore.getState().documentKey) {
+        useWriterV2Store.getState().hydrateWriterSession({
+          documentFingerprint: useSessionStore.getState().documentKey!,
+          elements: [],
+        });
+      }
       await ensureRichTextEditing({
         starterTemplate: 'authoringCard',
         includeStarterTable: true,

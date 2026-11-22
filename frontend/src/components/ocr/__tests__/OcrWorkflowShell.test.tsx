@@ -60,7 +60,7 @@ describe('OCR professional workflow shell', () => {
     expect(screen.getByRole('button', { name: /recognize text/i })).toBeTruthy();
 
     const summary = screen.getByTestId('ocr-unified-summary');
-    expect(screen.getByText('ocr-shell.pdf')).toBeTruthy();
+    expect(screen.getAllByText('ocr-shell.pdf').length).toBeGreaterThan(0);
     expect(within(summary).getByText('working')).toBeTruthy();
     expect(within(summary).getByText('2')).toBeTruthy();
     expect(within(summary).getByText('1 selected')).toBeTruthy();
@@ -84,7 +84,7 @@ describe('OCR professional workflow shell', () => {
 
     const summary = screen.getByTestId('ocr-unified-summary');
 
-    expect(screen.getByText('prop-doc')).toBeTruthy();
+    expect(screen.getAllByText('prop-doc').length).toBeGreaterThan(0);
     expect(within(summary).getByText('direct input')).toBeTruthy();
     expect(screen.queryByTestId('ocr-header-next-action')).toBeNull();
     expect(screen.queryByTestId('ocr-pdf-source-warning')).toBeNull();

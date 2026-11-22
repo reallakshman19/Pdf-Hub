@@ -2,10 +2,11 @@ import type { MacroRecipe } from './types';
 import type { MacroResourceLimits } from './resourceBudget';
 import { executeMacroRecipe, type MacroExecutionResult } from './executor';
 import { useSessionStore } from '@/core/session/store';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { useMacroOutputQueueStore } from './outputQueueStore';
 import { throwIfAborted } from '@/core/cancellation/operationCancellation';
 import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
+import { sameMacroPreview, snapshotMacroPreview, type MacroPreviewIdentity } from './previewIdentity';
 
 export interface SessionMacroRunOptions {
   donorFiles?: Record<string, Uint8Array>;
@@ -13,6 +14,8 @@ export interface SessionMacroRunOptions {
   dryRun?: boolean;
   abortSignal?: AbortSignal;
   resourceLimits?: Partial<MacroResourceLimits>;
+  /** Exact Test Run source identity; verified again after queue waiting. */
+  expectedPreview?: MacroPreviewIdentity;
 }
 
 let runPromise: Promise<unknown> = Promise.resolve();
@@ -53,6 +56,17 @@ async function runMacroRecipeAgainstSessionNow(
     throw new Error('No active document in session');
   }
 
+  const executionIdentity = snapshotMacroPreview(
+    options?.expectedPreview?.recipeSignature ?? JSON.stringify(recipe),
+    session,
+  );
+  if (
+    options?.expectedPreview
+    && !sameMacroPreview(options.expectedPreview, executionIdentity)
+  ) {
+    throw new Error('Document or selection changed after workflow Test Run; preview again.');
+  }
+
   const donorFiles = options?.donorFiles ?? {};
   const runtimeRecipe: MacroRecipe = options?.dryRun
     ? {
@@ -83,6 +97,14 @@ async function runMacroRecipeAgainstSessionNow(
     : result.status === 'success';
 
   if (!options?.dryRun && executionSucceeded) {
+    // A queued run may outlive the document or selection it originally read.
+    // The command bus guards commit ownership; reject the stale source earlier.
+    if (!sameMacroPreview(
+      executionIdentity,
+      snapshotMacroPreview(executionIdentity.recipeSignature, useSessionStore.getState()),
+    )) {
+      return failedBeforeCommit(result, 'Document or selection changed during macro execution.');
+    }
     if (options?.abortSignal?.aborted) {
       return cancelledBeforeCommit(result);
     }
@@ -120,6 +142,8 @@ async function runMacroRecipeAgainstSessionNow(
               stepCount: recipe.steps.length,
             },
             selectedPages: result.selectedPages,
+            nextCurrentPage: result.currentPage,
+            pageLineage: result.pageLineage,
           },
         },
         'macro-runner',
@@ -144,11 +168,15 @@ async function runMacroRecipeAgainstSessionNow(
     }
   }
 
-  if (options?.saveOutputs && executionSucceeded) {
-    for (const output of result.outputFiles) {
-      throwIfAborted(options.abortSignal, `saving macro output ${output.name}`);
-      await FileAdapter.savePdfBytes(output.bytes, output.name, null);
-    }
+  if (!options?.dryRun && options?.saveOutputs && executionSucceeded && result.outputFiles.length > 0) {
+    // External filesystem/download writes are not transactional with the
+    // document commit. Keep every output recoverable in the shared UI queue
+    // instead of starting silent downloads that can fail after commit.
+    useMacroOutputQueueStore.getState().enqueueOutputs(result.outputFiles, {
+      sourceKind: 'macro',
+      sourceDocumentKey: session.documentKey ?? undefined,
+      sourceRecipeId: recipe.id,
+    });
   }
 
   return result;

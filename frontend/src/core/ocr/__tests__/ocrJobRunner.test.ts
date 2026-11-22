@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { PDFDocument } from 'pdf-lib';
 import type { OcrEngine } from '../engines/ocrEngineContract';
 import { createOcrEngineRegistry } from '../engines/ocrEngineRegistry';
 import { mockOcrEngine } from '../engines/mockOcrEngine';
 import { runOcrJob, OcrJobCancelledError } from '../ocrJobRunner';
+import { exportSearchableOcrPdf } from '../ocrSearchablePdfExport';
 
 describe('ocrJobRunner', () => {
   it('runs OCR job with mock engine and completes queued scanned page', async () => {
@@ -54,6 +56,68 @@ describe('ocrJobRunner', () => {
     expect(result.preflight.skippedPageIndexes).toEqual([0]);
     expect(result.result.pages).toHaveLength(1);
     expect(result.result.pages[0].status).toBe('skipped');
+  });
+
+  it('preserves native page text when born-digital page is skipped', async () => {
+    const nativePageResult = {
+      pageIndex: 0,
+      pageNumber: 1,
+      status: 'success' as const,
+      pageType: 'bornDigital' as const,
+      orientationDeg: 0,
+      languageHints: ['eng'],
+      width: 595,
+      height: 842,
+      words: [{
+        id: 'w-1',
+        pageIndex: 0,
+        text: 'NIFTY',
+        normalizedText: 'nifty',
+        confidence: 1.0,
+        bbox: { x: 50, y: 750, width: 40, height: 14 },
+      }],
+      lines: [{
+        id: 'l-1',
+        pageIndex: 0,
+        text: 'NIFTY',
+        confidence: 1.0,
+        bbox: { x: 50, y: 750, width: 40, height: 14 },
+        wordIds: ['w-1'],
+      }],
+      blocks: [],
+      diagnostics: [],
+    };
+
+    const result = await runOcrJob({
+      id: 'job-native-preserve',
+      documentFingerprint: 'doc-native',
+      engineId: 'mock',
+      now: '2026-01-01T00:00:00.000Z',
+      pages: [
+        {
+          pageIndex: 0,
+          imageBytes: new Uint8Array([1, 2, 3]),
+          width: 595,
+          height: 842,
+          embeddedTextLength: 5,
+          imageCount: 0,
+          nativePageResult,
+        },
+      ],
+    });
+
+    expect(result.result.pages[0].words).toHaveLength(1);
+    expect(result.result.pages[0].words?.[0]?.text).toBe('NIFTY');
+    expect(result.result.pages[0].lines?.[0]?.text).toBe('NIFTY');
+
+    const source = await PDFDocument.create();
+    source.addPage([595, 842]).drawText('NIFTY', { x: 50, y: 750 });
+    const pdfBytes = await source.save();
+    for (const layerMode of ['word', 'line'] as const) {
+      const exported = await exportSearchableOcrPdf({ pdfBytes, ocrResult: result.result, layerMode });
+      expect(exported.embeddedTextItemCount).toBe(0);
+      expect(exported.diagnostics).toContainEqual(expect.objectContaining({ code: 'OCR_NATIVE_TEXT_PRESERVED' }));
+    }
   });
 
   it('forces OCR on born-digital page when forceOcr is true', async () => {

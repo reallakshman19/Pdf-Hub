@@ -50,6 +50,7 @@ export const ShapeCloudNode: React.FC<AnnotationNodeProps<'shape-cloud'>> = ({
 
   return (
     <div
+      data-annotation-type="shape-cloud"
       style={{
         position: 'absolute',
         left: rect.x, top: rect.y, width: rect.width, height: rect.height,

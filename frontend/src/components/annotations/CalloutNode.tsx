@@ -1,6 +1,7 @@
 import React from 'react';
 import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types';
 import { computeCalloutPath } from '../../core/annotations/callout-geometry';
+import { FreeTextPreview } from './shared/FreeTextPreview';
 
 interface CalloutExtras {
   anchorPoint?: Point2D;
@@ -33,6 +34,12 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     : annotation.data?.arrowHead === 'none'
       ? 'none'
       : 'open';
+  const sourcePageRotation = annotation.data.nativeCopySource
+    ? (annotation.data.nativeAppearancePageRotation ?? pageRotation) : pageRotation;
+  const contentRotation = sourcePageRotation + (annotation.data.nativeOrientationAdjustment ?? 0);
+  const sideways = ((contentRotation % 180) + 180) % 180 === 90;
+  const bodyWidth = sideways ? rect.height : rect.width;
+  const bodyHeight = sideways ? rect.width : rect.height;
 
   const geometry = anchorPoint
     ? computeCalloutPath(
@@ -46,7 +53,12 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     : null;
 
   return (
-    <div style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
+    <div
+      data-annotation-type="callout"
+      style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none',
+        transformOrigin: `${rect.x + rect.width / 2}px ${rect.y + rect.height / 2}px`,
+        transform: `rotate(${annotation.data.rotation ?? 0}deg)` }}
+    >
       {geometry && (
         <svg
           style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}
@@ -84,22 +96,25 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
       <div
         style={{
           position: 'absolute',
-          left: rect.x,
-          top: rect.y,
-          width: rect.width,
-          height: rect.height,
+          left: rect.x + (rect.width - bodyWidth) / 2,
+          top: rect.y + (rect.height - bodyHeight) / 2,
+          width: bodyWidth,
+          height: bodyHeight,
           background: fillColor,
           border: `${borderWidth}px solid ${borderColor}`,
           borderRadius: 4,
           padding: 4,
           color: annotation.data?.textColor ?? '#111827',
           fontSize: (annotation.data?.fontSize ?? 12) * scale,
+          fontWeight: annotation.data?.fontWeight ?? 'normal',
+          fontStyle: annotation.data?.fontStyle ?? 'normal',
+          textAlign: annotation.data?.textAlign ?? 'left',
           cursor: 'pointer',
           pointerEvents: 'all',
           outline: isSelected ? `2px solid ${borderColor}` : 'none',
           overflow: 'hidden',
           boxSizing: 'border-box',
-          transform: `rotate(${pageRotation}deg)`,
+          transform: `rotate(${contentRotation}deg)`,
         }}
         onPointerDown={(e) => {
           onSelect(e);
@@ -128,7 +143,10 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
             }}
           />
         ) : (
-          <span style={{ whiteSpace: 'pre-wrap' }}>{annotation.data?.text ?? ''}</span>
+          <FreeTextPreview
+            text={annotation.data?.text ?? ''}
+            styleKey={`${bodyWidth}/${bodyHeight}/${scale}/${annotation.data?.fontSize}/${annotation.data?.fontWeight}/${annotation.data?.fontStyle}`}
+          />
         )}
       </div>
     </div>

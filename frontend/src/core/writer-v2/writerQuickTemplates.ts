@@ -5,11 +5,11 @@ import type {
   WriterReviewStatus,
 } from './types';
 import { ensureRichTextEditing } from './ensureRichTextEditing';
+import { captureDocumentMutationOwner, isDocumentSessionOwnerCurrent } from '@/core/session/mutationOwner';
 import {
   updateWriterReviewMetadataById,
 } from './writerReviewActions';
 import {
-  useRichEditorCommandQueue,
   type PendingRichTemplateBlock,
 } from './richEditorCommandQueue';
 
@@ -373,15 +373,12 @@ export async function insertWriterQuickTemplate(
 ): Promise<InsertWriterQuickTemplateResult> {
   const template = getWriterQuickTemplate(id);
 
-  useRichEditorCommandQueue.getState().enqueue({
-    type: 'insertTemplateSnippet',
-    blocks: templateToRichBlocks(template),
-  });
+  const owner = captureDocumentMutationOwner();
+  const elementId = await ensureRichTextEditing({ pendingCommands: [{
+    type: 'insertTemplateSnippet', blocks: templateToRichBlocks(template),
+  }] });
 
-  const elementId = await ensureRichTextEditing();
-
-  if (!elementId) {
-    useRichEditorCommandQueue.getState().clear();
+  if (!elementId || !isDocumentSessionOwnerCurrent(owner)) {
 
     return {
       changed: false,

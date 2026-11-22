@@ -51,6 +51,7 @@ describe('ensureRichTextEditing', () => {
       bytes: await samplePdf(),
       pageCount: 1,
     });
+    useWriterV2Store.getState().hydrateWriterSession({ documentFingerprint: 'doc-1', elements: [] });
   });
 
   it('opens selected rich text object for editing', async () => {
@@ -110,7 +111,7 @@ describe('ensureRichTextEditing', () => {
     expect(state.elements).toHaveLength(1);
     expect(state.elements[0].plainText).toContain('Document Heading');
     expect(state.elements[0].editorStateJson).toContain('Document Heading');
-    expect(useRichEditorCommandQueue.getState().pending).toEqual([
+    expect(useRichEditorCommandQueue.getState().pending.map(item => item.command)).toEqual([
       {
         type: 'insertTable',
         rows: 3,

@@ -149,4 +149,20 @@ describe('ocrExecutionPolicy', () => {
 
     expect(result).toBe('done');
   });
+
+  it('creates ten-page-batch policy and handles multi-page plan', () => {
+    const policy = createOcrExecutionPolicy({ preset: 'ten-page-batch' });
+    expect(policy.preset).toBe('ten-page-batch');
+    expect(policy.rasterScale).toBe(3);
+    expect(policy.batchChunkSize).toBe(10);
+    expect(policy.allowLargeJobs).toBe(true);
+
+    const plan = createOcrExecutionPlan({
+      requestedPageIndexes: Array.from({ length: 15 }, (_, i) => i),
+      totalPages: 15,
+      policy,
+    });
+    expect(plan.allowedPageIndexes.length).toBe(15);
+    expect(plan.diagnostics.some((d) => d.message.includes('10-page batch mode active'))).toBe(true);
+  });
 });

@@ -12,6 +12,8 @@ import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayload, type OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
+import { hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
 import {
   exportPdfHubWriterProject,
   type ExportPdfHubProjectInput,
@@ -178,6 +180,24 @@ function seedExistingState(): void {
   });
 }
 
+function ocrRestoreHooks() {
+  return {
+    prepareOcrRestore: (payload: OcrProjectPayloadV1, documentFingerprint: string) => {
+      const before = useOcrStore.getState();
+      return {
+        apply: () => {
+          const result = hydrateOcrStoreFromProjectPayload({
+            payload,
+            expectedDocumentFingerprint: documentFingerprint,
+          });
+          if (!result.restored) throw new Error('OCR hydration rejected the project.');
+        },
+        rollback: () => useOcrStore.setState(before, true),
+      };
+    },
+  };
+}
+
 function stateSnapshot() {
   return {
     session: useSessionStore.getState(),
@@ -229,7 +249,49 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().elements[0]?.id).toBe('writer-1');
     expect(useWriterV2Store.getState().assetRecords[0]?.id).toBe('asset-1');
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().regions).toEqual([]);
+    expect(useOcrStore.getState().corrections).toEqual([]);
+    expect(beforeOcr.documentFingerprint).toBe('old-ocr-doc');
+  });
+
+  it('restores matching OCR regions from the authenticated project ZIP and never retains old-document OCR', async () => {
+    seedExistingState();
+    const source = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [element('writer-1')],
+      assets: [asset()],
+      ocrProject: createOcrProjectPayload({
+        documentFingerprint: 'doc-1',
+        regions: [{
+          id: 'source-region',
+          documentFingerprint: 'doc-1',
+          pageId: 'doc-1::page::1',
+          pageIndex: 0,
+          bbox: { x: 80, y: 180, width: 110, height: 45 },
+          mode: 'text',
+          geometryProvenance: 'pdf-user-space-v2',
+          createdAt: '2026-11-19T00:00:00.000Z',
+          updatedAt: '2026-11-19T00:00:00.000Z',
+        }],
+      }),
+    });
+    const activeOperation = operation();
+    const staged = await stageStandaloneWriterProject(source, activeOperation);
+    await commitStagedWriterProjectImport(staged, activeOperation, ocrRestoreHooks());
+
+    const ocr = useOcrStore.getState();
+    expect(ocr.documentFingerprint).toBe('doc-1');
+    expect(ocr.regions).toHaveLength(1);
+    expect(ocr.regions[0]).toMatchObject({
+      id: 'source-region',
+      pageId: 'doc-1::page::1',
+      pageIndex: 0,
+      geometryProvenance: 'pdf-user-space-v2',
+      bbox: { x: 80, y: 180, width: 110, height: 45 },
+    });
+    expect(ocr.regions.some((region) => region.documentFingerprint === 'old-ocr-doc')).toBe(false);
   });
 
   it('commits a blank Writer project by clearing the previous PDF atomically', async () => {
@@ -248,7 +310,10 @@ describe('atomic standalone Writer project import', () => {
     expect(useWriterV2Store.getState().documentMeta?.mode).toBe('blankDocument');
     expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(2);
     expect(useEditorStore.getState().activeMode).toBe('write');
-    expect(useOcrStore.getState()).toEqual(beforeOcr);
+    expect(useOcrStore.getState().documentFingerprint).toBeNull();
+    expect(useOcrStore.getState().regions).toEqual([]);
+    expect(useOcrStore.getState().corrections).toEqual([]);
+    expect(beforeOcr.documentFingerprint).toBe('old-ocr-doc');
   });
 
   it('rolls back session, Writer, and editor state after an injected commit failure', async () => {
@@ -387,6 +452,28 @@ describe('atomic standalone Writer project import', () => {
       elements: [{ ...element('writer-1'), assetIds: ['missing-asset'] }],
       assets: [],
     });
+    const danglingScalarImageAsset = await projectFile({
+      originalPdfBytes: validPdf,
+      documentFingerprint: 'doc-1',
+      elements: [{
+        ...element('writer-image'),
+        type: 'imageBox',
+        imageAssetId: 'missing-scalar-image',
+        assetIds: [],
+      }],
+      assets: [],
+    });
+    const validScalarImageAsset = await projectFile({
+      originalPdfBytes: validPdf,
+      documentFingerprint: 'doc-1',
+      elements: [{
+        ...element('writer-image-ok'),
+        type: 'imageBox',
+        imageAssetId: 'asset-1',
+        assetIds: [],
+      }],
+      assets: [asset()],
+    });
     const invalidPdf = await projectFile({
       originalPdfBytes: new Uint8Array([37, 80, 68, 70, 45, 1, 2, 3]),
       documentFingerprint: 'doc-1',
@@ -405,6 +492,11 @@ describe('atomic standalone Writer project import', () => {
     await expect(stageStandaloneWriterProject(danglingReference, operation())).rejects.toThrow(
       'missing asset',
     );
+    await expect(stageStandaloneWriterProject(danglingScalarImageAsset, operation())).rejects.toThrow(
+      'missing asset missing-scalar-image',
+    );
+    const validScalarStage = await stageStandaloneWriterProject(validScalarImageAsset, operation());
+    revokeStagedWriterProjectImport(validScalarStage);
     await expect(stageStandaloneWriterProject(contradictoryMode, operation())).rejects.toThrow(
       'contradictory document mode',
     );
@@ -486,4 +578,89 @@ describe('atomic standalone Writer project import', () => {
     await expect(pending).rejects.toThrow('cancelled');
     expect(stateSnapshot()).toEqual(before);
   });
+  it('restores a valid OCR project payload with the Writer project', async () => {
+    seedExistingState();
+    const ocrProject = createOcrProjectPayload({
+      documentFingerprint: 'doc-1',
+      regions: [{
+        id: 'ocr-region-1',
+        documentFingerprint: 'doc-1',
+        pageIndex: 0,
+        bbox: { x: 12, y: 34, width: 50, height: 60 },
+        mode: 'text',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject,
+    });
+    const active = operation();
+    const staged = await stageStandaloneWriterProject(file, active);
+    await commitStagedWriterProjectImport(staged, active, ocrRestoreHooks());
+
+    expect(useSessionStore.getState().documentKey).toBe('doc-1');
+    expect(useOcrStore.getState().documentFingerprint).toBe('doc-1');
+    expect(useOcrStore.getState().regions.map((region) => region.id)).toEqual(['ocr-region-1']);
+  });
+
+  it('rejects an OCR-bearing project without a caller-owned restore adapter', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject: createOcrProjectPayload({ documentFingerprint: 'doc-1' }),
+    });
+    const active = operation();
+    const staged = await stageStandaloneWriterProject(file, active);
+    await expect(commitStagedWriterProjectImport(staged, active)).rejects.toThrow('restoration adapter');
+    expect(stateSnapshot()).toEqual(before);
+  });
+
+  it('rolls back four stores when the caller OCR adapter fails after mutation', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject: createOcrProjectPayload({ documentFingerprint: 'doc-1' }),
+    });
+    const active = operation();
+    const staged = await stageStandaloneWriterProject(file, active);
+    const oldOcr = useOcrStore.getState();
+    await expect(commitStagedWriterProjectImport(staged, active, {
+      prepareOcrRestore: () => ({
+        apply: () => {
+          useOcrStore.getState().hydrateOcrSession({ documentFingerprint: 'doc-1' });
+          throw new Error('injected OCR commit failure');
+        },
+        rollback: () => useOcrStore.setState(oldOcr, true),
+      }),
+    })).rejects.toThrow('injected OCR commit failure');
+    expect(stateSnapshot()).toEqual(before);
+  });
+
+  it('rejects a foreign-document OCR payload before changing the active project', async () => {
+    seedExistingState();
+    const before = stateSnapshot();
+    const file = await projectFile({
+      originalPdfBytes: await onePagePdfBytes(),
+      documentFingerprint: 'doc-1',
+      elements: [],
+      assets: [],
+      ocrProject: createOcrProjectPayload({ documentFingerprint: 'foreign-doc' }),
+    });
+    await expect(stageStandaloneWriterProject(file, operation())).rejects.toThrow(/OCR payload/);
+    expect(stateSnapshot()).toEqual(before);
+  });
+
 });

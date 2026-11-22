@@ -19,6 +19,7 @@ export interface ImportedWriterClipboardData {
 export async function importClipboardDataForWriter(
   clipboardData: Pick<DataTransfer, 'getData' | 'files' | 'items'>,
   documentFingerprint: string,
+  aggregateBytes = 0,
 ): Promise<ImportedWriterClipboardData> {
   const rawHtml = clipboardData.getData('text/html') ?? '';
   const plainText = clipboardData.getData('text/plain') ?? '';
@@ -26,6 +27,7 @@ export async function importClipboardDataForWriter(
   const assets = await extractImageAssetsFromClipboardData(
     clipboardData,
     documentFingerprint,
+    aggregateBytes,
   );
 
   const hasHtml = sanitizedHtml.trim().length > 0;

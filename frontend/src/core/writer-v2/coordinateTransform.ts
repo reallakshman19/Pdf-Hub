@@ -40,8 +40,8 @@ export function pdfToViewportPoint(
 
     case 90:
       return {
-        x: (pdfHeight - point.y) * scale,
-        y: (pdfWidth - point.x) * scale,
+        x: point.y * scale,
+        y: point.x * scale,
       };
 
     case 180:
@@ -52,8 +52,8 @@ export function pdfToViewportPoint(
 
     case 270:
       return {
-        x: point.y * scale,
-        y: point.x * scale,
+        x: (pdfHeight - point.y) * scale,
+        y: (pdfWidth - point.x) * scale,
       };
   }
 }
@@ -73,8 +73,8 @@ export function viewportToPdfPoint(
 
     case 90:
       return {
-        x: pdfWidth - point.y / scale,
-        y: pdfHeight - point.x / scale,
+        x: point.y / scale,
+        y: point.x / scale,
       };
 
     case 180:
@@ -85,8 +85,8 @@ export function viewportToPdfPoint(
 
     case 270:
       return {
-        x: point.y / scale,
-        y: point.x / scale,
+        x: pdfWidth - point.y / scale,
+        y: pdfHeight - point.x / scale,
       };
   }
 }

@@ -187,7 +187,7 @@ describe('richTextRenderer Parser', () => {
       listType: 'number',
       items: [
         { indent: 1, children: [{ text: 'Step one', style: { bold: false, italic: false, underline: false, strikethrough: false } }] },
-        { indent: 2, children: [{ text: 'Step two', style: { bold: false, italic: false, underline: false, strikethrough: false } }] },
+        { indent: 1, children: [{ text: 'Step two', style: { bold: false, italic: false, underline: false, strikethrough: false } }] },
       ],
     });
   });

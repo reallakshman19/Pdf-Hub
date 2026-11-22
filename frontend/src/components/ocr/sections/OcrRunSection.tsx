@@ -6,6 +6,7 @@ import {
 import { OcrSectionShell } from './OcrSectionShell';
 
 export interface OcrRunSectionProps {
+  engineLabel?: string;
   engineControls?: React.ReactNode;
   executionSettings?: React.ReactNode;
   pipelineMode?: React.ReactNode;
@@ -20,6 +21,7 @@ export interface OcrRunSectionProps {
 }
 
 export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
+  engineLabel,
   engineControls,
   executionSettings,
   pipelineMode,
@@ -73,6 +75,11 @@ export const OcrRunSection: React.FC<OcrRunSectionProps> = ({
                 Ready to recognize
               </div>
               <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                {engineLabel ? (
+                  <span className="font-medium text-emerald-900 dark:text-emerald-300">
+                    [{engineLabel}]{' '}
+                  </span>
+                ) : null}
                 Recognition runs locally and keeps the PDF on this device.
               </p>
             </div>

@@ -20,6 +20,14 @@ export interface OcrExecutionSettingsPanelProps {
   onCancel?: () => void;
 }
 
+const PRESET_LABELS: Record<OcrExecutionScalePreset, string> = {
+  fast: 'Fast Mode (1–5 pages, quick)',
+  balanced: 'Balanced (Standard 2x)',
+  accurate: 'Accurate (3x High-Res)',
+  high: 'Maximum Quality (4x Scale)',
+  'ten-page-batch': '10-Page Batch Mode (3x)',
+};
+
 export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps> = ({
   policy,
   estimatedMemoryBytes = 0,
@@ -36,11 +44,16 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
     );
   };
 
+  const selectPreset = (preset: OcrExecutionScalePreset) => {
+    onChange(createOcrExecutionPolicy({ preset }));
+  };
+
   return (
     <div
       className="rounded border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
       data-testid="ocr-execution-settings-panel"
     >
+      <div data-testid="ocr-execution-settings" className="sr-only" aria-hidden="true" />
       <div className="mb-2 flex items-center gap-2">
         <Gauge className="h-4 w-4 text-blue-600" />
         <div>
@@ -48,12 +61,41 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
             OCR Performance
           </h4>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Control OCR quality, memory, page limits, and timeout.
+            Choose Fast mode for speed or 10-Page Batch mode for large documents.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
+              policy.preset === 'fast'
+                ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+            }`}
+            onClick={() => selectPreset('fast')}
+            disabled={running}
+            data-testid="ocr-mode-fast-button"
+          >
+            (a) Fast Mode
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
+              policy.preset === 'ten-page-batch'
+                ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+            }`}
+            onClick={() => selectPreset('ten-page-batch')}
+            disabled={running}
+            data-testid="ocr-mode-batch-button"
+          >
+            (b) 10-Page Batch Mode
+          </button>
+        </div>
+
         <label className="text-xs text-slate-600 dark:text-slate-300">
           Preset
           <select
@@ -74,7 +116,7 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
                 key={preset}
                 value={preset}
               >
-                {preset}
+                {PRESET_LABELS[preset as OcrExecutionScalePreset] ?? preset}
               </option>
             ))}
           </select>

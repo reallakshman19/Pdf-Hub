@@ -8,6 +8,7 @@ import type {
   HeaderFooterHorizontalSlot,
   HeaderFooterTemplate,
 } from './types';
+import { freezeHeaderFooterClockTokens } from './tokenResolver';
 
 export type HeaderFooterEditorTargetMode =
   | 'all'
@@ -57,6 +58,7 @@ export interface HeaderFooterEditorCompileInput {
   pageGraph: PageGraph<PageNode>;
   currentPageId: PageId | null;
   selectedPageIds: readonly PageId[];
+  previewTime?: Date;
 }
 
 export function createDefaultHeaderFooterEditorDraft(): HeaderFooterEditorDraft {
@@ -103,6 +105,7 @@ export function compileHeaderFooterEditorDraft(
     draft.headerSeparator,
     draft.color,
     draft.opacity,
+    input.previewTime,
   );
   const footer = compileBand(
     'footer',
@@ -111,6 +114,7 @@ export function compileHeaderFooterEditorDraft(
     draft.footerSeparator,
     draft.color,
     draft.opacity,
+    input.previewTime,
   );
 
   if (!header && !footer) {
@@ -157,13 +161,15 @@ function compileBand(
   separator: boolean,
   color: string,
   opacity: number,
+  previewTime?: Date,
 ): HeaderFooterBandTemplate | undefined {
   const entries = (
     ['left', 'center', 'right'] as const
   ).flatMap((slot) => {
     const text = slots[slot];
+    const template = previewTime ? freezeHeaderFooterClockTokens(text, previewTime) : text;
     return text.trim().length > 0
-      ? [[slot, { kind: 'text' as const, template: text }] as const]
+      ? [[slot, { kind: 'text' as const, template }] as const]
       : [];
   });
 

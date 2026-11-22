@@ -7,6 +7,8 @@ import {
 } from '@/core/cancellation/operationCancellation';
 import {
   viewportRectToPdfRect,
+  pdfRectToViewportRect,
+  getViewportSize,
 } from '@/core/writer-v2/coordinateTransform';
 import type { WriterPageViewport } from '@/core/writer-v2/types';
 import type { TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
@@ -18,6 +20,8 @@ import type {
 import { buildSelectBoxCopyResult } from './formatSelection';
 import {
   normalizeViewportRect,
+  clipViewportRect,
+  rectContains,
   rectIntersects,
   itemToRect,
 } from './selectionGeometry';
@@ -70,6 +74,7 @@ export async function extractSelectBoxCopyFromDocument(
         page,
         input.viewport.scale,
         input.signal,
+        { rotation: 0, strict: true },
       );
 
     return buildSelectBoxCopyFromTextItems({
@@ -121,23 +126,26 @@ export function buildSelectBoxCopyFromTextItems(input: {
   viewportRect: SelectBoxViewportRect;
   textItems: TextLayerItem[];
 }): SelectBoxCopyResult {
-  const normalized = normalizeViewportRect(
-    input.viewportRect,
-  );
-
-  const items: SelectBoxTextItem[] = input.textItems
-    .filter((item) => item.text.trim())
-    .filter((item) =>
-      rectIntersects(itemToRect(item), normalized),
-    )
+  const size = getViewportSize(input.viewport);
+  const normalized = clipViewportRect(input.viewportRect, size.width, size.height);
+  if (!normalized.width || !normalized.height) throw new Error('Selection is outside the PDF page.');
+  // Text is acquired in unrotated reading coordinates. Project the selection
+  // back to that space before hit-testing or grouping rows. Do not guess glyph
+  // boundaries inside a PDF.js text run: report clipped runs explicitly.
+  const pdfRect = viewportRectToPdfRect(normalized, input.viewport);
+  const readingRect = pdfRectToViewportRect(pdfRect, { ...input.viewport, rotation: 0 });
+  const intersecting = input.textItems.filter(item => item.text.trim() && rectIntersects(itemToRect(item), readingRect));
+  const partialTextItems = intersecting.filter(item => !rectContains(readingRect, itemToRect(item))).length;
+  const items: SelectBoxTextItem[] = intersecting
+    .filter(item => rectContains(readingRect, itemToRect(item)))
     .map((item) => ({
       id: item.id,
       text: item.text,
-      x: item.x,
-      y: item.y,
-      width: item.width,
-      height: item.height,
-      fontSize: item.fontSize,
+      x: item.x / input.viewport.scale,
+      y: item.y / input.viewport.scale,
+      width: item.width / input.viewport.scale,
+      height: item.height / input.viewport.scale,
+      fontSize: item.fontSize / input.viewport.scale,
     }))
     .sort((a, b) => {
       if (Math.abs(a.y - b.y) > 3) {
@@ -152,11 +160,9 @@ export function buildSelectBoxCopyFromTextItems(input: {
     pageNumber: input.pageNumber,
     pageIndex: input.pageNumber - 1,
     viewportRect: normalized,
-    pdfRect: viewportRectToPdfRect(
-      normalized,
-      input.viewport,
-    ),
+    pdfRect,
     items,
     rows,
+    partialTextItems,
   });
 }

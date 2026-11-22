@@ -34,9 +34,14 @@ export async function persistWriterAssetReferences(
       );
     }
 
-    await adapter.saveAsset({
-      ...asset,
-      documentFingerprint,
-    });
+    if (asset.documentFingerprint !== documentFingerprint) {
+      throw new Error(`Writer history cannot checkpoint foreign asset ${assetId}.`);
+    }
+    const stored = await adapter.loadAsset(assetId, documentFingerprint);
+    if (stored && stored.documentFingerprint === documentFingerprint
+      && stored.dataUrl === asset.dataUrl && stored.mimeType === asset.mimeType
+      && stored.width === asset.width && stored.height === asset.height
+      && stored.updatedAt === asset.updatedAt) continue;
+    await adapter.saveAsset({ ...asset });
   }
 }

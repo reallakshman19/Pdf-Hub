@@ -157,6 +157,8 @@ export type OcrAnyBlock = OcrBlock | OcrTableBlock;
 
 export interface OcrPageResult {
   status: OcrPageStatus;
+  /** Bounding boxes are in fixed unrotated source PDF user space. */
+  geometryProvenance?: 'pdf-user-space-v2';
   /** Canonical PDF page identity; optional for legacy/engine output. */
   pageId?: PageId;
   /** Zero-based execution/render coordinate derived from PageGraph. */

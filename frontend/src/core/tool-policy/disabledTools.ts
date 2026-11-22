@@ -6,19 +6,7 @@ export interface DisabledToolInfo {
   replacement?: string;
 }
 
-export const DISABLED_TOOLS: Partial<Record<ActiveTool, DisabledToolInfo>> = {
-  // Legacy tools replaced by Writer Overlay V2 — keep disabled to avoid duplicate UX
-  textbox: {
-    disabled: true,
-    reason: 'Use the Writer V2 Text Box button instead (in the toolbar).',
-    replacement: 'Writer V2 Text Box',
-  },
-  stamp: {
-    disabled: true,
-    reason: 'Use the Writer V2 Stamp button instead (in the toolbar).',
-    replacement: 'Writer V2 Text Stamp',
-  },
-};
+export const DISABLED_TOOLS: Partial<Record<ActiveTool, DisabledToolInfo>> = {};
 
 // Annotation tools that are safe in Annotate mode but must not activate
 // when Writer Overlay V2 is the active mode. Enumerated here so the

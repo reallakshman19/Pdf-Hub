@@ -10,6 +10,10 @@ import {
 } from './pdfWriterGeometry';
 import type { HeaderFooterPdfLibResources } from './pdfLibResources';
 import {
+  assertNonOverlappingHeaderFooterSlots,
+  headerFooterSlotX,
+} from './slotGeometry';
+import {
   prepareHeaderFooterContent,
   type PreparedHeaderFooterContent,
 } from './pdfLibContentPreparation';
@@ -94,6 +98,14 @@ async function drawBand(
     }
   }
 
+  assertNonOverlappingHeaderFooterSlots(
+    entries.map(({ slot, prepared }) => ({ slot, widthPt: prepared.widthPt })),
+    geometry.visualWidth,
+    layout.leftMarginPt,
+    layout.rightMarginPt,
+    bandKind,
+  );
+
   const bandHeight = Math.max(
     0,
     ...entries.map(({ prepared }) => prepared.heightPt),
@@ -133,12 +145,13 @@ function drawPreparedHeaderFooterContent(
   layout: PdfMutationHeaderFooterPage['layout'],
   lib: PdfLibNs,
 ): void {
-  const x =
-    slot === 'left'
-      ? layout.leftMarginPt
-      : slot === 'center'
-        ? (geometry.visualWidth - content.widthPt) / 2
-        : geometry.visualWidth - layout.rightMarginPt - content.widthPt;
+  const x = headerFooterSlotX(
+    slot,
+    content.widthPt,
+    geometry.visualWidth,
+    layout.leftMarginPt,
+    layout.rightMarginPt,
+  );
 
   const y =
     bandKind === 'header'

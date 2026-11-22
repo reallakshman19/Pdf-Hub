@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useWriterV2Store, type WriterV2Tool } from '@/core/writer-v2/writerV2Store';
 import { useSessionStore } from '@/core/session/store';
+import { useOcrStore } from '@/core/ocr/ocrStore';
+import { createOcrProjectPayloadFromStore, hydrateOcrStoreFromProjectPayload } from '@/core/ocr/ocrHydrationBridge';
 import { buildPageGraphFromPdfBytes } from '@/core/pages/pageGraphAdmission';
 import { useEditorStore } from '@/core/editor/store';
 import { exportCurrentWriterPdf } from '@/core/writer-v2/export/exportCurrentWriterPdf';
@@ -274,9 +276,26 @@ export const WriterV2ToolbarControls: React.FC = () => {
       beginExportOperation('Exporting editable PDF Hub project…');
       await autosaveCurrentWriterDraft(undefined, { force: true });
 
+      const fingerprint = documentKey ?? documentMeta?.documentFingerprint;
+      const ocrStore = useOcrStore.getState();
+      const hasOcrData = Boolean(
+        ocrStore.result || ocrStore.corrections.length || ocrStore.regions.length,
+      );
+      if (hasOcrData && ocrStore.documentFingerprint !== fingerprint) {
+        throw new Error('OCR state belongs to another document; project export was not completed.');
+      }
+      const ocrProject = hasOcrData && fingerprint
+        ? createOcrProjectPayloadFromStore({ documentFingerprint: fingerprint, store: ocrStore })
+        : null;
+
       const bytes = await exportCurrentWriterProject({
         originalPdfBytes: sourceBytes,
-        documentFingerprint: documentKey ?? documentMeta?.documentFingerprint,
+        documentFingerprint: fingerprint ?? documentKey ?? documentMeta?.documentFingerprint,
+        ocrProject,
+        // The project-ZIP worker path is not yet certified in static browser
+        // builds. Use the deterministic main-thread exporter for editable
+        // recovery until worker correctness and timeout fallback are proven.
+        useWorker: false,
       });
 
       downloadWriterBytes(
@@ -366,7 +385,23 @@ export const WriterV2ToolbarControls: React.FC = () => {
       if (standaloneImportRef.current?.generation === generation) {
         standaloneImportRef.current.staged = staged;
       }
-      const imported = await commitStagedWriterProjectImport(staged, operation);
+      const imported = await commitStagedWriterProjectImport(staged, operation, {
+        prepareOcrRestore: (payload, documentFingerprint) => {
+          const previousOcrState = useOcrStore.getState();
+          return {
+            apply: () => {
+              const result = hydrateOcrStoreFromProjectPayload({
+                payload,
+                expectedDocumentFingerprint: documentFingerprint,
+              });
+              if (!result.restored) {
+                throw new Error('Writer project OCR payload could not be restored.');
+              }
+            },
+            rollback: () => useOcrStore.setState(previousOcrState, true),
+          };
+        },
+      });
       if (!operation.isCurrent()) return;
       completeSaveOperation(
         imported.documentMeta?.mode === 'blankDocument'

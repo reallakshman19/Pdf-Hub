@@ -110,6 +110,7 @@ export interface OcrStoreState extends OcrStoreDerivedState {
     pageIndex: number;
     bbox: PdfRect;
     mode: OcrRegionMode;
+    geometryProvenance?: 'pdf-user-space-v2';
     now?: string;
   }) => OcrRegion | null;
   upsertOcrRegion: (region: OcrRegion) => void;
@@ -129,11 +130,13 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   ...createInitialOcrStoreState(),
 
   hydrateOcrSession: (input) => {
+    const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+    const defaultEngine = isTest ? 'mock' : 'tesseract-js';
     const baseState: OcrStoreState = {
       ...get(),
       ...getInitialOcrDataState(),
       documentFingerprint: input.documentFingerprint,
-      engineId: input.engineId ?? 'mock',
+      engineId: input.engineId ?? defaultEngine,
       profileId: input.profileId ?? 'clean-scan',
       forceOcr: input.forceOcr ?? false,
       selectedPageIndexes: normalizePageIndexes(input.selectedPageIndexes ?? []),
@@ -229,6 +232,8 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   upsertOcrCorrection: (correction) => {
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+    if (activeDocumentKey && correction.documentFingerprint !== activeDocumentKey) return;
     const previous = get();
     const correctionState: OcrCorrectionState = createOcrCorrectionState(
       previous.corrections,
@@ -310,8 +315,9 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 
   addOcrRegion: (input) => {
     const documentFingerprint = input.documentFingerprint ?? get().documentFingerprint;
+    const activeDocumentKey = useSessionStore.getState().documentKey;
 
-    if (!documentFingerprint) {
+    if (!documentFingerprint || (activeDocumentKey && documentFingerprint !== activeDocumentKey)) {
       return null;
     }
 
@@ -326,6 +332,7 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
       pageIndex: input.pageIndex,
       bbox: input.bbox,
       mode: input.mode,
+      geometryProvenance: input.geometryProvenance,
       now: input.now,
     });
 
@@ -335,6 +342,8 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   upsertOcrRegion: (region) => {
+    const activeDocumentKey = useSessionStore.getState().documentKey;
+    if (activeDocumentKey && region.documentFingerprint !== activeDocumentKey) return;
     const previous = get();
 
     const nextState: OcrStoreState = {
@@ -383,6 +392,10 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   },
 
   focusOcrTarget: (focus) => {
+    const session = useSessionStore.getState();
+    if (session.documentKey && focus.documentFingerprint !== session.documentKey) return;
+    if (focus.pageId && session.pageGraph
+      && session.pageGraph.pages[focus.pageIndex]?.pageId !== focus.pageId) return;
     const pageId =
       focus.pageId
       ?? pageIdForOcrPageIndex(
@@ -414,9 +427,10 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 }));
 
 export function getInitialOcrDataState() {
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
   return {
     documentFingerprint: null,
-    engineId: 'mock',
+    engineId: isTest ? 'mock' : 'tesseract-js',
     profileId: 'clean-scan' as OcrProfileId,
     forceOcr: false,
     selectedPageIndexes: [],

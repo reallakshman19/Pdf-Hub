@@ -19,6 +19,7 @@ import {
 import { ocrRegionResultToWriterElement } from '@/core/ocr/ocrRegionToWriter';
 import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
+import { useSessionStore } from '@/core/session/store';
 
 export interface OcrRegionActionPanelProps {
   region: OcrRegion | null;
@@ -31,7 +32,7 @@ export interface OcrRegionActionPanelProps {
   /**
    * Async page-input resolver. Used for real PDF region rasterization.
    */
-  resolvePageInput?: (region: OcrRegion) => Promise<{
+  resolvePageInput?: (region: OcrRegion, signal?: AbortSignal) => Promise<{
     pageInput: OcrEnginePageInput;
     diagnostics?: OcrDiagnostic[];
   }>;
@@ -50,7 +51,11 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
   const store = useOcrStore(useShallow((state) => ({
     engineId: state.engineId,
     profileId: state.profileId,
+    documentFingerprint: state.documentFingerprint,
   })));
+  const sessionDocumentKey = useSessionStore((state) => state.documentKey);
+  const runGeneration = React.useRef(0);
+  const activeController = React.useRef<AbortController | null>(null);
 
   const [isRunning, setIsRunning] = React.useState(false);
   const [regionResult, setRegionResult] = React.useState<OcrRegionResult | null>(null);
@@ -59,6 +64,11 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
   const [outputMode, setOutputMode] = React.useState<OcrRegionToWriterOptions['outputMode']>('richTextBox');
 
   React.useEffect(() => {
+    // Invalidate pending raster/recognition before resetting selection.
+    runGeneration.current += 1;
+    activeController.current?.abort('OCR region/document changed');
+    activeController.current = null;
+    setIsRunning(false);
     if (!region) {
       setOutputMode('richTextBox');
       setRegionResult(null);
@@ -71,7 +81,12 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
     setRegionResult(null);
     setMessage(null);
     setInputDiagnostics([]);
-  }, [region]);
+    return () => {
+      runGeneration.current += 1;
+      activeController.current?.abort('OCR region action panel unmounted');
+      activeController.current = null;
+    };
+  }, [region, store.documentFingerprint, sessionDocumentKey]);
 
   if (!region) {
     return (
@@ -84,39 +99,71 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
     );
   }
 
-  const canRun = Boolean((pageInput || resolvePageInput) && !isRunning);
+  // Old project files can contain identical bbox values with opposite
+  // origins. Without capture provenance there is no safe automatic Y-flip.
+  const requiresGeometryReview = region.geometryProvenance !== 'pdf-user-space-v2';
+  const canRun = Boolean((pageInput || resolvePageInput) && !isRunning && !requiresGeometryReview);
   const canConvert = Boolean(regionResult);
 
   const runSelectedRegion = async () => {
+    if (activeController.current || requiresGeometryReview) return;
+    const controller = new AbortController();
+    activeController.current = controller;
+    const generation = ++runGeneration.current;
+    const startedSession = useSessionStore.getState();
+    const startedRevision = startedSession.activeRevisionId;
+    const startedPageId = startedSession.pageGraph?.pages[region.pageIndex]?.pageId;
+    const isCurrentOwner = () => {
+      const session = useSessionStore.getState();
+      const ocr = useOcrStore.getState();
+      const currentRegion = ocr.regions.find((item) => item.id === region.id);
+      return !controller.signal.aborted
+        && runGeneration.current === generation
+        && session.documentKey === startedSession.documentKey
+        && session.activeRevisionId === startedRevision
+        && session.pageGraph?.pages[region.pageIndex]?.pageId === startedPageId
+        && (!region.pageId || region.pageId === startedPageId)
+        && ocr.documentFingerprint === region.documentFingerprint
+        && currentRegion?.documentFingerprint === region.documentFingerprint
+        && currentRegion.pageIndex === region.pageIndex
+        && currentRegion.pageId === region.pageId
+        && currentRegion.geometryProvenance === region.geometryProvenance
+        && currentRegion.bbox.x === region.bbox.x
+        && currentRegion.bbox.y === region.bbox.y
+        && currentRegion.bbox.width === region.bbox.width
+        && currentRegion.bbox.height === region.bbox.height;
+    };
     setIsRunning(true);
     setMessage(null);
     setInputDiagnostics([]);
+    setRegionResult(null);
 
     try {
       const resolved = resolvePageInput
-        ? await resolvePageInput(region)
+        ? await resolvePageInput(region, controller.signal)
         : pageInput
-          ? {
-              pageInput,
-              diagnostics: [],
-            }
+          ? { pageInput, diagnostics: [] }
           : null;
 
+      if (!isCurrentOwner()) return;
       if (!resolved) {
         setMessage('No page input is available for this OCR region.');
         return;
       }
 
       setInputDiagnostics(resolved.diagnostics ?? []);
-
       const result = await runOcrRegion({
         documentFingerprint: region.documentFingerprint,
         region,
         page: resolved.pageInput,
         engineId: store.engineId,
         profileId: store.profileId,
+        signal: controller.signal,
       });
 
+      // An old asynchronous result must not publish to a new page/document,
+      // even if the region index or text happens to match.
+      if (!isCurrentOwner()) return;
       setRegionResult(result.regionResult);
       onRegionResult?.(result.regionResult);
 
@@ -126,13 +173,14 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
           : 'Region OCR completed, but no text/table block was found inside this region.',
       );
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'Region OCR failed.',
-      );
+      if (isCurrentOwner()) {
+        setMessage(error instanceof Error ? error.message : 'Region OCR failed.');
+      }
     } finally {
-      setIsRunning(false);
+      if (activeController.current === controller) {
+        activeController.current = null;
+      }
+      if (isCurrentOwner()) setIsRunning(false);
     }
   };
 
@@ -180,6 +228,18 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
           Page {region.pageIndex + 1} · selected directly on the document
         </div>
       </div>
+
+      {requiresGeometryReview ? (
+        <div
+          role="status"
+          className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          data-testid="ocr-region-geometry-review"
+        >
+          Review Required: this region was saved without a verified PDF coordinate
+          origin. Reselect the area on the source page using OCR Area before
+          running recognition. The stored region and corrections are preserved.
+        </div>
+      ) : null}
 
       {inputDiagnostics.length > 0 ? (
         <div
@@ -248,6 +308,23 @@ export const OcrRegionActionPanel: React.FC<OcrRegionActionPanelProps> = ({
           <Play className="mr-1 h-3.5 w-3.5" />
           {isRunning ? 'Running' : 'Run region OCR'}
         </Button>
+        {isRunning ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              runGeneration.current += 1;
+              activeController.current?.abort('OCR region canceled by user');
+              activeController.current = null;
+              setIsRunning(false);
+              setMessage('Region OCR canceled.');
+            }}
+            data-testid="ocr-region-cancel"
+          >
+            Cancel OCR
+          </Button>
+        ) : null}
 
         <Button
           type="button"

@@ -28,6 +28,15 @@ const sourceTable = {
 };
 
 describe('select-box-copy table draft', () => {
+  it('keeps IDs unique when a middle row or column is removed and added again', () => {
+    let draft = addTableDraftRow(addTableDraftRow(createTableDraftFromResult(sourceTable)));
+    draft = addTableDraftRow(removeTableDraftRow(draft, 1));
+    draft = addTableDraftColumn(addTableDraftColumn(draft));
+    draft = addTableDraftColumn(removeTableDraftColumn(draft, 1));
+    const ids = [...draft.tableData.columns.map(c => c.id), ...draft.tableData.rows.flatMap(r => [r.id, ...r.cells.map(c => c.id)])];
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('edits a cell and regenerates TSV/HTML', () => {
     const draft = updateTableDraftCell(
       createTableDraftFromResult(sourceTable),

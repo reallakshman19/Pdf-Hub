@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import type { WriterTableData } from '@/core/writer-v2/types';
 import type { SelectBoxTableResult } from './types';
 import {
@@ -48,12 +49,11 @@ export function addTableDraftRow(
 ): SelectBoxTableDraft {
   const tableData = cloneTableData(draft.tableData);
   const columnCount = Math.max(1, tableData.columns.length);
-  const rowNumber = tableData.rows.length + 1;
 
   tableData.rows.push({
-    id: `row-${rowNumber}`,
-    cells: Array.from({ length: columnCount }, (_, index) => ({
-      id: `cell-${rowNumber}-${index + 1}`,
+    id: `row-${uuidv4()}`,
+    cells: Array.from({ length: columnCount }, () => ({
+      id: `cell-${uuidv4()}`,
       text: '',
     })),
   });
@@ -87,13 +87,13 @@ export function addTableDraftColumn(
   const columnNumber = tableData.columns.length + 1;
 
   tableData.columns.push({
-    id: `col-${columnNumber}`,
+    id: `col-${uuidv4()}`,
     label: `Column ${columnNumber}`,
   });
 
-  for (const [rowIndex, row] of tableData.rows.entries()) {
+  for (const row of tableData.rows) {
     row.cells.push({
-      id: `cell-${rowIndex + 1}-${columnNumber}`,
+      id: `cell-${uuidv4()}`,
       text: '',
     });
   }
@@ -137,6 +137,7 @@ export function tableDraftToResult(
 
 function cloneTableData(tableData: WriterTableData): WriterTableData {
   return {
+    ...tableData,
     columns: tableData.columns.map((column) => ({ ...column })),
     rows: tableData.rows.map((row) => ({
       ...row,

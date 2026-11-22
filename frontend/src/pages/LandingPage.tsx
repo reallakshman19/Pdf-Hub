@@ -22,7 +22,7 @@ export const LandingPage: React.FC = () => {
     const file = e.dataTransfer.files[0];
     if (!file) return;
 
-    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP');
+    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP', { recoverEditableWriter: true });
     if (result.outcome === 'ACCEPTED') {
       navigate('/workspace');
       return;

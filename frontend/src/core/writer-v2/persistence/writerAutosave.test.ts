@@ -58,7 +58,7 @@ describe('writer autosave persistence', () => {
       patch: {
         plainText: 'Changed',
       },
-    });
+    }, { allowPdfOverlayMutation: true });
 
     const result = await autosaveCurrentWriterDraft(adapter);
 

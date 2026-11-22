@@ -10,13 +10,16 @@ export type PsIsonoteVerificationDiagnosticCode =
   | 'PS_ISONOTE_OUTPUT_PAGE_COUNT_MISMATCH'
   | 'PS_ISONOTE_OUTPUT_HASH_MISMATCH'
   | 'PS_ISONOTE_MARKER_MISSING'
-  | 'PS_ISONOTE_MARKER_DUPLICATE';
+  | 'PS_ISONOTE_MARKER_DUPLICATE'
+  | 'PS_ISONOTE_CALLOUT_TEXT_MISSING';
 
 export interface PsIsonoteExpectedMarker extends PsIsonoteMarkerIdentity {
   pageNumber: number;
+  /** Optional independent PDF text-layer witness; not a pixel or geometry certificate. */
+  visibleNoteText?: string;
 }
 
-export type PsIsonoteMarkerVerificationStatus = 'verified' | 'missing' | 'duplicate';
+export type PsIsonoteMarkerVerificationStatus = 'verified' | 'missing' | 'duplicate' | 'missing-callout';
 
 export interface PsIsonoteMarkerVerification extends PsIsonoteExpectedMarker {
   foundCount: number;
@@ -56,6 +59,12 @@ function markerKey(marker: PsIsonoteMarkerIdentity): string {
   return `${marker.psNo}|${marker.mappingHash}|${marker.occurrenceId}`;
 }
 
+// Text may be split across multiple PDF.js items. Compare the expected visible
+// note against the reopened PDF text independently of the hidden marker.
+function normalizeVisibleText(value: string): string {
+  return value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
 function markerDiagnostic(
   marker: PsIsonoteExpectedMarker,
   code: 'PS_ISONOTE_MARKER_MISSING' | 'PS_ISONOTE_MARKER_DUPLICATE',
@@ -92,6 +101,7 @@ export async function verifyPsIsonoteOutput(
 
   let actualPageCount: number | null = null;
   const markersByPage = new Map<number, Map<string, number>>();
+  const visibleTextByPage = new Map<number, string>();
 
   try {
     const lease = await PdfRendererAdapter.acquireDocument(options.outputBytes);
@@ -117,6 +127,7 @@ export async function verifyPsIsonoteOutput(
         try {
           const items = await PdfRendererAdapter.getPageTextItems(page, 1);
           const pageText = items.map((item) => item.text).join(' ');
+          visibleTextByPage.set(pageNumber, normalizeVisibleText(pageText));
           const counts = new Map<string, number>();
           for (const marker of parseVersionedPsIsonoteMarkers(pageText)) {
             const key = markerKey(marker);
@@ -140,16 +151,32 @@ export async function verifyPsIsonoteOutput(
 
   for (const marker of options.expectedMarkers) {
     const foundCount = markersByPage.get(marker.pageNumber)?.get(markerKey(marker)) ?? 0;
-    const status: PsIsonoteMarkerVerificationStatus = foundCount === 1
-      ? 'verified'
-      : foundCount === 0
-        ? 'missing'
-        : 'duplicate';
+    const expectedVisibleText = marker.visibleNoteText
+      ? normalizeVisibleText(marker.visibleNoteText)
+      : '';
+    const missingCallout = foundCount === 1 && expectedVisibleText.length > 0
+      && !visibleTextByPage.get(marker.pageNumber)?.includes(expectedVisibleText);
+    const status: PsIsonoteMarkerVerificationStatus = foundCount === 0
+      ? 'missing'
+      : foundCount > 1
+        ? 'duplicate'
+        : missingCallout
+          ? 'missing-callout'
+          : 'verified';
     markerResults.push({ ...marker, foundCount, status });
     if (status === 'missing') {
       diagnostics.push(markerDiagnostic(marker, 'PS_ISONOTE_MARKER_MISSING', foundCount));
     } else if (status === 'duplicate') {
       diagnostics.push(markerDiagnostic(marker, 'PS_ISONOTE_MARKER_DUPLICATE', foundCount));
+    } else if (status === 'missing-callout') {
+      diagnostics.push({
+        code: 'PS_ISONOTE_CALLOUT_TEXT_MISSING',
+        severity: 'error',
+        psNo: marker.psNo,
+        pageNumber: marker.pageNumber,
+        occurrenceId: marker.occurrenceId,
+        message: `${marker.psNo} hidden marker exists, but expected ISONOTE note text is absent from reopened output page ${marker.pageNumber}.`,
+      });
     }
   }
 

@@ -20,7 +20,7 @@ export interface WriterRichElementBoxProps {
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
-  onSave?: (payload: WriterEditorSavePayload) => void;
+  onSave?: (payload: WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel?: () => void;
 }
 
@@ -126,7 +126,7 @@ function renderElementContent({
   element: WriterElementV2;
   isEditing: boolean;
   imageAssetDataUrl?: string;
-  onSave?: (payload: WriterEditorSavePayload) => void;
+  onSave?: (payload: WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel?: () => void;
   viewportRect: { x: number; y: number; width: number; height: number };
   tableSelection: import('@/core/writer-v2/table-pro/writerTableSelection').WriterTableSelection | null;

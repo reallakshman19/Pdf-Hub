@@ -1,4 +1,4 @@
-import type { WriterElementV2 } from './types';
+import type { WriterElementV2, WriterTableCellStyle } from './types';
 import type { WriterCommand } from './writerCommands';
 import {
   clampRectToBounds,
@@ -691,14 +691,34 @@ function canApplyWriterElementPatch(
     patchKeys.every((key) => allowedWhileLockedOrHidden.has(key));
 }
 
+function cloneCellStyle(style: WriterTableCellStyle | undefined): WriterTableCellStyle | undefined {
+  if (!style) return undefined;
+  return {
+    ...style,
+    borders: style.borders ? {
+      top: style.borders.top && { ...style.borders.top },
+      right: style.borders.right && { ...style.borders.right },
+      bottom: style.borders.bottom && { ...style.borders.bottom },
+      left: style.borders.left && { ...style.borders.left },
+    } : undefined,
+  };
+}
+
 function cloneTableData(
   tableData: NonNullable<WriterElementV2['tableData']>,
 ): NonNullable<WriterElementV2['tableData']> {
   return {
-    columns: tableData.columns.map((column) => ({ ...column })),
+    ...tableData,
+    defaultCellStyle: cloneCellStyle(tableData.defaultCellStyle),
+    headerCellStyle: cloneCellStyle(tableData.headerCellStyle),
+    columns: tableData.columns.map((column) => ({ ...column, style: cloneCellStyle(column.style) })),
     rows: tableData.rows.map((row) => ({
       ...row,
-      cells: row.cells.map((cell) => ({ ...cell })),
+      cells: row.cells.map((cell) => ({
+        ...cell,
+        style: cloneCellStyle(cell.style),
+        mergedInto: cell.mergedInto && { ...cell.mergedInto },
+      })),
     })),
   };
 }
@@ -902,15 +922,7 @@ function cloneElement(element: WriterElementV2): WriterElementV2 {
     review: element.review ? { ...element.review } : undefined,
     assetIds: element.assetIds ? [...element.assetIds] : undefined,
     rect: { ...element.rect },
-    tableData: element.tableData
-      ? {
-          columns: element.tableData.columns.map((column) => ({ ...column })),
-          rows: element.tableData.rows.map((row) => ({
-            ...row,
-            cells: row.cells.map((cell) => ({ ...cell })),
-          })),
-        }
-      : undefined,
+    tableData: element.tableData ? cloneTableData(element.tableData) : undefined,
     callout: element.callout
       ? {
           ...element.callout,

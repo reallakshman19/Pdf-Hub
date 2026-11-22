@@ -3,8 +3,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
+import { rotateBoxShapeQuarterTurn, rotateInkQuarterTurn, rotateLineQuarterTurn, rotateMarkupQuarterTurn, rotatePolygonQuarterTurn } from '@/core/annotations/geometryTransform';
 import {
   hasNativeRichTextSemantics,
+  isImportedBoxArtworkReadOnly,
+  isImportedStampArtworkReadOnly,
   isNativeRichTextReadOnly,
 } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
@@ -421,6 +424,13 @@ const PropertiesTab: React.FC<{
 }) => {
   const richTextReadOnly = isNativeRichTextReadOnly(annotation);
   const richTextStructuralReadOnly = hasNativeRichTextSemantics(annotation);
+  const stampArtworkReadOnly = isImportedStampArtworkReadOnly(annotation);
+  const boxArtworkReadOnly = isImportedBoxArtworkReadOnly(annotation);
+  const shapeRotation = annotation.type === 'ink' ? rotateInkQuarterTurn(annotation)
+    : annotation.type === 'shape-polygon' ? rotatePolygonQuarterTurn(annotation)
+    : annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' ? rotateBoxShapeQuarterTurn(annotation)
+    : annotation.type === 'highlight' || annotation.type === 'underline' || annotation.type === 'strikeout' || annotation.type === 'squiggly' || annotation.type === 'redaction' ? rotateMarkupQuarterTurn(annotation)
+    : annotation.type === 'line' || annotation.type === 'arrow' ? rotateLineQuarterTurn(annotation) : null;
 
   const updateRect = (key: 'x' | 'y' | 'width' | 'height', value: string) => {
     const next = Number(value);
@@ -447,7 +457,7 @@ const PropertiesTab: React.FC<{
       <LabeledSelect
         label="Type"
         value={annotation.type}
-        disabled={richTextStructuralReadOnly}
+        disabled={richTextStructuralReadOnly || stampArtworkReadOnly || boxArtworkReadOnly}
         onChange={(value) => updateAnnotation(annotation.id, { type: value as AnnotationType })}
         options={ANNOTATION_TYPES.map((type) => ({ label: type, value: type }))}
       />
@@ -462,9 +472,11 @@ const PropertiesTab: React.FC<{
         <LabeledNumberInput label="Height" value={annotation.rect.height} onChange={(v) => updateRect('height', v)} />
       </TwoColumnRow>
 
-      <LabeledNumberInput
+      {annotation.type === 'stamp' ? <LabeledNumberInput
         label="Rotation"
         value={typeof annotation.data.rotation === 'number' ? annotation.data.rotation : 0}
+        disabled={annotation.data.nativeStampAppearanceKind === 'imported'
+          && (!annotation.data.hasCustomAppearance || Boolean(annotation.data.nativeStampRotationReadOnly))}
         onChange={(value) => {
           const next = Number(value);
           if (Number.isNaN(next)) {
@@ -474,7 +486,22 @@ const PropertiesTab: React.FC<{
             data: { ...annotation.data, rotation: next },
           });
         }}
-      />
+      /> : annotation.type === 'textbox' || annotation.type === 'callout' ? (
+        <LabeledSelect label="Rotation" value={String(annotation.data.rotation ?? 0)}
+          onChange={(value) => updateAnnotation(annotation.id, { data: { ...annotation.data, rotation: Number(value) } })}
+          options={[0, 90, 180, 270].map((angle) => ({ label: `${angle}°`, value: String(angle) }))} />
+      ) : annotation.type === 'shape-polygon' || annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud' || annotation.type === 'ink' || annotation.type === 'line' || annotation.type === 'arrow' || annotation.type === 'highlight' || annotation.type === 'underline' || annotation.type === 'strikeout' || annotation.type === 'squiggly' || annotation.type === 'redaction' ? (
+        <div>
+          <Button variant="secondary" size="sm" disabled={!shapeRotation} onClick={() => {
+            if (shapeRotation) updateAnnotation(annotation.id, shapeRotation);
+          }}>Rotate 90° clockwise</Button>
+          {!shapeRotation && <p className="mt-1 text-xs text-slate-500">This annotation cannot be rotated safely with its current geometry or appearance.</p>}
+        </div>
+      ) : <p className="text-xs text-slate-500">Individual rotation is currently available for stamps, text boxes, callouts, shapes, ink, lines and arrows.</p>}
+
+      {(annotation.type === 'shape-rect' || annotation.type === 'shape-ellipse' || annotation.type === 'shape-cloud') && annotation.data.nativeBoxShapeImported && <p className="text-xs text-slate-500">
+        Imported shape artwork may look different here. Its original appearance is preserved in the saved PDF when supported.
+      </p>}
 
       <LabeledSelect
         label="Review Status"
@@ -501,18 +528,37 @@ const PropertiesTab: React.FC<{
       {isTextLike(annotation.type) && (
         richTextReadOnly ? (
           <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-            <div className="font-medium">Native rich text — preserved read-only</div>
+            <div className="font-medium">Native rich text</div>
             <div className="whitespace-pre-wrap break-words text-xs">
               {typeof annotation.data.text === 'string' ? annotation.data.text : ''}
             </div>
             <p className="text-xs opacity-80">
-              PDF Hub preserves the PDF /RC rich-text content and formatting. Plain-text or type edits are disabled because they cannot be round-tripped without losing native formatting.
+              Editing retains supported native rich-text styles. The saved appearance uses equivalent standard PDF fonts; unsupported rich-text structures are protected.
             </p>
+            <button
+              type="button"
+              className="mt-1 px-2.5 py-1 text-xs font-medium rounded border border-amber-400 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+              onClick={() => {
+                updateAnnotation(annotation.id, {
+                  data: {
+                    ...annotation.data,
+                    nativeInterop: {
+                      fidelityClass: 'MUTATED_USER_EDIT',
+                      reason: 'USER_EDITED',
+                      richText: true,
+                    },
+                  },
+                });
+              }}
+            >
+              Edit text (retain styles)
+            </button>
           </div>
         ) : (
           <LabeledTextarea
             label="Text"
             value={typeof annotation.data.text === 'string' ? annotation.data.text : ''}
+            disabled={stampArtworkReadOnly}
             onChange={(value) =>
               updateAnnotation(annotation.id, {
                 data: { ...annotation.data, text: value },
@@ -529,6 +575,8 @@ const StyleTab: React.FC<{
   annotation: PdfAnnotation;
 }> = ({ annotation }) => {
   const richTextReadOnly = isNativeRichTextReadOnly(annotation);
+  const stampArtworkReadOnly = isImportedStampArtworkReadOnly(annotation);
+  const boxArtworkReadOnly = isImportedBoxArtworkReadOnly(annotation);
   const { updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
     updateStyleForSelection: state.updateStyleForSelection,
   })));
@@ -545,6 +593,17 @@ const StyleTab: React.FC<{
   return (
     <div className="p-4 space-y-4">
       <Section title="Appearance">
+        {stampArtworkReadOnly && <p className="text-xs text-amber-700 dark:text-amber-300">
+          {annotation.data.nativeStampRotationReadOnly
+            ? "This stamp's rotated artwork is preserved. Further rotation and copy are unavailable because its saved base appearance could not be verified."
+            : annotation.data.hasCustomAppearance
+            ? "This imported stamp's artwork is preserved. You can move, resize and rotate it; its colors and wording cannot yet be edited here."
+            : "This imported stamp uses a viewer-provided appearance. You can move and resize it; its artwork cannot yet be edited or rotated here."}
+        </p>}
+        {boxArtworkReadOnly && <p className="text-xs text-amber-700 dark:text-amber-300">
+          This shape's original artwork is preserved. Its appearance cannot be edited safely here.
+        </p>}
+        <fieldset disabled={stampArtworkReadOnly || boxArtworkReadOnly} className="space-y-3 disabled:opacity-60">
         <TwoColumnRow>
           <LabeledColorInput
             label="Background"
@@ -584,13 +643,14 @@ const StyleTab: React.FC<{
             }}
           />
         </TwoColumnRow>
+        </fieldset>
       </Section>
 
       {isTextLike && (
         richTextReadOnly ? (
           <Section title="Typography">
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              Native /RC rich-text typography is preserved read-only. Geometry, border, opacity, review state, and thread operations remain editable.
+              Original rich-text typography is preserved. Text, position, rotation and comments can be edited; some appearance changes may be unavailable.
             </p>
           </Section>
         ) : (
@@ -677,7 +737,7 @@ const StyleTab: React.FC<{
         Locked
       </label>
 
-      <Section title="Quick Presets" defaultOpen={false}>
+      {!stampArtworkReadOnly && !boxArtworkReadOnly && <Section title="Quick Presets" defaultOpen={false}>
         <div className="grid grid-cols-4 gap-2">
           {['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#d946ef'].map((color) => (
             <button
@@ -688,7 +748,7 @@ const StyleTab: React.FC<{
             />
           ))}
         </div>
-      </Section>
+      </Section>}
     </div>
   );
 };
@@ -796,9 +856,10 @@ const LabeledNumberInput: React.FC<{
   label: string;
   value: number;
   onChange: (value: string) => void;
-}> = ({ label, value, onChange }) => (
+  disabled?: boolean;
+}> = ({ label, value, onChange, disabled = false }) => (
   <LabeledInputShell label={label}>
-    <input type="number" className={baseInputClass} value={value} onChange={(e) => onChange(e.target.value)} />
+    <input type="number" className={baseInputClass} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
   </LabeledInputShell>
 );
 
@@ -829,11 +890,13 @@ const LabeledTextarea: React.FC<{
   label: string;
   value: string;
   onChange: (value: string) => void;
-}> = ({ label, value, onChange }) => (
+  disabled?: boolean;
+}> = ({ label, value, onChange, disabled = false }) => (
   <LabeledInputShell label={label}>
     <textarea
       className={`${baseInputClass} min-h-[90px] resize-y`}
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
   </LabeledInputShell>

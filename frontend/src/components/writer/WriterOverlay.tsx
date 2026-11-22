@@ -7,6 +7,11 @@ import type { SnapGuide } from '../../core/writer/geometry';
 import { useToastStore } from '../../core/toast/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import type { OcrRegionMode } from '@/core/ocr/ocrRegionModel';
+import {
+  pdfRectToViewportSelection,
+  viewportSelectionToPdfRect,
+  type OcrPdfViewport,
+} from '@/core/ocr/ocrViewportGeometry';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 
@@ -14,6 +19,7 @@ interface Props {
   pageNumber:     number;
   scale:          number;
   pageDimensions: { width: number; height: number } | null;
+  ocrViewport: OcrPdfViewport | null;
 }
 
 function nextId(): string {
@@ -34,7 +40,7 @@ function isWriterPlacementTool(tool: string): boolean {
  *
  * z-index: 10 (above canvas z-0, below annotations z-20).
  */
-export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensions }) => {
+export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensions, ocrViewport }) => {
   const { elements, activeTool, addElement, setActiveTool, setSelectedId, setSelection, clearSelection, toggleSelection } =
     useWriterStore();
 
@@ -133,12 +139,22 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
        const bottom = Math.max(marqueeStart.y, marqueeCurrent.y) / scale;
 
        if (isOcr) {
-         setPendingOcrRect({
-           x: left,
-           y: top,
-           width: Math.max(1, right - left),
-           height: Math.max(1, bottom - top),
-         });
+         // PageViewport is the coordinate authority. Its inverse preserves
+         // PDF rotation and CropBox origins; /scale and Y-flip do not.
+         if (!ocrViewport) {
+           addToast({
+             type: 'error',
+             title: 'OCR Area Not Saved',
+             message: 'The PDF page viewport is not ready. Please select the area again.',
+           });
+         } else {
+           setPendingOcrRect(viewportSelectionToPdfRect(ocrViewport, {
+             x: Math.min(marqueeStart.x, marqueeCurrent.x),
+             y: Math.min(marqueeStart.y, marqueeCurrent.y),
+             width: Math.abs(marqueeCurrent.x - marqueeStart.x),
+             height: Math.abs(marqueeCurrent.y - marqueeStart.y),
+           }));
+         }
          setActiveTool('select');
        } else {
          // Find all elements completely or partially inside the box
@@ -166,7 +182,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
     setMarqueeStart(null);
     setMarqueeCurrent(null);
-  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, pageNumber, setActiveTool]);
+  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, setActiveTool, ocrViewport, addToast]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -242,6 +258,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       pageIndex: pageNumber - 1,
       bbox: pendingOcrRect,
       mode,
+      geometryProvenance: 'pdf-user-space-v2',
     });
 
     if (!region) {
@@ -272,6 +289,10 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
   if (!pageDimensions) return null;
 
+  const pendingOcrViewportRect = pendingOcrRect && ocrViewport
+    ? pdfRectToViewportSelection(ocrViewport, pendingOcrRect)
+    : null;
+
   const captureLayerEnabled = isWriterCaptureMode;
   const captureCursor = isWriterCaptureMode ? 'crosshair' : 'default';
 
@@ -281,8 +302,8 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
         position:      'absolute',
         top:           0,
         left:          0,
-        width:         pageDimensions.width * scale,
-        height:        pageDimensions.height * scale,
+        width:         pageDimensions.width,
+        height:        pageDimensions.height,
         zIndex:        10,
         pointerEvents: 'none',
         overflow:      'visible',
@@ -306,16 +327,16 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
         {isPlacing && (
           <svg
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.08, pointerEvents: 'none' }}
-            width={pageDimensions.width * scale}
-            height={pageDimensions.height * scale}
+            width={pageDimensions.width}
+            height={pageDimensions.height}
           >
             {/* 20px vertical lines */}
-            {Array.from({ length: Math.ceil((pageDimensions.width * scale) / 20) }, (_, i) => (
-              <line key={`v${i}`} x1={i * 20} y1={0} x2={i * 20} y2={pageDimensions.height * scale} stroke="currentColor" strokeWidth={0.5} />
+            {Array.from({ length: Math.ceil((pageDimensions.width) / 20) }, (_, i) => (
+              <line key={`v${i}`} x1={i * 20} y1={0} x2={i * 20} y2={pageDimensions.height} stroke="currentColor" strokeWidth={0.5} />
             ))}
             {/* 20px horizontal lines */}
-            {Array.from({ length: Math.ceil((pageDimensions.height * scale) / 20) }, (_, i) => (
-              <line key={`h${i}`} x1={0} y1={i * 20} x2={pageDimensions.width * scale} y2={i * 20} stroke="currentColor" strokeWidth={0.5} />
+            {Array.from({ length: Math.ceil((pageDimensions.height) / 20) }, (_, i) => (
+              <line key={`h${i}`} x1={0} y1={i * 20} x2={pageDimensions.width} y2={i * 20} stroke="currentColor" strokeWidth={0.5} />
             ))}
           </svg>
         )}
@@ -333,15 +354,15 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
         )}
       </div>
 
-      {pendingOcrRect && (
+      {pendingOcrRect && pendingOcrViewportRect && (
         <>
           <div
             className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none"
             style={{
-              left: pendingOcrRect.x * scale,
-              top: pendingOcrRect.y * scale,
-              width: pendingOcrRect.width * scale,
-              height: pendingOcrRect.height * scale,
+              left: pendingOcrViewportRect.x,
+              top: pendingOcrViewportRect.y,
+              width: pendingOcrViewportRect.width,
+              height: pendingOcrViewportRect.height,
               zIndex: 18,
             }}
             data-testid="ocr-document-region-pending"
@@ -349,8 +370,8 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
           <div
             className="absolute z-20 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
             style={{
-              left: Math.max(4, pendingOcrRect.x * scale),
-              top: Math.max(4, pendingOcrRect.y * scale - 38),
+              left: Math.max(4, pendingOcrViewportRect.x),
+              top: Math.max(4, pendingOcrViewportRect.y - 38),
               pointerEvents: 'auto',
             }}
             data-testid="ocr-document-region-mode-picker"

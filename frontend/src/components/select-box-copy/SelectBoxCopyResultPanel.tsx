@@ -74,7 +74,8 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
   }, [insertMode, result, tableDraft]);
 
   const summary = summarizeSelectBoxCopyResult(effectiveResult);
-  const canTable = canUseTableMode(effectiveResult);
+  const canTable = canUseTableMode(effectiveResult) && !effectiveResult.partialTextItems;
+  const canText = !!effectiveResult.plainText.trim() && !effectiveResult.partialTextItems;
 
   return (
     <div
@@ -142,7 +143,7 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
               name="select-box-copy-mode"
               value={mode}
               checked={insertMode === mode}
-              disabled={mode === 'table' && !canTable}
+              disabled={(mode === 'table' && !canTable) || (mode === 'text' && !canText)}
               onChange={() =>
                 setDraftState({
                   key: resultKey,
@@ -216,12 +217,12 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
         <PanelButton
           label="Copy Text"
           onClick={() => onCopy('plain', effectiveResult)}
-          disabled={!effectiveResult.plainText.trim()}
+          disabled={!canText}
         />
         <PanelButton
           label="Copy Formatted"
           onClick={() => onCopy('formatted', effectiveResult)}
-          disabled={!effectiveResult.plainText.trim()}
+          disabled={!canText}
         />
         <PanelButton
           label="Copy Table"
@@ -235,6 +236,7 @@ export const SelectBoxCopyResultPanel: React.FC<SelectBoxCopyResultPanelProps> =
         <PanelButton
           label="Insert Writer"
           onClick={() => onInsertWriter(insertMode, effectiveResult)}
+          disabled={(insertMode === 'text' && !canText) || (insertMode === 'table' && !canTable)}
         />
         <PanelButton
           label="Close"

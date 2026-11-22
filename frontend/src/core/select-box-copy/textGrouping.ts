@@ -63,7 +63,6 @@ export function rowsToPlainText(rows: SelectBoxTextRow[]): string {
 function joinRowText(items: SelectBoxTextItem[]): string {
   if (items.length === 0) return '';
 
-  const medianSpace = Math.max(4, median(items.map((item) => item.fontSize)) * 0.35);
   let output = '';
 
   for (const [index, item] of items.entries()) {
@@ -72,13 +71,10 @@ function joinRowText(items: SelectBoxTextItem[]): string {
       continue;
     }
 
-    const previous = items[index - 1];
-    const gap = item.x - (previous.x + previous.width);
-
-    output += gap > medianSpace ? ` ${item.text}` : item.text;
+    output += rowItemSeparator(items, index) + item.text;
   }
 
-  return output.replace(/\s+/g, ' ').trim();
+  return output.trim();
 }
 
 function verticalCenter(item: SelectBoxTextItem): number {
@@ -94,4 +90,12 @@ function median(values: number[]): number {
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle];
+}
+
+/** Same spacing decision for plain and formatted output. */
+export function rowItemSeparator(items: SelectBoxTextItem[], index: number): string {
+  const previous = items[index - 1], current = items[index];
+  if (!previous || !current || /\s$/.test(previous.text) || /^\s/.test(current.text)) return '';
+  const gap = current.x - (previous.x + previous.width);
+  return gap > Math.max(4, median(items.map(item => item.fontSize)) * 0.35) ? ' ' : '';
 }

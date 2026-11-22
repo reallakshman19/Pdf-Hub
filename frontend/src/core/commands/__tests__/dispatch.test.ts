@@ -144,7 +144,7 @@ async function execute(
     ?? useSessionStore.getState().documentKey
     ?? 'test-doc';
 
-  return commandBus.execute({
+  const result = await commandBus.execute({
     command: materializePdfCommand(
       draft,
       options?.source ?? 'toolbar',
@@ -158,6 +158,10 @@ async function execute(
     ),
     resources: options?.resources,
   });
+  if (!result.success && process.env.WP05_DISPATCH_DIAG === '1') {
+    process.stderr.write(`WP05_DISPATCH_DIAG type=${draft.type} error=${JSON.stringify(result.error)}\n`);
+  }
+  return result;
 }
 
 async function admitDonor(
@@ -419,6 +423,10 @@ function ocrDocument(
 describe('canonical command dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear queued one-shot mocks left unconsumed by fail-closed commands.
+    mutationEngineMocks.open.mockReset();
+    mutationEngineMocks.commit.mockReset();
+    pageGraphMocks.buildPageGraphFromPdfBytes.mockReset();
     resetCommandBusForTests();
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
@@ -445,28 +453,46 @@ describe('canonical command dispatch', () => {
       bytes: new Uint8Array([2, 2, 2]),
       pageCount: 3,
     });
-    mutationEngineMocks.open.mockImplementation(async () => ({
-      pageCount: 3,
-      getPageMetrics: mutationEngineMocks.getPageMetrics,
-      rotatePages: mutationEngineMocks.rotatePages,
-      reorderPages: mutationEngineMocks.reorderPages,
-      removePages: mutationEngineMocks.removePages,
-      insertBlankPage: mutationEngineMocks.insertBlankPage,
-      duplicatePages: mutationEngineMocks.duplicatePages,
-      insertPdf: mutationEngineMocks.insertPdf,
-      replacePage: mutationEngineMocks.replacePage,
-      appendPdfs: mutationEngineMocks.appendPdfs,
-      setPageLabels: mutationEngineMocks.setPageLabels,
-      drawText: mutationEngineMocks.drawText,
-      drawVisualMasks: mutationEngineMocks.drawVisualMasks,
-      applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
-      replaceExistingText:
-        mutationEngineMocks.replaceExistingText,
-      reconstructExistingText:
-        mutationEngineMocks.reconstructExistingText,
-      commit: mutationEngineMocks.commit,
-      dispose: mutationEngineMocks.dispose,
-    }));
+    mutationEngineMocks.open.mockImplementation(async () => {
+      // The real PDF mutation session changes pageCount with structural edits.
+      // Emulate that contract instead of presenting a fixed three-page count.
+      let pageCount = 3;
+      return {
+        get pageCount() { return pageCount; },
+        getPageMetrics: mutationEngineMocks.getPageMetrics,
+        rotatePages: mutationEngineMocks.rotatePages,
+        reorderPages: mutationEngineMocks.reorderPages,
+        removePages: async (indices: number[]) => {
+          await mutationEngineMocks.removePages(indices);
+          pageCount -= indices.length;
+        },
+        insertBlankPage: async (atIndex: number, size: { width: number; height: number }) => {
+          await mutationEngineMocks.insertBlankPage(atIndex, size);
+          pageCount += 1;
+        },
+        duplicatePages: async (indices: number[]) => {
+          await mutationEngineMocks.duplicatePages(indices);
+          pageCount += indices.length;
+        },
+        insertPdf: async (atIndex: number, donorBytes: Uint8Array) => {
+          await mutationEngineMocks.insertPdf(atIndex, donorBytes);
+          pageCount += 3; // original admitted donor fixture has three pages
+        },
+        replacePage: mutationEngineMocks.replacePage,
+        appendPdfs: async (donors: Uint8Array[]) => {
+          await mutationEngineMocks.appendPdfs(donors);
+          pageCount += 3 * donors.length;
+        },
+        setPageLabels: mutationEngineMocks.setPageLabels,
+        drawText: mutationEngineMocks.drawText,
+        drawVisualMasks: mutationEngineMocks.drawVisualMasks,
+        applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
+        replaceExistingText: mutationEngineMocks.replaceExistingText,
+        reconstructExistingText: mutationEngineMocks.reconstructExistingText,
+        commit: mutationEngineMocks.commit,
+        dispose: mutationEngineMocks.dispose,
+      };
+    });
     pageGraphMocks.buildPageGraphFromPdfBytes.mockImplementation(
       async (_bytes: Uint8Array, documentKey: string) => pageGraph(3, documentKey),
     );
@@ -1222,12 +1248,9 @@ describe('canonical command dispatch', () => {
   });
 
   it('reorders pages by explicit order', async () => {
-    useSessionStore.getState().setPageGraph({
-      pages: pageGraph(3).pages.map((page, index) => ({
-        ...page,
-        logicalLabel: ['i', 'ii', '1'][index],
-      })),
-    });
+    // This case tests stable physical ownership without native label ranges.
+    // A separate adversarial case covers resolved-only imported PageLabels.
+    useSessionStore.getState().setPageGraph(pageGraph(3));
     useAnnotationStore.getState().setAnnotations([
       { ...TEST_ANNOTATION, id: 'page-one-note', pageNumber: 1 },
     ]);
@@ -1329,6 +1352,26 @@ describe('canonical command dispatch', () => {
       currentPageId: 'test-doc::stable::1',
       currentPage: 3,
     });
+  });
+
+  it('refuses to erase unverified imported PageLabels during structural reorder', async () => {
+    const imported = {
+      pages: pageGraph(3).pages.map((page, index) => ({
+        ...page,
+        logicalLabel: ['i', 'ii', '1'][index],
+      })),
+    };
+    useSessionStore.getState().setPageGraph(imported);
+    const result = await execute({
+      type: 'REORDER_PAGES_BY_ORDER',
+      payload: { order: [2, 1, 0] },
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/original numbering rules are unavailable/i);
+    expect(mutationEngineMocks.reorderPages).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().pageGraph?.pages.map((p) => p.pageId)).toEqual(
+      imported.pages.map((p) => p.pageId),
+    );
   });
 
   it('inserts pages from an admitted donor through an execution resource', async () => {
