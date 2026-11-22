@@ -2,6 +2,7 @@ import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   deletionKey, isValidNativeDeletionTombstone,
+  unprovenNativeEditFields,
   type NativeDeletionAuthorization,
 } from '@/core/annotations/nativeIntegrity';
 import type { ReviewMetadata, ReviewReply } from '@/core/review/types';
@@ -166,6 +167,13 @@ export async function writeNativePdfAnnotations(
 
   let annotationCount = 0;
   let replyCount = 0;
+  let sourceRevisionPromise: Promise<string> | null = null;
+  const exactSourceRevision = () => {
+    sourceRevisionPromise ??= FileAdapter.hashBytes(
+      options.sourceBytesForAuthorization ?? baseBytes,
+    );
+    return sourceRevisionPromise;
+  };
 
   const byPage = new Map<number, PdfAnnotation[]>();
   for (const annotation of annotations) {
@@ -293,6 +301,20 @@ export async function writeNativePdfAnnotations(
       const sourceModel = sourceModels.find((item) => item.pageNumber === pageNumber
         && (item.data.nativeOriginalName ?? item.id) === nativeName);
       const sourceRef = sourceModel?.data.nativeSourceRef;
+      if (sourceModel && !annotation.data.nativeCopySource) {
+        if (sourceRef && annotation.data.nativeSourceRef !== sourceRef) {
+          throw new Error('Cannot safely edit native annotation without its original source identity.');
+        }
+        const actualRevision = await exactSourceRevision();
+        if (options.nativeDeletionAuthorization
+          && options.nativeDeletionAuthorization.sourceRevision !== actualRevision) {
+          throw new Error('Cannot safely edit native annotation from a different PDF revision.');
+        }
+        const unproven = unprovenNativeEditFields(annotation, sourceModel, actualRevision);
+        if (unproven.length) {
+          throw new Error(`Cannot safely edit native annotation without user provenance for: ${unproven.join(', ')}.`);
+        }
+      }
       const existingRoot = findManagedRootDict(annots, nativeName, lib, sourceRef);
       const copyOrigin = existingRoot ? undefined : copyOrigins.get(candidate);
       const markupDraft = annotation.data.nativeMarkupDraft;
