@@ -21,7 +21,11 @@ export interface NativeIntegrityState {
   cacheState?: 'EMPTY' | 'VALID' | 'UNAVAILABLE';
 }
 
-export type NativeEditableField = 'rect' | 'text' | 'anchor' | 'knee' | 'leaderStyle' | 'arrowHead';
+export type NativeEditableField =
+  | 'rect' | 'text' | 'anchor' | 'knee' | 'leaderStyle' | 'arrowHead'
+  | 'rotation' | 'fontSize' | 'fontWeight' | 'fontStyle' | 'fontFamily'
+  | 'textColor' | 'textAlign' | 'borderColor' | 'backgroundColor'
+  | 'borderWidth' | 'borderStyle' | 'opacity';
 
 export interface NativeEditProvenance {
   sourceRevision: string;
@@ -42,8 +46,11 @@ export interface NativeDeletionAuthorization {
   verifiedCommandIds?: readonly string[];
 }
 
-const fields: readonly NativeEditableField[] = [
+export const nativeEditableFields: readonly NativeEditableField[] = [
   'rect', 'text', 'anchor', 'knee', 'leaderStyle', 'arrowHead',
+  'rotation', 'fontSize', 'fontWeight', 'fontStyle', 'fontFamily',
+  'textColor', 'textAlign', 'borderColor', 'backgroundColor',
+  'borderWidth', 'borderStyle', 'opacity',
 ];
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
@@ -57,7 +64,7 @@ export function withNativeEditProvenance(
 ): PdfAnnotation {
   const sourceRef = previous.data.nativeSourceRef;
   if (!sourceRevision || !sourceRef || previous.data.nativeCopySource) return next;
-  const changed = fields.filter((field) =>
+  const changed = nativeEditableFields.filter((field) =>
     field === 'rect'
       ? !same(previous.rect, next.rect)
       : !same(previous.data[field], next.data[field]));
@@ -89,8 +96,8 @@ export function authorizedEditFields(
       && typeof proof.commandId === 'string'
       && proof.commandId.length > 0
       && Array.isArray(proof.fields)
-      ? proof.fields.filter((field): field is NativeEditableField =>
-          fields.includes(field))
+      ? proof.nativeEditableFields.filter((field): field is NativeEditableField =>
+          nativeEditableFields.includes(field))
       : [],
   );
 }
@@ -175,4 +182,20 @@ export function confirmedNativeDeletionCommandIds(
     confirmed.add(tombstone.commandId);
   }
   return [...confirmed];
+}
+
+/** Verify native field edits at the final writer boundary, even if a caller
+ * bypasses store.updateAnnotation. A source mismatch can never be "approved"
+ * solely by a stale /PDFHubData or a missing cache entry.
+ */
+export function unprovenNativeEditFields(
+  annotation: PdfAnnotation,
+  source: PdfAnnotation,
+  sourceRevision: string,
+): NativeEditableField[] {
+  const allowed = authorizedEditFields(annotation, source, sourceRevision);
+  return nativeEditableFields.filter((field) =>
+    !allowed.has(field) && (field === 'rect'
+      ? !same(annotation.rect, source.rect)
+      : !same(annotation.data[field], source.data[field])));
 }
