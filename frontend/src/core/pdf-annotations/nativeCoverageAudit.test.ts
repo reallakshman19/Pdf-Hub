@@ -63,14 +63,29 @@ describe('native source → parser → IndexedDB/model coverage', () => {
     expect(report.intentionalDeletions).toBe(0);
   });
 
-  it('does not misdiagnose an intentional IndexedDB tombstone', () => {
+  it('recognizes only an explicit command tombstone, not a legacy key baseline', () => {
     const a = native('a', '10 0 R');
     const b = native('b', '11 0 R');
     const report = summarizeNativeAnnotationCoverage(
-      [], [a, b], [a], [nativeAnnotationIdentity(a), nativeAnnotationIdentity(b)],
+      [], [a, b], [a], [{
+        sourceRevision: 'sha256:source',
+        sourceRef: '11 0 R',
+        sourceName: 'b',
+        pageId: 'page-1',
+        pageNumber: 1,
+        commandId: 'explicit-delete-command',
+      }],
     );
     expect(report.missingFromModel).toEqual([]);
     expect(report.intentionalDeletions).toBe(1);
+  });
+
+  it('does not mistake a legacy nativeSourceKeys list for deletion authorization', () => {
+    const a = native('a', '10 0 R');
+    const b = native('b', '11 0 R');
+    const report = summarizeNativeAnnotationCoverage([], [a, b], [a], null);
+    expect(report.missingFromModel).toEqual([nativeAnnotationIdentity(b)]);
+    expect(report.intentionalDeletions).toBe(0);
   });
 
   it('never counts a copied overlay as the original source object', () => {
