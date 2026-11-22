@@ -62,7 +62,7 @@ describe('native /AP vector flattened export', () => {
     const commands = Array.from({ length: contents.size() }, (_, index) =>
       new TextDecoder().decode(decodePDFRawStream(contents.lookup(index, PDFStream) as PDFRawStream).decode()),
     ).join('\n');
-    expect(commands).toContain(' re');
+    expect(commands).toContain('180 70 l');
     expect(commands).toContain(' Do');
   });
 
