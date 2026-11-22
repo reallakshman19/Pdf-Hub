@@ -142,12 +142,20 @@ export function useAnnotationPersistence({
       const sourceIds = new Set(imported.annotations.map(nativeSourceKey));
       const pageIds = useSessionStore.getState().pageGraph?.pages ?? [];
       const persistedTombstones = snapshot?.nativeDeletionTombstones ?? [];
+      // The source appearing in a recovered snapshot means a deletion was
+      // undone or conflicted with the cached model. Favor preservation and
+      // revoke the stale command before it can suppress a future import.
+      const restoredNativeKeys = new Set((snapshot?.annotations ?? [])
+        .filter((item) => item.data.nativeSourceRef && !item.data.nativeCopySource)
+        .map(nativeSourceKey));
       const validTombstones: NativeDeletionTombstone[] = [];
       const invalidTombstones: NativeDeletionTombstone[] = [];
       for (const item of persistedTombstones) {
+        const key = JSON.stringify([item.pageNumber, item.sourceRef]);
+        if (restoredNativeKeys.has(key)) continue; // Undo wins over stale tombstone.
         if (isValidNativeDeletionTombstone(item)
           && item.sourceRevision === documentKey
-          && sourceIds.has(JSON.stringify([item.pageNumber, item.sourceRef]))
+          && sourceIds.has(key)
           && pageIds[item.pageNumber - 1]?.pageId === item.pageId) {
           validTombstones.push(item);
         } else invalidTombstones.push(item);
