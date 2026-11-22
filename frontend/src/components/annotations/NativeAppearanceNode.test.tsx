@@ -44,7 +44,7 @@ describe('native appearance visual with interactive overlay', () => {
     fireEvent.doubleClick(accessibleText);
     expect(handlers.onDoubleClick).toHaveBeenCalledOnce();
     expect(image).toBeTruthy();
-    const root = container.querySelector('[data-annotation-type="callout"]') as HTMLDivElement;
+    const root = container.querySelector('[data-native-annotation-id="foreign-callout"]') as HTMLDivElement;
     expect(root.style.left).toBe('50px');
     expect(root.style.top).toBe('260px');
     expect(image.style.left).toBe('-30px');
@@ -70,7 +70,7 @@ describe('native appearance visual with interactive overlay', () => {
         nativeAppearanceUrl="data:image/png;base64,ZmFrZQ==" isSelected={false} {...handlers} />,
     );
     const image = container.querySelector('[data-native-annotation-appearance]') as HTMLImageElement;
-    const root = container.querySelector('[data-annotation-type="callout"]') as HTMLDivElement;
+    const root = container.querySelector('[data-native-annotation-id="foreign-callout"]') as HTMLDivElement;
     expect(root.style.left).toBe('70px');
     expect(root.style.top).toBe('275px');
     expect(image.style.left).toBe('-30px');
