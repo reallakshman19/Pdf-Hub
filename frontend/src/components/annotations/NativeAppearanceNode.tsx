@@ -52,14 +52,15 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         height: full.height * scale * heightRatio,
       }
     : rect;
-  const anchor = anchorPoint ?? annotation.data.anchor;
-  const knee = kneePoint ?? annotation.data.knee;
+  const anchor = anchorPoint !== undefined ? anchorPoint : annotation.data.anchor;
+  const knee = kneePoint !== undefined ? kneePoint : annotation.data.knee;
   const line = annotation.type === 'callout' && anchor
     ? computeCalloutPath(
         { x: anchor.x * scale, y: anchor.y * scale },
         rect,
         {
-          leaderStyle: annotation.data.leaderStyle === 'straight' ? 'straight' : 'elbow',
+          leaderStyle: annotation.data.leaderStyle === 'straight'
+            ? 'straight' : annotation.data.leaderStyle === 'elbow' || knee ? 'elbow' : 'straight',
           kneePoint: knee ? { x: knee.x * scale, y: knee.y * scale } : null,
         },
       )
