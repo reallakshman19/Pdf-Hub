@@ -155,6 +155,27 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         }}
         onDoubleClick={editableText && !isLocked ? onDoubleClick : undefined}
       >
+        {editableText && !isEditing && (
+          // Keep the source's plain text in the DOM for accessible selection
+          // and existing FreeText editor entry points. Its glyphs must not
+          // visually compete with the original PDF /AP artwork.
+          <span
+            data-native-annotation-text
+            style={{
+              position: 'absolute',
+              display: 'block',
+              inset: 0,
+              opacity: 0,
+              pointerEvents: 'all',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              fontSize: 12,
+              userSelect: 'none',
+            }}
+          >
+            {annotation.data.text ?? ''}
+          </span>
+        )}
         {editableText && isEditing && (
           <textarea
             autoFocus
