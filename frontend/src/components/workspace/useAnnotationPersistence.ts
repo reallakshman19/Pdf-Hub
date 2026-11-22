@@ -6,6 +6,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useToastStore } from '@/core/toast/store';
 import { debug as logDebug, error as logError, warn as logWarn } from '@/core/logger/service';
 import { summarizeNativeAnnotationCoverage } from '@/core/pdf-annotations/nativeCoverageAudit';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import {
   authorizedEditFields,
   nativeEditableFields,
@@ -161,6 +162,36 @@ export function useAnnotationPersistence({
           && pageIds[item.pageNumber - 1]?.pageId === item.pageId) {
           validTombstones.push(item);
         } else invalidTombstones.push(item);
+      }
+      // A source/page-valid tombstone is only a claim until its originating
+      // user command can be found in independently persisted history. Check
+      // BEFORE suppressing any PDF-native root from the user-visible model.
+      // Old sidecars without issued history remain recoverable, not writable.
+      let journalUnverified = false;
+      const hasSourceEditClaims = Boolean(stored?.some((item) =>
+        item.data.nativeSourceRef && item.data.nativeEditProvenance));
+      if (validTombstones.length || hasSourceEditClaims) {
+        try {
+          await verifiedNativeWriteEvidence({
+            sourceRevision: documentKey, baseBytes: workingBytes,
+            annotations: stored ?? imported.annotations,
+            tombstones: validTombstones,
+            journalStoreId: useSessionStore.getState().historyJournalStoreId,
+            importedSourceAnnotations: imported.annotations,
+          });
+        } catch (err) {
+          journalUnverified = true;
+          logWarn('annotation', 'Recovered native commands lack issued history; protecting original PDF objects', {
+            documentKey, error: String(err),
+          });
+          // Never hide an original native object on the authority of an
+          // unverified cache tombstone. Keep the questionable cache in place
+          // for explicit recovery rather than replacing it on autosave.
+          invalidTombstones.push(...validTombstones);
+          validTombstones.length = 0;
+        }
+        if (cancelled || useSessionStore.getState().documentKey !== documentKey
+          || useSessionStore.getState().workingBytes !== workingBytes) return;
       }
       const deletedSourceKeys = new Set(validTombstones.map((item) =>
         JSON.stringify([item.pageNumber, item.sourceRef])));
@@ -344,7 +375,7 @@ export function useAnnotationPersistence({
           duplicateInModel: coverage.duplicateInModel,
         });
       }
-      const incomplete = cacheUnavailable
+      const incomplete = cacheUnavailable || journalUnverified
         || invalidTombstones.length > 0 || unmatchedCachedNative.length > 0
         || unresolvedCachedEdits.length > 0
         || coverage.missingFromParser.length > 0
@@ -354,7 +385,9 @@ export function useAnnotationPersistence({
         documentKey,
         status: incomplete ? 'INCOMPLETE' : 'COMPLETE',
         cacheState: cacheUnavailable ? 'UNAVAILABLE' : snapshot ? 'VALID' : 'EMPTY',
-        ...(incomplete ? { reason: 'Native source/cache identity verification incomplete' } : {}),
+        ...(incomplete ? { reason: journalUnverified
+          ? 'Native edit or deletion has no verified issued command history'
+          : 'Native source/cache identity verification incomplete' } : {}),
       };
       useAnnotationStore.setState({
         hydratedDocumentKey: documentKey,
