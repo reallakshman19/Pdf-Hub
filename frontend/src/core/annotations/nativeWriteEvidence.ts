@@ -118,12 +118,13 @@ export async function verifiedNativeWriteEvidence(input: {
   journalStoreId: string | null;
   importedSourceAnnotations?: readonly PdfAnnotation[];
 }): Promise<NativeWriteEvidence> {
-  // Ordinary native Save without pending source mutations needs no expensive
-  // second source parse. The final writer still compares all source fields.
-  const hasClaims = input.tombstones.length > 0
+  // Do not infer that an imported annotation is unchanged merely because
+  // a mutable cache omits nativeEditProvenance. Always compare source-native
+  // entries with original PDF fields; missing claims can hide unproven edits.
+  const hasNativeSource = input.tombstones.length > 0
     || input.annotations.some((annotation) =>
-      Boolean(annotation.data.nativeSourceRef && annotation.data.nativeEditProvenance));
-  if (!hasClaims) return { verifiedCommandIds: [], verifiedEditFields: [] };
+      Boolean(annotation.data.nativeSourceRef && !annotation.data.nativeCopySource));
+  if (!hasNativeSource) return { verifiedCommandIds: [], verifiedEditFields: [] };
 
   const original = input.importedSourceAnnotations
     ?? (await readNativePdfAnnotations(input.baseBytes)).annotations;

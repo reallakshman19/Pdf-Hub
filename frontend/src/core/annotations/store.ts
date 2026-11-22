@@ -1165,9 +1165,14 @@ export const useAnnotationStore =
         if (Object.keys(patch).length === 0) return annotation;
         const guarded = guardNativeInteropAnnotationPatch(annotation, { data: { ...annotation.data, ...patch } });
         if (!guarded.data) return annotation;
-        return markNativeAppearanceDirty(annotation, {
-          ...annotation, data: guarded.data, updatedAt: Date.now(),
-        });
+        return withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation, data: guarded.data, updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        );
       });
 
       if (
