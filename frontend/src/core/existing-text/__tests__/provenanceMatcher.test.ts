@@ -981,4 +981,122 @@ describe('existing-text provenance matcher', () => {
       candidateCount: 2,
     });
   });
+
+  it('matches a single-quote candidate to a span at post-advance origin', () => {
+    const quoteSpan = buildExistingTextSpan(
+      {
+        revisionId: 'sha256:revision-a',
+        pageId: 'page-a',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [12, 0, 0, 12, 72, 686],
+        width: 30,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const result = matchExistingTextSpanToContentStream({
+      span: quoteSpan,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL (Hello) \' ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'matched',
+      provenance: {
+        operator: "'",
+        decodedText: 'Hello',
+        fontSizePt: 12,
+        charSpacingPt: 0,
+        wordSpacingPt: 0,
+        textMatrix: [1, 0, 0, 1, 72, 686],
+      },
+    });
+  });
+
+  it('matches a double-quote candidate to a span at post-advance origin with spacing', () => {
+    const quoteSpan = buildExistingTextSpan(
+      {
+        revisionId: 'sha256:revision-a',
+        pageId: 'page-a',
+        pageIndex: 0,
+      },
+      {
+        sourceIndex: 0,
+        text: 'Hello',
+        transform: [12, 0, 0, 12, 72, 686],
+        width: 32,
+        height: 12,
+        fontName: 'g_d0_f1',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const result = matchExistingTextSpanToContentStream({
+      span: quoteSpan,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 14 TL 2.5 0.5 (Hello) " ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'matched',
+      provenance: {
+        operator: '"',
+        decodedText: 'Hello',
+        fontSizePt: 12,
+        charSpacingPt: 0.5,
+        wordSpacingPt: 2.5,
+        textMatrix: [1, 0, 0, 1, 72, 686],
+      },
+    });
+  });
+
+  it('matches a Tj candidate carrying active Tc and Tw spacing', () => {
+    const result = matchExistingTextSpanToContentStream({
+      span,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0.5 Tc 1.5 Tw (Hello) Tj ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'matched',
+      provenance: {
+        operator: 'Tj',
+        decodedText: 'Hello',
+        charSpacingPt: 0.5,
+        wordSpacingPt: 1.5,
+        textMatrix: [1, 0, 0, 1, 72, 700],
+      },
+    });
+  });
+
+  it('matches a bounded TJ candidate carrying active Tc and Tw spacing', () => {
+    const result = matchExistingTextSpanToContentStream({
+      span,
+      content: content([
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm 0.5 Tc 1.5 Tw [(Hello)] TJ ET',
+      ]),
+    });
+
+    expect(result).toMatchObject({
+      status: 'matched',
+      provenance: {
+        operator: 'TJ',
+        decodedText: 'Hello',
+        charSpacingPt: 0.5,
+        wordSpacingPt: 1.5,
+        textMatrix: [1, 0, 0, 1, 72, 700],
+      },
+    });
+  });
 });

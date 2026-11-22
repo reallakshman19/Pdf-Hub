@@ -106,6 +106,8 @@ function sdkExistingTextDraft(
           'ascii-literal',
         fontResourceName: 'F1',
         fontSizePt: 12,
+        charSpacingPt: 0,
+        wordSpacingPt: 0,
         textMatrix: [
           1, 0, 0, 1, 72, 700,
         ],

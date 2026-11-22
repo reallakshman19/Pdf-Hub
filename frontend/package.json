@@ -198,7 +198,10 @@
     "certify:phase13-existing-text-native-td-leading": "pnpm run audit:phase13-existing-text-native-td-leading && pnpm run test:phase13-existing-text-native-td-leading",
     "test:phase13-existing-text-native-leading-advance": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/core/commands/__tests__/dispatch.test.ts --pool=forks --maxWorkers=1",
     "audit:phase13-existing-text-native-leading-advance": "node scripts/phase13-existing-text-native-leading-advance-audit.mjs",
-    "certify:phase13-existing-text-native-leading-advance": "pnpm run audit:phase13-existing-text-native-leading-advance && pnpm run test:phase13-existing-text-native-leading-advance"
+    "certify:phase13-existing-text-native-leading-advance": "pnpm run audit:phase13-existing-text-native-leading-advance && pnpm run test:phase13-existing-text-native-leading-advance",
+    "test:phase13-existing-text-native-spacing-compound-shows": "vitest run src/core/existing-text/__tests__/contentStreamScanner.test.ts src/core/existing-text/__tests__/provenanceMatcher.test.ts src/adapters/pdf-text/PdfLibExistingTextFit.test.ts src/adapters/pdf-text/PdfLibExistingTextReplacement.test.ts src/core/commands/__tests__/dispatch.test.ts --pool=forks --maxWorkers=1",
+    "audit:phase13-existing-text-native-spacing-compound-shows": "node scripts/phase13-existing-text-native-spacing-compound-shows-audit.mjs",
+    "certify:phase13-existing-text-native-spacing-compound-shows": "pnpm run audit:phase13-existing-text-native-spacing-compound-shows && pnpm run test:phase13-existing-text-native-spacing-compound-shows"
   },
   "dependencies": {
     "@lexical/code": "0.44.0",

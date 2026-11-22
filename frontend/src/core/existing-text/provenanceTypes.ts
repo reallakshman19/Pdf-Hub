@@ -51,6 +51,8 @@ export interface ExistingTextSimpleTextOperatorBase {
     ExistingTextSimpleStringEncoding;
   fontResourceName: string;
   fontSizePt: number;
+  charSpacingPt: number;
+  wordSpacingPt: number;
   textMatrix:
     ExistingTextTransform;
 }
@@ -69,9 +71,21 @@ export interface ExistingTextSingleStringTjArrayOperator
   };
 }
 
+export interface ExistingTextSingleQuoteOperator
+  extends ExistingTextSimpleTextOperatorBase {
+  operator: "'";
+}
+
+export interface ExistingTextDoubleQuoteOperator
+  extends ExistingTextSimpleTextOperatorBase {
+  operator: '"';
+}
+
 export type ExistingTextSimpleTextOperator =
   | ExistingTextTjOperator
-  | ExistingTextSingleStringTjArrayOperator;
+  | ExistingTextSingleStringTjArrayOperator
+  | ExistingTextSingleQuoteOperator
+  | ExistingTextDoubleQuoteOperator;
 
 export type ExistingTextNativeTextOperator =
   ExistingTextSimpleTextOperator;
