@@ -32,13 +32,28 @@ test(`dragging a note at page rotation ${rotation} persists its native location`
   await page.mouse.down();
   await page.mouse.move(before.x + 25, before.y + 17, { steps: 4 });
   await page.mouse.up();
-  const after = await element.boundingBox();
+  // The pointer-up commits the final native rect through Zustand, then React
+  // publishes the new annotation props to a memoized PageSurface. The sidebar
+  // inspector can update before the corresponding DOM element does.
+  const relativeDelta = async () => {
+    const after = await element.boundingBox();
+    const canvasAfter = await canvasElement.boundingBox();
+    if (!after || !canvasAfter) throw new Error('Note or page disappeared after dragging');
+    return {
+      dx: (after.x - canvasAfter.x) - (before.x - canvasBefore.x),
+      dy: (after.y - canvasAfter.y) - (before.y - canvasBefore.y),
+    };
+  };
+  await expect.poll(async () => Math.abs((await relativeDelta()).dx - 20), {
+    timeout: 10_000,
+    message: 'The updated native note must move relative to its own PDF page',
+  }).toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await relativeDelta()).dy - 12), {
+    timeout: 10_000,
+  }).toBeLessThan(2);
   const canvasAfter = await canvasElement.boundingBox();
-  if (!after || !canvasAfter) throw new Error('Note or page disappeared after dragging');
-  const viewDeltaX = (after.x - canvasAfter.x) - (before.x - canvasBefore.x);
-  const viewDeltaY = (after.y - canvasAfter.y) - (before.y - canvasBefore.y);
-  expect(Math.abs(viewDeltaX - 20)).toBeLessThan(2);
-  expect(Math.abs(viewDeltaY - 12)).toBeLessThan(2);
+  if (!canvasAfter) throw new Error('PDF page disappeared after dragging');
+  const { dx: viewDeltaX, dy: viewDeltaY } = await relativeDelta();
   const scale = canvasAfter.width / (rotation % 180 === 0 ? 400 : 500);
   await page.getByRole('tab', { name: 'File' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
