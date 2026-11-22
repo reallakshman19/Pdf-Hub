@@ -183,3 +183,118 @@ test('editing imported rich FreeText survives refresh, drops stale preview and s
       .toBe(sourceAnnot.get(PDFName.of(field))?.toString());
   }
 });
+
+test('native deletion survives a new admission of the original PDF only with a durable issued command', async ({ page }) => {
+  test.setTimeout(110_000);
+  const bytes = await source();
+  await open(page, bytes);
+  const line = page.locator('[data-native-annotation-id="imported-line"]');
+  await expect(line.locator('[data-native-annotation-hit-target]')).toBeVisible();
+  await line.locator('[data-native-annotation-hit-target]').click();
+  await page.keyboard.press('Delete');
+  await expect(line).toHaveCount(0);
+
+  // Verify the independent transaction journal contains the user-issued
+  // deletion, not merely a plausible tombstone inside the mutable sidecar.
+  await expect.poll(async () => page.evaluate(async () => {
+    const openReq = indexedDB.open('pdf-hub-history-journal-browser-history-journal-v1');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      openReq.onsuccess = () => resolve(openReq.result);
+      openReq.onerror = () => reject(openReq.error);
+    });
+    const tx = db.transaction('manifests', 'readonly');
+    const req = tx.objectStore('manifests').getAll();
+    const rows = await new Promise<Array<{
+      entries?: Array<{ nativeMutations?: Array<{ kind: string; sourceName: string }> }>;
+    }>>((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return rows.some((row) => row.entries?.some((entry) =>
+      entry.nativeMutations?.some((mutation) =>
+        mutation.kind === 'DELETE' && mutation.sourceName === 'imported-line')));
+  }), { timeout: 20_000 }).toBe(true);
+
+  await expect.poll(async () => page.evaluate(async () => {
+    const request = indexedDB.open('DocCraftAnnotations');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('annotations', 'readonly');
+    const req = tx.objectStore('annotations').getAll();
+    const rows = await new Promise<Array<{ nativeDeletionTombstones?: Array<{ sourceName: string }> }>>(
+      (resolve, reject) => {
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    db.close();
+    return rows.some((row) => row.nativeDeletionTombstones?.some((item) =>
+      item.sourceName === 'imported-line'));
+  }), { timeout: 20_000 }).toBe(true);
+
+  // A new Open creates a fresh journal, so the event must be recovered from
+  // the preceding durable journal, not the new in-memory Undo stack.
+  await open(page, bytes);
+  await expect(page.locator('[data-native-annotation-id="imported-line"]')).toHaveCount(0);
+  const output = await PDFDocument.load(await save(page));
+  const annots = output.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
+  const names = Array.from({ length: annots.size() }, (_, i) =>
+    annots.lookup(i, PDFDict).lookupMaybe(PDFName.of('NM'), PDFString, PDFHexString)?.decodeText());
+  expect(names).toContain('imported-rich-callout');
+  expect(names).not.toContain('imported-line');
+});
+
+test('forged cached native geometry cannot gain Save authority by fabricating provenance', async ({ page }) => {
+  test.setTimeout(90_000);
+  const bytes = await source();
+  await open(page, bytes);
+  await expect(page.locator('[data-native-annotation-id="imported-line"]')).toBeVisible();
+
+  // Change only the recovery sidecar. No annotation command or durable history
+  // entry was issued by the application.
+  await page.evaluate(async () => {
+    const request = indexedDB.open('DocCraftAnnotations');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('annotations', 'readwrite');
+    const store = tx.objectStore('annotations');
+    const req = store.getAll();
+    const rows = await new Promise<Array<{
+      id: string;
+      annotations: Array<{
+        id: string;
+        rect: { x: number; y: number; width: number; height: number };
+        data: { nativeSourceRef?: string; nativeEditProvenance?: unknown };
+      }>;
+    }>>((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    for (const row of rows) {
+      const target = row.annotations.find((item) => item.id === 'imported-line');
+      if (!target?.data.nativeSourceRef) continue;
+      target.rect.x += 90;
+      target.data.nativeEditProvenance = {
+        sourceRevision: row.id, sourceRef: target.data.nativeSourceRef,
+        commandId: 'plausible-but-never-issued',
+        fields: ['rect'],
+      };
+      store.put(row);
+    }
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  });
+
+  await open(page, bytes);
+  await expect(page.getByText('Native annotation recovery incomplete')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('tab', { name: 'File' }).click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+});
