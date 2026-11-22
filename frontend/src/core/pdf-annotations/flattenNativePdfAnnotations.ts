@@ -138,8 +138,16 @@ export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Ui
       // Preserve the exact original appearance stream and its font/image
       // resources; only its placement CTM is appended to the parent page.
       const xObjectName = page.node.newXObject('PdfHubFlatAnnot', appearance.ref);
+      const alpha = annotation.lookupMaybe(lib.PDFName.of('CA'), lib.PDFNumber)?.asNumber();
+      const alphaName = alpha !== undefined && Number.isFinite(alpha)
+        && alpha >= 0 && alpha < 1
+          ? page.node.newExtGState('PdfHubFlatAnnotAlpha', pdf.context.obj({
+              Type: 'ExtGState', ca: alpha, CA: alpha,
+            }))
+          : null;
       page.pushOperators(
         lib.PDFOperator.of('q'),
+        ...(alphaName ? [lib.PDFOperator.of('gs', [alphaName])] : []),
         lib.PDFOperator.of('cm', transform.map((value) => lib.PDFNumber.of(value))),
         lib.PDFOperator.of('Do', [xObjectName]),
         lib.PDFOperator.of('Q'),
