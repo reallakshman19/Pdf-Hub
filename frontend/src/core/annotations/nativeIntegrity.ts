@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from './types';
+import type { PdfCommand } from '@/core/commands/types';
 
 /** A missing sidecar entry is NEVER a deletion. Only a user deletion command
  * with a revision-scoped native object identity can authorize /Annots removal.
@@ -129,6 +130,73 @@ export function isValidNativeDeletionTombstone(value: unknown): value is NativeD
     && Number.isInteger(t.pageNumber) && (t.pageNumber ?? 0) > 0
     && typeof t.pageId === 'string' && t.pageId.length > 0
     && typeof t.commandId === 'string' && t.commandId.length > 0;
+}
+
+
+/** A native mutation witnessed by the canonical issued annotation transaction,
+ * not copied from a mutable annotation sidecar or supplied by a PDF input.
+ * Each field records the actual before/after transition; a forged cached
+ * field that was already present before an unrelated edit cannot be certified.
+ */
+export interface NativeHistoryFieldChange {
+  field: NativeEditableField;
+  beforeValue?: unknown;
+  afterValue?: unknown;
+}
+export interface NativeHistoryMutation {
+  kind: 'EDIT' | 'DELETE';
+  sourceRevision: string;
+  sourceRef: string;
+  sourceName: string;
+  pageNumber: number;
+  pageId: string;
+  commandId: string;
+  fields?: NativeHistoryFieldChange[];
+}
+
+export function issuedNativeMutations(
+  command: PdfCommand,
+  before: readonly PdfAnnotation[],
+  after: readonly PdfAnnotation[],
+  tombstones: readonly NativeDeletionTombstone[] = [],
+): NativeHistoryMutation[] {
+  if (command.type !== 'ANNOTATION_CHANGE') return [];
+  const afterByKey = new Map(after.filter((item) =>
+    item.data.nativeSourceRef && !item.data.nativeCopySource
+  ).map((item) => [JSON.stringify([item.pageNumber, item.data.nativeSourceRef]), item]));
+  const result: NativeHistoryMutation[] = [];
+  for (const prior of before) {
+    const sourceRef = prior.data.nativeSourceRef;
+    if (!sourceRef || prior.data.nativeCopySource || !prior.pageId) continue;
+    const current = afterByKey.get(JSON.stringify([prior.pageNumber, sourceRef]));
+    if (!current) {
+      const deleted = tombstones.find((item) => item.sourceRevision === command.documentKey
+        && item.sourceRef === sourceRef && item.pageNumber === prior.pageNumber
+        && item.pageId === prior.pageId && item.commandId === command.id
+        && item.sourceName === (prior.data.nativeOriginalName ?? prior.id));
+      if (deleted && command.payload.annotationIds.includes(prior.id)) result.push({
+        kind: 'DELETE', sourceRevision: command.documentKey, sourceRef,
+        sourceName: deleted.sourceName, pageNumber: prior.pageNumber,
+        pageId: prior.pageId, commandId: command.id,
+      });
+      continue;
+    }
+    if (!command.payload.annotationIds.includes(prior.id)
+      || current.id !== prior.id || current.pageId !== prior.pageId) continue;
+    const fields: NativeHistoryFieldChange[] = [];
+    for (const field of nativeEditableFields) {
+      const a = field === 'rect' ? prior.rect : prior.data[field];
+      const b = field === 'rect' ? current.rect : current.data[field];
+      if (!same(a, b)) fields.push({ field, beforeValue: a, afterValue: b });
+    }
+    if (fields.length) result.push({
+      kind: 'EDIT', sourceRevision: command.documentKey, sourceRef,
+      sourceName: prior.data.nativeOriginalName ?? prior.id,
+      pageNumber: prior.pageNumber, pageId: prior.pageId,
+      commandId: command.id, fields,
+    });
+  }
+  return result;
 }
 
 /** A tombstone is relevant only to the *exact* original PDF object. */

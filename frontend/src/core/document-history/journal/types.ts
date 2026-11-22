@@ -1,4 +1,5 @@
 import type { PdfCommand } from '@/core/commands/types';
+import type { NativeHistoryMutation } from '@/core/annotations/nativeIntegrity';
 import type {
   HistoryReplayBarrier,
   HistoryReplayDisposition,
@@ -33,6 +34,8 @@ export interface HistoryJournalEntry {
   entryId: string;
   transactionId: string;
   command: PdfCommand;
+  /** Source-scoped native edits/deletions derived from the committed before/after, never sidecar metadata. */
+  nativeMutations?: NativeHistoryMutation[];
   disposition: HistoryReplayDisposition;
   barriers: HistoryReplayBarrier[];
   beforeRevision: HistoryJournalRevisionRef;
