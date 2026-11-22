@@ -5,7 +5,13 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), read: vi.fn(), save: vi.fn() }));
-vi.mock('@/core/annotations/persistence', () => ({ loadAnnotationsOrNull: mocks.load, saveAnnotations: mocks.save }));
+vi.mock('@/core/annotations/persistence', () => ({
+  loadAnnotationSnapshotOrNull: async (key: string) => {
+    const annotations = await mocks.load(key);
+    return annotations === null ? null : { annotations, nativeSourceKeys: null };
+  },
+  saveAnnotations: mocks.save,
+}));
 vi.mock('@/core/pdf-annotations/nativeAnnotationReader', () => ({ readNativePdfAnnotations: mocks.read }));
 import { useAnnotationPersistence } from './useAnnotationPersistence';
 
