@@ -69,7 +69,22 @@ export function useAnnotationPersistence({
         });
       }
       const stored = snapshot?.annotations ?? null;
-      const imported = await readNativePdfAnnotations(workingBytes);
+      let imported: Awaited<ReturnType<typeof readNativePdfAnnotations>>;
+      try {
+        imported = await readNativePdfAnnotations(workingBytes);
+      } catch (err) {
+        if (!cancelled) {
+          logError('annotation', 'Failed to parse native PDF annotations', {
+            error: String(err), documentKey,
+          });
+          useToastStore.getState().addToast({
+            type: 'error',
+            title: 'Native annotations unavailable',
+            message: 'PDF annotation import failed. Source markup may be visible only in another viewer; the PDF was not flattened.',
+          });
+        }
+        return;
+      }
       if (cancelled || useSessionStore.getState().documentKey !== documentKey
         || useSessionStore.getState().workingBytes !== workingBytes) return;
       if (useAnnotationStore.getState().annotations !== before) {
@@ -248,14 +263,8 @@ export function useAnnotationPersistence({
       });
     };
     void loadStored().catch((err) => {
-      if (cancelled) return;
-      logError('annotation', 'Failed to load native annotations', {
+      if (!cancelled) logError('annotation', 'Failed to hydrate native annotations', {
         error: String(err), documentKey,
-      });
-      useToastStore.getState().addToast({
-        type: 'error',
-        title: 'Native annotations unavailable',
-        message: 'PDF annotation import failed. Source markup may be visible only in another viewer; the PDF was not flattened.',
       });
     });
     return () => { cancelled = true; };
