@@ -116,8 +116,11 @@ describe('annotation store', () => {
     useSessionStore.setState({ documentKey: 'sha256:layout-source' });
     const source = (id: string, x: number, ref: string): PdfAnnotation => ({
       ...baseAnnotation(id, 1, x, 20),
+      type: 'callout',
       data: {
         text: id,
+        anchor: { x: x - 40, y: 40 },
+        knee: { x: x - 15, y: 40 },
         nativeSourceRef: ref,
         nativeAppearanceImported: true,
       },
