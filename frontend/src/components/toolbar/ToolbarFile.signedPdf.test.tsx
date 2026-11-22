@@ -301,6 +301,24 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     );
   });
 
+  it('shows the underlying flattened PDF export failure', async () => {
+    mocks.composeCommittedPdf.mockRejectedValueOnce(
+      new Error('Unable to encode a PDF annotation'),
+    );
+
+    render(<ToolbarFile />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export flattened PDF' }));
+
+    await waitFor(() => {
+      expect(mocks.addToast).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'error',
+        title: 'Export Failed',
+        message: 'Failed to export the document: Unable to encode a PDF annotation',
+      }));
+    });
+    expect(mocks.savePdfBytes).not.toHaveBeenCalled();
+  });
+
   it('does not open Save As after a failed handle write for a previous session', async () => {
     mocks.session.saveHandle = {} as FileSystemFileHandle;
     mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
