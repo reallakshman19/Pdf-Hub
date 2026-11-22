@@ -24,6 +24,7 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
       ? rawBorderColor
       : (annotation.data?.textColor ?? '#60a5fa');
   const hasBorder = borderWidth > 0;
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
   return (
     <div
       data-annotation-type="textbox"
@@ -35,7 +36,8 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         left: rect.x + (rect.width - bodyWidth) / 2,
         top: rect.y + (rect.height - bodyHeight) / 2,
         width: bodyWidth, height: bodyHeight,
-        background: annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent'),
+        opacity: annotation.data?.opacity ?? 1,
+        background: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent')),
         border: hasBorder ? `${borderWidth}px solid ${borderColor}` : 'none',
         color: annotation.data?.textColor ?? '#0f172a',
         fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
@@ -60,12 +62,43 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
       {isEditing ? (
         <textarea
           autoFocus
-          className="w-full h-full bg-white/95 text-slate-900 p-1 text-[11px] outline-none resize-none"
+          ref={(el) => {
+            if (el) {
+              el.selectionStart = el.value.length;
+              el.selectionEnd = el.value.length;
+            }
+          }}
           defaultValue={editingValue}
+          style={{
+            width: '100%',
+            height: '100%',
+            boxSizing: 'border-box',
+            resize: 'none',
+            overflow: 'hidden',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            border: 'none',
+            outline: 'none',
+            padding: '1px 3px',
+            margin: 0,
+            lineHeight: 1.15,
+            fontSize: 'inherit',
+            fontFamily: 'inherit',
+            fontWeight: 'inherit',
+            fontStyle: 'inherit',
+            textAlign: 'inherit',
+            color: 'inherit',
+            background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
+          }}
           onBlur={e => onCommitEdit?.(e.currentTarget.value)}
           onKeyDown={e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') onCommitEdit?.(e.currentTarget.value);
-            if (e.key === 'Escape') onCommitEdit?.(editingValue ?? '');
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              onCommitEdit?.(e.currentTarget.value);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              onCommitEdit?.(editingValue ?? '');
+            }
           }}
         />
       ) : (

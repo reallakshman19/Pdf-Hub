@@ -194,7 +194,7 @@ export async function attachNativeFreeTextAppearance(
   annotation: PdfAnnotation,
   rect: [number, number, number, number],
   stroke: Color,
-  fill: Color,
+  fill: Color | undefined,
   opacity: number,
   borderWidth: number,
   lib: Lib,

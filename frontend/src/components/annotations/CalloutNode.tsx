@@ -31,7 +31,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     rawBorderColor && rawBorderColor.toLowerCase() !== '#ffffff'
       ? rawBorderColor
       : (annotation.data?.textColor ?? '#475569');
-  const fillColor = annotation.data?.backgroundColor ?? '#ffffff';
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
+  const fillColor = isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff');
   const borderWidth = typeof annotation.data?.borderWidth === 'number' ? annotation.data.borderWidth : 1.5;
   const effectiveAnchor = anchorPoint !== undefined ? anchorPoint : (annotation.data?.anchor as Point2D | undefined);
   const effectiveKnee = kneePoint !== undefined ? kneePoint : (annotation.data?.knee as Point2D | undefined);
@@ -77,6 +78,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
       data-native-source-ref={annotation.data.nativeSourceRef}
       data-native-selected={isSelected ? 'true' : 'false'}
       className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ opacity: annotation.data?.opacity ?? 1 }}
     >
       {geometry && (
         <svg
@@ -178,20 +180,42 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
         {isEditing ? (
           <textarea
             autoFocus
+            ref={(el) => {
+              if (el) {
+                el.selectionStart = el.value.length;
+                el.selectionEnd = el.value.length;
+              }
+            }}
             defaultValue={editingValue}
             style={{
               width: '100%',
               height: '100%',
+              boxSizing: 'border-box',
+              resize: 'none',
+              overflow: 'hidden',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
               border: 'none',
               outline: 'none',
-              resize: 'none',
-              background: 'transparent',
+              padding: 0,
+              margin: 0,
+              lineHeight: 1.15,
               fontSize: 'inherit',
+              fontFamily: 'inherit',
+              fontWeight: 'inherit',
+              fontStyle: 'inherit',
+              textAlign: 'inherit',
+              color: 'inherit',
+              background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
             }}
             onBlur={(e) => onCommitEdit?.(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
                 onCommitEdit?.(e.currentTarget.value);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onCommitEdit?.(editingValue ?? '');
               }
             }}
           />

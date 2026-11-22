@@ -39,7 +39,7 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
         data-native-source-ref={annotation.data.nativeSourceRef}
         data-native-selected={isSelected ? 'true' : 'false'}
         className="absolute pointer-events-auto cursor-pointer select-none"
-        style={{ left: displayRect.x, top: displayRect.y, zIndex: 10 }}
+        style={{ left: displayRect.x, top: displayRect.y, zIndex: 10, opacity: annotation.data?.opacity ?? 1 }}
         onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
         onDoubleClick={onDoubleClick}
       >
@@ -133,6 +133,7 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
         top: displayRect.y,
         width: displayRect.width,
         height: displayRect.height,
+        opacity: annotation.data?.opacity ?? 1,
         background: bg,
         border: `1.5px solid ${darken(bg, 0.25)}`,
         borderRadius: 6,

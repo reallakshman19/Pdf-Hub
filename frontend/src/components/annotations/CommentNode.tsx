@@ -8,6 +8,7 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   onSelect, onTransformStart, onDoubleClick, onCommitEdit, pageRotation = 0,
 }) => {
   const displayRect = nativeTextDisplayRect(rect, pageRotation);
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
   return (
     <div
       data-annotation-type="comment"
@@ -17,7 +18,8 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
       style={{
         position: 'absolute',
         left: displayRect.x, top: displayRect.y, width: displayRect.width, height: displayRect.height,
-        background: annotation.data?.backgroundColor ?? '#fff7cc',
+        opacity: annotation.data?.opacity ?? 1,
+        background: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#fff7cc'),
         border: `1.5px solid ${annotation.data?.borderColor ?? '#d4b106'}`,
         color: annotation.data?.textColor ?? '#111827',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
@@ -31,10 +33,41 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
       {isEditing ? (
         <textarea
           autoFocus
-          className="w-full h-full bg-transparent text-slate-900 outline-none resize-none"
+          ref={(el) => {
+            if (el) {
+              el.selectionStart = el.value.length;
+              el.selectionEnd = el.value.length;
+            }
+          }}
           defaultValue={editingValue}
+          style={{
+            width: '100%',
+            height: '100%',
+            boxSizing: 'border-box',
+            resize: 'none',
+            overflow: 'hidden',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            border: 'none',
+            outline: 'none',
+            padding: 0,
+            margin: 0,
+            lineHeight: 1.2,
+            fontSize: 'inherit',
+            fontFamily: 'inherit',
+            color: 'inherit',
+            background: isTransparentBg ? 'rgba(255, 255, 255, 0.85)' : 'transparent',
+          }}
           onBlur={e => onCommitEdit?.(e.currentTarget.value)}
-          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') onCommitEdit?.(e.currentTarget.value); }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              onCommitEdit?.(e.currentTarget.value);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              onCommitEdit?.(editingValue ?? '');
+            }
+          }}
         />
       ) : (
         <div className="w-full h-full">{annotation.data?.text ?? 'Note'}</div>

@@ -85,6 +85,7 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         top: rect.y,
         width: rect.width,
         height: rect.height,
+        opacity: annotation.data?.opacity ?? 1,
         pointerEvents: 'none',
       }}
     >
@@ -160,7 +161,11 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           width: '100%',
           height: '100%',
           boxSizing: 'border-box',
-          background: isEditing ? '#ffffff' : 'transparent',
+          background: isEditing
+            ? (annotation.data?.backgroundColor === 'transparent'
+                ? 'rgba(255, 255, 255, 0.85)'
+                : (annotation.data?.backgroundColor ?? 'rgba(255, 255, 255, 0.95)'))
+            : 'transparent',
           border: isSelected ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
           cursor: isLocked ? 'pointer' : isEditing ? 'text' : isSelected ? 'move' : 'pointer',
           pointerEvents: 'all',
@@ -196,22 +201,45 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         {editableText && isEditing && (
           <textarea
             autoFocus
+            ref={(el) => {
+              if (el) {
+                el.selectionStart = el.value.length;
+                el.selectionEnd = el.value.length;
+              }
+            }}
             defaultValue={editingValue}
             style={{
               width: '100%',
               height: '100%',
+              boxSizing: 'border-box',
               resize: 'none',
-              color: '#111827',
-              background: '#ffffff',
-              outline: 'none',
-              padding: 2,
+              overflow: 'hidden',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              border: 'none',
+              outline: '1.5px solid #3b82f6',
+              outlineOffset: '0px',
+              padding: '1px 3px',
+              margin: 0,
+              lineHeight: 1.15,
+              fontSize: (annotation.data?.fontSize ?? 12) * scale,
+              fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+              fontWeight: annotation.data?.fontWeight ?? 'normal',
+              fontStyle: annotation.data?.fontStyle ?? 'normal',
+              textAlign: annotation.data?.textAlign ?? 'left',
+              color: annotation.data?.textColor ?? '#111827',
+              background: 'transparent',
+              borderRadius: 2,
             }}
             onBlur={(event) => onCommitEdit?.(event.currentTarget.value)}
             onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
                 onCommitEdit?.(event.currentTarget.value);
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                onCommitEdit?.(editingValue ?? '');
               }
-              if (event.key === 'Escape') onCommitEdit?.(editingValue ?? '');
             }}
           />
         )}

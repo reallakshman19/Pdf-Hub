@@ -2521,7 +2521,7 @@ async function registerNativeAnnotation(
   const stroke = readColor(annotation.data.borderColor, annotation.type === 'shape-polygon' ? readColor('#3b82f6', DEFAULT_STROKE)
     : annotation.type === 'ink' ? { r: 0, g: 0, b: 0 }
       : annotation.type === 'line' || annotation.type === 'arrow' ? readColor('#111827', DEFAULT_STROKE) : DEFAULT_STROKE);
-  const fill = readColor(annotation.data.backgroundColor, DEFAULT_FILL);
+  const fill = annotation.data.backgroundColor === 'transparent' ? undefined : readColor(annotation.data.backgroundColor, DEFAULT_FILL);
   const opacity =
     annotation.type === 'redaction' ? 1
       : typeof annotation.data.opacity === 'number'
@@ -2819,7 +2819,7 @@ async function registerNativeAnnotation(
       }
       attachNativeMarkupAppearance(
         doc, dict, annotation, geometry.rect, nativeQuads,
-        annotation.type === 'highlight' ? fill : stroke, opacity, borderWidth, lib,
+        annotation.type === 'highlight' ? (fill ?? DEFAULT_FILL) : stroke, opacity, borderWidth, lib,
       );
       // Never bless an imported AP as app-generated. Only seal a form that was
       // just constructed by this writer or was verified against the actual PDF.
@@ -2867,7 +2867,7 @@ async function registerNativeAnnotation(
       annotation,
       geometry,
       stroke,
-      fill,
+      fill ?? DEFAULT_FILL,
       readColor(annotation.data.textColor, stroke),
       opacity,
       lib,
@@ -2926,7 +2926,7 @@ function addSubtypeFields(
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
   stroke: PdfColor,
-  fill: PdfColor,
+  fill: PdfColor | undefined,
   opacity: number,
   borderWidth: number,
   sourceDict: PDFDict | null,
@@ -2955,7 +2955,7 @@ function addSubtypeFields(
       if (!sourceDict) {
         target.Name = textAnnotationNameValue(null, lib);
         target.Open = annotation.data.isCollapsed === false;
-        target.C = colorArray(fill);
+        target.C = colorArray(fill ?? DEFAULT_FILL);
         return;
       }
       if (!sourceModel) throw new Error('Cannot safely preserve this imported note without its native source model.');
@@ -2971,7 +2971,7 @@ function addSubtypeFields(
       if (annotation.data.backgroundColor === sourceModel.data.backgroundColor) {
         if (originalColor) target.C = originalColor;
       } else {
-        target.C = colorArray(fill);
+        target.C = colorArray(fill ?? DEFAULT_FILL);
       }
       return;
     }
@@ -2991,7 +2991,7 @@ function addSubtypeFields(
         : annotation.data.borderColor === sourceModel.data.borderColor)) {
         const original = sourceDict.get(lib.PDFName.of('C'));
         if (original) target.C = original;
-      } else target.C = colorArray(annotation.type === 'highlight' ? fill : stroke);
+      } else target.C = colorArray(annotation.type === 'highlight' ? (fill ?? DEFAULT_FILL) : stroke);
       if (sourceDict && sourceModel && annotation.data.opacity === sourceModel.data.opacity) {
         const original = sourceDict.get(lib.PDFName.of('CA'));
         if (original) target.CA = original;
@@ -3029,14 +3029,16 @@ function addSubtypeFields(
           target.C = sourceC;
         }
         const sourceIc = sourceDict.get(lib.PDFName.of('IC'));
-        if (annotation.data.backgroundColor) {
+        if (annotation.data.backgroundColor === 'transparent') {
+          // Explicitly transparent / no background: do not set target.IC
+        } else if (annotation.data.backgroundColor && fill) {
           target.IC = colorArray(fill);
         } else if (sourceIc) {
           target.IC = sourceIc;
         }
       } else {
         target.C = colorArray(stroke);
-        if (annotation.data.backgroundColor) {
+        if (annotation.data.backgroundColor && annotation.data.backgroundColor !== 'transparent' && fill) {
           target.IC = colorArray(fill);
         }
       }
@@ -3094,7 +3096,7 @@ function addSubtypeFields(
       colorField('C', annotation.data.borderColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : stroke);
       if (annotation.type !== 'shape-rect' || (annotation.data.backgroundColor !== 'transparent'
         && (sourceDict || annotation.data.backgroundColor !== undefined))) {
-        colorField('IC', annotation.data.backgroundColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : fill);
+        colorField('IC', annotation.data.backgroundColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : (fill ?? DEFAULT_FILL));
       }
       applyAnnotationBorderFields(
         target,
@@ -3112,7 +3114,7 @@ function addSubtypeFields(
     case 'shape-ellipse':
       colorField('C', annotation.data.borderColor, stroke);
       if (annotation.data.backgroundColor !== 'transparent' && (sourceDict || annotation.data.backgroundColor !== undefined)) {
-        colorField('IC', annotation.data.backgroundColor, fill);
+        colorField('IC', annotation.data.backgroundColor, fill ?? DEFAULT_FILL);
       }
       applyAnnotationBorderFields(
         target,
@@ -3129,7 +3131,7 @@ function addSubtypeFields(
       colorField('C', annotation.data.borderColor, stroke);
       if (annotation.data.backgroundColor !== 'transparent'
         && (sourceDict || annotation.data.backgroundColor !== undefined)) {
-        colorField('IC', annotation.data.backgroundColor, fill);
+        colorField('IC', annotation.data.backgroundColor, fill ?? DEFAULT_FILL);
       }
       applyAnnotationBorderFields(
         target,
