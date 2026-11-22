@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { loadAnnotationsOrNull, saveAnnotations } from '@/core/annotations/persistence';
+import { loadAnnotationSnapshotOrNull, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { error as logError } from '@/core/logger/service';
@@ -8,6 +8,14 @@ import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normal
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { readNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationReader';
+
+/** Stable across local edits: a native PDF object belongs to one source page. */
+function nativeSourceKey(annotation: PdfAnnotation): string {
+  return JSON.stringify([
+    annotation.pageNumber,
+    annotation.data.nativeSourceRef ?? annotation.data.nativeOriginalName ?? annotation.id,
+  ]);
+}
 
 interface UseAnnotationPersistenceArgs {
   documentKey: string | null;
@@ -33,7 +41,8 @@ export function useAnnotationPersistence({
       if (!documentKey || !workingBytes) return;
       setRestoredCount(0);
       const before = useAnnotationStore.getState().annotations;
-      const stored = await loadAnnotationsOrNull(documentKey);
+      const snapshot = await loadAnnotationSnapshotOrNull(documentKey);
+      const stored = snapshot?.annotations ?? null;
       const imported = await readNativePdfAnnotations(workingBytes);
       if (cancelled || useSessionStore.getState().documentKey !== documentKey
         || useSessionStore.getState().workingBytes !== workingBytes) return;
@@ -41,9 +50,13 @@ export function useAnnotationPersistence({
         throw new Error('Annotations changed before the native document finished loading.');
       }
       const sourceByKey = new Map<string, PdfAnnotation>();
+      const sourceByRef = new Map<string, PdfAnnotation>();
       const sourceByText = new Map<string, PdfAnnotation>();
       const sourceByPos = new Map<string, PdfAnnotation>();
       for (const item of imported.annotations) {
+        if (item.data.nativeSourceRef) {
+          sourceByRef.set(`${item.pageNumber}\u0000${item.data.nativeSourceRef}`, item);
+        }
         sourceByKey.set(`${item.pageNumber}\u0000${item.id}`, item);
         if (item.data.nativeOriginalName) {
           sourceByKey.set(`${item.pageNumber}\u0000${item.data.nativeOriginalName}`, item);
@@ -56,18 +69,25 @@ export function useAnnotationPersistence({
         }
         sourceByPos.set(`${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
       }
-      const model = stored === null ? imported.annotations : stored.map((item) => {
+      const matchedSourceKeys = new Set<string>();
+      const restored = stored === null ? imported.annotations : stored.map((item) => {
         const origin = item.data.nativeCopySource;
         const pageNum = origin?.pageNumber ?? item.pageNumber;
         const rawKey = origin?.nativeName ?? item.data.nativeOriginalName ?? item.id;
         const normItemText = item.data.text
           ? item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
           : '';
-        const source = sourceByKey.get(`${pageNum}\u0000${rawKey}`)
+        const source = (item.data.nativeSourceRef
+          ? sourceByRef.get(`${pageNum}\u0000${item.data.nativeSourceRef}`)
+          : undefined)
+          ?? sourceByKey.get(`${pageNum}\u0000${rawKey}`)
           ?? sourceByKey.get(`${pageNum}\u0000${rawKey.replace(/^pdfhub-native-p\d+:/, '')}`)
           ?? sourceByKey.get(`${pageNum}\u0000${item.id}`)
           ?? (normItemText ? sourceByText.get(`${pageNum}\u0000${normItemText}`) : undefined)
           ?? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`);
+        // A copied overlay can reference its original source without
+        // representing that native object on the source page.
+        if (source && !origin) matchedSourceKeys.add(nativeSourceKey(source));
         const data = { ...item.data };
         delete data.nativeSourceRef;
         delete data.nativeAppearanceRef;
@@ -154,10 +174,28 @@ export function useAnnotationPersistence({
         }
         return { ...item, type: resolvedType, rect: effectiveRect, data };
       });
+      // Legacy sidecars have no recorded deletion baseline. Recover missing
+      // source objects once; after that, explicit deletions remain tombstoned
+      // by the list of native identities observed during hydration.
+      const previousSourceKeys = new Set(snapshot?.nativeSourceKeys ?? []);
+      const missingSource = stored === null ? [] : imported.annotations.filter((item) => {
+        const key = nativeSourceKey(item);
+        return !matchedSourceKeys.has(key) && !previousSourceKeys.has(key);
+      });
+      const model = [...restored, ...missingSource];
       setAnnotations(model);
       const hydrated = useAnnotationStore.getState().annotations;
       useAnnotationStore.setState({ hydratedDocumentKey: documentKey });
       setRestoredCount(hydrated.length);
+      // Persist the source baseline even if the visible annotations do not
+      // change, so subsequent user deletions are never resurrected on reopen.
+      void saveAnnotations(documentKey, hydrated, {
+        nativeSourceKeys: imported.annotations.map(nativeSourceKey),
+      }).catch((err) => {
+        logError('annotation', 'Failed to persist native annotation baseline', {
+          error: String(err), documentKey,
+        });
+      });
     };
     void loadStored().catch((err) => {
       if (!cancelled) logError('annotation', 'Failed to load native annotations', { error: String(err), documentKey });
