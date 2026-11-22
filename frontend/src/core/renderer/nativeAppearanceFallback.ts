@@ -70,32 +70,44 @@ export async function renderIsolatedNativeAppearances(
   const appearanceDoc = await task.promise;
   const images = new Map<string, string>();
   try {
-    for (const item of materialized) {
-      const page = await appearanceDoc.getPage(item.pageNumber);
-      try {
-        const viewportAtOne = page.getViewport({ scale: 1 });
-        // Keep memory bounded for A2 drawings and oversized annotation /Rects.
-        const scale = Math.min(2, Math.sqrt(4_000_000 / Math.max(
-          1, viewportAtOne.width * viewportAtOne.height,
-        )));
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.ceil(viewport.width));
-        canvas.height = Math.max(1, Math.ceil(viewport.height));
-        const context = canvas.getContext('2d');
-        if (!context) continue;
-        await page.render({
-          canvas,
-          canvasContext: context,
-          viewport,
-          annotationMode: AnnotationMode.ENABLE,
-          background: 'rgba(0,0,0,0)',
-        }).promise;
-        images.set(item.ref, canvas.toDataURL('image/png'));
-      } finally {
-        page.cleanup();
+    let cursor = 0;
+    const renderNext = async (): Promise<void> => {
+      while (cursor < materialized.length) {
+        const item = materialized[cursor++];
+        const page = await appearanceDoc.getPage(item.pageNumber);
+        try {
+          const viewportAtOne = page.getViewport({ scale: 1 });
+          // Keep memory bounded for A2 drawings and oversized annotation /Rects.
+          const scale = Math.min(2, Math.sqrt(4_000_000 / Math.max(
+            1, viewportAtOne.width * viewportAtOne.height,
+          )));
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.ceil(viewport.width));
+          canvas.height = Math.max(1, Math.ceil(viewport.height));
+          const context = canvas.getContext('2d');
+          if (!context) continue;
+          await page.render({
+            canvas,
+            canvasContext: context,
+            viewport,
+            annotationMode: AnnotationMode.ENABLE,
+            background: 'rgba(0,0,0,0)',
+          }).promise;
+          images.set(item.ref, canvas.toDataURL('image/png'));
+          canvas.width = 0;
+          canvas.height = 0;
+        } finally {
+          page.cleanup();
+        }
       }
-    }
+    };
+    // A large engineering page may have 60+ native APs. Limit parallel
+    // rasterization so a single page cannot monopolize renderer memory.
+    await Promise.all(Array.from(
+      { length: Math.min(4, materialized.length) },
+      () => renderNext(),
+    ));
   } finally {
     await appearanceDoc.destroy();
   }
