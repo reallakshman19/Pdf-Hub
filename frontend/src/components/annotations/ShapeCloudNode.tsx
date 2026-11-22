@@ -2,41 +2,54 @@ import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 
-function cloudPath(width: number, height: number, amplitude = 6): string {
-  const bumps = Math.max(3, Math.round(width / 18));
-  const step = width / bumps;
-  let d = `M 0 ${height / 2} `;
+/**
+ * Computes a true circular Bézier arc revision cloud path along a rectangular boundary.
+ * Adheres to ISO 32000-1 §12.5.6.8 Border Effect (Cloud) geometry.
+ */
+export function computeParametricCloudPath(
+  width: number,
+  height: number,
+  arcRadius = 8,
+  inverted = false,
+): string {
+  const chord = Math.max(12, arcRadius * 2);
+  const sign = inverted ? -1 : 1;
 
-  for (let i = 0; i < bumps; i++) {
-    const cx = i * step + step / 2;
-    const cy = -amplitude;
-    const ex = (i + 1) * step;
-    d += `Q ${cx} ${cy} ${ex} 0 `;
-  }
+  const emitSideArcs = (x1: number, y1: number, x2: number, y2: number): string => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-3) return '';
+    const numArcs = Math.max(1, Math.round(len / chord));
+    const step = len / numArcs;
+    const ux = dx / len;
+    const uy = dy / len;
+    // Normal vector pointing outward (to the right of direction of traversal if clockwise)
+    const nx = -uy * sign;
+    const ny = ux * sign;
+    const sagitta = (step / 2) * 0.7; // arc amplitude
 
-  const rightBumps = Math.max(2, Math.round(height / 18));
-  const rStep = height / rightBumps;
-  for (let i = 0; i < rightBumps; i++) {
-    const cx = width + amplitude;
-    const cy = i * rStep + rStep / 2;
-    const ey = (i + 1) * rStep;
-    d += `Q ${cx} ${cy} ${width} ${ey} `;
-  }
+    let sideD = '';
+    for (let i = 0; i < numArcs; i++) {
+      const p0x = x1 + ux * (i * step);
+      const p0y = y1 + uy * (i * step);
+      const p1x = x1 + ux * ((i + 1) * step);
+      const p1y = y1 + uy * ((i + 1) * step);
 
-  for (let i = bumps - 1; i >= 0; i--) {
-    const cx = i * step + step / 2;
-    const cy = height + amplitude;
-    const ex = i * step;
-    d += `Q ${cx} ${cy} ${ex} ${height} `;
-  }
+      const cp1x = p0x + nx * sagitta * 0.8;
+      const cp1y = p0y + ny * sagitta * 0.8;
+      const cp2x = p1x + nx * sagitta * 0.8;
+      const cp2y = p1y + ny * sagitta * 0.8;
+      sideD += `C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p1x.toFixed(2)} ${p1y.toFixed(2)} `;
+    }
+    return sideD;
+  };
 
-  for (let i = rightBumps - 1; i >= 0; i--) {
-    const cx = -amplitude;
-    const cy = i * rStep + rStep / 2;
-    const ey = i * rStep;
-    d += `Q ${cx} ${cy} 0 ${ey} `;
-  }
-
+  let d = 'M 0 0 ';
+  d += emitSideArcs(0, 0, width, 0);
+  d += emitSideArcs(width, 0, width, height);
+  d += emitSideArcs(width, height, 0, height);
+  d += emitSideArcs(0, height, 0, 0);
   d += 'Z';
   return d;
 }
@@ -47,6 +60,9 @@ export const ShapeCloudNode: React.FC<AnnotationNodeProps<'shape-cloud'>> = ({
   const bg = annotation.data?.backgroundColor ?? 'transparent';
   const border = annotation.data?.borderColor ?? '#3b82f6';
   const width = annotation.data?.borderWidth ?? 2;
+  const arcRadius = (annotation.data?.cloudArcRadius ?? 8) * scale;
+  const inverted = Boolean(annotation.data?.cloudInverted);
+  const pathD = computeParametricCloudPath(rect.width, rect.height, arcRadius, inverted);
 
   return (
     <div
@@ -60,7 +76,7 @@ export const ShapeCloudNode: React.FC<AnnotationNodeProps<'shape-cloud'>> = ({
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >
       <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-        <path d={cloudPath(rect.width, rect.height, 6 * scale)} fill={bg} stroke={border} strokeWidth={width} />
+        <path d={pathD} fill={bg} stroke={border} strokeWidth={width} strokeLinejoin="round" />
       </svg>
       {isSelected && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}
     </div>

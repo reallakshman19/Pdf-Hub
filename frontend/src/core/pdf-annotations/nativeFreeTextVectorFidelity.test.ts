@@ -142,4 +142,43 @@ describe('native FreeText and Callout vector AP generator fidelity', () => {
       expect(content).toContain('h B');
     }
   });
+
+  it('synthesizes compound vector paths for multi-leader callout branches in /AP stream', async () => {
+    const doc = await pdfLib.PDFDocument.create();
+    const page = doc.addPage([600, 800]);
+    const rect: [number, number, number, number] = [50, 50, 250, 150];
+    const dict = doc.context.obj({
+      Type: 'Annot', Subtype: 'FreeText', IT: 'FreeTextCallout',
+      Rect: rect, P: page.ref,
+      Contents: pdfLib.PDFString.of('Multi-leader callout'),
+      CL: [60, 60, 100, 100, 150, 100],
+      LE: pdfLib.PDFName.of('OpenArrow'),
+    });
+    const annotation: PdfAnnotation = {
+      id: 'callout-multi-branch', type: 'callout', pageNumber: 1,
+      rect: { x: 50, y: 650, width: 200, height: 100 },
+      data: {
+        text: 'Multi-leader callout',
+        fontSize: 12,
+        leaders: [
+          { id: 'leader-1', anchor: { x: 60, y: 60 }, arrowHead: 'open' },
+          { id: 'leader-2', anchor: { x: 240, y: 60 }, arrowHead: 'filled' },
+        ],
+      },
+      createdAt: 1, updatedAt: 1,
+    };
+    await attachNativeFreeTextAppearance(
+      doc, dict, annotation, rect,
+      { r: 0.8, g: 0.1, b: 0.1 }, { r: 1, g: 1, b: 1 }, 1, 1.5, pdfLib,
+    );
+    const ap = dict.lookup(pdfLib.PDFName.of('AP'), pdfLib.PDFDict);
+    expect(ap?.get(pdfLib.PDFName.of('N'))).toBeDefined();
+
+    const rawStream = ap!.lookup(pdfLib.PDFName.of('N'), pdfLib.PDFStream) as pdfLib.PDFRawStream;
+    const content = new TextDecoder().decode(pdfLib.decodePDFRawStream(rawStream).decode());
+    // The second branch has filled arrowhead ('h B')
+    expect(content).toContain('h B');
+    // Multiple stroke commands for the multiple branches
+    expect(content).toContain('S');
+  });
 });

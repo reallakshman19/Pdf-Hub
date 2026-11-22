@@ -29,6 +29,14 @@ export interface Point2D {
   y: number;
 }
 
+export interface CalloutLeaderBranch {
+  id: string;
+  anchor: Point2D;
+  knee?: Point2D | null;
+  leaderStyle?: 'straight' | 'elbow';
+  arrowHead?: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond' | 'none';
+}
+
 export type NativeInteropFidelityClass =
   | 'NATIVE_SUPPORTED'
   | 'NATIVE_PRESERVED_READ_ONLY'
@@ -89,6 +97,17 @@ export interface AnnotationData extends Record<string, unknown> {
   knee?: Point2D;
   leaderStyle?: 'straight' | 'elbow';
   arrowHead?: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond' | 'none';
+  leaders?: CalloutLeaderBranch[];
+
+  // ── dimension / calibration ───────────────────────────
+  dimensionScale?: number;
+  dimensionUnit?: 'mm' | 'cm' | 'm' | 'in' | 'ft';
+  dimensionPrecision?: number;
+  dimensionText?: string;
+
+  // ── cloud ─────────────────────────────────────────────
+  cloudArcRadius?: number;
+  cloudInverted?: boolean;
 
   // ── line end styles ───────────────────────────────────
   lineStartCap?: 'none' | 'arrow' | 'circle' | 'square';

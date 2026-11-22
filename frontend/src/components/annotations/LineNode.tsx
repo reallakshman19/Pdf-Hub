@@ -1,6 +1,7 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { DimensionNode } from './DimensionNode';
 
 type LineCap = 'none' | 'arrow' | 'circle' | 'square';
 
@@ -12,6 +13,18 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   onSelect,
   onTransformStart,
 }) => {
+  if (annotation.data?.dimensionScale !== undefined || annotation.data?.isDimension) {
+    return (
+      <DimensionNode
+        annotation={annotation as any}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
   const color = annotation.data?.borderColor ?? '#111827';
   const width = (annotation.data?.borderWidth ?? 2) * scale;
   const points = (annotation.data?.points ?? [0, rect.height / 2, rect.width, rect.height / 2]).map((value) => value * scale);

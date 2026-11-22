@@ -50,6 +50,39 @@ describe('AnnotationNodes translucency and transparent background', () => {
     expect(box.style.background).toBe('transparent');
   });
 
+  it('CalloutNode renders multiple branching leaders when annotation.data.leaders is set', () => {
+    const handlers = callbacks();
+    const annotation: PdfAnnotation & { type: 'callout' } = {
+      id: 'callout-multi',
+      type: 'callout',
+      pageNumber: 1,
+      rect: { x: 100, y: 100, width: 120, height: 40 },
+      data: {
+        text: 'Weld Notes',
+        leaders: [
+          { id: 'branch-1', anchor: { x: 40, y: 40 }, arrowHead: 'open' },
+          { id: 'branch-2', anchor: { x: 260, y: 50 }, arrowHead: 'filled' },
+        ],
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    const { container } = render(
+      <CalloutNode
+        annotation={annotation}
+        rect={annotation.rect}
+        scale={1}
+        isSelected={true}
+        {...handlers}
+      />,
+    );
+
+    const polylines = container.querySelectorAll('polyline');
+    // 2 branches * (1 wide hit target + 1 visible line) = 4 polylines
+    expect(polylines.length).toBe(4);
+  });
+
   it('CalloutNode editor hides scrollbars and commits on Enter', () => {
     const handlers = callbacks();
     const annotation: PdfAnnotation & { type: 'callout' } = {

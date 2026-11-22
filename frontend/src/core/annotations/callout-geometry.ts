@@ -1,4 +1,4 @@
-import type { Point2D, Rect } from './types';
+import type { CalloutLeaderBranch, Point2D, Rect } from './types';
 
 export type CalloutLeaderStyle = 'straight' | 'elbow';
 type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
@@ -19,6 +19,31 @@ export interface CalloutPath {
   kneePoint: Point2D | null;
   anchorPoint: Point2D;
   points: Point2D[];
+}
+
+export interface MultiCalloutLeaderPath extends CalloutPath {
+  id: string;
+  arrowHead: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond' | 'none';
+}
+
+/**
+ * Computes the routed leader points for multiple branching callout leaders.
+ */
+export function computeMultiCalloutPaths(
+  leaders: CalloutLeaderBranch[],
+  boxRect: Rect,
+): MultiCalloutLeaderPath[] {
+  return leaders.map((branch) => {
+    const path = computeCalloutPath(branch.anchor, boxRect, {
+      kneePoint: branch.knee,
+      leaderStyle: branch.leaderStyle,
+    });
+    return {
+      ...path,
+      id: branch.id,
+      arrowHead: branch.arrowHead ?? 'open',
+    };
+  });
 }
 
 /**

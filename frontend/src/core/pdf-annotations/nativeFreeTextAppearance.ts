@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { calloutBodyRect } from './freeTextGeometry';
 import { makeTextlessUnderlay } from './nativeAppearanceUnderlay';
 import { computeFileHash } from '@/core/document/fileHash';
@@ -399,6 +400,36 @@ export async function attachNativeFreeTextAppearance(
             const a = [tip[0] + arrowLength * Math.cos(angle + Math.PI / 6), tip[1] + arrowLength * Math.sin(angle + Math.PI / 6)];
             const b = [tip[0] + arrowLength * Math.cos(angle - Math.PI / 6), tip[1] + arrowLength * Math.sin(angle - Math.PI / 6)];
             commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip[0])} ${f(tip[1])} l ${f(b[0])} ${f(b[1])} l S`);
+          }
+        }
+      }
+      if (Array.isArray(annotation.data.leaders) && annotation.data.leaders.length > 1) {
+        const bodyBox = { x: body[0], y: body[1], width: body[2] - body[0], height: body[3] - body[1] };
+        for (const branch of annotation.data.leaders.slice(1)) {
+          const localAnchor = { x: branch.anchor.x - left, y: branch.anchor.y - bottom };
+          const localKnee = branch.knee ? { x: branch.knee.x - left, y: branch.knee.y - bottom } : null;
+          const branchPath = computeCalloutPath(localAnchor, bodyBox, {
+            leaderStyle: branch.leaderStyle ?? 'straight',
+            kneePoint: localKnee,
+          });
+          if (branchPath.points.length >= 2) {
+            commands.push(`${rgb(stroke)} RG`, `${f(Math.max(borderWidth, 0.5))} w`, `${f(branchPath.points[0].x)} ${f(branchPath.points[0].y)} m`);
+            for (const pt of branchPath.points.slice(1)) commands.push(`${f(pt.x)} ${f(pt.y)} l`);
+            commands.push('S');
+            const tip = branchPath.anchorPoint;
+            const next = branchPath.points[branchPath.points.length - 2];
+            if (tip && next) {
+              const dx = next.x - tip.x;
+              const dy = next.y - tip.y;
+              const len = Math.hypot(dx, dy);
+              if (len > 1e-4) {
+                const angle = Math.atan2(dy, dx);
+                const arrowLength = Math.min(10, Math.max(4, width / 8));
+                const a = [tip.x + arrowLength * Math.cos(angle + Math.PI / 6), tip.y + arrowLength * Math.sin(angle + Math.PI / 6)];
+                const b = [tip.x + arrowLength * Math.cos(angle - Math.PI / 6), tip.y + arrowLength * Math.sin(angle - Math.PI / 6)];
+                commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip.x)} ${f(tip.y)} l ${f(b[0])} ${f(b[1])} l ${branch.arrowHead === 'filled' ? 'h B' : 'S'}`);
+              }
+            }
           }
         }
       }

@@ -1,6 +1,6 @@
 import React from 'react';
-import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types';
-import { computeCalloutPath } from '../../core/annotations/callout-geometry';
+import type { AnnotationNodeProps, CalloutLeaderBranch, Point2D } from '../../core/annotations/types';
+import { computeMultiCalloutPaths } from '../../core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { FreeTextPreview } from './shared/FreeTextPreview';
 import { InlineTextEditor } from './shared/InlineTextEditor';
@@ -59,17 +59,25 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     height: bodyHeight,
   };
 
-  const geometry = effectiveAnchor
-    ? computeCalloutPath(
-        { x: effectiveAnchor.x * scale, y: effectiveAnchor.y * scale },
-        visualBox,
-        {
+  const rawLeaders: CalloutLeaderBranch[] = (annotation.data?.leaders && annotation.data.leaders.length > 0)
+    ? annotation.data.leaders
+    : effectiveAnchor
+      ? [{
+          id: 'primary',
+          anchor: effectiveAnchor,
+          knee: effectiveKnee,
           leaderStyle,
-          kneePoint: effectiveKnee ? { x: effectiveKnee.x * scale, y: effectiveKnee.y * scale } : null,
-        },
-      )
-    : null;
+          arrowHead: (arrowHead as CalloutLeaderBranch['arrowHead']),
+        }]
+      : [];
 
+  const scaledLeaders = rawLeaders.map((branch) => ({
+    ...branch,
+    anchor: { x: branch.anchor.x * scale, y: branch.anchor.y * scale },
+    knee: branch.knee ? { x: branch.knee.x * scale, y: branch.knee.y * scale } : null,
+  }));
+
+  const paths = computeMultiCalloutPaths(scaledLeaders, visualBox);
   const strokeWidth = Math.max(borderWidth * scale, 1);
 
   return (
@@ -81,67 +89,74 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
       className="absolute inset-0 w-full h-full pointer-events-none"
       style={{ opacity: annotation.data?.opacity ?? 1 }}
     >
-      {geometry && (
+      {paths.length > 0 && (
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none"
           width="100%"
           height="100%"
           style={{ overflow: 'visible' }}
         >
-          {/* Wide transparent hit target for leader line click & drag */}
-          <polyline
-            points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke="transparent"
-            strokeWidth={Math.max(strokeWidth, 14)}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ pointerEvents: 'stroke', cursor: isSelected ? 'move' : 'pointer', touchAction: 'none' }}
-            onPointerDown={(e) => {
-              onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
-              onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
-            }}
-          />
-          {/* Visible leader line */}
-          <polyline
-            points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke={borderColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ pointerEvents: 'none' }}
-          />
-          {arrowHead !== 'none' && geometry.points.length >= 2 && (
-            <LeaderArrowHead
-              from={geometry.points[geometry.points.length - 2]}
-              to={geometry.anchorPoint}
-              color={borderColor}
-              strokeWidth={strokeWidth}
-              styleType={arrowHead}
-              scale={scale}
-              cursor={effectiveAnchor && onAnchorDragStart ? 'crosshair' : (isSelected ? 'move' : 'pointer')}
-              onPointerDown={(e) => {
-                if (effectiveAnchor && onAnchorDragStart) {
-                  onAnchorDragStart(e);
-                } else {
-                  onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
-                  onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
-                }
-              }}
-            />
-          )}
-          {effectiveAnchor && onAnchorDragStart && (
-            <circle
-              cx={geometry.anchorPoint.x}
-              cy={geometry.anchorPoint.y}
-              r={Math.max(5 * scale, 3)}
-              fill={borderColor}
-              cursor="crosshair"
-              style={{ pointerEvents: 'all', touchAction: 'none' }}
-              onPointerDown={onAnchorDragStart}
-            />
-          )}
+          {paths.map((p) => {
+            const branchArrow = p.arrowHead !== 'none';
+            return (
+              <React.Fragment key={p.id}>
+                {/* Wide transparent hit target for leader line click & drag */}
+                <polyline
+                  points={p.points.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={Math.max(strokeWidth, 14)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'stroke', cursor: isSelected ? 'move' : 'pointer', touchAction: 'none' }}
+                  onPointerDown={(e) => {
+                    onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
+                    onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
+                  }}
+                />
+                {/* Visible leader line */}
+                <polyline
+                  points={p.points.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke={borderColor}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'none' }}
+                />
+                {p.arrowHead !== 'none' && p.points.length >= 2 && (
+                  <LeaderArrowHead
+                    from={p.points[p.points.length - 2]}
+                    to={p.anchorPoint}
+                    color={borderColor}
+                    strokeWidth={strokeWidth}
+                    styleType={p.arrowHead}
+                    scale={scale}
+                    cursor={onAnchorDragStart ? 'crosshair' : (isSelected ? 'move' : 'pointer')}
+                    onPointerDown={(e) => {
+                      if (onAnchorDragStart) {
+                        onAnchorDragStart(e);
+                      } else {
+                        onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
+                        onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
+                      }
+                    }}
+                  />
+                )}
+                {onAnchorDragStart && (
+                  <circle
+                    cx={p.anchorPoint.x}
+                    cy={p.anchorPoint.y}
+                    r={Math.max(5 * scale, 3)}
+                    fill={borderColor}
+                    cursor="crosshair"
+                    style={{ pointerEvents: 'all', touchAction: 'none' }}
+                    onPointerDown={onAnchorDragStart}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
         </svg>
       )}
       <div
