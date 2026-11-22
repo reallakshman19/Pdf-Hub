@@ -119,9 +119,10 @@ test('source AP callout and line stay visible, selectable and native after save/
   }
 });
 
-test('editing imported rich FreeText replaces stale source preview and stays native on Save', async ({ page }) => {
-  test.setTimeout(70_000);
-  await open(page, await source());
+test('editing imported rich FreeText survives refresh, drops stale preview and stays native on Save', async ({ page }) => {
+  test.setTimeout(100_000);
+  const bytes = await source();
+  await open(page, bytes);
   const callout = page.locator('[data-native-annotation-id="imported-rich-callout"]');
   const body = callout.locator('[data-native-annotation-hit-target]');
   await expect(callout.locator('img[data-native-annotation-appearance]')).toBeVisible();
@@ -133,6 +134,37 @@ test('editing imported rich FreeText replaces stale source preview and stays nat
   await editor.press('Control+Enter');
 
   await expect(callout.locator('img[data-native-annotation-appearance]')).toHaveCount(0);
+  // Wait for the actual asynchronous IndexedDB commit. Sleeping and hoping
+  // the 400ms debounce completed would make refresh recovery a flaky test.
+  await expect.poll(async () => page.evaluate(async () => {
+    const request = indexedDB.open('DocCraftAnnotations');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('annotations', 'readonly');
+    const query = tx.objectStore('annotations').getAll();
+    const rows = await new Promise<Array<{
+      annotations?: Array<{ id: string; data?: { text?: string } }>;
+    }>>((resolve, reject) => {
+      query.onsuccess = () => resolve(query.result);
+      query.onerror = () => reject(query.error);
+    });
+    db.close();
+    return rows.some((row) => row.annotations?.some((item) =>
+      item.id === 'imported-rich-callout' && item.data?.text === 'Updated native callout'));
+  }), { timeout: 15_000 }).toBe(true);
+
+  // Reopen the *same source bytes*. Hydration must respect the user's
+  // revision-bound edit provenance rather than replacing text from /Contents.
+  await open(page, bytes);
+  const recovered = page.locator('[data-native-annotation-id="imported-rich-callout"]');
+  await expect(recovered.locator('img[data-native-annotation-appearance]')).toHaveCount(0);
+  const recoveredBody = recovered.locator('[data-native-annotation-hit-target]');
+  await recoveredBody.dblclick();
+  await expect(recoveredBody.locator('textarea')).toHaveValue('Updated native callout');
+  await recoveredBody.locator('textarea').press('Control+Enter');
+
   const saved = await PDFDocument.load(await save(page));
   const annots = saved.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
   const calloutDict = Array.from({ length: annots.size() }, (_, index) => annots.lookup(index, PDFDict))
