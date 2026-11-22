@@ -63,7 +63,12 @@ export async function composeCommittedPdf(
   // substitutes over the native originals and did not remove /Annots. Baking
   // the real appearance Form XObjects preserves CAD vectors and removes
   // editable annotation identities only in this explicit export path.
-  nextBytes = await flattenNativePdfAnnotations(nextBytes);
+  const flattened = await flattenNativePdfAnnotations(nextBytes);
+  nextBytes = new Uint8Array(
+    flattened.buffer as ArrayBuffer,
+    flattened.byteOffset,
+    flattened.byteLength,
+  );
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);
   const documentKey = await FileAdapter.hashBytes(nextBytes);
