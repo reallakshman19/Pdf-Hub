@@ -143,6 +143,12 @@ export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Ui
         if (link) links.push(link);
         continue;
       }
+      if (subtype === 'Redact') {
+        // Drawing a /Redact annotation's black /AP does not remove the
+        // underlying text/images. Never misrepresent appearance flattening
+        // as secure content redaction.
+        throw new Error('Cannot safely flatten a native /Redact annotation: secure content removal is required.');
+      }
       if (!isVisible(annotation, lib) || subtype === 'Popup') continue;
       const appearance = normalAppearance(pdf, annotation, lib);
       if (!appearance) {
