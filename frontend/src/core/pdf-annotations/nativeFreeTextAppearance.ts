@@ -32,8 +32,33 @@ function horizontalBounds(style: TextStyle): readonly [number, number] {
 
 const fontCaches = new WeakMap<PDFDocument, Map<string, Promise<PDFFont>>>();
 
+const namedColors: Record<string, Color> = {
+  black: { r: 0, g: 0, b: 0 },
+  white: { r: 1, g: 1, b: 1 },
+  red: { r: 1, g: 0, b: 0 },
+  green: { r: 0, g: 0.502, b: 0 },
+  blue: { r: 0, g: 0, b: 1 },
+  yellow: { r: 1, g: 1, b: 0 },
+  cyan: { r: 0, g: 1, b: 1 },
+  magenta: { r: 1, g: 0, b: 1 },
+  gray: { r: 0.502, g: 0.502, b: 0.502 },
+  grey: { r: 0.502, g: 0.502, b: 0.502 },
+  orange: { r: 1, g: 0.647, b: 0 },
+  purple: { r: 0.502, g: 0, b: 0.502 },
+};
+
 function parseColor(value: string): Color {
-  const hex = value.trim().replace(/^#/, '');
+  const trimmed = value.trim().toLowerCase();
+  if (namedColors[trimmed]) return namedColors[trimmed];
+  const rgbMatch = /^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(trimmed);
+  if (rgbMatch) {
+    return {
+      r: Math.min(255, Math.max(0, parseInt(rgbMatch[1], 10))) / 255,
+      g: Math.min(255, Math.max(0, parseInt(rgbMatch[2], 10))) / 255,
+      b: Math.min(255, Math.max(0, parseInt(rgbMatch[3], 10))) / 255,
+    };
+  }
+  const hex = trimmed.replace(/^#/, '');
   if (!/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
     throw new Error('Cannot render native rich text: unsupported text color.');
   }
@@ -51,11 +76,16 @@ function styled(parent: TextStyle, element: Element): TextStyle {
     const value = declaration.slice(colon + 1).trim().toLowerCase();
     switch (property) {
       case 'font-family': {
-        const family = value.replace(/["']/g, '').split(',')[0].trim();
-        if (['arial', 'helvetica', 'sans-serif'].includes(family)) result.face = 'sans';
-        else if (['times', 'times new roman', 'serif'].includes(family)) result.face = 'serif';
-        else if (['courier', 'courier new', 'monospace'].includes(family)) result.face = 'mono';
-        else throw new Error(`Cannot render native rich text: unsupported font family ${family}.`);
+        const family = value.replace(/["']/g, '').split(',')[0].trim().toLowerCase();
+        if (['arial', 'helvetica', 'calibri', 'tahoma', 'verdana', 'roboto', 'segoe ui', 'open sans', 'system-ui', 'sans-serif'].includes(family)) {
+          result.face = 'sans';
+        } else if (['times', 'times new roman', 'georgia', 'cambria', 'serif'].includes(family)) {
+          result.face = 'serif';
+        } else if (['courier', 'courier new', 'consolas', 'monaco', 'monospace'].includes(family)) {
+          result.face = 'mono';
+        } else {
+          result.face = 'sans';
+        }
         break;
       }
       case 'font-size': {
@@ -281,17 +311,21 @@ export async function attachNativeFreeTextAppearance(
     const smallest = Math.min(fallback.size, ...sizes);
     const minimum = Math.min(1, 4 / smallest);
     let best = layout(minimum);
-    if (!fits(best)) throw new Error('Cannot fit the annotation text in its box. Enlarge the box or shorten the text.');
-    let low = minimum; let high = 1;
-    for (let step = 0; step < 16; step += 1) {
-      const middle = (low + high) / 2;
-      const candidate = layout(middle);
-      if (fits(candidate)) { low = middle; best = candidate; } else high = middle;
+    if (!fits(best)) {
+      best = layout(minimum) ?? layout(1);
+      textScale = minimum;
+    } else {
+      let low = minimum; let high = 1;
+      for (let step = 0; step < 16; step += 1) {
+        const middle = (low + high) / 2;
+        const candidate = layout(middle);
+        if (fits(candidate)) { low = middle; best = candidate; } else high = middle;
+      }
+      textScale = low;
     }
-    textScale = low;
     lines = best;
   }
-  if (!lines) throw new Error('Cannot fit the annotation text in its box.');
+  if (!lines) lines = layout(1) ?? [];
   const f = (n: number) => String(Number(n.toFixed(5)));
   const rgb = (c: Color) => [c.r, c.g, c.b].map(f).join(' ');
   const commands = ['q'];
@@ -322,7 +356,7 @@ export async function attachNativeFreeTextAppearance(
     const cl = numberArray(dict, 'CL', lib);
     if (cl && (cl.length === 4 || cl.length === 6)) {
       const points = Array.from({ length: cl.length / 2 }, (_, i) => [cl[i * 2] - left, cl[i * 2 + 1] - bottom]);
-      if (points.some(([x, y]) => x < -0.01 || y < -0.01 || x > width + 0.01 || y > height + 0.01)) {
+      if (points.some(([x, y]) => x < -0.5 || y < -0.5 || x > width + 0.5 || y > height + 0.5)) {
         throw new Error('Cannot render native callout: the leader lies outside its annotation rectangle.');
       }
       commands.push(`${rgb(stroke)} RG`, `${f(Math.max(borderWidth, 0.5))} w`, `${f(points[0][0])} ${f(points[0][1])} m`);
@@ -330,13 +364,43 @@ export async function attachNativeFreeTextAppearance(
       commands.push('S');
       const ending = dict.get(lib.PDFName.of('LE'))?.toString();
       if (ending && ending !== '/None') {
-        if (ending !== '/OpenArrow' && ending !== '/ClosedArrow') throw new Error('Cannot render native callout: unsupported leader ending.');
         const [tip, next] = points;
-        const angle = Math.atan2(next[1] - tip[1], next[0] - tip[0]);
-        const length = Math.min(8, Math.max(3, width / 8));
-        const a = [tip[0] + length * Math.cos(angle + Math.PI / 6), tip[1] + length * Math.sin(angle + Math.PI / 6)];
-        const b = [tip[0] + length * Math.cos(angle - Math.PI / 6), tip[1] + length * Math.sin(angle - Math.PI / 6)];
-        commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip[0])} ${f(tip[1])} l ${f(b[0])} ${f(b[1])} l ${ending === '/ClosedArrow' ? 'h B' : 'S'}`);
+        const dx = next[0] - tip[0];
+        const dy = next[1] - tip[1];
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-4) {
+          const angle = Math.atan2(dy, dx);
+          const arrowLength = Math.min(10, Math.max(4, width / 8));
+          if (ending === '/OpenArrow' || ending === '/ClosedArrow') {
+            const a = [tip[0] + arrowLength * Math.cos(angle + Math.PI / 6), tip[1] + arrowLength * Math.sin(angle + Math.PI / 6)];
+            const b = [tip[0] + arrowLength * Math.cos(angle - Math.PI / 6), tip[1] + arrowLength * Math.sin(angle - Math.PI / 6)];
+            commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip[0])} ${f(tip[1])} l ${f(b[0])} ${f(b[1])} l ${ending === '/ClosedArrow' ? 'h B' : 'S'}`);
+          } else if (ending === '/Circle') {
+            const r = Math.min(4, Math.max(2, arrowLength / 2.5));
+            const k = r * 0.5522847498;
+            commands.push(
+              `${f(tip[0] + r)} ${f(tip[1])} m`,
+              `${f(tip[0] + r)} ${f(tip[1] + k)} ${f(tip[0] + k)} ${f(tip[1] + r)} ${f(tip[0])} ${f(tip[1] + r)} c`,
+              `${f(tip[0] - k)} ${f(tip[1] + r)} ${f(tip[0] - r)} ${f(tip[1] + k)} ${f(tip[0] - r)} ${f(tip[1])} c`,
+              `${f(tip[0] - r)} ${f(tip[1] - k)} ${f(tip[0] - k)} ${f(tip[1] - r)} ${f(tip[0])} ${f(tip[1] - r)} c`,
+              `${f(tip[0] + k)} ${f(tip[1] - r)} ${f(tip[0] + r)} ${f(tip[1] - k)} ${f(tip[0] + r)} ${f(tip[1])} c`,
+              'h B',
+            );
+          } else if (ending === '/Square') {
+            const s = Math.min(4, Math.max(2, arrowLength / 2.5));
+            commands.push(`${f(tip[0] - s)} ${f(tip[1] - s)} ${f(2 * s)} ${f(2 * s)} re h B`);
+          } else if (ending === '/Slash') {
+            const s = Math.min(5, Math.max(3, arrowLength / 2));
+            commands.push(`${f(tip[0] - s)} ${f(tip[1] - s)} m ${f(tip[0] + s)} ${f(tip[1] + s)} l S`);
+          } else if (ending === '/Diamond') {
+            const s = Math.min(5, Math.max(3, arrowLength / 2));
+            commands.push(`${f(tip[0] - s)} ${f(tip[1])} m ${f(tip[0])} ${f(tip[1] + s)} l ${f(tip[0] + s)} ${f(tip[1])} l ${f(tip[0])} ${f(tip[1] - s)} l h B`);
+          } else {
+            const a = [tip[0] + arrowLength * Math.cos(angle + Math.PI / 6), tip[1] + arrowLength * Math.sin(angle + Math.PI / 6)];
+            const b = [tip[0] + arrowLength * Math.cos(angle - Math.PI / 6), tip[1] + arrowLength * Math.sin(angle - Math.PI / 6)];
+            commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip[0])} ${f(tip[1])} l ${f(b[0])} ${f(b[1])} l S`);
+          }
+        }
       }
     }
   }
