@@ -4069,7 +4069,9 @@ function serializableAnnotationData(annotation: PdfAnnotation): Record<string, u
   delete data.nativeAppearanceRef;
   delete data.nativeAppearanceRect;
   delete data.nativeAppearanceBodyRect;
-  delete data.nativeAppearanceImported;
+  // Native AP provenance is durable so an imported appearance remains
+  // source-backed after Save/reopen; ephemeral geometry/ref and dirty state
+  // are intentionally stripped above and below.
   delete data.nativeAppearanceDirty;
   delete data.nativeAppearanceRotation;
   delete data.nativeAppearancePageRotation;
