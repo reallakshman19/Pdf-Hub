@@ -98,6 +98,13 @@ export const NativeAppearanceNode: React.FC<Props> = ({
             top: appearance.y - rect.y,
             width: appearance.width,
             height: appearance.height,
+            // Tailwind preflight applies img { max-width: 100% }. The wrapper
+            // intentionally spans only the logical FreeText body, while /AP
+            // spans the *whole* native /Rect (including callout leaders).
+            // Without these overrides browsers silently shrink the entire
+            // source appearance to the body width and distort the artwork.
+            maxWidth: 'none',
+            maxHeight: 'none',
             pointerEvents: 'none',
             userSelect: 'none',
           }}
