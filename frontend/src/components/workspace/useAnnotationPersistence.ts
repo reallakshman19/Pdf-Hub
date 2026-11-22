@@ -149,6 +149,7 @@ export function useAnnotationPersistence({
       const deletedSourceKeys = new Set(validTombstones.map((item) =>
         JSON.stringify([item.pageNumber, item.sourceRef])));
       const unmatchedCachedNative: string[] = [];
+      const unresolvedCachedEdits: string[] = [];
       const matchedSourceKeys = new Set<string>();
       const restored = stored === null ? imported.annotations : stored.map((item) => {
         const origin = item.data.nativeCopySource;
@@ -205,6 +206,15 @@ export function useAnnotationPersistence({
           // A sidecar cannot authorize a visual edit without revision-bound,
           // per-field user edit provenance. Source fields win by default.
           const edited = origin ? new Set<string>() : authorizedEditFields(item, source, documentKey);
+          if (!origin && item.data.nativeSourceRef) {
+            const unproven = ['rect', 'text', 'anchor', 'knee', 'leaderStyle', 'arrowHead']
+              .some((field) => !edited.has(field) && (
+                field === 'rect'
+                  ? JSON.stringify(item.rect) !== JSON.stringify(source.rect)
+                  : JSON.stringify(item.data[field]) !== JSON.stringify(source.data[field])
+              ));
+            if (unproven) unresolvedCachedEdits.push(nativeSourceKey(source));
+          }
           if (!edited.size) delete data.nativeEditProvenance;
           delete data.nativeMarkupDraft;
           if (!edited.has('rect')) effectiveRect = source.rect;
@@ -316,6 +326,7 @@ export function useAnnotationPersistence({
       }
       const incomplete = cacheUnavailable
         || invalidTombstones.length > 0 || unmatchedCachedNative.length > 0
+        || unresolvedCachedEdits.length > 0
         || coverage.missingFromParser.length > 0
         || coverage.missingFromModel.length > 0
         || coverage.duplicateInModel.length > 0;
@@ -331,8 +342,22 @@ export function useAnnotationPersistence({
         nativeDeletionTombstones: validTombstones,
       });
       setRestoredCount(hydrated.length);
-      // Persist the source baseline even if the visible annotations do not
-      // change, so subsequent user deletions are never resurrected on reopen.
+      if (incomplete) {
+        // Do not overwrite a potentially recoverable legacy draft with the
+        // source-authoritative display model until the conflict is resolved.
+        logWarn('annotation', 'Native Save disabled pending source/cache reconciliation', {
+          documentKey, unmatchedCachedNative, unresolvedCachedEdits,
+          invalidTombstones: invalidTombstones.length,
+        });
+        useToastStore.getState().addToast({
+          type: 'error',
+          title: 'Native annotation recovery incomplete',
+          message: 'Editable Save is disabled to protect original PDF annotations. The original PDF remains available to download.',
+        });
+        return;
+      }
+      // Persist only a verified source baseline. Missing cache entries never
+      // authorize native deletion, and disputed drafts are left untouched.
       void saveAnnotations(documentKey, hydrated, {
         nativeSourceKeys: imported.annotations.map(nativeSourceKey),
         nativeDeletionTombstones: validTombstones,
@@ -364,7 +389,8 @@ export function useAnnotationPersistence({
   }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
 
   React.useEffect(() => {
-    if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
     let cancelled = false;
 
     const run = async () => {
@@ -405,7 +431,8 @@ export function useAnnotationPersistence({
   }, [documentKey, pdfDoc, setAnnotations, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
 
     const timer = window.setTimeout(() => {
       void saveAnnotations(documentKey, annotations, {
@@ -424,7 +451,8 @@ export function useAnnotationPersistence({
   }, [annotations, nativeDeletionTombstones, documentKey, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
 
     const flushNow = () => {
       const state = useAnnotationStore.getState();
