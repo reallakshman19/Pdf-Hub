@@ -150,7 +150,9 @@ export async function readNativePdfAnnotations(
           parsed.data.nativeAppearanceBodyRect = { ...parsed.rect };
           // App-generated annotation previews remain live. Imported external
           // artwork is rendered from /AP to preserve fonts, stamps and leaders.
-          parsed.data.nativeAppearanceImported = !record.dict.get(lib.PDFName.of('PDFHubType'));
+          parsed.data.nativeAppearanceImported =
+            parsed.data.nativeAppearanceImported === true
+            || !record.dict.get(lib.PDFName.of('PDFHubType'));
           parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
           if (parsed.type === 'stamp') {
             parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
