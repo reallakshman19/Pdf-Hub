@@ -178,6 +178,14 @@ function createAnnotationTransactionInput(
       },
       'annotation-store',
       session.documentKey,
+      // One explicit Delete command may own several native objects. Keep its
+      // immutable ID in the durable history instead of minting an unrelated
+      // history ID that cannot attest deletion provenance after recovery.
+      (() => {
+        const existing = new Set(state.nativeDeletionTombstones.map((item) => item.commandId));
+        const newCommand = nextTombstones.find((item) => !existing.has(item.commandId));
+        return newCommand ? { id: newCommand.commandId } : undefined;
+      })(),
     ),
     label,
     before: {
