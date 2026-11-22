@@ -45,26 +45,47 @@ export function FreeTextPreview({ text, styleKey, className }: FreeTextPreviewPr
   const warning = 'The preview is clipped. The saved PDF may fit the text differently; enlarge the box to see the full preview.';
   const compactWarning = measurement.width < 95 || measurement.height < 18;
   const warningFontSize = Math.max(1, Math.min(10, measurement.width - 2, measurement.height - 2));
+  const normalizedText = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   return (
     <div title={measurement.clipped ? warning : undefined} style={{ width: '100%', height: '100%', position: 'relative', minHeight: 0 }}>
       <div
         ref={textRef}
         data-freetext-content="true"
         className={className}
-        style={{ width: '100%', height: '100%', boxSizing: 'border-box', overflow: 'hidden',
-          lineHeight: 1.25, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          lineHeight: measurement.height > 0 && measurement.height <= 20 ? 1.05 : 1.15,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+        }}
       >
-        {text}
+        {normalizedText}
       </div>
       {measurement.clipped && (
         <span
           role="status"
           aria-label={warning}
           title={warning}
-          style={{ position: 'absolute', bottom: 0, right: 0, background: '#fff3c4', color: '#4a3000',
-            border: '1px solid #9a6700', borderRadius: 2, padding: compactWarning ? 0 : '1px 3px',
-            font: `${warningFontSize}px sans-serif`, lineHeight: 1, whiteSpace: 'nowrap',
-            boxSizing: 'border-box', maxWidth: '100%', maxHeight: '100%', overflow: 'hidden' }}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            background: '#fff3c4',
+            color: '#4a3000',
+            border: '1px solid #9a6700',
+            borderRadius: 2,
+            padding: compactWarning ? 0 : '1px 3px',
+            font: `${warningFontSize}px sans-serif`,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+            boxSizing: 'border-box',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            overflow: 'hidden',
+          }}
         >
           {compactWarning ? '!' : 'Preview clipped'}
         </span>

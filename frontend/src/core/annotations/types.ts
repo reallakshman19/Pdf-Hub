@@ -192,7 +192,7 @@ export interface AnnotationNodeProps<T extends AnnotationType = AnnotationType> 
   pageRotation?: number;
   nativeAppearanceUrl?: string;
   onSelect: (e: React.PointerEvent<HTMLDivElement>) => void;
-  onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => void;
+  onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize' | 'move-all') => void;
   onDoubleClick?: () => void;
   onCommitEdit?: (value: string) => void;
 }

@@ -717,6 +717,21 @@ function nativeData(
     if (defaultAppearance.textColor) {
       data.textColor = defaultAppearance.textColor;
     }
+    if (defaultAppearance.fontFamily) {
+      data.fontFamily = defaultAppearance.fontFamily;
+    }
+
+    if (fill) {
+      data.backgroundColor = fill;
+      if (stroke) data.borderColor = stroke;
+    } else if (stroke) {
+      if (stroke.toLowerCase() === '#ffffff') {
+        data.backgroundColor = '#ffffff';
+        data.borderColor = data.textColor ?? '#475569';
+      } else {
+        data.borderColor = stroke;
+      }
+    }
   }
 
   if (type === 'line' || type === 'arrow') {
@@ -770,7 +785,16 @@ function nativeData(
       data.anchor = markupSpace ? pdfPointToView(callout[0], callout[1], markupSpace) : { x: callout[0], y: pageHeight - callout[1] };
       if (callout.length >= 6) {
         data.knee = markupSpace ? pdfPointToView(callout[2], callout[3], markupSpace) : { x: callout[2], y: pageHeight - callout[3] };
+        data.leaderStyle = 'elbow';
+      } else {
+        data.leaderStyle = 'straight';
       }
+    }
+    const leRaw = dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFName)?.decodeText()
+      ?? dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray)?.lookupMaybe(0, lib.PDFName)?.decodeText()
+      ?? null;
+    if (leRaw) {
+      data.arrowHead = leRaw === 'ClosedArrow' ? 'filled' : leRaw === 'None' ? 'none' : 'open';
     }
   }
 
@@ -811,62 +835,115 @@ function readNormalizedTextMarkupQuads(
   return normalized;
 }
 
+function extractCssColor(css: string | null): string | null {
+  if (!css) return null;
+  const hex = /color\s*:\s*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/i.exec(css);
+  if (hex) {
+    const raw = hex[1];
+    if (raw.length === 3) {
+      return `#${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`.toLowerCase();
+    }
+    return `#${raw.toLowerCase()}`;
+  }
+  const rgb = /color\s*:\s*rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(css);
+  if (rgb) {
+    const r = Math.max(0, Math.min(255, parseInt(rgb[1], 10)));
+    const g = Math.max(0, Math.min(255, parseInt(rgb[2], 10)));
+    const b = Math.max(0, Math.min(255, parseInt(rgb[3], 10)));
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  }
+  return null;
+}
+
 function readDefaultAppearance(
   dict: PDFDict,
   lib: PdfLibModule,
-): { fontSize?: number; textColor?: string } {
-  const source = readText(dict, 'DA', lib);
-  if (!source) return {};
-
-  const tokens = source.trim().split(/\s+/).filter(Boolean);
+): { fontSize?: number; textColor?: string; fontFamily?: string } {
   let fontSize: number | undefined;
   let textColor: string | undefined;
+  let fontFamily: string | undefined;
 
-  for (let index = 0; index < tokens.length; index += 1) {
-    const operator = tokens[index];
+  const source = readText(dict, 'DA', lib);
+  if (source) {
+    const tokens = source.trim().split(/\s+/).filter(Boolean);
+    for (let index = 0; index < tokens.length; index += 1) {
+      const operator = tokens[index];
 
-    if (operator === 'Tf' && index >= 1) {
-      const size = Number(tokens[index - 1]);
-      if (Number.isFinite(size) && size > 0) {
-        fontSize = size;
+      if (operator === 'Tf' && index >= 1) {
+        if (index >= 2) {
+          const fontToken = tokens[index - 2].replace(/^\//, '').toLowerCase();
+          if (fontToken.includes('helv') || fontToken.includes('arial')) {
+            fontFamily = 'Helvetica, Arial, sans-serif';
+          } else if (fontToken.includes('cour')) {
+            fontFamily = 'Courier New, Courier, monospace';
+          } else if (fontToken.includes('times')) {
+            fontFamily = 'Times New Roman, Times, serif';
+          }
+        }
+        const size = Number(tokens[index - 1]);
+        if (Number.isFinite(size) && size > 0) {
+          fontSize = size;
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (operator === 'g' && index >= 1) {
-      const gray = Number(tokens[index - 1]);
-      if (Number.isFinite(gray)) {
-        textColor = rgbToHex(gray, gray, gray);
+      if (operator === 'g' && index >= 1) {
+        const gray = Number(tokens[index - 1]);
+        if (Number.isFinite(gray)) {
+          textColor = rgbToHex(gray, gray, gray);
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (operator === 'rg' && index >= 3) {
-      const r = Number(tokens[index - 3]);
-      const g = Number(tokens[index - 2]);
-      const b = Number(tokens[index - 1]);
-      if ([r, g, b].every((value) => Number.isFinite(value))) {
-        textColor = rgbToHex(r, g, b);
+      if (operator === 'rg' && index >= 3) {
+        const r = Number(tokens[index - 3]);
+        const g = Number(tokens[index - 2]);
+        const b = Number(tokens[index - 1]);
+        if ([r, g, b].every((value) => Number.isFinite(value))) {
+          textColor = rgbToHex(r, g, b);
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (operator === 'k' && index >= 4) {
-      const c = Number(tokens[index - 4]);
-      const m = Number(tokens[index - 3]);
-      const y = Number(tokens[index - 2]);
-      const k = Number(tokens[index - 1]);
-      if ([c, m, y, k].every((value) => Number.isFinite(value))) {
-        textColor = rgbToHex(
-          1 - Math.min(1, c + k),
-          1 - Math.min(1, m + k),
-          1 - Math.min(1, y + k),
-        );
+      if (operator === 'k' && index >= 4) {
+        const c = Number(tokens[index - 4]);
+        const m = Number(tokens[index - 3]);
+        const y = Number(tokens[index - 2]);
+        const k = Number(tokens[index - 1]);
+        if ([c, m, y, k].every((value) => Number.isFinite(value))) {
+          textColor = rgbToHex(
+            1 - Math.min(1, c + k),
+            1 - Math.min(1, m + k),
+            1 - Math.min(1, y + k),
+          );
+        }
       }
     }
   }
 
-  return { fontSize, textColor };
+  // PDF ISO 32000-1 §12.5.6.4: When Default Style (/DS) is present, it defines
+  // the default CSS style formatting for the free text and overrides /DA.
+  const ds = readText(dict, 'DS', lib);
+  if (ds) {
+    const dsColor = extractCssColor(ds);
+    if (dsColor) {
+      textColor = dsColor;
+    }
+    const familyMatch = /font-family\s*:\s*([^;]+)/i.exec(ds) ?? /font\s*:\s*([a-zA-Z0-9_\-\s,]+?)\s+\d+(?:\.\d+)?pt/i.exec(ds);
+    if (familyMatch) {
+      const fam = familyMatch[1].trim();
+      if (fam) fontFamily = fam;
+    }
+    if (fontSize === undefined) {
+      const sizeMatch = /font-size\s*:\s*(\d+(?:\.\d+)?)\s*pt/i.exec(ds) ?? /font\s*:[^;]*?\s+(\d+(?:\.\d+)?)\s*pt/i.exec(ds);
+      if (sizeMatch) {
+        const size = parseFloat(sizeMatch[1]);
+        if (Number.isFinite(size) && size > 0) fontSize = size;
+      }
+    }
+  }
+
+  return { fontSize, textColor, fontFamily };
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -1088,7 +1165,7 @@ function readText(
   const value = dict.lookup(lib.PDFName.of(key));
 
   if (value instanceof lib.PDFString || value instanceof lib.PDFHexString) {
-    return value.decodeText();
+    return value.decodeText().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   }
 
   return null;

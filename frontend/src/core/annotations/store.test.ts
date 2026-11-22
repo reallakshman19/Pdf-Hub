@@ -56,6 +56,34 @@ describe('annotation store', () => {
     expect(state.selectedAnnotationIds).toEqual([]);
   });
 
+  it('anchors callout arrow pointer and keeps anchor stationary when callout rect moves', () => {
+    const store = useAnnotationStore.getState();
+    const callout: PdfAnnotation = {
+      id: 'c1',
+      type: 'callout',
+      pageNumber: 1,
+      rect: { x: 200, y: 100, width: 120, height: 60 },
+      data: {
+        anchor: { x: 50, y: 50 },
+        knee: { x: 100, y: 50 },
+        text: 'Callout test',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    store.addAnnotation(callout);
+
+    // Update only the rect (e.g. moving the text box)
+    store.updateAnnotation('c1', {
+      rect: { x: 300, y: 150, width: 120, height: 60 },
+    });
+
+    const updated = useAnnotationStore.getState().annotations.find((a) => a.id === 'c1');
+    expect(updated?.rect).toEqual({ x: 300, y: 150, width: 120, height: 60 });
+    // Anchor must NOT have shifted by dx=+100, dy=+50! It must remain anchored at 50, 50!
+    expect(updated?.data.anchor).toEqual({ x: 50, y: 50 });
+  });
+
   it('keeps native rich-text semantics read-only while allowing safe geometry and border edits', () => {
     const rich: PdfAnnotation = {
       ...baseAnnotation('rich-1', 1, 10, 20),

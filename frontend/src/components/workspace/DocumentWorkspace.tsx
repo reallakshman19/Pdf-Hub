@@ -44,7 +44,7 @@ type TransformState =
   | {
       ids: string[];
       targetId: string;
-      mode: 'move' | 'resize';
+      mode: 'move' | 'resize' | 'move-all';
       startClientX: number;
       startClientY: number;
       startRects: Record<string, Rect>;
@@ -1008,29 +1008,44 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [activeTool, activeMode]);
   React.useLayoutEffect(() => () => { cancelGestureRef.current?.(); }, [scale]);
   const listenForGesture = (
-    onMove: (event: MouseEvent) => void,
-    onUp: (event: MouseEvent) => void,
+    onMove: (event: MouseEvent | PointerEvent) => void,
+    onUp: (event: MouseEvent | PointerEvent) => void,
     onCancel: () => void,
   ) => {
     cancelGestureRef.current?.();
+    let finished = false;
     const detach = () => {
+      finished = true;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', finish);
       window.removeEventListener('blur', cancel);
+      document.body.style.userSelect = '';
       if (cancelGestureRef.current === cancel) cancelGestureRef.current = null;
     };
     const cancel = () => { detach(); onCancel(); };
-    const move = (event: MouseEvent) => {
+    let lastX = -1;
+    let lastY = -1;
+    const move = (event: MouseEvent | PointerEvent) => {
+      if (finished) return;
       if (currentPageIdentity.current !== pageIdentity || (event.buttons & 1) === 0) { cancel(); return; }
+      if (event.clientX === lastX && event.clientY === lastY) return;
+      lastX = event.clientX;
+      lastY = event.clientY;
       onMove(event);
     };
-    const finish = (event: MouseEvent) => {
+    const finish = (event: MouseEvent | PointerEvent) => {
+      if (finished) return;
       if (event.button !== 0) return;
       if (currentPageIdentity.current !== pageIdentity) { cancel(); return; }
       detach();
       onUp(event);
     };
     cancelGestureRef.current = cancel;
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', finish);
     window.addEventListener('blur', cancel);
@@ -1193,11 +1208,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const startTransform = (
     event: React.PointerEvent<HTMLDivElement>,
     annotation: PdfAnnotation,
-    mode: 'move' | 'resize',
+    mode: 'move' | 'resize' | 'move-all',
   ) => {
     if (annotation.data.locked === true) return;
     cancelGestureRef.current?.();
 
+    event.preventDefault();
     event.preventDefault();
     event.stopPropagation();
     clearTextSelectionDraft();
@@ -1207,13 +1223,13 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       .map((item) => item.id);
 
     const ids =
-      mode === 'move' &&
+      (mode === 'move' || mode === 'move-all') &&
       selectedOnPage.includes(annotation.id) &&
       selectedOnPage.length > 1
         ? selectedOnPage
         : [annotation.id];
 
-    if (!(mode === 'move' && ids.length > 1)) {
+    if (!((mode === 'move' || mode === 'move-all') && ids.length > 1)) {
       onSetSingleSelection(annotation.id);
     }
 
@@ -1251,7 +1267,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     };
 
     let moved = false;
-    const onMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: MouseEvent | PointerEvent) => {
       const current = transformRef.current;
       if (!current) return;
       // Pointer and mouse events may round coordinates differently. A click
@@ -1262,34 +1278,52 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       const dx = (moveEvent.clientX - current.startClientX) / scale;
       const dy = (moveEvent.clientY - current.startClientY) / scale;
 
-      if (current.mode === 'move') {
+      if (current.mode === 'move' || current.mode === 'move-all') {
         const nextRects: Record<string, Rect> = {};
         const nextAnchors: Record<string, Point2D | null> = {};
         const nextKnees: Record<string, Point2D | null> = {};
 
+        const moveAnchor = current.mode === 'move-all' || current.ids.length > 1;
+
         current.ids.forEach((id) => {
           const baseRect = current.startRects[id];
-          nextRects[id] = clampRect({
+          const nextRect = clampRect({
             ...baseRect,
             x: baseRect.x + dx,
             y: baseRect.y + dy,
           });
+          nextRects[id] = nextRect;
 
           const anchor = current.startAnchors[id];
-          nextAnchors[id] = anchor
-            ? {
-                x: clamp(anchor.x + dx, 0, current.pageWidth),
-                y: clamp(anchor.y + dy, 0, current.pageHeight),
-              }
-            : null;
+          const item = pageAnnotations.find((value) => value.id === id);
+          const isCallout = item?.type === 'callout';
 
-          const knee = current.startKnees[id];
-          nextKnees[id] = knee
-            ? {
-                x: clamp(knee.x + dx, 0, current.pageWidth),
-                y: clamp(knee.y + dy, 0, current.pageHeight),
-              }
-            : null;
+          if (anchor && isCallout && !moveAnchor) {
+            // Text box move for a callout: arrow pointer remains anchored to the drawing, leader line stretches!
+            nextAnchors[id] = anchor;
+            const style = item.data.leaderStyle
+              ? (item.data.leaderStyle === 'straight' ? 'straight' : 'elbow')
+              : (current.startKnees[id] ? 'elbow' : 'straight');
+            nextKnees[id] = style === 'elbow'
+              ? computeDefaultCalloutKnee(nextRect, anchor)
+              : null;
+          } else if (anchor) {
+            nextAnchors[id] = {
+              x: clamp(anchor.x + dx, 0, current.pageWidth),
+              y: clamp(anchor.y + dy, 0, current.pageHeight),
+            };
+
+            const knee = current.startKnees[id];
+            nextKnees[id] = knee
+              ? {
+                  x: clamp(knee.x + dx, 0, current.pageWidth),
+                  y: clamp(knee.y + dy, 0, current.pageHeight),
+                }
+              : null;
+          } else {
+            nextAnchors[id] = null;
+            nextKnees[id] = null;
+          }
         });
 
         updateDraftRects((state) => ({ ...state, ...nextRects }));
@@ -1328,32 +1362,35 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       }
     };
 
-    const onUp = (upEvent: MouseEvent) => {
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
       const gesture = transformRef.current;
       if (gesture && (moved || Math.hypot(upEvent.clientX - gesture.startClientX, upEvent.clientY - gesture.startClientY) >= 1)) onMove(upEvent);
       const current = transformRef.current;
       if (!current) return;
 
-      if (moved && current.mode === 'move') {
+      if (moved && (current.mode === 'move' || current.mode === 'move-all')) {
         const liveRects = draftRectsRef.current;
         const liveAnchors = draftAnchorsRef.current;
         const liveKnees = draftKneesRef.current;
         onCommitManyAnnotations(
-          current.ids.map((id) => ({
-            id,
-            data: {
-              rect: liveRects[id] ?? current.startRects[id],
+          current.ids.map((id) => {
+            const item = pageAnnotations.find((a) => a.id === id);
+            const startAnchor = current.startAnchors[id];
+            const liveAnchor = liveAnchors[id] ?? startAnchor;
+            const startKnee = current.startKnees[id];
+            const liveKnee = id in liveKnees ? liveKnees[id] : startKnee;
+            return {
+              id,
               data: {
-                ...(pageAnnotations.find((item) => item.id === id)?.data ?? {}),
-                ...(current.startAnchors[id]
-                  ? { anchor: liveAnchors[id] ?? current.startAnchors[id] }
-                  : {}),
-                ...(current.startKnees[id]
-                  ? { knee: liveKnees[id] ?? current.startKnees[id] }
-                  : {}),
-              },
-            } as Partial<PdfAnnotation>,
-          })),
+                rect: liveRects[id] ?? current.startRects[id],
+                data: {
+                  ...(item?.data ?? {}),
+                  ...(startAnchor ? { anchor: liveAnchor } : {}),
+                  ...(startAnchor ? { knee: liveKnee } : {}),
+                },
+              } as Partial<PdfAnnotation>,
+            };
+          }),
         );
       } else if (moved) {
         const item = pageAnnotations.find((value) => value.id === current.targetId);
@@ -1431,6 +1468,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       rect,
     );
 
+    event.preventDefault();
     event.stopPropagation();
     clearTextSelectionDraft();
     onSetSingleSelection(annotation.id);
@@ -1446,7 +1484,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     };
 
     let moved = false;
-    const onMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: MouseEvent | PointerEvent) => {
       const current = anchorDragRef.current;
       if (!current) return;
       if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
@@ -1482,7 +1520,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       }
     };
 
-    const onUp = (upEvent: MouseEvent) => {
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
       const gesture = anchorDragRef.current;
       if (gesture && (moved || Math.hypot(upEvent.clientX - gesture.startClientX, upEvent.clientY - gesture.startClientY) >= 1)) onMove(upEvent);
       const current = anchorDragRef.current;
@@ -1691,7 +1729,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         if (moveEvent.buttons) appendPoint(moveEvent);
       };
 
-      const onUp = (upEvent: MouseEvent) => {
+      const onUp = (upEvent: MouseEvent | PointerEvent) => {
         appendPoint(upEvent);
         if (currentPathRef.current.length < 4) {
           setInkPaths([]);
@@ -1750,7 +1788,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     };
     const onMove = (moveEvent: MouseEvent) => { setMarquee(marqueeAt(moveEvent)); };
 
-    const onUp = (upEvent: MouseEvent) => {
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
       const currentMarquee = marqueeAt(upEvent);
       const hitIds = pageAnnotations
         .filter((annotation) => intersects(annotation.rect, currentMarquee))
@@ -1892,7 +1930,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       if (moveEvent.buttons) updatePlacement(moveEvent);
     };
 
-    const onUp = (upEvent: MouseEvent) => {
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
       updatePlacement(upEvent);
       setShapeDraft(null);
       clearTextSelectionDraft();
@@ -2265,19 +2303,22 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
 
           const selected = selectedAnnotationIds.includes(annotation.id);
           const rawRect = draftRects[annotation.id] ?? annotation.rect;
+          const linePoints = draftLinePointsRef.current[annotation.id];
           const displayAnnotation = (annotation.type === 'ink' || annotation.type === 'shape-polygon') && rawRect !== annotation.rect
             ? { ...annotation, rect: rawRect, data: remapAnnotationGeometry(annotation, rawRect) }
-            : annotation;
+            : (annotation.type === 'line' || annotation.type === 'arrow') && linePoints
+              ? { ...annotation, rect: rawRect, data: { ...annotation.data, points: linePoints } }
+              : annotation;
           const scaledRect = {
             x: rawRect.x * scale,
             y: rawRect.y * scale,
             width: rawRect.width * scale,
             height: rawRect.height * scale,
           };
-          const anchor = readAnchor(annotation, draftAnchors[annotation.id] ?? null);
+          const anchor = readAnchor(annotation, draftAnchors[annotation.id]);
           const knee = readKnee(
             annotation,
-            draftKnees[annotation.id] ?? null,
+            draftKnees[annotation.id],
             anchor,
             rawRect,
           );
@@ -2302,7 +2343,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                   onSetSingleSelection(annotation.id);
                 }
               }}
-              onTransformStart={(event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => startTransform(event, annotation, mode)}
+              onTransformStart={(event: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize' | 'move-all') => startTransform(event, annotation, mode)}
               onDoubleClick={() => {
                 if (!isCurrentPage() || annotation.data?.locked === true) return;
                 const edit = { identity: pageIdentity, id: annotation.id, value: readText(annotation) };
@@ -2743,8 +2784,11 @@ function readFontSize(annotation: PdfAnnotation): number {
 
 function readAnchor(
   annotation: PdfAnnotation,
-  fallback: Point2D | null,
+  draftAnchor?: Point2D | null,
 ): Point2D | null {
+  if (draftAnchor !== undefined && draftAnchor !== null) {
+    return draftAnchor;
+  }
   const anchor = annotation.data.anchor;
   if (
     anchor &&
@@ -2754,15 +2798,18 @@ function readAnchor(
   ) {
     return anchor as Point2D;
   }
-  return fallback;
+  return null;
 }
 
 function readKnee(
   annotation: PdfAnnotation,
-  fallback: Point2D | null,
+  draftKnee: Point2D | null | undefined,
   anchor: Point2D | null,
   rect: Rect,
 ): Point2D | null {
+  if (draftKnee !== undefined) {
+    return draftKnee;
+  }
   const knee = annotation.data.knee;
   if (
     knee &&
@@ -2771,9 +2818,6 @@ function readKnee(
     typeof (knee as { y?: unknown }).y === 'number'
   ) {
     return knee as Point2D;
-  }
-  if (fallback) {
-    return fallback;
   }
   if (annotation.type !== 'callout' || !anchor) {
     return null;

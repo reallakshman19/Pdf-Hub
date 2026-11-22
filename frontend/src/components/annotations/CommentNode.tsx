@@ -19,7 +19,8 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
         color: annotation.data?.textColor ?? '#111827',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
         borderRadius: 6, padding: 4,
-        cursor: 'pointer', pointerEvents: 'all',
+        cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'), pointerEvents: 'all',
+        touchAction: 'none', userSelect: 'none',
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
       onDoubleClick={onDoubleClick}

@@ -28,6 +28,30 @@ async function sourcePageAppearances(doc: PDFDocumentProxy, pageNumber: number):
       for (const [ref, appearance] of separate) {
         if (appearance.width > 0 && appearance.height > 0) images.set(ref, appearance.toDataURL('image/png'));
       }
+      try {
+        const annots = await page.getAnnotations({ intent: 'display' });
+        for (const annot of annots) {
+          if (annot.subtype === 'Stamp' && !images.has(annot.id) && annot.rect) {
+            const vrect = viewport.convertToViewportRectangle(annot.rect);
+            const sx = Math.floor(Math.min(vrect[0], vrect[2]));
+            const sy = Math.floor(Math.min(vrect[1], vrect[3]));
+            const sw = Math.ceil(Math.abs(vrect[2] - vrect[0]));
+            const sh = Math.ceil(Math.abs(vrect[3] - vrect[1]));
+            if (sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= canvas.width && sy + sh <= canvas.height) {
+              const stampCanvas = document.createElement('canvas');
+              stampCanvas.width = sw;
+              stampCanvas.height = sh;
+              const stampCtx = stampCanvas.getContext('2d');
+              if (stampCtx) {
+                stampCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+                images.set(annot.id, stampCanvas.toDataURL('image/png'));
+              }
+            }
+          }
+        }
+      } catch {
+        // Fall back gracefully to separate map
+      }
       return images;
     } finally {
       page.cleanup();

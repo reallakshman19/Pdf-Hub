@@ -20,7 +20,8 @@ export const ShapeRectNode: React.FC<AnnotationNodeProps<'shape-rect'>> = ({
       style={{
         position: 'absolute',
         left: rect.x, top: rect.y, width: rect.width, height: rect.height,
-        cursor: 'pointer', pointerEvents: 'all',
+        cursor: isSelected ? 'move' : 'pointer', pointerEvents: 'all',
+        touchAction: 'none', userSelect: 'none',
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >

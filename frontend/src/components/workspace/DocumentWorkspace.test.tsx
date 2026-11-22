@@ -604,6 +604,74 @@ describe('PageSurface gesture consistency', () => {
     expect(props.onCommitAnnotation).not.toHaveBeenCalled();
   });
 
+  it('anchors callout arrow pointer and moves only the text box when dragging callout body', async () => {
+    const doc = makeDoc(makePage(0));
+    const props = makeProps(doc);
+    const callout = {
+      id: 'callout-anchor-test',
+      type: 'callout' as const,
+      pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 },
+      data: { text: 'note', anchor: { x: 10, y: 20 }, leaderStyle: 'straight' as const },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const view = render(<PageSurface {...props} pageAnnotations={[callout]} />);
+    await act(async () => {});
+    const textBox = view.container.querySelector('[data-annotation-type="callout"] > div');
+    expect(textBox).not.toBeNull();
+
+    fireEvent.pointerDown(textBox!, { clientX: 70, clientY: 90 });
+    fireEvent.pointerMove(window, { clientX: 120, clientY: 120, buttons: 1 });
+    fireEvent.pointerUp(window, { clientX: 120, clientY: 120 });
+
+    expect(props.onCommitManyAnnotations).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'callout-anchor-test',
+        data: expect.objectContaining({
+          rect: expect.objectContaining({ x: 110, y: 110, width: 40, height: 20 }),
+          data: expect.objectContaining({
+            anchor: { x: 10, y: 20 },
+          }),
+        }),
+      }),
+    ]);
+  });
+
+  it('moves whole callout including anchor when dragging callout leader line', async () => {
+    const doc = makeDoc(makePage(0));
+    const props = makeProps(doc);
+    const callout = {
+      id: 'callout-leader-test',
+      type: 'callout' as const,
+      pageNumber: 1,
+      rect: { x: 60, y: 80, width: 40, height: 20 },
+      data: { text: 'note', anchor: { x: 10, y: 20 }, leaderStyle: 'straight' as const },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const view = render(<PageSurface {...props} pageAnnotations={[callout]} />);
+    await act(async () => {});
+    const leaderPolyline = view.container.querySelector('[data-annotation-type="callout"] polyline[stroke="transparent"]');
+    expect(leaderPolyline).not.toBeNull();
+
+    fireEvent.pointerDown(leaderPolyline!, { clientX: 35, clientY: 50 });
+    fireEvent.pointerMove(window, { clientX: 75, clientY: 90, buttons: 1 });
+    fireEvent.pointerUp(window, { clientX: 75, clientY: 90 });
+
+    expect(props.onCommitManyAnnotations).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'callout-leader-test',
+        data: expect.objectContaining({
+          rect: expect.objectContaining({ x: 100, y: 120, width: 40, height: 20 }),
+          data: expect.objectContaining({
+            anchor: { x: 50, y: 60 },
+          }),
+        }),
+      }),
+    ]);
+  });
+
   it('uses the final placement endpoint and cancels an unmounted placement', async () => {
     const props = { ...makeProps(makeDoc(makePage(0))), activeTool: 'squiggly' };
     const view = render(<PageSurface {...props} />);
