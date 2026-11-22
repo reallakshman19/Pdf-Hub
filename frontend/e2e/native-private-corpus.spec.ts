@@ -260,15 +260,21 @@ for (const entry of corpus) {
       await assertSourceDomAndSelection(page, pageNumber, savedObjects[index], false);
     }
 
-    // Explicit Export Flattened must bake visuals and remove all /Annots.
-    // It must not change the separately saved native PDF above.
+    // Explicit Export Flattened must bake visuals and remove review /Annots.
+    // Portable /Link navigation is retained by contract. This export must
+    // not change the separately saved native PDF above.
     const flattenedBytes = await downloadPdf(page, 'Export flattened PDF');
     writePrivateOutput(entry, 'flattened', flattenedBytes);
     const flattened = await PDFDocument.load(flattenedBytes);
     expect(flattened.getPageCount()).toBe(entry.pages.length);
     for (const [index, outputPage] of flattened.getPages().entries()) {
       const remaining = outputPage.node.lookupMaybe(PDFName.of('Annots'), PDFArray);
-      expect(remaining?.size() ?? 0, `Page ${index + 1} still has native annotations`).toBe(0);
+      if (remaining) for (let indexInAnnots = 0; indexInAnnots < remaining.size(); indexInAnnots += 1) {
+        expect(
+          remaining.lookup(indexInAnnots, PDFDict).get(PDFName.of('Subtype'))?.toString(),
+          `Page ${index + 1} retains a flattened review annotation`,
+        ).toBe('/Link');
+      }
       expect(outputPage.node.get(PDFName.of('Contents'))).toBeDefined();
     }
   });
