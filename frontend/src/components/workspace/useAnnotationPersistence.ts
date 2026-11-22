@@ -59,11 +59,15 @@ export function useAnnotationPersistence({
 }: UseAnnotationPersistenceArgs): void {
   const hydratedDocumentKey = useAnnotationStore((state) => state.hydratedDocumentKey);
   const nativeDeletionTombstones = useAnnotationStore((state) => state.nativeDeletionTombstones);
+  // A parent may supply a freshly allocated callback on every render. Only
+  // the PDF revision, not that callback identity, may restart source hydration.
+  const restoredCountCallback = React.useRef(setRestoredCount);
+  restoredCountCallback.current = setRestoredCount;
   React.useEffect(() => {
     let cancelled = false;
     const loadStored = async () => {
       if (!documentKey || !workingBytes) return;
-      setRestoredCount(0);
+      restoredCountCallback.current(0);
       useAnnotationStore.setState({
         hydratedDocumentKey: null,
         nativeIntegrity: { status: 'LOADING', documentKey },
@@ -341,7 +345,7 @@ export function useAnnotationPersistence({
         nativeIntegrity,
         nativeDeletionTombstones: validTombstones,
       });
-      setRestoredCount(hydrated.length);
+      restoredCountCallback.current(hydrated.length);
       if (incomplete) {
         // Do not overwrite a potentially recoverable legacy draft with the
         // source-authoritative display model until the conflict is resolved.
@@ -386,7 +390,7 @@ export function useAnnotationPersistence({
       });
     });
     return () => { cancelled = true; };
-  }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
+  }, [documentKey, workingBytes, setAnnotations]);
 
   React.useEffect(() => {
     if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey
