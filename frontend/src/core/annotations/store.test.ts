@@ -112,6 +112,41 @@ describe('annotation store', () => {
     });
   });
 
+  it('records native rectangle provenance for Align and Distribute transformations', () => {
+    useSessionStore.setState({ documentKey: 'sha256:layout-source' });
+    const source = (id: string, x: number, ref: string): PdfAnnotation => ({
+      ...baseAnnotation(id, 1, x, 20),
+      data: {
+        text: id,
+        nativeSourceRef: ref,
+        nativeAppearanceImported: true,
+      },
+    });
+
+    useAnnotationStore.getState().setAnnotations([
+      source('left', 0, '10 0 R'),
+      source('middle', 200, '11 0 R'),
+      source('right', 500, '12 0 R'),
+    ]);
+    useAnnotationStore.getState().setSelection(['left', 'middle', 'right']);
+    useAnnotationStore.getState().distributeSelection('horizontal');
+    const middle = useAnnotationStore.getState().annotations.find((item) => item.id === 'middle')!;
+    expect(middle.rect.x).toBe(250);
+    expect(middle.data.nativeEditProvenance).toMatchObject({
+      sourceRevision: 'sha256:layout-source',
+      sourceRef: '11 0 R',
+      fields: expect.arrayContaining(['rect']),
+      commandId: expect.any(String),
+    });
+    expect(middle.data.nativeAppearanceDirty).toBe(true);
+
+    useAnnotationStore.getState().setSelection(['left', 'middle']);
+    useAnnotationStore.getState().alignSelection('left');
+    const aligned = useAnnotationStore.getState().annotations.find((item) => item.id === 'middle')!;
+    expect(aligned.rect.x).toBe(0);
+    expect(aligned.data.nativeEditProvenance?.fields).toContain('rect');
+  });
+
   it('add/update/delete manage selection state', () => {
     const store = useAnnotationStore.getState();
 
