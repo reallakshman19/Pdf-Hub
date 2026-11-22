@@ -39,11 +39,14 @@ describe('native appearance visual with interactive overlay', () => {
     const image = container.querySelector('[data-native-annotation-appearance]') as HTMLImageElement;
     const body = container.querySelector('[data-native-annotation-hit-target]') as HTMLDivElement;
     expect(image).toBeTruthy();
-    expect(image.style.left).toBe('20px');
-    expect(image.style.top).toBe('260px');
+    const root = container.querySelector('[data-annotation-type="callout"]') as HTMLDivElement;
+    expect(root.style.left).toBe('50px');
+    expect(root.style.top).toBe('260px');
+    expect(image.style.left).toBe('-30px');
+    expect(image.style.top).toBe('0px');
     expect(image.style.width).toBe('150px');
-    expect(body.style.left).toBe('50px');
-    expect(body.style.width).toBe('120px');
+    expect(body.style.left).toBe('0px');
+    expect(body.style.width).toBe('100%');
     expect(image.style.pointerEvents).toBe('none');
 
     fireEvent.pointerDown(body);
@@ -62,8 +65,11 @@ describe('native appearance visual with interactive overlay', () => {
         nativeAppearanceUrl="data:image/png;base64,ZmFrZQ==" isSelected={false} {...handlers} />,
     );
     const image = container.querySelector('[data-native-annotation-appearance]') as HTMLImageElement;
-    expect(image.style.left).toBe('40px');
-    expect(image.style.top).toBe('275px');
+    const root = container.querySelector('[data-annotation-type="callout"]') as HTMLDivElement;
+    expect(root.style.left).toBe('70px');
+    expect(root.style.top).toBe('275px');
+    expect(image.style.left).toBe('-30px');
+    expect(image.style.top).toBe('0px');
   });
 
   it('shows selection handles and anchor editing independently of the artwork', () => {
