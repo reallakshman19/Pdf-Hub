@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { PDFArray, PDFDict, PDFDocument, PDFName } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFStream, PDFString } from 'pdf-lib';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
 interface CorpusEntry {
@@ -96,6 +96,98 @@ function assertNativeRoots(pdf: PDFDocument, expected: number[]) {
   }
 }
 
+/** Do not compare /Annots lengths alone: equal counts can hide lost and replaced objects.
+ * Each expected original is identified by its page and /NM and its raw normal
+ * appearance bytes must survive native Save without alteration.
+ */
+function nativeObjectEvidence(pdf: PDFDocument) {
+  return pdf.getPages().map((page, pageIndex) => {
+    const annots = page.node.lookupMaybe(PDFName.of('Annots'), PDFArray);
+    const objects = new Map<string, { subtype: string; apHash: string; sourceRef: string }>();
+    if (!annots) return objects;
+    for (let i = 0; i < annots.size(); i++) {
+      const sourceRef = annots.get(i)?.toString() ?? `direct:${i}`;
+      const dict = annots.lookup(i, PDFDict);
+      const subtype = dict.lookupMaybe(PDFName.of('Subtype'), PDFName)?.decodeText();
+      if (!subtype || subtype === 'Popup' || dict.get(PDFName.of('IRT'))) continue;
+      const name = dict.lookupMaybe(PDFName.of('NM'), PDFString, PDFHexString)?.decodeText();
+      if (!name) throw new Error(`Source page ${pageIndex + 1} contains native ${subtype} without /NM`);
+      const normal = dict.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'));
+      const stream = normal ? pdf.context.lookup(normal) : null;
+      if (!(stream instanceof PDFStream)) {
+        throw new Error(`Source page ${pageIndex + 1} /NM ${name} has no directly renderable /AP/N stream`);
+      }
+      if (objects.has(name)) {
+        throw new Error(`Ambiguous duplicate native /NM ${name} on page ${pageIndex + 1}`);
+      }
+      objects.set(name, {
+        subtype,
+        sourceRef,
+        apHash: createHash('sha256').update(stream.getContents()).digest('hex'),
+      });
+    }
+    return objects;
+  });
+}
+
+function verifySavedObjects(
+  original: ReturnType<typeof nativeObjectEvidence>,
+  saved: ReturnType<typeof nativeObjectEvidence>,
+) {
+  expect(saved.length).toBe(original.length);
+  for (let i = 0; i < original.length; i++) {
+    expect([...saved[i].keys()].sort(), `Page ${i + 1} native /NM identities`)
+      .toEqual([...original[i].keys()].sort());
+    for (const [name, source] of original[i]) {
+      const output = saved[i].get(name);
+      expect(output?.subtype, `Page ${i + 1} /NM ${name} subtype`).toBe(source.subtype);
+      expect(output?.apHash, `Page ${i + 1} /NM ${name} source /AP byte fidelity`)
+        .toBe(source.apHash);
+    }
+  }
+}
+
+function writePrivateOutput(entry: CorpusEntry, kind: 'native-saved' | 'flattened', bytes: Uint8Array) {
+  const directory = process.env.PDFHUB_NATIVE_CORPUS_OUTPUT_DIR;
+  if (!directory) return;
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, `${basename(entry.path, '.pdf')}.${kind}.pdf`), bytes);
+}
+
+async function assertSourceDomAndSelection(
+  page: Page,
+  pageNumber: number,
+  sourceObjects: Map<string, { subtype: string; apHash: string; sourceRef: string }>,
+  verifySelection: boolean,
+) {
+  const surface = page.locator(`[data-page="${pageNumber}"]`);
+  await expect(surface).toBeVisible({ timeout: 30_000 });
+  const roots = surface.locator('[data-native-source-ref]');
+  await expect(roots).toHaveCount(sourceObjects.size, { timeout: 120_000 });
+  const actual = await roots.evaluateAll((elements) => elements.map((element) =>
+    element.getAttribute('data-native-source-ref')));
+  const expectedRefs = [...sourceObjects.values()].map((item) => item.sourceRef);
+  expect(actual.sort(), `Page ${pageNumber} React annotation DOM source identities`)
+    .toEqual(expectedRefs.sort());
+  if (!verifySelection) return;
+
+  for (const item of sourceObjects.values()) {
+    const node = surface.locator('[data-native-source-ref]').filter({
+      has: page.locator('[data-native-annotation-hit-target]'),
+    });
+    // Prefer the true pointer hit surface; normal stamps/notes/lines own
+    // pointer events directly. Do not force-click through other annotations.
+    const candidate = surface.locator(`[data-native-source-ref="${item.sourceRef}"]`);
+    await expect(candidate, `Missing individual native source ${item.sourceRef}`).toHaveCount(1);
+    const hitTarget = candidate.locator('[data-native-annotation-hit-target]');
+    const clickable = await hitTarget.count() ? hitTarget.first() : candidate;
+    await clickable.click({ timeout: 10_000 });
+    await expect(candidate, `Native ${item.sourceRef} is not pointer-selectable`)
+      .toHaveAttribute('data-native-selected', 'true');
+    void node; // Selector kept locally for debugging hit-surface differences.
+  }
+}
+
 for (const entry of corpus) {
   test(`private native source: ${basename(entry.path)}`, async ({ page }) => {
     test.setTimeout(360_000);
@@ -106,6 +198,7 @@ for (const entry of corpus) {
     }
     const sourcePdf = await PDFDocument.load(inputBytes);
     assertNativeRoots(sourcePdf, entry.pages);
+    const sourceObjects = nativeObjectEvidence(sourcePdf);
     if (entry.subtypes) {
       for (const [index, expected] of entry.subtypes.entries()) {
         const roots = sourcePdf.getPage(index).node.lookupMaybe(PDFName.of('Annots'), PDFArray);
@@ -129,35 +222,41 @@ for (const entry of corpus) {
         await page.getByRole('button', { name: new RegExp(`^Page ${pageNumber}\\b`) }).click();
       }
       const surface = page.locator(`[data-page="${pageNumber}"]`);
-      await expect(surface).toBeVisible({ timeout: 30_000 });
       await expect(surface.locator('[data-annotation-type]')).toHaveCount(count, { timeout: 30_000 });
+      await assertSourceDomAndSelection(page, pageNumber, sourceObjects[index], true);
       if (entry.apImages) {
         await expect(surface.locator('img[data-native-annotation-appearance]'))
           .toHaveCount(entry.apImages[index], { timeout: 120_000 });
-      }
-
-      // An imported native annotation must remain selectable in the app.
-      const selectable = surface.locator('[data-native-annotation-hit-target], [data-annotation-type="stamp"]').first();
-      if (count > 0 && await selectable.count()) {
-        await selectable.click({ force: true });
-        await expect(surface.locator('.cursor-se-resize')).toBeVisible();
       }
     }
 
     // Native Save must retain the editable annotation graph, including the
     // AP streams that Adobe and Edge use to draw this exact document.
     const savedBytes = await downloadPdf(page, 'Save');
-    assertNativeRoots(await PDFDocument.load(savedBytes), entry.pages);
+    const savedPdf = await PDFDocument.load(savedBytes);
+    assertNativeRoots(savedPdf, entry.pages);
+    verifySavedObjects(sourceObjects, nativeObjectEvidence(savedPdf));
+    writePrivateOutput(entry, 'native-saved', savedBytes);
 
     // Reload the output as another browser session to expose local sidecar /
     // source-key reconciliation regressions, not just in-memory selection.
     await open(page, entry.path, savedBytes);
-    await expect(page.locator('[data-page="1"] [data-annotation-type]'))
-      .toHaveCount(entry.pages[0], { timeout: 120_000 });
+    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+    for (const [index, count] of entry.pages.entries()) {
+      const pageNumber = index + 1;
+      if (pageNumber > 1) {
+        await page.getByRole('button', { name: new RegExp(`^Page ${pageNumber}\\b`) }).click();
+      }
+      await expect(page.locator(`[data-page="${pageNumber}"] [data-annotation-type]`))
+        .toHaveCount(count, { timeout: 120_000 });
+      await assertSourceDomAndSelection(page, pageNumber, sourceObjects[index], false);
+    }
 
     // Explicit Export Flattened must bake visuals and remove all /Annots.
     // It must not change the separately saved native PDF above.
-    const flattened = await PDFDocument.load(await downloadPdf(page, 'Export flattened PDF'));
+    const flattenedBytes = await downloadPdf(page, 'Export flattened PDF');
+    writePrivateOutput(entry, 'flattened', flattenedBytes);
+    const flattened = await PDFDocument.load(flattenedBytes);
     expect(flattened.getPageCount()).toBe(entry.pages.length);
     for (const [index, outputPage] of flattened.getPages().entries()) {
       const remaining = outputPage.node.lookupMaybe(PDFName.of('Annots'), PDFArray);
