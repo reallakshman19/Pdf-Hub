@@ -316,7 +316,7 @@ export const ToolbarFile: React.FC = () => {
       </Tooltip>
 
       <Tooltip content="Export flattened PDF">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExport} disabled={!workingBytes}>
+        <Button variant="ghost" size="icon" aria-label="Export flattened PDF" className="h-8 w-8" onClick={handleExport} disabled={!workingBytes}>
           <FileOutput className="w-4 h-4" />
         </Button>
       </Tooltip>
