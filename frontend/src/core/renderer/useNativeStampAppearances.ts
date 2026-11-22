@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnnotationMode, type PDFDocumentProxy } from 'pdfjs-dist';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { renderIsolatedNativeAppearances } from './nativeAppearanceFallback';
+import { error as logError } from '@/core/logger/service';
 
 // The cache is scoped to a PDF.js document instance. It is never written into
 // the PDF or any shared store, and falls out of scope with the document.
@@ -50,9 +51,12 @@ async function sourcePageAppearances(
         try {
           const isolated = await renderIsolatedNativeAppearances(doc, pageNumber, missing);
           for (const [ref, url] of isolated) images.set(ref, url);
-        } catch {
-          // If the isolated renderer rejects an unsupported appearance,
-          // leave that annotation on its existing interactive SVG/HTML view.
+        } catch (err) {
+          // A source annotation stays selectable via the editor fallback,
+          // but the absence of original artwork must be diagnosable.
+          logError('annotation', 'Could not isolate native PDF appearances', {
+            pageNumber, count: missing.length, error: String(err),
+          });
         }
       }
       return images;
