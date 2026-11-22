@@ -96,7 +96,7 @@ export function authorizedEditFields(
       && typeof proof.commandId === 'string'
       && proof.commandId.length > 0
       && Array.isArray(proof.fields)
-      ? proof.nativeEditableFields.filter((field): field is NativeEditableField =>
+      ? proof.fields.filter((field): field is NativeEditableField =>
           nativeEditableFields.includes(field))
       : [],
   );
