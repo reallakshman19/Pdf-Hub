@@ -4,6 +4,7 @@ import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writ
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { PlacedElement } from '@/core/writer/types';
 import { writeNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationWriter';
+import { flattenNativePdfAnnotations } from '@/core/pdf-annotations/flattenNativePdfAnnotations';
 
 export interface ComposeCommittedPdfInput {
   baseBytes: Uint8Array;
@@ -48,10 +49,21 @@ export async function composeCommittedPdf(
     nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
   }
 
-  if (annotations.length > 0) {
-    const rawBytes = await PdfEditAdapter.exportWithAnnotations(nextBytes, annotations);
-    nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
+  if (annotations.length > 0 || input.replaceManagedAnnotations) {
+    // Apply pending native edits first, retaining the original /AP resources
+    // for unchanged imported annotations. Only an explicitly hydrated caller
+    // may remove PDF-native annotations omitted from the local model.
+    const native = await writeNativePdfAnnotations(nextBytes, annotations, {
+      replaceManagedAnnotations: input.replaceManagedAnnotations,
+    });
+    nextBytes = new Uint8Array(native.bytes);
   }
+
+  // The old PdfEditAdapter.exportWithAnnotations drew simplified HTML/SVG
+  // substitutes over the native originals and did not remove /Annots. Baking
+  // the real appearance Form XObjects preserves CAD vectors and removes
+  // editable annotation identities only in this explicit export path.
+  nextBytes = await flattenNativePdfAnnotations(nextBytes);
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);
   const documentKey = await FileAdapter.hashBytes(nextBytes);
