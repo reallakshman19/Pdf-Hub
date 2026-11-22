@@ -198,9 +198,9 @@ export function useAnnotationPersistence({
         delete data.nativeMarkupPreviewOffset;
         delete data.nativeMarkupGeneratedAppearance;
         let effectiveRect = item.rect;
-        const resolvedType: PdfAnnotation['type'] = (source?.type === 'callout' || item.type === 'callout')
-          ? 'callout'
-          : (source?.type ?? item.type);
+        // The actual /Subtype and /IT own the native type. A stale sidecar
+        // cannot silently convert an unchanged /FreeText into a callout.
+        const resolvedType: PdfAnnotation['type'] = origin ? item.type : source?.type ?? item.type;
         if (source) {
           // A sidecar cannot authorize a visual edit without revision-bound,
           // per-field user edit provenance. Source fields win by default.
@@ -337,6 +337,15 @@ export function useAnnotationPersistence({
         nativeSourceKeys: imported.annotations.map(nativeSourceKey),
         nativeDeletionTombstones: validTombstones,
       }).catch((err) => {
+        if (useSessionStore.getState().documentKey === documentKey) {
+          useAnnotationStore.setState({
+            nativeIntegrity: {
+              status: 'INCOMPLETE', documentKey,
+              reason: 'Native deletion and edit provenance could not be persisted',
+              cacheState: 'UNAVAILABLE',
+            },
+          });
+        }
         logError('annotation', 'Failed to persist native annotation baseline', {
           error: String(err), documentKey,
         });
