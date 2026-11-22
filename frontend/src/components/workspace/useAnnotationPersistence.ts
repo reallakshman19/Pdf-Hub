@@ -207,7 +207,7 @@ export function useAnnotationPersistence({
           // per-field user edit provenance. Source fields win by default.
           const edited = origin ? new Set<string>() : authorizedEditFields(item, source, documentKey);
           if (!origin && item.data.nativeSourceRef) {
-            const unproven = ['rect', 'text', 'anchor', 'knee', 'leaderStyle', 'arrowHead']
+            const unproven = (['rect', 'text', 'anchor', 'knee', 'leaderStyle', 'arrowHead'] as const)
               .some((field) => !edited.has(field) && (
                 field === 'rect'
                   ? JSON.stringify(item.rect) !== JSON.stringify(source.rect)
