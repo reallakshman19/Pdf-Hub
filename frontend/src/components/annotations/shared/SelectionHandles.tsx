@@ -7,6 +7,7 @@ export const SelectionHandles: React.FC<{
 }> = ({ onTransformStart }) => (
   <div
     className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-blue-600 rounded-tl-sm cursor-se-resize pointer-events-auto"
+    style={{ touchAction: 'none' }}
     onPointerDown={e => {
       e.stopPropagation();
       onTransformStart(e, 'resize');

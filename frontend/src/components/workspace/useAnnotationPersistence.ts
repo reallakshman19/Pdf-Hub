@@ -40,12 +40,34 @@ export function useAnnotationPersistence({
       if (useAnnotationStore.getState().annotations !== before) {
         throw new Error('Annotations changed before the native document finished loading.');
       }
-      const sourceByKey = new Map(imported.annotations.map((item) => [
-        `${item.pageNumber}\u0000${item.data.nativeOriginalName ?? item.id}`, item,
-      ]));
+      const sourceByKey = new Map<string, PdfAnnotation>();
+      const sourceByText = new Map<string, PdfAnnotation>();
+      const sourceByPos = new Map<string, PdfAnnotation>();
+      for (const item of imported.annotations) {
+        sourceByKey.set(`${item.pageNumber}\u0000${item.id}`, item);
+        if (item.data.nativeOriginalName) {
+          sourceByKey.set(`${item.pageNumber}\u0000${item.data.nativeOriginalName}`, item);
+        }
+        const strippedId = item.id.replace(/^pdfhub-native-p\d+:/, '');
+        sourceByKey.set(`${item.pageNumber}\u0000${strippedId}`, item);
+        if (item.data.text) {
+          const normText = item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+          sourceByText.set(`${item.pageNumber}\u0000${normText}`, item);
+        }
+        sourceByPos.set(`${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
+      }
       const model = stored === null ? imported.annotations : stored.map((item) => {
         const origin = item.data.nativeCopySource;
-        const source = sourceByKey.get(`${origin?.pageNumber ?? item.pageNumber}\u0000${origin?.nativeName ?? item.data.nativeOriginalName ?? item.id}`);
+        const pageNum = origin?.pageNumber ?? item.pageNumber;
+        const rawKey = origin?.nativeName ?? item.data.nativeOriginalName ?? item.id;
+        const normItemText = item.data.text
+          ? item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+          : '';
+        const source = sourceByKey.get(`${pageNum}\u0000${rawKey}`)
+          ?? sourceByKey.get(`${pageNum}\u0000${rawKey.replace(/^pdfhub-native-p\d+:/, '')}`)
+          ?? sourceByKey.get(`${pageNum}\u0000${item.id}`)
+          ?? (normItemText ? sourceByText.get(`${pageNum}\u0000${normItemText}`) : undefined)
+          ?? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`);
         const data = { ...item.data };
         delete data.nativeSourceRef;
         delete data.nativeAppearanceRef;
@@ -60,9 +82,30 @@ export function useAnnotationPersistence({
         delete data.nativeMarkupRotationSourceHash;
         delete data.nativeMarkupPreviewOffset;
         delete data.nativeMarkupGeneratedAppearance;
+        let effectiveRect = item.rect;
+        const resolvedType: PdfAnnotation['type'] = (source?.type === 'callout' || item.type === 'callout')
+          ? 'callout'
+          : (source?.type ?? item.type);
         if (source) {
           // Draft state cannot authorize changes to artwork already in the PDF.
           delete data.nativeMarkupDraft;
+          if (resolvedType === 'callout') {
+            if (source.data.anchor) data.anchor = source.data.anchor;
+            if (source.data.knee) data.knee = source.data.knee;
+            if (source.data.leaderStyle) data.leaderStyle = source.data.leaderStyle;
+            if (source.data.arrowHead) data.arrowHead = source.data.arrowHead;
+            if (source.rect && (!item.data.isUserModified)) {
+              effectiveRect = source.rect;
+            }
+          }
+          if (resolvedType === 'callout' || resolvedType === 'textbox') {
+            if (source.data.borderColor) data.borderColor = source.data.borderColor;
+            if (source.data.backgroundColor) data.backgroundColor = source.data.backgroundColor;
+            if (typeof source.data.textColor === 'string') data.textColor = source.data.textColor;
+            if (typeof source.data.fontFamily === 'string') data.fontFamily = source.data.fontFamily;
+            if (typeof source.data.borderWidth === 'number') data.borderWidth = source.data.borderWidth;
+            if (typeof source.data.text === 'string' && !item.data.isUserModified) data.text = source.data.text;
+          }
           // Classify from the native source, never a potentially stale
           // editable/generated flag restored from a sidecar.
           if (item.type === 'stamp') {
@@ -109,7 +152,7 @@ export function useAnnotationPersistence({
           if (source.data.nativeAppearanceRotation !== undefined) data.nativeAppearanceRotation = source.data.nativeAppearanceRotation;
           if (source.data.nativeAppearancePageRotation !== undefined) data.nativeAppearancePageRotation = source.data.nativeAppearancePageRotation;
         }
-        return { ...item, data };
+        return { ...item, type: resolvedType, rect: effectiveRect, data };
       });
       setAnnotations(model);
       const hydrated = useAnnotationStore.getState().annotations;

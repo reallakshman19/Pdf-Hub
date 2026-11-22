@@ -30,7 +30,8 @@ export function computeCalloutPath(
   boxRect: Rect,
   options?: CalloutPathOptions,
 ): CalloutPath {
-  const nearest = findNearestEdge(anchorPoint, boxRect);
+  const targetForEdge = options?.kneePoint ?? anchorPoint;
+  const nearest = findNearestEdge(targetForEdge, boxRect);
   const clampedAnchor = clampOutsideRect(anchorPoint, boxRect);
   const defaultKnee = computeDefaultKnee(clampedAnchor, nearest);
   const style = options?.leaderStyle === 'straight' ? 'straight' : 'elbow';

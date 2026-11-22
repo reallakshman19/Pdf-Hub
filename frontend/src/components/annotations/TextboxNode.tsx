@@ -15,6 +15,15 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
   const sideways = ((contentRotation % 180) + 180) % 180 === 90;
   const bodyWidth = sideways ? rect.height : rect.width;
   const bodyHeight = sideways ? rect.width : rect.height;
+  const borderWidth = typeof annotation.data?.borderWidth === 'number'
+    ? annotation.data.borderWidth
+    : (annotation.data?.borderColor && annotation.data.borderColor.toLowerCase() !== '#ffffff' ? 1.5 : 0);
+  const rawBorderColor = annotation.data?.borderColor;
+  const borderColor =
+    rawBorderColor && rawBorderColor.toLowerCase() !== '#ffffff'
+      ? rawBorderColor
+      : (annotation.data?.textColor ?? '#60a5fa');
+  const hasBorder = borderWidth > 0;
   return (
     <div
       data-annotation-type="textbox"
@@ -23,15 +32,18 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         left: rect.x + (rect.width - bodyWidth) / 2,
         top: rect.y + (rect.height - bodyHeight) / 2,
         width: bodyWidth, height: bodyHeight,
-        background: annotation.data?.backgroundColor ?? '#ffffff',
-        border: `1.5px solid ${annotation.data?.borderColor ?? '#60a5fa'}`,
+        background: annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent'),
+        border: hasBorder ? `${borderWidth}px solid ${borderColor}` : 'none',
         color: annotation.data?.textColor ?? '#0f172a',
+        fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
         textAlign: annotation.data?.textAlign ?? 'left',
         fontWeight: annotation.data?.fontWeight ?? 'normal',
         fontStyle: annotation.data?.fontStyle ?? 'normal',
         pointerEvents: 'all',
-        cursor: isLocked ? 'default' : 'pointer',
+        cursor: isLocked ? 'default' : (isEditing ? 'text' : (isSelected ? 'move' : 'pointer')),
+        touchAction: 'none',
+        userSelect: 'none',
         outline: isSelected ? '2px solid rgba(37, 99, 235, 0.18)' : 'none',
         transform: `rotate(${contentRotation + (annotation.data.rotation ?? 0)}deg)`,
       }}
@@ -55,9 +67,9 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         />
       ) : (
         <FreeTextPreview
-          className="px-1 py-0.5 select-none"
+          className={hasBorder ? 'px-1 py-0.5 select-none' : 'p-0 select-none'}
           text={annotation.data?.text ?? ''}
-          styleKey={`${bodyWidth}/${bodyHeight}/${scale}/${annotation.data?.fontSize}/${annotation.data?.fontWeight}/${annotation.data?.fontStyle}`}
+          styleKey={`${bodyWidth}/${bodyHeight}/${scale}/${annotation.data?.fontSize}/${annotation.data?.fontWeight}/${annotation.data?.fontStyle}/${annotation.data?.fontFamily}`}
         />
       )}
       {isSelected && !isLocked && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}

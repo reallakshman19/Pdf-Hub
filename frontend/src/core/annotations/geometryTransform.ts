@@ -186,17 +186,5 @@ export function remapAnnotationGeometry(
   if (annotation.type === 'ink' && annotation.data.paths
     && nextData.paths === annotation.data.paths) replace({ paths: annotation.data.paths.map(mapPairs) });
 
-  // Moving a callout moves its complete leader, while resizing its body leaves
-  // the anchor and knee in place. Explicitly supplied leader edits win.
-  if (previous.width === nextRect.width && previous.height === nextRect.height) {
-    const dx = nextRect.x - previous.x;
-    const dy = nextRect.y - previous.y;
-    if (annotation.data.anchor && nextData.anchor === annotation.data.anchor) {
-      replace({ anchor: { x: annotation.data.anchor.x + dx, y: annotation.data.anchor.y + dy } });
-    }
-    if (annotation.data.knee && nextData.knee === annotation.data.knee) {
-      replace({ knee: { x: annotation.data.knee.x + dx, y: annotation.data.knee.y + dy } });
-    }
-  }
   return result;
 }
