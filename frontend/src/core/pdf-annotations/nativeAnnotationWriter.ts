@@ -2,7 +2,7 @@ import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   deletionKey, isValidNativeDeletionTombstone,
-  nativeEditableFields,
+  nativeEditableFields, unprovenNativeEditFields,
   type NativeDeletionAuthorization,
 } from '@/core/annotations/nativeIntegrity';
 import type { ReviewMetadata, ReviewReply } from '@/core/review/types';

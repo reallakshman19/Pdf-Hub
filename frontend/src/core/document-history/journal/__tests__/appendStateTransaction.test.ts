@@ -96,6 +96,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'writer-store',
           'sha256:one',
         ),
+        before: afterState(),
         after: afterState(),
       });
 
@@ -181,6 +182,7 @@ describe('prepareHistoryJournalStateTransaction', () => {
           'annotation-store',
           'sha256:one',
         ),
+        before: afterState(),
         after: afterState(),
       }),
     ).rejects.toThrow(/does not match in-memory history cursor/);
