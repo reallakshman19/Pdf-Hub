@@ -73,6 +73,7 @@ export interface OcrSearchablePdfDiagnostic {
     | 'OCR_ITEM_SKIPPED_LOW_CONFIDENCE'
     | 'OCR_ITEM_SKIPPED_INVALID_BBOX'
     | 'OCR_PAGE_SIZE_SCALED'
+    | 'OCR_NATIVE_TEXT_PRESERVED'
     | 'NO_OCR_TEXT_EMBEDDED';
   message: string;
   pageIndex?: number;
@@ -141,9 +142,20 @@ export async function exportSearchableOcrPdf(
       continue;
     }
 
+    if (ocrPage.diagnostics?.some((diagnostic) => diagnostic.code === 'PAGE_SKIPPED_BORN_DIGITAL')) {
+      diagnostics.push({
+        level: 'info',
+        code: 'OCR_NATIVE_TEXT_PRESERVED',
+        pageIndex,
+        message: 'The source PDF already contains searchable text on this page.',
+      });
+      continue;
+    }
+
     const pageSize = page.getSize();
-    const ocrPageWidth = ocrPage.width ?? pageSize.width;
-    const ocrPageHeight = ocrPage.height ?? pageSize.height;
+    const usePdfUserSpace = ocrPage.geometryProvenance === 'pdf-user-space-v2';
+    const ocrPageWidth = usePdfUserSpace ? pageSize.width : (ocrPage.width ?? pageSize.width);
+    const ocrPageHeight = usePdfUserSpace ? pageSize.height : (ocrPage.height ?? pageSize.height);
 
     if (
       Math.round(pageSize.width) !== Math.round(ocrPageWidth)

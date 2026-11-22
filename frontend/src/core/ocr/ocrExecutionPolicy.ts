@@ -2,7 +2,8 @@ export type OcrExecutionScalePreset =
   | 'fast'
   | 'balanced'
   | 'accurate'
-  | 'high';
+  | 'high'
+  | 'ten-page-batch';
 
 export interface OcrExecutionPolicy {
   preset: OcrExecutionScalePreset;
@@ -11,6 +12,7 @@ export interface OcrExecutionPolicy {
   maxCanvasPixels: number;
   timeoutMs: number;
   allowLargeJobs: boolean;
+  batchChunkSize?: number;
 }
 
 export interface OcrExecutionPolicyInput {
@@ -20,6 +22,7 @@ export interface OcrExecutionPolicyInput {
   maxCanvasPixels?: number;
   timeoutMs?: number;
   allowLargeJobs?: boolean;
+  batchChunkSize?: number;
 }
 
 export interface OcrExecutionPageSize {
@@ -68,6 +71,7 @@ export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecution
     maxCanvasPixels: 8_000_000,
     timeoutMs: 45_000,
     allowLargeJobs: false,
+    batchChunkSize: 5,
   },
   balanced: {
     preset: 'balanced',
@@ -76,6 +80,7 @@ export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecution
     maxCanvasPixels: 16_000_000,
     timeoutMs: 90_000,
     allowLargeJobs: false,
+    batchChunkSize: 5,
   },
   accurate: {
     preset: 'accurate',
@@ -84,6 +89,7 @@ export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecution
     maxCanvasPixels: 24_000_000,
     timeoutMs: 150_000,
     allowLargeJobs: false,
+    batchChunkSize: 5,
   },
   high: {
     preset: 'high',
@@ -92,6 +98,16 @@ export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecution
     maxCanvasPixels: 32_000_000,
     timeoutMs: 240_000,
     allowLargeJobs: false,
+    batchChunkSize: 5,
+  },
+  'ten-page-batch': {
+    preset: 'ten-page-batch',
+    rasterScale: 3,
+    maxPagesPerJob: 10,
+    maxCanvasPixels: 24_000_000,
+    timeoutMs: 300_000,
+    allowLargeJobs: true,
+    batchChunkSize: 10,
   },
 };
 
@@ -109,6 +125,7 @@ export function createOcrExecutionPolicy(
     maxCanvasPixels: Math.max(1_000_000, Math.floor(input.maxCanvasPixels ?? base.maxCanvasPixels)),
     timeoutMs: Math.max(5_000, Math.floor(input.timeoutMs ?? base.timeoutMs)),
     allowLargeJobs: input.allowLargeJobs ?? base.allowLargeJobs,
+    batchChunkSize: input.batchChunkSize ?? base.batchChunkSize,
   };
 }
 
@@ -169,9 +186,11 @@ export function createOcrExecutionPlan(
 
   if (overLimit && input.policy.allowLargeJobs) {
     diagnostics.push({
-      level: 'warning',
+      level: 'info',
       code: 'OCR_LARGE_JOB_BLOCKED',
-      message: 'Large OCR job override is enabled. Browser OCR may be slow or memory-heavy.',
+      message: input.policy.preset === 'ten-page-batch'
+        ? `10-page batch mode active: processing ${allowedPageIndexes.length} page(s) in batches of up to ${input.policy.batchChunkSize ?? 10}.`
+        : 'Large OCR job override is enabled. Browser OCR may be slow or memory-heavy.',
     });
   }
 

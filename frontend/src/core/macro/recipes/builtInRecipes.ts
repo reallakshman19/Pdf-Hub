@@ -812,14 +812,14 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
   },
   {
     id: 'white-out-redaction',
-    name: 'White-Out Redaction Box',
-    description: 'Draw a white filled rectangle to cover (white-out) content on the current page.',
+    name: 'White Visual Mask',
+    description: 'Cover content on the current page with a white rectangle. Underlying PDF text remains searchable and extractable.',
     category: 'redaction',
     tags: ['redact', 'white-out', 'cover'],
     requiredOps: ['draw_redaction_box'],
     recipe: {
       id: 'white-out-redaction',
-      name: 'White-Out Redaction Box',
+      name: 'White Visual Mask',
       steps: [
         {
           op: 'draw_redaction_box',
@@ -835,14 +835,14 @@ const BUILT_IN_RECIPES: MacroRecipeCatalogItem[] = [
   },
   {
     id: 'black-redaction',
-    name: 'Black Redaction Box',
-    description: 'Draw a solid black rectangle to redact content on the current page.',
+    name: 'Black Visual Mask',
+    description: 'Cover content on the current page with a black rectangle. Underlying PDF text remains searchable and extractable.',
     category: 'redaction',
     tags: ['redact', 'black-out', 'censor'],
     requiredOps: ['draw_redaction_box'],
     recipe: {
       id: 'black-redaction',
-      name: 'Black Redaction Box',
+      name: 'Black Visual Mask',
       steps: [
         {
           op: 'draw_redaction_box',

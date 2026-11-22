@@ -35,6 +35,7 @@ import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { ocrStore } from '@/core/ocr/store';
 import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
+import { pdfRectToViewportSelection } from '@/core/ocr/ocrViewportGeometry';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
@@ -1112,15 +1113,28 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   React.useEffect(() => {
     if (!pageOcrFocus || !ocrFocusRef.current) return;
 
-    ocrFocusRef.current.scrollIntoView({
+    ocrFocusRef.current.scrollIntoView?.({
       behavior: 'smooth',
-      block: 'center',
-      inline: 'center',
+      block: 'nearest',
+      inline: 'nearest',
     });
   }, [pageOcrFocus]);
 
   const pageWidth = (renderSize?.width || size.width) / scale;
   const pageHeight = (renderSize?.height || size.height) / scale;
+
+  const pageOcrFocusRect = React.useMemo(() => {
+    if (!pageOcrFocus) return null;
+    if (ocrViewport && typeof ocrViewport.convertToViewportRectangle === 'function') {
+      return pdfRectToViewportSelection(ocrViewport, pageOcrFocus.bbox);
+    }
+    return {
+      x: pageOcrFocus.bbox.x * scale,
+      y: (pageHeight - pageOcrFocus.bbox.y - pageOcrFocus.bbox.height) * scale,
+      width: Math.max(2, pageOcrFocus.bbox.width * scale),
+      height: Math.max(2, pageOcrFocus.bbox.height * scale),
+    };
+  }, [pageOcrFocus, ocrViewport, pageHeight, scale]);
 
   const clampRect = React.useCallback(
     (rect: Rect): Rect => {
@@ -1925,16 +1939,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         </div>
       )}
 
-      {pageOcrFocus ? (
+      {pageOcrFocus && pageOcrFocusRect ? (
         <div
           ref={ocrFocusRef}
           data-testid="ocr-review-focus-target"
           className="absolute z-[19] pointer-events-none rounded-sm border-2 border-blue-500 bg-blue-400/15 shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
           style={{
-            left: pageOcrFocus.bbox.x * scale,
-            top: pageOcrFocus.bbox.y * scale,
-            width: Math.max(2, pageOcrFocus.bbox.width * scale),
-            height: Math.max(2, pageOcrFocus.bbox.height * scale),
+            left: pageOcrFocusRect.x,
+            top: pageOcrFocusRect.y,
+            width: Math.max(2, pageOcrFocusRect.width),
+            height: Math.max(2, pageOcrFocusRect.height),
           }}
         >
           {pageOcrFocus.label ? (

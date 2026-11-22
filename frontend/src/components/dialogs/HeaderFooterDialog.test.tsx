@@ -368,6 +368,29 @@ describe('HeaderFooterDialog', () => {
     expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 2, 3]));
   });
 
+  it('applies the preview date and time while keeping page tokens dynamic', async () => {
+    vi.setSystemTime(new Date('2026-11-19T23:59:59Z'));
+    const onApply = vi.fn().mockResolvedValue(true);
+    try {
+      render(<HeaderFooterDialog isOpen pageGraph={graph()}
+        currentPageId="body-1" selectedPageIds={[]} fileName="report.pdf"
+        onClose={vi.fn()} onApply={onApply} />);
+      fireEvent.change(screen.getByRole('textbox', { name: 'Footer right' }), {
+        target: { value: '{{ date }} {{time}} - {{physicalPage}}' },
+      });
+      vi.setSystemTime(new Date('2026-11-20T00:00:01Z'));
+      fireEvent.click(screen.getByRole('button', { name: 'Apply header & footer' }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledWith(expect.objectContaining({
+        rules: [expect.objectContaining({
+          footer: { right: { kind: 'text', template: '2026-11-19 23:59:59Z - {{physicalPage}}' } },
+        })],
+      }), undefined));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows native writer errors rather than misleading schematic output', async () => {
     const pageGraph = graph();
     useSessionStore.getState().openDocument({

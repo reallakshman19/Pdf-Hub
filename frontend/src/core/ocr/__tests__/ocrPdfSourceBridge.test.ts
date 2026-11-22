@@ -4,6 +4,7 @@ import {
   it,
 } from 'vitest';
 import {
+  convertTextContentToOcrPageResult,
   createOcrPdfSourceSummary,
   getOcrPageIndexesForPanel,
   getOcrPdfSourceFromSessionState,
@@ -185,5 +186,27 @@ describe('ocrPdfSourceBridge', () => {
     source.pdfBytes[0] = 99;
 
     expect(workingBytes[0]).toBe(1);
+  });
+
+  it('converts native text content items to complete OCR page result', () => {
+    const pageResult = convertTextContentToOcrPageResult({
+      pageIndex: 0,
+      width: 600,
+      height: 800,
+      items: [
+        { str: 'NIFTY 50', transform: [14, 0, 0, 14, 50, 750], width: 80, height: 14 },
+        { str: '22,340.55', transform: [16, 0, 0, 16, 50, 720], width: 90, height: 16 },
+        { str: '₹24,322.54', transform: [16, 0, 0, 16, 50, 680], width: 95, height: 16 },
+      ],
+    });
+
+    expect(pageResult.pageIndex).toBe(0);
+    expect(pageResult.status).toBe('success');
+    expect(pageResult.pageType).toBe('bornDigital');
+    expect(pageResult.words?.length).toBe(4); // 'NIFTY', '50', '22,340.55', '₹24,322.54'
+    expect(pageResult.lines?.length).toBe(3);
+    expect(pageResult.blocks?.length).toBe(1);
+    expect(pageResult.words?.[0]?.confidence).toBe(1.0);
+    expect(pageResult.words?.some((w) => w.text === '₹24,322.54')).toBe(true);
   });
 });

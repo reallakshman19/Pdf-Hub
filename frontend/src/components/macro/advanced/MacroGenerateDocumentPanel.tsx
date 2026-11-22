@@ -125,6 +125,19 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
       pageCount: source.pageCount,
     };
     const controller = new AbortController();
+    let sourceChanged = false;
+    const stopWatchingSource = useSessionStore.subscribe((live) => {
+      if (
+        live.documentKey !== sourceIdentity.documentKey
+        || live.workingBytes !== sourceIdentity.workingBytes
+        || live.fileName !== sourceIdentity.fileName
+        || live.pageCount !== sourceIdentity.pageCount
+        || live.revisionStoreId !== source.revisionStoreId
+        || live.activeRevisionId !== source.activeRevisionId
+      ) {
+        sourceChanged = true;
+      }
+    });
     generationAbortRef.current = controller;
     onBusyChange?.(true);
     setIsRunning(true);
@@ -172,14 +185,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         return;
       }
 
-      // Do not publish a stale result against a changed source or document.
-      const live = useSessionStore.getState();
-      if (
-        live.documentKey !== sourceIdentity.documentKey
-        || live.workingBytes !== sourceIdentity.workingBytes
-        || live.fileName !== sourceIdentity.fileName
-        || live.pageCount !== sourceIdentity.pageCount
-      ) {
+      if (sourceChanged) {
         setRunError('Source PDF changed during generation; output was discarded.');
         return;
       }
@@ -207,6 +213,7 @@ export const MacroGenerateDocumentPanel: React.FC<MacroGenerateDocumentPanelProp
         });
       }
     } finally {
+      stopWatchingSource();
       if (generationAbortRef.current === controller) {
         generationAbortRef.current = null;
       }

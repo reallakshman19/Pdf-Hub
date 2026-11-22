@@ -130,11 +130,13 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
   ...createInitialOcrStoreState(),
 
   hydrateOcrSession: (input) => {
+    const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+    const defaultEngine = isTest ? 'mock' : 'tesseract-js';
     const baseState: OcrStoreState = {
       ...get(),
       ...getInitialOcrDataState(),
       documentFingerprint: input.documentFingerprint,
-      engineId: input.engineId ?? 'mock',
+      engineId: input.engineId ?? defaultEngine,
       profileId: input.profileId ?? 'clean-scan',
       forceOcr: input.forceOcr ?? false,
       selectedPageIndexes: normalizePageIndexes(input.selectedPageIndexes ?? []),
@@ -425,9 +427,10 @@ export const useOcrStore = create<OcrStoreState>((set, get) => ({
 }));
 
 export function getInitialOcrDataState() {
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
   return {
     documentFingerprint: null,
-    engineId: 'mock',
+    engineId: isTest ? 'mock' : 'tesseract-js',
     profileId: 'clean-scan' as OcrProfileId,
     forceOcr: false,
     selectedPageIndexes: [],

@@ -91,10 +91,19 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
   await page.mouse.move(right, bottom, { steps: 5 });
   await page.mouse.up();
 
+  const pending = page.getByTestId('ocr-document-region-pending');
+  await expect(pending).toBeVisible();
+  const pendingRect = await pending.evaluate(pageRelativeRect);
   const picker = page.getByTestId('ocr-document-region-mode-picker');
   await expect(picker).toBeVisible();
   await picker.getByRole('button', { name: 'text', exact: true }).click();
   await expect(page.getByTestId('ocr-region-row')).toHaveCount(1);
+  const focus = page.getByTestId('ocr-review-focus-target');
+  await expect(focus).toBeVisible();
+  const focusRect = await focus.evaluate(pageRelativeRect);
+  for (const [coordinate, value] of pendingRect.entries()) {
+    expect(Math.abs(focusRect[coordinate] - value)).toBeLessThanOrEqual(2);
+  }
 
   const firstZip = await saveProject(page);
   await persistWp05SyntheticEvidence('wp05-synthetic-first-project.pdfhub.zip', firstZip);
@@ -146,3 +155,11 @@ test('P05: document OCR Area on a real rotated CropBox page survives two editabl
     }
   }
 });
+
+function pageRelativeRect(element: Element): number[] {
+  const page = element.closest('[data-page]');
+  if (!page) throw new Error('OCR overlay is outside a document page');
+  const rect = element.getBoundingClientRect();
+  const pageRect = page.getBoundingClientRect();
+  return [rect.left - pageRect.left, rect.top - pageRect.top, rect.width, rect.height];
+}

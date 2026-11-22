@@ -1,9 +1,11 @@
 import {
   getDocument,
   GlobalWorkerOptions,
+  OPS,
 } from 'pdfjs-dist';
 import type {
   OcrDiagnostic,
+  OcrPageResult,
 } from './types';
 import { raceWithAbort, throwIfAborted } from '../cancellation/operationCancellation';
 import type {
@@ -12,6 +14,10 @@ import type {
 import type {
   PdfRect,
 } from '../writer-v2/types';
+import {
+  convertTextContentToOcrPageResult,
+  type PdfNativeTextItem,
+} from './ocrPdfSourceBridge';
 
 export type PdfRasterImageMimeType =
   | 'image/png'
@@ -40,6 +46,8 @@ export interface PdfRasterizerPageLike {
     canvasContext: unknown;
     viewport: PdfRasterizerViewport;
   }) => PdfRasterizerRenderTask;
+  getTextContent?: () => Promise<{ items: unknown[] }>;
+  getOperatorList?: () => Promise<{ fnArray: number[] }>;
 }
 
 export interface PdfRasterizerDocumentLike {
@@ -112,6 +120,8 @@ export interface RasterizedPdfPage {
   scale: number;
   region?: PdfRect;
   pixelToPdfTransform?: readonly [number, number, number, number, number, number];
+  embeddedTextLength?: number;
+  nativePageResult?: OcrPageResult;
   diagnostics: OcrDiagnostic[];
 }
 
@@ -265,6 +275,37 @@ export async function rasterizePdfPageForOcr(
       fallbackPdfBounds: input.region ?? pdfBounds,
     });
 
+    let embeddedTextLength = 0;
+    let nativePageResult: OcrPageResult | undefined;
+
+    try {
+      if (!input.region && page.getTextContent && page.getOperatorList) {
+        const textContent = await raceWithAbort(page.getTextContent(), input.signal, 'read native PDF text');
+        if (Array.isArray(textContent.items) && textContent.items.length > 0) {
+          const nativeTextLength = textContent.items.reduce(
+            (acc: number, item: unknown) =>
+              acc + (typeof (item as { str?: unknown })?.str === 'string' ? (item as { str: string }).str.length : 0),
+            0,
+          );
+          const operators = nativeTextLength > 0
+            ? await raceWithAbort(page.getOperatorList(), input.signal, 'inspect PDF page images')
+            : null;
+          if (operators && !containsRasterImage(operators.fnArray)) {
+            embeddedTextLength = nativeTextLength;
+            nativePageResult = convertTextContentToOcrPageResult({
+              pageIndex: input.pageIndex,
+              width: baseViewport.width,
+              height: baseViewport.height,
+              items: textContent.items as PdfNativeTextItem[],
+            });
+          }
+        }
+      }
+    } catch {
+      throwIfAborted(input.signal, 'inspect native OCR page content');
+      // Non-fatal if native text extraction is unavailable
+    }
+
     if (input.region) {
       diagnostics.push({
         level: 'info',
@@ -285,6 +326,8 @@ export async function rasterizePdfPageForOcr(
       scale,
       region: input.region,
       pixelToPdfTransform,
+      embeddedTextLength,
+      nativePageResult,
       diagnostics,
     };
   } finally {
@@ -331,7 +374,23 @@ export function rasterizedPdfPageToOcrEnginePageInput(
     rasterWidth: page.rasterWidth,
     rasterHeight: page.rasterHeight,
     pixelToPdfTransform: page.pixelToPdfTransform,
+    embeddedTextLength: page.embeddedTextLength,
+    nativePageResult: page.nativePageResult,
   };
+}
+
+function containsRasterImage(operators: number[]): boolean {
+  const rasterImageOperators = new Set([
+    OPS.paintImageMaskXObject,
+    OPS.paintImageMaskXObjectGroup,
+    OPS.paintImageXObject,
+    OPS.paintInlineImageXObject,
+    OPS.paintInlineImageXObjectGroup,
+    OPS.paintImageXObjectRepeat,
+    OPS.paintImageMaskXObjectRepeat,
+    OPS.paintSolidColorImageMask,
+  ]);
+  return operators.some((op) => rasterImageOperators.has(op));
 }
 
 export function rasterizedPdfPagesToOcrEnginePageInputs(

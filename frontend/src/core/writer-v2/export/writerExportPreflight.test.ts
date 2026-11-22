@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import type { WriterElementV2 } from '../types';
 import type { WriterAssetRecordV2 } from '../persistence/indexedDbWriterStore';
-import { runWriterExportPreflight } from './writerExportPreflight';
+import { createWriterPageSetup } from '../writerDocumentMode';
+import { useWriterV2Store } from '../writerV2Store';
+import { runCurrentWriterExportPreflight, runWriterExportPreflight } from './writerExportPreflight';
 
 function element(
   id: string,
@@ -43,6 +45,54 @@ async function samplePdf(): Promise<Uint8Array> {
   pdf.addPage([300, 400]);
   return pdf.save();
 }
+
+describe('current Writer export preflight', () => {
+  afterEach(() => useWriterV2Store.getState().clearWriterV2());
+
+  it('accepts a valid object on the second page of a blank document', async () => {
+    const writer = useWriterV2Store.getState();
+    const meta = writer.createBlankWriterDocument({ pageCount: 2 });
+    writer.dispatchWriterCommand({
+      type: 'ADD_WRITER_ELEMENT',
+      element: element('blank-1', { pageIndex: 1, documentFingerprint: meta.documentFingerprint }),
+    });
+
+    const result = await runCurrentWriterExportPreflight();
+
+    expect(result.ok).toBe(true);
+    expect(result.pageCount).toBe(2);
+    expect(result.byPage[1]?.visibleElementCount).toBe(1);
+  });
+
+  it('checks object bounds against the custom blank page size', async () => {
+    const writer = useWriterV2Store.getState();
+    const meta = writer.createBlankWriterDocument({
+      pageSetup: createWriterPageSetup('Custom', { width: 400, height: 300 }),
+    });
+    writer.dispatchWriterCommand({
+      type: 'ADD_WRITER_ELEMENT',
+      element: element('blank-outside', {
+        documentFingerprint: meta.documentFingerprint,
+        rect: { x: 350, y: 20, width: 100, height: 40 },
+      }),
+    });
+
+    const result = await runCurrentWriterExportPreflight();
+
+    expect(result.ok).toBe(true);
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'OBJECT_OUTSIDE_PAGE_BOUNDS',
+      elementId: 'blank-outside',
+    }));
+  });
+
+  it('blocks export when there is neither a PDF nor a blank document', async () => {
+    const result = await runCurrentWriterExportPreflight();
+
+    expect(result.hasErrors).toBe(true);
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'NO_PDF_OPEN' }));
+  });
+});
 
 describe('writerExportPreflight', () => {
   it('passes with visible text object', async () => {

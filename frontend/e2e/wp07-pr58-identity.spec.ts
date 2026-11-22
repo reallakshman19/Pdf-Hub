@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { degrees, PDFArray, PDFDict, PDFDocument, PDFName, PDFString, StandardFonts } from 'pdf-lib';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
@@ -357,6 +357,60 @@ test('WP07 P0: native annotation ownership follows source B through C,A,B reorde
       Buffer.from(JSON.stringify({ sha256, page_order: order, annotation_count_by_page: annotations }, null, 2)),
     );
     console.log(`WP07_ANNOTATION_OWNER sha256=${sha256} order=${order.join(',')} notes=${annotations.join(',')}`);
+  } finally {
+    await native.destroy();
+  }
+});
+
+test('WP07 M06: visual mask labels match the workflow and covered text remains extractable', async ({ page }) => {
+  await openDocumentAndBuilder(page);
+  const templates = page.locator('select optgroup[label="Templates"]');
+  await expect(templates.locator('option[value="builtin:white-out-redaction"]')).toHaveText('White Visual Mask');
+  await expect(templates.locator('option[value="builtin:black-redaction"]')).toHaveText('Black Visual Mask');
+  await page.locator('[data-macro-builder="true"]').getByRole('button', { name: 'Close', exact: true }).click();
+
+  const sidebar = page.getByTestId('automate-sidebar');
+  await sidebar.getByRole('button', { name: 'Quick Actions' }).click();
+  await page.getByTestId('automate-batch-run').getByRole('button', { name: 'Choose Workflow' }).click();
+  const batchPicker = page.getByLabel('Batch workflow');
+  await expect(batchPicker.locator('option[value="white-out-redaction"]')).toHaveText('White Visual Mask');
+  await expect(batchPicker.locator('option[value="black-redaction"]')).toHaveText('Black Visual Mask');
+  await batchPicker.selectOption({ label: 'Black Visual Mask' });
+
+  const marker = 'WP07 COVERED SOURCE TEXT';
+  const source = await PDFDocument.create();
+  const font = await source.embedFont(StandardFonts.Helvetica);
+  const sourcePage = source.addPage([612, 792]);
+  sourcePage.drawText(marker, { x: 72, y: 676, size: 12, font });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose PDFs & Run' }).click(),
+  ]);
+  await chooser.setFiles({ name: 'mask-source.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await source.save()) });
+
+  const queue = page.getByTestId('macro-output-queue');
+  await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1);
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { predicate: (item) => item.suggestedFilename().endsWith('.pdf') }),
+    queue.getByRole('button', { name: 'Save', exact: true }).click(),
+  ]);
+  const output = await readFile(await download.path() as string);
+  const native = await getDocument({ data: new Uint8Array(output) }).promise;
+  try {
+    const outputPage = await native.getPage(1);
+    const { fnArray, argsArray } = await outputPage.getOperatorList();
+    const maskIndex = fnArray.findIndex((op, index) => op === OPS.constructPath && argsArray[index]?.[0] === OPS.fill);
+    expect(maskIndex).toBeGreaterThanOrEqual(0);
+    expect(Array.from(argsArray[maskIndex][2] as ArrayLike<number>)).toEqual([0, 0, 300, 30]);
+    const maskScope = fnArray.lastIndexOf(OPS.save, maskIndex);
+    const maskTransforms = fnArray.flatMap((op, index) => (
+      op === OPS.transform && index > maskScope && index < maskIndex
+        ? [Array.from(argsArray[index] as ArrayLike<number>)]
+        : []
+    ));
+    expect(maskTransforms).toContainEqual([1, 0, 0, 1, 36, 662]);
+    const text = (await outputPage.getTextContent()).items.map((item) => 'str' in item ? item.str : '').join(' ');
+    expect(text).toContain(marker);
   } finally {
     await native.destroy();
   }

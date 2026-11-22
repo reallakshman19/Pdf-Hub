@@ -1,5 +1,5 @@
 import type { PdfRect } from '../../writer-v2/types';
-import type { OcrDocumentResult } from '../types';
+import type { OcrDocumentResult, OcrPageResult } from '../types';
 import type { OcrProfile } from '../ocrProfiles';
 
 export interface OcrEnginePageInput {
@@ -17,6 +17,12 @@ export interface OcrEnginePageInput {
   /** Actual OCR image pixel width/height, distinct from PDF-point dimensions. */
   rasterWidth?: number;
   rasterHeight?: number;
+
+  /** Length of native embedded text extracted from digital PDF stream. */
+  embeddedTextLength?: number;
+
+  /** Extracted native PDF text for a page verified to contain no raster images. */
+  nativePageResult?: OcrPageResult;
 
   /**
    * Affine transform from OCR image pixel coordinates (top-left origin)

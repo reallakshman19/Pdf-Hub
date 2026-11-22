@@ -12,6 +12,19 @@ export interface HeaderFooterTokenValues {
 
 const TOKEN_PATTERN = /{{\s*([^{}]+?)\s*}}/g;
 
+export function freezeHeaderFooterClockTokens(template: string, now: Date): string {
+  return template.replace(TOKEN_PATTERN, (match, rawToken: string) => {
+    switch (rawToken.trim()) {
+      case 'date':
+        return formatUtcDate(now);
+      case 'time':
+        return formatUtcTime(now);
+      default:
+        return match;
+    }
+  });
+}
+
 export function resolveHeaderFooterText(
   template: string,
   values: HeaderFooterTokenValues,

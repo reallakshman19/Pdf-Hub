@@ -304,9 +304,10 @@ export function createDefaultOcrRasterWorkerClient(
   } = {},
 ): OcrRasterWorkerClient {
   return new OcrRasterWorkerClient({
-    workerFactory: createBrowserOcrRasterWorkerFactory(
+    workerFactory: () => new Worker(
       new URL('./ocrRasterWorkerEntrypoint.ts', import.meta.url),
-    ),
+      { type: 'module' },
+    ) as unknown as OcrRasterWorkerLike,
     requestTimeoutMs: options.requestTimeoutMs,
   });
 }

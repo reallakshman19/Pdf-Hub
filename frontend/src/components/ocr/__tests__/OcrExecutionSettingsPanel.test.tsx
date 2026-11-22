@@ -115,4 +115,26 @@ describe('OcrExecutionSettingsPanel', () => {
 
     expect(cancelled).toBe(true);
   });
+
+  it('selects fast mode and 10-page batch mode from shortcut buttons', () => {
+    let policy: OcrExecutionPolicy = createOcrExecutionPolicy();
+
+    render(
+      <OcrExecutionSettingsPanel
+        policy={policy}
+        onChange={(next) => {
+          policy = next;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('ocr-mode-batch-button'));
+    expect(policy.preset).toBe('ten-page-batch');
+    expect(policy.rasterScale).toBe(3);
+    expect(policy.batchChunkSize).toBe(10);
+
+    fireEvent.click(screen.getByTestId('ocr-mode-fast-button'));
+    expect(policy.preset).toBe('fast');
+    expect(policy.rasterScale).toBe(1.25);
+  });
 });

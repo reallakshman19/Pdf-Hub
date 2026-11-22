@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MacroOutputFile } from './types';
 import type { BatchRunResult, BatchOutputArtifact } from './batchRunner';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { reserveGeneratedDocumentOutputName } from './generateDocument/generateDocumentOutputName';
 import {
   createBestAvailableBatchCustodyAdapter,
   type BatchCustodyAdapter,
@@ -345,9 +346,12 @@ export const useMacroOutputQueueStore = create<MacroOutputQueueState>((set, get)
     return queued.map((item) => item.id);
   },
   enqueueOutputs: (files, provenance = {}) => {
+    const usedNames = provenance.sourceKind === 'generated'
+      ? new Set(get().outputs.map((item) => item.name.toLowerCase()))
+      : null;
     const queued = files.map((file) => ({
       id: uuidv4(),
-      name: file.name,
+      name: usedNames ? reserveGeneratedDocumentOutputName(file.name, usedNames) : file.name,
       bytes: new Uint8Array(file.bytes),
       ...provenance,
     }));

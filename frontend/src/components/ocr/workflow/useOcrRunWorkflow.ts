@@ -329,7 +329,6 @@ export function useOcrRunWorkflow({
         requestedPageIndexes,
         totalPages: Math.max(1, pageCount),
         policy: executionPolicy,
-        batchSize: Math.max(1, Math.min(5, executionPolicy.maxPagesPerJob)),
         batchConcurrency: 1,
         signal: abort.controller.signal,
         onDiagnostic: (diagnostic) => {

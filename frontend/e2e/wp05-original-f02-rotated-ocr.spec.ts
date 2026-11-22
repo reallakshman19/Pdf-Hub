@@ -9,7 +9,7 @@ import { jumpToPhase8gPage } from './phase8gBrowserBenchmarkSupport';
 test.use({ viewport: { width: 1440, height: 900 } });
 
 const F02_SHA256 = 'e9a40be14d253dd6916ff0d6a8ecbf1ccb36c4ca51452b98cddf6e345b812ddd';
-const FIXTURE = path.join(process.cwd(), 'e2e/fixtures/wp05-source-f01-f08/F02-rotated-2p.pdf');
+const FIXTURE = path.join(process.cwd(), 'e2e/fixtures/F02-rotated-2p.pdf');
 
 test('P05 F02: rotated source page 2 OCR Area recognizes ANCHOR from the real raster crop', async ({ page }) => {
   test.setTimeout(150_000);

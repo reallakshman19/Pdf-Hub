@@ -29,10 +29,18 @@ export function pdfRectToViewportSelection(
   viewport: OcrPdfViewport,
   rect: PdfRect,
 ): PdfRect {
-  const points = viewport.convertToViewportRectangle([
-    rect.x, rect.y, rect.x + rect.width, rect.y + rect.height,
-  ]);
-  return boundsOfPoints([[points[0], points[1]], [points[2], points[3]]]);
+  if (typeof viewport?.convertToViewportRectangle === 'function') {
+    const points = viewport.convertToViewportRectangle([
+      rect.x, rect.y, rect.x + rect.width, rect.y + rect.height,
+    ]);
+    return boundsOfPoints([[points[0], points[1]], [points[2], points[3]]]);
+  }
+  return {
+    x: rect.x,
+    y: viewport.height - rect.y - rect.height,
+    width: rect.width,
+    height: rect.height,
+  };
 }
 
 function boundsOfPoints(points: ReadonlyArray<readonly number[]>): PdfRect {

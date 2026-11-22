@@ -82,6 +82,7 @@ export async function rasterizeForOcrWithOptionalWorker(
     maxCanvasPixels: input.maxCanvasPixels,
     mimeType: input.mimeType ?? 'image/png',
     quality: input.quality,
+    signal: input.signal,
   });
 
   return rasterizedPdfPagesToOcrEnginePageInputs(rasterized.pages);

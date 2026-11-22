@@ -64,9 +64,15 @@ describe('OcrReviewWorkspace', () => {
   });
 
   it('publishes real PDF focus when a low-confidence word is selected', () => {
-    useOcrStore.getState().setOcrResult(
-      createOcrDemoResult('clean-text', 'review-doc'),
-    );
+    const result = createOcrDemoResult('clean-text', 'review-doc');
+    const firstPage = result.pages[0];
+    if (firstPage && firstPage.words && firstPage.words.length > 0) {
+      firstPage.words[0] = {
+        ...firstPage.words[0],
+        confidence: 0.45,
+      };
+    }
+    useOcrStore.getState().setOcrResult(result);
 
     render(
       <OcrReviewWorkspace
@@ -103,7 +109,7 @@ describe('OcrReviewWorkspace', () => {
     expect(screen.queryByTestId('ocr-review-workspace-summary')).toBeNull();
   });
 
-  it('renders restored Writer insertion queue and emits inserted elements', () => {
+  it('renders restored Writer insertion queue and emits inserted elements', async () => {
     const onInsertWriterElements = vi.fn();
     const element = createWriterTextElement('review-doc');
 
@@ -128,7 +134,9 @@ describe('OcrReviewWorkspace', () => {
     fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
 
     expect(onInsertWriterElements).toHaveBeenCalledWith([element]);
-    expect(defaultProps.onWriterInsertionQueueChange).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(defaultProps.onWriterInsertionQueueChange).toHaveBeenCalled();
+    });
   });
 
   it('resets selected review state when document fingerprint changes', async () => {
@@ -154,7 +162,9 @@ describe('OcrReviewWorkspace', () => {
 
     fireEvent.click(screen.getByTestId('ocr-writer-insert-button'));
 
-    expect(screen.getByTestId('ocr-writer-inserted-summary').textContent).toContain('Inserted 1');
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-writer-inserted-summary').textContent).toContain('Inserted 1');
+    });
 
     rerender(
       <OcrReviewWorkspace

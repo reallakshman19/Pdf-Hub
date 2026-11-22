@@ -11,7 +11,7 @@ import { jumpToPhase8gPage, waitForPhase8gRenderedPage } from './phase8gBrowserB
 
 const WARMUPS = 2;
 const MEASURED = 10;
-const FIXTURE_DIR = path.join(process.cwd(), 'e2e/fixtures/wp05-source-f01-f08');
+const FIXTURE_DIR = path.join(process.cwd(), 'e2e/fixtures');
 const SHA: Record<number,string> = {
   100: '3199e92b935991f31d3b134fa8c907f059bcda243158390f81c681be25883de0',
   500: 'dc42b78cbd6db7c5b90b09a005875ad848d28b19632d47675499adbeb329e078',

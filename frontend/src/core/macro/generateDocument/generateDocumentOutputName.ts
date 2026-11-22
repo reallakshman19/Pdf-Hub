@@ -29,3 +29,15 @@ export function buildGeneratedDocumentOutputName(
     : '';
   return `${base}${suffix}.pdf`;
 }
+
+export function reserveGeneratedDocumentOutputName(name: string, usedNames: Set<string>): string {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : '';
+  let candidate = name;
+  for (let suffix = 2; usedNames.has(candidate.toLowerCase()); suffix += 1) {
+    candidate = `${stem}-${suffix}${extension}`;
+  }
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}

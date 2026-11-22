@@ -62,6 +62,19 @@ describe('WP07 pending PDF output custody', () => {
     expect(useMacroOutputQueueStore.getState().outputs.map((p) => p.name)).toEqual(['B.pdf', 'C.pdf']);
   });
 
+  it('assigns distinct download names to generated records with the same title', () => {
+    const { enqueueOutputs } = useMacroOutputQueueStore.getState();
+    enqueueOutputs([{ name: 'Report.pdf', bytes: new Uint8Array([1]) }], { sourceKind: 'generated' });
+    enqueueOutputs([
+      { name: 'report.pdf', bytes: new Uint8Array([2]) },
+      { name: 'report.pdf', bytes: new Uint8Array([3]) },
+    ], { sourceKind: 'generated' });
+
+    const outputs = useMacroOutputQueueStore.getState().outputs;
+    expect(outputs.map((file) => file.name)).toEqual(['Report.pdf', 'report-2.pdf', 'report-3.pdf']);
+    expect(outputs.map((file) => Array.from(file.bytes))).toEqual([[1], [2], [3]]);
+  });
+
   it('does not discard pending PDFs across component-style queue selectors', () => {
     useMacroOutputQueueStore.getState().enqueueOutputs([{ name: 'A.pdf', bytes: new Uint8Array([9]) }]);
     const firstConsumer = useMacroOutputQueueStore.getState().outputs;

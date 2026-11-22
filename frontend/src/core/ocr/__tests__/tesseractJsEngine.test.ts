@@ -532,4 +532,23 @@ describe('tesseractJsEngine', () => {
     expect(registry.getEngine('tesseract-js')).not.toBeNull();
     expect(registry.listEngines().map((engine) => engine.id)).toContain('tesseract-js');
   });
+
+  it('preserves recognized currencies, labels and separators for review', () => {
+    const values = ['¥600', '₹600', 'A 0.56%', 'V 0.26%', 'OMR ~ INR'];
+    const result = tesseractDataToOcrPageResult({
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+      data: {
+        text: values.join('\n'),
+        confidence: 90,
+        lines: values.map((value, index) => ({
+          text: value,
+          confidence: 90,
+          bbox: { x0: 10, y0: index * 20, x1: 160, y1: index * 20 + 16 },
+        })),
+      },
+    });
+
+    expect(result.lines?.map((line) => line.text)).toEqual(values);
+  });
 });

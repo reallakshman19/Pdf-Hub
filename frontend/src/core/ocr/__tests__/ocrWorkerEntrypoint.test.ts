@@ -2,6 +2,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import type {
   OcrEngine,
@@ -11,6 +12,7 @@ import type {
 import type {
   OcrDocumentResult,
 } from '../types';
+import { convertTextContentToOcrPageResult } from '../ocrPdfSourceBridge';
 import type {
   OcrWorkerRequest,
   OcrWorkerResponse,
@@ -71,6 +73,33 @@ describe('ocrWorkerEntrypoint', () => {
 
     expect(resultMessage?.payload.result.documentFingerprint).toBe('doc-worker-entry');
     expect(resultMessage?.payload.result.pages).toHaveLength(2);
+  });
+
+  it('reuses native text in the worker without invoking the OCR engine', async () => {
+    const { payload } = makeRecognizeRequest();
+    const page = payload.pages[0];
+    const nativeText = 'Native PDF review text';
+    const nativePageResult = convertTextContentToOcrPageResult({
+      pageIndex: page.pageIndex,
+      width: page.width,
+      height: page.height,
+      items: [{ str: nativeText, transform: [12, 0, 0, 12, 40, 500], width: 460 }],
+    });
+    const engine = createFakeEngine();
+    const recognize = vi.spyOn(engine, 'recognize');
+    const result = await recognizePagesWithProgress({
+      engine,
+      payload: {
+        ...payload,
+        pages: [{ ...page, embeddedTextLength: nativeText.length, nativePageResult }],
+      },
+      signal: new AbortController().signal,
+      postProgress: () => undefined,
+    });
+
+    expect(recognize).not.toHaveBeenCalled();
+    expect(result.pages[0].lines?.[0].text).toBe(nativeText);
+    expect(result.pages[0].diagnostics).toContainEqual(expect.objectContaining({ code: 'PAGE_SKIPPED_BORN_DIGITAL' }));
   });
 
   it('returns ERROR when engine is missing', async () => {

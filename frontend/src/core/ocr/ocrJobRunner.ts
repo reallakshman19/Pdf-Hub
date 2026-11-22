@@ -21,13 +21,7 @@ import {
 import { getOcrProfile, type OcrProfileId } from './ocrProfiles';
 import { defaultOcrEngineRegistry } from './engines/ocrEngineRegistry';
 
-export interface OcrJobRunnerPageInput {
-  pageIndex: number;
-  imageBytes: Uint8Array;
-  width: number;
-  height: number;
-
-  embeddedTextLength?: number;
+export interface OcrJobRunnerPageInput extends OcrEnginePageInput {
   imageCount?: number;
   vectorObjectCount?: number;
   detectedGridLikeRegions?: number;
@@ -81,8 +75,10 @@ export class OcrJobCancelledError extends Error {
 export async function runOcrJob(
   input: RunOcrJobInput,
 ): Promise<OcrJobRunnerResult> {
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  const defaultEngine = isTest ? 'mock' : 'tesseract-js';
   const registry = input.registry ?? defaultOcrEngineRegistry;
-  const engineId = input.engineId ?? 'mock';
+  const engineId = input.engineId ?? defaultEngine;
   const engine = registry.getEngine(engineId);
 
   const preflight = runOcrPreflight({
@@ -92,6 +88,7 @@ export async function runOcrJob(
       width: page.width,
       height: page.height,
       embeddedTextLength: page.embeddedTextLength,
+      nativeTextOnly: page.nativePageResult?.pageType === 'bornDigital',
       imageCount: page.imageCount,
       vectorObjectCount: page.vectorObjectCount,
       detectedGridLikeRegions: page.detectedGridLikeRegions,
@@ -154,15 +151,17 @@ export async function runOcrJob(
       ...result,
       pages: preflight.pageDecisions
         .filter((decision) => !decision.shouldQueue)
-        .map((decision) =>
-          createSkippedPageResult({
+        .map((decision) => {
+          const targetPage = getPageByIndex(input.pages, decision.pageIndex);
+          return createSkippedPageResult({
             pageIndex: decision.pageIndex,
-            width: getPageByIndex(input.pages, decision.pageIndex)?.width ?? 0,
-            height: getPageByIndex(input.pages, decision.pageIndex)?.height ?? 0,
+            width: targetPage?.width ?? 0,
+            height: targetPage?.height ?? 0,
             profileId: decision.profile.id,
             diagnostics: decision.diagnostics,
-          }),
-        ),
+            nativePageResult: targetPage?.nativePageResult,
+          });
+        }),
       diagnostics: [
         ...result.diagnostics,
         ...preflight.diagnostics,
@@ -257,7 +256,9 @@ export async function runOcrJob(
         documentFingerprint: input.documentFingerprint,
         page,
         profileId: profile.id,
+        signal: input.signal,
       });
+      throwIfCancelled(input.signal);
 
       completedPages.push(pageResult);
 
@@ -278,6 +279,7 @@ export async function runOcrJob(
         preflight,
       });
     } catch (error) {
+      throwIfCancelled(input.signal);
       if (error instanceof OcrJobCancelledError) {
         throw error;
       }
@@ -335,15 +337,17 @@ export async function runOcrJob(
       ...completedPages,
       ...preflight.pageDecisions
         .filter((decision) => !decision.shouldQueue)
-        .map((decision) =>
-          createSkippedPageResult({
+        .map((decision) => {
+          const targetPage = getPageByIndex(input.pages, decision.pageIndex);
+          return createSkippedPageResult({
             pageIndex: decision.pageIndex,
-            width: getPageByIndex(input.pages, decision.pageIndex)?.width ?? 0,
-            height: getPageByIndex(input.pages, decision.pageIndex)?.height ?? 0,
+            width: targetPage?.width ?? 0,
+            height: targetPage?.height ?? 0,
             profileId: decision.profile.id,
             diagnostics: decision.diagnostics,
-          }),
-        ),
+            nativePageResult: targetPage?.nativePageResult,
+          });
+        }),
     ]),
     diagnostics: documentDiagnostics,
   };
@@ -366,18 +370,13 @@ async function recognizeSinglePage(input: {
   documentFingerprint: string;
   page: OcrJobRunnerPageInput;
   profileId: OcrProfileId;
+  signal?: AbortSignal;
 }): Promise<OcrPageResult> {
-  const enginePage: OcrEnginePageInput = {
-    pageIndex: input.page.pageIndex,
-    imageBytes: input.page.imageBytes,
-    width: input.page.width,
-    height: input.page.height,
-  };
-
   const engineResult = await input.engine.recognize({
     documentFingerprint: input.documentFingerprint,
     profile: getOcrProfile(input.profileId),
-    pages: [enginePage],
+    pages: [input.page],
+    abortSignal: input.signal,
   });
 
   const pageResult = engineResult.pages.find(
@@ -413,7 +412,20 @@ function createSkippedPageResult(input: {
   height: number;
   profileId: string;
   diagnostics: OcrDiagnostic[];
+  nativePageResult?: OcrPageResult;
 }): OcrPageResult {
+  if (input.nativePageResult && Array.isArray(input.nativePageResult.words) && input.nativePageResult.words.length > 0) {
+    return {
+      ...input.nativePageResult,
+      pageIndex: input.pageIndex,
+      pageNumber: input.pageIndex + 1,
+      diagnostics: [
+        ...input.diagnostics,
+        ...(input.nativePageResult.diagnostics ?? []),
+      ],
+    };
+  }
+
   return {
     pageIndex: input.pageIndex,
     pageNumber: input.pageIndex + 1,

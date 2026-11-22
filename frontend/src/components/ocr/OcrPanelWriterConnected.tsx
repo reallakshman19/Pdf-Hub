@@ -68,6 +68,13 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
   const effectiveCurrentPageIndex = props.currentPageIndex ?? Math.max(0, currentPageNumber - 1);
   const effectiveHasPdfBytes = Boolean(effectivePdfBytes);
   const effectiveSelectedPageCount = effectiveSelectedPageIndexes.length;
+  const isDefaultSinglePageTrack =
+    effectivePageCount > 1
+    && effectiveSelectedPageIndexes.length === 1
+    && effectiveSelectedPageIndexes[0] === effectiveCurrentPageIndex;
+  const initialPageScope = isDefaultSinglePageTrack
+    ? 'all'
+    : (effectiveSelectedPageIndexes.length > 0 ? 'selected' : 'all');
 
   const headerSummary: OcrConnectedSummary = {
     fileName: sessionSummary.fileName,
@@ -147,7 +154,7 @@ export const OcrPanelWriterConnected: React.FC<OcrPanelWriterConnectedProps> = (
               )
             : null
         }
-        main={<OcrPanel documentFingerprint={effectiveDocumentFingerprint} selectedPageIndexes={effectiveSelectedPageIndexes} pageCount={effectivePageCount} currentPageIndex={effectiveCurrentPageIndex} pages={props.pages} pdfBytes={effectivePdfBytes} onSearchablePdfExported={props.onSearchablePdfExported} onInsertWriterElements={insertIntoWriter} />}
+        main={<OcrPanel documentFingerprint={effectiveDocumentFingerprint} selectedPageIndexes={effectiveSelectedPageIndexes} initialPageScope={initialPageScope} pageCount={effectivePageCount} currentPageIndex={effectiveCurrentPageIndex} pages={props.pages} pdfBytes={effectivePdfBytes} onSearchablePdfExported={props.onSearchablePdfExported} onInsertWriterElements={insertIntoWriter} />}
         sourceDefaultOpen={!headerSummary.hasPdfBytes || sourceWarnings.length > 0}
         sourceDetails={<SourceDetails summary={headerSummary} warnings={sourceWarnings.map((item) => item.message)} />}
       />

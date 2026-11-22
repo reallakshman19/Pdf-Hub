@@ -96,6 +96,7 @@ export const HeaderFooterDialog: React.FC<
         pageGraph,
         currentPageId,
         selectedPageIds,
+        previewTime: previewNow,
       });
       const resolution = resolveHeaderFooterTemplate(
         template,

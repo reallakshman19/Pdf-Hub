@@ -40,14 +40,18 @@ export interface WriterExportPreflightIssue {
   pageIndex?: number;
 }
 
-export interface WriterExportPreflightPageSize {
-  pageIndex: number;
+interface PageDimensions {
   width: number;
   height: number;
 }
 
+export interface WriterExportPreflightPageSize extends PageDimensions {
+  pageIndex: number;
+}
+
 export interface WriterExportPreflightInput {
   sourceBytes?: Uint8Array | null;
+  blankPageSize?: PageDimensions;
   pageCount: number;
   elements: WriterElementV2[];
   assets: WriterAssetRecordV2[];
@@ -84,10 +88,12 @@ const TEXT_TYPES = new Set<WriterElementV2['type']>([
 export async function runCurrentWriterExportPreflight(): Promise<WriterExportPreflightResult> {
   const session = useSessionStore.getState();
   const writer = useWriterV2Store.getState();
+  const blankDocument = writer.documentMeta?.mode === 'blankDocument' ? writer.documentMeta : null;
 
   return runWriterExportPreflight({
-    sourceBytes: session.workingBytes ?? session.originalBytes,
-    pageCount: session.pageCount,
+    sourceBytes: blankDocument ? null : session.workingBytes ?? session.originalBytes,
+    blankPageSize: blankDocument?.pageSetup,
+    pageCount: blankDocument?.pageCount ?? session.pageCount,
     elements: writer.elements,
     assets: writer.assetRecords,
   });
@@ -98,7 +104,7 @@ export async function runWriterExportPreflight(
 ): Promise<WriterExportPreflightResult> {
   const issues: WriterExportPreflightIssue[] = [];
 
-  if (!input.sourceBytes || input.pageCount <= 0) {
+  if ((!input.sourceBytes && !input.blankPageSize) || input.pageCount <= 0) {
     issues.push({
       code: 'NO_PDF_OPEN',
       severity: 'error',
@@ -143,7 +149,7 @@ export async function runWriterExportPreflight(
       element,
       assetsById,
       pageCount: input.pageCount,
-      pageSize: pageSizes.find((page) => page.pageIndex === element.pageIndex),
+      pageSize: input.blankPageSize ?? pageSizes.find((page) => page.pageIndex === element.pageIndex),
       issues,
     });
   }
@@ -188,7 +194,7 @@ function collectElementIssues({
   element: WriterElementV2;
   assetsById: Map<string, WriterAssetRecordV2>;
   pageCount: number;
-  pageSize?: WriterExportPreflightPageSize;
+  pageSize?: PageDimensions;
   issues: WriterExportPreflightIssue[];
 }): void {
   if (element.pageIndex < 0 || element.pageIndex >= pageCount) {
@@ -316,7 +322,7 @@ function collectTableIssues(
 
 function isOutsidePageBounds(
   element: WriterElementV2,
-  pageSize: WriterExportPreflightPageSize,
+  pageSize: PageDimensions,
 ): boolean {
   return element.rect.x < 0 ||
     element.rect.y < 0 ||

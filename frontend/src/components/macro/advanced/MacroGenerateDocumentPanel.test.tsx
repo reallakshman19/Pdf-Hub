@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { runGenerationRecipeOnSnapshot } from '@/core/macro/generateDocument/runIsolatedGeneration';
@@ -215,18 +215,22 @@ describe('MacroGenerateDocumentPanel', () => {
       .toBe('professional-report-beta-pump.pdf');
   });
 
-  it('discards a completed output when another document replaces the source', async () => {
+  it.each([false, true])('discards output after a document switch (restored=%s)', async (restoreSource) => {
+    const source = useSessionStore.getState();
     const onOutputsProduced = vi.fn();
     let finish!: (value: Awaited<ReturnType<typeof runGenerationRecipeOnSnapshot>>) => void;
     runMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     render(<MacroGenerateDocumentPanel onOutputsProduced={onOutputsProduced} />);
     fireEvent.click(screen.getByTestId('macro-generate-run'));
     await waitFor(() => expect(runMock).toHaveBeenCalledOnce());
-    useSessionStore.getState().openDocument({
-      documentKey: 'replacement-doc',
-      fileName: 'replacement.pdf',
-      bytes: new Uint8Array([4, 5, 6]),
-      pageCount: 1,
+    act(() => {
+      useSessionStore.getState().openDocument({
+        documentKey: 'replacement-doc',
+        fileName: 'replacement.pdf',
+        bytes: new Uint8Array([4, 5, 6]),
+        pageCount: 1,
+      });
+      if (restoreSource) useSessionStore.setState(source);
     });
     finish({
       success: true, status: 'success', outputFiles: [], stepResults: [],

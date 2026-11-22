@@ -70,8 +70,10 @@ export async function runOcrRegion(
 ): Promise<OcrRegionRunnerResult> {
   throwIfCancelled(input.signal);
 
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  const defaultEngine = isTest ? 'mock' : 'tesseract-js';
   const registry = input.registry ?? defaultOcrEngineRegistry;
-  const engineId = input.engineId ?? 'mock';
+  const engineId = input.engineId ?? defaultEngine;
   const engine = registry.getEngine(engineId);
 
   if (!engine) {

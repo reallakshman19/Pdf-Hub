@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { expect, test, type Page, type Browser } from '@playwright/test';
 import { stubNativeFilePickers } from './fixtures/stubNativeFilePickers';
 
-const SOURCE_DIR = path.join(process.cwd(), 'e2e/fixtures/wp05-source-f01-f08');
+const SOURCE_DIR = path.join(process.cwd(), 'e2e/fixtures');
 const SOURCE_SHA = '658b6536b8edc10931744bd75707155a0e731666c04c6ff46e8591d016f258f7';
 const WARMUPS = 2;
 const MEASURED = 10;
@@ -73,7 +73,7 @@ test('B01: original F03 real region OCR 2 warmups plus 10 measured runs per fres
   const bytes = await fs.readFile(path.join(SOURCE_DIR, 'F03-scan-only.pdf'));
   expect(createHash('sha256').update(bytes).digest('hex')).toBe(SOURCE_SHA);
   const samples: Observation[] = [];
-  const outDir = path.join(process.cwd(), 'wp05-evidence');
+  const outDir = process.env.WP05_EVIDENCE_DIR ?? path.join(process.cwd(), 'wp05-evidence');
   await fs.mkdir(outDir, { recursive: true });
   const outFile = path.join(outDir, 'wp05-B01-F03-region-observations.json');
   let failure: { condition: string; ordinal: number; message: string } | null = null;
