@@ -33,10 +33,10 @@ function normalAppearance(
   // states. A form must be chosen using the annotation's /AS where present.
   if (target instanceof lib.PDFDict) {
     const appearanceState = annotation.lookupMaybe(lib.PDFName.of('AS'), lib.PDFName);
-    raw = (appearanceState ? target.get(appearanceState) : undefined)
-      ?? target.get(target.keys().find((name) => name.decodeText() !== 'Off') ?? lib.PDFName.of('Off'))
-      ?? lib.PDFNull;
-    if (raw === lib.PDFNull) return null;
+    const selected = (appearanceState ? target.get(appearanceState) : undefined)
+      ?? target.get(target.keys().find((name) => name.decodeText() !== 'Off') ?? lib.PDFName.of('Off'));
+    if (!selected) return null;
+    raw = selected;
     target = doc.context.lookup(raw);
   }
   if (!(target instanceof lib.PDFStream)) return null;
