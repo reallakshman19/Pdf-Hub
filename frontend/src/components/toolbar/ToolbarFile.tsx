@@ -68,6 +68,10 @@ export const ToolbarFile: React.FC = () => {
       baseBytes: requireWorkingPdf(),
       annotations,
       writerElements,
+      // Deletion is authoritative only after the source-native annotation
+      // graph was fully hydrated for the current PDF revision.
+      replaceManagedAnnotations: useAnnotationStore.getState().hydratedDocumentKey
+        === useSessionStore.getState().documentKey,
     });
 
   const handleOpen = async () => {
