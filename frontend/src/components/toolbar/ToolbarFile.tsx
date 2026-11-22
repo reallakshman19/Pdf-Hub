@@ -9,6 +9,8 @@ import {
 } from '@/core/admission/openPdf';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { confirmedNativeDeletionCommandIds } from '@/core/annotations/nativeIntegrity';
+import { useHistoryStore } from '@/core/document-history/store';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useWriterStore } from '@/core/writer/store';
 import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
@@ -74,6 +76,13 @@ export const ToolbarFile: React.FC = () => {
       sourceRevision: session.documentKey,
       sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
       tombstones: state.nativeDeletionTombstones,
+      ...(state.nativeDeletionTombstones.length ? {
+        verifiedCommandIds: confirmedNativeDeletionCommandIds(
+          state.nativeDeletionTombstones,
+          useHistoryStore.getState().undoStack,
+          session.documentKey,
+        ),
+      } : {}),
     };
   };
   const canRewriteNative = Boolean(workingBytes && hydratedDocumentKey
