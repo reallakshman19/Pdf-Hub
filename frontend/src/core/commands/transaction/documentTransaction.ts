@@ -341,6 +341,16 @@ export async function commitDocumentMutation(
   }
 
   const annotationState = useAnnotationStore.getState();
+  // A page rewrite changes the source revision of native PDF object refs.
+  // Old tombstones cannot authorize deletion in that new revision. Refuse
+  // the operation until pending native deletions have been explicitly Saved.
+  if (nextDocumentKey !== sessionSnapshot.documentKey
+    && annotationState.nativeDeletionTombstones.length > 0) {
+    throw new DocumentMutationTransactionError(
+      'prepare',
+      'Cannot safely change PDF pages with pending native annotation deletions. Save the current PDF first.',
+    );
+  }
   const annotationsToPersist = normalizeAnnotationPageAnchors(
     input.nextAnnotations ?? annotationState.annotations,
     pageGraphForCommit,
@@ -422,6 +432,10 @@ export async function commitDocumentMutation(
       await saveAnnotations(
         nextDocumentKey,
         annotationsToPersist,
+        {
+          nativeDeletionTombstones: nextDocumentKey === sessionSnapshot.documentKey
+            ? annotationState.nativeDeletionTombstones : [],
+        },
       );
     } catch (error) {
       throw toTransactionError(
@@ -435,6 +449,9 @@ export async function commitDocumentMutation(
   assertDocumentMutationOwner(owner);
   const annotationSnapshot = {
     annotations: [...annotationState.annotations],
+    nativeDeletionTombstones: [...annotationState.nativeDeletionTombstones],
+    nativeIntegrity: annotationState.nativeIntegrity,
+    hydratedDocumentKey: annotationState.hydratedDocumentKey,
     activeAnnotationId: annotationState.activeAnnotationId,
     selectedAnnotationIds: [...annotationState.selectedAnnotationIds],
     clipboard: [...annotationState.clipboard],
@@ -526,6 +543,13 @@ export async function commitDocumentMutation(
     if (input.nextAnnotations) {
       useAnnotationStore.getState().setAnnotations(annotationsToPersist);
     }
+    if (nextDocumentKey !== sessionSnapshot.documentKey) {
+      useAnnotationStore.setState({
+        nativeDeletionTombstones: [],
+        hydratedDocumentKey: null,
+        nativeIntegrity: { status: 'LOADING', documentKey: nextDocumentKey },
+      });
+    }
 
     if (writerElementsToCommit) {
       const currentWriter = useWriterV2Store.getState();
@@ -594,6 +618,7 @@ export async function commitDocumentMutation(
           currentPageId: sessionSnapshot.viewState.currentPageId,
           currentPage: sessionSnapshot.viewState.currentPage,
           annotations: [...annotationSnapshot.annotations],
+          nativeDeletionTombstones: [...annotationSnapshot.nativeDeletionTombstones],
           writer: writerBefore,
           ocr: cloneOcrPageAnchoredState(ocrBefore),
         },
@@ -609,6 +634,7 @@ export async function commitDocumentMutation(
           currentPageId: sessionAfter.viewState.currentPageId,
           currentPage: sessionAfter.viewState.currentPage,
           annotations: [...annotationAfter.annotations],
+          nativeDeletionTombstones: [...annotationAfter.nativeDeletionTombstones],
           writer: writerAfter,
           ocr: cloneOcrPageAnchoredState(ocrAfter),
         },
