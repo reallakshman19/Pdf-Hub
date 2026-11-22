@@ -63,6 +63,22 @@ test('source AP callout and line stay visible, selectable and native after save/
   await expect(line.locator('img[data-native-annotation-appearance]')).toBeVisible();
 
   const image = callout.locator('img[data-native-annotation-appearance]');
+  // The fixture's own /AP paints a solid green rectangle; this must be the
+  // actual native stream, not a generic HTML FreeText preview.
+  const pixel = await image.evaluate((element: HTMLImageElement) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = element.naturalWidth;
+    canvas.height = element.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context || !canvas.width || !canvas.height) throw new Error('Empty source AP');
+    context.drawImage(element, 0, 0);
+    return Array.from(context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data);
+  });
+  expect(pixel[0]).toBeLessThan(60);
+  expect(pixel[1]).toBeGreaterThan(120);
+  expect(pixel[2]).toBeLessThan(60);
+  expect(pixel[3]).toBeGreaterThan(200);
+
   const body = callout.locator('[data-native-annotation-hit-target]');
   const bounds = await Promise.all([image.boundingBox(), body.boundingBox()]);
   if (!bounds[0] || !bounds[1]) throw new Error('Missing imported appearance or editor bounds');
@@ -94,4 +110,27 @@ test('source AP callout and line stay visible, selectable and native after save/
   } finally {
     await context.close();
   }
+});
+
+test('editing imported rich FreeText replaces stale source preview and stays native on Save', async ({ page }) => {
+  test.setTimeout(70_000);
+  await open(page, await source());
+  const callout = page.locator('[data-native-annotation-id="imported-rich-callout"]');
+  const body = callout.locator('[data-native-annotation-hit-target]');
+  await expect(callout.locator('img[data-native-annotation-appearance]')).toBeVisible();
+
+  await body.dblclick();
+  const editor = body.locator('textarea');
+  await expect(editor).toBeVisible();
+  await editor.fill('Updated native callout');
+  await editor.press('Control+Enter');
+
+  await expect(callout.locator('img[data-native-annotation-appearance]')).toHaveCount(0);
+  const saved = await PDFDocument.load(await save(page));
+  const annots = saved.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
+  const calloutDict = Array.from({ length: annots.size() }, (_, index) => annots.lookup(index, PDFDict))
+    .find((dict) => dict.get(PDFName.of('Subtype'))?.toString() === '/FreeText')!;
+  expect(calloutDict.lookupMaybe(PDFName.of('Contents'), PDFString)?.decodeText()).toBe('Updated native callout');
+  expect(calloutDict.get(PDFName.of('RC'))).toBeDefined();
+  expect(calloutDict.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
 });
