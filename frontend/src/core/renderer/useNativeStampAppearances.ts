@@ -72,12 +72,19 @@ export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotation
         && ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud', 'shape-polygon', 'ink'].includes(item.type))))
     .map((item) => ({ ref: item.data.nativeAppearanceRef!, page: item.data.nativeCopySource?.pageNumber ?? item.pageNumber }));
   const requestKey = JSON.stringify(requests.sort((a, b) => a.page - b.page || a.ref.localeCompare(b.ref)));
-  const [images, setImages] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<{
+    doc: PDFDocumentProxy;
+    requestKey: string;
+    images: Record<string, string>;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
     const wanted = JSON.parse(requestKey) as Array<{ ref: string; page: number }>;
-    if (!wanted.length) { setImages({}); return () => { active = false; }; }
+    if (!wanted.length) {
+      setResult({ doc, requestKey, images: {} });
+      return () => { active = false; };
+    }
     const pageNumbers = [...new Set(wanted.map((item) => item.page))];
     void Promise.all(pageNumbers.map(async (number) => [number, await sourcePageAppearances(doc, number)] as const))
       .then((entries) => {
@@ -88,12 +95,17 @@ export function useNativeAnnotationAppearances(doc: PDFDocumentProxy, annotation
           const image = pages.get(item.page)?.get(item.ref);
           if (image) next[item.ref] = image;
         }
-        setImages(next);
+        setResult({ doc, requestKey, images: next });
       })
-      .catch(() => { if (active) setImages({}); });
+      .catch(() => {
+        if (active) setResult({ doc, requestKey, images: {} });
+      });
     return () => { active = false; };
   }, [doc, requestKey]);
-  return images;
+  // PDF.js object IDs are only unique within their document. Never show
+  // another file's appearance while the new document's images are loading.
+  return result?.doc === doc && result.requestKey === requestKey
+    ? result.images : {};
 }
 
 /** @deprecated Use the generic native annotation preview hook. */
