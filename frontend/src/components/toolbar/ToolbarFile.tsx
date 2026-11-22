@@ -280,7 +280,7 @@ export const ToolbarFile: React.FC = () => {
       addToast({
         type: 'error',
         title: 'Export Failed',
-        message: 'Failed to export the document. Please try again.',
+        message: `Failed to export the document: ${message}`,
       });
     }
   };
