@@ -10,7 +10,7 @@ import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@
 import { useAnnotationStore } from '@/core/annotations/store';
 import { initializeMarkupDraft, remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
-import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
+
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
