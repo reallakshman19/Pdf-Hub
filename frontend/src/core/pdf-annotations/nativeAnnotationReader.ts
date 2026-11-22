@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
+import type { NativeSourceRootEvidence } from './nativeCoverageAudit';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
@@ -23,6 +24,8 @@ export interface NativeAnnotationReadResult {
   annotations: PdfAnnotation[];
   importedCount: number;
   skippedCount: number;
+  /** Raw, un-reconciled PDF /Annots root evidence, including parser failures. */
+  sourceRoots?: NativeSourceRootEvidence[];
 }
 
 interface NativeRecord {
@@ -45,6 +48,7 @@ export async function readNativePdfAnnotations(
   const doc = await lib.PDFDocument.load(bytes);
 
   const annotations: PdfAnnotation[] = [];
+  const sourceRoots: NativeSourceRootEvidence[] = [];
   let skippedCount = 0;
 
   for (let pageIndex = 0; pageIndex < doc.getPageCount(); pageIndex += 1) {
@@ -66,6 +70,30 @@ export async function readNativePdfAnnotations(
     );
 
     for (const record of roots) {
+      const subtype = readName(record.dict, 'Subtype', lib) ?? 'Unknown';
+      // /Popup and reply/state nodes are not independent annotation roots.
+      // Keep unsupported types in the audit, but do not count them as lost
+      // parser results for Pdf-Hub's supported native subtype set.
+      const isPopup = subtype === 'Popup';
+      const flags = record.dict.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0;
+      const nativeType = readText(record.dict, 'PDFHubType', lib);
+      const evidence: NativeSourceRootEvidence = {
+        pageNumber: pageIndex + 1,
+        sourceRef: record.refKey ?? `direct:${record.index}`,
+        subtype,
+        visible: (Math.trunc(flags) & (1 | 2 | 32)) === 0,
+        supported: [
+          'Text', 'FreeText', 'Line', 'Stamp', 'Square', 'Circle',
+          'Polygon', 'PolyLine', 'Ink', 'Highlight', 'Underline',
+          'StrikeOut', 'Squiggly', 'Redact',
+        ].includes(subtype) || Boolean(nativeType && isAnnotationType(nativeType)),
+        hasAppearance: Boolean(
+          record.dict.lookupMaybe(lib.PDFName.of('AP'), lib.PDFDict)
+            ?.get(lib.PDFName.of('N')),
+        ),
+      };
+      if (!isPopup) sourceRoots.push(evidence);
+
       const parsed = parseRootAnnotation(
         record.dict,
         page,
@@ -135,15 +163,32 @@ export async function readNativePdfAnnotations(
       if (parsed.type === 'textbox' || parsed.type === 'callout') {
         parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
       }
-      if (parsed.type === 'stamp' && parsed.data.hasCustomAppearance && record.refKey) {
+
+      // PDF.js can render each annotation's original /AP into an independent
+      // canvas. Preserve its *full* /Rect as well as the app's logical body
+      // rect: for FreeTextCallout these are different, and stretching the AP
+      // into the body rect would distort its leader and artwork.
+      if (record.refKey && record.dict.get(lib.PDFName.of('AP'))) {
         const match = /^(\d+)\s+(\d+)\s+R$/.exec(record.refKey);
-        if (match) {
+        const sourceRect = readNumberArray(record.dict, 'Rect', lib);
+        if (match && sourceRect && sourceRect.length >= 4) {
+          const space = createMarkupSpace(page.getCropBox(), page.getRotation().angle);
           parsed.data.nativeAppearanceRef = `${match[1]}R${match[2] === '0' ? '' : match[2]}`;
-          parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
+          parsed.data.nativeAppearanceRect = pdfRectToViewRect(sourceRect, space);
+          parsed.data.nativeAppearanceBodyRect = { ...parsed.rect };
+          // App-generated annotation previews remain live. Imported external
+          // artwork is rendered from /AP to preserve fonts, stamps and leaders.
+          parsed.data.nativeAppearanceImported =
+            parsed.data.nativeAppearanceImported === true
+            || !record.dict.get(lib.PDFName.of('PDFHubType'));
           parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
+          if (parsed.type === 'stamp') {
+            parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
+          }
         }
       }
 
+      evidence.parsedId = parsed.id;
       annotations.push(parsed);
       if (record.refKey) {
         rootByRef.set(record.refKey, parsed);
@@ -284,6 +329,7 @@ export async function readNativePdfAnnotations(
     annotations,
     importedCount: annotations.length,
     skippedCount,
+    sourceRoots,
   };
 }
 

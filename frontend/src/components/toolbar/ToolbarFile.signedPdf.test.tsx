@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   },
   annotations: [] as unknown[],
   hydratedDocumentKey: 'sha256:opened' as string | null,
+  nativeIntegrity: { status: 'COMPLETE', documentKey: 'sha256:opened' },
+  nativeDeletionTombstones: [] as unknown[],
   sessionGeneration: 1,
   writerElements: [] as unknown[],
 }));
@@ -83,8 +85,18 @@ vi.mock('@/core/session/store', () => {
 });
 
 vi.mock('@/core/annotations/store', () => ({
-  useAnnotationStore: Object.assign((selector: (state: unknown) => unknown) => selector({ annotations: mocks.annotations }), {
-    getState: () => ({ annotations: mocks.annotations, hydratedDocumentKey: mocks.hydratedDocumentKey }),
+  useAnnotationStore: Object.assign((selector: (state: unknown) => unknown) => selector({
+    annotations: mocks.annotations,
+    hydratedDocumentKey: mocks.hydratedDocumentKey,
+    nativeIntegrity: mocks.nativeIntegrity,
+    nativeDeletionTombstones: mocks.nativeDeletionTombstones,
+  }), {
+    getState: () => ({
+      annotations: mocks.annotations,
+      hydratedDocumentKey: mocks.hydratedDocumentKey,
+      nativeIntegrity: mocks.nativeIntegrity,
+      nativeDeletionTombstones: mocks.nativeDeletionTombstones,
+    }),
   }),
 }));
 
@@ -111,6 +123,8 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     mocks.sessionGeneration = 1;
     mocks.annotations = [];
     mocks.hydratedDocumentKey = 'sha256:opened';
+    mocks.nativeIntegrity = { status: 'COMPLETE', documentKey: 'sha256:opened' };
+    mocks.nativeDeletionTombstones = [];
     mocks.writerElements = [];
     mocks.inspectPdfSignatureRisk.mockResolvedValue({
       status: 'SIGNED',
@@ -175,12 +189,14 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     expect(mocks.savePdfBytes).not.toHaveBeenCalled();
   });
 
-  it('does not reconcile an incomplete annotation model while loading a document', async () => {
+  it('disables editable Save when annotation hydration is incomplete', () => {
     mocks.hydratedDocumentKey = null;
-    mocks.inspectPdfSignatureRisk.mockResolvedValue({ status: 'UNSIGNED', signatureCount: 0, evidence: [] });
+    mocks.nativeIntegrity = { status: 'INCOMPLETE', documentKey: 'sha256:opened' };
     render(<ToolbarFile />);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.failSaveOperation).toHaveBeenCalledWith(expect.stringContaining('annotations are still loading')));
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    fireEvent.click(save);
+    expect(mocks.inspectPdfSignatureRisk).not.toHaveBeenCalled();
     expect(mocks.composeEditablePdf).not.toHaveBeenCalled();
     expect(mocks.savePdfBytes).not.toHaveBeenCalled();
   });
@@ -271,7 +287,9 @@ describe('ToolbarFile signed PDF Save preflight', () => {
     finish!({ bytes: new Uint8Array([9, 9, 9]), pageCount: 1, documentKey: 'sha256:saved' });
     await waitFor(() => expect(mocks.savePdfBytes).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.completeSaveOperation).toHaveBeenCalledWith(expect.stringContaining('newer changes remain unsaved')));
-    expect(mocks.saveAnnotations).toHaveBeenCalledWith('sha256:opened', mocks.annotations);
+    expect(mocks.saveAnnotations).toHaveBeenCalledWith('sha256:opened', mocks.annotations, {
+      nativeDeletionTombstones: mocks.nativeDeletionTombstones,
+    });
     expect(mocks.setSessionState).not.toHaveBeenCalled();
   });
 

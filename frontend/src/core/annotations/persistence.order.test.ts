@@ -7,7 +7,7 @@ import { loadAnnotationsOrNull, saveAnnotations } from './persistence';
 
 const snapshot = (id: string) => [{ id }] as PdfAnnotation[];
 const dbWithPut = (put: (record: { annotations: PdfAnnotation[] }) => Promise<void>) => ({
-  transaction: () => ({ store: { put }, done: Promise.resolve() }),
+  transaction: () => ({ store: { get: async () => undefined, put }, done: Promise.resolve() }),
   get: async () => undefined,
 });
 

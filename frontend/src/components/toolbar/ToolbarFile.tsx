@@ -9,6 +9,7 @@ import {
 } from '@/core/admission/openPdf';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import { saveAnnotations } from '@/core/annotations/persistence';
 import { useWriterStore } from '@/core/writer/store';
 import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
@@ -49,12 +50,11 @@ export const ToolbarFile: React.FC = () => {
     failSaveOperation: state.failSaveOperation,
   })));
 
-  const { annotations } = useAnnotationStore(useShallow((state) => ({
-    annotations: state.annotations,
+  const { nativeIntegrity, hydratedDocumentKey } = useAnnotationStore(useShallow((state) => ({
+    nativeIntegrity: state.nativeIntegrity,
+    hydratedDocumentKey: state.hydratedDocumentKey,
   })));
   const addToast = useToastStore((state) => state.addToast);
-
-  const writerElements = useWriterStore((state) => state.elements);
 
   const requireWorkingPdf = () => {
     if (!workingBytes) {
@@ -63,12 +63,51 @@ export const ToolbarFile: React.FC = () => {
     return workingBytes;
   };
 
-  const buildFlattenedPdf = async () =>
-    composeCommittedPdf({
+  const verifiedNativeAuthorization = async () => {
+    const session = useSessionStore.getState();
+    const state = useAnnotationStore.getState();
+    if (!session.documentKey || state.hydratedDocumentKey !== session.documentKey
+      || state.nativeIntegrity.documentKey !== session.documentKey
+      || state.nativeIntegrity.status !== 'COMPLETE') {
+      throw new Error('Cannot safely save: native annotation import integrity is incomplete.');
+    }
+    const sourceAnnotations = state.annotations;
+    const tombstones = state.nativeDeletionTombstones;
+    const evidence = await verifiedNativeWriteEvidence({
+      sourceRevision: session.documentKey,
       baseBytes: requireWorkingPdf(),
-      annotations,
-      writerElements,
+      annotations: sourceAnnotations,
+      tombstones,
+      journalStoreId: session.historyJournalStoreId,
     });
+    if (useSessionStore.getState().documentKey !== session.documentKey
+      || useAnnotationStore.getState().annotations !== sourceAnnotations
+      || useAnnotationStore.getState().nativeDeletionTombstones !== tombstones
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') {
+      throw new Error('Native source or annotations changed during Save authorization.');
+    }
+    return {
+      sourceRevision: session.documentKey,
+      sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
+      tombstones,
+      ...evidence,
+    };
+  };
+  const canRewriteNative = Boolean(workingBytes && hydratedDocumentKey
+    && hydratedDocumentKey === useSessionStore.getState().documentKey
+    && nativeIntegrity.documentKey === hydratedDocumentKey
+    && nativeIntegrity.status === 'COMPLETE');
+
+  const buildFlattenedPdf = async () => {
+    const nativeDeletionAuthorization = await verifiedNativeAuthorization();
+    return composeCommittedPdf({
+      baseBytes: requireWorkingPdf(),
+      annotations: useAnnotationStore.getState().annotations,
+      writerElements: useWriterStore.getState().elements,
+      replaceManagedAnnotations: true,
+      nativeDeletionAuthorization,
+    });
+  };
 
   const handleOpen = async () => {
     try {
@@ -112,9 +151,7 @@ export const ToolbarFile: React.FC = () => {
         if (!session.workingBytes || !session.documentKey || !session.fileName) {
           throw new Error('No working PDF is loaded');
         }
-        if (useAnnotationStore.getState().hydratedDocumentKey !== session.documentKey) {
-          throw new Error('Cannot safely save while annotations are still loading.');
-        }
+        const nativeDeletionAuthorization = await verifiedNativeAuthorization();
         const currentAnnotations = useAnnotationStore.getState().annotations;
         const currentWriterElements = useWriterStore.getState().elements;
         const { bytes } = await composeEditablePdf({
@@ -122,6 +159,7 @@ export const ToolbarFile: React.FC = () => {
           annotations: currentAnnotations,
           writerElements: currentWriterElements,
           replaceManagedAnnotations: true,
+          nativeDeletionAuthorization,
         });
         assertDocumentMutationOwner(owner);
         // Keep the editing base and its durable journal in the same revision.
@@ -130,7 +168,10 @@ export const ToolbarFile: React.FC = () => {
         // Composition can take long enough for more annotation edits to occur.
         // The PDF intentionally uses the captured snapshot, but recovery must
         // retain the latest in-memory edits instead of restoring stale content.
-        await saveAnnotations(session.documentKey, useAnnotationStore.getState().annotations);
+        const latestAnnotationState = useAnnotationStore.getState();
+        await saveAnnotations(session.documentKey, latestAnnotationState.annotations, {
+          nativeDeletionTombstones: latestAnnotationState.nativeDeletionTombstones,
+        });
         assertDocumentMutationOwner(owner);
         let nextHandle: FileSystemFileHandle | null;
         try {
@@ -155,6 +196,7 @@ export const ToolbarFile: React.FC = () => {
         }
         setSaveHandle(nextHandle);
         const unchanged = useAnnotationStore.getState().annotations === currentAnnotations
+          && useAnnotationStore.getState().nativeDeletionTombstones === nativeDeletionAuthorization.tombstones
           && useWriterStore.getState().elements === currentWriterElements;
         if (unchanged) {
           useSessionStore.setState({ isDirty: false, isDocumentDirty: false, isReviewDirty: false, isSessionDirty: false });
@@ -303,7 +345,7 @@ export const ToolbarFile: React.FC = () => {
       </Tooltip>
 
       <Tooltip content="Save">
-        <Button aria-label="Save" variant="ghost" size="icon" className="h-8 w-8 relative" onClick={handleSave} disabled={!workingBytes}>
+        <Button aria-label="Save" variant="ghost" size="icon" className="h-8 w-8 relative" onClick={handleSave} disabled={!canRewriteNative}>
           <Save className="w-4 h-4" />
           {isDirty && (
             <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full border border-white dark:border-slate-900" />
@@ -312,7 +354,7 @@ export const ToolbarFile: React.FC = () => {
       </Tooltip>
 
       <Tooltip content="Export flattened PDF">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExport} disabled={!workingBytes}>
+        <Button variant="ghost" size="icon" aria-label="Export flattened PDF" className="h-8 w-8" onClick={handleExport} disabled={!canRewriteNative}>
           <FileOutput className="w-4 h-4" />
         </Button>
       </Tooltip>

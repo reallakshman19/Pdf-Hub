@@ -61,6 +61,8 @@ export interface AnnotationNativeInteropState {
 }
 
 export interface AnnotationData extends Record<string, unknown> {
+  /** Only explicit user update actions may populate this source-bound record. */
+  nativeEditProvenance?: import('./nativeIntegrity').NativeEditProvenance;
   // ── text ──────────────────────────────────────────────
   text?: string;
   title?: string;
@@ -135,6 +137,14 @@ export interface AnnotationData extends Record<string, unknown> {
   nativeDeletedReplyIds?: string[];
   /** Ephemeral PDF.js identity for the native appearance in the loaded revision. */
   nativeAppearanceRef?: string;
+  /** True for imported external artwork that should be previewed from /AP rather than approximated. */
+  nativeAppearanceImported?: boolean;
+  /** Original PDF /Rect in the page's unscaled visual coordinate system. */
+  nativeAppearanceRect?: Rect;
+  /** Original interactive body geometry (callouts may be smaller than /Rect). */
+  nativeAppearanceBodyRect?: Rect;
+  /** A local visual edit invalidated the cached source appearance preview. */
+  nativeAppearanceDirty?: boolean;
   nativeAppearanceRotation?: number;
   nativeAppearancePageRotation?: number;
   /** Ephemeral source validation for native square/circle appearance rotation. */

@@ -1,4 +1,10 @@
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
+import { FileAdapter } from '@/adapters/file/FileAdapter';
+import {
+  deletionKey, isValidNativeDeletionTombstone,
+  nativeEditableFields, unprovenNativeEditFields,
+  type NativeDeletionAuthorization,
+} from '@/core/annotations/nativeIntegrity';
 import type { ReviewMetadata, ReviewReply } from '@/core/review/types';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import {
@@ -149,13 +155,25 @@ function supportsMarkupAppearanceQuads(values: number[]): boolean {
 export async function writeNativePdfAnnotations(
   baseBytes: Uint8Array,
   annotations: PdfAnnotation[],
-  options: { replaceManagedAnnotations?: boolean } = {},
+  options: {
+    replaceManagedAnnotations?: boolean;
+    nativeDeletionAuthorization?: NativeDeletionAuthorization;
+    /** Pre-Writer PDF bytes for verifying the exact revision being deleted. */
+    sourceBytesForAuthorization?: Uint8Array;
+  } = {},
 ): Promise<NativeAnnotationWriteResult> {
   const lib = await pdfLib();
   const doc = await lib.PDFDocument.load(baseBytes);
 
   let annotationCount = 0;
   let replyCount = 0;
+  let sourceRevisionPromise: Promise<string> | null = null;
+  const exactSourceRevision = () => {
+    sourceRevisionPromise ??= FileAdapter.hashBytes(
+      options.sourceBytesForAuthorization ?? baseBytes,
+    );
+    return sourceRevisionPromise;
+  };
 
   const byPage = new Map<number, PdfAnnotation[]>();
   for (const annotation of annotations) {
@@ -170,10 +188,11 @@ export async function writeNativePdfAnnotations(
   // Freeze source dictionaries before any root or popup is rewritten. The
   // source name is page-scoped; identical names on other pages are unrelated.
   const copies = annotations.filter((annotation) => annotation.data.nativeCopySource);
-  const sourceModels = options.replaceManagedAnnotations || copies.length
+  const sourceRead = options.replaceManagedAnnotations || copies.length
     || annotations.some((item) => item.id.startsWith('native:p') || item.type === 'stamp'
       || item.type === 'comment' || item.type === 'sticky-note' || markupOrMask(item.type) || item.data.review)
-    ? (await readNativePdfAnnotations(baseBytes)).annotations : [];
+    ? await readNativePdfAnnotations(baseBytes) : null;
+  const sourceModels = sourceRead?.annotations ?? [];
   const copyOrigins = new Map<PdfAnnotation, NativeCopyOrigin>();
   for (const annotation of copies) {
     const source = annotation.data.nativeCopySource!;
@@ -204,17 +223,68 @@ export async function writeNativePdfAnnotations(
   }
 
   if (options.replaceManagedAnnotations) {
+    // A successful read is not proof that every supported /Annots object was
+    // imported. If parsing dropped one root, a destructive rewrite is unsafe.
+    const skippedSupported = sourceRead?.sourceRoots?.filter((root) =>
+      root.visible && root.supported && !root.parsedId) ?? [];
+    if (skippedSupported.length) {
+      throw new Error('Cannot safely save: supported native PDF annotations were not imported.');
+    }
+    const sourceByRef = new Map(sourceModels.filter((item) => item.data.nativeSourceRef)
+      .map((item) => [
+        JSON.stringify([item.pageNumber, item.data.nativeSourceRef]), item,
+      ] as const));
+    const auth = options.nativeDeletionAuthorization;
+    const allowed = new Map<string, NonNullable<typeof auth>['tombstones'][number]>();
+    if (auth?.tombstones.length) {
+      // A plausible recovery-sidecar tombstone is not sufficient evidence of
+      // an actual Delete action. Require a separately matched history command.
+      const verifiedCommandIds = new Set(auth.verifiedCommandIds ?? []);
+      if (auth.tombstones.some((item) => !verifiedCommandIds.has(item.commandId))) {
+        throw new Error('Cannot safely delete native annotations without a verified user deletion command.');
+      }
+      // Authenticate the exact bytes from which this PageGraph and its source
+      // reference identities were derived, even if Writer first baked content.
+      const sourceHash = await FileAdapter.hashBytes(options.sourceBytesForAuthorization ?? baseBytes);
+      if (sourceHash !== auth.sourceRevision
+        || auth.sourcePageIds.length !== doc.getPageCount()) {
+        throw new Error('Cannot safely delete native annotations from a different PDF revision.');
+      }
+      for (const tombstone of auth.tombstones) {
+        if (!isValidNativeDeletionTombstone(tombstone)
+          || tombstone.sourceRevision !== auth.sourceRevision
+          || auth.sourcePageIds[tombstone.pageNumber - 1] !== tombstone.pageId) {
+          throw new Error('Cannot safely delete native annotations with invalid source or page provenance.');
+        }
+        const key = deletionKey(tombstone);
+        const source = sourceByRef.get(key);
+        if (!source || (source.data.nativeOriginalName ?? source.id) !== tombstone.sourceName
+          || allowed.has(key)) {
+          throw new Error('Cannot safely delete native annotations with stale or duplicate command IDs.');
+        }
+        allowed.set(key, tombstone);
+      }
+    }
     for (const source of sourceModels) {
       const sourceName = source.data.nativeOriginalName ?? source.id;
-      const retained = annotations.some((item) => item.pageNumber === source.pageNumber
-        && (item.data.nativeOriginalName ?? item.id) === sourceName);
-      if (retained) continue;
-      if (source.data.nativeIdentityAmbiguous || !source.data.nativeSourceRef) {
-        throw new Error('Cannot safely delete a native annotation with an ambiguous identity.');
+      const ref = source.data.nativeSourceRef;
+      const matches = annotations.filter((item) => !item.data.nativeCopySource
+        && item.pageNumber === source.pageNumber
+        && (ref ? item.data.nativeSourceRef === ref
+          : (item.data.nativeOriginalName ?? item.id) === sourceName));
+      if (matches.length > 1) {
+        throw new Error('Cannot safely save duplicate native source identities.');
+      }
+      if (matches.length) continue;
+      // Never infer a deletion from absence. The source PDF stays unchanged
+      // unless this specific object was explicitly deleted by the user.
+      if (!ref || source.data.nativeIdentityAmbiguous
+        || !allowed.has(JSON.stringify([source.pageNumber, ref]))) {
+        throw new Error('Cannot safely delete native annotation without an explicit deletion command.');
       }
       const page = doc.getPage(source.pageNumber - 1);
       const annots = page.node.lookupMaybe(lib.PDFName.of('Annots'), lib.PDFArray);
-      if (annots) removeDeletedNativeFamily(annots, sourceName, source.data.nativeSourceRef, lib);
+      if (annots) removeDeletedNativeFamily(annots, sourceName, ref, lib);
     }
   }
 
@@ -231,6 +301,36 @@ export async function writeNativePdfAnnotations(
       const sourceModel = sourceModels.find((item) => item.pageNumber === pageNumber
         && (item.data.nativeOriginalName ?? item.id) === nativeName);
       const sourceRef = sourceModel?.data.nativeSourceRef;
+      if (sourceModel && !annotation.data.nativeCopySource
+        && options.nativeDeletionAuthorization) {
+        // The authenticated application Save/Writer routes carry revision
+        // authorization. Low-level writer callers without that boundary are
+        // legacy conversion helpers, not evidence of verified user edits.
+        if (sourceRef && annotation.data.nativeSourceRef !== sourceRef) {
+          throw new Error('Cannot safely edit native annotation without its original source identity.');
+        }
+        const actualRevision = await exactSourceRevision();
+        if (options.nativeDeletionAuthorization
+          && options.nativeDeletionAuthorization.sourceRevision !== actualRevision) {
+          throw new Error('Cannot safely edit native annotation from a different PDF revision.');
+        }
+        // An annotation's own nativeEditProvenance is mutable cache metadata.
+        // Only issued before/after field transitions, verified independently
+        // from the canonical history, may change an imported PDF object.
+        const verified = options.nativeDeletionAuthorization.verifiedEditFields ?? [];
+        const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+        const unproven = nativeEditableFields.filter((field) => {
+          const original = field === 'rect' ? sourceModel.rect : sourceModel.data[field];
+          const changed = field === 'rect' ? annotation.rect : annotation.data[field];
+          return !equal(original, changed) && !verified.some((proof) =>
+            proof.pageNumber === annotation.pageNumber
+            && proof.sourceRef === sourceRef && proof.field === field
+            && equal(proof.value, changed));
+        });
+        if (unproven.length) {
+          throw new Error(`Cannot safely edit native annotation without issued user history for: ${unproven.join(', ')}.`);
+        }
+      }
       const existingRoot = findManagedRootDict(annots, nativeName, lib, sourceRef);
       const copyOrigin = existingRoot ? undefined : copyOrigins.get(candidate);
       const markupDraft = annotation.data.nativeMarkupDraft;
@@ -2512,6 +2612,36 @@ async function registerNativeAnnotation(
     sourceModel,
   );
 
+  // Imported FreeText has two coordinate spaces: /Rect encloses its /AP,
+  // while /RD describes the editor's text body. Source-derived defaults
+  // (notably DA/BS/CA) can also differ from literal PDF dictionary values.
+  // When the ONLY user change is text, do not mistake those recomputed
+  // defaults for a simultaneous style/geometry edit. Restore the original
+  // portable non-text fields verbatim before comparing/rebuilding its /AP.
+  // Local recovery defaults (lineHeight/autoSize) are not source PDF edits.
+  // Trust only an exact source object with text-only edit provenance; reject
+  // any other changed native field or relocated native text geometry.
+  const textProof = annotation.data.nativeEditProvenance;
+  const textOnlyFromSource = Boolean(
+    isUserEdited && sourceDict && sourceModel && hasNativeRichText(sourceDict, lib)
+    && (annotation.type === 'callout' || annotation.type === 'textbox')
+    && annotation.type === sourceModel.type
+    && rectMatchesSource
+    && textProof?.sourceRef === sourceModel.data.nativeSourceRef
+    && textProof?.fields.length === 1
+    && textProof.fields[0] === 'text'
+    && sourceModel.data.text !== annotation.data.text
+    && unprovenNativeEditFields(annotation, sourceModel, textProof.sourceRevision).length === 0
+  );
+  if (textOnlyFromSource && sourceDict) {
+    for (const key of ROOT_APPEARANCE_KEYS) {
+      if (key === 'Contents') continue;
+      const original = sourceDict.get(lib.PDFName.of(key));
+      if (original) base[key] = original;
+      else delete base[key];
+    }
+  }
+
   const dict = doc.context.obj(base) as PDFDict;
   preservePassiveAnnotationEntries(
     sourceDict,
@@ -2658,7 +2788,15 @@ async function registerNativeAnnotation(
         dict.set(lib.PDFName.of('RD'), doc.context.obj(normalized.rd));
       }
     }
-    await attachNativeFreeTextAppearance(doc, dict, annotation, appearanceRect, stroke, fill, opacity, borderWidth, lib, onlyTextChanged ? sourceDict! : undefined);
+    // Regenerate from the verified PDF's layout defaults, never stale cache
+    // defaults that could corrupt the source's text-only appearance.
+    const paintAnnotation = textOnlyFromSource && sourceModel
+      ? { ...annotation, data: { ...annotation.data,
+          lineHeight: sourceModel.data.lineHeight,
+          autoSize: sourceModel.data.autoSize,
+        } }
+      : annotation;
+    await attachNativeFreeTextAppearance(doc, dict, paintAnnotation, appearanceRect, stroke, fill, opacity, borderWidth, lib, onlyTextChanged ? sourceDict! : undefined);
   }
   if (markupOrMask(annotation.type)) {
     const nativeQuads = annotation.type === 'redaction'
@@ -4067,6 +4205,12 @@ function serializableAnnotationData(annotation: PdfAnnotation): Record<string, u
   // is session-only and must not redirect a reopened copy to the old page.
   delete data.nativeCopySource;
   delete data.nativeAppearanceRef;
+  delete data.nativeAppearanceRect;
+  delete data.nativeAppearanceBodyRect;
+  // Native AP provenance is durable so an imported appearance remains
+  // source-backed after Save/reopen; ephemeral geometry/ref and dirty state
+  // are intentionally stripped above and below.
+  delete data.nativeAppearanceDirty;
   delete data.nativeAppearanceRotation;
   delete data.nativeAppearancePageRotation;
   delete data.nativeStampRotationReadOnly;

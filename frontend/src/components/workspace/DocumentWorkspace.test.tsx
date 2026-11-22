@@ -30,7 +30,8 @@ class ResizeObserverMock {
 vi.mock('@/core/annotations/persistence', () => ({
   loadAnnotations: vi.fn().mockResolvedValue([]),
   loadAnnotationsOrNull: vi.fn().mockResolvedValue(null),
-  saveAnnotations: vi.fn(),
+  loadAnnotationSnapshotOrNull: vi.fn().mockResolvedValue(null),
+  saveAnnotations: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
@@ -589,7 +590,7 @@ describe('PageSurface gesture consistency', () => {
       createdAt: 1, updatedAt: 1 };
     const view = render(<PageSurface {...props} pageAnnotations={[callout]} />);
     await act(async () => {});
-    const handle = view.container.querySelector('[data-annotation-type="callout"] circle');
+    const handle = view.container.querySelector('[data-annotation-container="callout"] circle');
     expect(handle).not.toBeNull();
     fireEvent.pointerDown(handle!, { clientX: 10, clientY: 20 });
     fireEvent.mouseUp(window, { clientX: 30, clientY: 32 });
@@ -652,7 +653,7 @@ describe('PageSurface gesture consistency', () => {
     };
     const view = render(<PageSurface {...props} pageAnnotations={[callout]} />);
     await act(async () => {});
-    const leaderPolyline = view.container.querySelector('[data-annotation-type="callout"] polyline[stroke="transparent"]');
+    const leaderPolyline = view.container.querySelector('[data-annotation-container="callout"] polyline[stroke="transparent"]');
     expect(leaderPolyline).not.toBeNull();
 
     fireEvent.pointerDown(leaderPolyline!, { clientX: 35, clientY: 50 });

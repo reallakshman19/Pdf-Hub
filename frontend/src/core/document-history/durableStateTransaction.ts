@@ -110,6 +110,7 @@ async function commitDurableStateTransactionWithinQueue(
         historyBefore.undoStack.at(-1)?.id
         ?? null,
       command: input.command,
+      before: transaction.before,
       after: transaction.after,
       createdAt: new Date(
         timestamp,

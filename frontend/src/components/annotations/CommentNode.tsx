@@ -11,6 +11,9 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   return (
     <div
       data-annotation-type="comment"
+      data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       style={{
         position: 'absolute',
         left: displayRect.x, top: displayRect.y, width: displayRect.width, height: displayRect.height,

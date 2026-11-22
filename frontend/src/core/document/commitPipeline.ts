@@ -2,8 +2,10 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import type { NativeDeletionAuthorization } from '@/core/annotations/nativeIntegrity';
 import type { PlacedElement } from '@/core/writer/types';
 import { writeNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationWriter';
+import { flattenNativePdfAnnotations } from '@/core/pdf-annotations/flattenNativePdfAnnotations';
 
 export interface ComposeCommittedPdfInput {
   baseBytes: Uint8Array;
@@ -11,6 +13,7 @@ export interface ComposeCommittedPdfInput {
   writerElements: PlacedElement[];
   /** Caller has loaded the complete managed annotation model for these bytes. */
   replaceManagedAnnotations?: boolean;
+  nativeDeletionAuthorization?: NativeDeletionAuthorization;
 }
 
 export interface ComposeCommittedPdfResult {
@@ -48,10 +51,28 @@ export async function composeCommittedPdf(
     nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
   }
 
-  if (annotations.length > 0) {
-    const rawBytes = await PdfEditAdapter.exportWithAnnotations(nextBytes, annotations);
-    nextBytes = new Uint8Array(rawBytes.buffer as ArrayBuffer, rawBytes.byteOffset, rawBytes.byteLength);
+  if (annotations.length > 0 || input.replaceManagedAnnotations) {
+    // Apply pending native edits first, retaining the original /AP resources
+    // for unchanged imported annotations. Only an explicitly hydrated caller
+    // may remove PDF-native annotations omitted from the local model.
+    const native = await writeNativePdfAnnotations(nextBytes, annotations, {
+      replaceManagedAnnotations: input.replaceManagedAnnotations,
+      nativeDeletionAuthorization: input.nativeDeletionAuthorization,
+      sourceBytesForAuthorization: input.baseBytes,
+    });
+    nextBytes = new Uint8Array(native.bytes);
   }
+
+  // The old PdfEditAdapter.exportWithAnnotations drew simplified HTML/SVG
+  // substitutes over the native originals and did not remove /Annots. Baking
+  // the real appearance Form XObjects preserves CAD vectors and removes
+  // editable annotation identities only in this explicit export path.
+  const flattened = await flattenNativePdfAnnotations(nextBytes);
+  nextBytes = new Uint8Array(
+    flattened.buffer as ArrayBuffer,
+    flattened.byteOffset,
+    flattened.byteLength,
+  );
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);
   const documentKey = await FileAdapter.hashBytes(nextBytes);
@@ -97,7 +118,11 @@ export async function composeEditablePdf(
   }
 
   if (annotations.length > 0 || input.replaceManagedAnnotations) {
-    const native = await writeNativePdfAnnotations(nextBytes, annotations, { replaceManagedAnnotations: input.replaceManagedAnnotations });
+    const native = await writeNativePdfAnnotations(nextBytes, annotations, {
+      replaceManagedAnnotations: input.replaceManagedAnnotations,
+      nativeDeletionAuthorization: input.nativeDeletionAuthorization,
+      sourceBytesForAuthorization: input.baseBytes,
+    });
     nextBytes = new Uint8Array(native.bytes);
   }
 

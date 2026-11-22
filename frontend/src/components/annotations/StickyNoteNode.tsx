@@ -35,6 +35,9 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
     return (
       <div
         data-annotation-type="sticky-note"
+        data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+        data-native-source-ref={annotation.data.nativeSourceRef}
+        data-native-selected={isSelected ? 'true' : 'false'}
         className="absolute pointer-events-auto cursor-pointer select-none"
         style={{ left: displayRect.x, top: displayRect.y, zIndex: 10 }}
         onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
@@ -121,6 +124,9 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
   return (
     <div
       data-annotation-type="sticky-note"
+      data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       className="absolute pointer-events-auto flex flex-col"
       style={{
         left: displayRect.x,

@@ -1,4 +1,5 @@
 import { useAnnotationStore } from '@/core/annotations/store';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import { isNativeAnnotationHydrationCurrent } from '@/core/annotations/sessionHydration';
 import { useWriterStore } from '@/core/writer/store';
 import { composeEditablePdf } from '@/core/document/commitPipeline';
@@ -20,7 +21,10 @@ export function captureWriterOutputSnapshot() {
   }
   if (blank ? Boolean(session.documentKey || session.workingBytes) : (
     session.documentKey !== fingerprint || !session.workingBytes || !session.pageGraph
-    || annotationState.hydratedDocumentKey !== fingerprint || !isNativeAnnotationHydrationCurrent(fingerprint)
+    || annotationState.hydratedDocumentKey !== fingerprint
+    || annotationState.nativeIntegrity.status !== 'COMPLETE'
+    || annotationState.nativeIntegrity.documentKey !== fingerprint
+    || !isNativeAnnotationHydrationCurrent(fingerprint)
   )) {
     throw new Error('Cannot safely export: source PDF or native annotations are not ready for this Writer session.');
   }
@@ -31,7 +35,10 @@ export function captureWriterOutputSnapshot() {
     throw new Error('Cannot safely export: Writer element refers to a missing source page.');
   }
   return { owner, fingerprint, blank, elements, assets: writer.assetRecords,
-    documentMeta: writer.documentMeta ? { ...writer.documentMeta, pageCount } : null, annotations: annotationState.annotations, legacyElements };
+    documentMeta: writer.documentMeta ? { ...writer.documentMeta, pageCount } : null,
+    annotations: annotationState.annotations,
+    nativeDeletionTombstones: annotationState.nativeDeletionTombstones,
+    legacyElements };
 }
 export type WriterOutputSnapshot = ReturnType<typeof captureWriterOutputSnapshot>;
 
@@ -39,6 +46,9 @@ export function isWriterOutputSnapshotCurrent(snapshot: WriterOutputSnapshot): b
   const annotations = useAnnotationStore.getState();
   return isWriterPersistenceOwnerCurrent(snapshot.owner)
     && (snapshot.blank || (annotations.hydratedDocumentKey === snapshot.fingerprint
+      && annotations.nativeIntegrity.status === 'COMPLETE'
+      && annotations.nativeIntegrity.documentKey === snapshot.fingerprint
+      && annotations.nativeDeletionTombstones === snapshot.nativeDeletionTombstones
       && isNativeAnnotationHydrationCurrent(snapshot.fingerprint)
       && annotations.annotations === snapshot.annotations
       && useWriterStore.getState().elements === snapshot.legacyElements));
@@ -56,8 +66,27 @@ export async function materializeWriterOutputSource(snapshot: WriterOutputSnapsh
   if (snapshot.blank) return null;
   const baseBytes = snapshot.owner.document.session.workingBytes;
   if (!baseBytes) throw new Error('Cannot safely export without working PDF bytes.');
-  const result = await composeEditablePdf({ baseBytes, annotations: snapshot.annotations,
-    writerElements: snapshot.legacyElements, replaceManagedAnnotations: true });
+  const session = snapshot.owner.document.session;
+  const evidence = await verifiedNativeWriteEvidence({
+    sourceRevision: snapshot.fingerprint,
+    baseBytes,
+    annotations: snapshot.annotations,
+    tombstones: snapshot.nativeDeletionTombstones,
+    journalStoreId: session.historyJournalStoreId,
+  });
+  assertWriterOutputSnapshotCurrent(snapshot);
+  const result = await composeEditablePdf({
+    baseBytes,
+    annotations: snapshot.annotations,
+    writerElements: snapshot.legacyElements,
+    replaceManagedAnnotations: true,
+    nativeDeletionAuthorization: {
+      sourceRevision: snapshot.fingerprint,
+      sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
+      tombstones: snapshot.nativeDeletionTombstones,
+      ...evidence,
+    },
+  });
   assertWriterOutputSnapshotCurrent(snapshot);
   return result.bytes;
 }

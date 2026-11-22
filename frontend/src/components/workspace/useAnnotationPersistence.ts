@@ -1,13 +1,47 @@
 import React from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { loadAnnotationsOrNull, saveAnnotations } from '@/core/annotations/persistence';
+import { loadAnnotationSnapshotOrNull, saveAnnotations } from '@/core/annotations/persistence';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
-import { error as logError } from '@/core/logger/service';
+import { useToastStore } from '@/core/toast/store';
+import { debug as logDebug, error as logError, warn as logWarn } from '@/core/logger/service';
+import { summarizeNativeAnnotationCoverage } from '@/core/pdf-annotations/nativeCoverageAudit';
+import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
+import {
+  authorizedEditFields,
+  nativeEditableFields,
+  unprovenNativeEditFields,
+  isValidNativeDeletionTombstone,
+  type NativeDeletionTombstone,
+  type NativeIntegrityState,
+} from '@/core/annotations/nativeIntegrity';
 import { ensureAnnotationHasNormalizedGeometry } from '@/core/annotations/normalized';
 import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { readNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationReader';
+
+/** Stable across local edits: a native PDF object belongs to one source page. */
+function nativeSourceKey(annotation: PdfAnnotation): string {
+  return JSON.stringify([
+    annotation.pageNumber,
+    annotation.data.nativeSourceRef ?? annotation.data.nativeOriginalName ?? annotation.id,
+  ]);
+}
+
+function addUniqueSourceMatch(
+  matches: Map<string, PdfAnnotation>,
+  ambiguous: Set<string>,
+  key: string,
+  item: PdfAnnotation,
+): void {
+  if (ambiguous.has(key)) return;
+  if (matches.has(key)) {
+    matches.delete(key);
+    ambiguous.add(key);
+    return;
+  }
+  matches.set(key, item);
+}
 
 interface UseAnnotationPersistenceArgs {
   documentKey: string | null;
@@ -27,23 +61,72 @@ export function useAnnotationPersistence({
   setRestoredCount,
 }: UseAnnotationPersistenceArgs): void {
   const hydratedDocumentKey = useAnnotationStore((state) => state.hydratedDocumentKey);
+  const nativeDeletionTombstones = useAnnotationStore((state) => state.nativeDeletionTombstones);
+  // A parent may supply a freshly allocated callback on every render. Only
+  // the PDF revision, not that callback identity, may restart source hydration.
+  const restoredCountCallback = React.useRef(setRestoredCount);
+  React.useLayoutEffect(() => {
+    restoredCountCallback.current = setRestoredCount;
+  }, [setRestoredCount]);
   React.useEffect(() => {
     let cancelled = false;
     const loadStored = async () => {
       if (!documentKey || !workingBytes) return;
-      setRestoredCount(0);
+      restoredCountCallback.current(0);
+      useAnnotationStore.setState({
+        hydratedDocumentKey: null,
+        nativeIntegrity: { status: 'LOADING', documentKey },
+        nativeDeletionTombstones: [],
+      });
       const before = useAnnotationStore.getState().annotations;
-      const stored = await loadAnnotationsOrNull(documentKey);
-      const imported = await readNativePdfAnnotations(workingBytes);
+      // Local recovery metadata must never block source-native PDF import.
+      // An unavailable IndexedDB cache is an inconvenience, not a reason to
+      // display genuinely native annotations as an uneditable flat page.
+      let snapshot: Awaited<ReturnType<typeof loadAnnotationSnapshotOrNull>> = null;
+      let cacheUnavailable = false;
+      try {
+        snapshot = await loadAnnotationSnapshotOrNull(documentKey);
+      } catch (err) {
+        cacheUnavailable = true;
+        if (!cancelled) logError('annotation', 'Native overlay cache unavailable; importing from PDF', {
+          error: String(err), documentKey,
+        });
+      }
+      const stored = snapshot?.annotations ?? null;
+      let imported: Awaited<ReturnType<typeof readNativePdfAnnotations>>;
+      try {
+        imported = await readNativePdfAnnotations(workingBytes);
+      } catch (err) {
+        if (!cancelled) {
+          useAnnotationStore.setState({
+            nativeIntegrity: { status: 'FAILED', documentKey, reason: 'Native PDF parser failed' },
+          });
+          logError('annotation', 'Failed to parse native PDF annotations', {
+            error: String(err), documentKey,
+          });
+          useToastStore.getState().addToast({
+            type: 'error',
+            title: 'Native annotations unavailable',
+            message: 'PDF annotation import failed. Source markup may be visible only in another viewer; the PDF was not flattened.',
+          });
+        }
+        return;
+      }
       if (cancelled || useSessionStore.getState().documentKey !== documentKey
         || useSessionStore.getState().workingBytes !== workingBytes) return;
       if (useAnnotationStore.getState().annotations !== before) {
         throw new Error('Annotations changed before the native document finished loading.');
       }
       const sourceByKey = new Map<string, PdfAnnotation>();
+      const sourceByRef = new Map<string, PdfAnnotation>();
       const sourceByText = new Map<string, PdfAnnotation>();
       const sourceByPos = new Map<string, PdfAnnotation>();
+      const ambiguousText = new Set<string>();
+      const ambiguousPos = new Set<string>();
       for (const item of imported.annotations) {
+        if (item.data.nativeSourceRef) {
+          sourceByRef.set(`${item.pageNumber}\u0000${item.data.nativeSourceRef}`, item);
+        }
         sourceByKey.set(`${item.pageNumber}\u0000${item.id}`, item);
         if (item.data.nativeOriginalName) {
           sourceByKey.set(`${item.pageNumber}\u0000${item.data.nativeOriginalName}`, item);
@@ -52,25 +135,105 @@ export function useAnnotationPersistence({
         sourceByKey.set(`${item.pageNumber}\u0000${strippedId}`, item);
         if (item.data.text) {
           const normText = item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-          sourceByText.set(`${item.pageNumber}\u0000${normText}`, item);
+          addUniqueSourceMatch(sourceByText, ambiguousText, `${item.pageNumber}\u0000${normText}`, item);
         }
-        sourceByPos.set(`${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
+        addUniqueSourceMatch(sourceByPos, ambiguousPos, `${item.pageNumber}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`, item);
       }
-      const model = stored === null ? imported.annotations : stored.map((item) => {
+      // Legacy source-key baselines are NOT deletion authorization. Only a
+      // persisted explicit deletion command for the exact original PDF object
+      // can omit that object during recovery.
+      const sourceIds = new Set(imported.annotations.map(nativeSourceKey));
+      const pageIds = useSessionStore.getState().pageGraph?.pages ?? [];
+      const persistedTombstones = snapshot?.nativeDeletionTombstones ?? [];
+      // The source appearing in a recovered snapshot means a deletion was
+      // undone or conflicted with the cached model. Favor preservation and
+      // revoke the stale command before it can suppress a future import.
+      const restoredNativeKeys = new Set((snapshot?.annotations ?? [])
+        .filter((item) => item.data.nativeSourceRef && !item.data.nativeCopySource)
+        .map(nativeSourceKey));
+      const validTombstones: NativeDeletionTombstone[] = [];
+      const invalidTombstones: NativeDeletionTombstone[] = [];
+      for (const item of persistedTombstones) {
+        const key = JSON.stringify([item.pageNumber, item.sourceRef]);
+        if (restoredNativeKeys.has(key)) continue; // Undo wins over stale tombstone.
+        if (isValidNativeDeletionTombstone(item)
+          && item.sourceRevision === documentKey
+          && sourceIds.has(key)
+          && pageIds[item.pageNumber - 1]?.pageId === item.pageId) {
+          validTombstones.push(item);
+        } else invalidTombstones.push(item);
+      }
+      // A source/page-valid tombstone is only a claim until its originating
+      // user command can be found in independently persisted history. Check
+      // BEFORE suppressing any PDF-native root from the user-visible model.
+      // Old sidecars without issued history remain recoverable, not writable.
+      let journalUnverified = false;
+      const hasSourceEditClaims = Boolean(stored?.some((item) =>
+        item.data.nativeSourceRef && item.data.nativeEditProvenance));
+      if (validTombstones.length || hasSourceEditClaims) {
+        try {
+          await verifiedNativeWriteEvidence({
+            sourceRevision: documentKey, baseBytes: workingBytes,
+            annotations: stored ?? imported.annotations,
+            tombstones: validTombstones,
+            journalStoreId: useSessionStore.getState().historyJournalStoreId,
+            importedSourceAnnotations: imported.annotations,
+          });
+        } catch (err) {
+          journalUnverified = true;
+          logWarn('annotation', 'Recovered native commands lack issued history; protecting original PDF objects', {
+            documentKey, error: String(err),
+          });
+          // Never hide an original native object on the authority of an
+          // unverified cache tombstone. Keep the questionable cache in place
+          // for explicit recovery rather than replacing it on autosave.
+          invalidTombstones.push(...validTombstones);
+          validTombstones.length = 0;
+        }
+        if (cancelled || useSessionStore.getState().documentKey !== documentKey
+          || useSessionStore.getState().workingBytes !== workingBytes) return;
+      }
+      const deletedSourceKeys = new Set(validTombstones.map((item) =>
+        JSON.stringify([item.pageNumber, item.sourceRef])));
+      const unmatchedCachedNative: string[] = [];
+      const unresolvedCachedEdits: string[] = [];
+      const matchedSourceKeys = new Set<string>();
+      const restored = stored === null ? imported.annotations : stored.map((item) => {
         const origin = item.data.nativeCopySource;
         const pageNum = origin?.pageNumber ?? item.pageNumber;
         const rawKey = origin?.nativeName ?? item.data.nativeOriginalName ?? item.id;
         const normItemText = item.data.text
           ? item.data.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
           : '';
-        const source = sourceByKey.get(`${pageNum}\u0000${rawKey}`)
-          ?? sourceByKey.get(`${pageNum}\u0000${rawKey.replace(/^pdfhub-native-p\d+:/, '')}`)
-          ?? sourceByKey.get(`${pageNum}\u0000${item.id}`)
-          ?? (normItemText ? sourceByText.get(`${pageNum}\u0000${normItemText}`) : undefined)
-          ?? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`);
+        // Do not identify an application-created overlay as a PDF native
+        // object solely because its text or coordinates happen to overlap.
+        const canMatchByAppearance = Boolean(
+          origin || item.data.nativeSourceRef || item.data.nativeOriginalName
+          || item.id.startsWith('native:p') || item.id.startsWith('pdfhub-native-p'),
+        );
+        const source = item.data.nativeSourceRef && !origin
+          ? sourceByRef.get(`${pageNum}\u0000${item.data.nativeSourceRef}`)
+          : sourceByKey.get(`${pageNum}\u0000${rawKey}`)
+            ?? sourceByKey.get(`${pageNum}\u0000${rawKey.replace(/^pdfhub-native-p\d+:/, '')}`)
+            ?? sourceByKey.get(`${pageNum}\u0000${item.id}`)
+            ?? (canMatchByAppearance && normItemText
+              ? sourceByText.get(`${pageNum}\u0000${normItemText}`)
+              : undefined)
+            ?? (canMatchByAppearance
+              ? sourceByPos.get(`${pageNum}\u0000${Math.round(item.rect.x)}:${Math.round(item.rect.y)}`)
+              : undefined);
+        if (!source && item.data.nativeSourceRef && !origin) {
+          unmatchedCachedNative.push(nativeSourceKey(item));
+        }
+        // A copied overlay can reference its original source without
+        // representing that native object on the source page.
+        if (source && !origin) matchedSourceKeys.add(nativeSourceKey(source));
         const data = { ...item.data };
         delete data.nativeSourceRef;
         delete data.nativeAppearanceRef;
+        delete data.nativeAppearanceRect;
+        delete data.nativeAppearanceBodyRect;
+        delete data.nativeAppearanceImported;
         delete data.nativeAppearanceRotation;
         delete data.nativeAppearancePageRotation;
         delete data.nativeStampRotationReadOnly;
@@ -83,28 +246,33 @@ export function useAnnotationPersistence({
         delete data.nativeMarkupPreviewOffset;
         delete data.nativeMarkupGeneratedAppearance;
         let effectiveRect = item.rect;
-        const resolvedType: PdfAnnotation['type'] = (source?.type === 'callout' || item.type === 'callout')
-          ? 'callout'
-          : (source?.type ?? item.type);
+        // The actual /Subtype and /IT own the native type. A stale sidecar
+        // cannot silently convert an unchanged /FreeText into a callout.
+        const resolvedType: PdfAnnotation['type'] = origin ? item.type : source?.type ?? item.type;
         if (source) {
-          // Draft state cannot authorize changes to artwork already in the PDF.
-          delete data.nativeMarkupDraft;
-          if (resolvedType === 'callout') {
-            if (source.data.anchor) data.anchor = source.data.anchor;
-            if (source.data.knee) data.knee = source.data.knee;
-            if (source.data.leaderStyle) data.leaderStyle = source.data.leaderStyle;
-            if (source.data.arrowHead) data.arrowHead = source.data.arrowHead;
-            if (source.rect && (!item.data.isUserModified)) {
-              effectiveRect = source.rect;
-            }
+          // A sidecar cannot authorize a visual edit without revision-bound,
+          // per-field user edit provenance. Source fields win by default.
+          const edited = origin ? new Set<string>() : authorizedEditFields(item, source, documentKey);
+          if (!origin && item.data.nativeSourceRef) {
+            const unproven = unprovenNativeEditFields(item, source, documentKey).length > 0;
+            if (unproven) unresolvedCachedEdits.push(nativeSourceKey(source));
           }
-          if (resolvedType === 'callout' || resolvedType === 'textbox') {
-            if (source.data.borderColor) data.borderColor = source.data.borderColor;
-            if (source.data.backgroundColor) data.backgroundColor = source.data.backgroundColor;
-            if (typeof source.data.textColor === 'string') data.textColor = source.data.textColor;
-            if (typeof source.data.fontFamily === 'string') data.fontFamily = source.data.fontFamily;
-            if (typeof source.data.borderWidth === 'number') data.borderWidth = source.data.borderWidth;
-            if (typeof source.data.text === 'string' && !item.data.isUserModified) data.text = source.data.text;
+          if (!edited.size) delete data.nativeEditProvenance;
+          delete data.nativeMarkupDraft;
+          // A native copy is a new user-owned overlay. Its original supplies
+          // artwork, *not* the authoritative text, position or leader geometry.
+          // Restoring source /Rect here teleports pasted stamps/callouts to the
+          // original on refresh or Undo (including when the page was rotated).
+          if (!origin) {
+            if (!edited.has('rect')) effectiveRect = source.rect;
+            for (const key of nativeEditableFields) {
+              if (key === 'rect' || edited.has(key)) continue;
+              if (source.data[key] !== undefined) {
+                (data as Record<string, unknown>)[key] = source.data[key];
+              } else {
+                delete data[key];
+              }
+            }
           }
           // Classify from the native source, never a potentially stale
           // editable/generated flag restored from a sidecar.
@@ -147,26 +315,135 @@ export function useAnnotationPersistence({
             const offset = (source.data.nativeMarkupPreviewOffset ?? 0) + (origin && from !== undefined && to !== undefined ? (from - to) / 90 : 0);
             if (Number.isInteger(offset)) data.nativeMarkupPreviewOffset = ((offset % 4) + 4) % 4;
           }
-          if (!origin && source.data.nativeSourceRef) data.nativeSourceRef = source.data.nativeSourceRef;
+          if (!origin) {
+            // The source /NM remains the writer/deletion identity even if a
+            // stale sidecar renamed the UI ID. Never trust its cached name.
+            const sourceName = source.data.nativeOriginalName ?? source.id;
+            if (item.id !== source.id || source.data.nativeOriginalName) {
+              data.nativeOriginalName = sourceName;
+            } else {
+              delete data.nativeOriginalName;
+            }
+            if (source.data.nativeSourceRef) data.nativeSourceRef = source.data.nativeSourceRef;
+          }
           if (source.data.nativeAppearanceRef) data.nativeAppearanceRef = source.data.nativeAppearanceRef;
+          if (source.data.nativeAppearanceRect) data.nativeAppearanceRect = source.data.nativeAppearanceRect;
+          if (source.data.nativeAppearanceBodyRect) data.nativeAppearanceBodyRect = source.data.nativeAppearanceBodyRect;
+          if (source.data.nativeAppearanceImported) data.nativeAppearanceImported = true;
+          // A legacy sidecar can contain edits but no explicit AP dirty marker.
+          // Do not show the stale source artwork over an edited text/shape.
+          if (!origin && source.data.nativeAppearanceImported && [
+            ...edited,
+          ].some((field) => field === 'rect'
+            ? JSON.stringify(item.rect) !== JSON.stringify(source.rect)
+            : JSON.stringify(item.data[field]) !== JSON.stringify(source.data[field]))) {
+            data.nativeAppearanceDirty = true;
+          } else if (!origin) {
+            delete data.nativeAppearanceDirty;
+          }
           if (source.data.nativeAppearanceRotation !== undefined) data.nativeAppearanceRotation = source.data.nativeAppearanceRotation;
           if (source.data.nativeAppearancePageRotation !== undefined) data.nativeAppearancePageRotation = source.data.nativeAppearancePageRotation;
         }
         return { ...item, type: resolvedType, rect: effectiveRect, data };
       });
+      // A missing or corrupted cached entry is NOT an explicit deletion.
+      // Only source-revision/page-matched deletion commands suppress recovery.
+      const missingSource = stored === null ? [] : imported.annotations.filter((item) => {
+        const key = nativeSourceKey(item);
+        return !matchedSourceKeys.has(key) && !deletedSourceKeys.has(key);
+      });
+      const model = [...restored, ...missingSource];
       setAnnotations(model);
       const hydrated = useAnnotationStore.getState().annotations;
-      useAnnotationStore.setState({ hydratedDocumentKey: documentKey });
-      setRestoredCount(hydrated.length);
+      const coverage = summarizeNativeAnnotationCoverage(
+        imported.sourceRoots ?? [],
+        imported.annotations,
+        hydrated,
+        validTombstones,
+      );
+      logDebug('annotation', 'Native annotation source → parser → model coverage', {
+        documentKey,
+        ...coverage,
+      });
+      if (coverage.missingFromParser.length
+        || coverage.missingFromModel.length
+        || coverage.duplicateInModel.length) {
+        logWarn('annotation', 'Native annotation coverage is incomplete', {
+          documentKey,
+          missingFromParser: coverage.missingFromParser,
+          missingFromModel: coverage.missingFromModel,
+          duplicateInModel: coverage.duplicateInModel,
+        });
+      }
+      const incomplete = cacheUnavailable || journalUnverified
+        || invalidTombstones.length > 0 || unmatchedCachedNative.length > 0
+        || unresolvedCachedEdits.length > 0
+        || coverage.missingFromParser.length > 0
+        || coverage.missingFromModel.length > 0
+        || coverage.duplicateInModel.length > 0;
+      const nativeIntegrity: NativeIntegrityState = {
+        documentKey,
+        status: incomplete ? 'INCOMPLETE' : 'COMPLETE',
+        cacheState: cacheUnavailable ? 'UNAVAILABLE' : snapshot ? 'VALID' : 'EMPTY',
+        ...(incomplete ? { reason: journalUnverified
+          ? 'Native edit or deletion has no verified issued command history'
+          : 'Native source/cache identity verification incomplete' } : {}),
+      };
+      useAnnotationStore.setState({
+        hydratedDocumentKey: documentKey,
+        nativeIntegrity,
+        nativeDeletionTombstones: validTombstones,
+      });
+      restoredCountCallback.current(hydrated.length);
+      if (incomplete) {
+        // Do not overwrite a potentially recoverable legacy draft with the
+        // source-authoritative display model until the conflict is resolved.
+        logWarn('annotation', 'Native Save disabled pending source/cache reconciliation', {
+          documentKey, unmatchedCachedNative, unresolvedCachedEdits,
+          invalidTombstones: invalidTombstones.length,
+        });
+        useToastStore.getState().addToast({
+          type: 'error',
+          title: 'Native annotation recovery incomplete',
+          message: 'Editable Save is disabled to protect original PDF annotations. The original PDF remains available to download.',
+        });
+        return;
+      }
+      // Persist only a verified source baseline. Missing cache entries never
+      // authorize native deletion, and disputed drafts are left untouched.
+      void saveAnnotations(documentKey, hydrated, {
+        nativeSourceKeys: imported.annotations.map(nativeSourceKey),
+        nativeDeletionTombstones: validTombstones,
+      }).catch((err) => {
+        if (useSessionStore.getState().documentKey === documentKey) {
+          useAnnotationStore.setState({
+            nativeIntegrity: {
+              status: 'INCOMPLETE', documentKey,
+              reason: 'Native deletion and edit provenance could not be persisted',
+              cacheState: 'UNAVAILABLE',
+            },
+          });
+        }
+        logError('annotation', 'Failed to persist native annotation baseline', {
+          error: String(err), documentKey,
+        });
+      });
     };
     void loadStored().catch((err) => {
-      if (!cancelled) logError('annotation', 'Failed to load native annotations', { error: String(err), documentKey });
+      if (cancelled) return;
+      useAnnotationStore.setState({
+        nativeIntegrity: { status: 'FAILED', documentKey, reason: String(err) },
+      });
+      logError('annotation', 'Failed to hydrate native annotations', {
+        error: String(err), documentKey,
+      });
     });
     return () => { cancelled = true; };
-  }, [documentKey, workingBytes, setAnnotations, setRestoredCount]);
+  }, [documentKey, workingBytes, setAnnotations]);
 
   React.useEffect(() => {
-    if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || !pdfDoc || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
     let cancelled = false;
 
     const run = async () => {
@@ -207,10 +484,13 @@ export function useAnnotationPersistence({
   }, [documentKey, pdfDoc, setAnnotations, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
 
     const timer = window.setTimeout(() => {
-      void saveAnnotations(documentKey, annotations).catch(err => {
+      void saveAnnotations(documentKey, annotations, {
+        nativeDeletionTombstones,
+      }).catch(err => {
         logError('annotation', 'Annotation autosave failed', {
           documentKey,
           error: err instanceof Error ? err.message : String(err),
@@ -221,13 +501,17 @@ export function useAnnotationPersistence({
     return () => {
       clearTimeout(timer);
     };
-  }, [annotations, documentKey, hydratedDocumentKey]);
+  }, [annotations, nativeDeletionTombstones, documentKey, hydratedDocumentKey]);
 
   React.useEffect(() => {
-    if (!documentKey || hydratedDocumentKey !== documentKey) return;
+    if (!documentKey || hydratedDocumentKey !== documentKey
+      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
 
     const flushNow = () => {
-      void saveAnnotations(documentKey, useAnnotationStore.getState().annotations).catch(err => {
+      const state = useAnnotationStore.getState();
+      void saveAnnotations(documentKey, state.annotations, {
+        nativeDeletionTombstones: state.nativeDeletionTombstones,
+      }).catch(err => {
         logError('annotation', 'Annotation pagehide flush failed', {
           documentKey,
           error: err instanceof Error ? err.message : String(err),

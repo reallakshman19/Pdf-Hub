@@ -10,7 +10,7 @@ import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@
 import { useAnnotationStore } from '@/core/annotations/store';
 import { initializeMarkupDraft, remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
-import { isNativeRichTextReadOnly } from '@/core/annotations/nativeInteropFidelity';
+
 import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
@@ -26,7 +26,8 @@ import { useWriterPersistence } from './useWriterPersistence';
 import { useShallow } from 'zustand/react/shallow';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
-import { useNativeStampAppearances } from '@/core/renderer/useNativeStampAppearances';
+import { useNativeAnnotationAppearances } from '@/core/renderer/useNativeStampAppearances';
+import { NativeAppearanceNode } from '@/components/annotations/NativeAppearanceNode';
 
 import { useSearchStore } from '@/core/search/store';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
@@ -1056,7 +1057,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     scale,
     canvasRef,
   });
-  const nativeStampAppearances = useNativeStampAppearances(doc, pageAnnotations);
+  const nativeAnnotationAppearances = useNativeAnnotationAppearances(doc, pageAnnotations);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1176,9 +1177,13 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     if (!isCurrentPage() || !edit || editingRef.current !== edit || edit.id !== annotation.id) return;
     editingRef.current = null;
     setEditingState(null);
+    // An imported native /RC remains geometry-bound after the first user
+    // text edit. Its MUTATED_USER_EDIT state must not make it eligible for
+    // HTML auto-sizing on a later refresh/edit confirmation.
+    const hasNativeRichTextRoot = annotation.data.nativeInterop?.richText === true;
     const currentRect = draftRectsRef.current[annotation.id];
     const nextRect =
-      !isNativeRichTextReadOnly(annotation) && annotation.data.autoSize !== false && isTextLike(annotation.type)
+      !hasNativeRichTextRoot && annotation.data.autoSize !== false && isTextLike(annotation.type)
         ? autoSizeRectForText(
             value,
             readFontSize(annotation),
@@ -1191,7 +1196,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       text: value,
     };
 
-    if (isNativeRichTextReadOnly(annotation) && value !== (annotation.data.text ?? '')) {
+    if (hasNativeRichTextRoot && value !== (annotation.data.text ?? '')) {
       nextData.nativeInterop = {
         fidelityClass: 'MUTATED_USER_EDIT',
         reason: 'USER_EDITED',
@@ -2323,8 +2328,25 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             rawRect,
           );
 
+          const sourceAppearance = annotation.data.nativeAppearanceRef
+            ? nativeAnnotationAppearances[annotation.data.nativeAppearanceRef]
+            : undefined;
+          // Imported /AP is the visual source of truth. Use the app's normal
+          // annotation renderer for user-authored annotations, edited native
+          // artwork or missing/unavailable appearance streams.
+          const PreviewComponent: React.FC<AnnotationRendererProps> =
+            ['textbox', 'callout', 'line', 'arrow', 'shape-rect', 'shape-ellipse', 'shape-cloud'].includes(annotation.type)
+            && annotation.type !== 'stamp'
+            && annotation.data.nativeAppearanceImported === true
+            && annotation.data.nativeAppearanceDirty !== true
+            && Boolean(sourceAppearance)
+            && Boolean(annotation.data.nativeAppearanceRect)
+            && Boolean(annotation.data.nativeAppearanceBodyRect)
+              ? NativeAppearanceNode
+              : NodeComponent;
+
           return (
-            <NodeComponent
+            <PreviewComponent
               key={annotation.id}
               annotation={displayAnnotation}
               rect={scaledRect}
@@ -2333,7 +2355,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
               isEditing={activeEdit?.id === annotation.id}
               editingValue={activeEdit?.value ?? ''}
               pageRotation={rotation}
-              nativeAppearanceUrl={annotation.data.nativeAppearanceRef ? nativeStampAppearances[annotation.data.nativeAppearanceRef] : undefined}
+              nativeAppearanceUrl={sourceAppearance}
               onSelect={(event: React.PointerEvent<HTMLDivElement>) => {
                 event.stopPropagation();
                 clearTextSelectionDraft();

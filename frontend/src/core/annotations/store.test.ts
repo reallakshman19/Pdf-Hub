@@ -26,10 +26,128 @@ describe('annotation store', () => {
       activeAnnotationId: null,
       selectedAnnotationIds: [],
       clipboard: [],
+      hydratedDocumentKey: null,
+      nativeIntegrity: { status: 'LOADING', documentKey: null },
+      nativeDeletionTombstones: [],
     });
     useSessionStore.getState().clearDocument();
     useHistoryStore.getState().clear();
     clearWorkingRevisionStoreRegistryForTests();
+  });
+
+
+  it('records explicit, revision-matched native deletion commands rather than absence', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-integrity',
+      fileName: 'integrity.pdf',
+      bytes: new Uint8Array([1]),
+      pageCount: 1,
+      pageGraph: {
+        pages: [{
+          pageId: 'page-original', documentKey: 'doc-integrity',
+          originalPageNumber: 1, currentIndex: 0,
+          width: 400, height: 500, rotation: 0,
+        }],
+      },
+    });
+    useAnnotationStore.setState({
+      nativeIntegrity: { status: 'COMPLETE', documentKey: 'doc-integrity' },
+      hydratedDocumentKey: 'doc-integrity',
+    });
+    const source: PdfAnnotation = {
+      ...baseAnnotation('native-source', 1, 10, 20),
+      data: { nativeSourceRef: '10 0 R', text: 'Original' },
+    };
+    useAnnotationStore.getState().setAnnotations([source]);
+    useAnnotationStore.getState().deleteAnnotation('native-source');
+    const state = useAnnotationStore.getState();
+    expect(state.annotations).toHaveLength(0);
+    expect(state.nativeDeletionTombstones).toHaveLength(1);
+    expect(state.nativeDeletionTombstones[0]).toMatchObject({
+      sourceRevision: 'doc-integrity',
+      sourceRef: '10 0 R',
+      sourceName: 'native-source',
+      pageId: 'page-original',
+      pageNumber: 1,
+      commandId: expect.any(String),
+    });
+    // A restored native source (Undo or recovery) revokes the old deletion.
+    // Corrupting the local cache later must never reuse that command.
+    state.setAnnotations([source]);
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+  });
+
+  it('refuses a native delete when source import integrity is not complete', () => {
+    useSessionStore.setState({ documentKey: 'unsafe' });
+    useAnnotationStore.setState({
+      annotations: [{
+        ...baseAnnotation('unsafe-native', 1, 10, 20),
+        data: { nativeSourceRef: '10 0 R' },
+      }],
+      nativeIntegrity: { status: 'INCOMPLETE', documentKey: 'unsafe' },
+    });
+    useAnnotationStore.getState().deleteAnnotation('unsafe-native');
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+  });
+
+  it('records field-specific native edit provenance on user geometry/text changes', () => {
+    useSessionStore.setState({ documentKey: 'doc-edit' });
+    useAnnotationStore.getState().setAnnotations([{
+      ...baseAnnotation('native-edited', 1, 10, 20),
+      data: { nativeSourceRef: '21 0 R', text: 'Before' },
+    }]);
+    const source = useAnnotationStore.getState().annotations[0];
+    useAnnotationStore.getState().updateAnnotation(source.id, {
+      rect: { ...source.rect, x: 75 },
+      data: { ...source.data, text: 'After' },
+    });
+    const updated = useAnnotationStore.getState().annotations[0];
+    expect(updated.data.nativeEditProvenance).toMatchObject({
+      sourceRevision: 'doc-edit',
+      sourceRef: '21 0 R',
+      fields: expect.arrayContaining(['rect', 'text']),
+      commandId: expect.any(String),
+    });
+  });
+
+  it('records native rectangle provenance for Align and Distribute transformations', () => {
+    useSessionStore.setState({ documentKey: 'sha256:layout-source' });
+    const source = (id: string, x: number, ref: string): PdfAnnotation => ({
+      ...baseAnnotation(id, 1, x, 20),
+      type: 'callout',
+      data: {
+        text: id,
+        anchor: { x: x - 40, y: 40 },
+        knee: { x: x - 15, y: 40 },
+        nativeSourceRef: ref,
+        nativeAppearanceImported: true,
+      },
+    });
+
+    useAnnotationStore.getState().setAnnotations([
+      source('left', 0, '10 0 R'),
+      source('middle', 200, '11 0 R'),
+      source('right', 500, '12 0 R'),
+    ]);
+    useAnnotationStore.getState().setSelection(['left', 'middle', 'right']);
+    useAnnotationStore.getState().distributeSelection('horizontal');
+    const middle = useAnnotationStore.getState().annotations.find((item) => item.id === 'middle')!;
+    expect(middle.rect.x).toBe(250);
+    expect(middle.data.nativeEditProvenance).toMatchObject({
+      sourceRevision: 'sha256:layout-source',
+      sourceRef: '11 0 R',
+      fields: expect.arrayContaining(['rect']),
+      commandId: expect.any(String),
+    });
+    expect(middle.data.nativeAppearanceDirty).toBe(true);
+
+    useAnnotationStore.getState().setSelection(['left', 'middle']);
+    useAnnotationStore.getState().alignSelection('left');
+    const aligned = useAnnotationStore.getState().annotations.find((item) => item.id === 'middle')!;
+    expect(aligned.rect.x).toBe(0);
+    expect(aligned.data.nativeEditProvenance?.fields).toContain('rect');
   });
 
   it('add/update/delete manage selection state', () => {

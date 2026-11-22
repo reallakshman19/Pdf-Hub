@@ -24,6 +24,44 @@ const RICH_TEXT_PROTECTED_STYLE_KEYS = [
   'textAlign',
 ] as const satisfies readonly (keyof AnnotationStyle)[];
 
+const NATIVE_AP_VISUAL_KEYS = [
+  'text', 'content', 'fontSize', 'fontWeight', 'fontStyle', 'fontFamily',
+  'textAlign', 'textColor', 'lineHeight', 'backgroundColor', 'borderColor',
+  'borderWidth', 'borderStyle', 'borderRadius', 'opacity', 'style',
+  'anchor', 'knee', 'leaderStyle', 'arrowHead', 'points', 'paths',
+  'lineStartCap', 'lineEndCap', 'rotation', 'nativeMarkupTurn',
+  'nativeBoxShapeTurn', 'textMarkupQuads',
+] as const satisfies readonly (keyof AnnotationData)[];
+
+/**
+ * A source /AP is a read-only snapshot. Once the user changes the visible
+ * semantics, use the live editor preview rather than displaying stale artwork.
+ * Moving or scaling a simple rectangle can retain its original artwork; moving
+ * a callout changes the relationship between its body and anchored leader.
+ */
+export function markNativeAppearanceDirty(
+  original: PdfAnnotation,
+  next: PdfAnnotation,
+): PdfAnnotation {
+  if (!original.data.nativeAppearanceImported || original.data.nativeAppearanceDirty) return next;
+  const visualDataChanged = NATIVE_AP_VISUAL_KEYS.some((key) => {
+    const before = original.data[key];
+    const after = next.data[key];
+    return before !== after && JSON.stringify(before) !== JSON.stringify(after);
+  });
+  const calloutBodyMoved = original.type === 'callout' && (
+    original.rect.x !== next.rect.x
+    || original.rect.y !== next.rect.y
+    || original.rect.width !== next.rect.width
+    || original.rect.height !== next.rect.height
+  );
+  if (!visualDataChanged && !calloutBodyMoved && original.type === next.type) return next;
+  return {
+    ...next,
+    data: { ...next.data, nativeAppearanceDirty: true },
+  };
+}
+
 export function isNativeRichTextReadOnly(
   annotation: PdfAnnotation,
 ): boolean {

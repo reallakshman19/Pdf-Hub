@@ -1,4 +1,5 @@
 import { saveAnnotations } from '../annotations/persistence';
+import { deletionKey, isValidNativeDeletionTombstone } from '../annotations/nativeIntegrity';
 import { normalizeAnnotationPageAnchors } from '../annotations/pageAnchor';
 import { useAnnotationStore } from '../annotations/store';
 import { enqueueDocumentOperation } from '../commands/documentOperationQueue';
@@ -26,7 +27,9 @@ async function persistHistoryState(state: HistoryState): Promise<void> {
     state.annotations,
     state.pageGraph,
   );
-  await saveAnnotations(state.documentKey, annotations);
+  await saveAnnotations(state.documentKey, annotations, {
+    nativeDeletionTombstones: useAnnotationStore.getState().nativeDeletionTombstones,
+  });
 }
 
 async function resolveHistoryPdfBytes(
@@ -121,6 +124,30 @@ function restoreHistoryState(
   useAnnotationStore.getState().setAnnotations(
     normalizeAnnotationPageAnchors(state.annotations, state.pageGraph),
   );
+  // The annotation array alone does not carry permission to delete /Annots.
+  // Restore the original, immutable command identity captured by the action
+  // being undone/redone. Never synthesize a command from a missing model row.
+  if (state.nativeDeletionTombstones) {
+    const present = new Set(useAnnotationStore.getState().annotations
+      .filter((item) => item.data.nativeSourceRef && !item.data.nativeCopySource)
+      .map((item) => JSON.stringify([item.pageNumber, item.data.nativeSourceRef])));
+    const validated = state.nativeDeletionTombstones.filter((item) =>
+      isValidNativeDeletionTombstone(item)
+      && item.sourceRevision === state.documentKey
+      && state.pageGraph?.pages[item.pageNumber - 1]?.pageId === item.pageId
+      && !present.has(deletionKey(item)));
+    const malformed = validated.length !== state.nativeDeletionTombstones.length;
+    useAnnotationStore.setState({
+      nativeDeletionTombstones: validated.map((item) => ({ ...item })),
+      ...(malformed ? {
+        nativeIntegrity: {
+          status: 'INCOMPLETE',
+          documentKey: state.documentKey ?? null,
+          reason: 'Native deletion history ownership could not be verified',
+        },
+      } : {}),
+    });
+  }
 
   if (state.writer) {
     const writerElements =

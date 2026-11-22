@@ -72,7 +72,10 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
 
   return (
     <div
-      data-annotation-type="callout"
+      data-annotation-container="callout"
+      data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+      data-native-source-ref={annotation.data.nativeSourceRef}
+      data-native-selected={isSelected ? 'true' : 'false'}
       className="absolute inset-0 w-full h-full pointer-events-none"
     >
       {geometry && (
@@ -164,6 +167,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           userSelect: 'none',
           transform: `rotate(${contentRotation + (annotation.data.rotation ?? 0)}deg)`,
         }}
+        data-annotation-type="callout"
+        data-native-annotation-hit-target={annotation.data.nativeSourceRef ? '' : undefined}
         onPointerDown={(e) => {
           onSelect(e);
           onTransformStart(e, 'move');

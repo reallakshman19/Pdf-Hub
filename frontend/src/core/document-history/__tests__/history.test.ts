@@ -70,6 +70,7 @@ describe('Document History', () => {
     persistenceMocks.saveAnnotations.mockResolvedValue(undefined);
     useHistoryStore.getState().clear();
     useAnnotationStore.getState().setAnnotations([]);
+    useAnnotationStore.setState({ nativeDeletionTombstones: [] });
   });
 
   it('pushes, undoes, and redoes canonical transactions in the store', () => {
@@ -129,7 +130,9 @@ describe('Document History', () => {
     expect(useSessionStore.getState().selectedPageIds).toEqual(['before::stable::1']);
     expect(useSessionStore.getState().selectedPages).toEqual([1]);
     expect(useSessionStore.getState().viewState.currentPageId).toBe('before::stable::1');
-    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('before', []);
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('before', [], {
+      nativeDeletionTombstones: [],
+    });
 
     await expect(applyRedo()).resolves.toBe(true);
     expect(useSessionStore.getState().workingBytes).toEqual(
@@ -142,7 +145,61 @@ describe('Document History', () => {
     });
     expect(useSessionStore.getState().selectedPageIds).toEqual(['after::stable::1']);
     expect(useSessionStore.getState().viewState.currentPageId).toBe('after::stable::1');
-    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('after', []);
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith('after', [], {
+      nativeDeletionTombstones: [],
+    });
+  });
+
+  it('replays the original native deletion command on Redo and revokes it on Undo', async () => {
+    const revision = 'sha256:source';
+    const original = {
+      id: 'original',
+      type: 'textbox' as const,
+      pageNumber: 1,
+      rect: { x: 10, y: 20, width: 100, height: 30 },
+      data: { nativeSourceRef: '10 0 R', text: 'Retain me' },
+      createdAt: 1, updatedAt: 1,
+    };
+    const tombstone = {
+      sourceRevision: revision, sourceRef: '10 0 R',
+      sourceName: 'original', pageNumber: 1,
+      pageId: `${revision}::stable::1`, commandId: 'user-delete-command-123',
+    };
+    const before: HistoryState = {
+      ...historyState(new Uint8Array([1]), revision),
+      annotations: [original], nativeDeletionTombstones: [],
+    };
+    const after: HistoryState = {
+      ...historyState(new Uint8Array([1]), revision),
+      annotations: [], nativeDeletionTombstones: [tombstone],
+    };
+    useSessionStore.getState().openDocument({
+      documentKey: revision,
+      fileName: 'native-delete.pdf',
+      bytes: new Uint8Array([1]), pageCount: 1,
+      pageGraph: after.pageGraph!,
+    });
+    useAnnotationStore.getState().setAnnotations([]);
+    useAnnotationStore.setState({ nativeDeletionTombstones: [tombstone] });
+    useHistoryStore.getState().push({
+      id: 'delete-native-command',
+      command: command(), label: 'Delete native annotation', timestamp: 0,
+      before, after,
+    });
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['original']);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith(revision, [expect.objectContaining({
+      id: 'original',
+    })], { nativeDeletionTombstones: [] });
+
+    await expect(applyRedo()).resolves.toBe(true);
+    expect(useAnnotationStore.getState().annotations).toEqual([]);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([tombstone]);
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith(revision, [], {
+      nativeDeletionTombstones: [tombstone],
+    });
   });
 
   it('does not move the history stack when target persistence fails', async () => {

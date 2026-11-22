@@ -1,4 +1,5 @@
 import type { PdfCommand } from '@/core/commands/types';
+import { issuedNativeMutations } from '@/core/annotations/nativeIntegrity';
 import {
   classifyHistoryReplayability,
 } from '../replayability';
@@ -31,6 +32,7 @@ export interface PrepareHistoryJournalStateTransactionInput {
   transactionId: string;
   currentTransactionId: string | null;
   command: PdfCommand;
+  before: HistoryState;
   after: HistoryState;
   createdAt?: string;
 }
@@ -141,6 +143,9 @@ export async function prepareHistoryJournalStateTransaction(
       `${input.journalId}:entry:${input.transactionId}`,
     transactionId: input.transactionId,
     command: input.command,
+    nativeMutations: issuedNativeMutations(input.command,
+      input.before.annotations, input.after.annotations,
+      input.after.nativeDeletionTombstones ?? []),
     disposition: classification.disposition,
     barriers: classification.barriers.map(
       (barrier) => ({
