@@ -2606,22 +2606,20 @@ async function registerNativeAnnotation(
   // When the ONLY user change is text, do not mistake those recomputed
   // defaults for a simultaneous style/geometry edit. Restore the original
   // portable non-text fields verbatim before comparing/rebuilding its /AP.
-  const sourceStyles = [
-    'fontSize', 'fontWeight', 'fontStyle', 'fontFamily', 'textColor',
-    'textAlign', 'borderWidth', 'borderStyle', 'borderColor',
-    'backgroundColor', 'opacity', 'rotation', 'autoSize', 'lineHeight',
-    'anchor', 'knee', 'leaderStyle', 'arrowHead',
-  ] as const;
+  // Local recovery defaults (lineHeight/autoSize) are not source PDF edits.
+  // Trust only an exact source object with text-only edit provenance; reject
+  // any other changed native field or relocated native text geometry.
+  const textProof = annotation.data.nativeEditProvenance;
   const textOnlyFromSource = Boolean(
     isUserEdited && sourceDict && sourceModel && hasNativeRichText(sourceDict, lib)
     && (annotation.type === 'callout' || annotation.type === 'textbox')
     && annotation.type === sourceModel.type
-    && JSON.stringify(annotation.rect) === JSON.stringify(sourceModel.rect)
-    && sourceStyles.every((key) =>
-      JSON.stringify(annotation.data[key]) === JSON.stringify(sourceModel.data[key]))
-    && annotation.data.nativeEditProvenance?.sourceRef === sourceModel.data.nativeSourceRef
-    && annotation.data.nativeEditProvenance?.fields.includes('text')
-    && typeof annotation.data.nativeEditProvenance.commandId === 'string'
+    && rectMatchesSource
+    && textProof?.sourceRef === sourceModel.data.nativeSourceRef
+    && textProof?.fields.length === 1
+    && textProof.fields[0] === 'text'
+    && sourceModel.data.text !== annotation.data.text
+    && unprovenNativeEditFields(annotation, sourceModel, textProof.sourceRevision).length === 0
   );
   if (textOnlyFromSource && sourceDict) {
     for (const key of ROOT_APPEARANCE_KEYS) {
@@ -2778,7 +2776,15 @@ async function registerNativeAnnotation(
         dict.set(lib.PDFName.of('RD'), doc.context.obj(normalized.rd));
       }
     }
-    await attachNativeFreeTextAppearance(doc, dict, annotation, appearanceRect, stroke, fill, opacity, borderWidth, lib, onlyTextChanged ? sourceDict! : undefined);
+    // Regenerate from the verified PDF's layout defaults, never stale cache
+    // defaults that could corrupt the source's text-only appearance.
+    const paintAnnotation = textOnlyFromSource && sourceModel
+      ? { ...annotation, data: { ...annotation.data,
+          lineHeight: sourceModel.data.lineHeight,
+          autoSize: sourceModel.data.autoSize,
+        } }
+      : annotation;
+    await attachNativeFreeTextAppearance(doc, dict, paintAnnotation, appearanceRect, stroke, fill, opacity, borderWidth, lib, onlyTextChanged ? sourceDict! : undefined);
   }
   if (markupOrMask(annotation.type)) {
     const nativeQuads = annotation.type === 'redaction'

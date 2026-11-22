@@ -75,6 +75,33 @@ describe('native imported rich text source-only editing', () => {
     }
   });
 
+  it('recovers text-only rich FreeText despite stale cache-only layout defaults', async () => {
+    const { bytes, source, edit } = await edited();
+    // A cached app-only layout default is not an authorized PDF style edit.
+    const recovered = {
+      ...edit,
+      data: {
+        ...edit.data,
+        lineHeight: (source.data.lineHeight ?? 1.2) + 0.2,
+        autoSize: source.data.autoSize === false,
+      },
+    };
+    const output = await writeNativePdfAnnotations(bytes, [recovered], {
+      replaceManagedAnnotations: true,
+    });
+    const saved = await PDFDocument.load(output.bytes);
+    const root = saved.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
+    const original = await PDFDocument.load(bytes);
+    const originalRoot = original.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
+    for (const key of ['Rect', 'RD', 'CL', 'DA', 'IT']) {
+      expect(root.get(PDFName.of(key))?.toString())
+        .toBe(originalRoot.get(PDFName.of(key))?.toString());
+    }
+    expect(root.lookupMaybe(PDFName.of('Contents'), PDFString, PDFHexString)?.decodeText())
+      .toBe('Updated native callout');
+    expect(root.lookupMaybe(PDFName.of('AP'), PDFDict)?.get(PDFName.of('N'))).toBeDefined();
+  });
+
   it('rejects simultaneous geometry and rich-text edits without silently stretching source artwork', async () => {
     const { bytes, edit } = await edited();
     const moved = {
