@@ -1,4 +1,6 @@
 import { useAnnotationStore } from '@/core/annotations/store';
+import { confirmedNativeDeletionCommandIds } from '@/core/annotations/nativeIntegrity';
+import { useHistoryStore } from '@/core/document-history/store';
 import { isNativeAnnotationHydrationCurrent } from '@/core/annotations/sessionHydration';
 import { useWriterStore } from '@/core/writer/store';
 import { composeEditablePdf } from '@/core/document/commitPipeline';
@@ -75,6 +77,13 @@ export async function materializeWriterOutputSource(snapshot: WriterOutputSnapsh
       sourceRevision: snapshot.fingerprint,
       sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
       tombstones: snapshot.nativeDeletionTombstones,
+      ...(snapshot.nativeDeletionTombstones.length ? {
+        verifiedCommandIds: confirmedNativeDeletionCommandIds(
+          snapshot.nativeDeletionTombstones,
+          useHistoryStore.getState().undoStack,
+          snapshot.fingerprint,
+        ),
+      } : {}),
     },
   });
   assertWriterOutputSnapshotCurrent(snapshot);
