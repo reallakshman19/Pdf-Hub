@@ -31,7 +31,7 @@ vi.mock('@/core/annotations/persistence', () => ({
   loadAnnotations: vi.fn().mockResolvedValue([]),
   loadAnnotationsOrNull: vi.fn().mockResolvedValue(null),
   loadAnnotationSnapshotOrNull: vi.fn().mockResolvedValue(null),
-  saveAnnotations: vi.fn(),
+  saveAnnotations: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/adapters/file/FileAdapter', () => ({
