@@ -229,6 +229,12 @@ export async function writeNativePdfAnnotations(
     const auth = options.nativeDeletionAuthorization;
     const allowed = new Map<string, NonNullable<typeof auth>['tombstones'][number]>();
     if (auth?.tombstones.length) {
+      // A plausible recovery-sidecar tombstone is not sufficient evidence of
+      // an actual Delete action. Require a separately matched history command.
+      const verifiedCommandIds = new Set(auth.verifiedCommandIds ?? []);
+      if (auth.tombstones.some((item) => !verifiedCommandIds.has(item.commandId))) {
+        throw new Error('Cannot safely delete native annotations without a verified user deletion command.');
+      }
       // Authenticate the exact bytes from which this PageGraph and its source
       // reference identities were derived, even if Writer first baked content.
       const sourceHash = await FileAdapter.hashBytes(options.sourceBytesForAuthorization ?? baseBytes);
