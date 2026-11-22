@@ -136,6 +136,61 @@ describe('native PDF annotation source coverage', () => {
     unmount();
   });
 
+  it('honors a matching explicit deletion tombstone and preserves the command after refresh', async () => {
+    useSessionStore.setState({
+      pageGraph: {
+        pages: [{
+          pageId: 'page-original', documentKey,
+          originalPageNumber: 1, currentIndex: 0,
+          width: 300, height: 400, rotation: 0,
+        }],
+      },
+    });
+    const a = native('a', '10 0 R');
+    const b = native('b', '11 0 R');
+    const tombstone = {
+      sourceRevision: documentKey,
+      sourceRef: '11 0 R', sourceName: 'b',
+      pageNumber: 1, pageId: 'page-original',
+      commandId: 'explicit-user-delete',
+    };
+    mocks.load.mockResolvedValue({
+      annotations: [a],
+      nativeSourceKeys: [key(a), key(b)],
+      nativeDeletionTombstones: [tombstone],
+    });
+    mocks.read.mockResolvedValue({ annotations: [a, b] });
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    const state = useAnnotationStore.getState();
+    expect(state.annotations.map((item) => item.id)).toEqual(['a']);
+    expect(state.nativeDeletionTombstones).toEqual([tombstone]);
+    expect(state.nativeIntegrity.status).toBe('COMPLETE');
+    unmount();
+  });
+
+  it('restores the source and blocks native Save on a stale deletion command', async () => {
+    const a = native('a', '10 0 R');
+    const b = native('b', '11 0 R');
+    mocks.load.mockResolvedValue({
+      annotations: [a],
+      nativeSourceKeys: [key(a), key(b)],
+      nativeDeletionTombstones: [{
+        sourceRevision: 'sha256:wrong-revision',
+        sourceRef: '11 0 R', sourceName: 'b',
+        pageNumber: 1, pageId: 'stale-page',
+        commandId: 'explicit-user-delete',
+      }],
+    });
+    mocks.read.mockResolvedValue({ annotations: [a, b] });
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('INCOMPLETE');
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+    unmount();
+  });
+
   it('imports a new native object when the previous baseline did not include it', async () => {
     const a = native('a', '10 0 R');
     const b = native('b', '11 0 R');
