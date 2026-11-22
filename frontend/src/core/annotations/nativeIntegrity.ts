@@ -36,6 +36,10 @@ export interface NativeDeletionAuthorization {
   /** PageGraph identity at the same source revision; in PDF page order. */
   sourcePageIds: readonly string[];
   tombstones: readonly NativeDeletionTombstone[];
+  /** Issued annotation-history command IDs, verified independently from the
+   * recovery-sidecar tombstones. Required for destructive native deletion.
+   */
+  verifiedCommandIds?: readonly string[];
 }
 
 const fields: readonly NativeEditableField[] = [
@@ -123,4 +127,52 @@ export function isValidNativeDeletionTombstone(value: unknown): value is NativeD
 /** A tombstone is relevant only to the *exact* original PDF object. */
 export function deletionKey(tombstone: NativeDeletionTombstone): string {
   return JSON.stringify([tombstone.pageNumber, tombstone.sourceRef]);
+}
+
+/** Verify a deletion against an actual before→after user command. Neither a
+ * syntactically valid sidecar row nor an unrelated annotation history entry
+ * authorizes deletion. If the history receipt was lost, fail closed.
+ *
+ * This is protection against corrupted recovery state, NOT cryptographic
+ * authentication against an attacker controlling both IndexedDB and history.
+ */
+export function confirmedNativeDeletionCommandIds(
+  tombstones: readonly NativeDeletionTombstone[],
+  transactions: readonly {
+    command: { id: string; type: string; documentKey: string };
+    before: { annotations: PdfAnnotation[] };
+    after: { annotations: PdfAnnotation[]; nativeDeletionTombstones?: NativeDeletionTombstone[] };
+  }[],
+  sourceRevision: string,
+): string[] {
+  const confirmed = new Set<string>();
+  for (const tombstone of tombstones) {
+    if (!isValidNativeDeletionTombstone(tombstone) || tombstone.sourceRevision !== sourceRevision) {
+      throw new Error('Cannot safely delete native annotations with an invalid user command.');
+    }
+    const key = deletionKey(tombstone);
+    const proved = transactions.some((transaction) => {
+      if (transaction.command.id !== tombstone.commandId
+        || transaction.command.documentKey !== sourceRevision
+        || transaction.command.type !== 'ANNOTATION_CHANGE') return false;
+      const wasPresent = transaction.before.annotations.some((item) =>
+        !item.data.nativeCopySource && deletionKey({
+          ...tombstone, pageNumber: item.pageNumber,
+          sourceRef: item.data.nativeSourceRef ?? '',
+        }) === key);
+      const stillPresent = transaction.after.annotations.some((item) =>
+        !item.data.nativeCopySource && item.pageNumber === tombstone.pageNumber
+        && item.data.nativeSourceRef === tombstone.sourceRef);
+      const inAfter = transaction.after.nativeDeletionTombstones?.some((item) =>
+        item.commandId === tombstone.commandId && deletionKey(item) === key
+        && item.sourceRevision === sourceRevision && item.pageId === tombstone.pageId
+        && item.sourceName === tombstone.sourceName);
+      return wasPresent && !stillPresent && Boolean(inAfter);
+    });
+    if (!proved) {
+      throw new Error('Cannot safely delete native annotations: deletion command is not present in verified history.');
+    }
+    confirmed.add(tombstone.commandId);
+  }
+  return [...confirmed];
 }
