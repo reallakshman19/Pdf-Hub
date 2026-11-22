@@ -33,9 +33,15 @@ function normalAppearance(
   // states. A form must be chosen using the annotation's /AS where present.
   if (target instanceof lib.PDFDict) {
     const appearanceState = annotation.lookupMaybe(lib.PDFName.of('AS'), lib.PDFName);
-    const selected = (appearanceState ? target.get(appearanceState) : undefined)
-      ?? target.get(target.keys().find((name) => name.decodeText() !== 'Off') ?? lib.PDFName.of('Off'));
-    if (!selected) return null;
+    // Never guess an appearance for an annotation with multiple normal
+    // states. A plausible but wrong state is silent artwork corruption.
+    const alternatives = target.keys().filter((name) => name.decodeText() !== 'Off');
+    const selected = appearanceState
+      ? target.get(appearanceState)
+      : alternatives.length === 1 ? target.get(alternatives[0]) : undefined;
+    if (!selected) {
+      throw new Error('Cannot flatten ambiguous native normal appearance state without a valid /AS.');
+    }
     raw = selected;
     target = doc.context.lookup(raw);
   }
@@ -75,6 +81,31 @@ function placement(
   ];
 }
 
+/** /NoRotate (flag 0x10) keeps an annotation upright when its page has
+ * /Rotate. Per ISO 32000 the appearance pivots about the upper-left of /Rect.
+ * The page viewer rotates clockwise; page content therefore needs an equal
+ * counterclockwise compensation in unrotated page-user coordinates.
+ */
+export function noRotateCompensation(
+  rect: readonly number[],
+  pageDegrees: number,
+): [number, number, number, number, number, number] | null {
+  const degrees = ((pageDegrees % 360) + 360) % 360;
+  if (degrees === 0) return null;
+  if (rect.length !== 4 || !rect.every(Number.isFinite)
+    || ![90, 180, 270].includes(degrees)) {
+    throw new Error('Cannot flatten NoRotate annotation with unsupported page geometry or rotation.');
+  }
+  const left = Math.min(rect[0], rect[2]);
+  const top = Math.max(rect[1], rect[3]);
+  switch (degrees) {
+    case 90: return [0, 1, -1, 0, left + top, top - left];
+    case 180: return [-1, 0, 0, -1, 2 * left, 2 * top];
+    case 270: return [0, -1, 1, 0, left - top, top + left];
+  }
+  return null;
+}
+
 function isVisible(annotation: PDFDict, lib: PdfLib): boolean {
   const flags = annotation.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0;
   // Invisible, Hidden and NoView suppress appearance in display intent.
@@ -85,7 +116,7 @@ function isVisible(annotation: PDFDict, lib: PdfLib): boolean {
  * Vector-preserving native flattened export.
  *
  * Every native normal /AP is drawn as a Form XObject into its parent page's
- * content stream. Afterwards, /Annots is removed from the exported PDF. This
+ * content stream. Afterwards, review /Annots are removed (hyperlink /Link\n * navigation remains). This
  * retains CAD page vectors and original stamp, FreeText and line artwork, and
  * does not depend on html/svg re-drawing of rich text.
  *
@@ -99,11 +130,20 @@ export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Ui
   for (const [index, page] of pdf.getPages().entries()) {
     const annots = page.node.lookupMaybe(lib.PDFName.of('Annots'), lib.PDFArray);
     if (!annots) continue;
+    // Preserve hyperlinks as portable /Link objects. They are navigation,
+    // not review markup: flattening appearance-bearing annotations must not
+    // silently destroy engineering cross-references.
+    const links: Array<import('pdf-lib').PDFObject> = [];
     for (let i = 0; i < annots.size(); i++) {
       const annotation = annots.lookupMaybe(i, lib.PDFDict);
       if (!annotation) continue;
       const subtype = annotation.lookupMaybe(lib.PDFName.of('Subtype'), lib.PDFName)?.decodeText();
-      if (!isVisible(annotation, lib) || subtype === 'Popup' || subtype === 'Link') continue;
+      if (subtype === 'Link') {
+        const link = annots.get(i);
+        if (link) links.push(link);
+        continue;
+      }
+      if (!isVisible(annotation, lib) || subtype === 'Popup') continue;
       const appearance = normalAppearance(pdf, annotation, lib);
       if (!appearance) {
         // A Text note with no /AP is a viewer-drawn sticky-note icon, not
@@ -148,12 +188,19 @@ export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Ui
       page.pushOperators(
         lib.pushGraphicsState(),
         ...(alphaName ? [lib.setGraphicsState(alphaName)] : []),
+        ...((annotation.lookupMaybe(lib.PDFName.of('F'), lib.PDFNumber)?.asNumber() ?? 0) & 16
+          ? (() => {
+              const compensation = noRotateCompensation(rect!, page.getRotation().angle);
+              return compensation ? [lib.concatTransformationMatrix(...compensation)] : [];
+            })()
+          : []),
         lib.concatTransformationMatrix(...transform),
         lib.drawObject(xObjectName),
         lib.popGraphicsState(),
       );
     }
-    page.node.delete(lib.PDFName.of('Annots'));
+    if (links.length) page.node.set(lib.PDFName.of('Annots'), pdf.context.obj(links));
+    else page.node.delete(lib.PDFName.of('Annots'));
   }
   return new Uint8Array(await pdf.save());
 }
