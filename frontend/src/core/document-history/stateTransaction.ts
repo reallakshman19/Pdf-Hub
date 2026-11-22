@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import type { PdfAnnotation } from '../annotations/types';
+import type { NativeDeletionTombstone } from '../annotations/nativeIntegrity';
 import type { PdfCommand } from '../commands/types';
 import {
   cloneOcrPageAnchoredState,
@@ -18,6 +19,7 @@ import type {
 
 export interface StateHistorySnapshot {
   annotations: PdfAnnotation[];
+  nativeDeletionTombstones?: NativeDeletionTombstone[];
   writer: WriterHistoryState;
 }
 
@@ -137,6 +139,9 @@ export function buildStateHistoryTransaction(
       annotations: cloneAnnotations(
         input.before.annotations,
       ),
+      ...(input.before.nativeDeletionTombstones ? {
+        nativeDeletionTombstones: input.before.nativeDeletionTombstones.map((item) => ({ ...item })),
+      } : {}),
       writer: writerHistoryState(
         input.before.writer,
       ),
@@ -147,6 +152,9 @@ export function buildStateHistoryTransaction(
       annotations: cloneAnnotations(
         input.after.annotations,
       ),
+      ...(input.after.nativeDeletionTombstones ? {
+        nativeDeletionTombstones: input.after.nativeDeletionTombstones.map((item) => ({ ...item })),
+      } : {}),
       writer: writerHistoryState(
         input.after.writer,
       ),
