@@ -917,12 +917,17 @@ export const useAnnotationStore =
         if (mode === 'center-horizontal') rect.x = centerX - rect.width / 2;
         if (mode === 'center-vertical') rect.y = centerY - rect.height / 2;
 
-        return {
-          ...annotation,
-          rect,
-          data: remapAnnotationGeometry(annotation, rect),
-          updatedAt: Date.now(),
-        };
+        return withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation,
+            rect,
+            data: remapAnnotationGeometry(annotation, rect),
+            updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        );
       });
 
       return annotationSnapshot(state, nextAnnotations);
@@ -979,12 +984,17 @@ export const useAnnotationStore =
           cursor += rect.height + gap;
         }
 
-        nextById.set(annotation.id, {
-          ...annotation,
-          rect,
-          data: remapAnnotationGeometry(annotation, rect),
-          updatedAt: Date.now(),
-        });
+        nextById.set(annotation.id, withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation,
+            rect,
+            data: remapAnnotationGeometry(annotation, rect),
+            updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        ));
       }
 
       const nextAnnotations = state.annotations.map(
