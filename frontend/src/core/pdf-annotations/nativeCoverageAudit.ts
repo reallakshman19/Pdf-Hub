@@ -58,7 +58,9 @@ export function summarizeNativeAnnotationCoverage(
     .map(nativeAnnotationIdentity));
   const sourceKeys = roots.length
     ? eligible.filter((root) => root.parsedId)
-      .map((root) => evidenceKey(root.pageNumber, root.sourceRef))
+      .map((root) => evidenceKey(root.pageNumber,
+        root.sourceRef.startsWith('direct:')
+          ? root.parsedId! : root.sourceRef))
     : [...parsedSourceKeys];
 
   const modelKeys = new Map<string, number>();
