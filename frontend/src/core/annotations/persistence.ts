@@ -1,13 +1,17 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import type { PdfAnnotation } from './types';
+import {
+  isValidNativeDeletionTombstone,
+  type NativeDeletionTombstone,
+} from './nativeIntegrity';
 import { normalizeAnnotationReviews } from '@/core/review/annotationReview';
 import { error, debug } from '@/core/logger/service';
 
 const DB_NAME = 'DocCraftAnnotations';
 const STORE_NAME = 'annotations';
 const DB_VERSION = 1;
-const ANNOTATION_SCHEMA_VERSION = 3;
+const ANNOTATION_SCHEMA_VERSION = 4;
 // Opening IndexedDB is asynchronous, so transactions requested in order can
 // otherwise start in the opposite order and replace newer recovery data.
 const pendingWrites = new Map<string, Promise<void>>();
@@ -19,17 +23,21 @@ interface AnnotationRecord {
   schemaVersion?: number;
   /** Native annotation identities observed in the PDF during the last hydration. */
   nativeSourceKeys?: string[];
+  /** Only explicit deletion commands may authorize native object removal. */
+  nativeDeletionTombstones?: NativeDeletionTombstone[];
 }
 
 export interface AnnotationSnapshot {
   annotations: PdfAnnotation[];
-  /** Null for legacy snapshots without a deletion baseline. */
+  /** Legacy source baseline is diagnostic only, never deletion authorization. */
   nativeSourceKeys: string[] | null;
+  nativeDeletionTombstones?: NativeDeletionTombstone[];
 }
 
 export interface SaveAnnotationOptions {
   /** The complete set of native annotation identities present in the opened PDF. */
   nativeSourceKeys?: string[];
+  nativeDeletionTombstones?: NativeDeletionTombstone[];
 }
 
 interface AnnotationDbSchema extends DBSchema {
@@ -92,6 +100,11 @@ const writeAnnotations = async (
     // deletion baseline established during source hydration.
     const previous = await tx.store.get(documentKey);
     const nativeSourceKeys = options.nativeSourceKeys ?? previous?.nativeSourceKeys;
+    const tombstones = options.nativeDeletionTombstones
+      ?? previous?.nativeDeletionTombstones ?? [];
+    if (!Array.isArray(tombstones) || !tombstones.every(isValidNativeDeletionTombstone)) {
+      throw new Error('Cannot safely persist invalid native deletion commands.');
+    }
 
     await tx.store.put({
       id: documentKey,
@@ -99,6 +112,7 @@ const writeAnnotations = async (
       updatedAt: Date.now(),
       schemaVersion: ANNOTATION_SCHEMA_VERSION,
       ...(nativeSourceKeys ? { nativeSourceKeys } : {}),
+      nativeDeletionTombstones: tombstones,
     });
 
     await tx.done;
@@ -130,9 +144,17 @@ export const loadAnnotationSnapshotOrNull = async (
     const db = await getDb();
     const result = await db.get(STORE_NAME, documentKey);
 
-    const annotations = Array.isArray(result?.annotations)
-      ? result.annotations
-      : [];
+    // A malformed recovery record is not an empty cache. An empty cache
+    // otherwise risks being interpreted as permission to delete PDF objects.
+    if (result && !Array.isArray(result.annotations)) {
+      throw new Error('Corrupted annotation snapshot: annotations is not an array.');
+    }
+    const tombstones = result?.nativeDeletionTombstones;
+    if (tombstones !== undefined && (!Array.isArray(tombstones)
+      || !tombstones.every(isValidNativeDeletionTombstone))) {
+      throw new Error('Corrupted annotation snapshot: invalid native deletion commands.');
+    }
+    const annotations = result?.annotations ?? [];
     const schemaVersion = typeof result?.schemaVersion === 'number' ? result.schemaVersion : 1;
 
     debug('annotation', 'Annotation store loaded from IndexedDB', {
@@ -147,6 +169,7 @@ export const loadAnnotationSnapshotOrNull = async (
         && result.nativeSourceKeys.every((key) => typeof key === 'string')
         ? result.nativeSourceKeys
         : null,
+      nativeDeletionTombstones: tombstones ?? [],
     } : null;
   } catch (err) {
     error('annotation', 'Failed to load annotations from IndexedDB', {
