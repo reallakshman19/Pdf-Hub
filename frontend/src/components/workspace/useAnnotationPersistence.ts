@@ -118,6 +118,9 @@ export function useAnnotationPersistence({
         const data = { ...item.data };
         delete data.nativeSourceRef;
         delete data.nativeAppearanceRef;
+        delete data.nativeAppearanceRect;
+        delete data.nativeAppearanceBodyRect;
+        delete data.nativeAppearanceImported;
         delete data.nativeAppearanceRotation;
         delete data.nativeAppearancePageRotation;
         delete data.nativeStampRotationReadOnly;
@@ -196,6 +199,15 @@ export function useAnnotationPersistence({
           }
           if (!origin && source.data.nativeSourceRef) data.nativeSourceRef = source.data.nativeSourceRef;
           if (source.data.nativeAppearanceRef) data.nativeAppearanceRef = source.data.nativeAppearanceRef;
+          if (source.data.nativeAppearanceRect) data.nativeAppearanceRect = source.data.nativeAppearanceRect;
+          if (source.data.nativeAppearanceBodyRect) data.nativeAppearanceBodyRect = source.data.nativeAppearanceBodyRect;
+          if (source.data.nativeAppearanceImported) data.nativeAppearanceImported = true;
+          // A legacy sidecar can contain edits but no explicit AP dirty marker.
+          // Do not show the stale source artwork over an edited text/shape.
+          if (!origin && source.data.nativeAppearanceImported && (
+            item.data.text !== source.data.text
+            || JSON.stringify(item.rect) !== JSON.stringify(source.rect)
+          )) data.nativeAppearanceDirty = true;
           if (source.data.nativeAppearanceRotation !== undefined) data.nativeAppearanceRotation = source.data.nativeAppearanceRotation;
           if (source.data.nativeAppearancePageRotation !== undefined) data.nativeAppearancePageRotation = source.data.nativeAppearancePageRotation;
         }
