@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PdfAnnotation } from '@/core/annotations/types';
 
+const renderMocks = vi.hoisted(() => ({
+  fallback: vi.fn(),
+}));
 vi.mock('pdfjs-dist', () => ({ AnnotationMode: { ENABLE: 1 } }));
+vi.mock('./nativeAppearanceFallback', () => ({
+  renderIsolatedNativeAppearances: renderMocks.fallback,
+}));
 import { useNativeAnnotationAppearances } from './useNativeStampAppearances';
 
 const native = (id: string, ref: string, type: PdfAnnotation['type'] = 'callout'): PdfAnnotation => ({
@@ -35,6 +41,8 @@ function documentWithImage(imageUrl: string): PDFDocumentProxy {
 
 describe('PDF.js /AP extraction', () => {
   beforeEach(() => {
+    renderMocks.fallback.mockReset();
+    renderMocks.fallback.mockResolvedValue(new Map());
     HTMLCanvasElement.prototype.getContext = vi.fn(() => ({})) as unknown as
       typeof HTMLCanvasElement.prototype.getContext;
   });
@@ -46,6 +54,20 @@ describe('PDF.js /AP extraction', () => {
     );
     await waitFor(() => expect(result.current['10R']).toBe('data:image/png;base64,AAAA'));
     expect(pdf.getPage).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('uses isolated /AP rendering when PDF.js cannot supply a FreeText canvas', async () => {
+    const pdf = documentWithImage('data:image/png;base64,QUJD');
+    // The fast path emits an unrelated stamp, not the imported FreeText.
+    renderMocks.fallback.mockResolvedValue(new Map([
+      ['11R', 'data:image/png;base64,RkFMTEJBQ0s='],
+    ]));
+    const { result, unmount } = renderHook(() =>
+      useNativeAnnotationAppearances(pdf, [native('rich-callout', '11R')]),
+    );
+    await waitFor(() => expect(result.current['11R']).toBe('data:image/png;base64,RkFMTEJBQ0s='));
+    expect(renderMocks.fallback).toHaveBeenCalledWith(pdf, 1, ['11R']);
     unmount();
   });
 
