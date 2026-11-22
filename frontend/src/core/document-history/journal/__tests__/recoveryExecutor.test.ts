@@ -1038,7 +1038,7 @@ describe('executeHistoryRecovery', () => {
     await writerPersistence.saveAsset({
       id: 'asset-1',
       documentFingerprint:
-        'sha256:older-revision',
+        ORIGINAL_REVISION_ID,
       kind: 'image',
       mimeType: 'image/png',
       dataUrl:
@@ -1111,6 +1111,23 @@ describe('executeHistoryRecovery', () => {
       hidden: false,
     }];
 
+    // An identical asset ID from an unrelated revision must not be hydrated.
+    const writerPersistence =
+      createMemoryWriterPersistence();
+    await writerPersistence.saveAsset({
+      id: 'asset-1',
+      documentFingerprint:
+        'sha256:unrelated-revision',
+      kind: 'image',
+      mimeType: 'image/png',
+      dataUrl:
+        'data:image/png;base64,AA==',
+      createdAt:
+        '2026-09-20T08:00:00.000Z',
+      updatedAt:
+        '2026-09-20T08:00:00.000Z',
+    });
+
     const resolved =
       await setup(recoveryPlan);
     const preSession =
@@ -1122,8 +1139,7 @@ describe('executeHistoryRecovery', () => {
         journalStoreId:
           JOURNAL_STORE_ID,
         dependencies: {
-          writerPersistence:
-            createMemoryWriterPersistence(),
+          writerPersistence,
         },
       }),
     ).rejects.toMatchObject({
