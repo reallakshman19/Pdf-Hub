@@ -17,6 +17,19 @@ interface AnnotationRecord {
   annotations: PdfAnnotation[];
   updatedAt: number;
   schemaVersion?: number;
+  /** Native annotation identities observed in the PDF during the last hydration. */
+  nativeSourceKeys?: string[];
+}
+
+export interface AnnotationSnapshot {
+  annotations: PdfAnnotation[];
+  /** Null for legacy snapshots without a deletion baseline. */
+  nativeSourceKeys: string[] | null;
+}
+
+export interface SaveAnnotationOptions {
+  /** The complete set of native annotation identities present in the opened PDF. */
+  nativeSourceKeys?: string[];
 }
 
 interface AnnotationDbSchema extends DBSchema {
@@ -55,9 +68,10 @@ export const getDb = async (): Promise<IDBPDatabase<AnnotationDbSchema>> => {
 export const saveAnnotations = (
   documentKey: string,
   annotations: PdfAnnotation[],
+  options: SaveAnnotationOptions = {},
 ): Promise<void> => {
   const previous = pendingWrites.get(documentKey) ?? Promise.resolve();
-  const write = previous.catch(() => undefined).then(() => writeAnnotations(documentKey, annotations));
+  const write = previous.catch(() => undefined).then(() => writeAnnotations(documentKey, annotations, options));
   pendingWrites.set(documentKey, write);
   void write.then(
     () => { if (pendingWrites.get(documentKey) === write) pendingWrites.delete(documentKey); },
@@ -66,16 +80,25 @@ export const saveAnnotations = (
   return write;
 };
 
-const writeAnnotations = async (documentKey: string, annotations: PdfAnnotation[]): Promise<void> => {
+const writeAnnotations = async (
+  documentKey: string,
+  annotations: PdfAnnotation[],
+  options: SaveAnnotationOptions,
+): Promise<void> => {
   try {
     const db = await getDb();
     const tx = db.transaction(STORE_NAME, 'readwrite');
+    // Other save paths (history, toolbar, autosave) must not erase the native
+    // deletion baseline established during source hydration.
+    const previous = await tx.store.get(documentKey);
+    const nativeSourceKeys = options.nativeSourceKeys ?? previous?.nativeSourceKeys;
 
     await tx.store.put({
       id: documentKey,
       annotations,
       updatedAt: Date.now(),
       schemaVersion: ANNOTATION_SCHEMA_VERSION,
+      ...(nativeSourceKeys ? { nativeSourceKeys } : {}),
     });
 
     await tx.done;
@@ -99,9 +122,9 @@ const writeAnnotations = async (documentKey: string, annotations: PdfAnnotation[
   }
 };
 
-export const loadAnnotationsOrNull = async (
+export const loadAnnotationSnapshotOrNull = async (
   documentKey: string,
-): Promise<PdfAnnotation[] | null> => {
+): Promise<AnnotationSnapshot | null> => {
   try {
     await pendingWrites.get(documentKey);
     const db = await getDb();
@@ -118,7 +141,13 @@ export const loadAnnotationsOrNull = async (
       schemaVersion,
     });
 
-    return result ? normalizeAnnotationReviews(annotations) : null;
+    return result ? {
+      annotations: normalizeAnnotationReviews(annotations),
+      nativeSourceKeys: Array.isArray(result.nativeSourceKeys)
+        && result.nativeSourceKeys.every((key) => typeof key === 'string')
+        ? result.nativeSourceKeys
+        : null,
+    } : null;
   } catch (err) {
     error('annotation', 'Failed to load annotations from IndexedDB', {
       error: String(err),
@@ -132,6 +161,9 @@ export const loadAnnotationsOrNull = async (
     );
   }
 };
+
+export const loadAnnotationsOrNull = async (documentKey: string): Promise<PdfAnnotation[] | null> =>
+  (await loadAnnotationSnapshotOrNull(documentKey))?.annotations ?? null;
 
 export const loadAnnotations = async (documentKey: string): Promise<PdfAnnotation[]> =>
   (await loadAnnotationsOrNull(documentKey)) ?? [];
