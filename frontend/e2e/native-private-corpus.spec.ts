@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { PDFArray, PDFDict, PDFDocument, PDFName } from 'pdf-lib';
@@ -10,6 +11,9 @@ interface CorpusEntry {
   pages: number[];
   /** Optional number of source-AP images expected on each page. */
   apImages?: number[];
+  /** SHA-256 of the exact customer source bytes: wrong inputs fail first. */
+  sha256?: string;
+  subtypes?: Record<string, number>[];
 }
 
 function privateManifest(): CorpusEntry[] {
@@ -29,7 +33,16 @@ function privateManifest(): CorpusEntry[] {
       || !row.apImages.every((n) => Number.isInteger(n) && n >= 0))) {
       throw new Error('apImages must supply nonnegative counts for every page');
     }
-    return { path: row.path, pages: row.pages, apImages: row.apImages } as CorpusEntry;
+    if (row.sha256 !== undefined && (
+      typeof row.sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(row.sha256)
+    )) throw new Error('sha256 must be a 64-character hex digest');
+    if (row.subtypes !== undefined && (
+      !Array.isArray(row.subtypes) || row.subtypes.length !== row.pages.length
+    )) throw new Error('subtypes must have one entry per page');
+    return {
+      path: row.path, pages: row.pages, apImages: row.apImages,
+      sha256: row.sha256, subtypes: row.subtypes,
+    } as CorpusEntry;
   });
 }
 
@@ -86,7 +99,28 @@ function assertNativeRoots(pdf: PDFDocument, expected: number[]) {
 for (const entry of corpus) {
   test(`private native source: ${basename(entry.path)}`, async ({ page }) => {
     test.setTimeout(360_000);
-    await open(page, entry.path);
+    const inputBytes = readFileSync(entry.path);
+    if (entry.sha256) {
+      expect(createHash('sha256').update(inputBytes).digest('hex'),
+        'Wrong or modified input source PDF').toBe(entry.sha256);
+    }
+    const sourcePdf = await PDFDocument.load(inputBytes);
+    assertNativeRoots(sourcePdf, entry.pages);
+    if (entry.subtypes) {
+      for (const [index, expected] of entry.subtypes.entries()) {
+        const roots = sourcePdf.getPage(index).node.lookupMaybe(PDFName.of('Annots'), PDFArray);
+        const actual: Record<string, number> = {};
+        if (roots) for (let i = 0; i < roots.size(); i++) {
+          const dict = roots.lookup(i, PDFDict);
+          const subtype = dict.lookupMaybe(PDFName.of('Subtype'), PDFName)?.decodeText();
+          if (!subtype || subtype === 'Popup' || dict.get(PDFName.of('IRT'))) continue;
+          actual[subtype] = (actual[subtype] ?? 0) + 1;
+        }
+        expect(actual, `Page ${index + 1} source subtype distribution`).toEqual(expected);
+      }
+    }
+
+    await open(page, entry.path, inputBytes);
     await page.getByRole('button', { name: 'Pages', exact: true }).click();
 
     for (const [index, count] of entry.pages.entries()) {
