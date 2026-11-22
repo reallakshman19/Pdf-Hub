@@ -89,16 +89,33 @@ export class FileAdapter {
       }
 
       if (window.isSecureContext && window.showSaveFilePicker) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [
-            {
-              description: 'PDF Document',
-              accept: { 'application/pdf': ['.pdf'] },
-            },
-          ],
-          excludeAcceptAllOption: false,
-        });
+        let handle: FileSystemFileHandle;
+        try {
+          handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [
+              {
+                description: 'PDF Document',
+                accept: { 'application/pdf': ['.pdf'] },
+              },
+            ],
+            excludeAcceptAllOption: false,
+          });
+        } catch (err) {
+          // Export composition can outlive the browser's transient user
+          // activation. A late save picker then rejects with SecurityError.
+          // Download the completed PDF rather than discard it.
+          if (err instanceof DOMException && err.name === 'SecurityError') {
+            warn('session', 'Save picker was blocked; falling back to PDF download', {
+              fileName: suggestedName,
+              error: String(err),
+            });
+            this.downloadBytes(bytes, suggestedName);
+            return null;
+          }
+          // Aborted/cancelled pickers and unrelated failures are not success.
+          throw err;
+        }
 
         await this.writeHandle(handle, bytes);
         log('session', 'PDF saved via File System Access API', { fileName: suggestedName, size: bytes.byteLength });
