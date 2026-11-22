@@ -1,4 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { deletionKey, type NativeDeletionTombstone } from '@/core/annotations/nativeIntegrity';
 
 /** Evidence comes from the actual PDF /Annots tree, before parser filtering. */
 export interface NativeSourceRootEvidence {
@@ -50,7 +51,7 @@ export function summarizeNativeAnnotationCoverage(
   roots: readonly NativeSourceRootEvidence[],
   parsed: readonly PdfAnnotation[],
   model: readonly PdfAnnotation[],
-  previousSourceKeys: readonly string[] | null,
+  authorizedDeletions: readonly NativeDeletionTombstone[] | null,
 ): NativeAnnotationCoverageReport {
   const eligible = roots.filter((item) => item.visible && item.supported);
   const parsedSourceKeys = new Set(parsed
@@ -70,7 +71,7 @@ export function summarizeNativeAnnotationCoverage(
     modelKeys.set(key, (modelKeys.get(key) ?? 0) + 1);
   }
 
-  const tombstones = new Set(previousSourceKeys ?? []);
+  const tombstones = new Set((authorizedDeletions ?? []).map(deletionKey));
   const missingFromModel = sourceKeys.filter((key) =>
     !modelKeys.has(key) && !tombstones.has(key));
   const intentionalDeletions = sourceKeys.filter((key) =>
