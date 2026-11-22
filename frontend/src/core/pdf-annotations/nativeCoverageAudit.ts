@@ -14,7 +14,11 @@ export interface NativeSourceRootEvidence {
   parsedId?: string;
 }
 
+export type NativeObjectOwnership = 'RETAINED' | 'EDITED' | 'EXPLICITLY_DELETED' | 'UNRESOLVED';
+
 export interface NativeAnnotationCoverageReport {
+  /** Every eligible source object is classified independently of UI counts. */
+  ownership: Array<{ sourceKey: string; status: NativeObjectOwnership }>;
   sourceCount: number;
   parsedCount: number;
   modelCount: number;
@@ -65,10 +69,12 @@ export function summarizeNativeAnnotationCoverage(
     : [...parsedSourceKeys];
 
   const modelKeys = new Map<string, number>();
+  const modelByKey = new Map<string, PdfAnnotation>();
   for (const item of model) {
     if (item.data.nativeCopySource) continue;
     const key = nativeAnnotationIdentity(item);
     modelKeys.set(key, (modelKeys.get(key) ?? 0) + 1);
+    modelByKey.set(key, item);
   }
 
   const tombstones = new Set((authorizedDeletions ?? []).map(deletionKey));
@@ -77,7 +83,28 @@ export function summarizeNativeAnnotationCoverage(
   const intentionalDeletions = sourceKeys.filter((key) =>
     !modelKeys.has(key) && tombstones.has(key)).length;
 
+  const everySourceKey = roots.length
+    ? eligible.map((root) => evidenceKey(root.pageNumber,
+        root.sourceRef.startsWith('direct:') && root.parsedId
+          ? root.parsedId : root.sourceRef))
+    : [...parsedSourceKeys];
+  const parsedKeys = new Set(sourceKeys);
+  const ownership: NativeAnnotationCoverageReport['ownership'] = everySourceKey.map((key) => {
+    const matchingCount = modelKeys.get(key) ?? 0;
+    let status: NativeObjectOwnership = 'UNRESOLVED';
+    if (parsedKeys.has(key) && matchingCount === 0 && tombstones.has(key)) {
+      status = 'EXPLICITLY_DELETED';
+    } else if (parsedKeys.has(key) && matchingCount === 1) {
+      const annotation = modelByKey.get(key)!;
+      const proof = annotation.data.nativeEditProvenance;
+      status = proof && proof.sourceRef === annotation.data.nativeSourceRef
+        && proof.fields.length > 0 ? 'EDITED' : 'RETAINED';
+    }
+    return { sourceKey: key, status };
+  });
+
   return {
+    ownership,
     sourceCount: roots.length ? eligible.length : parsedSourceKeys.size,
     parsedCount: parsed.length,
     modelCount: model.length,
