@@ -77,7 +77,17 @@ describe('native imported rich text source-only editing', () => {
 
   it('rejects simultaneous geometry and rich-text edits without silently stretching source artwork', async () => {
     const { bytes, edit } = await edited();
-    const moved = { ...edit, rect: { ...edit.rect, x: edit.rect.x + 12 } };
+    const moved = {
+      ...edit,
+      rect: { ...edit.rect, x: edit.rect.x + 12 },
+      data: {
+        ...edit.data,
+        nativeEditProvenance: {
+          ...edit.data.nativeEditProvenance,
+          fields: ['text' as const, 'rect' as const],
+        },
+      },
+    };
     await expect(writeNativePdfAnnotations(bytes, [moved], {
       replaceManagedAnnotations: true,
     })).rejects.toThrow(/geometry or style changed together with the rich text/);
